@@ -1,0 +1,2 @@
+# scorekinole
+Crokinole scoring
