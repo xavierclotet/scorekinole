@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Crokinole Scorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Lexend:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-header: #151b2d;
+            --team1-color: #1a3d5c;
+            --team2-color: #5c2d1a;
+            --accent-green: #00ff88;
+            --accent-red: #ff3366;
+            --text-primary: #ffffff;
+            --text-dim: #8899aa;
+            --divider: #2a3a4a;
+        }
+
+        body {
+            font-family: 'Lexend', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            touch-action: pan-y;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(26, 61, 92, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(92, 45, 26, 0.3) 0%, transparent 50%);
+            z-index: -1;
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .header > * {
+            pointer-events: auto;
+        }
+
+        /* Timer positioning based on orientation */
+        @media (orientation: portrait) {
+            .timer-container {
+                position: fixed !important;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 50;
+                pointer-events: auto;
+            }
+
+            .timer-container.hidden {
+                display: none;
+            }
+
+            .timer-display {
+                font-size: 3rem;
+                padding: 1rem 2rem;
+                padding-right: 3.5rem;
+                min-width: 280px;
+                background: rgba(21, 27, 45, 0.85);
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            }
+
+            .timer-reset-btn {
+                right: 1rem;
+                font-size: 1.5rem;
+            }
+        }
+
+        @media (orientation: landscape) {
+            .timer-container {
+                position: fixed !important;
+                top:  calc(50% + 3.5rem);
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 50;
+                pointer-events: auto;
+                margin: 0;
+            }
+
+            .timer-display {
+                line-height: 1;
+            }
+        }
+
+        .icon-button {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: transform 0.2s, color 0.2s;
+            user-select: none;
+        }
+
+        .icon-button.dark {
+            color: rgba(0, 0, 0, 0.7);
+        }
+
+        .icon-button:hover {
+            color: rgba(255, 255, 255, 1);
+            transform: scale(1.15);
+        }
+
+        .icon-button.dark:hover {
+            color: rgba(0, 0, 0, 1);
+        }
+
+        .icon-button:active {
+            transform: scale(0.9);
+        }
+
+        .quick-menu-container {
+            position: relative;
+        }
+
+        .quick-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 0.5rem;
+            background: rgba(21, 27, 45, 0.95);
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+            padding: 0.5rem;
+            min-width: 220px;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .quick-menu.active {
+            display: block;
+            animation: slideDown 0.2s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .quick-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-family: 'Lexend', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            width: 100%;
+            text-align: left;
+        }
+
+        .quick-menu-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--accent-green);
+        }
+
+        .quick-menu-item:active {
+            transform: scale(0.97);
+        }
+
+        .quick-menu-icon {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .timer-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .timer-container.hidden {
+            display: none;
+        }
+
+        .timer-display {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(21, 27, 45, 0.6);
+            backdrop-filter: blur(10px);
+            padding: 0.5rem 1.5rem;
+            padding-right: 2.5rem;
+            border-radius: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            border: 2px solid transparent;
+            min-width: 200px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timer-display.dark {
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        .timer-reset-btn {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0;
+            transition: all 0.2s;
+            user-select: none;
+            line-height: 1;
+        }
+
+        .timer-reset-btn.dark {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .timer-reset-btn:hover {
+            color: var(--accent-green);
+            transform: translateY(-50%) scale(1.2);
+        }
+
+        .timer-reset-btn.dark:hover {
+            color: var(--accent-green);
+        }
+
+        .timer-reset-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        .timer-display:hover {
+            background: rgba(21, 27, 45, 0.8);
+            border-color: var(--accent-green);
+        }
+
+        .timer-display.dark:hover {
+            background: rgba(0, 0, 0, 0.8);
+            border-color: var(--accent-green);
+        }
+
+        .timer-display.running {
+            color: var(--accent-green);
+            animation: timerPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes timerPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Matches Counter */
+        .match-counter-team1,
+        .match-counter-team2 {
+            position: fixed;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.75rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            z-index: 60;
+            pointer-events: auto;
+            display: none;
+            user-select: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            min-width: 5rem;
+            text-align: center;
+        }
+
+        .match-counter-team1.visible,
+        .match-counter-team2.visible {
+            display: block;
+        }
+
+        .match-counter-team1:hover,
+        .match-counter-team2:hover {
+            transform: scale(1.1);
+        }
+
+        .match-counter-team1:active,
+        .match-counter-team2:active {
+            transform: scale(0.95);
+        }
+
+        @media (orientation: portrait) {
+            .match-counter-team1 {
+                right: 0.5rem;
+                top: calc(50% - 4rem);
+            }
+
+            .match-counter-team2 {
+                right: 0.5rem;
+                top: calc(50% + 0.5rem);
+            }
+        }
+
+        @media (orientation: landscape) {
+            .match-counter-team1 {
+                top: 1.5rem;
+                left: calc(50% - 5.7rem);
+            }
+
+            .match-counter-team2 {
+                top: 1.5rem;
+                left: calc(50% + 0.7rem);
+            }
+        }
+
+        .timer-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-primary);
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+        }
+
+        .timer-clear-btn {
+            background: var(--bg-header);
+            border: 1px solid var(--divider);
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            cursor: pointer;
+            padding: 0.8rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .timer-clear-btn:hover {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        .timer-clear-btn:active {
+            transform: scale(0.95);
+        }
+
+        .timer-wheel {
+            flex: 1;
+            padding: 0.8rem;
+            background: var(--bg-header);
+            border: 1px solid var(--divider);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .timer-wheel:focus {
+            outline: none;
+            border-color: var(--accent-green);
+        }
+
+        .timer-label {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        /* Main Scoring Area */
+        .scoring-area {
+            flex: 1;
+            display: flex;
+            position: relative;
+        }
+
+        @media (orientation: portrait) {
+            .scoring-area {
+                flex-direction: column;
+            }
+        }
+
+        @media (orientation: landscape) {
+            .scoring-area {
+                flex-direction: row;
+            }
+        }
+
+        .player-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.3s;
+        }
+
+        .player-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: inherit;
+            opacity: 0.1;
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+            z-index: 0;
+        }
+
+        .player-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            width: 100%;
+        }
+
+        .player-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            margin-bottom: 3rem;
+            text-transform: uppercase;
+            opacity: 0.9;
+        }
+
+        .score-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .score-display {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13.5rem;
+            font-weight: 900;
+            line-height: 1;
+            text-shadow: 0 0 30px currentColor;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding: 2rem 3rem;
+            border-radius: 2rem;
+            transition: transform 0.15s ease-out;
+            display: inline-block;
+            touch-action: none;
+        }
+
+        .score-display:active {
+            transform: scale(1.05);
+        }
+
+        .score-display.pulse {
+            animation: scorePulse 0.3s ease-out;
+        }
+
+        @keyframes scorePulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
+        .timer-display.pulse {
+            animation: timeoutPulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes timeoutPulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+
+        .swipe-indicator {
+            position: absolute;
+            font-size: 2rem;
+            opacity: 0;
+            pointer-events: none;
+            color: var(--accent-red);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .swipe-indicator.show {
+            animation: swipeDown 0.5s ease-out;
+        }
+
+        @keyframes swipeDown {
+            0% {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, 0%);
+                opacity: 0;
+            }
+        }
+
+        .divider {
+            background: linear-gradient(
+                to var(--divider-direction, bottom),
+                transparent,
+                var(--divider) 20%,
+                var(--divider) 80%,
+                transparent
+            );
+        }
+
+        @media (orientation: portrait) {
+            .divider {
+                height: 3px;
+                --divider-direction: right;
+            }
+        }
+
+        @media (orientation: landscape) {
+            .divider {
+                width: 3px;
+                --divider-direction: bottom;
+            }
+        }
+
+        /* Modal System */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal {
+            background: var(--bg-header);
+            border-radius: 1.5rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 85vh;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--divider);
+            animation: slideUp 0.3s;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            border-bottom: 2px solid var(--divider);
+        }
+
+        .modal-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .modal-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            transition: color 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .modal-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-btn.save {
+            color: var(--accent-green);
+        }
+
+        .modal-btn.save:hover {
+            color: #00dd77;
+        }
+
+        .modal-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .modal-content::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        .modal-content::-webkit-scrollbar-thumb {
+            background: var(--divider);
+            border-radius: 4px;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: #3a4a5a;
+        }
+
+        /* Settings Sections */
+        .settings-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-green);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--divider);
+        }
+
+        .input-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .input-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background: var(--bg-primary);
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+            color: var(--text-primary);
+            font-family: 'Lexend', sans-serif;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--accent-green);
+        }
+
+        .input-field[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .input-field[type="number"]::-webkit-outer-spin-button,
+        .input-field[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.8rem 1rem;
+            background: var(--bg-primary);
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: border-color 0.3s;
+            user-select: none;
+        }
+
+        .checkbox-group:hover {
+            border-color: var(--accent-green);
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            accent-color: var(--accent-green);
+        }
+
+        .checkbox-label {
+            flex: 1;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+
+        .color-picker-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--bg-primary);
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+            color: var(--text-primary);
+            font-family: 'Lexend', sans-serif;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: border-color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .color-picker-btn:hover {
+            border-color: var(--accent-green);
+        }
+
+        .color-preview {
+            width: 40px;
+            height: 40px;
+            border-radius: 0.5rem;
+            border: 2px solid var(--divider);
+        }
+
+        .action-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--bg-primary);
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+            color: var(--text-primary);
+            font-family: 'Lexend', sans-serif;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+            margin-bottom: 0.8rem;
+        }
+
+        .action-btn:hover {
+            border-color: var(--accent-green);
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        /* Color Picker Modal */
+        .color-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .color-tab {
+            flex: 1;
+            padding: 0.8rem;
+            background: var(--bg-primary);
+            border: 2px solid var(--divider);
+            border-radius: 0.5rem;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .color-tab.active {
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.8rem;
+        }
+
+        .color-option {
+            aspect-ratio: 1;
+            border-radius: 0.75rem;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+
+        .color-option.selected {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .color-wheel-container {
+            display: none;
+        }
+
+        .color-wheel-container.active {
+            display: block;
+        }
+
+        .native-color-picker {
+            width: 100%;
+            height: 200px;
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+            background: var(--bg-primary);
+            cursor: pointer;
+        }
+
+        /* Preset Colors Preview */
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .preset-item {
+            aspect-ratio: 16/9;
+            border-radius: 0.75rem;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .preset-item:hover {
+            transform: scale(1.05);
+            border-color: var(--accent-green);
+        }
+
+        .preset-half {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 900;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .score-display {
+                font-size: 10rem;
+                padding: 1.5rem 2.5rem;
+            }
+            
+            .color-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .preset-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-height: 600px) and (orientation: landscape) {
+            .score-display {
+                font-size: 6.75rem;
+                padding: 1rem 2rem;
+            }
+            
+            .player-name {
+                font-size: 1.8rem;
+                margin-bottom: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Matches Counter -->
+        <div class="match-counter-team1" id="team1MatchCounter" onclick="incrementCounter(1, event)">
+            <span id="team1Counter">0</span>
+        </div>
+        <div class="match-counter-team2" id="team2MatchCounter" onclick="incrementCounter(2, event)">
+            <span id="team2Counter">0</span>
+        </div>
+
+        <!-- Header -->
+        <header class="header">
+            <div class="quick-menu-container">
+                <button class="icon-button" id="menuButton" onclick="toggleQuickMenu()" title="Quick Actions">☰</button>
+                <div class="quick-menu" id="quickMenu">
+                    <button class="quick-menu-item" onclick="resetRound()">
+                        <span class="quick-menu-icon">↻</span>
+                        <span>Reset Round</span>
+                    </button>
+                    <button class="quick-menu-item" onclick="resetMatch()">
+                        <span class="quick-menu-icon">⟲</span>
+                        <span>Reset Match</span>
+                    </button>
+                    <button class="quick-menu-item" onclick="switchSides()">
+                        <span class="quick-menu-icon">⇄</span>
+                        <span>Switch Sides</span>
+                    </button>
+                    <button class="quick-menu-item" onclick="switchColors()">
+                        <span class="quick-menu-icon">🎨</span>
+                        <span>Switch Colors</span>
+                    </button>
+                </div>
+            </div>
+            <div class="timer-container">
+                <div class="timer-display" id="timerDisplay" onclick="toggleTimer()">00:00</div>
+                <button class="timer-reset-btn" onclick="resetTimer()" title="Reset Timer">⟲</button>
+            </div>
+            <button class="icon-button" id="settingsButton" onclick="openSettings()" title="Configuración">⚙</button>
+        </header>
+
+        <!-- Scoring Area -->
+        <div class="scoring-area">
+            <div class="player-section" id="team1Section">
+                <div class="player-content">
+                    <div class="player-name" id="team1Name">Team 1</div>
+                    <div class="score-container">
+                        <div class="score-display" id="team1Score" data-team="1">0</div>
+                        <div class="swipe-indicator" id="swipe1">-1</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="player-section" id="team2Section">
+                <div class="player-content">
+                    <div class="player-name" id="team2Name">Team 2</div>
+                    <div class="score-container">
+                        <div class="score-display" id="team2Score" data-team="2">0</div>
+                        <div class="swipe-indicator" id="swipe2">-1</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Settings</span>
+                <div class="modal-actions">
+                    <button class="modal-btn" onclick="closeSettings()">Cancel</button>
+                    <button class="modal-btn save" onclick="saveSettings()">Save</button>
+                </div>
+            </div>
+            <div class="modal-content">
+                <!-- Match Settings -->
+                <div class="settings-section">
+                    <div class="section-title">Match Settings</div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Points to Win</label>
+                        <input type="number" id="pointsToWin" class="input-field" min="0" value="7">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Rounds to Win</label>
+                        <input type="number" id="roundsToWin" class="input-field" min="0" value="0">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Increment Point per Tap</label>
+                        <input type="number" id="incrementPerTap" class="input-field" value="1">
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label">Matches to Win</label>
+                        <input type="number" id="matchesToWin" class="input-field" min="1" value="1">
+                    </div>
+
+                    <div class="input-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="show20sCheckbox">
+                            <label class="checkbox-label" for="show20sCheckbox">Mostrar 20s</label>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label">Timer</label>
+                        <div class="timer-selector">
+                            <select id="timerMinutes" class="timer-wheel">
+                                <option value="0">00</option>
+                                <option value="1">01</option>
+                                <option value="2">02</option>
+                                <option value="3">03</option>
+                                <option value="4">04</option>
+                                <option value="5">05</option>
+                                <option value="6">06</option>
+                                <option value="7">07</option>
+                                <option value="8">08</option>
+                                <option value="9">09</option>
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                                <option value="30">30</option>
+                                <option value="45">45</option>
+                                <option value="60">60</option>
+                            </select>
+                            <span class="timer-label">min</span>
+                            <select id="timerSeconds" class="timer-wheel">
+                                <option value="0" selected>00</option>
+                                <option value="15">15</option>
+                                <option value="30">30</option>
+                                <option value="45">45</option>
+                            </select>
+                            <span class="timer-label">sec</span>
+                            <button class="timer-clear-btn" onclick="clearTimerSettings()" title="Clear Timer">Clear</button>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label" data-i18n="language">Idioma</label>
+                        <select id="languageSelect" class="input-field">
+                            <option value="es">Español</option>
+                            <option value="ca">Català</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="vibrateCheckbox" checked>
+                            <label class="checkbox-label" for="vibrateCheckbox">Vibrar al Cambiar Marcador</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Team 1 Settings -->
+                <div class="settings-section">
+                    <div class="section-title">Team 1</div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Name</label>
+                        <input type="text" id="team1NameInput" class="input-field" maxlength="20" value="Team 1">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Color</label>
+                        <button class="color-picker-btn" onclick="openColorPicker(1)">
+                            <div class="color-preview" id="team1ColorPreview" style="background: #1a3d5c;"></div>
+                            <span>Choose Color</span>
+                        </button>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Points</label>
+                        <input type="number" id="team1Points" class="input-field" min="0" value="0">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Rounds</label>
+                        <input type="number" id="team1Rounds" class="input-field" min="0" value="0">
+                    </div>
+                </div>
+
+                <!-- Team 2 Settings -->
+                <div class="settings-section">
+                    <div class="section-title">Team 2</div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Name</label>
+                        <input type="text" id="team2NameInput" class="input-field" maxlength="20" value="Team 2">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Color</label>
+                        <button class="color-picker-btn" onclick="openColorPicker(2)">
+                            <div class="color-preview" id="team2ColorPreview" style="background: #5c2d1a;"></div>
+                            <span>Choose Color</span>
+                        </button>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Points</label>
+                        <input type="number" id="team2Points" class="input-field" min="0" value="0">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label class="input-label">Rounds</label>
+                        <input type="number" id="team2Rounds" class="input-field" min="0" value="0">
+                    </div>
+                </div>
+
+                <!-- Appearance Settings -->
+                <div class="settings-section">
+                    <div class="section-title">Appearance</div>
+                    
+                    <button class="action-btn" onclick="openPresetColors()">
+                        Preset Colors
+                    </button>
+                </div>
+
+                <!-- Others -->
+                <div class="settings-section">
+                    <div class="section-title">Others</div>
+                    
+                    <button class="action-btn" onclick="rateApp()">
+                        ⭐ Rate App
+                    </button>
+                    
+                    <button class="action-btn" onclick="shareApp()">
+                        📤 Share App
+                    </button>
+                    
+                    <button class="action-btn" onclick="giveFeedback()">
+                        💬 Give Feedback
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Color Picker Modal -->
+    <div class="modal-overlay" id="colorPickerModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="colorPickerTitle">Choose Color</span>
+                <div class="modal-actions">
+                    <button class="modal-btn" onclick="closeColorPicker()">Cancel</button>
+                    <button class="modal-btn save" onclick="saveColor()">Save</button>
+                </div>
+            </div>
+            <div class="modal-content">
+                <div class="color-tabs">
+                    <button class="color-tab active" onclick="switchColorTab('primary')">Primary</button>
+                    <button class="color-tab" onclick="switchColorTab('wheel')">Wheel</button>
+                </div>
+                
+                <div class="color-primary-container" id="colorPrimaryContainer">
+                    <div class="color-grid" id="colorGrid"></div>
+                </div>
+                
+                <div class="color-wheel-container" id="colorWheelContainer">
+                    <input type="color" id="colorWheel" class="native-color-picker">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preset Colors Modal -->
+    <div class="modal-overlay" id="presetColorsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Preset Colors</span>
+            </div>
+            <div class="modal-content">
+                <div class="preset-grid" id="presetGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        let gameSettings = {
+            pointsToWin: 7,
+            roundsToWin: 0,
+            incrementPerTap: 1,
+            timerMinutes: 10,
+            timerSeconds: 0,
+            language: 'es',
+            vibrateOnScore: true,
+            matchesToWin: 1,
+            show20s: false
+        };
+
+        // Translations
+        const translations = {
+            es: {
+                settings: 'Configuración',
+                cancel: 'Cancelar',
+                save: 'Guardar',
+                matchSettings: 'Ajustes de Partida',
+                pointsToWin: 'Puntos para Ganar',
+                roundsToWin: 'Rondas para Ganar',
+                incrementPerTap: 'Incremento por Toque',
+                timer: 'Temporizador',
+                language: 'Idioma',
+                team: 'Equipo',
+                name: 'Nombre',
+                color: 'Color',
+                points: 'Puntos',
+                rounds: 'Rondas',
+                appearance: 'Apariencia',
+                presetColors: 'Colores Predefinidos',
+                others: 'Otros',
+                rateApp: 'Valorar App',
+                shareApp: 'Compartir App',
+                giveFeedback: 'Dar Feedback',
+                resetRound: 'Resetear Ronda',
+                resetMatch: 'Resetear Partido',
+                switchSides: 'Cambiar Lados',
+                switchColors: 'Cambiar Colores',
+                chooseColor: 'Elegir Color',
+                clear: 'Limpiar',
+                timeOut: 'TIEMPO',
+                primary: 'Principal',
+                wheel: 'Rueda',
+                vibrateOnScore: 'Vibrar al Cambiar Marcador',
+                matchesToWin: 'Partidas para Ganar Partido',
+                show20s: 'Mostrar 20s'
+            },
+            ca: {
+                settings: 'Configuració',
+                cancel: 'Cancel·lar',
+                save: 'Guardar',
+                matchSettings: 'Ajustos de Partida',
+                pointsToWin: 'Punts per Guanyar',
+                roundsToWin: 'Rondes per Guanyar',
+                incrementPerTap: 'Increment per Toc',
+                timer: 'Temporitzador',
+                language: 'Idioma',
+                team: 'Equip',
+                name: 'Nom',
+                color: 'Color',
+                points: 'Punts',
+                rounds: 'Rondes',
+                appearance: 'Aparença',
+                presetColors: 'Colors Predefinits',
+                others: 'Altres',
+                rateApp: 'Valorar App',
+                shareApp: 'Compartir App',
+                giveFeedback: 'Donar Feedback',
+                resetRound: 'Reiniciar Ronda',
+                resetMatch: 'Reiniciar Partit',
+                switchSides: 'Canviar Costats',
+                switchColors: 'Canviar Colors',
+                chooseColor: 'Triar Color',
+                clear: 'Netejar',
+                timeOut: 'TEMPS',
+                primary: 'Principal',
+                wheel: 'Roda',
+                vibrateOnScore: 'Vibrar en Canviar Marcador',
+                matchesToWin: 'Partides per Guanyar Partit',
+                show20s: 'Mostrar 20s'
+            },
+            en: {
+                settings: 'Settings',
+                cancel: 'Cancel',
+                save: 'Save',
+                matchSettings: 'Match Settings',
+                pointsToWin: 'Points to Win',
+                roundsToWin: 'Rounds to Win',
+                incrementPerTap: 'Increment per Tap',
+                timer: 'Timer',
+                language: 'Language',
+                team: 'Team',
+                name: 'Name',
+                color: 'Color',
+                points: 'Points',
+                rounds: 'Rounds',
+                appearance: 'Appearance',
+                presetColors: 'Preset Colors',
+                others: 'Others',
+                rateApp: 'Rate App',
+                shareApp: 'Share App',
+                giveFeedback: 'Give Feedback',
+                resetRound: 'Reset Round',
+                resetMatch: 'Reset Match',
+                switchSides: 'Switch Sides',
+                switchColors: 'Switch Colors',
+                chooseColor: 'Choose Color',
+                clear: 'Clear',
+                timeOut: 'TIME OUT',
+                primary: 'Primary',
+                wheel: 'Wheel',
+                vibrateOnScore: 'Vibrate on Score Change',
+                matchesToWin: 'Matches to Win',
+                show20s: 'Show 20s'
+            }
+        };
+
+        function t(key) {
+            return translations[gameSettings.language][key] || key;
+        }
+        
+        let team1 = {
+            name: 'Team 1',
+            color: '#1a3d5c',
+            points: 0,
+            rounds: 0,
+            matches: 0,
+            twenty: 0
+        };
+
+        let team2 = {
+            name: 'Team 2',
+            color: '#5c2d1a',
+            points: 0,
+            rounds: 0,
+            matches: 0,
+            twenty: 0
+        };
+
+        // Timer state
+        let timerInterval = null;
+        let timerRunning = false;
+        let timeRemaining = 600; // in seconds (10:00)
+
+        // Color picker state
+        let currentColorTeam = 1;
+        let tempColor = '';
+        let selectedPreset = -1;
+
+        // Primary colors
+        const primaryColors = [
+            '#ffffff', '#ffeb3b', '#ff5722', '#f44336', '#e91e63',
+            '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4',
+            '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39',
+            '#ff9800', '#d4a574', '#607d8b', '#424242', '#000000'
+        ];
+
+        // Preset color schemes - all unique combinations
+        const presets = [
+            { team1: '#ffffff', team2: '#000000', name: 'White vs Black' },
+            { team1: '#ffffff', team2: '#d4a574', name: 'White vs Natural' },
+            { team1: '#ffffff', team2: '#c62828', name: 'White vs Red' },
+            { team1: '#ffffff', team2: '#1b5e20', name: 'White vs Green' },
+            { team1: '#ffffff', team2: '#ffeb3b', name: 'White vs Yellow' },
+            { team1: '#ffffff', team2: '#ff6f00', name: 'White vs Orange' },
+            { team1: '#ffffff', team2: '#81d4fa', name: 'White vs Light Blue' },
+            { team1: '#ffffff', team2: '#0d47a1', name: 'White vs Dark Blue' },
+            { team1: '#000000', team2: '#d4a574', name: 'Black vs Natural' },
+            { team1: '#000000', team2: '#c62828', name: 'Black vs Red' },
+            { team1: '#000000', team2: '#1b5e20', name: 'Black vs Green' },
+            { team1: '#000000', team2: '#ffeb3b', name: 'Black vs Yellow' },
+            { team1: '#000000', team2: '#ff6f00', name: 'Black vs Orange' },
+            { team1: '#000000', team2: '#81d4fa', name: 'Black vs Light Blue' },
+            { team1: '#000000', team2: '#0d47a1', name: 'Black vs Dark Blue' },
+            { team1: '#d4a574', team2: '#c62828', name: 'Natural vs Red' },
+            { team1: '#d4a574', team2: '#1b5e20', name: 'Natural vs Green' },
+            { team1: '#d4a574', team2: '#ffeb3b', name: 'Natural vs Yellow' },
+            { team1: '#d4a574', team2: '#ff6f00', name: 'Natural vs Orange' },
+            { team1: '#d4a574', team2: '#81d4fa', name: 'Natural vs Light Blue' },
+            { team1: '#d4a574', team2: '#0d47a1', name: 'Natural vs Dark Blue' },
+            { team1: '#c62828', team2: '#1b5e20', name: 'Red vs Green' },
+            { team1: '#c62828', team2: '#ffeb3b', name: 'Red vs Yellow' },
+            { team1: '#c62828', team2: '#ff6f00', name: 'Red vs Orange' },
+            { team1: '#c62828', team2: '#81d4fa', name: 'Red vs Light Blue' },
+            { team1: '#c62828', team2: '#0d47a1', name: 'Red vs Dark Blue' },
+            { team1: '#1b5e20', team2: '#ffeb3b', name: 'Green vs Yellow' },
+            { team1: '#1b5e20', team2: '#ff6f00', name: 'Green vs Orange' },
+            { team1: '#1b5e20', team2: '#81d4fa', name: 'Green vs Light Blue' },
+            { team1: '#1b5e20', team2: '#0d47a1', name: 'Green vs Dark Blue' },
+            { team1: '#ffeb3b', team2: '#ff6f00', name: 'Yellow vs Orange' },
+            { team1: '#ffeb3b', team2: '#81d4fa', name: 'Yellow vs Light Blue' },
+            { team1: '#ffeb3b', team2: '#0d47a1', name: 'Yellow vs Dark Blue' },
+            { team1: '#ff6f00', team2: '#81d4fa', name: 'Orange vs Light Blue' },
+            { team1: '#ff6f00', team2: '#0d47a1', name: 'Orange vs Dark Blue' },
+            { team1: '#81d4fa', team2: '#0d47a1', name: 'Light Blue vs Dark Blue' }
+        ];
+
+        // Touch tracking
+        let touchStartY = {};
+        let touchStartTime = {};
+        let mouseStartY = {};
+        let mouseStartTime = {};
+        let isMouseDown = {};
+        const SWIPE_THRESHOLD = 50;
+        const TAP_TIME_THRESHOLD = 200;
+
+        // Load data
+        function loadData() {
+            const savedGame = localStorage.getItem('crokinoleGame');
+            const savedTeam1 = localStorage.getItem('crokinoleTeam1');
+            const savedTeam2 = localStorage.getItem('crokinoleTeam2');
+
+            if (savedGame) {
+                gameSettings = JSON.parse(savedGame);
+                // Ensure matchesToWin exists
+                if (gameSettings.matchesToWin === undefined) {
+                    gameSettings.matchesToWin = 1;
+                }
+                // Ensure show20s exists
+                if (gameSettings.show20s === undefined) {
+                    gameSettings.show20s = false;
+                }
+            }
+            if (savedTeam1) {
+                team1 = JSON.parse(savedTeam1);
+                // Ensure matches property exists
+                if (team1.matches === undefined) {
+                    team1.matches = 0;
+                }
+                // Ensure twenty property exists
+                if (team1.twenty === undefined) {
+                    team1.twenty = 0;
+                }
+            }
+            if (savedTeam2) {
+                team2 = JSON.parse(savedTeam2);
+                // Ensure matches property exists
+                if (team2.matches === undefined) {
+                    team2.matches = 0;
+                }
+                // Ensure twenty property exists
+                if (team2.twenty === undefined) {
+                    team2.twenty = 0;
+                }
+            }
+
+            // Initialize timer with configured time
+            timeRemaining = gameSettings.timerMinutes * 60 + gameSettings.timerSeconds;
+
+            updateDisplay();
+            applyTeamColors();
+            updateTimerVisibility();
+        }
+
+        function saveData() {
+            localStorage.setItem('crokinoleGame', JSON.stringify(gameSettings));
+            localStorage.setItem('crokinoleTeam1', JSON.stringify(team1));
+            localStorage.setItem('crokinoleTeam2', JSON.stringify(team2));
+        }
+
+        function updateDisplay() {
+            document.getElementById('team1Score').textContent = team1.points;
+            document.getElementById('team2Score').textContent = team2.points;
+            document.getElementById('team1Name').textContent = team1.name;
+            document.getElementById('team2Name').textContent = team2.name;
+            updateMatchesCounter();
+        }
+
+        function updateMatchesCounter() {
+            const team1MatchCounter = document.getElementById('team1MatchCounter');
+            const team2MatchCounter = document.getElementById('team2MatchCounter');
+            const team1CounterEl = document.getElementById('team1Counter');
+            const team2CounterEl = document.getElementById('team2Counter');
+
+            // Determine which counter to display based on settings
+            const showMatches = gameSettings.matchesToWin > 1;
+            const showTwenty = gameSettings.show20s;
+
+            if (showMatches || showTwenty) {
+                let value1, value2;
+
+                if (showTwenty) {
+                    // Show 20s counter
+                    value1 = team1.twenty || 0;
+                    value2 = team2.twenty || 0;
+                } else if (showMatches) {
+                    // Show matches counter
+                    value1 = team1.matches || 0;
+                    value2 = team2.matches || 0;
+                }
+
+                team1CounterEl.textContent = value1;
+                team2CounterEl.textContent = value2;
+
+                // Apply team colors as backgrounds with contrast text
+                const team1TextColor = getContrastColor(team1.color);
+                const team2TextColor = getContrastColor(team2.color);
+
+                team1MatchCounter.style.backgroundColor = team1.color;
+                team1MatchCounter.style.color = team1TextColor;
+
+                team2MatchCounter.style.backgroundColor = team2.color;
+                team2MatchCounter.style.color = team2TextColor;
+
+                team1MatchCounter.classList.add('visible');
+                team2MatchCounter.classList.add('visible');
+            } else {
+                team1MatchCounter.classList.remove('visible');
+                team2MatchCounter.classList.remove('visible');
+            }
+        }
+
+        function incrementCounter(teamNum, event) {
+            event.stopPropagation();
+
+            const team = teamNum === 1 ? team1 : team2;
+            const showTwenty = gameSettings.show20s;
+
+            if (showTwenty) {
+                // Increment 20s counter
+                team.twenty = (team.twenty || 0) + 1;
+            } else {
+                // Increment matches counter
+                team.matches = (team.matches || 0) + 1;
+            }
+
+            updateMatchesCounter();
+            saveData();
+        }
+
+        function applyTeamColors() {
+            document.getElementById('team1Section').style.background = team1.color;
+            document.getElementById('team2Section').style.background = team2.color;
+
+            // Calculate and apply text colors based on background luminance
+            const team1TextColor = getContrastColor(team1.color);
+            const team2TextColor = getContrastColor(team2.color);
+
+            document.getElementById('team1Score').style.color = team1TextColor;
+            document.getElementById('team1Name').style.color = team1TextColor;
+
+            document.getElementById('team2Score').style.color = team2TextColor;
+            document.getElementById('team2Name').style.color = team2TextColor;
+
+            // Update header icons based on average background luminance
+            updateHeaderIconsColor();
+        }
+
+        function updateHeaderIconsColor() {
+            // Calculate luminance for each team
+            const team1Luminance = getLuminance(team1.color);
+            const team2Luminance = getLuminance(team2.color);
+            const avgLuminance = (team1Luminance + team2Luminance) / 2;
+
+            // Determine if each team's background is light
+            const team1IsLight = team1Luminance >= 0.5;
+            const team2IsLight = team2Luminance >= 0.5;
+            const avgIsLight = avgLuminance >= 0.4;
+
+            // Get orientation
+            const isPortrait = window.innerHeight > window.innerWidth;
+
+            // Update menu button (left side in landscape, top in portrait)
+            const menuButton = document.getElementById('menuButton');
+            if (menuButton) {
+                if (isPortrait) {
+                    // In portrait, menu is at top over team1 section
+                    if (team1IsLight) {
+                        menuButton.classList.add('dark');
+                    } else {
+                        menuButton.classList.remove('dark');
+                    }
+                } else {
+                    // In landscape, menu is on left over team1 section
+                    if (team1IsLight) {
+                        menuButton.classList.add('dark');
+                    } else {
+                        menuButton.classList.remove('dark');
+                    }
+                }
+            }
+
+            // Update settings button (right side in landscape, top in portrait)
+            const settingsButton = document.getElementById('settingsButton');
+            if (settingsButton) {
+                if (isPortrait) {
+                    // In portrait, settings is at top over team1 section
+                    if (team1IsLight) {
+                        settingsButton.classList.add('dark');
+                    } else {
+                        settingsButton.classList.remove('dark');
+                    }
+                } else {
+                    // In landscape, settings is on right over team2 section
+                    if (team2IsLight) {
+                        settingsButton.classList.add('dark');
+                    } else {
+                        settingsButton.classList.remove('dark');
+                    }
+                }
+            }
+
+            // Update timer display and reset button (center, use average)
+            const timerDisplay = document.getElementById('timerDisplay');
+            const timerResetBtn = document.querySelector('.timer-reset-btn');
+
+            if (avgIsLight) {
+                if (timerDisplay) timerDisplay.classList.add('dark');
+                if (timerResetBtn) timerResetBtn.classList.add('dark');
+            } else {
+                if (timerDisplay) timerDisplay.classList.remove('dark');
+                if (timerResetBtn) timerResetBtn.classList.remove('dark');
+            }
+        }
+
+        function getLuminance(hexColor) {
+            // Convert hex to RGB
+            const hex = hexColor.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+
+            // Calculate relative luminance
+            return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        }
+
+        // Calculate luminance and return appropriate text color
+        function getContrastColor(hexColor) {
+            const luminance = getLuminance(hexColor);
+            // Return dark gray for light backgrounds, white for dark backgrounds
+            return luminance > 0.5 ? '#2a3a4a' : '#ffffff';
+        }
+
+        function updateScore(teamNum, delta) {
+            const team = teamNum === 1 ? team1 : team2;
+            const actualDelta = delta * gameSettings.incrementPerTap;
+            team.points = Math.max(0, team.points + actualDelta);
+            updateDisplay();
+            saveData();
+
+            const scoreElement = document.getElementById(`team${teamNum}Score`);
+            scoreElement.classList.add('pulse');
+            setTimeout(() => scoreElement.classList.remove('pulse'), 300);
+
+            if (delta < 0) {
+                const indicator = document.getElementById(`swipe${teamNum}`);
+                indicator.classList.add('show');
+                setTimeout(() => indicator.classList.remove('show'), 500);
+            }
+
+            // Vibrate if enabled
+            if (gameSettings.vibrateOnScore && navigator.vibrate) {
+                navigator.vibrate(50);
+            }
+        }
+
+        // Quick Menu Functions
+        function toggleQuickMenu() {
+            const menu = document.getElementById('quickMenu');
+            menu.classList.toggle('active');
+        }
+
+        function closeQuickMenu() {
+            const menu = document.getElementById('quickMenu');
+            menu.classList.remove('active');
+        }
+
+        function resetRound() {
+            team1.points = 0;
+            team2.points = 0;
+            updateDisplay();
+            saveData();
+            stopTimer();
+            closeQuickMenu();
+        }
+
+        function resetMatch() {
+            team1.points = 0;
+            team1.rounds = 0;
+            team1.matches = 0;
+            team1.twenty = 0;
+            team2.points = 0;
+            team2.rounds = 0;
+            team2.matches = 0;
+            team2.twenty = 0;
+            updateDisplay();
+            saveData();
+            stopTimer();
+            resetTimer();
+            closeQuickMenu();
+        }
+
+        function switchSides() {
+            // Swap team data
+            const tempTeam = {
+                name: team1.name,
+                color: team1.color,
+                points: team1.points,
+                rounds: team1.rounds,
+                matches: team1.matches,
+                twenty: team1.twenty
+            };
+
+            team1.name = team2.name;
+            team1.color = team2.color;
+            team1.points = team2.points;
+            team1.rounds = team2.rounds;
+            team1.matches = team2.matches;
+            team1.twenty = team2.twenty;
+
+            team2.name = tempTeam.name;
+            team2.color = tempTeam.color;
+            team2.points = tempTeam.points;
+            team2.rounds = tempTeam.rounds;
+            team2.matches = tempTeam.matches;
+            team2.twenty = tempTeam.twenty;
+
+            updateDisplay();
+            applyTeamColors();
+            saveData();
+            closeQuickMenu();
+        }
+
+        function switchColors() {
+            // Swap only the colors
+            const tempColor = team1.color;
+            team1.color = team2.color;
+            team2.color = tempColor;
+
+            applyTeamColors();
+            saveData();
+            closeQuickMenu();
+        }
+
+        // Timer functions
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimerDisplay() {
+            document.getElementById('timerDisplay').textContent = formatTime(timeRemaining);
+        }
+
+        function toggleTimer() {
+            if (timerRunning) {
+                stopTimer();
+            } else {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            if (timeRemaining <= 0) {
+                // Reset to configured time
+                timeRemaining = gameSettings.timerMinutes * 60 + gameSettings.timerSeconds;
+            }
+
+            timerRunning = true;
+            document.getElementById('timerDisplay').classList.add('running');
+
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+
+                if (timeRemaining <= 0) {
+                    stopTimer();
+                    timeRemaining = 0;
+                    onTimerEnd();
+                }
+            }, 1000);
+        }
+
+        function onTimerEnd() {
+            // Play beep sound
+            playBeep();
+
+            // Show TIME OUT message
+            const timerDisplay = document.getElementById('timerDisplay');
+            const originalText = timerDisplay.textContent;
+            timerDisplay.textContent = t('timeOut');
+            timerDisplay.style.color = 'var(--accent-red)';
+            timerDisplay.classList.add('pulse');
+
+            // Restore original display after 3 seconds
+            setTimeout(() => {
+                timerDisplay.textContent = originalText;
+                timerDisplay.style.color = '';
+                timerDisplay.classList.remove('pulse');
+            }, 3000);
+        }
+
+        function playBeep() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                // Set frequency (higher = higher pitch)
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+
+                // Set volume
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+                // Play beep
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (error) {
+                console.log('Audio not supported:', error);
+            }
+        }
+
+        function stopTimer() {
+            timerRunning = false;
+            document.getElementById('timerDisplay').classList.remove('running');
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function resetTimer() {
+            stopTimer();
+            timeRemaining = gameSettings.timerMinutes * 60 + gameSettings.timerSeconds;
+            updateTimerDisplay();
+        }
+
+        function updateTimerVisibility() {
+            const timerContainer = document.querySelector('.timer-container');
+            const totalTime = gameSettings.timerMinutes * 60 + gameSettings.timerSeconds;
+
+            if (totalTime === 0) {
+                timerContainer.classList.add('hidden');
+            } else {
+                timerContainer.classList.remove('hidden');
+            }
+        }
+
+        function clearTimerSettings() {
+            document.getElementById('timerMinutes').value = 0;
+            document.getElementById('timerSeconds').value = 0;
+        }
+
+        // Settings Modal
+        function openSettings() {
+            document.getElementById('pointsToWin').value = gameSettings.pointsToWin;
+            document.getElementById('roundsToWin').value = gameSettings.roundsToWin;
+            document.getElementById('incrementPerTap').value = gameSettings.incrementPerTap;
+            document.getElementById('matchesToWin').value = gameSettings.matchesToWin;
+            document.getElementById('show20sCheckbox').checked = gameSettings.show20s;
+            document.getElementById('timerMinutes').value = gameSettings.timerMinutes;
+            document.getElementById('timerSeconds').value = gameSettings.timerSeconds;
+            document.getElementById('languageSelect').value = gameSettings.language;
+            document.getElementById('vibrateCheckbox').checked = gameSettings.vibrateOnScore;
+
+            document.getElementById('team1NameInput').value = team1.name;
+            document.getElementById('team1Points').value = team1.points;
+            document.getElementById('team1Rounds').value = team1.rounds;
+            document.getElementById('team1ColorPreview').style.background = team1.color;
+
+            document.getElementById('team2NameInput').value = team2.name;
+            document.getElementById('team2Points').value = team2.points;
+            document.getElementById('team2Rounds').value = team2.rounds;
+            document.getElementById('team2ColorPreview').style.background = team2.color;
+
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function saveSettings() {
+            gameSettings.pointsToWin = parseInt(document.getElementById('pointsToWin').value) || 0;
+            gameSettings.roundsToWin = parseInt(document.getElementById('roundsToWin').value) || 0;
+            gameSettings.incrementPerTap = parseInt(document.getElementById('incrementPerTap').value) || 1;
+            gameSettings.matchesToWin = parseInt(document.getElementById('matchesToWin').value) || 1;
+            gameSettings.show20s = document.getElementById('show20sCheckbox').checked;
+            gameSettings.timerMinutes = parseInt(document.getElementById('timerMinutes').value) || 0;
+            gameSettings.timerSeconds = parseInt(document.getElementById('timerSeconds').value) || 0;
+            gameSettings.language = document.getElementById('languageSelect').value;
+            gameSettings.vibrateOnScore = document.getElementById('vibrateCheckbox').checked;
+
+            team1.name = document.getElementById('team1NameInput').value || 'Team 1';
+            team1.points = parseInt(document.getElementById('team1Points').value) || 0;
+            team1.rounds = parseInt(document.getElementById('team1Rounds').value) || 0;
+
+            team2.name = document.getElementById('team2NameInput').value || 'Team 2';
+            team2.points = parseInt(document.getElementById('team2Points').value) || 0;
+            team2.rounds = parseInt(document.getElementById('team2Rounds').value) || 0;
+
+            updateDisplay();
+            applyTeamColors();
+            resetTimer();
+            updateTimerVisibility();
+            updateUILanguage();
+            saveData();
+            closeSettings();
+        }
+
+        function updateUILanguage() {
+            // Update quick menu
+            document.querySelectorAll('.quick-menu-item span:not(.quick-menu-icon)').forEach((el, index) => {
+                const keys = ['resetRound', 'resetMatch', 'switchSides', 'switchColors'];
+                if (keys[index]) el.textContent = t(keys[index]);
+            });
+
+            // Update settings modal
+            document.querySelector('#settingsModal .modal-title').textContent = t('settings');
+            document.querySelectorAll('#settingsModal .modal-btn')[0].textContent = t('cancel');
+            document.querySelectorAll('#settingsModal .modal-btn')[1].textContent = t('save');
+
+            // Update section titles
+            document.querySelectorAll('.section-title')[0].textContent = t('matchSettings');
+            document.querySelectorAll('.section-title')[1].textContent = t('team') + ' 1';
+            document.querySelectorAll('.section-title')[2].textContent = t('team') + ' 2';
+            document.querySelectorAll('.section-title')[3].textContent = t('appearance');
+            document.querySelectorAll('.section-title')[4].textContent = t('others');
+
+            // Update input labels in Match Settings
+            const matchLabels = document.querySelectorAll('.settings-section')[0].querySelectorAll('.input-label');
+            matchLabels[0].textContent = t('pointsToWin');
+            matchLabels[1].textContent = t('roundsToWin');
+            matchLabels[2].textContent = t('incrementPerTap');
+            matchLabels[3].textContent = t('matchesToWin');
+            matchLabels[4].textContent = t('timer');
+            matchLabels[5].textContent = t('language');
+
+            // Update Team 1 labels
+            const team1Labels = document.querySelectorAll('.settings-section')[1].querySelectorAll('.input-label');
+            team1Labels[0].textContent = t('name');
+            team1Labels[1].textContent = t('color');
+            team1Labels[2].textContent = t('points');
+            team1Labels[3].textContent = t('rounds');
+
+            // Update Team 2 labels
+            const team2Labels = document.querySelectorAll('.settings-section')[2].querySelectorAll('.input-label');
+            team2Labels[0].textContent = t('name');
+            team2Labels[1].textContent = t('color');
+            team2Labels[2].textContent = t('points');
+            team2Labels[3].textContent = t('rounds');
+
+            // Update timer clear button
+            document.querySelector('.timer-clear-btn').textContent = t('clear');
+
+            // Update checkbox labels
+            const checkboxLabels = document.querySelectorAll('.checkbox-label');
+            checkboxLabels[0].textContent = t('show20s');
+            checkboxLabels[1].textContent = t('vibrateOnScore');
+
+            // Update color picker buttons
+            document.querySelectorAll('.color-picker-btn span')[0].textContent = t('chooseColor');
+            document.querySelectorAll('.color-picker-btn span')[1].textContent = t('chooseColor');
+
+            // Update appearance section
+            document.querySelector('.settings-section:nth-child(4) .action-btn').textContent = t('presetColors');
+
+            // Update others section buttons
+            const otherButtons = document.querySelectorAll('.settings-section')[4].querySelectorAll('.action-btn');
+            otherButtons[0].textContent = '⭐ ' + t('rateApp');
+            otherButtons[1].textContent = '📤 ' + t('shareApp');
+            otherButtons[2].textContent = '💬 ' + t('giveFeedback');
+
+            // Update color picker modal
+            const colorPickerTitle = document.getElementById('colorPickerTitle');
+            if (colorPickerTitle.textContent.includes('Team') || colorPickerTitle.textContent.includes('Equip')) {
+                const teamNum = colorPickerTitle.textContent.match(/\d+/)[0];
+                colorPickerTitle.textContent = t('chooseColor') + ' - ' + t('team') + ' ' + teamNum;
+            }
+
+            // Update color picker modal buttons
+            document.querySelectorAll('#colorPickerModal .modal-btn')[0].textContent = t('cancel');
+            document.querySelectorAll('#colorPickerModal .modal-btn')[1].textContent = t('save');
+
+            // Update color tabs
+            document.querySelectorAll('.color-tab')[0].textContent = t('primary');
+            document.querySelectorAll('.color-tab')[1].textContent = t('wheel');
+
+            // Update preset colors modal
+            document.querySelector('#presetColorsModal .modal-title').textContent = t('presetColors');
+
+            // Update "TIME OUT" message if needed
+            const timerDisplay = document.getElementById('timerDisplay');
+            if (timerDisplay.textContent === 'TIME OUT' || timerDisplay.textContent === 'TIEMPO' || timerDisplay.textContent === 'TEMPS') {
+                timerDisplay.textContent = t('timeOut');
+            }
+        }
+
+        // Color Picker
+        function openColorPicker(teamNum) {
+            currentColorTeam = teamNum;
+            const team = teamNum === 1 ? team1 : team2;
+            tempColor = team.color;
+
+            document.getElementById('colorPickerTitle').textContent = `${t('chooseColor')} - ${t('team')} ${teamNum}`;
+            generateColorGrid();
+            document.getElementById('colorWheel').value = tempColor;
+            document.getElementById('colorPickerModal').classList.add('active');
+        }
+
+        function closeColorPicker() {
+            document.getElementById('colorPickerModal').classList.remove('active');
+        }
+
+        function saveColor() {
+            const team = currentColorTeam === 1 ? team1 : team2;
+            team.color = tempColor;
+            document.getElementById(`team${currentColorTeam}ColorPreview`).style.background = tempColor;
+            closeColorPicker();
+        }
+
+        function switchColorTab(tab) {
+            document.querySelectorAll('.color-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (tab === 'primary') {
+                document.getElementById('colorPrimaryContainer').style.display = 'block';
+                document.getElementById('colorWheelContainer').classList.remove('active');
+            } else {
+                document.getElementById('colorPrimaryContainer').style.display = 'none';
+                document.getElementById('colorWheelContainer').classList.add('active');
+            }
+        }
+
+        function generateColorGrid() {
+            const grid = document.getElementById('colorGrid');
+            grid.innerHTML = '';
+            
+            primaryColors.forEach(color => {
+                const div = document.createElement('div');
+                div.className = 'color-option';
+                div.style.background = color;
+                if (color === tempColor) div.classList.add('selected');
+                div.onclick = () => {
+                    tempColor = color;
+                    document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                    div.classList.add('selected');
+                };
+                grid.appendChild(div);
+            });
+        }
+
+        document.getElementById('colorWheel').addEventListener('input', (e) => {
+            tempColor = e.target.value;
+        });
+
+        // Preset Colors
+        function openPresetColors() {
+            generatePresetGrid();
+            document.getElementById('presetColorsModal').classList.add('active');
+        }
+
+        function closePresetColors() {
+            document.getElementById('presetColorsModal').classList.remove('active');
+        }
+
+        function generatePresetGrid() {
+            const grid = document.getElementById('presetGrid');
+            grid.innerHTML = '';
+            
+            presets.forEach((preset, index) => {
+                const div = document.createElement('div');
+                div.className = 'preset-item';
+                div.onclick = () => {
+                    // Apply preset immediately
+                    team1.color = preset.team1;
+                    team2.color = preset.team2;
+                    document.getElementById('team1ColorPreview').style.background = preset.team1;
+                    document.getElementById('team2ColorPreview').style.background = preset.team2;
+                    // Close modal
+                    closePresetColors();
+                };
+                
+                const half1 = document.createElement('div');
+                half1.className = 'preset-half';
+                half1.style.background = preset.team1;
+                half1.style.color = getContrastColor(preset.team1);
+                half1.textContent = '42';
+                
+                const half2 = document.createElement('div');
+                half2.className = 'preset-half';
+                half2.style.background = preset.team2;
+                half2.style.color = getContrastColor(preset.team2);
+                half2.textContent = '35';
+                
+                div.appendChild(half1);
+                div.appendChild(half2);
+                grid.appendChild(div);
+            });
+        }
+
+        // Other actions
+        function rateApp() {
+            alert('Thank you for your interest! Rate functionality would open app store.');
+        }
+
+        function shareApp() {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Crokinole Scorer',
+                    text: 'Check out this Crokinole scoring app!',
+                    url: window.location.href
+                });
+            } else {
+                alert('Share: ' + window.location.href);
+            }
+        }
+
+        function giveFeedback() {
+            alert('Feedback: Please email feedback@crokinole-scorer.app');
+        }
+
+        // Score handlers
+        function setupScoreHandlers() {
+            ['team1Score', 'team2Score'].forEach(id => {
+                const element = document.getElementById(id);
+                const teamNum = parseInt(element.dataset.team);
+
+                element.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    touchStartY[teamNum] = e.touches[0].clientY;
+                    touchStartTime[teamNum] = Date.now();
+                });
+
+                element.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    const deltaY = e.changedTouches[0].clientY - touchStartY[teamNum];
+                    const deltaTime = Date.now() - touchStartTime[teamNum];
+
+                    if (deltaTime < TAP_TIME_THRESHOLD && Math.abs(deltaY) < 20) {
+                        updateScore(teamNum, 1);
+                    } else if (deltaY > SWIPE_THRESHOLD) {
+                        // Swipe down - decrease
+                        updateScore(teamNum, -1);
+                    } else if (deltaY < -SWIPE_THRESHOLD) {
+                        // Swipe up - increase
+                        updateScore(teamNum, 1);
+                    }
+                });
+
+                element.addEventListener('mousedown', (e) => {
+                    if (e.button !== 0) return;
+                    mouseStartY[teamNum] = e.clientY;
+                    mouseStartTime[teamNum] = Date.now();
+                    isMouseDown[teamNum] = true;
+                });
+
+                element.addEventListener('mouseup', (e) => {
+                    if (e.button !== 0 || !isMouseDown[teamNum]) return;
+                    
+                    const deltaY = e.clientY - mouseStartY[teamNum];
+                    const deltaTime = Date.now() - mouseStartTime[teamNum];
+                    isMouseDown[teamNum] = false;
+
+                    if (deltaTime < TAP_TIME_THRESHOLD && Math.abs(deltaY) < 20) {
+                        // Click - increase
+                        updateScore(teamNum, 1);
+                    } else if (deltaY > SWIPE_THRESHOLD) {
+                        // Drag down - decrease
+                        updateScore(teamNum, -1);
+                    } else if (deltaY < -SWIPE_THRESHOLD) {
+                        // Drag up - increase
+                        updateScore(teamNum, 1);
+                    }
+                });
+
+                element.addEventListener('mouseleave', () => {
+                    isMouseDown[teamNum] = false;
+                });
+            });
+        }
+
+        // Update header icons on window resize (orientation change)
+        window.addEventListener('resize', () => {
+            updateHeaderIconsColor();
+        });
+
+        // Close quick menu when clicking outside
+        document.addEventListener('click', (e) => {
+            const quickMenu = document.getElementById('quickMenu');
+            const quickMenuContainer = document.querySelector('.quick-menu-container');
+
+            if (!quickMenuContainer.contains(e.target)) {
+                closeQuickMenu();
+            }
+        });
+
+        // Close modals on overlay click
+        document.getElementById('settingsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'settingsModal') closeSettings();
+        });
+
+        document.getElementById('colorPickerModal').addEventListener('click', (e) => {
+            if (e.target.id === 'colorPickerModal') closeColorPicker();
+        });
+
+        document.getElementById('presetColorsModal').addEventListener('click', (e) => {
+            if (e.target.id === 'presetColorsModal') closePresetColors();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSettings();
+                closeColorPicker();
+                closePresetColors();
+            }
+        });
+
+        // Prevent double-tap zoom
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+
+        // Initialize
+        loadData();
+        setupScoreHandlers();
+        updateTimerDisplay();
+        updateUILanguage();
+        updateMatchesCounter();
+    </script>
+</body>
+</html>
