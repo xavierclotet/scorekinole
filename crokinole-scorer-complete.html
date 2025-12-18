@@ -34,6 +34,7 @@
             color: var(--text-primary);
             overflow: hidden;
             height: 100vh;
+            min-height: 500px;
             touch-action: pan-y;
         }
 
@@ -60,6 +61,7 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            min-height: 500px;
         }
 
         /* Header */
@@ -89,6 +91,7 @@
                 transform: translate(-50%, -50%);
                 z-index: 50;
                 pointer-events: auto;
+                margin: 0 !important;
             }
 
             .timer-container.hidden {
@@ -107,6 +110,144 @@
             .timer-reset-btn {
                 right: 1rem;
                 font-size: 1.5rem;
+            }
+        }
+
+        @media (orientation: portrait) and (max-height: 900px) {
+            .player-section {
+                padding: 1.5rem !important;
+            }
+
+            .player-name {
+                font-size: 2.5rem !important;
+                margin-bottom: 2rem !important;
+            }
+
+            .score-display {
+                font-size: 10rem !important;
+                padding: 1.5rem 2.5rem !important;
+            }
+
+            .timer-display {
+                font-size: 2.8rem;
+                padding: 0.9rem 1.8rem;
+                padding-right: 3.2rem;
+                min-width: 250px;
+            }
+
+            .timer-reset-btn {
+                right: 0.9rem;
+                font-size: 1.4rem;
+            }
+        }
+
+        @media (orientation: portrait) and (max-height: 820px) {
+            .player-section {
+                padding: 1.2rem !important;
+            }
+
+            .player-name {
+                font-size: 2.2rem !important;
+                margin-bottom: 1.5rem !important;
+            }
+
+            .score-display {
+                font-size: 9rem !important;
+                padding: 1.3rem 2.3rem !important;
+            }
+
+            .timer-display {
+                font-size: 2.5rem;
+                padding: 0.8rem 1.5rem;
+                padding-right: 3rem;
+                min-width: 220px;
+            }
+
+            .timer-reset-btn {
+                right: 0.8rem;
+                font-size: 1.3rem;
+            }
+        }
+
+        @media (orientation: portrait) and (max-height: 700px) {
+            .player-section {
+                padding: 1rem !important;
+            }
+
+            .player-name {
+                font-size: 2rem !important;
+                margin-bottom: 1.2rem !important;
+            }
+
+            .score-display {
+                font-size: 8.5rem !important;
+                padding: 1.2rem 2rem !important;
+            }
+
+            .timer-display {
+                font-size: 2.3rem;
+                padding: 0.7rem 1.3rem;
+                padding-right: 2.8rem;
+                min-width: 200px;
+            }
+
+            .timer-reset-btn {
+                right: 0.7rem;
+                font-size: 1.2rem;
+            }
+        }
+
+        @media (orientation: portrait) and (max-height: 600px) {
+            .timer-display {
+                font-size: 2rem;
+                padding: 0.6rem 1.2rem;
+                padding-right: 2.5rem;
+                min-width: 180px;
+            }
+
+            .timer-reset-btn {
+                right: 0.6rem;
+                font-size: 1.1rem;
+            }
+
+            .player-name {
+                font-size: 1.8rem !important;
+                margin-bottom: 1rem !important;
+            }
+
+            .score-display {
+                font-size: 8rem !important;
+                padding: 1rem 2rem !important;
+            }
+        }
+
+        @media (orientation: portrait) and (max-height: 500px) {
+            body, .app-container {
+                min-height: 500px;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+
+            .player-name {
+                font-size: 1.5rem !important;
+                margin-bottom: 0.8rem !important;
+            }
+
+            .score-display {
+                font-size: 6rem !important;
+                padding: 0.8rem 1.5rem !important;
+            }
+
+            .timer-display {
+                font-size: 1.8rem;
+                padding: 0.5rem 1rem;
+                padding-right: 2rem;
+                min-width: 150px;
+            }
+
+            .timer-reset-btn {
+                right: 0.5rem;
+                font-size: 1rem;
             }
         }
 
@@ -223,8 +364,12 @@
         }
 
         .timer-container {
-            position: relative;
-            display: inline-block;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            pointer-events: auto;
         }
 
         .timer-container.hidden {
@@ -481,7 +626,7 @@
 
         .player-name {
             font-family: 'Orbitron', sans-serif;
-            font-size: 2.5rem;
+            font-size: 3rem;
             font-weight: 700;
             letter-spacing: 0.05em;
             margin-bottom: 3rem;
@@ -777,6 +922,53 @@
             margin: 0;
         }
 
+        /* Number Input Spinners */
+        .number-input-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .number-input-wrapper .input-field {
+            padding-right: 2.5rem;
+        }
+
+        .number-spinners {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .spinner-btn {
+            width: 1.5rem;
+            height: 1.2rem;
+            background: var(--bg-header);
+            border: 1px solid var(--divider);
+            border-radius: 0.25rem;
+            color: var(--text-dim);
+            font-size: 0.7rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .spinner-btn:hover {
+            background: var(--divider);
+            color: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+
+        .spinner-btn:active {
+            transform: scale(0.9);
+        }
+
         .checkbox-group {
             display: flex;
             align-items: center;
@@ -978,7 +1170,7 @@
             }
 
             .player-name {
-                font-size: 1.8rem;
+                font-size: 2.2rem;
                 margin-bottom: 1.5rem;
             }
         }
@@ -1082,48 +1274,67 @@
             <div class="modal-header">
                 <span class="modal-title">Settings</span>
                 <div class="modal-actions">
-                    <button class="modal-btn" onclick="closeSettings()">Cancel</button>
-                    <button class="modal-btn save" onclick="saveSettings()">Save</button>
+                    <button class="modal-btn" id="btnSettingsCancel" onclick="closeSettings()">Cancel</button>
+                    <button class="modal-btn save" id="btnSettingsSave" onclick="saveSettings()">Save</button>
                 </div>
             </div>
             <div class="modal-content">
                 <!-- Match Settings -->
                 <div class="settings-section">
-                    <div class="section-title">Match Settings</div>
+                    <div class="section-title" id="titleMatchSettings">Match Settings</div>
                 </div>
 
                 <div class="settings-two-columns">
                     <div class="settings-section">
                         <div class="input-group">
-                            <label class="input-label">Points to Win</label>
-                            <input type="number" id="pointsToWin" class="input-field" min="0" value="7">
+                            <label class="input-label" id="labelPointsToWin">Points to Win</label>
+                            <div class="number-input-wrapper">
+                                <input type="number" id="pointsToWin" class="input-field" min="0" value="7">
+                                <div class="number-spinners">
+                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('pointsToWin')">▲</button>
+                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('pointsToWin')">▼</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label" data-i18n="language">Idioma</label>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="show20sCheckbox">
+                                <label class="checkbox-label" id="labelShow20s" for="show20sCheckbox">Mostrar 20s</label>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-label" id="labelLanguage" data-i18n="language">Idioma</label>
                             <select id="languageSelect" class="input-field">
                                 <option value="es">Español</option>
                                 <option value="ca">Català</option>
                                 <option value="en">English</option>
                             </select>
                         </div>
-
-                        <div class="input-group">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="show20sCheckbox">
-                                <label class="checkbox-label" for="show20sCheckbox">Mostrar 20s</label>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="settings-section">
                         <div class="input-group">
-                            <label class="input-label">Matches to Win</label>
-                            <input type="number" id="matchesToWin" class="input-field" min="1" value="1">
+                            <label class="input-label" id="labelMatchesToWin">Matches to Win</label>
+                            <div class="number-input-wrapper">
+                                <input type="number" id="matchesToWin" class="input-field" min="1" value="1">
+                                <div class="number-spinners">
+                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('matchesToWin')">▲</button>
+                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('matchesToWin')">▼</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label">Timer</label>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="vibrateCheckbox" checked>
+                                <label class="checkbox-label" id="labelVibrate" for="vibrateCheckbox">Vibrar al Cambiar Marcador</label>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-label" id="labelTimer">Timer</label>
                             <div class="timer-selector">
                                 <select id="timerMinutes" class="timer-wheel">
                                     <option value="0">00</option>
@@ -1154,13 +1365,6 @@
                                 <button class="timer-clear-btn" onclick="clearTimerSettings()" title="Clear Timer">Clear</button>
                             </div>
                         </div>
-
-                        <div class="input-group">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="vibrateCheckbox" checked>
-                                <label class="checkbox-label" for="vibrateCheckbox">Vibrar al Cambiar Marcador</label>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -1168,83 +1372,107 @@
                 <div class="settings-two-columns">
                     <!-- Team 1 Settings -->
                     <div class="settings-section">
-                        <div class="section-title">Team 1</div>
+                        <div class="section-title" id="titleTeam1">Team 1</div>
 
                         <div class="input-group">
-                            <label class="input-label">Name</label>
-                            <input type="text" id="team1NameInput" class="input-field" maxlength="20" value="Team 1">
+                            <label class="input-label" id="labelTeam1Name">Name</label>
+                            <input type="text" id="team1NameInput" class="input-field" maxlength="18" value="Team 1">
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label">Color</label>
-                            <button class="color-picker-btn" onclick="openColorPicker(1)">
+                            <label class="input-label" id="labelTeam1Color">Color</label>
+                            <button class="color-picker-btn" id="btnTeam1Color" onclick="openColorPicker(1)">
                                 <div class="color-preview" id="team1ColorPreview" style="background: #1a3d5c;"></div>
-                                <span>Choose Color</span>
+                                <span id="spanTeam1ChooseColor">Choose Color</span>
                             </button>
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label">Points</label>
-                            <input type="number" id="team1Points" class="input-field" min="0" value="0">
+                            <label class="input-label" id="labelTeam1Points">Points</label>
+                            <div class="number-input-wrapper">
+                                <input type="number" id="team1Points" class="input-field" min="0" value="0">
+                                <div class="number-spinners">
+                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('team1Points')">▲</button>
+                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('team1Points')">▼</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label">Rounds</label>
-                            <input type="number" id="team1Rounds" class="input-field" min="0" value="0">
+                            <label class="input-label" id="labelTeam1Rounds">Rounds</label>
+                            <div class="number-input-wrapper">
+                                <input type="number" id="team1Rounds" class="input-field" min="0" value="0">
+                                <div class="number-spinners">
+                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('team1Rounds')">▲</button>
+                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('team1Rounds')">▼</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Team 2 Settings -->
                     <div class="settings-section">
-                        <div class="section-title">Team 2</div>
+                        <div class="section-title" id="titleTeam2">Team 2</div>
 
                         <div class="input-group">
-                            <label class="input-label">Name</label>
-                            <input type="text" id="team2NameInput" class="input-field" maxlength="20" value="Team 2">
+                            <label class="input-label" id="labelTeam2Name">Name</label>
+                            <input type="text" id="team2NameInput" class="input-field" maxlength="18" value="Team 2">
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label">Color</label>
-                            <button class="color-picker-btn" onclick="openColorPicker(2)">
+                            <label class="input-label" id="labelTeam2Color">Color</label>
+                            <button class="color-picker-btn" id="btnTeam2Color" onclick="openColorPicker(2)">
                                 <div class="color-preview" id="team2ColorPreview" style="background: #5c2d1a;"></div>
-                                <span>Choose Color</span>
+                                <span id="spanTeam2ChooseColor">Choose Color</span>
                             </button>
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label">Points</label>
-                            <input type="number" id="team2Points" class="input-field" min="0" value="0">
+                            <label class="input-label" id="labelTeam2Points">Points</label>
+                            <div class="number-input-wrapper">
+                                <input type="number" id="team2Points" class="input-field" min="0" value="0">
+                                <div class="number-spinners">
+                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('team2Points')">▲</button>
+                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('team2Points')">▼</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label">Rounds</label>
-                            <input type="number" id="team2Rounds" class="input-field" min="0" value="0">
+                            <label class="input-label" id="labelTeam2Rounds">Rounds</label>
+                            <div class="number-input-wrapper">
+                                <input type="number" id="team2Rounds" class="input-field" min="0" value="0">
+                                <div class="number-spinners">
+                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('team2Rounds')">▲</button>
+                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('team2Rounds')">▼</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Appearance Settings -->
-                <div class="settings-section">
-                    <div class="section-title">Appearance</div>
-                    
-                    <button class="action-btn" onclick="openPresetColors()">
+                <div class="settings-section" id="appearanceSection">
+                    <div class="section-title" id="titleAppearance">Appearance</div>
+
+                    <button class="action-btn" id="btnPresetColors" onclick="openPresetColors()">
                         Preset Colors
                     </button>
                 </div>
 
                 <!-- Others -->
-                <div class="settings-section">
-                    <div class="section-title">Others</div>
-                    
-                    <button class="action-btn" onclick="rateApp()">
+                <div class="settings-section" id="othersSection">
+                    <div class="section-title" id="titleOthers">Others</div>
+
+                    <button class="action-btn" id="btnRateApp" onclick="rateApp()">
                         ⭐ Rate App
                     </button>
-                    
-                    <button class="action-btn" onclick="shareApp()">
+
+                    <button class="action-btn" id="btnShareApp" onclick="shareApp()">
                         📤 Share App
                     </button>
-                    
-                    <button class="action-btn" onclick="giveFeedback()">
+
+                    <button class="action-btn" id="btnGiveFeedback" onclick="giveFeedback()">
                         💬 Give Feedback
                     </button>
                 </div>
@@ -1258,14 +1486,14 @@
             <div class="modal-header">
                 <span class="modal-title" id="colorPickerTitle">Choose Color</span>
                 <div class="modal-actions">
-                    <button class="modal-btn" onclick="closeColorPicker()">Cancel</button>
-                    <button class="modal-btn save" onclick="saveColor()">Save</button>
+                    <button class="modal-btn" id="btnColorPickerCancel" onclick="closeColorPicker()">Cancel</button>
+                    <button class="modal-btn save" id="btnColorPickerSave" onclick="saveColor()">Save</button>
                 </div>
             </div>
             <div class="modal-content">
                 <div class="color-tabs">
-                    <button class="color-tab active" onclick="switchColorTab('primary')">Primary</button>
-                    <button class="color-tab" onclick="switchColorTab('wheel')">Wheel</button>
+                    <button class="color-tab active" id="tabColorPrimary" onclick="switchColorTab('primary')">Primary</button>
+                    <button class="color-tab" id="tabColorWheel" onclick="switchColorTab('wheel')">Wheel</button>
                 </div>
                 
                 <div class="color-primary-container" id="colorPrimaryContainer">
@@ -1820,7 +2048,7 @@
 
             updateDisplay();
             saveData();
-            stopTimer();
+            resetTimer();
             closeQuickMenu();
         }
 
@@ -2027,6 +2255,33 @@
             document.getElementById('timerSeconds').value = 0;
         }
 
+        // Number Input Spinners
+        function incrementNumber(inputId) {
+            try {
+                const input = document.getElementById(inputId);
+                if (!input) return;
+                const currentValue = parseInt(input.value) || 0;
+                input.value = currentValue + 1;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            } catch (error) {
+                console.error('Error in incrementNumber:', error);
+            }
+        }
+
+        function decrementNumber(inputId) {
+            try {
+                const input = document.getElementById(inputId);
+                if (!input) return;
+                const currentValue = parseInt(input.value) || 0;
+                const min = parseInt(input.getAttribute('min')) || 0;
+                const newValue = Math.max(min, currentValue - 1);
+                input.value = newValue;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            } catch (error) {
+                console.error('Error in decrementNumber:', error);
+            }
+        }
+
         // Settings Modal
         function openSettings() {
             document.getElementById('pointsToWin').value = gameSettings.pointsToWin;
@@ -2055,29 +2310,34 @@
         }
 
         function saveSettings() {
-            gameSettings.pointsToWin = parseInt(document.getElementById('pointsToWin').value) || 0;
-            gameSettings.matchesToWin = parseInt(document.getElementById('matchesToWin').value) || 1;
-            gameSettings.show20s = document.getElementById('show20sCheckbox').checked;
-            gameSettings.timerMinutes = parseInt(document.getElementById('timerMinutes').value) || 0;
-            gameSettings.timerSeconds = parseInt(document.getElementById('timerSeconds').value) || 0;
-            gameSettings.language = document.getElementById('languageSelect').value;
-            gameSettings.vibrateOnScore = document.getElementById('vibrateCheckbox').checked;
+            try {
+                gameSettings.pointsToWin = parseInt(document.getElementById('pointsToWin').value) || 0;
+                gameSettings.matchesToWin = parseInt(document.getElementById('matchesToWin').value) || 1;
+                gameSettings.show20s = document.getElementById('show20sCheckbox').checked;
+                gameSettings.timerMinutes = parseInt(document.getElementById('timerMinutes').value) || 0;
+                gameSettings.timerSeconds = parseInt(document.getElementById('timerSeconds').value) || 0;
+                gameSettings.language = document.getElementById('languageSelect').value;
+                gameSettings.vibrateOnScore = document.getElementById('vibrateCheckbox').checked;
 
-            team1.name = document.getElementById('team1NameInput').value || 'Team 1';
-            team1.points = parseInt(document.getElementById('team1Points').value) || 0;
-            team1.rounds = parseInt(document.getElementById('team1Rounds').value) || 0;
+                team1.name = document.getElementById('team1NameInput').value || 'Team 1';
+                team1.points = parseInt(document.getElementById('team1Points').value) || 0;
+                team1.rounds = parseInt(document.getElementById('team1Rounds').value) || 0;
 
-            team2.name = document.getElementById('team2NameInput').value || 'Team 2';
-            team2.points = parseInt(document.getElementById('team2Points').value) || 0;
-            team2.rounds = parseInt(document.getElementById('team2Rounds').value) || 0;
+                team2.name = document.getElementById('team2NameInput').value || 'Team 2';
+                team2.points = parseInt(document.getElementById('team2Points').value) || 0;
+                team2.rounds = parseInt(document.getElementById('team2Rounds').value) || 0;
 
-            updateDisplay();
-            applyTeamColors();
-            resetTimer();
-            updateTimerVisibility();
-            updateUILanguage();
-            saveData();
-            closeSettings();
+                updateDisplay();
+                applyTeamColors();
+                resetTimer();
+                updateTimerVisibility();
+                updateUILanguage();
+                saveData();
+                closeSettings();
+            } catch (error) {
+                console.error('Error in saveSettings:', error);
+                alert('Error saving settings: ' + error.message);
+            }
         }
 
         function updateUILanguage() {
@@ -2089,57 +2349,65 @@
 
             // Update settings modal
             document.querySelector('#settingsModal .modal-title').textContent = t('settings');
-            document.querySelectorAll('#settingsModal .modal-btn')[0].textContent = t('cancel');
-            document.querySelectorAll('#settingsModal .modal-btn')[1].textContent = t('save');
+            const btnSettingsCancel = document.getElementById('btnSettingsCancel');
+            const btnSettingsSave = document.getElementById('btnSettingsSave');
+            if (btnSettingsCancel) btnSettingsCancel.textContent = t('cancel');
+            if (btnSettingsSave) btnSettingsSave.textContent = t('save');
 
             // Update section titles
-            document.querySelectorAll('.section-title')[0].textContent = t('matchSettings');
-            document.querySelectorAll('.section-title')[1].textContent = t('team') + ' 1';
-            document.querySelectorAll('.section-title')[2].textContent = t('team') + ' 2';
-            document.querySelectorAll('.section-title')[3].textContent = t('appearance');
-            document.querySelectorAll('.section-title')[4].textContent = t('others');
+            const titleMatchSettings = document.getElementById('titleMatchSettings');
+            const titleTeam1 = document.getElementById('titleTeam1');
+            const titleTeam2 = document.getElementById('titleTeam2');
+            const titleAppearance = document.getElementById('titleAppearance');
+            const titleOthers = document.getElementById('titleOthers');
 
-            // Update input labels in Match Settings
-            const matchLabels = document.querySelectorAll('.settings-section')[0].querySelectorAll('.input-label');
-            matchLabels[0].textContent = t('pointsToWin');
-            matchLabels[1].textContent = t('matchesToWin');
-            matchLabels[2].textContent = t('timer');
-            matchLabels[3].textContent = t('language');
+            if (titleMatchSettings) titleMatchSettings.textContent = t('matchSettings');
+            if (titleTeam1) titleTeam1.textContent = t('team') + ' 1';
+            if (titleTeam2) titleTeam2.textContent = t('team') + ' 2';
+            if (titleAppearance) titleAppearance.textContent = t('appearance');
+            if (titleOthers) titleOthers.textContent = t('others');
 
-            // Update Team 1 labels
-            const team1Labels = document.querySelectorAll('.settings-section')[1].querySelectorAll('.input-label');
-            team1Labels[0].textContent = t('name');
-            team1Labels[1].textContent = t('color');
-            team1Labels[2].textContent = t('points');
-            team1Labels[3].textContent = t('rounds');
+            // Update input labels in Match Settings using IDs
+            document.getElementById('labelPointsToWin').textContent = t('pointsToWin');
+            document.getElementById('labelLanguage').textContent = t('language');
+            document.getElementById('labelMatchesToWin').textContent = t('matchesToWin');
+            document.getElementById('labelTimer').textContent = t('timer');
 
-            // Update Team 2 labels
-            const team2Labels = document.querySelectorAll('.settings-section')[2].querySelectorAll('.input-label');
-            team2Labels[0].textContent = t('name');
-            team2Labels[1].textContent = t('color');
-            team2Labels[2].textContent = t('points');
-            team2Labels[3].textContent = t('rounds');
+            // Update Team 1 labels using IDs
+            document.getElementById('labelTeam1Name').textContent = t('name');
+            document.getElementById('labelTeam1Color').textContent = t('color');
+            document.getElementById('labelTeam1Points').textContent = t('points');
+            document.getElementById('labelTeam1Rounds').textContent = t('rounds');
+
+            // Update Team 2 labels using IDs
+            document.getElementById('labelTeam2Name').textContent = t('name');
+            document.getElementById('labelTeam2Color').textContent = t('color');
+            document.getElementById('labelTeam2Points').textContent = t('points');
+            document.getElementById('labelTeam2Rounds').textContent = t('rounds');
 
             // Update timer clear button
             document.querySelector('.timer-clear-btn').textContent = t('clear');
 
-            // Update checkbox labels
-            const checkboxLabels = document.querySelectorAll('.checkbox-label');
-            checkboxLabels[0].textContent = t('show20s');
-            checkboxLabels[1].textContent = t('vibrateOnScore');
+            // Update checkbox labels using IDs
+            document.getElementById('labelShow20s').textContent = t('show20s');
+            document.getElementById('labelVibrate').textContent = t('vibrateOnScore');
 
-            // Update color picker buttons
-            document.querySelectorAll('.color-picker-btn span')[0].textContent = t('chooseColor');
-            document.querySelectorAll('.color-picker-btn span')[1].textContent = t('chooseColor');
+            // Update color picker buttons using IDs
+            document.getElementById('spanTeam1ChooseColor').textContent = t('chooseColor');
+            document.getElementById('spanTeam2ChooseColor').textContent = t('chooseColor');
 
             // Update appearance section
-            document.querySelector('.settings-section:nth-child(4) .action-btn').textContent = t('presetColors');
+            const btnPresetColors = document.getElementById('btnPresetColors');
+            if (btnPresetColors) btnPresetColors.textContent = t('presetColors');
 
             // Update others section buttons
-            const otherButtons = document.querySelectorAll('.settings-section')[4].querySelectorAll('.action-btn');
-            otherButtons[0].textContent = '⭐ ' + t('rateApp');
-            otherButtons[1].textContent = '📤 ' + t('shareApp');
-            otherButtons[2].textContent = '💬 ' + t('giveFeedback');
+            const btnRateApp = document.getElementById('btnRateApp');
+            const btnShareApp = document.getElementById('btnShareApp');
+            const btnGiveFeedback = document.getElementById('btnGiveFeedback');
+
+            if (btnRateApp) btnRateApp.textContent = '⭐ ' + t('rateApp');
+            if (btnShareApp) btnShareApp.textContent = '📤 ' + t('shareApp');
+            if (btnGiveFeedback) btnGiveFeedback.textContent = '💬 ' + t('giveFeedback');
 
             // Update color picker modal
             const colorPickerTitle = document.getElementById('colorPickerTitle');
@@ -2149,12 +2417,16 @@
             }
 
             // Update color picker modal buttons
-            document.querySelectorAll('#colorPickerModal .modal-btn')[0].textContent = t('cancel');
-            document.querySelectorAll('#colorPickerModal .modal-btn')[1].textContent = t('save');
+            const btnColorPickerCancel = document.getElementById('btnColorPickerCancel');
+            const btnColorPickerSave = document.getElementById('btnColorPickerSave');
+            if (btnColorPickerCancel) btnColorPickerCancel.textContent = t('cancel');
+            if (btnColorPickerSave) btnColorPickerSave.textContent = t('save');
 
             // Update color tabs
-            document.querySelectorAll('.color-tab')[0].textContent = t('primary');
-            document.querySelectorAll('.color-tab')[1].textContent = t('wheel');
+            const tabColorPrimary = document.getElementById('tabColorPrimary');
+            const tabColorWheel = document.getElementById('tabColorWheel');
+            if (tabColorPrimary) tabColorPrimary.textContent = t('primary');
+            if (tabColorWheel) tabColorWheel.textContent = t('wheel');
 
             // Update preset colors modal
             document.querySelector('#presetColorsModal .modal-title').textContent = t('presetColors');
