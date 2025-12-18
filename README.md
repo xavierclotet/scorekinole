@@ -1,4 +1,4 @@
-# 🎯 Crokinole Scorer
+# 🎯 ScoreCroki
 
 > Professional scoring app for Crokinole players and enthusiasts
 
@@ -55,22 +55,6 @@ Native apps for iOS and Android will be available on:
 - 📱 **App Store** (iOS 13+)
 - 🤖 **Google Play Store** (Android 8+)
 
-## 🚀 Quick Start
-
-### Web
-1. Clone this repository
-2. Open `index.html` in your browser
-3. Start playing!
-
-```bash
-git clone https://github.com/xavierclotet/scorekinole.git
-cd scorekinole
-# Open index.html in your browser
-```
-
-### Local Development
-No build process required. Simply edit `index.html` and refresh your browser.
-
 ## 📖 User Guide
 
 ### Basic Usage
@@ -101,11 +85,11 @@ No build process required. Simply edit `index.html` and refresh your browser.
 
 ## 📄 License
 
-**Copyright © 2024 Xavier Clotet. All rights reserved.**
+**Copyright © 2025 Xavier Clotet. All rights reserved.**
 
 This software is proprietary and confidential. Unauthorized copying, modification, distribution, or use of this software, via any medium, is strictly prohibited without explicit written permission from the copyright holder.
 
-For licensing inquiries, please contact: [your-email@example.com]
+For licensing inquiries, please contact: [xaviterra11@gmail.com]
 
 ## 🤝 Contributing
 
@@ -113,14 +97,14 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 ## 📞 Support
 
-- 📧 Email: [your-email@example.com]
+- 📧 Email: [xaviterra11@gmail.com]
 - 🐛 Issues: [GitHub Issues](https://github.com/xavierclotet/scorekinole/issues)
 - 💬 Feedback: Use the "Give Feedback" button in the app
 
 ## 🎯 Roadmap
 
-- [ ] Native iOS app release
 - [ ] Native Android app release
+- [ ] Native iOS app release
 - [ ] Cloud sync across devices
 - [ ] Tournament mode with brackets
 - [ ] Statistics and game history
