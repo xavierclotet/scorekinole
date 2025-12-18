@@ -97,8 +97,8 @@ When adding/removing settings sections or buttons:
 
 ### Version Control
 - Use semantic versioning for tags (v1.0.0, v1.1.0, etc.)
-- Include emoji in commit messages: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
-- Add Co-Authored-By line: `Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>`
+- Keep commit messages clean and professional without AI attribution
+- Focus on describing what changed and why
 
 ## Critical Implementation Details
 
