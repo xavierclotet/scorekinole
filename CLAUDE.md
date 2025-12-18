@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Crokinole Scorer is a single-file HTML web application for tracking scores in Crokinole games. The entire application is contained in `crokinole-scorer-complete.html` - a self-contained HTML file with embedded CSS and JavaScript.
+Crokinole Scorer is a single-file HTML web application for tracking scores in Crokinole games. The entire application is contained in `index.html` - a self-contained HTML file with embedded CSS and JavaScript.
+
+**Future Plans**: This web app is designed to be converted into native Android/iOS apps using frameworks like Ionic Capacitor or Apache Cordova. The filename `index.html` is intentionally chosen as it's the standard entry point expected by these mobile app frameworks.
 
 ## Architecture
 
@@ -122,4 +124,12 @@ Data is loaded on init via `loadData()` and saved after every state change via `
 
 ## Deployment
 
-The application is fully client-side and requires no build step. Simply open `crokinole-scorer-complete.html` in any modern browser or host it on any static web server.
+### Web Version
+The application is fully client-side and requires no build step. Simply open `index.html` in any modern browser or host it on any static web server.
+
+### Mobile App Conversion
+The app is structured to be easily converted to native mobile apps:
+- **Ionic Capacitor**: Recommended for modern mobile app development
+- **Apache Cordova**: Alternative framework for hybrid apps
+- Both frameworks expect `index.html` as the entry point
+- The app uses web standards (localStorage, touch events) that work seamlessly in WebView containers
