@@ -512,6 +512,60 @@
             }
         }
 
+        /* 20s Counter Display */
+        .twenty-counter-team1,
+        .twenty-counter-team2 {
+            position: fixed;
+            padding: 0.6rem 1rem;
+            border-radius: 0.75rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            z-index: 60;
+            pointer-events: none;
+            display: none;
+            user-select: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .twenty-counter-team1.visible,
+        .twenty-counter-team2.visible {
+            display: flex;
+        }
+
+        .twenty-label {
+            font-size: 0.9rem;
+            opacity: 0.85;
+            font-weight: 600;
+            margin-right: 0.3rem;
+        }
+
+        @media (orientation: portrait) {
+            .twenty-counter-team1 {
+                left: 0.5rem;
+                top: calc(50% - 4rem);
+            }
+
+            .twenty-counter-team2 {
+                left: 0.5rem;
+                top: calc(50% + 0.5rem);
+            }
+        }
+
+        @media (orientation: landscape) {
+            .twenty-counter-team1 {
+                bottom: 1rem;
+                left: calc(50% - 7.1rem);
+            }
+
+            .twenty-counter-team2 {
+                bottom: 1rem;
+                left: calc(50% + 1rem);
+            }
+        }
+
         .timer-selector {
             display: flex;
             align-items: center;
@@ -1147,6 +1201,93 @@
             font-weight: 900;
         }
 
+        /* 20s Input Dialog */
+        .twenty-input-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            padding: 1rem 0;
+        }
+
+        .twenty-team-section {
+            background: var(--bg-primary);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 2px solid var(--divider);
+        }
+
+        .twenty-team-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .twenty-team-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .twenty-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+
+        .twenty-btn {
+            width: 4rem;
+            height: 4rem;
+            min-height: 44px;
+            min-width: 44px;
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+            font-size: 2rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            background: var(--bg-header);
+            color: var(--text-primary);
+        }
+
+        .twenty-btn:hover {
+            transform: scale(1.1);
+            border-color: var(--accent-green);
+        }
+
+        .twenty-btn:active {
+            transform: scale(0.95);
+        }
+
+        .twenty-btn-minus {
+            color: var(--accent-red);
+        }
+
+        .twenty-btn-minus:hover {
+            border-color: var(--accent-red);
+        }
+
+        .twenty-btn-plus {
+            color: var(--accent-green);
+        }
+
+        .twenty-display {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3rem;
+            font-weight: 900;
+            min-width: 5rem;
+            text-align: center;
+            padding: 1rem;
+            background: rgba(0, 255, 136, 0.1);
+            border-radius: 0.75rem;
+            border: 2px solid var(--accent-green);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .score-display {
@@ -1210,6 +1351,16 @@
         </div>
         <div class="match-counter-team2" id="team2MatchCounter" onclick="incrementCounter(2, event)">
             <span id="team2Counter">0</span>
+        </div>
+
+        <!-- 20s Counter -->
+        <div class="twenty-counter-team1" id="team1TwentyCounter">
+            <span class="twenty-label">20s:</span>
+            <span id="team1TwentyCount">0</span>
+        </div>
+        <div class="twenty-counter-team2" id="team2TwentyCounter">
+            <span class="twenty-label">20s:</span>
+            <span id="team2TwentyCount">0</span>
         </div>
 
         <!-- Header -->
@@ -1519,6 +1670,45 @@
         </div>
     </div>
 
+    <!-- 20s Input Dialog Modal -->
+    <div class="modal-overlay" id="twentyDialog">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="twentyDialogTitle">Center Shots (20s)</span>
+                <div class="modal-actions">
+                    <button class="modal-btn save" id="btnTwentyConfirm" onclick="confirmTwenty()">Confirm</button>
+                </div>
+            </div>
+            <div class="modal-content">
+                <div class="twenty-input-container">
+                    <!-- Team 1 Input -->
+                    <div class="twenty-team-section" id="twentyTeam1Section">
+                        <div class="twenty-team-header">
+                            <span class="twenty-team-name" id="twentyTeam1Name">Team 1</span>
+                        </div>
+                        <div class="twenty-controls">
+                            <button class="twenty-btn twenty-btn-minus" onclick="adjustTwentyInput(1, -1)">-</button>
+                            <div class="twenty-display" id="twentyInput1">0</div>
+                            <button class="twenty-btn twenty-btn-plus" onclick="adjustTwentyInput(1, 1)">+</button>
+                        </div>
+                    </div>
+
+                    <!-- Team 2 Input -->
+                    <div class="twenty-team-section" id="twentyTeam2Section">
+                        <div class="twenty-team-header">
+                            <span class="twenty-team-name" id="twentyTeam2Name">Team 2</span>
+                        </div>
+                        <div class="twenty-controls">
+                            <button class="twenty-btn twenty-btn-minus" onclick="adjustTwentyInput(2, -1)">-</button>
+                            <div class="twenty-display" id="twentyInput2">0</div>
+                            <button class="twenty-btn twenty-btn-plus" onclick="adjustTwentyInput(2, 1)">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Game State
         let gameSettings = {
@@ -1564,7 +1754,9 @@
                 wheel: 'Rueda',
                 vibrateOnScore: 'Vibrar al Cambiar Marcador',
                 matchesToWin: 'Partidas para Ganar Partido',
-                show20s: 'Mostrar 20s'
+                show20s: 'Mostrar 20s',
+                twentyDialogTitle: 'Tiros al Centro (20s)',
+                confirm: 'Confirmar'
             },
             ca: {
                 settings: 'Configuració',
@@ -1596,7 +1788,9 @@
                 wheel: 'Roda',
                 vibrateOnScore: 'Vibrar en Canviar Marcador',
                 matchesToWin: 'Partides per Guanyar Partit',
-                show20s: 'Mostrar 20s'
+                show20s: 'Mostrar 20s',
+                twentyDialogTitle: 'Tirs al Centre (20s)',
+                confirm: 'Confirmar'
             },
             en: {
                 settings: 'Settings',
@@ -1628,7 +1822,9 @@
                 wheel: 'Wheel',
                 vibrateOnScore: 'Vibrate on Score Change',
                 matchesToWin: 'Matches to Win',
-                show20s: 'Show 20s'
+                show20s: 'Show 20s',
+                twentyDialogTitle: 'Center Shots (20s)',
+                confirm: 'Confirm'
             }
         };
 
@@ -1655,6 +1851,12 @@
             twenty: 0,
             hasWon: false
         };
+
+        // Temporary state for 20s input dialog
+        let tempTwenty1 = 0;
+        let tempTwenty2 = 0;
+        const MAX_TWENTY_SINGLES = 8;
+        const MAX_TWENTY_DOUBLES = 12;
 
         // Timer state
         let timerInterval = null;
@@ -1805,6 +2007,7 @@
             document.getElementById('team1Name').textContent = team1.name;
             document.getElementById('team2Name').textContent = team2.name;
             updateMatchesCounter();
+            updateTwentyCounter();
         }
 
         function checkWinCondition() {
@@ -1844,6 +2047,121 @@
             // Actualizar display y guardar estado
             updateMatchesCounter();
             saveData();
+
+            // Open 20s dialog after animations (500ms delay)
+            setTimeout(() => {
+                openTwentyDialog();
+            }, 500);
+        }
+
+        function openTwentyDialog() {
+            // Only open if show20s setting is enabled
+            if (!gameSettings.show20s) {
+                return;
+            }
+
+            // Initialize temporary values to 0
+            tempTwenty1 = 0;
+            tempTwenty2 = 0;
+
+            // Update display
+            document.getElementById('twentyInput1').textContent = '0';
+            document.getElementById('twentyInput2').textContent = '0';
+
+            // Apply team colors to sections
+            const team1Section = document.getElementById('twentyTeam1Section');
+            const team2Section = document.getElementById('twentyTeam2Section');
+
+            team1Section.style.borderColor = team1.color;
+            team1Section.querySelector('.twenty-team-name').style.color = team1.color;
+            team1Section.querySelector('.twenty-display').style.borderColor = team1.color;
+            team1Section.querySelector('.twenty-display').style.background = `${team1.color}15`;
+
+            team2Section.style.borderColor = team2.color;
+            team2Section.querySelector('.twenty-team-name').style.color = team2.color;
+            team2Section.querySelector('.twenty-display').style.borderColor = team2.color;
+            team2Section.querySelector('.twenty-display').style.background = `${team2.color}15`;
+
+            // Update team names
+            document.getElementById('twentyTeam1Name').textContent = team1.name;
+            document.getElementById('twentyTeam2Name').textContent = team2.name;
+
+            // Update title with translation
+            document.getElementById('twentyDialogTitle').textContent = t('twentyDialogTitle');
+            document.getElementById('btnTwentyConfirm').textContent = t('confirm');
+
+            // Show modal
+            document.getElementById('twentyDialog').classList.add('active');
+        }
+
+        function adjustTwentyInput(teamNumber, delta) {
+            const maxTwenty = MAX_TWENTY_DOUBLES; // Could be made configurable
+
+            if (teamNumber === 1) {
+                tempTwenty1 = Math.max(0, Math.min(maxTwenty, tempTwenty1 + delta));
+                document.getElementById('twentyInput1').textContent = tempTwenty1;
+            } else {
+                tempTwenty2 = Math.max(0, Math.min(maxTwenty, tempTwenty2 + delta));
+                document.getElementById('twentyInput2').textContent = tempTwenty2;
+            }
+
+            // Haptic feedback
+            if (gameSettings.vibrateOnScore && navigator.vibrate) {
+                navigator.vibrate(30);
+            }
+        }
+
+        function confirmTwenty() {
+            // Add temporary values to accumulated totals
+            team1.twenty = (team1.twenty || 0) + tempTwenty1;
+            team2.twenty = (team2.twenty || 0) + tempTwenty2;
+
+            // Update display and save
+            updateTwentyCounter();
+            saveData();
+
+            // Close modal
+            closeTwentyDialog();
+        }
+
+        function closeTwentyDialog() {
+            document.getElementById('twentyDialog').classList.remove('active');
+            tempTwenty1 = 0;
+            tempTwenty2 = 0;
+        }
+
+        function updateTwentyCounter() {
+            const team1TwentyCounter = document.getElementById('team1TwentyCounter');
+            const team2TwentyCounter = document.getElementById('team2TwentyCounter');
+            const team1CountEl = document.getElementById('team1TwentyCount');
+            const team2CountEl = document.getElementById('team2TwentyCount');
+
+            // Only show if setting is enabled
+            const show20s = gameSettings.show20s;
+
+            if (show20s) {
+                const value1 = team1.twenty || 0;
+                const value2 = team2.twenty || 0;
+
+                team1CountEl.textContent = value1;
+                team2CountEl.textContent = value2;
+
+                // Apply team colors as backgrounds with contrast text
+                const team1TextColor = getContrastColor(team1.color);
+                const team2TextColor = getContrastColor(team2.color);
+
+                team1TwentyCounter.style.backgroundColor = team1.color;
+                team1TwentyCounter.style.color = team1TextColor;
+
+                team2TwentyCounter.style.backgroundColor = team2.color;
+                team2TwentyCounter.style.color = team2TextColor;
+
+                team1TwentyCounter.classList.add('visible');
+                team2TwentyCounter.classList.add('visible');
+            } else {
+                team1TwentyCounter.classList.remove('visible');
+                team2TwentyCounter.classList.remove('visible');
+            }
         }
 
         function updateMatchesCounter() {
@@ -2675,6 +2993,7 @@
         updateTimerDisplay();
         updateUILanguage();
         updateMatchesCounter();
+        updateTwentyCounter();
     </script>
 </body>
 </html>

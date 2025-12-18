@@ -103,6 +103,9 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 ## 🎯 Roadmap
 
+- Posar titol de l'esdeveniment (settings)
+- hammer (setting checkbox)
+
 - [ ] Native Android app release
 - [ ] Native iOS app release
 - [ ] Cloud sync across devices
@@ -113,7 +116,7 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 ## 🏆 Credits
 
-Developed with ❤️ by Xavier Clotet
+Developed with ❤️ by Xavi Clotet
 
 ---
 
