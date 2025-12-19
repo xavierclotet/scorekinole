@@ -558,12 +558,12 @@
         @media (orientation: portrait) {
             .twenty-counter-team1 {
                 left: 0.5rem;
-                top: calc(50% - 4rem);
+                top: calc(50% - 3.5rem);
             }
 
             .twenty-counter-team2 {
                 left: 0.5rem;
-                top: calc(50% + 0.5rem);
+                top: calc(50% + 0.8rem);
             }
         }
 
@@ -577,6 +577,56 @@
                 bottom: 1rem;
                 left: calc(50% + 1rem);
             }
+        }
+
+        /* Hammer Indicator */
+        .hammer-indicator {
+            font-size: 1em;
+            margin-left: 0.3rem;
+            display: inline-block;
+            animation: hammerPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes hammerPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        /* Hammer Dialog */
+        .hammer-dialog-subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .hammer-dialog-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .hammer-choice-btn {
+            flex: 1;
+            padding: 1.5rem 2rem;
+            border: 2px solid var(--accent-green);
+            border-radius: 0.75rem;
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--text-primary);
+            font-family: 'Lexend', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .hammer-choice-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            transform: scale(1.05);
+        }
+
+        .hammer-choice-btn:active {
+            transform: scale(0.98);
         }
 
         .timer-selector {
@@ -1410,7 +1460,7 @@
         <div class="scoring-area">
             <div class="player-section" id="team1Section">
                 <div class="player-content">
-                    <div class="player-name" id="team1Name">Team 1</div>
+                    <div class="player-name" id="team1Name">Team 1 <span class="hammer-indicator" id="team1Hammer" style="display: none;">🔨</span></div>
                     <div class="score-container">
                         <div class="score-display" id="team1Score" data-team="1">0</div>
                         <div class="swipe-indicator" id="swipe1">-1</div>
@@ -1422,7 +1472,7 @@
 
             <div class="player-section" id="team2Section">
                 <div class="player-content">
-                    <div class="player-name" id="team2Name">Team 2</div>
+                    <div class="player-name" id="team2Name">Team 2 <span class="hammer-indicator" id="team2Hammer" style="display: none;">🔨</span></div>
                     <div class="score-container">
                         <div class="score-display" id="team2Score" data-team="2">0</div>
                         <div class="swipe-indicator" id="swipe2">-1</div>
@@ -1465,6 +1515,13 @@
                             <div class="checkbox-group">
                                 <input type="checkbox" id="show20sCheckbox">
                                 <label class="checkbox-label" id="labelShow20s" for="show20sCheckbox">Mostrar 20s</label>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="showHammerCheckbox">
+                                <label class="checkbox-label" id="labelShowHammer" for="showHammerCheckbox">Mostrar Martillo</label>
                             </div>
                         </div>
 
@@ -1722,6 +1779,26 @@
         </div>
     </div>
 
+    <!-- Hammer Selection Dialog Modal -->
+    <div class="modal-overlay" id="hammerDialog">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="hammerDialogTitle">Quien empieza la primera partida?</span>
+            </div>
+            <div class="modal-content">
+                <p class="hammer-dialog-subtitle" id="hammerDialogSubtitle">El otro equipo tendra el martillo</p>
+                <div class="hammer-dialog-buttons">
+                    <button class="hammer-choice-btn" id="btnHammerTeam1" onclick="selectStartingTeam(1)">
+                        <span id="hammerTeam1Name">Team 1</span>
+                    </button>
+                    <button class="hammer-choice-btn" id="btnHammerTeam2" onclick="selectStartingTeam(2)">
+                        <span id="hammerTeam2Name">Team 2</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Game State
         let gameSettings = {
@@ -1732,7 +1809,8 @@
             vibrateOnScore: true,
             matchesToWin: 1,
             show20s: false,
-            minPointsDifference: 2  // Diferencia mínima de puntos para ganar
+                          
+            showHammer: false
         };
 
         // Translations
@@ -1769,7 +1847,10 @@
                 matchesToWin: 'Partidas para Ganar Partido',
                 show20s: 'Mostrar 20s',
                 twentyDialogTitle: 'Tiros al Centro (20s)',
-                confirm: 'Confirmar'
+                confirm: 'Confirmar',
+                showHammer: 'Mostrar Martillo',
+                hammerDialogTitle: 'Quien empieza la primera partida?',
+                hammerDialogSubtitle: 'El otro equipo tendra el martillo'
             },
             ca: {
                 settings: 'Configuració',
@@ -1803,7 +1884,10 @@
                 matchesToWin: 'Partides per Guanyar Partit',
                 show20s: 'Mostrar 20s',
                 twentyDialogTitle: 'Tirs al Centre (20s)',
-                confirm: 'Confirmar'
+                confirm: 'Confirmar',
+                showHammer: 'Mostrar Martell',
+                hammerDialogTitle: 'Qui comenca la primera partida?',
+                hammerDialogSubtitle: 'Laltre equip tindra el martell'
             },
             en: {
                 settings: 'Settings',
@@ -1837,7 +1921,10 @@
                 matchesToWin: 'Matches to Win',
                 show20s: 'Show 20s',
                 twentyDialogTitle: 'Center Shots (20s)',
-                confirm: 'Confirm'
+                confirm: 'Confirm',
+                showHammer: 'Show Hammer',
+                hammerDialogTitle: 'Who starts the first game?',
+                hammerDialogSubtitle: 'The other team will have the hammer'
             }
         };
 
@@ -1852,7 +1939,8 @@
             rounds: 0,
             matches: 0,
             twenty: 0,
-            hasWon: false
+            hasWon: false,
+            hasHammer: false
         };
 
         let team2 = {
@@ -1862,7 +1950,8 @@
             rounds: 0,
             matches: 0,
             twenty: 0,
-            hasWon: false
+            hasWon: false,
+            hasHammer: false
         };
 
         // Temporary state for 20s input dialog
@@ -1958,6 +2047,10 @@
                 if (gameSettings.minPointsDifference === undefined) {
                     gameSettings.minPointsDifference = 2;
                 }
+                // Ensure showHammer exists
+                if (gameSettings.showHammer === undefined) {
+                    gameSettings.showHammer = false;
+                }
             }
             if (savedTeam1) {
                 team1 = JSON.parse(savedTeam1);
@@ -1973,6 +2066,10 @@
                 if (team1.hasWon === undefined) {
                     team1.hasWon = false;
                 }
+                // Ensure hasHammer property exists
+                if (team1.hasHammer === undefined) {
+                    team1.hasHammer = false;
+                }
             }
             if (savedTeam2) {
                 team2 = JSON.parse(savedTeam2);
@@ -1987,6 +2084,10 @@
                 // Ensure hasWon property exists
                 if (team2.hasWon === undefined) {
                     team2.hasWon = false;
+                }
+                // Ensure hasHammer property exists
+                if (team2.hasHammer === undefined) {
+                    team2.hasHammer = false;
                 }
             }
 
@@ -2017,10 +2118,17 @@
         function updateDisplay() {
             document.getElementById('team1Score').textContent = team1.points;
             document.getElementById('team2Score').textContent = team2.points;
-            document.getElementById('team1Name').textContent = team1.name;
-            document.getElementById('team2Name').textContent = team2.name;
+
+            // Update team names preserving the hammer indicator span
+            const team1NameEl = document.getElementById('team1Name');
+            const team2NameEl = document.getElementById('team2Name');
+
+            team1NameEl.childNodes[0].textContent = team1.name + ' ';
+            team2NameEl.childNodes[0].textContent = team2.name + ' ';
+
             updateMatchesCounter();
             updateTwentyCounter();
+            updateHammerIndicator();
         }
 
         function checkWinCondition() {
@@ -2060,6 +2168,20 @@
             // Actualizar display y guardar estado
             updateMatchesCounter();
             saveData();
+
+            // Toggle hammer for next partida
+            toggleHammer();
+            saveData();
+
+            // Check if team won the overall match
+            if (team.matches >= gameSettings.matchesToWin) {
+                // Overall match winner - no auto-reset
+            } else {
+                // Auto-reset for next partida after 2 seconds
+                setTimeout(() => {
+                    resetRound();
+                }, 2000);
+            }
         }
 
         function openTwentyDialog() {
@@ -2165,6 +2287,34 @@
                 team1TwentyCounter.classList.remove('visible');
                 team2TwentyCounter.classList.remove('visible');
             }
+        }
+
+        function updateHammerIndicator() {
+            console.log('🔨 updateHammerIndicator - showHammer:', gameSettings.showHammer, 'team1.hasHammer:', team1.hasHammer, 'team2.hasHammer:', team2.hasHammer);
+
+            const team1Hammer = document.getElementById('team1Hammer');
+            const team2Hammer = document.getElementById('team2Hammer');
+
+            // Only show if setting is enabled
+            if (gameSettings.showHammer) {
+                team1Hammer.style.display = team1.hasHammer ? 'inline-block' : 'none';
+                team2Hammer.style.display = team2.hasHammer ? 'inline-block' : 'none';
+            } else {
+                team1Hammer.style.display = 'none';
+                team2Hammer.style.display = 'none';
+            }
+        }
+
+        function toggleHammer() {
+            console.log('🔄 toggleHammer ANTES - team1.hasHammer:', team1.hasHammer, 'team2.hasHammer:', team2.hasHammer);
+
+            // Swap hammer between teams
+            const temp = team1.hasHammer;
+            team1.hasHammer = team2.hasHammer;
+            team2.hasHammer = temp;
+
+            console.log('🔄 toggleHammer DESPUES - team1.hasHammer:', team1.hasHammer, 'team2.hasHammer:', team2.hasHammer);
+            updateHammerIndicator();
         }
 
         function updateMatchesCounter() {
@@ -2318,8 +2468,25 @@
         }
 
         function updateScore(teamNum, delta) {
+            console.log('📊 updateScore - team:', teamNum, 'delta:', delta, 'Puntos antes - T1:', team1.points, 'T2:', team2.points);
+
             const team = teamNum === 1 ? team1 : team2;
             team.points = Math.max(0, team.points + delta);
+
+            // Toggle hammer when partida ends:
+            // Valid end states: 1-1, 2-0, 0-2, 3-1, 1-3, 3-3, 4-4, etc.
+            // Pattern: sum is even AND (both equal OR difference is 2)
+            if (delta > 0) {
+                const totalPoints = team1.points + team2.points;
+                const diff = Math.abs(team1.points - team2.points);
+                const partidaCompleted = (totalPoints % 2 === 0) && (diff === 0 || diff === 2);
+
+                if (partidaCompleted) {
+                    console.log('✅ Partida completada - toggling hammer. T1:', team1.points, 'T2:', team2.points);
+                    toggleHammer();
+                }
+            }
+
             checkWinCondition();
             updateDisplay();
             saveData();
@@ -2352,6 +2519,8 @@
         }
 
         function resetRound() {
+            console.log('♻️ resetRound llamado');
+
             team1.points = 0;
             team2.points = 0;
             team1.hasWon = false;
@@ -2368,22 +2537,37 @@
             document.getElementById('team2Score').style.pointerEvents = 'auto';
 
             updateDisplay();
+            toggleHammer();  // Cambiar hammer al otro equipo al resetear ronda
             saveData();
             resetTimer();
             closeQuickMenu();
         }
 
         function resetMatch() {
+            // Only show hammer selection dialog if showHammer is enabled
+            if (gameSettings.showHammer) {
+                openHammerDialog();
+            } else {
+                // Reset directly without hammer selection
+                completeResetMatch();
+            }
+        }
+
+        function completeResetMatch() {
+            // This function is called AFTER hammer selection
             team1.points = 0;
             team1.rounds = 0;
             team1.matches = 0;
             team1.twenty = 0;
             team1.hasWon = false;
+            // hasHammer is set by hammer dialog
+
             team2.points = 0;
             team2.rounds = 0;
             team2.matches = 0;
             team2.twenty = 0;
             team2.hasWon = false;
+            // hasHammer is set by hammer dialog
 
             // Remover clases winner
             document.getElementById('team1Score').classList.remove('winner');
@@ -2402,6 +2586,48 @@
             closeQuickMenu();
         }
 
+        function openHammerDialog() {
+            // Update team names in dialog
+            document.getElementById('hammerTeam1Name').textContent = team1.name;
+            document.getElementById('hammerTeam2Name').textContent = team2.name;
+
+            // Update title and subtitle with translations
+            document.getElementById('hammerDialogTitle').textContent = t('hammerDialogTitle');
+            document.getElementById('hammerDialogSubtitle').textContent = t('hammerDialogSubtitle');
+
+            // Apply team colors to buttons
+            const btn1 = document.getElementById('btnHammerTeam1');
+            const btn2 = document.getElementById('btnHammerTeam2');
+
+            btn1.style.borderColor = team1.color;
+            btn1.style.background = `${team1.color}15`;
+
+            btn2.style.borderColor = team2.color;
+            btn2.style.background = `${team2.color}15`;
+
+            // Show modal
+            document.getElementById('hammerDialog').classList.add('active');
+        }
+
+        function closeHammerDialog() {
+            document.getElementById('hammerDialog').classList.remove('active');
+        }
+
+        function selectStartingTeam(teamNumber) {
+            // Team that starts SHOOTING FIRST does NOT get hammer
+            // The OTHER team gets the hammer (shoots last)
+            if (teamNumber === 1) {
+                team1.hasHammer = false;
+                team2.hasHammer = true;
+            } else {
+                team1.hasHammer = true;
+                team2.hasHammer = false;
+            }
+
+            closeHammerDialog();
+            completeResetMatch();
+        }
+
         function switchSides() {
             // Swap team data
             const tempTeam = {
@@ -2411,7 +2637,8 @@
                 rounds: team1.rounds,
                 matches: team1.matches,
                 twenty: team1.twenty,
-                hasWon: team1.hasWon
+                hasWon: team1.hasWon,
+                hasHammer: team1.hasHammer
             };
 
             team1.name = team2.name;
@@ -2421,6 +2648,7 @@
             team1.matches = team2.matches;
             team1.twenty = team2.twenty;
             team1.hasWon = team2.hasWon;
+            team1.hasHammer = team2.hasHammer;
 
             team2.name = tempTeam.name;
             team2.color = tempTeam.color;
@@ -2429,6 +2657,7 @@
             team2.matches = tempTeam.matches;
             team2.twenty = tempTeam.twenty;
             team2.hasWon = tempTeam.hasWon;
+            team2.hasHammer = tempTeam.hasHammer;
 
             // Actualizar clases winner después del intercambio
             document.getElementById('team1Score').classList.remove('winner');
@@ -2608,6 +2837,7 @@
             document.getElementById('pointsToWin').value = gameSettings.pointsToWin;
             document.getElementById('matchesToWin').value = gameSettings.matchesToWin;
             document.getElementById('show20sCheckbox').checked = gameSettings.show20s;
+            document.getElementById('showHammerCheckbox').checked = gameSettings.showHammer;
             document.getElementById('timerMinutes').value = gameSettings.timerMinutes;
             document.getElementById('timerSeconds').value = gameSettings.timerSeconds;
             document.getElementById('languageSelect').value = gameSettings.language;
@@ -2635,6 +2865,7 @@
                 gameSettings.pointsToWin = parseInt(document.getElementById('pointsToWin').value) || 0;
                 gameSettings.matchesToWin = parseInt(document.getElementById('matchesToWin').value) || 1;
                 gameSettings.show20s = document.getElementById('show20sCheckbox').checked;
+                gameSettings.showHammer = document.getElementById('showHammerCheckbox').checked;
                 gameSettings.timerMinutes = parseInt(document.getElementById('timerMinutes').value) || 0;
                 gameSettings.timerSeconds = parseInt(document.getElementById('timerSeconds').value) || 0;
                 gameSettings.language = document.getElementById('languageSelect').value;
@@ -2652,6 +2883,8 @@
                 applyTeamColors();
                 resetTimer();
                 updateTimerVisibility();
+                updateTwentyCounter();
+                updateHammerIndicator();
                 updateUILanguage();
                 saveData();
                 closeSettings();
@@ -2711,6 +2944,7 @@
 
             // Update checkbox labels using IDs
             document.getElementById('labelShow20s').textContent = t('show20s');
+            document.getElementById('labelShowHammer').textContent = t('showHammer');
             document.getElementById('labelVibrate').textContent = t('vibrateOnScore');
 
             // Update color picker buttons using IDs
@@ -2997,6 +3231,7 @@
         updateUILanguage();
         updateMatchesCounter();
         updateTwentyCounter();
+        updateHammerIndicator();
     </script>
 </body>
 </html>
