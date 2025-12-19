@@ -14,7 +14,9 @@ A beautiful, responsive web application designed to track scores, manage timers,
 - **Intuitive Score Tracking**: Swipe up/down to increment/decrement scores
 - **Touch-Optimized**: Native touch gestures for seamless mobile experience
 - **Real-time Win Detection**: Automatic winner announcement with visual effects
-- **Match Counter**: Track multiple matches in a tournament
+- **Match Counter**: Track multiple games in a match
+- **Hammer Indicator**: Visual indicator (🔨) showing who shoots last in each game
+- **Match Victory Celebration**: Confetti animation and enhanced effects when winning the match
 
 ### ⏱️ Timer System
 - **Configurable Timer**: Set custom minutes and seconds
@@ -36,7 +38,8 @@ A beautiful, responsive web application designed to track scores, manage timers,
 ### 🔧 Advanced Features
 - **Quick Menu**: Access reset, switch sides, and color swap instantly
 - **20s Tracking**: Optional counter for perfect 20-point shots
-- **Haptic Feedback**: Vibration on score changes (mobile devices)
+- **Hammer System**: Automatic alternation of shooting order with visual indicator
+- **Haptic Feedback**: Vibration on score changes and enhanced vibration on match win
 - **Data Persistence**: Automatically saves game state to resume later
 - **Responsive Design**: Adapts perfectly to any screen size and orientation
 
@@ -70,11 +73,27 @@ Native apps for iOS and Android will be available on:
 4. Select your preferred language
 5. Click Save to start playing
 
+### Game Terminology & Structure
+In Crokinole, understanding the game structure is important:
+
+- **Round (Ronda)**: A single scoring exchange where points are tallied (can end 2-0 or 1-1). The hammer alternates automatically after each completed round.
+- **Game (Partida)**: Multiple rounds played until one team reaches the "Points to Win" setting. The hammer is maintained throughout a single game.
+- **Match**: Multiple games played until one team reaches the "Matches to Win" setting. When a match is won, confetti celebrates the victory!
+
+### Hammer System
+The hammer (🔨) indicates which team shoots last in each round:
+- Enable/disable in Settings with "Show Hammer" checkbox
+- Automatically alternates after each completed round (2-0 or 1-1)
+- When starting a new match, choose which team starts first
+- The team that shoots first does NOT have the hammer
+
 ### Resetting Games
-- **Reset Round**: Clears points and resets timer (keeps match score)
-- **Reset Match**: Full reset of all counters and stats
+- **Reset Game**: Clears points and resets timer (keeps games won counter)
+- **Reset Match**: Full reset of all counters and stats, prompts for new hammer selection
 - **Switch Sides**: Swaps team positions on screen
 - **Switch Colors**: Exchanges team colors only
+
+**Note**: When a match is won, only "Reset Match" is available to start a new match.
 
 ## 🛠️ Technical Details
 
@@ -103,8 +122,8 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 ## 🎯 Roadmap
 
+- DONE hammer (setting checkbox)
 - Posar titol de l'esdeveniment (settings)
-- hammer (setting checkbox)
 - modo torneo (default), modo rondas
 
 - [ ] Native Android app release
