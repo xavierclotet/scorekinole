@@ -2347,6 +2347,13 @@
         function incrementCounter(teamNum, event) {
             event.stopPropagation();
 
+            // Check if match is already won - if so, don't allow incrementing
+            const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
+            if (matchWon) {
+                console.log('⚠️ Match ganado - use Reset Match para empezar nuevo match');
+                return;
+            }
+
             const team = teamNum === 1 ? team1 : team2;
 
             // Increment matches counter
@@ -2466,6 +2473,13 @@
         function updateScore(teamNum, delta) {
             console.log('📊 updateScore - team:', teamNum, 'delta:', delta, 'Puntos antes - T1:', team1.points, 'T2:', team2.points);
 
+            // Check if match is already won - if so, don't allow score changes
+            const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
+            if (matchWon) {
+                console.log('⚠️ Match ganado - use Reset Match para empezar nuevo match');
+                return;
+            }
+
             const team = teamNum === 1 ? team1 : team2;
             const previousPoints = team.points;
             team.points = Math.max(0, team.points + delta);
@@ -2529,6 +2543,14 @@
 
         function resetGame() {
             console.log('♻️ resetGame llamado');
+
+            // Check if match is won - if so, don't allow reset game
+            const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
+            if (matchWon) {
+                console.log('⚠️ Match ganado - use Reset Match en su lugar');
+                closeQuickMenu();
+                return;
+            }
 
             team1.points = 0;
             team2.points = 0;
