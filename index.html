@@ -1400,6 +1400,47 @@
                 0 0 60px #FFD700;
         }
 
+        /* Match winner - keep same size but enhance effects */
+        .player-name.match-winner {
+            animation: matchVictory 2s ease-in-out infinite;
+            text-shadow:
+                0 0 30px currentColor,
+                0 0 60px #FFD700,
+                0 0 90px #FFD700,
+                0 0 120px #FFD700;
+        }
+
+        @keyframes matchVictory {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        /* Confetti animation */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #FFD700;
+            animation: confettiFall 3s ease-out forwards;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        @keyframes confettiFall {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
         @keyframes scoreVictory {
             0%, 100% {
                 transform: scale(1);
@@ -2150,6 +2191,42 @@
             }
         }
 
+        function showConfetti(teamNumber) {
+            const section = document.getElementById(`team${teamNumber}Section`);
+            const colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F'];
+
+            // Create 50 confetti pieces
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+
+                // Random color
+                confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+
+                // Random starting position across the team section
+                confetti.style.left = Math.random() * 100 + '%';
+                confetti.style.top = '0';
+
+                // Random size
+                const size = Math.random() * 10 + 5;
+                confetti.style.width = size + 'px';
+                confetti.style.height = size + 'px';
+
+                // Random delay for staggered effect
+                confetti.style.animationDelay = Math.random() * 0.5 + 's';
+
+                // Random duration
+                confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+
+                section.appendChild(confetti);
+
+                // Remove after animation
+                setTimeout(() => {
+                    confetti.remove();
+                }, 4000);
+            }
+        }
+
         function declareWinner(teamNumber) {
             const team = teamNumber === 1 ? team1 : team2;
 
@@ -2163,9 +2240,21 @@
             document.getElementById(`team${teamNumber}Score`).classList.add('winner');
             document.getElementById(`team${teamNumber}Name`).classList.add('winner');
 
-            // Vibrar si está habilitado
-            if (gameSettings.vibrateOnScore && navigator.vibrate) {
-                navigator.vibrate([100, 50, 100, 50, 200]);
+            // Check if this wins the overall match
+            if (team.matches >= gameSettings.matchesToWin) {
+                // Match won! Add special celebration
+                document.getElementById(`team${teamNumber}Name`).classList.add('match-winner');
+                showConfetti(teamNumber);
+
+                // Extra vibration for match win
+                if (gameSettings.vibrateOnScore && navigator.vibrate) {
+                    navigator.vibrate([200, 100, 200, 100, 200, 100, 400]);
+                }
+            } else {
+                // Just game won, normal vibration
+                if (gameSettings.vibrateOnScore && navigator.vibrate) {
+                    navigator.vibrate([100, 50, 100, 50, 200]);
+                }
             }
 
             // Actualizar display y guardar estado
@@ -2473,13 +2562,6 @@
         function updateScore(teamNum, delta) {
             console.log('📊 updateScore - team:', teamNum, 'delta:', delta, 'Puntos antes - T1:', team1.points, 'T2:', team2.points);
 
-            // Check if match is already won - if so, don't allow score changes
-            const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
-            if (matchWon) {
-                console.log('⚠️ Match ganado - use Reset Match para empezar nuevo match');
-                return;
-            }
-
             const team = teamNum === 1 ? team1 : team2;
             const previousPoints = team.points;
             team.points = Math.max(0, team.points + delta);
@@ -2611,11 +2693,15 @@
             team2.hasWon = false;
             // hasHammer is set by hammer dialog
 
-            // Remover clases winner
+            // Reset tracking variables for round detection
+            previousTeam1Points = 0;
+            previousTeam2Points = 0;
+
+            // Remover clases winner y match-winner
             document.getElementById('team1Score').classList.remove('winner');
             document.getElementById('team2Score').classList.remove('winner');
-            document.getElementById('team1Name').classList.remove('winner');
-            document.getElementById('team2Name').classList.remove('winner');
+            document.getElementById('team1Name').classList.remove('winner', 'match-winner');
+            document.getElementById('team2Name').classList.remove('winner', 'match-winner');
 
             // Reactivar interacciones de los scores
             document.getElementById('team1Score').style.pointerEvents = 'auto';
