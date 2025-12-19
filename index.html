@@ -522,12 +522,25 @@
             font-size: 1.2rem;
             font-weight: 700;
             z-index: 60;
-            pointer-events: none;
+            pointer-events: auto;
             display: none;
             user-select: none;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             gap: 0.5rem;
             align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .twenty-counter-team1:hover,
+        .twenty-counter-team2:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .twenty-counter-team1:active,
+        .twenty-counter-team2:active {
+            transform: scale(0.98);
         }
 
         .twenty-counter-team1.visible,
@@ -1354,11 +1367,11 @@
         </div>
 
         <!-- 20s Counter -->
-        <div class="twenty-counter-team1" id="team1TwentyCounter">
+        <div class="twenty-counter-team1" id="team1TwentyCounter" onclick="openTwentyDialog()">
             <span class="twenty-label">20s:</span>
             <span id="team1TwentyCount">0</span>
         </div>
-        <div class="twenty-counter-team2" id="team2TwentyCounter">
+        <div class="twenty-counter-team2" id="team2TwentyCounter" onclick="openTwentyDialog()">
             <span class="twenty-label">20s:</span>
             <span id="team2TwentyCount">0</span>
         </div>
@@ -2047,19 +2060,9 @@
             // Actualizar display y guardar estado
             updateMatchesCounter();
             saveData();
-
-            // Open 20s dialog after animations (500ms delay)
-            setTimeout(() => {
-                openTwentyDialog();
-            }, 500);
         }
 
         function openTwentyDialog() {
-            // Only open if show20s setting is enabled
-            if (!gameSettings.show20s) {
-                return;
-            }
-
             // Initialize temporary values to 0
             tempTwenty1 = 0;
             tempTwenty2 = 0;
