@@ -105,6 +105,7 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 - Posar titol de l'esdeveniment (settings)
 - hammer (setting checkbox)
+- modo torneo (default), modo rondas
 
 - [ ] Native Android app release
 - [ ] Native iOS app release
