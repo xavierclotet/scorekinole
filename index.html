@@ -1435,9 +1435,9 @@
             <div class="quick-menu-container">
                 <button class="icon-button" id="menuButton" onclick="toggleQuickMenu()" title="Quick Actions">☰</button>
                 <div class="quick-menu" id="quickMenu">
-                    <button class="quick-menu-item" onclick="resetRound()">
+                    <button class="quick-menu-item" onclick="resetGame()">
                         <span class="quick-menu-icon">↻</span>
-                        <span>Reset Round</span>
+                        <span>Reset Game</span>
                     </button>
                     <button class="quick-menu-item" onclick="resetMatch()">
                         <span class="quick-menu-icon">⟲</span>
@@ -1838,8 +1838,8 @@
                 rateApp: 'Valorar App',
                 shareApp: 'Compartir App',
                 giveFeedback: 'Dar Feedback',
-                resetRound: 'Resetear Ronda',
-                resetMatch: 'Resetear Partido',
+                resetRound: 'Resetear Partida',
+                resetMatch: 'Resetear Match',
                 switchSides: 'Cambiar Lados',
                 switchColors: 'Cambiar Colores',
                 chooseColor: 'Elegir Color',
@@ -1875,8 +1875,8 @@
                 rateApp: 'Valorar App',
                 shareApp: 'Compartir App',
                 giveFeedback: 'Donar Feedback',
-                resetRound: 'Reiniciar Ronda',
-                resetMatch: 'Reiniciar Partit',
+                resetRound: 'Reiniciar Partida',
+                resetMatch: 'Reiniciar Match',
                 switchSides: 'Canviar Costats',
                 switchColors: 'Canviar Colors',
                 chooseColor: 'Triar Color',
@@ -1912,7 +1912,7 @@
                 rateApp: 'Rate App',
                 shareApp: 'Share App',
                 giveFeedback: 'Give Feedback',
-                resetRound: 'Reset Round',
+                resetRound: 'Reset Game',
                 resetMatch: 'Reset Match',
                 switchSides: 'Switch Sides',
                 switchColors: 'Switch Colors',
@@ -2459,11 +2459,42 @@
             return luminance > 0.5 ? '#2a3a4a' : '#ffffff';
         }
 
+        // Track previous scores to detect round completion
+        let previousTeam1Points = 0;
+        let previousTeam2Points = 0;
+
         function updateScore(teamNum, delta) {
             console.log('📊 updateScore - team:', teamNum, 'delta:', delta, 'Puntos antes - T1:', team1.points, 'T2:', team2.points);
 
             const team = teamNum === 1 ? team1 : team2;
+            const previousPoints = team.points;
             team.points = Math.max(0, team.points + delta);
+
+            // Toggle hammer when a round ends (2-0 or 1-1), but NOT when someone wins the game
+            if (delta > 0 && gameSettings.showHammer) {
+                const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
+
+                if (!matchWon) {
+                    const team1Change = team1.points - previousTeam1Points;
+                    const team2Change = team2.points - previousTeam2Points;
+
+                    // Round complete when: +2 for one team OR +1 for each team
+                    // BUT check if anyone reached pointsToWin (which would trigger declareWinner)
+                    const roundCompleted = (team1Change === 2 && team2Change === 0) ||
+                                          (team1Change === 0 && team2Change === 2) ||
+                                          (team1Change === 1 && team2Change === 1);
+
+                    // Don't toggle if this point wins the game (declareWinner will be called next)
+                    const gameWon = team1.points >= gameSettings.pointsToWin || team2.points >= gameSettings.pointsToWin;
+
+                    if (roundCompleted && !gameWon) {
+                        console.log('✅ Ronda completada - toggling hammer. T1:', team1.points, 'T2:', team2.points);
+                        previousTeam1Points = team1.points;
+                        previousTeam2Points = team2.points;
+                        toggleHammer();
+                    }
+                }
+            }
 
             checkWinCondition();
             updateDisplay();
@@ -2496,13 +2527,17 @@
             menu.classList.remove('active');
         }
 
-        function resetRound() {
-            console.log('♻️ resetRound llamado');
+        function resetGame() {
+            console.log('♻️ resetGame llamado');
 
             team1.points = 0;
             team2.points = 0;
             team1.hasWon = false;
             team2.hasWon = false;
+
+            // Reset tracking variables for round detection
+            previousTeam1Points = 0;
+            previousTeam2Points = 0;
 
             // Remover clases winner
             document.getElementById('team1Score').classList.remove('winner');
@@ -2515,14 +2550,6 @@
             document.getElementById('team2Score').style.pointerEvents = 'auto';
 
             updateDisplay();
-
-            // Toggle hammer for next partida, but only if match is not won yet
-            const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
-            if (!matchWon && gameSettings.showHammer) {
-                console.log('🔄 Cambiando hammer en resetRound');
-                toggleHammer();
-            }
-
             saveData();
             resetTimer();
             closeQuickMenu();
