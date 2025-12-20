@@ -581,9 +581,9 @@
 
         /* Hammer Indicator */
         .hammer-indicator {
-            font-size: 1em;
+            font-size: 0.9em;
             position: absolute;
-            top: -0.5em;
+            top: 0.7em;
             left: 50%;
             transform: translateX(-50%);
             animation: hammerPulse 2s ease-in-out infinite;
@@ -1373,12 +1373,12 @@
 
         @media (max-height: 600px) and (orientation: landscape) {
             .score-display {
-                font-size: 6.75rem;
+                font-size: 10rem;
                 padding: 1rem 2rem;
             }
 
             .player-name {
-                font-size: 2.2rem;
+                font-size: 3rem;
                 margin-bottom: 1.5rem;
             }
         }
@@ -2636,6 +2636,8 @@
 
             team1.points = 0;
             team2.points = 0;
+            team1.twenty = 0;
+            team2.twenty = 0;
             team1.hasWon = false;
             team2.hasWon = false;
 

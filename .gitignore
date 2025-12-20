@@ -17,3 +17,12 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Build and generated files
+android/
+assets/
+icons/
+node_modules/
+package-lock.json
+www/manifest.json
+capacitor.config.json
