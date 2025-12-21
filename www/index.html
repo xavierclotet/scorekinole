@@ -1460,9 +1460,25 @@
                 transform: scale(1.05);
             }
         }
+
+        /* Version number */
+        .version {
+            position: fixed;
+            bottom: 0.5rem;
+            right: 0.5rem;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            opacity: 0.5;
+            font-family: 'Lexend', sans-serif;
+            z-index: 1;
+            user-select: none;
+        }
     </style>
 </head>
 <body>
+    <!-- Version number -->
+    <div class="version">v1.0.1</div>
+
     <div class="app-container">
         <!-- Matches Counter -->
         <div class="match-counter-team1" id="team1MatchCounter" onclick="incrementCounter(1, event)">
