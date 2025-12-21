@@ -1477,7 +1477,7 @@
 </head>
 <body>
     <!-- Version number -->
-    <div class="version">v1.0.1</div>
+    <div class="version" id="versionDisplay">v...</div>
 
     <div class="app-container">
         <!-- Matches Counter -->
@@ -3395,7 +3395,26 @@
             lastTouchEnd = now;
         }, false);
 
+        // Load version from package.json
+        async function loadVersion() {
+            try {
+                const response = await fetch('version.json');
+                const data = await response.json();
+                const versionDisplay = document.getElementById('versionDisplay');
+                if (versionDisplay && data.version) {
+                    versionDisplay.textContent = 'v' + data.version;
+                }
+            } catch (error) {
+                console.error('Error loading version:', error);
+                const versionDisplay = document.getElementById('versionDisplay');
+                if (versionDisplay) {
+                    versionDisplay.textContent = 'v1.0.1';
+                }
+            }
+        }
+
         // Initialize
+        loadVersion();
         loadData();
         setupScoreHandlers();
         updateTimerDisplay();
