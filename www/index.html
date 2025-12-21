@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <title>Scorekinole Arena</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Crokinole Scorer</title>
@@ -70,7 +71,7 @@
             top: 0;
             left: 0;
             right: 0;
-            padding: 1.5rem;
+            padding: 3rem 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -124,7 +125,7 @@
             }
 
             .score-display {
-                font-size: 10rem !important;
+                font-size: 11rem !important;
                 padding: 1.5rem 2.5rem !important;
             }
 
@@ -642,27 +643,52 @@
             border-radius: 0.75rem;
         }
 
+        .timer-selector .number-input-wrapper {
+            width: 6rem;
+        }
+
+        .timer-selector .input-field {
+            text-align: center;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            padding: 0.5rem 3.5rem 0.5rem 0.5rem;
+        }
+
+        .timer-selector .number-spinners {
+            flex-direction: row;
+            gap: 0.25rem;
+            right: 0.25rem;
+        }
+
+        .timer-selector .spinner-btn {
+            width: 1.4rem;
+            height: 1.4rem;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .timer-clear-btn {
-            background: var(--bg-header);
-            border: 1px solid var(--divider);
             color: var(--text-dim);
-            font-size: 0.85rem;
+            font-size: 1.5rem;
             cursor: pointer;
-            padding: 0.45rem 0.8rem;
-            border-radius: 0.5rem;
             transition: all 0.2s;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
         }
 
         .timer-clear-btn:hover {
-            border-color: var(--accent-red);
             color: var(--accent-red);
+            transform: scale(1.15);
         }
 
         .timer-clear-btn:active {
-            transform: scale(0.95);
+            transform: scale(0.9);
         }
 
         .timer-wheel {
@@ -762,7 +788,7 @@
 
         .score-display {
             font-family: 'Orbitron', sans-serif;
-            font-size: 13.5rem;
+            font-size: 16rem;
             font-weight: 900;
             line-height: 1;
             text-shadow: 0 0 30px currentColor;
@@ -913,6 +939,17 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.1em;
+        }
+
+        /* Show "Config" for settings modal in portrait mode */
+        @media (orientation: portrait) {
+            #settingsModal .modal-title {
+                font-size: 0;
+            }
+            #settingsModal .modal-title::before {
+                content: 'CONFIG';
+                font-size: 1.3rem;
+            }
         }
 
         .modal-actions {
@@ -1075,9 +1112,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s;
             padding: 0;
             line-height: 1;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .spinner-btn:hover {
@@ -1087,7 +1126,8 @@
         }
 
         .spinner-btn:active {
-            transform: scale(0.9);
+            background: var(--accent-green);
+            color: var(--bg-primary);
         }
 
         .checkbox-group {
@@ -1573,33 +1613,22 @@
                         <div class="input-group">
                             <label class="input-label" id="labelTimer">Timer</label>
                             <div class="timer-selector">
-                                <select id="timerMinutes" class="timer-wheel">
-                                    <option value="0">00</option>
-                                    <option value="1">01</option>
-                                    <option value="2">02</option>
-                                    <option value="3">03</option>
-                                    <option value="4">04</option>
-                                    <option value="5">05</option>
-                                    <option value="6">06</option>
-                                    <option value="7">07</option>
-                                    <option value="8">08</option>
-                                    <option value="9">09</option>
-                                    <option value="10" selected>10</option>
-                                    <option value="15">15</option>
-                                    <option value="20">20</option>
-                                    <option value="30">30</option>
-                                    <option value="45">45</option>
-                                    <option value="60">60</option>
-                                </select>
-                                <span class="timer-label">min</span>
-                                <select id="timerSeconds" class="timer-wheel">
-                                    <option value="0" selected>00</option>
-                                    <option value="15">15</option>
-                                    <option value="30">30</option>
-                                    <option value="45">45</option>
-                                </select>
-                                <span class="timer-label">sec</span>
-                                <button class="timer-clear-btn" onclick="clearTimerSettings()" title="Clear Timer">Clear</button>
+                                <div class="number-input-wrapper">
+                                    <input type="number" id="timerMinutes" class="input-field" min="0" max="99" value="10">
+                                    <div class="number-spinners">
+                                        <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('timerMinutes')">▼</button>
+                                        <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('timerMinutes')">▲</button>
+                                    </div>
+                                </div>
+                                <span class="timer-label">:</span>
+                                <div class="number-input-wrapper">
+                                    <input type="number" id="timerSeconds" class="input-field" min="0" max="59" value="0">
+                                    <div class="number-spinners">
+                                        <button type="button" class="spinner-btn spinner-down" onclick="decrementTimerSeconds()">▼</button>
+                                        <button type="button" class="spinner-btn spinner-up" onclick="incrementTimerSeconds()">▲</button>
+                                    </div>
+                                </div>
+                                <span class="timer-clear-btn" onclick="clearTimerSettings()" title="Reset to 00:00">↻</span>
                             </div>
                         </div>
                     </div>
@@ -2929,29 +2958,36 @@
 
         // Number Input Spinners
         function incrementNumber(inputId) {
-            try {
-                const input = document.getElementById(inputId);
-                if (!input) return;
-                const currentValue = parseInt(input.value) || 0;
-                input.value = currentValue + 1;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-            } catch (error) {
-                console.error('Error in incrementNumber:', error);
-            }
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const currentValue = parseInt(input.value) || 0;
+            const max = parseInt(input.getAttribute('max'));
+            if (max && currentValue >= max) return;
+            input.value = currentValue + 1;
         }
 
         function decrementNumber(inputId) {
-            try {
-                const input = document.getElementById(inputId);
-                if (!input) return;
-                const currentValue = parseInt(input.value) || 0;
-                const min = parseInt(input.getAttribute('min')) || 0;
-                const newValue = Math.max(min, currentValue - 1);
-                input.value = newValue;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-            } catch (error) {
-                console.error('Error in decrementNumber:', error);
-            }
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const currentValue = parseInt(input.value) || 0;
+            const min = parseInt(input.getAttribute('min')) || 0;
+            if (currentValue <= min) return;
+            input.value = currentValue - 1;
+        }
+
+        // Timer seconds spinners (special logic for max 59)
+        function incrementTimerSeconds() {
+            const input = document.getElementById('timerSeconds');
+            if (!input) return;
+            const currentValue = parseInt(input.value) || 0;
+            input.value = currentValue >= 59 ? 0 : currentValue + 1;
+        }
+
+        function decrementTimerSeconds() {
+            const input = document.getElementById('timerSeconds');
+            if (!input) return;
+            const currentValue = parseInt(input.value) || 0;
+            input.value = currentValue <= 0 ? 59 : currentValue - 1;
         }
 
         // Settings Modal
@@ -3060,9 +3096,6 @@
             document.getElementById('labelTeam2Color').textContent = t('color');
             document.getElementById('labelTeam2Points').textContent = t('points');
             document.getElementById('labelTeam2Rounds').textContent = t('rounds');
-
-            // Update timer clear button
-            document.querySelector('.timer-clear-btn').textContent = t('clear');
 
             // Update checkbox labels using IDs
             document.getElementById('labelShow20s').textContent = t('show20s');
