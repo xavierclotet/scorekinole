@@ -4,7 +4,7 @@
 
 A beautiful, responsive web application designed to track scores, manage timers, and enhance your Crokinole gaming experience. Built with modern web technologies and optimized for mobile devices.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
@@ -37,7 +37,8 @@ A beautiful, responsive web application designed to track scores, manage timers,
 
 ### 🔧 Advanced Features
 - **Quick Menu**: Access reset, switch sides, and color swap instantly
-- **20s Tracking**: Optional counter for perfect 20-point shots
+- **20s Tracking**: Fast calculator-style input for center shots (20-point) with configurable max (8 for singles, 12 for doubles)
+- **Game Type Selection**: Choose between Individual (singles) or Parejas (doubles) mode
 - **Hammer System**: Automatic alternation of shooting order with visual indicator
 - **Haptic Feedback**: Vibration on score changes and enhanced vibration on match win
 - **Data Persistence**: Automatically saves game state to resume later
@@ -68,10 +69,12 @@ Native apps for iOS and Android will be available on:
 
 ### Game Setup
 1. Open Settings (⚙️)
-2. Configure points to win and timer duration
-3. Customize team names and colors
-4. Select your preferred language
-5. Click Save to start playing
+2. Select game type (Individual for singles, Parejas for doubles)
+3. Configure points to win and timer duration
+4. Customize team names and colors
+5. Enable optional features like 20s tracking and hammer indicator
+6. Select your preferred language
+7. Click Save to start playing
 
 ### Game Terminology & Structure
 In Crokinole, understanding the game structure is important:
@@ -87,9 +90,17 @@ The hammer (🔨) indicates which team shoots last in each round:
 - When starting a new match, choose which team starts first
 - The team that shoots first does NOT have the hammer
 
+### 20s Tracking (Center Shots)
+When enabled, after each completed round you'll be prompted to enter center shots (20-point):
+- **Calculator Interface**: Quick number buttons for fast entry
+- **Sequential Input**: Enter one team at a time for speed
+- **Auto-Advance**: Automatically proceeds after each team's entry
+- **Dynamic Max**: Shows 0-8 buttons for Individual games, 0-12 for Parejas (doubles)
+- Button 0 spans full width for quick "no 20s" entry
+
 ### Resetting Games
-- **Reset Game**: Clears points and resets timer (keeps games won counter)
-- **Reset Match**: Full reset of all counters and stats, prompts for new hammer selection
+- **Reset Game**: Clears points and resets timer (keeps games won counter, hammer alternates for next game)
+- **Reset Match**: Full reset of all counters and stats, always prompts for new hammer selection
 - **Switch Sides**: Swaps team positions on screen
 - **Switch Colors**: Exchanges team colors only
 
