@@ -2038,6 +2038,12 @@
         // Track who started the current match (for alternating in next match)
         let matchStartedBy = 0; // 0 = not set, 1 = team1 started, 2 = team2 started
 
+        // Track who had the hammer AT THE START of the last game (for alternating between games within a match)
+        let lastGameHammerTeam = 0; // 0 = not set, 1 = team1 had hammer at start, 2 = team2 had hammer at start
+
+        // Track who has the hammer at the start of current game (to save when game ends)
+        let currentGameStartHammer = 0; // 0 = not set, 1 = team1, 2 = team2
+
         // Temporary state for 20s input dialog
         let tempTwenty1 = 0;
         let tempTwenty2 = 0;
@@ -2272,6 +2278,11 @@
             // Incrementar contador de matches del ganador
             team.matches = (team.matches || 0) + 1;
 
+            // Save who had the hammer AT THE START of this game (for alternating in next game)
+            if (gameSettings.showHammer && currentGameStartHammer !== 0) {
+                lastGameHammerTeam = currentGameStartHammer;
+            }
+
             // Agregar clase CSS de winner al score y al nombre
             document.getElementById(`team${teamNumber}Score`).classList.add('winner');
             document.getElementById(`team${teamNumber}Name`).classList.add('winner');
@@ -2401,8 +2412,6 @@
         }
 
         function updateHammerIndicator() {
-            console.log('🔨 updateHammerIndicator - showHammer:', gameSettings.showHammer, 'team1.hasHammer:', team1.hasHammer, 'team2.hasHammer:', team2.hasHammer);
-
             const team1Hammer = document.getElementById('team1Hammer');
             const team2Hammer = document.getElementById('team2Hammer');
 
@@ -2417,14 +2426,11 @@
         }
 
         function toggleHammer() {
-            console.log('🔄 toggleHammer ANTES - team1.hasHammer:', team1.hasHammer, 'team2.hasHammer:', team2.hasHammer);
-
             // Swap hammer between teams
             const temp = team1.hasHammer;
             team1.hasHammer = team2.hasHammer;
             team2.hasHammer = temp;
 
-            console.log('🔄 toggleHammer DESPUES - team1.hasHammer:', team1.hasHammer, 'team2.hasHammer:', team2.hasHammer);
             updateHammerIndicator();
 
             // Open 20s dialog if the setting is enabled
@@ -2619,7 +2625,6 @@
                     const gameWon = team1.points >= gameSettings.pointsToWin || team2.points >= gameSettings.pointsToWin;
 
                     if (roundCompleted && !gameWon) {
-                        console.log('✅ Ronda completada - toggling hammer. T1:', team1.points, 'T2:', team2.points);
                         previousTeam1Points = team1.points;
                         previousTeam2Points = team2.points;
                         toggleHammer();
@@ -2669,6 +2674,23 @@
                 return;
             }
 
+            // Check if there was a previous game in this match and hammer is enabled
+            if (gameSettings.showHammer && lastGameHammerTeam !== 0) {
+                // Alternate hammer: the team that did NOT have the hammer in the last game gets it now
+                if (lastGameHammerTeam === 1) {
+                    team1.hasHammer = false;
+                    team2.hasHammer = true;
+                } else {
+                    team1.hasHammer = true;
+                    team2.hasHammer = false;
+                }
+            }
+
+            // Save who has the hammer AT THE START of this new game
+            if (gameSettings.showHammer) {
+                currentGameStartHammer = team1.hasHammer ? 1 : 2;
+            }
+
             team1.points = 0;
             team2.points = 0;
             team1.twenty = 0;
@@ -2710,6 +2732,7 @@
                 }
             } else {
                 // Reset directly without hammer selection
+                lastGameHammerTeam = 0; // Reset game hammer tracking
                 completeResetMatch();
             }
         }
@@ -2785,10 +2808,14 @@
                 team1.hasHammer = false;
                 team2.hasHammer = true;
                 matchStartedBy = 1; // Team 1 started this match
+                lastGameHammerTeam = 2; // Track who has hammer for first game
+                currentGameStartHammer = 2; // Track hammer at start of first game
             } else {
                 team1.hasHammer = true;
                 team2.hasHammer = false;
                 matchStartedBy = 2; // Team 2 started this match
+                lastGameHammerTeam = 1; // Track who has hammer for first game
+                currentGameStartHammer = 1; // Track hammer at start of first game
             }
 
             closeHammerDialog();
