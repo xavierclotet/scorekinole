@@ -636,37 +636,24 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.25rem 0.5rem;
-            background: var(--bg-primary);
-            border: 2px solid var(--divider);
-            border-radius: 0.75rem;
         }
 
         .timer-selector .number-input-wrapper {
-            width: 6rem;
+            position: relative;
+            width: auto;
         }
 
         .timer-selector .input-field {
+            width: 6.5rem;
             text-align: center;
             font-family: 'Orbitron', sans-serif;
-            font-weight: 700;
-            font-size: 1rem;
-            padding: 0.5rem 3.5rem 0.5rem 0.5rem;
+            font-weight: 600;
+            padding: 0.8rem 3rem 0.8rem 0;
         }
 
         .timer-selector .number-spinners {
             flex-direction: row;
             gap: 0.25rem;
-            right: 0.25rem;
-        }
-
-        .timer-selector .spinner-btn {
-            width: 1.4rem;
-            height: 1.4rem;
-            font-size: 0.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
 
         .timer-clear-btn {
@@ -1084,10 +1071,6 @@
             width: 100%;
         }
 
-        .number-input-wrapper .input-field {
-            padding-right: 2.5rem;
-        }
-
         .number-spinners {
             position: absolute;
             right: 0.5rem;
@@ -1126,6 +1109,68 @@
         .spinner-btn:active {
             background: var(--accent-green);
             color: var(--bg-primary);
+        }
+
+        /* Number Control (- value +) */
+        .number-control {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            width: 100%;
+        }
+
+        .number-control-btn {
+            width: 2.5rem;
+            height: 2.5rem;
+            background: var(--bg-header);
+            border: 1px solid var(--divider);
+            border-radius: 0.4rem;
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            line-height: 1;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            flex-shrink: 0;
+        }
+
+        .number-control-btn:hover {
+            background: var(--divider);
+            color: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+
+        .number-control-btn:active {
+            background: var(--accent-green);
+            color: var(--bg-primary);
+            transform: scale(0.95);
+        }
+
+        .number-control-display {
+            width: 3rem;
+            background: var(--bg-header);
+            border: 1px solid var(--divider);
+            border-radius: 0.4rem;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-align: center;
+            padding: 0.5rem 0.25rem;
+            font-family: 'Orbitron', monospace;
+            flex-shrink: 0;
+        }
+
+        /* Number controls in two columns */
+        .number-controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
         }
 
         .checkbox-group {
@@ -1634,12 +1679,10 @@
                     <div class="settings-section">
                         <div class="input-group">
                             <label class="input-label" id="labelPointsToWin">Points to Win</label>
-                            <div class="number-input-wrapper">
-                                <input type="number" id="pointsToWin" class="input-field" min="0" value="7">
-                                <div class="number-spinners">
-                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('pointsToWin')">▲</button>
-                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('pointsToWin')">▼</button>
-                                </div>
+                            <div class="number-control">
+                                <button type="button" class="number-control-btn" onclick="decrementNumber('pointsToWin')">−</button>
+                                <input type="text" id="pointsToWin" class="number-control-display" value="7" min="1" readonly>
+                                <button type="button" class="number-control-btn" onclick="incrementNumber('pointsToWin')">+</button>
                             </div>
                         </div>
 
@@ -1647,13 +1690,6 @@
                             <div class="checkbox-group">
                                 <input type="checkbox" id="show20sCheckbox">
                                 <label class="checkbox-label" id="labelShow20s" for="show20sCheckbox">Mostrar 20s</label>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="showHammerCheckbox">
-                                <label class="checkbox-label" id="labelShowHammer" for="showHammerCheckbox">Mostrar Martillo</label>
                             </div>
                         </div>
 
@@ -1666,42 +1702,13 @@
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label" id="labelLanguage" data-i18n="language">Idioma</label>
-                            <select id="languageSelect" class="input-field">
-                                <option value="es">Español</option>
-                                <option value="ca">Català</option>
-                                <option value="en">English</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <div class="input-group">
-                            <label class="input-label" id="labelMatchesToWin">Matches to Win</label>
-                            <div class="number-input-wrapper">
-                                <input type="number" id="matchesToWin" class="input-field" min="1" value="1">
-                                <div class="number-spinners">
-                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('matchesToWin')">▲</button>
-                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('matchesToWin')">▼</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="vibrateCheckbox" checked>
-                                <label class="checkbox-label" id="labelVibrate" for="vibrateCheckbox">Vibrar al Cambiar Marcador</label>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
                             <label class="input-label" id="labelTimer">Timer</label>
                             <div class="timer-selector">
                                 <div class="number-input-wrapper">
                                     <input type="number" id="timerMinutes" class="input-field" min="0" max="99" value="10">
                                     <div class="number-spinners">
-                                        <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('timerMinutes')">▼</button>
-                                        <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('timerMinutes')">▲</button>
+                                        <button type="button" class="spinner-btn spinner-down" onclick="decrementTimerMinutes()">▼</button>
+                                        <button type="button" class="spinner-btn spinner-up" onclick="incrementTimerMinutes()">▲</button>
                                     </div>
                                 </div>
                                 <span class="timer-label">:</span>
@@ -1714,6 +1721,33 @@
                                 </div>
                                 <span class="timer-clear-btn" onclick="clearTimerSettings()" title="Reset to 00:00">↻</span>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="input-group">
+                            <label class="input-label" id="labelMatchesToWin">Matches to Win</label>
+                            <div class="number-control">
+                                <button type="button" class="number-control-btn" onclick="decrementNumber('matchesToWin')">−</button>
+                                <input type="text" id="matchesToWin" class="number-control-display" value="1" min="1" readonly>
+                                <button type="button" class="number-control-btn" onclick="incrementNumber('matchesToWin')">+</button>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="showHammerCheckbox">
+                                <label class="checkbox-label" id="labelShowHammer" for="showHammerCheckbox">Mostrar Martillo</label>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-label" id="labelLanguage" data-i18n="language">Idioma</label>
+                            <select id="languageSelect" class="input-field">
+                                <option value="es">Español</option>
+                                <option value="ca">Català</option>
+                                <option value="en">English</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -1913,7 +1947,6 @@
             timerMinutes: 10,
             timerSeconds: 0,
             language: 'es',
-            vibrateOnScore: true,
             matchesToWin: 1,
             show20s: false,
             showHammer: false,
@@ -1950,7 +1983,6 @@
                 timeOut: 'TIEMPO',
                 primary: 'Principal',
                 wheel: 'Rueda',
-                vibrateOnScore: 'Vibrar al Cambiar Marcador',
                 matchesToWin: 'Partidas para Ganar Partido',
                 show20s: 'Mostrar 20s',
                 twentyDialogTitle: '¿Cuántos 20s?',
@@ -1990,7 +2022,6 @@
                 timeOut: 'TEMPS',
                 primary: 'Principal',
                 wheel: 'Roda',
-                vibrateOnScore: 'Vibrar en Canviar Marcador',
                 matchesToWin: 'Partides per Guanyar Partit',
                 show20s: 'Mostrar 20s',
                 twentyDialogTitle: 'Quants 20s?',
@@ -2030,7 +2061,6 @@
                 timeOut: 'TIME OUT',
                 primary: 'Primary',
                 wheel: 'Wheel',
-                vibrateOnScore: 'Vibrate on Score Change',
                 matchesToWin: 'Matches to Win',
                 show20s: 'Show 20s',
                 twentyDialogTitle: 'How many 20s?',
@@ -2330,16 +2360,6 @@
                 // Match won! Add special celebration
                 document.getElementById(`team${teamNumber}Name`).classList.add('match-winner');
                 showConfetti(teamNumber);
-
-                // Extra vibration for match win
-                if (gameSettings.vibrateOnScore && navigator.vibrate) {
-                    navigator.vibrate([200, 100, 200, 100, 200, 100, 400]);
-                }
-            } else {
-                // Just game won, normal vibration
-                if (gameSettings.vibrateOnScore && navigator.vibrate) {
-                    navigator.vibrate([100, 50, 100, 50, 200]);
-                }
             }
 
             // Actualizar display y guardar estado
@@ -2369,11 +2389,6 @@
 
             // Add value to team's twenty total
             team.twenty = (team.twenty || 0) + value;
-
-            // Haptic feedback
-            if (gameSettings.vibrateOnScore && navigator.vibrate) {
-                navigator.vibrate(50);
-            }
 
             if (currentTwentyTeam === 1) {
                 // Move to team 2
@@ -2703,11 +2718,6 @@
                 const indicator = document.getElementById(`swipe${teamNum}`);
                 indicator.classList.add('show');
                 setTimeout(() => indicator.classList.remove('show'), 500);
-            }
-
-            // Vibrate if enabled
-            if (gameSettings.vibrateOnScore && navigator.vibrate) {
-                navigator.vibrate(50);
             }
         }
 
@@ -3065,24 +3075,64 @@
             const input = document.getElementById(inputId);
             if (!input) return;
             const currentValue = parseInt(input.value) || 0;
-            const min = parseInt(input.getAttribute('min')) || 0;
-            if (currentValue <= min) return;
+            const min = parseInt(input.getAttribute('min'));
+            // For number-control-display, default min is 1
+            const minValue = min !== null && !isNaN(min) ? min : 1;
+            if (currentValue <= minValue) return;
             input.value = currentValue - 1;
         }
 
-        // Timer seconds spinners (special logic for max 59)
+        // Timer minutes spinners (with padding)
+        function incrementTimerMinutes() {
+            const input = document.getElementById('timerMinutes');
+            if (!input) return;
+            const currentValue = parseInt(input.value) || 0;
+            const newValue = currentValue + 1;
+            input.value = newValue.toString().padStart(2, '0');
+        }
+
+        function decrementTimerMinutes() {
+            const input = document.getElementById('timerMinutes');
+            if (!input) return;
+            const currentValue = parseInt(input.value) || 0;
+            if (currentValue <= 0) return;
+            const newValue = currentValue - 1;
+            input.value = newValue.toString().padStart(2, '0');
+        }
+
+        // Timer seconds spinners (special logic: 0, 15, 30, 45 cycle)
         function incrementTimerSeconds() {
             const input = document.getElementById('timerSeconds');
             if (!input) return;
             const currentValue = parseInt(input.value) || 0;
-            input.value = currentValue >= 59 ? 0 : currentValue + 1;
+
+            // Cycle: 0 -> 15 -> 30 -> 45 -> 0
+            if (currentValue < 15) {
+                input.value = '15';
+            } else if (currentValue < 30) {
+                input.value = '30';
+            } else if (currentValue < 45) {
+                input.value = '45';
+            } else {
+                input.value = '00';
+            }
         }
 
         function decrementTimerSeconds() {
             const input = document.getElementById('timerSeconds');
             if (!input) return;
             const currentValue = parseInt(input.value) || 0;
-            input.value = currentValue <= 0 ? 59 : currentValue - 1;
+
+            // Cycle backwards: 45 <- 30 <- 15 <- 0 <- 45
+            if (currentValue <= 0) {
+                input.value = '45';
+            } else if (currentValue <= 15) {
+                input.value = '00';
+            } else if (currentValue <= 30) {
+                input.value = '15';
+            } else {
+                input.value = '30';
+            }
         }
 
         // Settings Modal
@@ -3092,10 +3142,9 @@
             document.getElementById('show20sCheckbox').checked = gameSettings.show20s;
             document.getElementById('showHammerCheckbox').checked = gameSettings.showHammer;
             document.getElementById('gameTypeSelect').value = gameSettings.gameType;
-            document.getElementById('timerMinutes').value = gameSettings.timerMinutes;
-            document.getElementById('timerSeconds').value = gameSettings.timerSeconds;
+            document.getElementById('timerMinutes').value = gameSettings.timerMinutes.toString().padStart(2, '0');
+            document.getElementById('timerSeconds').value = gameSettings.timerSeconds.toString().padStart(2, '0');
             document.getElementById('languageSelect').value = gameSettings.language;
-            document.getElementById('vibrateCheckbox').checked = gameSettings.vibrateOnScore;
 
             document.getElementById('team1NameInput').value = team1.name;
             document.getElementById('team1Points').value = team1.points;
@@ -3124,7 +3173,6 @@
                 gameSettings.timerMinutes = parseInt(document.getElementById('timerMinutes').value) || 0;
                 gameSettings.timerSeconds = parseInt(document.getElementById('timerSeconds').value) || 0;
                 gameSettings.language = document.getElementById('languageSelect').value;
-                gameSettings.vibrateOnScore = document.getElementById('vibrateCheckbox').checked;
 
                 team1.name = document.getElementById('team1NameInput').value || 'Team 1';
                 team1.points = parseInt(document.getElementById('team1Points').value) || 0;
@@ -3202,7 +3250,6 @@
             // Update checkbox labels using IDs
             document.getElementById('labelShow20s').textContent = t('show20s');
             document.getElementById('labelShowHammer').textContent = t('showHammer');
-            document.getElementById('labelVibrate').textContent = t('vibrateOnScore');
 
             // Update color picker buttons using IDs
             document.getElementById('spanTeam1ChooseColor').textContent = t('chooseColor');
@@ -3481,21 +3528,13 @@
             lastTouchEnd = now;
         }, false);
 
-        // Load version from package.json
-        async function loadVersion() {
-            try {
-                const response = await fetch('version.json');
-                const data = await response.json();
-                const versionDisplay = document.getElementById('versionDisplay');
-                if (versionDisplay && data.version) {
-                    versionDisplay.textContent = 'v' + data.version;
-                }
-            } catch (error) {
-                console.error('Error loading version:', error);
-                const versionDisplay = document.getElementById('versionDisplay');
-                if (versionDisplay) {
-                    versionDisplay.textContent = 'v1.0.1';
-                }
+        // Load version
+        function loadVersion() {
+            // Version is embedded directly to avoid CORS issues when opening file:// locally
+            const APP_VERSION = '1.0.3';
+            const versionDisplay = document.getElementById('versionDisplay');
+            if (versionDisplay) {
+                versionDisplay.textContent = 'v' + APP_VERSION;
             }
         }
 
