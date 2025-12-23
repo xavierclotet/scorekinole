@@ -1367,7 +1367,7 @@
         /* Twenty Calculator */
         .twenty-calculator {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 1rem;
             padding: 1rem;
             max-width: 400px;
@@ -1425,6 +1425,36 @@
             .player-name {
                 font-size: 3rem;
                 margin-bottom: 1.5rem;
+            }
+        }
+
+        /* Twenty calculator adjustments for landscape */
+        @media (orientation: landscape) {
+            .twenty-calculator {
+                max-width: 350px;
+                gap: 0.8rem;
+                padding: 0.8rem;
+            }
+
+            .twenty-calc-btn {
+                font-size: 1.5rem;
+                padding: 0.8rem;
+                min-height: 55px;
+            }
+
+            .modal {
+                max-height: 90vh;
+            }
+
+            .modal-content {
+                padding: 1.5rem;
+            }
+        }
+
+        /* Portrait mode - ensure calculator is centered */
+        @media (orientation: portrait) {
+            .twenty-calculator {
+                max-width: 400px;
             }
         }
 
@@ -1923,7 +1953,7 @@
                 vibrateOnScore: 'Vibrar al Cambiar Marcador',
                 matchesToWin: 'Partidas para Ganar Partido',
                 show20s: 'Mostrar 20s',
-                twentyDialogTitle: 'Tiros al Centro (20s)',
+                twentyDialogTitle: '¿Cuántos 20s?',
                 confirm: 'Confirmar',
                 showHammer: 'Mostrar Martillo',
                 hammerDialogTitle: 'Quien empieza la primera partida?',
@@ -1963,7 +1993,7 @@
                 vibrateOnScore: 'Vibrar en Canviar Marcador',
                 matchesToWin: 'Partides per Guanyar Partit',
                 show20s: 'Mostrar 20s',
-                twentyDialogTitle: 'Tirs al Centre (20s)',
+                twentyDialogTitle: 'Quants 20s?',
                 confirm: 'Confirmar',
                 showHammer: 'Mostrar Martell',
                 hammerDialogTitle: 'Qui comenca la primera partida?',
@@ -2003,7 +2033,7 @@
                 vibrateOnScore: 'Vibrate on Score Change',
                 matchesToWin: 'Matches to Win',
                 show20s: 'Show 20s',
-                twentyDialogTitle: 'Center Shots (20s)',
+                twentyDialogTitle: 'How many 20s?',
                 confirm: 'Confirm',
                 showHammer: 'Show Hammer',
                 hammerDialogTitle: 'Who starts the first game?',
@@ -2330,11 +2360,6 @@
                 btn.textContent = i;
                 btn.onclick = () => selectTwentyValue(i);
 
-                // El botón 0 ocupa toda la fila (grid-column: 1 / -1)
-                if (i === 0) {
-                    btn.style.gridColumn = '1 / -1';
-                }
-
                 container.appendChild(btn);
             }
         }
@@ -2368,7 +2393,7 @@
 
             // Update title
             const titleText = t('twentyDialogTitle');
-            document.getElementById('twentyDialogTitle').textContent = `${teamName} - ${titleText}`;
+            document.getElementById('twentyDialogTitle').textContent = `${teamName}: ${titleText}`;
 
             // Generate buttons with appropriate max based on game type
             const maxTwenty = gameSettings.gameType === 'singles' ? MAX_TWENTY_SINGLES : MAX_TWENTY_DOUBLES;
@@ -3346,7 +3371,7 @@
         }
 
         function giveFeedback() {
-            alert('Feedback: Please email feedback@crokinole-scorer.app');
+            window.open('https://github.com/xavierclotet/scorekinole/issues/new', '_blank');
         }
 
         // Score handlers
