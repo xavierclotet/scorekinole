@@ -2699,12 +2699,9 @@
         }
 
         function resetGame() {
-            console.log('♻️ resetGame llamado');
-
             // Check if match is won - if so, call resetMatch instead
             const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
             if (matchWon) {
-                console.log('⚠️ Match ganado - llamando resetMatch automáticamente');
                 resetMatch();
                 return;
             }
@@ -2754,17 +2751,13 @@
         }
 
         function resetMatch() {
+            // Reset matchStartedBy to force hammer selection dialog
+            matchStartedBy = 0;
+
             // Only show hammer selection dialog if showHammer is enabled
             if (gameSettings.showHammer) {
-                // If this is not the first match, alternate who starts
-                if (matchStartedBy !== 0) {
-                    // Automatically alternate: if team 1 started last match, team 2 starts now
-                    const nextStarter = matchStartedBy === 1 ? 2 : 1;
-                    selectStartingTeam(nextStarter);
-                } else {
-                    // First match: show dialog
-                    openHammerDialog();
-                }
+                // Always show dialog when resetting match
+                openHammerDialog();
             } else {
                 // Reset directly without hammer selection
                 lastGameHammerTeam = 0; // Reset game hammer tracking
