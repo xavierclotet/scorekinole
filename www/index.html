@@ -745,6 +745,9 @@
             position: relative;
             overflow: hidden;
             transition: background 0.3s;
+            cursor: pointer;
+            user-select: none;
+            touch-action: none;
         }
 
         .player-section::before {
@@ -791,15 +794,11 @@
             font-size: 16rem;
             font-weight: 900;
             line-height: 1;
-            text-shadow: 0 0 30px currentColor;
-            cursor: pointer;
-            user-select: none;
             position: relative;
             padding: 2rem 3rem;
             border-radius: 2rem;
             transition: transform 0.15s ease-out;
             display: inline-block;
-            touch-action: none;
         }
 
         .score-display:active {
@@ -2592,8 +2591,8 @@
         // Calculate luminance and return appropriate text color
         function getContrastColor(hexColor) {
             const luminance = getLuminance(hexColor);
-            // Return dark gray for light backgrounds, white for dark backgrounds
-            return luminance > 0.5 ? '#2a3a4a' : '#ffffff';
+            // Return black for light backgrounds, white for dark backgrounds
+            return luminance > 0.5 ? '#000000' : '#ffffff';
         }
 
         // Track previous scores to detect round completion
@@ -3317,9 +3316,9 @@
 
         // Score handlers
         function setupScoreHandlers() {
-            ['team1Score', 'team2Score'].forEach(id => {
+            ['team1Section', 'team2Section'].forEach((id, index) => {
                 const element = document.getElementById(id);
-                const teamNum = parseInt(element.dataset.team);
+                const teamNum = index + 1;
 
                 element.addEventListener('touchstart', (e) => {
                     e.preventDefault();
