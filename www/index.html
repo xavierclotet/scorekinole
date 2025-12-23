@@ -1364,6 +1364,42 @@
             font-size: 1.5rem;
         }
 
+        /* Twenty Calculator */
+        .twenty-calculator {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            padding: 1rem;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .twenty-calc-btn {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            padding: 1.2rem;
+            min-height: 70px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .twenty-calc-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: var(--accent-green);
+            transform: scale(1.05);
+        }
+
+        .twenty-calc-btn:active {
+            transform: scale(0.95);
+            background: rgba(0, 255, 136, 0.3);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .score-display {
@@ -1803,56 +1839,11 @@
     <div class="modal-overlay" id="twentyDialog">
         <div class="modal">
             <div class="modal-header">
-                <span class="modal-title" id="twentyDialogTitle">Center Shots (20s)</span>
-                <div class="modal-actions">
-                    <button class="modal-btn save" id="btnTwentyConfirm" onclick="confirmTwenty()">Confirm</button>
-                </div>
+                <span class="modal-title" id="twentyDialogTitle">Team 1 - Center Shots (20s)</span>
             </div>
             <div class="modal-content">
-                <div class="twenty-input-container">
-                    <!-- Team 1 Input -->
-                    <div class="twenty-team-section" id="twentyTeam1Section">
-                        <div class="twenty-team-header">
-                            <span class="twenty-team-name" id="twentyTeam1Name">Team 1</span>
-                        </div>
-                        <select class="twenty-select" id="twentyInput1">
-                            <option value="0">0</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                            <option value="9">9</option>
-                            <option value="10">10</option>
-                            <option value="11">11</option>
-                            <option value="12">12</option>
-                        </select>
-                    </div>
-
-                    <!-- Team 2 Input -->
-                    <div class="twenty-team-section" id="twentyTeam2Section">
-                        <div class="twenty-team-header">
-                            <span class="twenty-team-name" id="twentyTeam2Name">Team 2</span>
-                        </div>
-                        <select class="twenty-select" id="twentyInput2">
-                            <option value="0">0</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                            <option value="9">9</option>
-                            <option value="10">10</option>
-                            <option value="11">11</option>
-                            <option value="12">12</option>
-                        </select>
-                    </div>
+                <div class="twenty-calculator" id="twentyCalculator">
+                    <!-- Botones generados dinámicamente -->
                 </div>
             </div>
         </div>
@@ -2042,9 +2033,8 @@
         // Track who has the hammer at the start of current game (to save when game ends)
         let currentGameStartHammer = 0; // 0 = not set, 1 = team1, 2 = team2
 
-        // Temporary state for 20s input dialog
-        let tempTwenty1 = 0;
-        let tempTwenty2 = 0;
+        // State for 20s input dialog
+        let currentTwentyTeam = 0; // 0 = not active, 1 = entering team1, 2 = entering team2
         const MAX_TWENTY_SINGLES = 8;
         const MAX_TWENTY_DOUBLES = 12;
 
@@ -2310,69 +2300,80 @@
             // Hammer will be toggled when Reset Round is pressed
         }
 
-        function openTwentyDialog() {
-            // Initialize temporary values to 0
-            tempTwenty1 = 0;
-            tempTwenty2 = 0;
+        function generateTwentyButtons(max) {
+            const container = document.getElementById('twentyCalculator');
+            container.innerHTML = '';
 
-            // Update select values
-            document.getElementById('twentyInput1').value = '0';
-            document.getElementById('twentyInput2').value = '0';
-
-            // Apply team colors to sections
-            const team1Section = document.getElementById('twentyTeam1Section');
-            const team2Section = document.getElementById('twentyTeam2Section');
-            const select1 = document.getElementById('twentyInput1');
-            const select2 = document.getElementById('twentyInput2');
-
-            team1Section.style.borderColor = team1.color;
-            team1Section.querySelector('.twenty-team-name').style.color = team1.color;
-            select1.style.borderColor = team1.color;
-            select1.style.color = team1.color;
-
-            team2Section.style.borderColor = team2.color;
-            team2Section.querySelector('.twenty-team-name').style.color = team2.color;
-            select2.style.borderColor = team2.color;
-            select2.style.color = team2.color;
-
-            // Update team names
-            document.getElementById('twentyTeam1Name').textContent = team1.name;
-            document.getElementById('twentyTeam2Name').textContent = team2.name;
-
-            // Update title with translation
-            document.getElementById('twentyDialogTitle').textContent = t('twentyDialogTitle');
-            document.getElementById('btnTwentyConfirm').textContent = t('confirm');
-
-            // Show modal
-            document.getElementById('twentyDialog').classList.add('active');
+            for (let i = 0; i <= max; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'twenty-calc-btn';
+                btn.textContent = i;
+                btn.onclick = () => selectTwentyValue(i);
+                container.appendChild(btn);
+            }
         }
 
-        function confirmTwenty() {
-            // Get values from selects
-            const value1 = parseInt(document.getElementById('twentyInput1').value, 10);
-            const value2 = parseInt(document.getElementById('twentyInput2').value, 10);
+        function selectTwentyValue(value) {
+            const team = currentTwentyTeam === 1 ? team1 : team2;
 
-            // Add selected values to accumulated totals
-            team1.twenty = (team1.twenty || 0) + value1;
-            team2.twenty = (team2.twenty || 0) + value2;
-
-            // Update display and save
-            updateTwentyCounter();
-            saveData();
-
-            // Close modal
-            closeTwentyDialog();
+            // Add value to team's twenty total
+            team.twenty = (team.twenty || 0) + value;
 
             // Haptic feedback
             if (gameSettings.vibrateOnScore && navigator.vibrate) {
                 navigator.vibrate(50);
             }
+
+            if (currentTwentyTeam === 1) {
+                // Move to team 2
+                currentTwentyTeam = 2;
+                showTwentyInputForTeam(2);
+            } else {
+                // Done with both teams
+                closeTwentyDialog();
+                updateTwentyCounter();
+                saveData();
+            }
+        }
+
+        function showTwentyInputForTeam(teamNum) {
+            const team = teamNum === 1 ? team1 : team2;
+            const teamName = team.name;
+
+            // Update title
+            const titleText = t('twentyDialogTitle');
+            document.getElementById('twentyDialogTitle').textContent = `${teamName} - ${titleText}`;
+
+            // Generate buttons with appropriate max
+            // For now, always use MAX_TWENTY_DOUBLES (12)
+            // TODO: Make dynamic based on game type setting
+            generateTwentyButtons(MAX_TWENTY_DOUBLES);
+
+            // Apply team color to dialog and buttons
+            const modal = document.querySelector('#twentyDialog .modal');
+            modal.style.borderColor = team.color;
+
+            const buttons = document.querySelectorAll('.twenty-calc-btn');
+            const teamTextColor = getContrastColor(team.color);
+            buttons.forEach(btn => {
+                btn.style.backgroundColor = team.color + '20'; // 20 is hex for opacity
+                btn.style.borderColor = team.color;
+                btn.style.color = teamTextColor;
+            });
+
+            // Show modal
+            document.getElementById('twentyDialog').classList.add('active');
+        }
+
+        function openTwentyDialog() {
+            // Start sequential flow
+            currentTwentyTeam = 1;
+            showTwentyInputForTeam(1);
         }
 
         function closeTwentyDialog() {
             document.getElementById('twentyDialog').classList.remove('active');
-            tempTwenty1 = 0;
-            tempTwenty2 = 0;
+            currentTwentyTeam = 0;
         }
 
         function updateTwentyCounter() {
