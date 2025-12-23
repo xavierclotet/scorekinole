@@ -582,18 +582,17 @@
 
         /* Hammer Indicator */
         .hammer-indicator {
-            font-size: 0.9em;
+            font-size: 0.8em;
             position: absolute;
-            top: 0.7em;
-            left: 50%;
-            transform: translateX(-50%);
+            top: 50%;
+            transform: translateY(-50%);
             animation: hammerPulse 2s ease-in-out infinite;
             filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
         }
 
         @keyframes hammerPulse {
-            0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
-            50% { transform: translateX(-50%) scale(1.1); opacity: 0.8; }
+            0%, 100% { transform: translateY(-50%) scale(1); opacity: 1; }
+            50% { transform: translateY(-50%) scale(1.1); opacity: 0.8; }
         }
 
         /* Hammer Dialog */
@@ -2608,25 +2607,35 @@
 
             // Toggle hammer when a round ends (2-0 or 1-1), but NOT when someone wins the game
             if (delta > 0 && gameSettings.showHammer) {
+                console.log('🔨 Checking hammer toggle - showHammer:', gameSettings.showHammer);
                 const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
+                console.log('🔨 Match won?', matchWon);
 
                 if (!matchWon) {
                     const team1Change = team1.points - previousTeam1Points;
                     const team2Change = team2.points - previousTeam2Points;
+                    console.log('🔨 Changes desde última ronda - T1:', team1Change, 'T2:', team2Change);
+                    console.log('🔨 Previous points - T1:', previousTeam1Points, 'T2:', previousTeam2Points);
+                    console.log('🔨 Current points - T1:', team1.points, 'T2:', team2.points);
 
                     // Round complete when: +2 for one team OR +1 for each team
                     // BUT check if anyone reached pointsToWin (which would trigger declareWinner)
                     const roundCompleted = (team1Change === 2 && team2Change === 0) ||
                                           (team1Change === 0 && team2Change === 2) ||
                                           (team1Change === 1 && team2Change === 1);
+                    console.log('🔨 Round completed?', roundCompleted);
 
                     // Don't toggle if this point wins the game (declareWinner will be called next)
                     const gameWon = team1.points >= gameSettings.pointsToWin || team2.points >= gameSettings.pointsToWin;
+                    console.log('🔨 Game won?', gameWon);
 
                     if (roundCompleted && !gameWon) {
+                        console.log('✅ TOGGLING HAMMER!');
                         previousTeam1Points = team1.points;
                         previousTeam2Points = team2.points;
                         toggleHammer();
+                    } else {
+                        console.log('❌ NO se toggle hammer - roundCompleted:', roundCompleted, 'gameWon:', gameWon);
                     }
                 }
             }
