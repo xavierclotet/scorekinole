@@ -1632,6 +1632,14 @@
                         </div>
 
                         <div class="input-group">
+                            <label class="input-label" id="labelGameType">Tipo de Partida</label>
+                            <select id="gameTypeSelect" class="input-field">
+                                <option value="singles" id="optionSingles">Individual</option>
+                                <option value="doubles" id="optionDoubles">Parejas</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
                             <label class="input-label" id="labelLanguage" data-i18n="language">Idioma</label>
                             <select id="languageSelect" class="input-field">
                                 <option value="es">Español</option>
@@ -1879,8 +1887,8 @@
             vibrateOnScore: true,
             matchesToWin: 1,
             show20s: false,
-                          
-            showHammer: false
+            showHammer: false,
+            gameType: 'singles' // 'singles' or 'doubles'
         };
 
         // Translations
@@ -1920,7 +1928,10 @@
                 confirm: 'Confirmar',
                 showHammer: 'Mostrar Martillo',
                 hammerDialogTitle: 'Quien empieza la primera partida?',
-                hammerDialogSubtitle: 'El otro equipo tendra el martillo'
+                hammerDialogSubtitle: 'El otro equipo tendra el martillo',
+                gameType: 'Tipo de Partida',
+                singles: 'Individual',
+                doubles: 'Parejas'
             },
             ca: {
                 settings: 'Configuració',
@@ -1957,7 +1968,10 @@
                 confirm: 'Confirmar',
                 showHammer: 'Mostrar Martell',
                 hammerDialogTitle: 'Qui comenca la primera partida?',
-                hammerDialogSubtitle: 'Laltre equip tindra el martell'
+                hammerDialogSubtitle: 'Laltre equip tindra el martell',
+                gameType: 'Tipus de Partida',
+                singles: 'Individual',
+                doubles: 'Parelles'
             },
             en: {
                 settings: 'Settings',
@@ -1994,7 +2008,10 @@
                 confirm: 'Confirm',
                 showHammer: 'Show Hammer',
                 hammerDialogTitle: 'Who starts the first game?',
-                hammerDialogSubtitle: 'The other team will have the hammer'
+                hammerDialogSubtitle: 'The other team will have the hammer',
+                gameType: 'Game Type',
+                singles: 'Singles',
+                doubles: 'Doubles'
             }
         };
 
@@ -2128,6 +2145,10 @@
                 // Ensure showHammer exists
                 if (gameSettings.showHammer === undefined) {
                     gameSettings.showHammer = false;
+                }
+                // Ensure gameType exists
+                if (gameSettings.gameType === undefined) {
+                    gameSettings.gameType = 'singles';
                 }
             }
             if (savedTeam1) {
@@ -2309,6 +2330,12 @@
                 btn.className = 'twenty-calc-btn';
                 btn.textContent = i;
                 btn.onclick = () => selectTwentyValue(i);
+
+                // El botón 0 ocupa toda la fila (grid-column: 1 / -1)
+                if (i === 0) {
+                    btn.style.gridColumn = '1 / -1';
+                }
+
                 container.appendChild(btn);
             }
         }
@@ -2344,10 +2371,9 @@
             const titleText = t('twentyDialogTitle');
             document.getElementById('twentyDialogTitle').textContent = `${teamName} - ${titleText}`;
 
-            // Generate buttons with appropriate max
-            // For now, always use MAX_TWENTY_DOUBLES (12)
-            // TODO: Make dynamic based on game type setting
-            generateTwentyButtons(MAX_TWENTY_DOUBLES);
+            // Generate buttons with appropriate max based on game type
+            const maxTwenty = gameSettings.gameType === 'singles' ? MAX_TWENTY_SINGLES : MAX_TWENTY_DOUBLES;
+            generateTwentyButtons(maxTwenty);
 
             // Apply team color to dialog and buttons
             const modal = document.querySelector('#twentyDialog .modal');
@@ -3048,6 +3074,7 @@
             document.getElementById('matchesToWin').value = gameSettings.matchesToWin;
             document.getElementById('show20sCheckbox').checked = gameSettings.show20s;
             document.getElementById('showHammerCheckbox').checked = gameSettings.showHammer;
+            document.getElementById('gameTypeSelect').value = gameSettings.gameType;
             document.getElementById('timerMinutes').value = gameSettings.timerMinutes;
             document.getElementById('timerSeconds').value = gameSettings.timerSeconds;
             document.getElementById('languageSelect').value = gameSettings.language;
@@ -3076,6 +3103,7 @@
                 gameSettings.matchesToWin = parseInt(document.getElementById('matchesToWin').value) || 1;
                 gameSettings.show20s = document.getElementById('show20sCheckbox').checked;
                 gameSettings.showHammer = document.getElementById('showHammerCheckbox').checked;
+                gameSettings.gameType = document.getElementById('gameTypeSelect').value;
                 gameSettings.timerMinutes = parseInt(document.getElementById('timerMinutes').value) || 0;
                 gameSettings.timerSeconds = parseInt(document.getElementById('timerSeconds').value) || 0;
                 gameSettings.language = document.getElementById('languageSelect').value;
@@ -3133,9 +3161,14 @@
 
             // Update input labels in Match Settings using IDs
             document.getElementById('labelPointsToWin').textContent = t('pointsToWin');
+            document.getElementById('labelGameType').textContent = t('gameType');
             document.getElementById('labelLanguage').textContent = t('language');
             document.getElementById('labelMatchesToWin').textContent = t('matchesToWin');
             document.getElementById('labelTimer').textContent = t('timer');
+
+            // Update gameType options
+            document.getElementById('optionSingles').textContent = t('singles');
+            document.getElementById('optionDoubles').textContent = t('doubles');
 
             // Update Team 1 labels using IDs
             document.getElementById('labelTeam1Name').textContent = t('name');
