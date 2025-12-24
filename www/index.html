@@ -1680,9 +1680,9 @@
                         <div class="input-group">
                             <label class="input-label" id="labelPointsToWin">Points to Win</label>
                             <div class="number-control">
-                                <button type="button" class="number-control-btn" onclick="decrementNumber('pointsToWin')">−</button>
+                                <button type="button" class="number-control-btn" data-action="decrement" data-target="pointsToWin">−</button>
                                 <input type="text" id="pointsToWin" class="number-control-display" value="7" min="1" readonly>
-                                <button type="button" class="number-control-btn" onclick="incrementNumber('pointsToWin')">+</button>
+                                <button type="button" class="number-control-btn" data-action="increment" data-target="pointsToWin">+</button>
                             </div>
                         </div>
 
@@ -1707,19 +1707,19 @@
                                 <div class="number-input-wrapper">
                                     <input type="number" id="timerMinutes" class="input-field" min="0" max="99" value="10">
                                     <div class="number-spinners">
-                                        <button type="button" class="spinner-btn spinner-down" onclick="decrementTimerMinutes()">▼</button>
-                                        <button type="button" class="spinner-btn spinner-up" onclick="incrementTimerMinutes()">▲</button>
+                                        <button type="button" class="spinner-btn spinner-down" data-action="decrement-timer-minutes">▼</button>
+                                        <button type="button" class="spinner-btn spinner-up" data-action="increment-timer-minutes">▲</button>
                                     </div>
                                 </div>
                                 <span class="timer-label">:</span>
                                 <div class="number-input-wrapper">
                                     <input type="number" id="timerSeconds" class="input-field" min="0" max="59" value="0">
                                     <div class="number-spinners">
-                                        <button type="button" class="spinner-btn spinner-down" onclick="decrementTimerSeconds()">▼</button>
-                                        <button type="button" class="spinner-btn spinner-up" onclick="incrementTimerSeconds()">▲</button>
+                                        <button type="button" class="spinner-btn spinner-down" data-action="decrement-timer-seconds">▼</button>
+                                        <button type="button" class="spinner-btn spinner-up" data-action="increment-timer-seconds">▲</button>
                                     </div>
                                 </div>
-                                <span class="timer-clear-btn" onclick="clearTimerSettings()" title="Reset to 00:00">↻</span>
+                                <span class="timer-clear-btn" id="timerClearBtn" title="Reset to 00:00">↻</span>
                             </div>
                         </div>
                     </div>
@@ -1728,9 +1728,9 @@
                         <div class="input-group">
                             <label class="input-label" id="labelMatchesToWin">Matches to Win</label>
                             <div class="number-control">
-                                <button type="button" class="number-control-btn" onclick="decrementNumber('matchesToWin')">−</button>
+                                <button type="button" class="number-control-btn" data-action="decrement" data-target="matchesToWin">−</button>
                                 <input type="text" id="matchesToWin" class="number-control-display" value="1" min="1" readonly>
-                                <button type="button" class="number-control-btn" onclick="incrementNumber('matchesToWin')">+</button>
+                                <button type="button" class="number-control-btn" data-action="increment" data-target="matchesToWin">+</button>
                             </div>
                         </div>
 
@@ -3531,6 +3531,73 @@
             }
         });
 
+        // Setup number control buttons with fast touch events
+        function setupNumberControlButtons() {
+            // Handle all number-control-btn buttons (pointsToWin, matchesToWin)
+            document.querySelectorAll('.number-control-btn').forEach(button => {
+                const action = button.getAttribute('data-action');
+                const target = button.getAttribute('data-target');
+
+                if (!action || !target) return;
+
+                const handler = (e) => {
+                    e.preventDefault(); // Prevent 300ms delay on mobile
+                    if (action === 'increment') {
+                        incrementNumber(target);
+                    } else if (action === 'decrement') {
+                        decrementNumber(target);
+                    }
+                };
+
+                // Use touchstart for mobile (instant response)
+                button.addEventListener('touchstart', handler, { passive: false });
+                // Use click for desktop/mouse
+                button.addEventListener('click', handler);
+            });
+
+            // Handle timer spinner buttons
+            document.querySelectorAll('.spinner-btn').forEach(button => {
+                const action = button.getAttribute('data-action');
+
+                if (!action) return;
+
+                const handler = (e) => {
+                    e.preventDefault(); // Prevent 300ms delay on mobile
+                    switch(action) {
+                        case 'increment-timer-minutes':
+                            incrementTimerMinutes();
+                            break;
+                        case 'decrement-timer-minutes':
+                            decrementTimerMinutes();
+                            break;
+                        case 'increment-timer-seconds':
+                            incrementTimerSeconds();
+                            break;
+                        case 'decrement-timer-seconds':
+                            decrementTimerSeconds();
+                            break;
+                    }
+                };
+
+                // Use touchstart for mobile (instant response)
+                button.addEventListener('touchstart', handler, { passive: false });
+                // Use click for desktop/mouse
+                button.addEventListener('click', handler);
+            });
+
+            // Handle timer clear button
+            const timerClearBtn = document.getElementById('timerClearBtn');
+            if (timerClearBtn) {
+                const handler = (e) => {
+                    e.preventDefault(); // Prevent 300ms delay on mobile
+                    clearTimerSettings();
+                };
+
+                timerClearBtn.addEventListener('touchstart', handler, { passive: false });
+                timerClearBtn.addEventListener('click', handler);
+            }
+        }
+
         // Prevent double-tap zoom
         let lastTouchEnd = 0;
         document.addEventListener('touchend', (e) => {
@@ -3544,7 +3611,7 @@
         // Load version
         function loadVersion() {
             // Version is embedded directly to avoid CORS issues when opening file:// locally
-            const APP_VERSION = '1.0.4';
+            const APP_VERSION = '1.0.5';
             const versionDisplay = document.getElementById('versionDisplay');
             if (versionDisplay) {
                 versionDisplay.textContent = 'v' + APP_VERSION;
@@ -3555,6 +3622,7 @@
         loadVersion();
         loadData();
         setupScoreHandlers();
+        setupNumberControlButtons();
         updateTimerDisplay();
         updateUILanguage();
         updateMatchesCounter();
