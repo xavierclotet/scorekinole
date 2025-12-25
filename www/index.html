@@ -1739,6 +1739,15 @@
                             </div>
                         </div>
 
+                        <div class="input-group" id="groupMatchesToWin">
+                            <label class="input-label" id="labelMatchesToWin">Matches to Win</label>
+                            <div class="number-control">
+                                <button type="button" class="number-control-btn" data-action="decrement" data-target="matchesToWin">−</button>
+                                <input type="text" id="matchesToWin" class="number-control-display" value="1" min="1" readonly>
+                                <button type="button" class="number-control-btn" data-action="increment" data-target="matchesToWin">+</button>
+                            </div>
+                        </div>
+
                         <div class="input-group" id="groupRoundsToPlay" style="display: none;">
                             <label class="input-label" id="labelRoundsToPlay">Rounds to Play</label>
                             <div class="number-control">
@@ -1748,18 +1757,38 @@
                             </div>
                         </div>
 
+                        <div style="border-top: 1px solid rgba(255, 255, 255, 0.2); margin: 1rem 0;"></div>
+
+                        <div class="input-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="showHammerCheckbox">
+                                <label class="checkbox-label" id="labelShowHammer" for="showHammerCheckbox">Mostrar Martillo</label>
+                            </div>
+                        </div>
+
                         <div class="input-group">
                             <div class="checkbox-group">
                                 <input type="checkbox" id="show20sCheckbox">
                                 <label class="checkbox-label" id="labelShow20s" for="show20sCheckbox">Mostrar 20s</label>
                             </div>
                         </div>
+                    </div>
 
+                    <div class="settings-section">
                         <div class="input-group">
                             <label class="input-label" id="labelGameType">Tipo de Partida</label>
                             <select id="gameTypeSelect" class="input-field">
                                 <option value="singles" id="optionSingles">Individual</option>
                                 <option value="doubles" id="optionDoubles">Parejas</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label class="input-label" id="labelLanguage" data-i18n="language">Idioma</label>
+                            <select id="languageSelect" class="input-field">
+                                <option value="es">Español</option>
+                                <option value="ca">Català</option>
+                                <option value="en">English</option>
                             </select>
                         </div>
 
@@ -1783,33 +1812,6 @@
                                 </div>
                                 <span class="timer-clear-btn" id="timerClearBtn" title="Reset to 00:00">↻</span>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <div class="input-group" id="groupMatchesToWin">
-                            <label class="input-label" id="labelMatchesToWin">Matches to Win</label>
-                            <div class="number-control">
-                                <button type="button" class="number-control-btn" data-action="decrement" data-target="matchesToWin">−</button>
-                                <input type="text" id="matchesToWin" class="number-control-display" value="1" min="1" readonly>
-                                <button type="button" class="number-control-btn" data-action="increment" data-target="matchesToWin">+</button>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="showHammerCheckbox">
-                                <label class="checkbox-label" id="labelShowHammer" for="showHammerCheckbox">Mostrar Martillo</label>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <label class="input-label" id="labelLanguage" data-i18n="language">Idioma</label>
-                            <select id="languageSelect" class="input-field">
-                                <option value="es">Español</option>
-                                <option value="ca">Català</option>
-                                <option value="en">English</option>
-                            </select>
                         </div>
                     </div>
                 </div>
