@@ -101,6 +101,14 @@ When adding/removing settings sections or buttons:
 - Keep commit messages clean and professional without AI attribution
 - Focus on describing what changed and why
 
+### Updating Version Number
+When creating a new version, update the version number in ALL of these files:
+1. `package.json` - Line 2: `"version": "X.Y.Z"`
+2. `www/version.json` - Line 1: `{"version":"X.Y.Z"}`
+3. `README.md` - Line 7: `![Version](https://img.shields.io/badge/version-X.Y.Z-blue.svg)`
+
+**Important**: Always update all three files together to keep version numbers in sync.
+
 ## Critical Implementation Details
 
 ### Timer Centering
