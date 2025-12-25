@@ -1322,14 +1322,14 @@
         /* Preset Colors Preview */
         .preset-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
         }
 
         .preset-item {
             aspect-ratio: 16/9;
-            border-radius: 0.75rem;
-            border: 3px solid transparent;
+            border-radius: 0.5rem;
+            border: 2px solid transparent;
             cursor: pointer;
             transition: all 0.2s;
             overflow: hidden;
@@ -1457,7 +1457,7 @@
             }
             
             .preset-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(3, 1fr);
             }
         }
 
@@ -1970,7 +1970,7 @@
                 resetMatch: 'Resetear Match',
                 switchSides: 'Cambiar Lados',
                 switchColors: 'Cambiar Colores',
-                chooseColor: 'Elegir Color',
+                chooseColor: 'Color',
                 clear: 'Limpiar',
                 timeOut: 'TIEMPO',
                 primary: 'Principal',
@@ -2009,7 +2009,7 @@
                 resetMatch: 'Reiniciar Match',
                 switchSides: 'Canviar Costats',
                 switchColors: 'Canviar Colors',
-                chooseColor: 'Triar Color',
+                chooseColor: 'Color',
                 clear: 'Netejar',
                 timeOut: 'TEMPS',
                 primary: 'Principal',
@@ -2048,7 +2048,7 @@
                 resetMatch: 'Reset Match',
                 switchSides: 'Switch Sides',
                 switchColors: 'Switch Colors',
-                chooseColor: 'Choose Color',
+                chooseColor: 'Color',
                 clear: 'Clear',
                 timeOut: 'TIME OUT',
                 primary: 'Primary',
@@ -2118,50 +2118,86 @@
 
         // Primary colors
         const primaryColors = [
-            '#ffffff', '#ffeb3b', '#ff5722', '#f44336', '#e91e63',
-            '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4',
-            '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39',
-            '#ff9800', '#d4a574', '#607d8b', '#424242', '#000000'
+            '#E6BD80', // natural
+            '#1B100E', // negro
+            '#DADADA', // blanco
+            '#BB484D', // red
+            '#D06249', // orange
+            '#DFC530', // yellow
+            '#559D5E', // green
+            '#3CBCFB', // lightblue
+            '#014BC6', // blue
+            '#DA85CE', // pink
+            '#8B65A0'  // magenta
         ];
 
         // Preset color schemes - all unique combinations
         const presets = [
-            { team1: '#ffffff', team2: '#000000', name: 'White vs Black' },
-            { team1: '#ffffff', team2: '#d4a574', name: 'White vs Natural' },
-            { team1: '#ffffff', team2: '#c62828', name: 'White vs Red' },
-            { team1: '#ffffff', team2: '#1b5e20', name: 'White vs Green' },
-            { team1: '#ffffff', team2: '#ffeb3b', name: 'White vs Yellow' },
-            { team1: '#ffffff', team2: '#ff6f00', name: 'White vs Orange' },
-            { team1: '#ffffff', team2: '#81d4fa', name: 'White vs Light Blue' },
-            { team1: '#ffffff', team2: '#0d47a1', name: 'White vs Dark Blue' },
-            { team1: '#000000', team2: '#d4a574', name: 'Black vs Natural' },
-            { team1: '#000000', team2: '#c62828', name: 'Black vs Red' },
-            { team1: '#000000', team2: '#1b5e20', name: 'Black vs Green' },
-            { team1: '#000000', team2: '#ffeb3b', name: 'Black vs Yellow' },
-            { team1: '#000000', team2: '#ff6f00', name: 'Black vs Orange' },
-            { team1: '#000000', team2: '#81d4fa', name: 'Black vs Light Blue' },
-            { team1: '#000000', team2: '#0d47a1', name: 'Black vs Dark Blue' },
-            { team1: '#d4a574', team2: '#c62828', name: 'Natural vs Red' },
-            { team1: '#d4a574', team2: '#1b5e20', name: 'Natural vs Green' },
-            { team1: '#d4a574', team2: '#ffeb3b', name: 'Natural vs Yellow' },
-            { team1: '#d4a574', team2: '#ff6f00', name: 'Natural vs Orange' },
-            { team1: '#d4a574', team2: '#81d4fa', name: 'Natural vs Light Blue' },
-            { team1: '#d4a574', team2: '#0d47a1', name: 'Natural vs Dark Blue' },
-            { team1: '#c62828', team2: '#1b5e20', name: 'Red vs Green' },
-            { team1: '#c62828', team2: '#ffeb3b', name: 'Red vs Yellow' },
-            { team1: '#c62828', team2: '#ff6f00', name: 'Red vs Orange' },
-            { team1: '#c62828', team2: '#81d4fa', name: 'Red vs Light Blue' },
-            { team1: '#c62828', team2: '#0d47a1', name: 'Red vs Dark Blue' },
-            { team1: '#1b5e20', team2: '#ffeb3b', name: 'Green vs Yellow' },
-            { team1: '#1b5e20', team2: '#ff6f00', name: 'Green vs Orange' },
-            { team1: '#1b5e20', team2: '#81d4fa', name: 'Green vs Light Blue' },
-            { team1: '#1b5e20', team2: '#0d47a1', name: 'Green vs Dark Blue' },
-            { team1: '#ffeb3b', team2: '#ff6f00', name: 'Yellow vs Orange' },
-            { team1: '#ffeb3b', team2: '#81d4fa', name: 'Yellow vs Light Blue' },
-            { team1: '#ffeb3b', team2: '#0d47a1', name: 'Yellow vs Dark Blue' },
-            { team1: '#ff6f00', team2: '#81d4fa', name: 'Orange vs Light Blue' },
-            { team1: '#ff6f00', team2: '#0d47a1', name: 'Orange vs Dark Blue' },
-            { team1: '#81d4fa', team2: '#0d47a1', name: 'Light Blue vs Dark Blue' }
+            // Blanco vs others
+            { team1: '#DADADA', team2: '#1B100E', name: 'White vs Black' },
+            { team1: '#DADADA', team2: '#E6BD80', name: 'White vs Natural' },
+            { team1: '#DADADA', team2: '#BB484D', name: 'White vs Red' },
+            { team1: '#DADADA', team2: '#559D5E', name: 'White vs Green' },
+            { team1: '#DADADA', team2: '#DFC530', name: 'White vs Yellow' },
+            { team1: '#DADADA', team2: '#D06249', name: 'White vs Orange' },
+            { team1: '#DADADA', team2: '#3CBCFB', name: 'White vs Light Blue' },
+            { team1: '#DADADA', team2: '#014BC6', name: 'White vs Blue' },
+            { team1: '#DADADA', team2: '#DA85CE', name: 'White vs Pink' },
+            { team1: '#DADADA', team2: '#8B65A0', name: 'White vs Magenta' },
+            // Negro vs others
+            { team1: '#1B100E', team2: '#E6BD80', name: 'Black vs Natural' },
+            { team1: '#1B100E', team2: '#BB484D', name: 'Black vs Red' },
+            { team1: '#1B100E', team2: '#559D5E', name: 'Black vs Green' },
+            { team1: '#1B100E', team2: '#DFC530', name: 'Black vs Yellow' },
+            { team1: '#1B100E', team2: '#D06249', name: 'Black vs Orange' },
+            { team1: '#1B100E', team2: '#3CBCFB', name: 'Black vs Light Blue' },
+            { team1: '#1B100E', team2: '#014BC6', name: 'Black vs Blue' },
+            { team1: '#1B100E', team2: '#DA85CE', name: 'Black vs Pink' },
+            { team1: '#1B100E', team2: '#8B65A0', name: 'Black vs Magenta' },
+            // Natural vs others
+            { team1: '#E6BD80', team2: '#BB484D', name: 'Natural vs Red' },
+            { team1: '#E6BD80', team2: '#559D5E', name: 'Natural vs Green' },
+            { team1: '#E6BD80', team2: '#DFC530', name: 'Natural vs Yellow' },
+            { team1: '#E6BD80', team2: '#D06249', name: 'Natural vs Orange' },
+            { team1: '#E6BD80', team2: '#3CBCFB', name: 'Natural vs Light Blue' },
+            { team1: '#E6BD80', team2: '#014BC6', name: 'Natural vs Blue' },
+            { team1: '#E6BD80', team2: '#DA85CE', name: 'Natural vs Pink' },
+            { team1: '#E6BD80', team2: '#8B65A0', name: 'Natural vs Magenta' },
+            // Red vs others
+            { team1: '#BB484D', team2: '#559D5E', name: 'Red vs Green' },
+            { team1: '#BB484D', team2: '#DFC530', name: 'Red vs Yellow' },
+            { team1: '#BB484D', team2: '#D06249', name: 'Red vs Orange' },
+            { team1: '#BB484D', team2: '#3CBCFB', name: 'Red vs Light Blue' },
+            { team1: '#BB484D', team2: '#014BC6', name: 'Red vs Blue' },
+            { team1: '#BB484D', team2: '#DA85CE', name: 'Red vs Pink' },
+            { team1: '#BB484D', team2: '#8B65A0', name: 'Red vs Magenta' },
+            // Orange vs others
+            { team1: '#D06249', team2: '#559D5E', name: 'Orange vs Green' },
+            { team1: '#D06249', team2: '#DFC530', name: 'Orange vs Yellow' },
+            { team1: '#D06249', team2: '#3CBCFB', name: 'Orange vs Light Blue' },
+            { team1: '#D06249', team2: '#014BC6', name: 'Orange vs Blue' },
+            { team1: '#D06249', team2: '#DA85CE', name: 'Orange vs Pink' },
+            { team1: '#D06249', team2: '#8B65A0', name: 'Orange vs Magenta' },
+            // Yellow vs others
+            { team1: '#DFC530', team2: '#559D5E', name: 'Yellow vs Green' },
+            { team1: '#DFC530', team2: '#3CBCFB', name: 'Yellow vs Light Blue' },
+            { team1: '#DFC530', team2: '#014BC6', name: 'Yellow vs Blue' },
+            { team1: '#DFC530', team2: '#DA85CE', name: 'Yellow vs Pink' },
+            { team1: '#DFC530', team2: '#8B65A0', name: 'Yellow vs Magenta' },
+            // Green vs others
+            { team1: '#559D5E', team2: '#3CBCFB', name: 'Green vs Light Blue' },
+            { team1: '#559D5E', team2: '#014BC6', name: 'Green vs Blue' },
+            { team1: '#559D5E', team2: '#DA85CE', name: 'Green vs Pink' },
+            { team1: '#559D5E', team2: '#8B65A0', name: 'Green vs Magenta' },
+            // Light Blue vs others
+            { team1: '#3CBCFB', team2: '#014BC6', name: 'Light Blue vs Blue' },
+            { team1: '#3CBCFB', team2: '#DA85CE', name: 'Light Blue vs Pink' },
+            { team1: '#3CBCFB', team2: '#8B65A0', name: 'Light Blue vs Magenta' },
+            // Blue vs others
+            { team1: '#014BC6', team2: '#DA85CE', name: 'Blue vs Pink' },
+            { team1: '#014BC6', team2: '#8B65A0', name: 'Blue vs Magenta' },
+            // Pink vs Magenta
+            { team1: '#DA85CE', team2: '#8B65A0', name: 'Pink vs Magenta' }
         ];
 
         // Touch tracking
@@ -3327,13 +3363,18 @@
         }
 
         function switchColorTab(tab) {
-            document.querySelectorAll('.color-tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
-            
+            // Update tab buttons
+            const tabPrimary = document.getElementById('tabColorPrimary');
+            const tabWheel = document.getElementById('tabColorWheel');
+
             if (tab === 'primary') {
+                tabPrimary.classList.add('active');
+                tabWheel.classList.remove('active');
                 document.getElementById('colorPrimaryContainer').style.display = 'block';
                 document.getElementById('colorWheelContainer').classList.remove('active');
             } else {
+                tabPrimary.classList.remove('active');
+                tabWheel.classList.add('active');
                 document.getElementById('colorPrimaryContainer').style.display = 'none';
                 document.getElementById('colorWheelContainer').classList.add('active');
             }
