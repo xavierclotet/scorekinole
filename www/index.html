@@ -2018,8 +2018,8 @@
                 rateApp: 'Valorar App',
                 shareApp: 'Compartir App',
                 giveFeedback: 'Dar Feedback',
-                resetRound: 'Resetear Partida',
-                resetMatch: 'Resetear Match',
+                newGame: 'Nueva Partida',
+                newMatch: 'Nuevo Match',
                 switchSides: 'Cambiar Lados',
                 switchColors: 'Cambiar Colores',
                 chooseColor: 'Color',
@@ -2059,8 +2059,8 @@
                 rateApp: 'Valorar App',
                 shareApp: 'Compartir App',
                 giveFeedback: 'Donar Feedback',
-                resetRound: 'Reiniciar Partida',
-                resetMatch: 'Reiniciar Match',
+                newGame: 'Nova Partida',
+                newMatch: 'Nou Match',
                 switchSides: 'Canviar Costats',
                 switchColors: 'Canviar Colors',
                 chooseColor: 'Color',
@@ -2100,8 +2100,8 @@
                 rateApp: 'Rate App',
                 shareApp: 'Share App',
                 giveFeedback: 'Give Feedback',
-                resetRound: 'Reset Game',
-                resetMatch: 'Reset Match',
+                newGame: 'New Game',
+                newMatch: 'New Match',
                 switchSides: 'Switch Sides',
                 switchColors: 'Switch Colors',
                 chooseColor: 'Color',
@@ -2756,6 +2756,11 @@
         let previousTeam2Points = 0;
 
         function updateScore(teamNum, delta) {
+            // Block score changes if someone has already won
+            if (team1.hasWon || team2.hasWon) {
+                return;
+            }
+
             const team = teamNum === 1 ? team1 : team2;
             const previousPoints = team.points;
             team.points = Math.max(0, team.points + delta);
@@ -3300,7 +3305,7 @@
         function updateUILanguage() {
             // Update quick menu
             document.querySelectorAll('.quick-menu-item span:not(.quick-menu-icon)').forEach((el, index) => {
-                const keys = ['resetRound', 'resetMatch', 'switchSides', 'switchColors'];
+                const keys = ['newGame', 'newMatch', 'switchSides', 'switchColors'];
                 if (keys[index]) el.textContent = t(keys[index]);
             });
 
