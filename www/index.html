@@ -1347,7 +1347,7 @@
             align-items: center;
             justify-content: center;
             font-family: 'Orbitron', sans-serif;
-            font-size: 2rem;
+            font-size: 1.5rem;
             font-weight: 900;
         }
 
@@ -1625,6 +1625,18 @@
             user-select: none;
             margin-top: 1rem;
             padding-right: 0.25rem;
+        }
+
+        /* Tie Message Styles */
+        .tie-message {
+            font-size: 10rem;
+        }
+
+        /* Responsive tie message for portrait mode */
+        @media (orientation: portrait) {
+            .tie-message {
+                font-size: 5rem;
+            }
         }
     </style>
 </head>
@@ -2502,7 +2514,7 @@
 
             const tieMessage = document.createElement('div');
             tieMessage.textContent = t('tie');
-            tieMessage.style.fontSize = '8rem';
+            tieMessage.className = 'tie-message';
             tieMessage.style.fontWeight = 'bold';
             tieMessage.style.color = '#FFD700';
             tieMessage.style.textShadow = '0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.6)';
@@ -3032,6 +3044,10 @@
                 const indicator = document.getElementById(`swipe${teamNum}`);
                 indicator.classList.add('show');
                 setTimeout(() => indicator.classList.remove('show'), 500);
+
+                // Update display and save when decreasing score
+                updateDisplay();
+                saveData();
             }
         }
 
