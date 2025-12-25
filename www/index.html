@@ -1351,6 +1351,51 @@
             font-weight: 900;
         }
 
+        .preset-instruction {
+            text-align: center;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            font-family: 'Lexend', sans-serif;
+        }
+
+        .preset-color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+        }
+
+        .preset-color-option {
+            aspect-ratio: 1;
+            border-radius: 0.75rem;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .preset-color-option:hover {
+            transform: scale(1.1);
+            border-color: var(--accent-green);
+        }
+
+        .preset-back-btn {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-family: 'Lexend', sans-serif;
+            cursor: pointer;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+        }
+
+        .preset-back-btn:hover {
+            background: var(--bg-primary);
+            transform: translateX(-5px);
+        }
+
         /* 20s Input Dialog */
         .twenty-input-container {
             display: grid;
@@ -1890,10 +1935,17 @@
     <div class="modal-overlay" id="presetColorsModal">
         <div class="modal">
             <div class="modal-header">
-                <span class="modal-title">Preset Colors</span>
+                <span class="modal-title" id="presetColorsTitle">Preset Colors</span>
             </div>
             <div class="modal-content">
-                <div class="preset-grid" id="presetGrid"></div>
+                <div id="presetColorSelector" style="display: block;">
+                    <p class="preset-instruction" id="presetInstruction">Choose first team color:</p>
+                    <div class="preset-color-grid" id="presetColorGrid"></div>
+                </div>
+                <div id="presetCombinationsContainer" style="display: none;">
+                    <button class="preset-back-btn" id="presetBackBtn" onclick="backToColorSelector()">← Back</button>
+                    <div class="preset-grid" id="presetGrid"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1984,7 +2036,9 @@
                 hammerDialogSubtitle: 'El otro equipo tendra el martillo',
                 gameType: 'Tipo de Partida',
                 singles: 'Individual',
-                doubles: 'Parejas'
+                doubles: 'Parejas',
+                chooseFirstColor: 'Elige el primer color:',
+                back: 'Volver'
             },
             ca: {
                 settings: 'Configuració',
@@ -2023,7 +2077,9 @@
                 hammerDialogSubtitle: 'Laltre equip tindra el martell',
                 gameType: 'Tipus de Partida',
                 singles: 'Individual',
-                doubles: 'Parelles'
+                doubles: 'Parelles',
+                chooseFirstColor: 'Tria el primer color:',
+                back: 'Tornar'
             },
             en: {
                 settings: 'Settings',
@@ -2062,7 +2118,9 @@
                 hammerDialogSubtitle: 'The other team will have the hammer',
                 gameType: 'Game Type',
                 singles: 'Singles',
-                doubles: 'Doubles'
+                doubles: 'Doubles',
+                chooseFirstColor: 'Choose first color:',
+                back: 'Back'
             }
         };
 
@@ -3403,8 +3461,15 @@
         });
 
         // Preset Colors
+        let selectedPresetColor = null;
+
         function openPresetColors() {
-            generatePresetGrid();
+            // Reset to color selector view
+            selectedPresetColor = null;
+            document.getElementById('presetColorSelector').style.display = 'block';
+            document.getElementById('presetCombinationsContainer').style.display = 'none';
+            generatePresetColorGrid();
+            updatePresetTexts();
             document.getElementById('presetColorsModal').classList.add('active');
         }
 
@@ -3412,11 +3477,41 @@
             document.getElementById('presetColorsModal').classList.remove('active');
         }
 
-        function generatePresetGrid() {
+        function backToColorSelector() {
+            selectedPresetColor = null;
+            document.getElementById('presetColorSelector').style.display = 'block';
+            document.getElementById('presetCombinationsContainer').style.display = 'none';
+        }
+
+        function generatePresetColorGrid() {
+            const grid = document.getElementById('presetColorGrid');
+            grid.innerHTML = '';
+
+            primaryColors.forEach(color => {
+                const div = document.createElement('div');
+                div.className = 'preset-color-option';
+                div.style.background = color;
+                div.onclick = () => {
+                    selectedPresetColor = color;
+                    showPresetCombinations(color);
+                };
+                grid.appendChild(div);
+            });
+        }
+
+        function showPresetCombinations(color) {
+            // Filter presets that include the selected color
+            const filteredPresets = presets.filter(p => p.team1 === color || p.team2 === color);
+
+            // Show combinations view
+            document.getElementById('presetColorSelector').style.display = 'none';
+            document.getElementById('presetCombinationsContainer').style.display = 'block';
+
+            // Generate grid with filtered combinations
             const grid = document.getElementById('presetGrid');
             grid.innerHTML = '';
-            
-            presets.forEach((preset, index) => {
+
+            filteredPresets.forEach(preset => {
                 const div = document.createElement('div');
                 div.className = 'preset-item';
                 div.onclick = () => {
@@ -3425,26 +3520,38 @@
                     team2.color = preset.team2;
                     document.getElementById('team1ColorPreview').style.background = preset.team1;
                     document.getElementById('team2ColorPreview').style.background = preset.team2;
+                    applyTeamColors();
+                    saveData();
                     // Close modal
                     closePresetColors();
                 };
-                
+
                 const half1 = document.createElement('div');
                 half1.className = 'preset-half';
                 half1.style.background = preset.team1;
                 half1.style.color = getContrastColor(preset.team1);
                 half1.textContent = '42';
-                
+
                 const half2 = document.createElement('div');
                 half2.className = 'preset-half';
                 half2.style.background = preset.team2;
                 half2.style.color = getContrastColor(preset.team2);
                 half2.textContent = '35';
-                
+
                 div.appendChild(half1);
                 div.appendChild(half2);
                 grid.appendChild(div);
             });
+        }
+
+        function updatePresetTexts() {
+            const title = document.getElementById('presetColorsTitle');
+            const instruction = document.getElementById('presetInstruction');
+            const backBtn = document.getElementById('presetBackBtn');
+
+            if (title) title.textContent = t('presetColors');
+            if (instruction) instruction.textContent = t('chooseFirstColor');
+            if (backBtn) backBtn.textContent = '← ' + t('back');
         }
 
         // Other actions
