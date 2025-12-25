@@ -1773,23 +1773,19 @@
 
                         <div class="input-group">
                             <label class="input-label" id="labelTeam1Points">Points</label>
-                            <div class="number-input-wrapper">
-                                <input type="number" id="team1Points" class="input-field" min="0" value="0">
-                                <div class="number-spinners">
-                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('team1Points')">▲</button>
-                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('team1Points')">▼</button>
-                                </div>
+                            <div class="number-control">
+                                <button type="button" class="number-control-btn" data-action="decrement" data-target="team1Points">−</button>
+                                <input type="text" id="team1Points" class="number-control-display" value="0" min="0" readonly>
+                                <button type="button" class="number-control-btn" data-action="increment" data-target="team1Points">+</button>
                             </div>
                         </div>
 
                         <div class="input-group">
                             <label class="input-label" id="labelTeam1Rounds">Rounds</label>
-                            <div class="number-input-wrapper">
-                                <input type="number" id="team1Rounds" class="input-field" min="0" value="0">
-                                <div class="number-spinners">
-                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('team1Rounds')">▲</button>
-                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('team1Rounds')">▼</button>
-                                </div>
+                            <div class="number-control">
+                                <button type="button" class="number-control-btn" data-action="decrement" data-target="team1Rounds">−</button>
+                                <input type="text" id="team1Rounds" class="number-control-display" value="0" min="0" readonly>
+                                <button type="button" class="number-control-btn" data-action="increment" data-target="team1Rounds">+</button>
                             </div>
                         </div>
                     </div>
@@ -1813,23 +1809,19 @@
 
                         <div class="input-group">
                             <label class="input-label" id="labelTeam2Points">Points</label>
-                            <div class="number-input-wrapper">
-                                <input type="number" id="team2Points" class="input-field" min="0" value="0">
-                                <div class="number-spinners">
-                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('team2Points')">▲</button>
-                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('team2Points')">▼</button>
-                                </div>
+                            <div class="number-control">
+                                <button type="button" class="number-control-btn" data-action="decrement" data-target="team2Points">−</button>
+                                <input type="text" id="team2Points" class="number-control-display" value="0" min="0" readonly>
+                                <button type="button" class="number-control-btn" data-action="increment" data-target="team2Points">+</button>
                             </div>
                         </div>
 
                         <div class="input-group">
                             <label class="input-label" id="labelTeam2Rounds">Rounds</label>
-                            <div class="number-input-wrapper">
-                                <input type="number" id="team2Rounds" class="input-field" min="0" value="0">
-                                <div class="number-spinners">
-                                    <button type="button" class="spinner-btn spinner-up" onclick="incrementNumber('team2Rounds')">▲</button>
-                                    <button type="button" class="spinner-btn spinner-down" onclick="decrementNumber('team2Rounds')">▼</button>
-                                </div>
+                            <div class="number-control">
+                                <button type="button" class="number-control-btn" data-action="decrement" data-target="team2Rounds">−</button>
+                                <input type="text" id="team2Rounds" class="number-control-display" value="0" min="0" readonly>
+                                <button type="button" class="number-control-btn" data-action="increment" data-target="team2Rounds">+</button>
                             </div>
                         </div>
                     </div>
@@ -3089,8 +3081,9 @@
             if (!input) return;
             const currentValue = parseInt(input.value) || 0;
             const min = parseInt(input.getAttribute('min'));
-            // For number-control-display, default min is 1
-            const minValue = min !== null && !isNaN(min) ? min : 1;
+            // For number-control-display, use explicit min attribute or default to 1
+            // Team points/rounds have min="0", pointsToWin/matchesToWin don't have min so default to 1
+            const minValue = !isNaN(min) ? min : 1;
             if (currentValue <= minValue) return;
             input.value = currentValue - 1;
         }
