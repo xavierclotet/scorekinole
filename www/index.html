@@ -2839,6 +2839,14 @@
                 return;
             }
 
+            // Block score changes in rounds mode if all rounds are completed
+            if (gameSettings.gameMode === 'rounds') {
+                const maxRounds = Math.max(team1.autoRounds, team2.autoRounds);
+                if (maxRounds >= gameSettings.roundsToPlay) {
+                    return;
+                }
+            }
+
             const team = teamNum === 1 ? team1 : team2;
             const previousPoints = team.points;
             team.points = Math.max(0, team.points + delta);
