@@ -2851,8 +2851,8 @@
             const previousPoints = team.points;
             team.points = Math.max(0, team.points + delta);
 
-            // Check for round completion and handle 20s dialog / hammer toggle
-            if (delta > 0 && gameSettings.showHammer) {
+            // Check for round completion (for both hammer and rounds mode)
+            if (delta > 0) {
                 const team1Change = team1.points - previousTeam1Points;
                 const team2Change = team2.points - previousTeam2Points;
 
@@ -2884,24 +2884,31 @@
                     // Actualizar display de contador
                     updateMatchesCounter();
 
-                    // Toggle hammer if needed (this may open 20s dialog via toggleHammer)
-                    if (!gameWon && !matchWon) {
-                        if (gameSettings.show20s) {
-                            toggleHammer(); // This opens the 20s dialog
+                    // Toggle hammer if enabled (this may open 20s dialog via toggleHammer)
+                    if (gameSettings.showHammer) {
+                        if (!gameWon && !matchWon) {
+                            if (gameSettings.show20s) {
+                                toggleHammer(); // This opens the 20s dialog
+                                return; // Exit - checkWinCondition will be called after dialog closes
+                            } else {
+                                toggleHammer(); // Just toggle hammer, no dialog
+                                // No 20s dialog, so check winner now
+                                checkWinCondition();
+                                updateDisplay();
+                                saveData();
+                            }
+                        } else if (gameSettings.show20s) {
+                            // Game/match won but need to open 20s dialog for this completed round
+                            openTwentyDialog();
                             return; // Exit - checkWinCondition will be called after dialog closes
                         } else {
-                            toggleHammer(); // Just toggle hammer, no dialog
-                            // No 20s dialog, so check winner now
+                            // Game/match won, no 20s dialog, check winner now
                             checkWinCondition();
                             updateDisplay();
                             saveData();
                         }
-                    } else if (gameSettings.show20s) {
-                        // Game/match won but need to open 20s dialog for this completed round
-                        openTwentyDialog();
-                        return; // Exit - checkWinCondition will be called after dialog closes
                     } else {
-                        // Game/match won, no 20s dialog, check winner now
+                        // showHammer disabled, just check winner and update
                         checkWinCondition();
                         updateDisplay();
                         saveData();
