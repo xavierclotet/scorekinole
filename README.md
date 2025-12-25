@@ -13,8 +13,12 @@ A beautiful, responsive web application designed to track scores, manage timers,
 ### 🎮 Core Gameplay
 - **Intuitive Score Tracking**: Swipe up/down to increment/decrement scores
 - **Touch-Optimized**: Native touch gestures for seamless mobile experience
+- **Two Game Modes**:
+  - **By Points**: Play until reaching a target score, with configurable matches to win
+  - **By Rounds**: Play a fixed number of rounds (default 4), winner determined by total points
 - **Real-time Win Detection**: Automatic winner announcement with visual effects
-- **Match Counter**: Track multiple games in a match
+- **Tie Detection**: Visual overlay with "EMPATE/EMPAT/TIE" message when rounds mode ends in a draw
+- **Match Counter**: Track multiple games in a match (points mode only)
 - **Hammer Indicator**: Visual indicator (🔨) showing who shoots last in each game
 - **Match Victory Celebration**: Confetti animation and enhanced effects when winning the match
 
@@ -69,19 +73,40 @@ Native apps for iOS and Android will be available on:
 
 ### Game Setup
 1. Open Settings (⚙️)
-2. Select game type (Individual for singles, Parejas for doubles)
-3. Configure points to win and timer duration
-4. Customize team names and colors
-5. Enable optional features like 20s tracking and hammer indicator
-6. Select your preferred language
-7. Click Save to start playing
+2. **Choose Game Mode**:
+   - **By Points**: Traditional scoring until reaching target points
+   - **By Rounds**: Play a fixed number of rounds (default 4)
+3. **Configure mode-specific settings**:
+   - Points Mode: Set points to win and matches to win
+   - Rounds Mode: Set number of rounds to play
+4. Select game type (Individual for singles, Parejas for doubles)
+5. Configure timer duration
+6. Customize team names and colors
+7. Enable optional features like 20s tracking and hammer indicator
+8. Select your preferred language
+9. Click Save to start playing
+
+### Game Modes Explained
+
+#### By Points Mode (Traditional)
+- Play rounds until one team reaches the configured "Points to Win"
+- Win multiple games to win the overall match
+- Match counter tracks progress toward "Matches to Win"
+- Victory declared when reaching both point threshold and minimum point difference
+
+#### By Rounds Mode
+- Play exactly the configured number of rounds (default: 4)
+- Winner is determined by total points accumulated across all rounds
+- If teams are tied on points, the game ends in a draw (EMPATE/EMPAT/TIE)
+- No match counter - each set of rounds is standalone
+- "New Game" option hidden in quick menu (only "New Match" available)
 
 ### Game Terminology & Structure
 In Crokinole, understanding the game structure is important:
 
 - **Round (Ronda)**: A single scoring exchange where points are tallied (can end 2-0 or 1-1). The hammer alternates automatically after each completed round.
-- **Game (Partida)**: Multiple rounds played until one team reaches the "Points to Win" setting. The hammer is maintained throughout a single game.
-- **Match**: Multiple games played until one team reaches the "Matches to Win" setting. When a match is won, confetti celebrates the victory!
+- **Game (Partida)**: In points mode, multiple rounds played until one team reaches the "Points to Win" setting. In rounds mode, the complete set of configured rounds.
+- **Match**: In points mode, multiple games played until one team reaches the "Matches to Win" setting. When a match is won, confetti celebrates the victory!
 
 ### Hammer System
 The hammer (🔨) indicates which team shoots last in each round:
@@ -99,12 +124,15 @@ When enabled, after each completed round you'll be prompted to enter center shot
 - Button 0 spans full width for quick "no 20s" entry
 
 ### Resetting Games
-- **Reset Game**: Clears points and resets timer (keeps games won counter, hammer alternates for next game)
-- **Reset Match**: Full reset of all counters and stats, always prompts for new hammer selection
+- **New Game** (Points Mode only): Clears points and resets timer (keeps games won counter, hammer alternates for next game)
+- **New Match**: Full reset of all counters and stats, always prompts for new hammer selection
 - **Switch Sides**: Swaps team positions on screen
 - **Switch Colors**: Exchanges team colors only
 
-**Note**: When a match is won, only "Reset Match" is available to start a new match.
+**Notes**:
+- In rounds mode, "New Game" is hidden from the quick menu (only "New Match" available)
+- When a match is won, only "New Match" is available to start a new match
+- Scoring is automatically blocked once all rounds are completed in rounds mode
 
 ## 🛠️ Technical Details
 
