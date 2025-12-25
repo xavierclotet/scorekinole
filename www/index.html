@@ -1952,7 +1952,7 @@
                         <div class="input-group">
                             <label class="input-label" id="labelTeam1Color">Color</label>
                             <button class="color-picker-btn" id="btnTeam1Color" onclick="openColorPicker(1)">
-                                <div class="color-preview" id="team1ColorPreview" style="background: #1a3d5c;"></div>
+                                <div class="color-preview" id="team1ColorPreview" style="background: #D06249;"></div>
                                 <span id="spanTeam1ChooseColor">Choose Color</span>
                             </button>
                         </div>
@@ -1988,7 +1988,7 @@
                         <div class="input-group">
                             <label class="input-label" id="labelTeam2Color">Color</label>
                             <button class="color-picker-btn" id="btnTeam2Color" onclick="openColorPicker(2)">
-                                <div class="color-preview" id="team2ColorPreview" style="background: #5c2d1a;"></div>
+                                <div class="color-preview" id="team2ColorPreview" style="background: #3CBCFB;"></div>
                                 <span id="spanTeam2ChooseColor">Choose Color</span>
                             </button>
                         </div>
@@ -2349,7 +2349,7 @@
         
         let team1 = {
             name: 'Team 1',
-            color: '#1a3d5c',
+            color: '#D06249', // orange
             points: 0,
             rounds: 0,
             autoRounds: 0,
@@ -2361,7 +2361,7 @@
 
         let team2 = {
             name: 'Team 2',
-            color: '#5c2d1a',
+            color: '#3CBCFB', // lightblue
             points: 0,
             rounds: 0,
             autoRounds: 0,
@@ -2682,9 +2682,6 @@
             } catch (e) {
                 console.error('Failed to save match history:', e);
             }
-
-            // Show match history modal
-            showMatchHistory();
 
             // Reset tracking
             matchStartTime = 0;
@@ -3975,6 +3972,9 @@
             const max = parseInt(input.getAttribute('max'));
             if (max && currentValue >= max) return;
             input.value = currentValue + 1;
+
+            // Sync with state and check win condition for team points/rounds
+            syncNumberInputToState(inputId);
         }
 
         function decrementNumber(inputId) {
@@ -3987,6 +3987,36 @@
             const minValue = !isNaN(min) ? min : 1;
             if (currentValue <= minValue) return;
             input.value = currentValue - 1;
+
+            // Sync with state and check win condition for team points/rounds
+            syncNumberInputToState(inputId);
+        }
+
+        function syncNumberInputToState(inputId) {
+            // Update team state when points or rounds change
+            if (inputId === 'team1Points') {
+                team1.points = parseInt(document.getElementById('team1Points').value) || 0;
+                updateDisplay();
+                checkWinCondition();
+                saveData();
+            } else if (inputId === 'team2Points') {
+                team2.points = parseInt(document.getElementById('team2Points').value) || 0;
+                updateDisplay();
+                checkWinCondition();
+                saveData();
+            } else if (inputId === 'team1Rounds') {
+                team1.rounds = parseInt(document.getElementById('team1Rounds').value) || 0;
+                updateRoundsPlayed();
+                updateDisplay();
+                checkWinCondition();
+                saveData();
+            } else if (inputId === 'team2Rounds') {
+                team2.rounds = parseInt(document.getElementById('team2Rounds').value) || 0;
+                updateRoundsPlayed();
+                updateDisplay();
+                checkWinCondition();
+                saveData();
+            }
         }
 
         // Timer minutes spinners (with padding)
