@@ -161,12 +161,8 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 ## 🎯 Roadmap
 
-- DONE hammer (setting checkbox)
-- Posar titol de l'esdeveniment (settings)
-- modo torneo (default), modo rondas
-
-- [ ] Native Android app release
-- [ ] Native iOS app release
+- [x] Native Android app release
+- [ ] Web version release
 - [ ] Cloud sync across devices
 - [ ] Tournament mode with brackets
 - [ ] Statistics and game history

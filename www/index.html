@@ -83,6 +83,139 @@
             pointer-events: auto;
         }
 
+        /* Match History Modal */
+        .history-modal {
+            max-width: 900px;
+            max-height: 85vh;
+        }
+
+        .history-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 65vh;
+            overflow-y: auto;
+            padding-right: 1rem;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .history-entry {
+            background: rgba(21, 27, 45, 0.6);
+            border: 2px solid var(--divider);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            transition: all 0.2s;
+        }
+
+        .history-entry:hover {
+            border-color: var(--accent-green);
+            background: rgba(21, 27, 45, 0.8);
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--divider);
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .history-meta {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .history-result {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .history-result.team1-win {
+            color: #6dd5ed;
+        }
+
+        .history-result.team2-win {
+            color: #ffa07a;
+        }
+
+        .history-result.tie {
+            color: #FFD700;
+        }
+
+        .history-body {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .history-game-row,
+        .history-round-row {
+            display: grid;
+            grid-template-columns: auto 1fr 1fr;
+            gap: 0.75rem;
+            align-items: center;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .history-game-label,
+        .history-round-label {
+            font-weight: 600;
+            color: var(--text-dim);
+            min-width: 80px;
+        }
+
+        .history-team-score {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .history-team-name {
+            font-weight: 600;
+        }
+
+        .history-team-points {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+        }
+
+        .history-winner-marker {
+            color: #FFD700;
+            margin-left: 0.5rem;
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-dim);
+            font-size: 1.1rem;
+        }
+
+        .history-delete-btn {
+            background: transparent;
+            border: 1px solid var(--accent-red);
+            color: var(--accent-red);
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-delete-btn:hover {
+            background: var(--accent-red);
+            color: white;
+        }
+
         /* Timer positioning based on orientation */
         @media (orientation: portrait) {
             .timer-container {
@@ -513,70 +646,52 @@
             }
         }
 
-        /* 20s Counter Display */
-        .twenty-counter-team1,
-        .twenty-counter-team2 {
+        /* History Button */
+        .history-btn {
             position: fixed;
-            padding: 0.6rem 1rem;
-            border-radius: 0.75rem;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1.2rem;
-            font-weight: 700;
+            padding: 0.75rem 1rem;
+            border-radius: 50%;
+            width: 3.5rem;
+            height: 3.5rem;
+            font-size: 1.5rem;
             z-index: 60;
             pointer-events: auto;
-            display: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             user-select: none;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            gap: 0.5rem;
-            align-items: center;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
+            background: rgba(21, 27, 45, 0.95);
+            border: 2px solid var(--divider);
         }
 
-        .twenty-counter-team1:hover,
-        .twenty-counter-team2:hover {
+        .history-btn:hover {
             transform: scale(1.05);
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+            border-color: var(--accent-green);
         }
 
-        .twenty-counter-team1:active,
-        .twenty-counter-team2:active {
+        .history-btn:active {
             transform: scale(0.98);
         }
 
-        .twenty-counter-team1.visible,
-        .twenty-counter-team2.visible {
-            display: flex;
-        }
-
-        .twenty-label {
-            font-size: 0.9rem;
-            opacity: 0.85;
-            font-weight: 600;
-            margin-right: 0.3rem;
+        .history-icon {
+            display: block;
         }
 
         @media (orientation: portrait) {
-            .twenty-counter-team1 {
+            .history-btn {
                 left: 0.5rem;
-                top: calc(50% - 3.5rem);
-            }
-
-            .twenty-counter-team2 {
-                left: 0.5rem;
-                top: calc(50% + 0.8rem);
+                top: calc(50% - 1.75rem);
             }
         }
 
         @media (orientation: landscape) {
-            .twenty-counter-team1 {
+            .history-btn {
                 bottom: 1rem;
-                left: calc(50% - 7.1rem);
-            }
-
-            .twenty-counter-team2 {
-                bottom: 1rem;
-                left: calc(50% + 1rem);
+                left: calc(50% - 1.75rem);
             }
         }
 
@@ -1650,15 +1765,10 @@
             <span id="team2Counter">0</span>
         </div>
 
-        <!-- 20s Counter -->
-        <div class="twenty-counter-team1" id="team1TwentyCounter" onclick="openTwentyDialog()">
-            <span class="twenty-label">20s:</span>
-            <span id="team1TwentyCount">0</span>
-        </div>
-        <div class="twenty-counter-team2" id="team2TwentyCounter" onclick="openTwentyDialog()">
-            <span class="twenty-label">20s:</span>
-            <span id="team2TwentyCount">0</span>
-        </div>
+        <!-- History Button -->
+        <button class="history-btn" id="historyBtn" onclick="openHistory()">
+            <span class="history-icon">📜</span>
+        </button>
 
         <!-- Header -->
         <header class="header">
@@ -2015,6 +2125,24 @@
         </div>
     </div>
 
+    <!-- Match History Modal -->
+    <div class="modal-overlay" id="historyModal" style="display: none;">
+        <div class="modal history-modal">
+            <div class="modal-header">
+                <span class="modal-title" id="historyTitle">Match History</span>
+                <div class="modal-actions">
+                    <button class="modal-btn" id="btnHistoryClose" onclick="closeHistory()">Close</button>
+                </div>
+            </div>
+            <div class="modal-content">
+                <div id="historyContent" class="history-content"></div>
+                <div id="historyEmpty" class="history-empty" style="display: none;">
+                    <p id="historyEmptyText">No match history yet. Complete a match to see it here!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Game State
         let gameSettings = {
@@ -2076,7 +2204,20 @@
                 modePoints: 'Por Puntos',
                 modeRounds: 'Por Rondas',
                 roundsToPlay: 'Rondas a Jugar',
-                tie: 'EMPATE'
+                tie: 'EMPATE',
+                viewHistory: 'Ver Historial',
+                matchHistory: 'Historial de Partidos',
+                confirmDeleteHistory: '¿Eliminar este partido del historial?',
+                noHistory: 'Aún no hay historial. ¡Completa una partida para verla aquí!',
+                game: 'Partida',
+                round: 'Ronda',
+                rounds: 'rondas',
+                gana: 'gana',
+                delete: 'Eliminar',
+                duration: 'Duración',
+                close: 'Cerrar',
+                raceTo: 'A {points}p',
+                bestOf: 'Al mejor de {games}'
             },
             ca: {
                 settings: 'Configuració',
@@ -2122,7 +2263,20 @@
                 modePoints: 'Per Punts',
                 modeRounds: 'Per Rondes',
                 roundsToPlay: 'Rondes a Jugar',
-                tie: 'EMPAT'
+                tie: 'EMPAT',
+                viewHistory: 'Veure Historial',
+                matchHistory: 'Historial de Partits',
+                confirmDeleteHistory: 'Eliminar aquest partit de l\'historial?',
+                noHistory: 'Encara no hi ha historial. Completa un partit per veure\'l aquí!',
+                game: 'Partida',
+                round: 'Ronda',
+                rounds: 'rondes',
+                gana: 'guanya',
+                delete: 'Eliminar',
+                duration: 'Durada',
+                close: 'Tancar',
+                raceTo: 'A {points}p',
+                bestOf: 'Al millor de {games}'
             },
             en: {
                 settings: 'Settings',
@@ -2168,7 +2322,20 @@
                 modePoints: 'By Points',
                 modeRounds: 'By Rounds',
                 roundsToPlay: 'Rounds to Play',
-                tie: 'TIE'
+                tie: 'TIE',
+                viewHistory: 'View History',
+                matchHistory: 'Match History',
+                confirmDeleteHistory: 'Delete this match from history?',
+                noHistory: 'No match history yet. Complete a match to see it here!',
+                game: 'Game',
+                round: 'Round',
+                rounds: 'rounds',
+                gana: 'wins',
+                delete: 'Delete',
+                duration: 'Duration',
+                close: 'Close',
+                raceTo: 'Race {points}',
+                bestOf: 'Best of {games}'
             }
         };
 
@@ -2221,6 +2388,14 @@
 
         // Rounds counter (for rounds mode)
         let roundsPlayed = 0;
+
+        // Match history tracking
+        let matchStartTime = 0;
+        let currentMatchGames = [];  // Para modo points
+        let currentMatchRounds = []; // Para modo rounds
+        let currentGameRounds = [];  // Track rounds within current game (for points mode)
+        let previousRoundTwenty1 = 0; // Track previous round 20s for team1
+        let previousRoundTwenty2 = 0; // Track previous round 20s for team2
 
         // Color picker state
         let currentColorTeam = 1;
@@ -2428,6 +2603,344 @@
             localStorage.setItem('crokinoleTeam2', JSON.stringify(team2));
         }
 
+        function saveMatchToHistory() {
+            // Don't save if match just started (no meaningful data)
+            if (matchStartTime === 0) return;
+
+            const matchData = {
+                matchId: matchStartTime.toString(),
+                timestamp: matchStartTime,
+                duration: Math.floor((Date.now() - matchStartTime) / 1000), // seconds
+                gameMode: gameSettings.gameMode,
+                metadata: {
+                    gameType: gameSettings.gameType,
+                    language: gameSettings.language,
+                    timerMinutes: gameSettings.timerMinutes,
+                    timerSeconds: gameSettings.timerSeconds,
+                    show20s: gameSettings.show20s
+                },
+                teams: {
+                    team1: {
+                        name: team1.name,
+                        color: team1.color
+                    },
+                    team2: {
+                        name: team2.name,
+                        color: team2.color
+                    }
+                }
+            };
+
+            // Add mode-specific data
+            if (gameSettings.gameMode === 'points') {
+                matchData.metadata.pointsToWin = gameSettings.pointsToWin;
+                matchData.metadata.matchesToWin = gameSettings.matchesToWin;
+                matchData.metadata.minPointsDifference = gameSettings.minPointsDifference;
+                matchData.games = currentMatchGames;
+            } else if (gameSettings.gameMode === 'rounds') {
+                matchData.metadata.roundsToPlay = gameSettings.roundsToPlay;
+                matchData.rounds = currentMatchRounds;
+            }
+
+            // Load existing history
+            const historyJson = localStorage.getItem('crokinoleMatchHistory');
+            let history = historyJson ? JSON.parse(historyJson) : { schemaVersion: '1.0.0', matchHistory: [] };
+
+            // Ensure schema version exists
+            if (!history.schemaVersion) {
+                history.schemaVersion = '1.0.0';
+            }
+
+            // Add new match at the beginning (most recent first)
+            history.matchHistory.unshift(matchData);
+
+            // Keep only last 10 matches (FIFO)
+            if (history.matchHistory.length > 10) {
+                history.matchHistory = history.matchHistory.slice(0, 10);
+            }
+
+            // Save back to localStorage with error handling
+            try {
+                localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+            } catch (e) {
+                console.error('Failed to save match history:', e);
+            }
+
+            // Show match history modal
+            showMatchHistory();
+
+            // Reset tracking
+            matchStartTime = 0;
+            currentMatchGames = [];
+            currentMatchRounds = [];
+        }
+
+        function openHistory() {
+            closeQuickMenu();
+            showMatchHistory();
+        }
+
+        function showMatchHistory() {
+            const modal = document.getElementById('historyModal');
+            const content = document.getElementById('historyContent');
+            const empty = document.getElementById('historyEmpty');
+
+            // Load history
+            const historyJson = localStorage.getItem('crokinoleMatchHistory');
+            const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
+
+            if (history.matchHistory.length === 0) {
+                content.style.display = 'none';
+                empty.style.display = 'block';
+            } else {
+                content.style.display = 'flex';
+                empty.style.display = 'none';
+
+                // Render history entries
+                content.innerHTML = history.matchHistory.map((match, index) => {
+                    return renderMatchEntry(match, index);
+                }).join('');
+
+                // Add event listeners for delete buttons
+                content.querySelectorAll('.history-delete-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        deleteHistoryEntry(index);
+                    });
+                });
+            }
+
+            modal.style.display = 'flex';
+        }
+
+        function closeHistory() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+
+        function renderMatchEntry(match, index) {
+            const date = new Date(match.timestamp);
+            // Formato corto: 25/12/25
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear().toString().slice(-2);
+            const dateStr = `${day}/${month}/${year}`;
+
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            const timeStr = `${hours}:${minutes}`;
+
+            // Formatear duración real de la partida
+            let durationStr = '';
+            if (match.duration && match.duration > 0) {
+                const totalSeconds = match.duration;
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+
+                if (minutes > 0 && seconds > 0) {
+                    durationStr = `${minutes}min ${seconds}s`;
+                } else if (minutes > 0) {
+                    durationStr = `${minutes}min`;
+                } else if (seconds > 0) {
+                    durationStr = `${seconds}s`;
+                }
+            }
+
+            let resultClass = 'tie';
+            let resultText = '';
+            let twentyInfo = '';
+
+            if (match.gameMode === 'points') {
+                // Calcular total de 20s sumando todos los games
+                const total20sTeam1 = match.games.reduce((sum, game) => sum + (game.team1.twentyCount || 0), 0);
+                const total20sTeam2 = match.games.reduce((sum, game) => sum + (game.team2.twentyCount || 0), 0);
+
+                if (total20sTeam1 > 0 || total20sTeam2 > 0) {
+                    twentyInfo = ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${total20sTeam1}-${total20sTeam2}</span>`;
+                }
+
+                // Calcular wins contando games ganados
+                const team1Wins = match.games.filter(g => g.winner === 'team1').length;
+                const team2Wins = match.games.filter(g => g.winner === 'team2').length;
+
+                if (team1Wins > team2Wins) {
+                    resultClass = 'team1-win';
+                    resultText = `${match.teams.team1.name} ${t('gana')} ${team1Wins}-${team2Wins}`;
+                } else {
+                    resultClass = 'team2-win';
+                    resultText = `${match.teams.team2.name} ${t('gana')} ${team2Wins}-${team1Wins}`;
+                }
+            } else {
+                // En rounds mode calculamos sumando todas las rondas
+                const total20sTeam1 = match.rounds.reduce((sum, round) => sum + (round.team1.twentyCount || 0), 0);
+                const total20sTeam2 = match.rounds.reduce((sum, round) => sum + (round.team2.twentyCount || 0), 0);
+
+                if (total20sTeam1 > 0 || total20sTeam2 > 0) {
+                    twentyInfo = ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${total20sTeam1}-${total20sTeam2}</span>`;
+                }
+
+                // Calcular puntos finales sumando todas las rondas
+                const lastRound = match.rounds[match.rounds.length - 1];
+                const team1Points = lastRound ? lastRound.team1.pointsAfterRound : 0;
+                const team2Points = lastRound ? lastRound.team2.pointsAfterRound : 0;
+
+                if (team1Points > team2Points) {
+                    resultClass = 'team1-win';
+                    resultText = `${match.teams.team1.name} ${t('gana')} ${team1Points}-${team2Points}`;
+                } else if (team2Points > team1Points) {
+                    resultClass = 'team2-win';
+                    resultText = `${match.teams.team2.name} ${t('gana')} ${team1Points}-${team2Points}`;
+                } else {
+                    resultText = `${t('tie')} ${team1Points}-${team2Points}`;
+                }
+            }
+
+            // Build mode label with details
+            let modeLabel = '';
+            if (match.gameMode === 'points') {
+                const pointsToWin = match.metadata.pointsToWin || 7;
+                const matchesToWin = match.metadata.matchesToWin || 1;
+                modeLabel = t('raceTo').replace('{points}', pointsToWin);
+                if (matchesToWin > 1) {
+                    modeLabel += ` • ${t('bestOf').replace('{games}', matchesToWin * 2 - 1)}`;
+                }
+            } else {
+                const roundsToPlay = match.metadata.roundsToPlay || 4;
+                modeLabel = `${roundsToPlay} ${t('rounds')}`;
+            }
+            const typeLabel = match.metadata.gameType === 'singles' ? t('singles') : t('doubles');
+
+            let bodyHtml = '';
+
+            if (match.gameMode === 'points') {
+                bodyHtml = match.games.map(game => {
+                    const team1Color = match.teams.team1.color;
+                    const team2Color = match.teams.team2.color;
+
+                    // Game header with winner and total 20s
+                    const game20sTeam1 = game.team1.twentyCount || 0;
+                    const game20sTeam2 = game.team2.twentyCount || 0;
+                    const twentyDisplay = (game20sTeam1 > 0 || game20sTeam2 > 0)
+                        ? ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${game20sTeam1}-${game20sTeam2}</span>`
+                        : '';
+
+                    let gameHeader = `<div style="font-weight: 600; margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem;">
+                        ${t('game')} ${game.gameNumber} - ${game.team1.finalPoints}-${game.team2.finalPoints}
+                        ${game.winner === 'team1' ? ` • ${match.teams.team1.name}` : ` • ${match.teams.team2.name}`}
+                        ${twentyDisplay}
+                    </div>`;
+
+                    // Render rounds of this game
+                    const roundsHtml = (game.rounds || []).map((round, idx) => {
+                        const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
+                        const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
+
+                        // Calculate points won in this round
+                        const prevRound = idx > 0 ? game.rounds[idx - 1] : null;
+                        const team1RoundPoints = prevRound ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound : round.team1.pointsAfterRound;
+                        const team2RoundPoints = prevRound ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound : round.team2.pointsAfterRound;
+
+                        // Show 20s if enabled
+                        const show20s = match.metadata.show20s;
+                        const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
+                        const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
+
+                        return `
+                            <div class="history-round-row">
+                                <span class="history-round-label">${t('round')} ${round.roundNumber}</span>
+                                <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
+                                    <span class="history-team-name">${match.teams.team1.name}</span>
+                                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                                        <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
+                                        ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="history-team-score" style="background: ${team2Color}20; border-left: 3px solid ${team2Color};">
+                                    <span class="history-team-name">${match.teams.team2.name}</span>
+                                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                                        <span class="history-team-points">${team2Hammer}${team2RoundPoints}</span>
+                                        ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `<div style="margin-bottom: 1rem;">${gameHeader}${roundsHtml}</div>`;
+                }).join('');
+            } else {
+                bodyHtml = match.rounds.map((round, idx) => {
+                    const team1Color = match.teams.team1.color;
+                    const team2Color = match.teams.team2.color;
+                    const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
+                    const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
+
+                    // Calcular puntos ganados en esta ronda (diferencia con la anterior)
+                    const prevRound = idx > 0 ? match.rounds[idx - 1] : null;
+                    const team1RoundPoints = prevRound
+                        ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound
+                        : round.team1.pointsAfterRound;
+                    const team2RoundPoints = prevRound
+                        ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound
+                        : round.team2.pointsAfterRound;
+
+                    // Mostrar 20s si show20s estaba activo, incluso si es 0
+                    const show20s = match.metadata.show20s;
+                    const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
+                    const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
+
+                    return `
+                        <div class="history-round-row">
+                            <span class="history-round-label">${t('round')} ${round.roundNumber}</span>
+                            <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
+                                <span class="history-team-name">${match.teams.team1.name}</span>
+                                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                                    <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
+                                    ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="history-team-score" style="background: ${team2Color}20; border-left: 3px solid ${team2Color};">
+                                <span class="history-team-name">${match.teams.team2.name}</span>
+                                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                                    <span class="history-team-points">${team2Hammer}${team2RoundPoints}</span>
+                                    ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            return `
+                <div class="history-entry">
+                    <div class="history-header">
+                        <div style="flex: 1;">
+                            <div class="history-meta">
+                                <div>${dateStr} ${timeStr}</div>
+                                <div>${typeLabel} • ${modeLabel}${durationStr ? ' • ' + durationStr : ''}</div>
+                            </div>
+                            <div class="history-result ${resultClass}">${resultText}${twentyInfo}</div>
+                        </div>
+                        <button class="history-delete-btn" data-index="${index}">${t('delete')}</button>
+                    </div>
+                    <div class="history-body">
+                        ${bodyHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function deleteHistoryEntry(index) {
+            // Direct delete without confirmation to avoid sandbox issues
+            const historyJson = localStorage.getItem('crokinoleMatchHistory');
+            const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
+
+            history.matchHistory.splice(index, 1);
+            localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+
+            // Refresh display
+            showMatchHistory();
+        }
+
         function updateDisplay() {
             document.getElementById('team1Score').textContent = team1.points;
             document.getElementById('team2Score').textContent = team2.points;
@@ -2440,7 +2953,6 @@
             team2NameEl.childNodes[0].textContent = team2.name + ' ';
 
             updateMatchesCounter();
-            updateTwentyCounter();
             updateHammerIndicator();
         }
 
@@ -2470,22 +2982,13 @@
         }
 
         function checkWinConditionOrTie() {
-            console.log('🔍 Checking win condition or tie');
             if (gameSettings.gameMode === 'rounds') {
                 if (roundsPlayed >= gameSettings.roundsToPlay) {
-                    console.log('🏆 Final points:', {
-                        team1Points: team1.points,
-                        team2Points: team2.points
-                    });
-
                     if (team1.points > team2.points && !team1.hasWon) {
-                        console.log('✅ Team 1 wins!');
                         declareWinner(1);
                     } else if (team2.points > team1.points && !team2.hasWon) {
-                        console.log('✅ Team 2 wins!');
                         declareWinner(2);
                     } else if (team1.points === team2.points) {
-                        console.log('🤝 Tie game!');
                         declareTie();
                     }
                 }
@@ -2496,7 +2999,6 @@
         }
 
         function declareTie() {
-            console.log('🤝 Declaring tie');
 
             // Crear elemento overlay para mostrar mensaje de empate
             const overlay = document.createElement('div');
@@ -2534,6 +3036,9 @@
 
             // Save the tie state
             saveData();
+
+            // Save match to history
+            saveMatchToHistory();
         }
 
         function showConfetti(teamNumber) {
@@ -2588,6 +3093,29 @@
                 lastGameHammerTeam = currentGameStartHammer;
             }
 
+            // Capture game data for points mode
+            if (gameSettings.gameMode === 'points') {
+                const gameData = {
+                    gameNumber: team1.matches + team2.matches,
+                    rounds: [...currentGameRounds], // Save rounds of this game
+                    team1: {
+                        finalPoints: team1.points,
+                        twentyCount: team1.twenty,
+                        hadHammerAtStart: currentGameStartHammer === 1
+                    },
+                    team2: {
+                        finalPoints: team2.points,
+                        twentyCount: team2.twenty,
+                        hadHammerAtStart: currentGameStartHammer === 2
+                    },
+                    winner: teamNumber === 1 ? 'team1' : 'team2'
+                };
+                currentMatchGames.push(gameData);
+
+                // Reset game rounds for next game
+                currentGameRounds = [];
+            }
+
             // Agregar clase CSS de winner al score y al nombre
             document.getElementById(`team${teamNumber}Score`).classList.add('winner');
             document.getElementById(`team${teamNumber}Name`).classList.add('winner');
@@ -2599,6 +3127,9 @@
                 // Match won! Add special celebration
                 document.getElementById(`team${teamNumber}Name`).classList.add('match-winner');
                 showConfetti(teamNumber);
+
+                // Save match to history
+                saveMatchToHistory();
             }
 
             // Actualizar display y guardar estado
@@ -2636,7 +3167,6 @@
             } else {
                 // Done with both teams
                 closeTwentyDialog();
-                updateTwentyCounter();
                 saveData();
             }
         }
@@ -2676,14 +3206,11 @@
         }
 
         function closeTwentyDialog() {
-            console.log('💬 Closing 20s dialog');
             document.getElementById('twentyDialog').classList.remove('active');
             currentTwentyTeam = 0;
 
             // Check if we need to check for winner/tie (in rounds mode after all rounds complete)
             const allRoundsCompleted = gameSettings.gameMode === 'rounds' && roundsPlayed >= gameSettings.roundsToPlay;
-
-            console.log('💬 After 20s dialog - all rounds completed?', allRoundsCompleted);
 
             if (allRoundsCompleted) {
                 // Use checkWinConditionOrTie for rounds mode final check
@@ -2697,39 +3224,6 @@
             saveData();
         }
 
-        function updateTwentyCounter() {
-            const team1TwentyCounter = document.getElementById('team1TwentyCounter');
-            const team2TwentyCounter = document.getElementById('team2TwentyCounter');
-            const team1CountEl = document.getElementById('team1TwentyCount');
-            const team2CountEl = document.getElementById('team2TwentyCount');
-
-            // Only show if setting is enabled
-            const show20s = gameSettings.show20s;
-
-            if (show20s) {
-                const value1 = team1.twenty || 0;
-                const value2 = team2.twenty || 0;
-
-                team1CountEl.textContent = value1;
-                team2CountEl.textContent = value2;
-
-                // Apply team colors as backgrounds with contrast text
-                const team1TextColor = getContrastColor(team1.color);
-                const team2TextColor = getContrastColor(team2.color);
-
-                team1TwentyCounter.style.backgroundColor = team1.color;
-                team1TwentyCounter.style.color = team1TextColor;
-
-                team2TwentyCounter.style.backgroundColor = team2.color;
-                team2TwentyCounter.style.color = team2TextColor;
-
-                team1TwentyCounter.classList.add('visible');
-                team2TwentyCounter.classList.add('visible');
-            } else {
-                team1TwentyCounter.classList.remove('visible');
-                team2TwentyCounter.classList.remove('visible');
-            }
-        }
 
         function updateHammerIndicator() {
             const team1Hammer = document.getElementById('team1Hammer');
@@ -2812,7 +3306,6 @@
             // Check if match is already won - if so, don't allow incrementing
             const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
             if (matchWon) {
-                console.log('⚠️ Match ganado - use Reset Match para empezar nuevo match');
                 return;
             }
 
@@ -2947,6 +3440,11 @@
             const previousPoints = team.points;
             team.points = Math.max(0, team.points + delta);
 
+            // Start match tracking on first point scored
+            if (matchStartTime === 0 && delta > 0) {
+                matchStartTime = Date.now();
+            }
+
             // Check for round completion (for both hammer and rounds mode)
             if (delta > 0) {
                 const team1Change = team1.points - previousTeam1Points;
@@ -2964,18 +3462,41 @@
                 const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
 
                 if (roundCompleted) {
-                    console.log('🏁 Round completed detected');
                     previousTeam1Points = team1.points;
                     previousTeam2Points = team2.points;
 
                     // Incrementar contador global de rondas (para modo rounds)
                     roundsPlayed++;
 
-                    console.log('📊 Rounds after increment:', {
-                        roundsPlayed: roundsPlayed,
-                        roundsToPlay: gameSettings.roundsToPlay,
-                        gameMode: gameSettings.gameMode
-                    });
+                    // Capture round data
+                    // Calculate 20s for THIS round only (difference from previous round)
+                    const team1RoundTwenty = team1.twenty - previousRoundTwenty1;
+                    const team2RoundTwenty = team2.twenty - previousRoundTwenty2;
+
+                    const roundData = {
+                        roundNumber: roundsPlayed,
+                        team1: {
+                            pointsAfterRound: team1.points,
+                            twentyCount: team1RoundTwenty,
+                            hadHammer: team1.hasHammer
+                        },
+                        team2: {
+                            pointsAfterRound: team2.points,
+                            twentyCount: team2RoundTwenty,
+                            hadHammer: team2.hasHammer
+                        }
+                    };
+
+                    if (gameSettings.gameMode === 'rounds') {
+                        currentMatchRounds.push(roundData);
+                    } else {
+                        // In points mode, track rounds within the current game
+                        currentGameRounds.push(roundData);
+                    }
+
+                    // Update previous round totals for next iteration
+                    previousRoundTwenty1 = team1.twenty;
+                    previousRoundTwenty2 = team2.twenty;
 
                     // Actualizar display de contador
                     updateMatchesCounter();
@@ -2983,16 +3504,12 @@
                     // Check if all rounds are completed in rounds mode
                     const allRoundsCompleted = gameSettings.gameMode === 'rounds' && roundsPlayed >= gameSettings.roundsToPlay;
 
-                    console.log('🎯 All rounds completed?', allRoundsCompleted);
-
                     if (allRoundsCompleted) {
                         // ALL ROUNDS COMPLETED IN ROUNDS MODE
                         if (gameSettings.show20s) {
-                            console.log('💬 Opening 20s dialog for final round');
                             openTwentyDialog();
                             return; // checkWinCondition or declareTie will be called after dialog closes
                         } else {
-                            console.log('✅ No 20s dialog, checking winner/tie now');
                             checkWinConditionOrTie();
                             updateDisplay();
                             saveData();
@@ -3108,6 +3625,8 @@
             // Reset tracking variables for round detection
             previousTeam1Points = 0;
             previousTeam2Points = 0;
+            previousRoundTwenty1 = 0;
+            previousRoundTwenty2 = 0;
             roundsPlayed = 0;
 
             // Remover clases winner
@@ -3163,6 +3682,14 @@
             previousTeam1Points = 0;
             previousTeam2Points = 0;
             roundsPlayed = 0;
+
+            // Reset match history tracking
+            matchStartTime = 0;
+            currentMatchGames = [];
+            currentMatchRounds = [];
+            currentGameRounds = [];
+            previousRoundTwenty1 = 0;
+            previousRoundTwenty2 = 0;
 
             // Remover clases winner y match-winner
             document.getElementById('team1Score').classList.remove('winner');
@@ -3371,7 +3898,7 @@
                 oscillator.start(audioContext.currentTime);
                 oscillator.stop(audioContext.currentTime + 0.5);
             } catch (error) {
-                console.log('Audio not supported:', error);
+                // Audio not supported
             }
         }
 
@@ -3554,7 +4081,6 @@
                 applyTeamColors();
                 resetTimer();
                 updateTimerVisibility();
-                updateTwentyCounter();
                 updateHammerIndicator();
                 updateUILanguage();
                 saveData();
@@ -3568,7 +4094,7 @@
         function updateUILanguage() {
             // Update quick menu
             document.querySelectorAll('.quick-menu-item span:not(.quick-menu-icon)').forEach((el, index) => {
-                const keys = ['newGame', 'newMatch', 'switchSides', 'switchColors'];
+                const keys = ['newGame', 'newMatch', 'switchSides', 'switchColors', 'viewHistory'];
                 if (keys[index]) el.textContent = t(keys[index]);
             });
 
@@ -3578,6 +4104,14 @@
             const btnSettingsSave = document.getElementById('btnSettingsSave');
             if (btnSettingsCancel) btnSettingsCancel.textContent = t('cancel');
             if (btnSettingsSave) btnSettingsSave.textContent = t('save');
+
+            // Update history modal
+            const historyTitle = document.getElementById('historyTitle');
+            const btnHistoryClose = document.getElementById('btnHistoryClose');
+            const historyEmptyText = document.getElementById('historyEmptyText');
+            if (historyTitle) historyTitle.textContent = t('matchHistory');
+            if (btnHistoryClose) btnHistoryClose.textContent = t('close');
+            if (historyEmptyText) historyEmptyText.textContent = t('noHistory');
 
             // Update section titles
             const titleMatchSettings = document.getElementById('titleMatchSettings');
@@ -4050,7 +4584,6 @@
         updateTimerDisplay();
         updateUILanguage();
         updateMatchesCounter();
-        updateTwentyCounter();
         updateHammerIndicator();
     </script>
 </body>
