@@ -96,6 +96,7 @@ When adding/removing settings sections or buttons:
 3. Add null checks: `if (element) element.textContent = ...`
 
 ### Version Control
+- **CRITICAL: NEVER create commits automatically. Always wait for explicit user instruction to commit.**
 - Use semantic versioning for tags (v1.0.0, v1.1.0, etc.)
 - Keep commit messages clean and professional without AI attribution
 - Focus on describing what changed and why

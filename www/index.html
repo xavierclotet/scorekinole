@@ -1653,13 +1653,13 @@
             <div class="quick-menu-container">
                 <button class="icon-button" id="menuButton" onclick="toggleQuickMenu()" title="Quick Actions">☰</button>
                 <div class="quick-menu" id="quickMenu">
-                    <button class="quick-menu-item" onclick="resetGame()">
+                    <button class="quick-menu-item" id="btnResetGame" onclick="resetGame()">
                         <span class="quick-menu-icon">↻</span>
-                        <span>Reset Game</span>
+                        <span id="textResetGame">Reset Game</span>
                     </button>
-                    <button class="quick-menu-item" onclick="resetMatch()">
+                    <button class="quick-menu-item" id="btnResetMatch" onclick="resetMatch()">
                         <span class="quick-menu-icon">⟲</span>
-                        <span>Reset Match</span>
+                        <span id="textResetMatch">Reset Match</span>
                     </button>
                     <button class="quick-menu-item" onclick="switchSides()">
                         <span class="quick-menu-icon">⇄</span>
@@ -2061,7 +2061,8 @@
                 gameMode: 'Modo de Juego',
                 modePoints: 'Por Puntos',
                 modeRounds: 'Por Rondas',
-                roundsToPlay: 'Rondas a Jugar'
+                roundsToPlay: 'Rondas a Jugar',
+                tie: 'EMPATE'
             },
             ca: {
                 settings: 'Configuració',
@@ -2106,7 +2107,8 @@
                 gameMode: 'Mode de Joc',
                 modePoints: 'Per Punts',
                 modeRounds: 'Per Rondes',
-                roundsToPlay: 'Rondes a Jugar'
+                roundsToPlay: 'Rondes a Jugar',
+                tie: 'EMPAT'
             },
             en: {
                 settings: 'Settings',
@@ -2151,7 +2153,8 @@
                 gameMode: 'Game Mode',
                 modePoints: 'By Points',
                 modeRounds: 'By Rounds',
-                roundsToPlay: 'Rounds to Play'
+                roundsToPlay: 'Rounds to Play',
+                tie: 'TIE'
             }
         };
 
@@ -2201,6 +2204,9 @@
         let timerInterval = null;
         let timerRunning = false;
         let timeRemaining = 600; // in seconds (10:00)
+
+        // Rounds counter (for rounds mode)
+        let roundsPlayed = 0;
 
         // Color picker state
         let currentColorTeam = 1;
@@ -2437,9 +2443,7 @@
                 }
             } else if (gameSettings.gameMode === 'rounds') {
                 // MODO RONDAS: Victoria al completar roundsToPlay rondas
-                const maxRounds = Math.max(team1.autoRounds, team2.autoRounds);
-
-                if (maxRounds >= gameSettings.roundsToPlay) {
+                if (roundsPlayed >= gameSettings.roundsToPlay) {
                     // Rondas completadas - determinar ganador por puntos totales
                     if (team1.points > team2.points && !team1.hasWon) {
                         declareWinner(1);
@@ -2449,6 +2453,73 @@
                     // Si están empatados (team1.points === team2.points), no declarar ganador
                 }
             }
+        }
+
+        function checkWinConditionOrTie() {
+            console.log('🔍 Checking win condition or tie');
+            if (gameSettings.gameMode === 'rounds') {
+                if (roundsPlayed >= gameSettings.roundsToPlay) {
+                    console.log('🏆 Final points:', {
+                        team1Points: team1.points,
+                        team2Points: team2.points
+                    });
+
+                    if (team1.points > team2.points && !team1.hasWon) {
+                        console.log('✅ Team 1 wins!');
+                        declareWinner(1);
+                    } else if (team2.points > team1.points && !team2.hasWon) {
+                        console.log('✅ Team 2 wins!');
+                        declareWinner(2);
+                    } else if (team1.points === team2.points) {
+                        console.log('🤝 Tie game!');
+                        declareTie();
+                    }
+                }
+            } else {
+                // In points mode, just use normal checkWinCondition
+                checkWinCondition();
+            }
+        }
+
+        function declareTie() {
+            console.log('🤝 Declaring tie');
+
+            // Crear elemento overlay para mostrar mensaje de empate
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            overlay.style.zIndex = '9999';
+            overlay.style.animation = 'fadeIn 0.5s ease-in-out';
+
+            const tieMessage = document.createElement('div');
+            tieMessage.textContent = t('tie');
+            tieMessage.style.fontSize = '8rem';
+            tieMessage.style.fontWeight = 'bold';
+            tieMessage.style.color = '#FFD700';
+            tieMessage.style.textShadow = '0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.6)';
+            tieMessage.style.animation = 'pulse 1.5s ease-in-out infinite';
+            tieMessage.style.fontFamily = 'Orbitron, sans-serif';
+
+            overlay.appendChild(tieMessage);
+            document.body.appendChild(overlay);
+
+            // Remover el overlay después de 4 segundos
+            setTimeout(() => {
+                overlay.style.animation = 'fadeOut 0.5s ease-in-out';
+                setTimeout(() => {
+                    document.body.removeChild(overlay);
+                }, 500);
+            }, 4000);
+
+            // Save the tie state
+            saveData();
         }
 
         function showConfetti(teamNumber) {
@@ -2493,8 +2564,10 @@
             // Marcar estado de victoria
             team.hasWon = true;
 
-            // Incrementar contador de matches del ganador
-            team.matches = (team.matches || 0) + 1;
+            // Incrementar contador de matches del ganador (solo en modo points)
+            if (gameSettings.gameMode === 'points') {
+                team.matches = (team.matches || 0) + 1;
+            }
 
             // Save who had the hammer AT THE START of this game (for alternating in next game)
             if (gameSettings.showHammer && currentGameStartHammer !== 0) {
@@ -2506,7 +2579,9 @@
             document.getElementById(`team${teamNumber}Name`).classList.add('winner');
 
             // Check if this wins the overall match
-            if (team.matches >= gameSettings.matchesToWin) {
+            const matchWon = gameSettings.gameMode === 'rounds' || team.matches >= gameSettings.matchesToWin;
+
+            if (matchWon) {
                 // Match won! Add special celebration
                 document.getElementById(`team${teamNumber}Name`).classList.add('match-winner');
                 showConfetti(teamNumber);
@@ -2587,11 +2662,23 @@
         }
 
         function closeTwentyDialog() {
+            console.log('💬 Closing 20s dialog');
             document.getElementById('twentyDialog').classList.remove('active');
             currentTwentyTeam = 0;
 
-            // Always check for winner after dialog closes (sequential flow)
-            checkWinCondition();
+            // Check if we need to check for winner/tie (in rounds mode after all rounds complete)
+            const allRoundsCompleted = gameSettings.gameMode === 'rounds' && roundsPlayed >= gameSettings.roundsToPlay;
+
+            console.log('💬 After 20s dialog - all rounds completed?', allRoundsCompleted);
+
+            if (allRoundsCompleted) {
+                // Use checkWinConditionOrTie for rounds mode final check
+                checkWinConditionOrTie();
+            } else {
+                // Normal flow - just check win condition
+                checkWinCondition();
+            }
+
             updateDisplay();
             saveData();
         }
@@ -2664,22 +2751,20 @@
             const team1CounterEl = document.getElementById('team1Counter');
             const team2CounterEl = document.getElementById('team2Counter');
 
-            // Determinar qué mostrar según el modo
-            const showCounter = gameSettings.gameMode === 'rounds' || gameSettings.matchesToWin > 1;
+            // En modo rounds, NO mostrar los contadores
+            if (gameSettings.gameMode === 'rounds') {
+                team1MatchCounter.classList.remove('visible');
+                team2MatchCounter.classList.remove('visible');
+                return;
+            }
+
+            // En modo points, mostrar solo si matchesToWin > 1
+            const showCounter = gameSettings.matchesToWin > 1;
 
             if (showCounter) {
-                let value1, value2;
-
-                if (gameSettings.gameMode === 'rounds') {
-                    // Modo rounds: mostrar "X/4" formato
-                    const total = gameSettings.roundsToPlay;
-                    value1 = `${team1.autoRounds || 0}/${total}`;
-                    value2 = `${team2.autoRounds || 0}/${total}`;
-                } else {
-                    // Modo points: mostrar solo número de matches
-                    value1 = team1.matches || 0;
-                    value2 = team2.matches || 0;
-                }
+                // Modo points: mostrar solo número de matches
+                const value1 = team1.matches || 0;
+                const value2 = team2.matches || 0;
 
                 team1CounterEl.textContent = value1;
                 team2CounterEl.textContent = value2;
@@ -2694,6 +2779,11 @@
                 team2MatchCounter.style.backgroundColor = team2.color;
                 team2MatchCounter.style.color = team2TextColor;
 
+                team1MatchCounter.style.pointerEvents = 'auto';
+                team2MatchCounter.style.pointerEvents = 'auto';
+                team1MatchCounter.style.cursor = 'pointer';
+                team2MatchCounter.style.cursor = 'pointer';
+
                 team1MatchCounter.classList.add('visible');
                 team2MatchCounter.classList.add('visible');
             } else {
@@ -2704,11 +2794,6 @@
 
         function incrementCounter(teamNum, event) {
             event.stopPropagation();
-
-            // En modo rounds, el contador es automático - no permitir incremento manual
-            if (gameSettings.gameMode === 'rounds') {
-                return;
-            }
 
             // Check if match is already won - if so, don't allow incrementing
             const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
@@ -2840,11 +2925,8 @@
             }
 
             // Block score changes in rounds mode if all rounds are completed
-            if (gameSettings.gameMode === 'rounds') {
-                const maxRounds = Math.max(team1.autoRounds, team2.autoRounds);
-                if (maxRounds >= gameSettings.roundsToPlay) {
-                    return;
-                }
+            if (gameSettings.gameMode === 'rounds' && roundsPlayed >= gameSettings.roundsToPlay) {
+                return;
             }
 
             const team = teamNum === 1 ? team1 : team2;
@@ -2868,50 +2950,70 @@
                 const matchWon = team1.matches >= gameSettings.matchesToWin || team2.matches >= gameSettings.matchesToWin;
 
                 if (roundCompleted) {
+                    console.log('🏁 Round completed detected');
                     previousTeam1Points = team1.points;
                     previousTeam2Points = team2.points;
 
-                    // Auto-incrementar contador de rondas
-                    if (team1Change === 2) {
-                        team1.autoRounds = (team1.autoRounds || 0) + 1;
-                    } else if (team2Change === 2) {
-                        team2.autoRounds = (team2.autoRounds || 0) + 1;
-                    } else if (team1Change === 1 && team2Change === 1) {
-                        team1.autoRounds = (team1.autoRounds || 0) + 1;
-                        team2.autoRounds = (team2.autoRounds || 0) + 1;
-                    }
+                    // Incrementar contador global de rondas (para modo rounds)
+                    roundsPlayed++;
+
+                    console.log('📊 Rounds after increment:', {
+                        roundsPlayed: roundsPlayed,
+                        roundsToPlay: gameSettings.roundsToPlay,
+                        gameMode: gameSettings.gameMode
+                    });
 
                     // Actualizar display de contador
                     updateMatchesCounter();
 
-                    // Toggle hammer if enabled (this may open 20s dialog via toggleHammer)
-                    if (gameSettings.showHammer) {
-                        if (!gameWon && !matchWon) {
-                            if (gameSettings.show20s) {
-                                toggleHammer(); // This opens the 20s dialog
-                                return; // Exit - checkWinCondition will be called after dialog closes
-                            } else {
-                                toggleHammer(); // Just toggle hammer, no dialog
-                                // No 20s dialog, so check winner now
-                                checkWinCondition();
-                                updateDisplay();
-                                saveData();
-                            }
-                        } else if (gameSettings.show20s) {
-                            // Game/match won but need to open 20s dialog for this completed round
+                    // Check if all rounds are completed in rounds mode
+                    const allRoundsCompleted = gameSettings.gameMode === 'rounds' && roundsPlayed >= gameSettings.roundsToPlay;
+
+                    console.log('🎯 All rounds completed?', allRoundsCompleted);
+
+                    if (allRoundsCompleted) {
+                        // ALL ROUNDS COMPLETED IN ROUNDS MODE
+                        if (gameSettings.show20s) {
+                            console.log('💬 Opening 20s dialog for final round');
                             openTwentyDialog();
-                            return; // Exit - checkWinCondition will be called after dialog closes
+                            return; // checkWinCondition or declareTie will be called after dialog closes
                         } else {
-                            // Game/match won, no 20s dialog, check winner now
-                            checkWinCondition();
+                            console.log('✅ No 20s dialog, checking winner/tie now');
+                            checkWinConditionOrTie();
                             updateDisplay();
                             saveData();
                         }
                     } else {
-                        // showHammer disabled, just check winner and update
-                        checkWinCondition();
-                        updateDisplay();
-                        saveData();
+                        // NORMAL ROUND COMPLETION (not final round OR points mode)
+                        // Toggle hammer if enabled (this may open 20s dialog via toggleHammer)
+                        if (gameSettings.showHammer) {
+                            if (!gameWon && !matchWon) {
+                                if (gameSettings.show20s) {
+                                    toggleHammer(); // This opens the 20s dialog
+                                    return; // Exit - checkWinCondition will be called after dialog closes
+                                } else {
+                                    toggleHammer(); // Just toggle hammer, no dialog
+                                    // No 20s dialog, so check winner now
+                                    checkWinCondition();
+                                    updateDisplay();
+                                    saveData();
+                                }
+                            } else if (gameSettings.show20s) {
+                                // Game/match won but need to open 20s dialog for this completed round
+                                openTwentyDialog();
+                                return; // Exit - checkWinCondition will be called after dialog closes
+                            } else {
+                                // Game/match won, no 20s dialog, check winner now
+                                checkWinCondition();
+                                updateDisplay();
+                                saveData();
+                            }
+                        } else {
+                            // showHammer disabled, just check winner and update
+                            checkWinCondition();
+                            updateDisplay();
+                            saveData();
+                        }
                     }
                 } else {
                     // No round completed, just update display
@@ -2934,6 +3036,15 @@
         // Quick Menu Functions
         function toggleQuickMenu() {
             const menu = document.getElementById('quickMenu');
+            const btnResetGame = document.getElementById('btnResetGame');
+
+            // En modo rounds, ocultar el botón "Nueva Partida"
+            if (gameSettings.gameMode === 'rounds') {
+                btnResetGame.style.display = 'none';
+            } else {
+                btnResetGame.style.display = 'flex';
+            }
+
             menu.classList.toggle('active');
         }
 
@@ -2979,6 +3090,7 @@
             // Reset tracking variables for round detection
             previousTeam1Points = 0;
             previousTeam2Points = 0;
+            roundsPlayed = 0;
 
             // Remover clases winner
             document.getElementById('team1Score').classList.remove('winner');
@@ -3032,6 +3144,7 @@
             // Reset tracking variables for round detection
             previousTeam1Points = 0;
             previousTeam2Points = 0;
+            roundsPlayed = 0;
 
             // Remover clases winner y match-winner
             document.getElementById('team1Score').classList.remove('winner');
