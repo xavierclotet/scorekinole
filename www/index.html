@@ -2144,8 +2144,12 @@
     </div>
 
     <script>
+        // Current app version
+        const APP_VERSION = '1.0.7';
+
         // Game State
         let gameSettings = {
+            appVersion: APP_VERSION,
             pointsToWin: 7,
             timerMinutes: 10,
             timerSeconds: 0,
@@ -2502,7 +2506,18 @@
             const savedTeam2 = localStorage.getItem('crokinoleTeam2');
 
             if (savedGame) {
-                gameSettings = JSON.parse(savedGame);
+                const parsedSettings = JSON.parse(savedGame);
+
+                // Check version - if different, clear game data (not history)
+                if (parsedSettings.appVersion !== APP_VERSION) {
+                    localStorage.removeItem('crokinoleGame');
+                    localStorage.removeItem('crokinoleTeam1');
+                    localStorage.removeItem('crokinoleTeam2');
+                    // Keep default gameSettings with current version
+                    return;
+                }
+
+                gameSettings = parsedSettings;
                 // Ensure matchesToWin exists
                 if (gameSettings.matchesToWin === undefined) {
                     gameSettings.matchesToWin = 1;
@@ -2598,6 +2613,8 @@
         }
 
         function saveData() {
+            // Always save with current version
+            gameSettings.appVersion = APP_VERSION;
             localStorage.setItem('crokinoleGame', JSON.stringify(gameSettings));
             localStorage.setItem('crokinoleTeam1', JSON.stringify(team1));
             localStorage.setItem('crokinoleTeam2', JSON.stringify(team2));
@@ -4568,8 +4585,6 @@
 
         // Load version
         function loadVersion() {
-            // Version is embedded directly to avoid CORS issues when opening file:// locally
-            const APP_VERSION = '1.0.5';
             const versionDisplay = document.getElementById('versionDisplay');
             if (versionDisplay) {
                 versionDisplay.textContent = 'v' + APP_VERSION;

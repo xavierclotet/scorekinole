@@ -106,8 +106,18 @@ When creating a new version, update the version number in ALL of these files:
 1. `package.json` - Line 2: `"version": "X.Y.Z"`
 2. `www/version.json` - Line 1: `{"version":"X.Y.Z"}`
 3. `README.md` - Line 7: `![Version](https://img.shields.io/badge/version-X.Y.Z-blue.svg)`
+4. `www/index.html` - Line ~2148: `const APP_VERSION = 'X.Y.Z';`
 
-**Important**: Always update all three files together to keep version numbers in sync.
+**Important**: Always update all four files together to keep version numbers in sync.
+
+### Version Management in localStorage
+The app uses automatic version detection to clear incompatible game data:
+- `APP_VERSION` constant (line ~2148) defines the current app version
+- `gameSettings.appVersion` stores the version with saved data
+- When `loadData()` runs, it compares saved version with current `APP_VERSION`
+- If versions differ: clears `crokinoleGame`, `crokinoleTeam1`, `crokinoleTeam2` (but preserves match history)
+- `saveData()` always saves the current `APP_VERSION` with game settings
+- This prevents structure incompatibilities when the data model changes between versions
 
 ## Critical Implementation Details
 
