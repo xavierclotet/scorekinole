@@ -689,10 +689,11 @@
             justify-content: center;
             user-select: none;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            cursor: pointer;
+            cursor: grab;
             transition: transform 0.2s, box-shadow 0.2s;
             background: rgba(21, 27, 45, 0.95);
             border: 2px solid var(--divider);
+            touch-action: none;
         }
 
         .history-btn:hover {
@@ -701,26 +702,16 @@
             border-color: var(--accent-green);
         }
 
-        .history-btn:active {
-            transform: scale(0.98);
+        .history-btn.dragging {
+            cursor: grabbing;
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+            border-color: var(--accent-green);
+            transition: none;
         }
 
         .history-icon {
             display: block;
-        }
-
-        @media (orientation: portrait) {
-            .history-btn {
-                left: 0.5rem;
-                top: calc(50% - 1.75rem);
-            }
-        }
-
-        @media (orientation: landscape) {
-            .history-btn {
-                left: 0.5rem;
-                top: calc(50% - 1.75rem);
-            }
         }
 
         /* Hammer Indicator */
@@ -827,6 +818,33 @@
             border-radius: 0.5rem;
             backdrop-filter: blur(8px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .app-name {
+            position: fixed;
+            left: 0.5rem;
+            bottom: 0.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            z-index: 5;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        @media (orientation: portrait) and (max-height: 600px) {
+            .app-name {
+                font-size: 0.6rem;
+            }
+        }
+
+        @media (orientation: landscape) {
+            .app-name {
+                font-size: 0.65rem;
+                left: 0.4rem;
+                bottom: 0.4rem;
+            }
         }
 
         .timer-selector {
@@ -1123,14 +1141,13 @@
             letter-spacing: 0.1em;
         }
 
-        /* Show "Config" for settings modal in portrait mode */
+        /* Hide title and align buttons right in portrait mode */
         @media (orientation: portrait) {
             #settingsModal .modal-title {
-                font-size: 0;
+                display: none;
             }
-            #settingsModal .modal-title::before {
-                content: 'CONFIG';
-                font-size: 1.3rem;
+            #settingsModal .modal-header {
+                justify-content: flex-end;
             }
         }
 
@@ -1848,7 +1865,7 @@
         </div>
 
         <!-- History Button -->
-        <button class="history-btn" id="historyBtn" onclick="openHistory()">
+        <button class="history-btn" id="historyBtn">
             <span class="history-icon">📜</span>
         </button>
 
@@ -1910,6 +1927,9 @@
         <!-- Event Info -->
         <div class="event-title" id="eventTitle"></div>
         <div class="match-phase" id="matchPhase"></div>
+
+        <!-- App Name -->
+        <div class="app-name" id="appName"></div>
     </div>
 
     <!-- Settings Modal -->
@@ -2245,7 +2265,10 @@
 
     <script>
         // Current app version
-        const APP_VERSION = '1.0.10';
+        const APP_VERSION = '1.0.11';
+
+        // App name
+        const APP_NAME = 'Scorekrinole';
 
         // Game State
         let gameSettings = {
@@ -2261,7 +2284,9 @@
             gameMode: 'rounds', // 'points' | 'rounds'
             roundsToPlay: 4, // Número de rondas en modo rounds
             eventTitle: '', // Título del evento
-            matchPhase: '' // Fase de la partida
+            matchPhase: '', // Fase de la partida
+            historyBtnX: null, // Posición X del botón history (null = default)
+            historyBtnY: null  // Posición Y del botón history (null = default)
         };
 
         // Translations
@@ -3389,6 +3414,7 @@
         function updateEventInfo() {
             const eventTitleEl = document.getElementById('eventTitle');
             const matchPhaseEl = document.getElementById('matchPhase');
+            const appNameEl = document.getElementById('appName');
 
             if (gameSettings.eventTitle && gameSettings.eventTitle.trim() !== '') {
                 eventTitleEl.textContent = gameSettings.eventTitle;
@@ -3402,6 +3428,11 @@
                 matchPhaseEl.style.display = 'block';
             } else {
                 matchPhaseEl.style.display = 'none';
+            }
+
+            // Always show app name
+            if (appNameEl) {
+                appNameEl.textContent = APP_NAME;
             }
         }
 
@@ -4778,8 +4809,184 @@
         function loadVersion() {
             const versionDisplay = document.getElementById('versionDisplay');
             if (versionDisplay) {
-                versionDisplay.textContent = 'v' + APP_VERSION;
+                versionDisplay.textContent = APP_NAME + ' v' + APP_VERSION;
             }
+        }
+
+        // History Button Draggable
+        function setupDraggableHistoryBtn() {
+            const historyBtn = document.getElementById('historyBtn');
+            if (!historyBtn) return;
+
+            let isDragging = false;
+            let dragStartTime = 0;
+            let startX = 0;
+            let startY = 0;
+            let currentX = 0;
+            let currentY = 0;
+
+            // Apply saved position or default
+            function applyPosition() {
+                const x = gameSettings.historyBtnX;
+                const y = gameSettings.historyBtnY;
+
+                if (x !== null && y !== null) {
+                    historyBtn.style.left = x + 'px';
+                    historyBtn.style.top = y + 'px';
+                } else {
+                    // Default position: left center
+                    historyBtn.style.left = '0.5rem';
+                    historyBtn.style.top = 'calc(50% - 1.75rem)';
+                }
+            }
+
+            // Constrain position to viewport
+            function constrainPosition(x, y) {
+                const rect = historyBtn.getBoundingClientRect();
+                const margin = 10; // Minimum distance from edges
+
+                const minX = margin;
+                const maxX = window.innerWidth - rect.width - margin;
+                const minY = margin;
+                const maxY = window.innerHeight - rect.height - margin;
+
+                x = Math.max(minX, Math.min(maxX, x));
+                y = Math.max(minY, Math.min(maxY, y));
+
+                return { x, y };
+            }
+
+            // Save position to localStorage
+            function savePosition(x, y) {
+                gameSettings.historyBtnX = x;
+                gameSettings.historyBtnY = y;
+                saveData();
+            }
+
+            // Touch start
+            function onTouchStart(e) {
+                dragStartTime = Date.now();
+                const touch = e.touches[0];
+                const rect = historyBtn.getBoundingClientRect();
+
+                startX = touch.clientX - rect.left;
+                startY = touch.clientY - rect.top;
+                currentX = rect.left;
+                currentY = rect.top;
+
+                isDragging = false;
+            }
+
+            // Touch move
+            function onTouchMove(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const newX = touch.clientX - startX;
+                const newY = touch.clientY - startY;
+
+                // Check if moved enough to be considered dragging
+                const distance = Math.sqrt(Math.pow(newX - currentX, 2) + Math.pow(newY - currentY, 2));
+                if (distance > 5) {
+                    isDragging = true;
+                    historyBtn.classList.add('dragging');
+                }
+
+                if (isDragging) {
+                    const constrained = constrainPosition(newX, newY);
+                    historyBtn.style.left = constrained.x + 'px';
+                    historyBtn.style.top = constrained.y + 'px';
+                    currentX = constrained.x;
+                    currentY = constrained.y;
+                }
+            }
+
+            // Touch end
+            function onTouchEnd(e) {
+                historyBtn.classList.remove('dragging');
+
+                const dragDuration = Date.now() - dragStartTime;
+
+                if (isDragging) {
+                    // Was dragging, save position
+                    savePosition(currentX, currentY);
+                } else if (dragDuration < 300) {
+                    // Was a quick tap, open history
+                    openHistory();
+                }
+
+                isDragging = false;
+            }
+
+            // Mouse events (for desktop testing)
+            function onMouseDown(e) {
+                dragStartTime = Date.now();
+                const rect = historyBtn.getBoundingClientRect();
+
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+                currentX = rect.left;
+                currentY = rect.top;
+
+                isDragging = false;
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            }
+
+            function onMouseMove(e) {
+                const newX = e.clientX - startX;
+                const newY = e.clientY - startY;
+
+                const distance = Math.sqrt(Math.pow(newX - currentX, 2) + Math.pow(newY - currentY, 2));
+                if (distance > 5) {
+                    isDragging = true;
+                    historyBtn.classList.add('dragging');
+                }
+
+                if (isDragging) {
+                    const constrained = constrainPosition(newX, newY);
+                    historyBtn.style.left = constrained.x + 'px';
+                    historyBtn.style.top = constrained.y + 'px';
+                    currentX = constrained.x;
+                    currentY = constrained.y;
+                }
+            }
+
+            function onMouseUp(e) {
+                historyBtn.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+
+                const dragDuration = Date.now() - dragStartTime;
+
+                if (isDragging) {
+                    savePosition(currentX, currentY);
+                } else if (dragDuration < 300) {
+                    openHistory();
+                }
+
+                isDragging = false;
+            }
+
+            // Attach event listeners
+            historyBtn.addEventListener('touchstart', onTouchStart, { passive: false });
+            historyBtn.addEventListener('touchmove', onTouchMove, { passive: false });
+            historyBtn.addEventListener('touchend', onTouchEnd);
+            historyBtn.addEventListener('mousedown', onMouseDown);
+
+            // Apply initial position
+            applyPosition();
+
+            // Reapply position on orientation change
+            window.addEventListener('orientationchange', () => {
+                setTimeout(() => {
+                    if (gameSettings.historyBtnX !== null && gameSettings.historyBtnY !== null) {
+                        const constrained = constrainPosition(gameSettings.historyBtnX, gameSettings.historyBtnY);
+                        historyBtn.style.left = constrained.x + 'px';
+                        historyBtn.style.top = constrained.y + 'px';
+                        savePosition(constrained.x, constrained.y);
+                    }
+                }, 300);
+            });
         }
 
         // Initialize
@@ -4789,6 +4996,7 @@
         applyTeamColors();
         setupScoreHandlers();
         setupNumberControlButtons();
+        setupDraggableHistoryBtn();
         updateTimerDisplay();
         updateUILanguage();
         updateMatchesCounter();
