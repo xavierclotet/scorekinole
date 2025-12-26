@@ -4,7 +4,7 @@
 
 A beautiful, responsive web application designed to track scores, manage timers, and enhance your Crokinole gaming experience. Built with modern web technologies and optimized for mobile devices.
 
-![Version](https://img.shields.io/badge/version-1.0.9-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.10-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
@@ -33,6 +33,7 @@ A beautiful, responsive web application designed to track scores, manage timers,
 - **Preset Combinations**: Quick-select from curated color pairs
 - **Auto-Contrast**: Text automatically adjusts for optimal readability
 - **Player Names**: Personalize team names (up to 18 characters)
+- **Event Information**: Add tournament/event title and match phase (e.g., "III CATALUNYA 25", "Final", "Pool A")
 
 ### 🌍 Multi-Language Support
 - 🇪🇸 Spanish (Español)
@@ -125,6 +126,16 @@ When enabled, after each completed round you'll be prompted to enter center shot
 - Button 0 spans full width for quick "no 20s" entry
 - **Match History Integration**: All 20s data is saved per round for detailed history viewing
 
+### Event & Phase Display
+Optionally display tournament or event information on screen:
+- **Event Title**: Displayed at the top center (e.g., "III CATALUNYA 25", "Summer Tournament 2025")
+- **Match Phase**: Shown vertically on the right side (e.g., "Final", "Semifinal 1", "Pool A")
+- **Configuration**: Set in Settings modal at the top of the configuration panel
+- **Persistence**: Automatically saved with game settings
+- **History Integration**: Event title and phase are saved with each completed match
+- **Non-Intrusive Design**: Semi-transparent background with high contrast for visibility without distraction
+- **Responsive**: Adapts font size and positioning across all screen sizes and orientations
+
 ### Match History (📜)
 Automatically tracks your last 10 completed matches with comprehensive details:
 - **Accessible via History Button**: Click the 📜 button (located where 20s counters used to be) to view past matches
@@ -142,6 +153,7 @@ Automatically tracks your last 10 completed matches with comprehensive details:
     - 20s count per round (if enabled)
     - Hammer status for each round
 - **Match Information**:
+  - Event title and phase (if configured)
   - Date and time (DD/MM/YY HH:MM format)
   - Game mode (e.g., "A 7p • Best of 3" or "4 rounds")
   - Game type (Individual/Doubles)

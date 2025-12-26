@@ -329,6 +329,12 @@
                 right: 0.7rem;
                 font-size: 1.2rem;
             }
+
+            .event-title {
+                font-size: 1.4rem;
+                top: 5rem;
+                padding: 0.5rem 1.5rem;
+            }
         }
 
         @media (orientation: portrait) and (max-height: 600px) {
@@ -352,6 +358,17 @@
             .score-display {
                 font-size: 8rem !important;
                 padding: 1rem 2rem !important;
+            }
+
+            .event-title {
+                font-size: 1.3rem;
+                top: 5rem;
+                padding: 0.45rem 1.3rem;
+            }
+
+            .match-phase {
+                font-size: 1.3rem;
+                padding: 0.45rem 1.3rem;
             }
         }
 
@@ -382,6 +399,17 @@
             .timer-reset-btn {
                 right: 0.5rem;
                 font-size: 1rem;
+            }
+
+            .event-title {
+                font-size: 1.1rem;
+                top: 4.5rem;
+                padding: 0.4rem 1rem;
+            }
+
+            .match-phase {
+                font-size: 1.1rem;
+                padding: 0.4rem 1rem;
             }
         }
 
@@ -624,24 +652,24 @@
 
         @media (orientation: portrait) {
             .match-counter-team1 {
-                right: 0.5rem;
-                top: calc(50% - 4rem);
+                bottom: 1rem;
+                left: calc(50% - 5.7rem);
             }
 
             .match-counter-team2 {
-                right: 0.5rem;
-                top: calc(50% + 0.5rem);
+                bottom: 1rem;
+                left: calc(50% + 0.7rem);
             }
         }
 
         @media (orientation: landscape) {
             .match-counter-team1 {
-                top: 1.5rem;
+                bottom: 1rem;
                 left: calc(50% - 5.7rem);
             }
 
             .match-counter-team2 {
-                top: 1.5rem;
+                bottom: 1rem;
                 left: calc(50% + 0.7rem);
             }
         }
@@ -690,8 +718,8 @@
 
         @media (orientation: landscape) {
             .history-btn {
-                bottom: 1rem;
-                left: calc(50% - 1.75rem);
+                left: 0.5rem;
+                top: calc(50% - 1.75rem);
             }
         }
 
@@ -745,6 +773,60 @@
 
         .hammer-choice-btn:active {
             transform: scale(0.98);
+        }
+
+        /* Event Info Display */
+        .event-title {
+            position: fixed;
+            top: 0.6rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.84rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-align: center;
+            z-index: 101;
+            pointer-events: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 85%;
+            display: none;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 0.6rem 1.8rem;
+            border-radius: 0.5rem;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        @media (orientation: landscape) {
+            .event-title {
+                top: 0.6rem;
+                font-size: 1.73rem;
+                padding: 0.5rem 1.5rem;
+            }
+        }
+
+        .match-phase {
+            position: fixed;
+            right: -2rem;
+            top: 50%;
+            transform: translateY(-50%) rotate(-90deg);
+            transform-origin: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.44rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            z-index: 101;
+            pointer-events: none;
+            white-space: nowrap;
+            display: none;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 0.6rem 1.8rem;
+            border-radius: 0.5rem;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
         }
 
         .timer-selector {
@@ -1824,6 +1906,10 @@
                 </div>
             </div>
         </div>
+
+        <!-- Event Info -->
+        <div class="event-title" id="eventTitle"></div>
+        <div class="match-phase" id="matchPhase"></div>
     </div>
 
     <!-- Settings Modal -->
@@ -1844,6 +1930,13 @@
 
                 <div class="settings-two-columns">
                     <div class="settings-section">
+                        <div class="input-group">
+                            <label class="input-label" id="labelEventTitle">Título del Evento</label>
+                            <input type="text" id="eventTitleInput" class="input-field" maxlength="30" placeholder="Ej: III CATALUNYA 25">
+                        </div>
+
+                        <div style="border-top: 1px solid rgba(255, 255, 255, 0.2); margin: 1rem 0;"></div>
+
                         <div class="input-group">
                             <label class="input-label" id="labelGameMode">Game Mode</label>
                             <select id="gameModeSelect" class="input-field" onchange="toggleGameModeSettings()">
@@ -1897,6 +1990,13 @@
                     </div>
 
                     <div class="settings-section">
+                        <div class="input-group">
+                            <label class="input-label" id="labelMatchPhase">Fase</label>
+                            <input type="text" id="matchPhaseInput" class="input-field" maxlength="20" placeholder="Ej: Final, Pool A">
+                        </div>
+
+                        <div style="border-top: 1px solid rgba(255, 255, 255, 0.2); margin: 1rem 0;"></div>
+
                         <div class="input-group">
                             <label class="input-label" id="labelGameType">Tipo de Partida</label>
                             <select id="gameTypeSelect" class="input-field">
@@ -2145,7 +2245,7 @@
 
     <script>
         // Current app version
-        const APP_VERSION = '1.0.9';
+        const APP_VERSION = '1.0.10';
 
         // Game State
         let gameSettings = {
@@ -2159,7 +2259,9 @@
             showHammer: false,
             gameType: 'singles', // 'singles' or 'doubles'
             gameMode: 'rounds', // 'points' | 'rounds'
-            roundsToPlay: 4 // Número de rondas en modo rounds
+            roundsToPlay: 4, // Número de rondas en modo rounds
+            eventTitle: '', // Título del evento
+            matchPhase: '' // Fase de la partida
         };
 
         // Translations
@@ -2202,6 +2304,8 @@
                 gameType: 'Tipo de Partida',
                 singles: 'Individual',
                 doubles: 'Parejas',
+                eventTitle: 'Título del Evento',
+                matchPhase: 'Fase',
                 chooseFirstColor: 'Elige el primer color:',
                 back: 'Volver',
                 gameMode: 'Modo de Juego',
@@ -2261,6 +2365,8 @@
                 gameType: 'Tipus de Partida',
                 singles: 'Individual',
                 doubles: 'Parelles',
+                eventTitle: 'Títol de l\'Event',
+                matchPhase: 'Fase',
                 chooseFirstColor: 'Tria el primer color:',
                 back: 'Tornar',
                 gameMode: 'Mode de Joc',
@@ -2320,6 +2426,8 @@
                 gameType: 'Game Type',
                 singles: 'Singles',
                 doubles: 'Doubles',
+                eventTitle: 'Event Title',
+                matchPhase: 'Phase',
                 chooseFirstColor: 'Choose first color:',
                 back: 'Back',
                 gameMode: 'Game Mode',
@@ -2600,6 +2708,7 @@
             updateDisplay();
             applyTeamColors();
             updateTimerVisibility();
+            updateEventInfo();
 
             // Restaurar estado visual de victoria si existe
             if (team1.hasWon) {
@@ -2634,7 +2743,9 @@
                     language: gameSettings.language,
                     timerMinutes: gameSettings.timerMinutes,
                     timerSeconds: gameSettings.timerSeconds,
-                    show20s: gameSettings.show20s
+                    show20s: gameSettings.show20s,
+                    eventTitle: gameSettings.eventTitle || '',
+                    matchPhase: gameSettings.matchPhase || ''
                 },
                 teams: {
                     team1: {
@@ -2924,10 +3035,22 @@
                 }).join('');
             }
 
+            // Event info
+            const eventTitle = match.metadata.eventTitle || '';
+            const matchPhase = match.metadata.matchPhase || '';
+            let eventInfo = '';
+            if (eventTitle || matchPhase) {
+                const parts = [];
+                if (eventTitle) parts.push(eventTitle);
+                if (matchPhase) parts.push(matchPhase);
+                eventInfo = `<div style="font-weight: 600; color: var(--accent-green); margin-bottom: 0.25rem;">${parts.join(' • ')}</div>`;
+            }
+
             return `
                 <div class="history-entry">
                     <div class="history-header">
                         <div style="flex: 1;">
+                            ${eventInfo}
                             <div class="history-meta">
                                 <div>${dateStr} ${timeStr}</div>
                                 <div>${typeLabel} • ${modeLabel}${durationStr ? ' • ' + durationStr : ''}</div>
@@ -2963,8 +3086,18 @@
             const team1NameEl = document.getElementById('team1Name');
             const team2NameEl = document.getElementById('team2Name');
 
-            team1NameEl.childNodes[0].textContent = team1.name + ' ';
-            team2NameEl.childNodes[0].textContent = team2.name + ' ';
+            // Get or create text node
+            if (team1NameEl.childNodes.length === 0 || team1NameEl.childNodes[0].nodeType !== Node.TEXT_NODE) {
+                team1NameEl.insertBefore(document.createTextNode(team1.name + ' '), team1NameEl.firstChild);
+            } else {
+                team1NameEl.childNodes[0].textContent = team1.name + ' ';
+            }
+
+            if (team2NameEl.childNodes.length === 0 || team2NameEl.childNodes[0].nodeType !== Node.TEXT_NODE) {
+                team2NameEl.insertBefore(document.createTextNode(team2.name + ' '), team2NameEl.firstChild);
+            } else {
+                team2NameEl.childNodes[0].textContent = team2.name + ' ';
+            }
 
             updateMatchesCounter();
             updateHammerIndicator();
@@ -3250,6 +3383,25 @@
             } else {
                 team1Hammer.style.display = 'none';
                 team2Hammer.style.display = 'none';
+            }
+        }
+
+        function updateEventInfo() {
+            const eventTitleEl = document.getElementById('eventTitle');
+            const matchPhaseEl = document.getElementById('matchPhase');
+
+            if (gameSettings.eventTitle && gameSettings.eventTitle.trim() !== '') {
+                eventTitleEl.textContent = gameSettings.eventTitle;
+                eventTitleEl.style.display = 'block';
+            } else {
+                eventTitleEl.style.display = 'none';
+            }
+
+            if (gameSettings.matchPhase && gameSettings.matchPhase.trim() !== '') {
+                matchPhaseEl.textContent = gameSettings.matchPhase;
+                matchPhaseEl.style.display = 'block';
+            } else {
+                matchPhaseEl.style.display = 'none';
             }
         }
 
@@ -4084,6 +4236,8 @@
             document.getElementById('languageSelect').value = gameSettings.language;
             document.getElementById('gameModeSelect').value = gameSettings.gameMode;
             document.getElementById('roundsToPlay').value = gameSettings.roundsToPlay;
+            document.getElementById('eventTitleInput').value = gameSettings.eventTitle || '';
+            document.getElementById('matchPhaseInput').value = gameSettings.matchPhase || '';
             toggleGameModeSettings(); // Mostrar/ocultar configuraciones según modo
 
             document.getElementById('team1NameInput').value = team1.name;
@@ -4115,6 +4269,8 @@
                 gameSettings.language = document.getElementById('languageSelect').value;
                 gameSettings.gameMode = document.getElementById('gameModeSelect').value;
                 gameSettings.roundsToPlay = parseInt(document.getElementById('roundsToPlay').value);
+                gameSettings.eventTitle = document.getElementById('eventTitleInput').value || '';
+                gameSettings.matchPhase = document.getElementById('matchPhaseInput').value || '';
 
                 team1.name = document.getElementById('team1NameInput').value || 'Team 1';
                 team1.points = parseInt(document.getElementById('team1Points').value) || 0;
@@ -4129,6 +4285,7 @@
                 resetTimer();
                 updateTimerVisibility();
                 updateHammerIndicator();
+                updateEventInfo();
                 updateUILanguage();
                 saveData();
                 closeSettings();
@@ -4214,6 +4371,10 @@
             // Update checkbox labels using IDs
             document.getElementById('labelShow20s').textContent = t('show20s');
             document.getElementById('labelShowHammer').textContent = t('showHammer');
+
+            // Update event info labels
+            document.getElementById('labelEventTitle').textContent = t('eventTitle');
+            document.getElementById('labelMatchPhase').textContent = t('matchPhase');
 
             // Update color picker buttons using IDs
             document.getElementById('spanTeam1ChooseColor').textContent = t('chooseColor');
@@ -4624,12 +4785,15 @@
         // Initialize
         loadVersion();
         loadData();
+        updateDisplay();
+        applyTeamColors();
         setupScoreHandlers();
         setupNumberControlButtons();
         updateTimerDisplay();
         updateUILanguage();
         updateMatchesCounter();
         updateHammerIndicator();
+        updateEventInfo();
     </script>
 </body>
 </html>
