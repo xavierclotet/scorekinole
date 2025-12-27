@@ -268,15 +268,31 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 ## 🎯 Roadmap
 
+### v1.x (Current)
 - [x] Native Android app release
 - [x] Match history with detailed statistics (last 10 matches)
-- [ ] Web version release
-- [ ] Cloud sync across devices
+- [x] Google Authentication with Firebase
+- [x] User profiles with player names
+- [ ] Web version release (Firebase Hosting)
+- [ ] Cloud sync for match history across devices
+
+### v2.0 (Future)
+- [ ] Player search and pairing system
+  - Search registered players by name
+  - Quick partner selection for doubles matches
+  - Saved favorite partnerships
+  - Team name auto-generation (Player1 - Player2)
+- [ ] Advanced rankings and statistics
+  - Individual player rankings
+  - Partnership statistics
+  - Head-to-head records
+  - Performance analytics dashboard
 - [ ] Tournament mode with brackets
-- [ ] Advanced statistics and analytics dashboard
-- [ ] Player profiles and rankings
-- [ ] Social sharing features
-- [ ] Export/import match history
+- [ ] Social features
+  - Share match results
+  - Challenge other players
+  - Leaderboards
+- [ ] Export/import match history (CSV, JSON)
 
 ## 🏆 Credits
 

@@ -8,6 +8,9 @@ import './styles/main.css';
 import { initAuthListener, onAuthChange } from './firebase/auth.js';
 import { isFirebaseEnabled } from './firebase/config.js';
 
+// Import auth UI
+import { initAuthUI } from './js/auth-ui.js';
+
 // Import main application code
 import './js/app.js';
 
@@ -15,6 +18,7 @@ import './js/app.js';
 if (isFirebaseEnabled()) {
   console.log('🔥 Firebase enabled - initializing...');
   initAuthListener();
+  initAuthUI();
 
   // Listen to auth state changes
   onAuthChange((user) => {

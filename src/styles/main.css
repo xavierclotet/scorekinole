@@ -1846,3 +1846,41 @@
                 font-size: 5rem;
             }
         }
+
+        /* Auth UI Styles */
+        .menu-divider {
+            height: 1px;
+            background: var(--divider);
+            margin: 0.5rem 0;
+        }
+
+        /* Player Name Modal */
+        .player-name-input {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-family: 'Lexend', sans-serif;
+            background: var(--bg-dark);
+            border: 2px solid var(--divider);
+            border-radius: 8px;
+            color: var(--text-primary);
+            transition: border-color 0.3s ease;
+            margin-top: 0.5rem;
+        }
+
+        .player-name-input:focus {
+            outline: none;
+            border-color: var(--accent-green);
+        }
+
+        .player-name-input::placeholder {
+            color: var(--text-dim);
+            opacity: 0.5;
+        }
+
+        #playerNameLabel {
+            display: block;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
