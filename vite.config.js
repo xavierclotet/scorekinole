@@ -8,6 +8,7 @@ const __dirname = dirname(__filename);
 export default defineConfig({
   root: 'src',
   base: './',
+  envDir: resolve(__dirname, '.'),
   build: {
     outDir: '../www',
     emptyOutDir: true,

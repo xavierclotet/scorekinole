@@ -3,6 +3,7 @@
 CLAUDE.md
 
 # Environment variables
+.env
 .env.local
 .env.*.local
 
@@ -32,3 +33,9 @@ package-lock.json
 www/manifest.json
 capacitor.config.json
 dist/
+
+# Firebase cache and debug files
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
