@@ -1,5 +1,10 @@
 # Claude Code configuration
 .claude/
+CLAUDE.md
+
+# Environment variables
+.env.local
+.env.*.local
 
 # OS files
 .DS_Store
@@ -26,3 +31,4 @@ node_modules/
 package-lock.json
 www/manifest.json
 capacitor.config.json
+dist/

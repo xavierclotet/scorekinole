@@ -1,11 +1,20 @@
-const fs = require('fs');
-const path = require('path');
-const packageJson = require('./package.json');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Read package.json from project root
+const packageJsonPath = path.join(__dirname, 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
 const version = packageJson.version;
 const apkDir = path.join(__dirname, 'android', 'app', 'build', 'outputs', 'apk', 'release');
 const oldName = 'app-release.apk';
-const newName = `app-release.${version}.apk`;
+const newName = `app-release-${version}.apk`;
 
 const oldPath = path.join(apkDir, oldName);
 const newPath = path.join(apkDir, newName);

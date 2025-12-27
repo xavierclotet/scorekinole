@@ -4,7 +4,7 @@
 
 A beautiful, responsive web application designed to track scores, manage timers, and enhance your Crokinole gaming experience. Built with modern web technologies and optimized for mobile devices.
 
-![Version](https://img.shields.io/badge/version-1.0.12-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
@@ -52,18 +52,48 @@ A beautiful, responsive web application designed to track scores, manage timers,
 
 ## 📱 Platform Support
 
+### 🚀 Local Development
+
+**Prerequisites:**
+- Node.js 18+
+- npm
+
+**Quick Start:**
+```bash
+# Install dependencies
+npm install
+
+# Run development server with hot reload
+npm run dev
+# Open http://localhost:5173
+
+# Build for production
+npm run build
+# Output: www/
+
+# Preview production build
+npm run preview
+```
+
+**Available Commands:**
+- `npm run dev` - Development server with hot reload (port 5173)
+- `npm run build` - Build optimized production bundle to `www/`
+- `npm run preview` - Preview production build (port 4173)
+- `npm run sync` - Sync with Capacitor
+- `npm run build:apk` - Build Android APK
+
 ### Web Version
-Open `index.html` in any modern browser. No installation required.
+The app is built with **Vite** for optimal performance. After running `npm run build`, open `www/index.html` in any modern browser.
 
 **Supported Browsers:**
 - Chrome/Edge 90+
 - Safari 14+
 - Firefox 88+
 
-### Mobile Apps (Coming Soon)
-Native apps for iOS and Android will be available on:
-- 📱 **App Store** (iOS 13+)
-- 🤖 **Google Play Store** (Android 8+)
+### Mobile Apps
+Native Android app available. iOS version coming soon.
+- 📱 **App Store** (iOS 13+) - Coming Soon
+- 🤖 **Google Play Store** (Android 8+) - Available
 
 ## 📖 User Guide
 
@@ -176,10 +206,47 @@ Automatically tracks your last 10 completed matches with comprehensive details:
 
 ## 🛠️ Technical Details
 
-- **Architecture**: Single-file HTML/CSS/JavaScript application
-- **Storage**: Browser localStorage for data persistence
-- **Frameworks**: Vanilla JavaScript, no external dependencies
-- **Mobile Ready**: Optimized for Ionic Capacitor / Apache Cordova conversion
+### Architecture
+- **Build Tool**: Vite 6.x for fast development and optimized production builds
+- **Module System**: ES6 modules for better code organization
+- **Styling**: Modular CSS with responsive design (1,848 lines)
+- **Storage**: Browser localStorage for offline-first data persistence
+- **Mobile Ready**: Built with Capacitor for native Android/iOS apps
+
+### Tech Stack
+- **Frontend**: Vanilla JavaScript (no framework dependencies)
+- **Backend**: Firebase (optional, for cloud sync and authentication)
+  - Authentication: Google Sign-in
+  - Database: Firestore for match history sync
+- **Development**: Hot module replacement (HMR) with Vite
+- **Build**: Optimized bundles with tree-shaking and minification
+
+### Project Structure
+```
+scorekinole/
+├── src/                 # Source code (edit here)
+│   ├── index.html      # Main HTML
+│   ├── main.js         # Entry point
+│   ├── styles/         # CSS modules
+│   ├── js/             # JavaScript modules
+│   ├── firebase/       # Firebase integration
+│   └── public/         # Static assets (copied to build)
+└── www/                # Build output (auto-generated)
+```
+
+### Firebase Integration
+Firebase is **optional** and disabled by default. The app works 100% offline with localStorage.
+
+To enable Firebase:
+1. See [VITE-SETUP.md](VITE-SETUP.md) for configuration instructions
+2. Set `VITE_FIREBASE_ENABLED=true` in `.env.local`
+3. Configure Firebase credentials
+
+**Features when Firebase is enabled:**
+- 🔐 Google Authentication
+- ☁️ Cloud sync for match history
+- 🔄 Sync status indicators (synced/local/error)
+- 👤 User profiles with rankings (future)
 
 ## 📄 License
 
