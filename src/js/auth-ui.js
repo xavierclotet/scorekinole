@@ -1,6 +1,7 @@
 import { signInWithGoogle, signOut, onAuthChange, getCurrentUser } from '../firebase/auth.js';
 import { getUserProfile, saveUserProfile, getPlayerName } from '../firebase/userProfile.js';
 import { isFirebaseEnabled } from '../firebase/config.js';
+import { setTeam1Name } from './app.js';
 
 // Auth UI state
 let currentPlayerName = '';
@@ -35,11 +36,18 @@ async function updateAuthUI(user) {
 
   if (user) {
     // User is signed in
-    authIcon.textContent = '👋';
 
     // Load user profile
     const profile = await getUserProfile();
     console.log('🔍 Profile loaded:', profile);
+
+    // Use profile photo or fallback to user photo
+    const photoURL = profile?.photoURL || user.photo;
+    if (photoURL) {
+      authIcon.innerHTML = `<img src="${photoURL}" alt="Profile" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">`;
+    } else {
+      authIcon.textContent = '👋';
+    }
 
     if (!profile || !profile.playerName) {
       // First time user - show player name modal and use Google name temporarily
@@ -51,7 +59,9 @@ async function updateAuthUI(user) {
       currentPlayerName = profile.playerName;
       authText.textContent = currentPlayerName;
       console.log('✅ Auth button updated to:', currentPlayerName);
-      updateTeam1NameWithPlayer();
+
+      // Update Team 1 with player name and photo
+      updateTeam1NameWithPlayer(photoURL);
     }
   } else {
     // User is signed out
@@ -131,7 +141,7 @@ export async function savePlayerName() {
   }
 
   try {
-    await saveUserProfile(playerName);
+    const profile = await saveUserProfile(playerName);
     currentPlayerName = playerName;
 
     // Update auth button text with player name
@@ -139,7 +149,11 @@ export async function savePlayerName() {
       authText.textContent = playerName;
     }
 
-    updateTeam1NameWithPlayer();
+    // Get photo URL from profile or current user
+    const user = getCurrentUser();
+    const photoURL = profile?.photoURL || user?.photo;
+
+    updateTeam1NameWithPlayer(photoURL);
     modal.style.display = 'none';
   } catch (error) {
     console.error('Error saving player name:', error);
@@ -148,21 +162,40 @@ export async function savePlayerName() {
 }
 
 /**
- * Update Team 1 name with current player name
+ * Update Team 1 name with current player name and photo
+ * @param {string} photoURL - User's profile photo URL
  */
-function updateTeam1NameWithPlayer() {
+function updateTeam1NameWithPlayer(photoURL) {
   if (!currentPlayerName) return;
 
-  // Find Team 1 name input by ID
+  // Update Team 1 state and input field
+  setTeam1Name(currentPlayerName);
+
   const team1Input = document.getElementById('team1NameInput');
   if (team1Input) {
     team1Input.value = currentPlayerName;
-    // Trigger any change events if needed
-    team1Input.dispatchEvent(new Event('input', { bubbles: true }));
-    team1Input.dispatchEvent(new Event('change', { bubbles: true }));
     console.log('✅ Team 1 name set to:', currentPlayerName);
-  } else {
-    console.warn('Team 1 input not found');
+  }
+
+  // Update Team 1 display with photo
+  const team1NameEl = document.getElementById('team1Name');
+  if (team1NameEl && photoURL) {
+    // Remove existing photo if any
+    const existingPhoto = team1NameEl.querySelector('.player-photo');
+    if (existingPhoto) {
+      existingPhoto.remove();
+    }
+
+    // Create and insert photo element
+    const photoImg = document.createElement('img');
+    photoImg.src = photoURL;
+    photoImg.alt = 'Profile';
+    photoImg.className = 'player-photo';
+    photoImg.style.cssText = 'width: 2rem; height: 2rem; border-radius: 50%; object-fit: cover; margin-right: 0.5rem; vertical-align: middle;';
+
+    // Insert photo at the beginning
+    team1NameEl.insertBefore(photoImg, team1NameEl.firstChild);
+    console.log('✅ Team 1 photo added');
   }
 }
 

@@ -12,6 +12,7 @@ export default defineConfig({
   build: {
     outDir: '../www',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'src/index.html')

@@ -627,6 +627,16 @@ function deleteHistoryEntry(index) {
     showMatchHistory();
 }
 
+/**
+ * Set Team 1 name and update display
+ * @param {string} name - Team 1 name
+ */
+export function setTeam1Name(name) {
+    team1.name = name;
+    saveData();
+    updateDisplay();
+}
+
 function updateDisplay() {
     document.getElementById('team1Score').textContent = team1.points;
     document.getElementById('team2Score').textContent = team2.points;

@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Lexend:wght@400;600&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/main-DGdgoVoq.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/main-BgT4flyQ.css">
+  <script type="module" crossorigin src="./assets/main-BcNonNKK.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/main-DxIEoIio.css">
 </head>
 <body>
     <div class="app-container">
@@ -45,6 +45,11 @@
                     <button class="quick-menu-item" onclick="switchColors()">
                         <span class="quick-menu-icon">🎨</span>
                         <span>Switch Colors</span>
+                    </button>
+                    <div class="menu-divider"></div>
+                    <button class="quick-menu-item" id="btnAuth" onclick="handleAuthClick()">
+                        <span class="quick-menu-icon" id="authIcon">👤</span>
+                        <span id="authText">Sign In</span>
                     </button>
                 </div>
             </div>
@@ -414,6 +419,30 @@
                 <div id="historyContent" class="history-content"></div>
                 <div id="historyEmpty" class="history-empty" style="display: none;">
                     <p id="historyEmptyText">No match history yet. Complete a match to see it here!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Name Modal -->
+    <div class="modal-overlay" id="playerNameModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="playerNameModalTitle">Set Your Player Name</span>
+                <div class="modal-actions">
+                    <button class="modal-btn save" id="btnSavePlayerName" onclick="savePlayerName()">Save</button>
+                </div>
+            </div>
+            <div class="modal-content">
+                <div class="settings-section">
+                    <label for="playerNameInput" id="playerNameLabel">This name will be used in your matches and rankings</label>
+                    <input
+                        type="text"
+                        id="playerNameInput"
+                        class="player-name-input"
+                        placeholder="Enter your name"
+                        maxlength="30"
+                    />
                 </div>
             </div>
         </div>

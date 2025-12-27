@@ -253,6 +253,11 @@
                 margin-bottom: 2rem !important;
             }
 
+            .player-photo {
+                width: 2.2rem !important;
+                height: 2.2rem !important;
+            }
+
             .score-display {
                 font-size: 11rem !important;
                 padding: 1.5rem 2.5rem !important;
@@ -281,6 +286,11 @@
                 margin-bottom: 1.5rem !important;
             }
 
+            .player-photo {
+                width: 2rem !important;
+                height: 2rem !important;
+            }
+
             .score-display {
                 font-size: 9rem !important;
                 padding: 1.3rem 2.3rem !important;
@@ -307,6 +317,11 @@
             .player-name {
                 font-size: 2rem !important;
                 margin-bottom: 1.2rem !important;
+            }
+
+            .player-photo {
+                width: 1.8rem !important;
+                height: 1.8rem !important;
             }
 
             .score-display {
@@ -350,6 +365,11 @@
                 margin-bottom: 1rem !important;
             }
 
+            .player-photo {
+                width: 1.6rem !important;
+                height: 1.6rem !important;
+            }
+
             .score-display {
                 font-size: 8rem !important;
                 padding: 1rem 2rem !important;
@@ -376,6 +396,11 @@
             .player-name {
                 font-size: 1.5rem !important;
                 margin-bottom: 0.8rem !important;
+            }
+
+            .player-photo {
+                width: 1.4rem !important;
+                height: 1.4rem !important;
             }
 
             .score-display {
@@ -978,6 +1003,19 @@
             position: relative;
             text-transform: uppercase;
             opacity: 0.9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .player-photo {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 0.75rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            flex-shrink: 0;
         }
 
         .score-container {

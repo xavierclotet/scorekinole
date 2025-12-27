@@ -41,6 +41,8 @@ A beautiful, responsive web application designed to track scores, manage timers,
 - 🇬🇧 English
 
 ### 🔧 Advanced Features
+- **Google Authentication**: Sign in with your Google account for cloud sync and rankings
+- **User Profiles**: Custom player names with profile photos displayed in-game
 - **Quick Menu**: Access reset, switch sides, and color swap instantly
 - **20s Tracking**: Fast calculator-style input for center shots (20-point) with configurable max (8 for singles, 12 for doubles)
 - **Match History**: Automatic tracking of last 10 completed matches with detailed statistics
@@ -98,10 +100,11 @@ Native Android app available. iOS version coming soon.
 ## 📖 User Guide
 
 ### Basic Usage
-1. **Start Scoring**: Tap or swipe on score displays to change points
-2. **Timer Control**: Click timer to start/pause, use ⟲ to reset
-3. **Settings**: Click ⚙️ to configure game rules and appearance
-4. **Quick Actions**: Click ≡ to access quick menu options
+1. **Sign In** (Optional): Click ≡ → Sign In to use your Google account
+2. **Start Scoring**: Tap or swipe on score displays to change points
+3. **Timer Control**: Click timer to start/pause, use ⟲ to reset
+4. **Settings**: Click ⚙️ to configure game rules and appearance
+5. **Quick Actions**: Click ≡ to access quick menu options
 
 ### Game Setup
 1. Open Settings (⚙️)
@@ -165,6 +168,20 @@ Optionally display tournament or event information on screen:
 - **History Integration**: Event title and phase are saved with each completed match
 - **Non-Intrusive Design**: Semi-transparent background with high contrast for visibility without distraction
 - **Responsive**: Adapts font size and positioning across all screen sizes and orientations
+
+### User Profiles & Authentication
+Sign in with Google to unlock additional features:
+- **Player Profile**: Set a custom player name that appears in your matches
+- **Profile Photo**: Your Google profile photo displays next to your name during games
+- **Auto-Fill Team 1**: When signed in, your player name automatically fills Team 1
+- **Match History Sync**: Save your match history to the cloud (coming soon)
+- **Rankings**: Compete with other players for leaderboard positions (coming soon)
+
+**How to use:**
+1. Click the hamburger menu (≡)
+2. Click "Sign In" and authorize with your Google account
+3. Set your player name (first time only)
+4. Your name and photo will automatically appear in Team 1
 
 ### Match History (📜)
 Automatically tracks your last 10 completed matches with comprehensive details:
@@ -237,16 +254,18 @@ scorekinole/
 ### Firebase Integration
 Firebase is **optional** and disabled by default. The app works 100% offline with localStorage.
 
-To enable Firebase:
-1. See [VITE-SETUP.md](VITE-SETUP.md) for configuration instructions
-2. Set `VITE_FIREBASE_ENABLED=true` in `.env.local`
-3. Configure Firebase credentials
+To enable Firebase (for developers):
+1. See [DEPLOYMENT.md](DEPLOYMENT.md) for configuration instructions
+2. Set `VITE_FIREBASE_ENABLED=true` in `.env`
+3. Configure Firebase credentials in `.env`
 
 **Features when Firebase is enabled:**
-- 🔐 Google Authentication
-- ☁️ Cloud sync for match history
-- 🔄 Sync status indicators (synced/local/error)
-- 👤 User profiles with rankings (future)
+- 🔐 **Google Authentication**: Sign in with your Google account
+- 👤 **User Profiles**: Custom player names with profile photos
+- 📸 **Profile Photo Display**: Your photo appears next to your name in-game
+- 🎯 **Auto-Fill Team Names**: Signed-in users automatically fill Team 1
+- ☁️ **Cloud Sync**: Match history sync across devices (coming soon)
+- 🏆 **Rankings**: Player leaderboards and statistics (coming soon)
 
 ## 📄 License
 
@@ -272,7 +291,9 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 - [x] Native Android app release
 - [x] Match history with detailed statistics (last 10 matches)
 - [x] Google Authentication with Firebase
-- [x] User profiles with player names
+- [x] User profiles with custom player names
+- [x] Profile photo display in-game
+- [x] Auto-fill Team 1 with signed-in player
 - [ ] Web version release (Firebase Hosting)
 - [ ] Cloud sync for match history across devices
 
