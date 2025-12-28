@@ -1861,11 +1861,20 @@ function saveSettings() {
 }
 
 function updateUILanguage() {
-    // Update quick menu
-    document.querySelectorAll('.quick-menu-item span:not(.quick-menu-icon)').forEach((el, index) => {
-        const keys = ['newGame', 'newMatch', 'switchSides', 'switchColors', 'viewHistory'];
-        if (keys[index]) el.textContent = t(keys[index]);
-    });
+    // Update quick menu - Using IDs instead of indices for robustness
+    const textResetGame = document.getElementById('textResetGame');
+    const textResetMatch = document.getElementById('textResetMatch');
+    const textSwitchSides = document.getElementById('textSwitchSides');
+    const textSwitchColors = document.getElementById('textSwitchColors');
+    const textSignIn = document.getElementById('textSignIn');
+    const textLogout = document.getElementById('textLogout');
+
+    if (textResetGame) textResetGame.textContent = t('newGame');
+    if (textResetMatch) textResetMatch.textContent = t('newMatch');
+    if (textSwitchSides) textSwitchSides.textContent = t('switchSides');
+    if (textSwitchColors) textSwitchColors.textContent = t('switchColors');
+    if (textSignIn) textSignIn.textContent = t('signIn');
+    if (textLogout) textLogout.textContent = t('logout');
 
     // Update settings modal
     document.querySelector('#settingsModal .modal-title').textContent = t('settings');
@@ -1985,6 +1994,34 @@ function updateUILanguage() {
     if (timerDisplay.textContent === 'TIME OUT' || timerDisplay.textContent === 'TIEMPO' || timerDisplay.textContent === 'TEMPS') {
         timerDisplay.textContent = t('timeOut');
     }
+
+    // Update profile modal
+    const profileModalTitle = document.getElementById('profileModalTitle');
+    const btnCloseProfile = document.getElementById('btnCloseProfile');
+    const profileEmailLabel = document.getElementById('profileEmailLabel');
+    const profileUidLabel = document.getElementById('profileUidLabel');
+    const profileRankingLabel = document.getElementById('profileRankingLabel');
+    const profilePlayerNameLabel = document.getElementById('profilePlayerNameLabel');
+    const profileRanking = document.getElementById('profileRanking');
+    const btnUpdateProfile = document.getElementById('btnUpdateProfile');
+
+    if (profileModalTitle) profileModalTitle.textContent = t('myProfile');
+    if (btnCloseProfile) btnCloseProfile.textContent = t('close');
+    if (profileEmailLabel) profileEmailLabel.textContent = t('email');
+    if (profileUidLabel) profileUidLabel.textContent = t('userId');
+    if (profileRankingLabel) profileRankingLabel.textContent = t('ranking');
+    if (profilePlayerNameLabel) profilePlayerNameLabel.textContent = t('playerName');
+    if (profileRanking) profileRanking.textContent = t('comingSoon');
+    if (btnUpdateProfile) btnUpdateProfile.textContent = t('updateProfile');
+
+    // Update player name modal
+    const playerNameModalTitle = document.getElementById('playerNameModalTitle');
+    const playerNameLabel = document.getElementById('playerNameLabel');
+    const btnSavePlayerName = document.getElementById('btnSavePlayerName');
+
+    if (playerNameModalTitle) playerNameModalTitle.textContent = t('setPlayerName');
+    if (playerNameLabel) playerNameLabel.textContent = t('playerNameDescription');
+    if (btnSavePlayerName) btnSavePlayerName.textContent = t('save');
 }
 
 // Color Picker

@@ -29,6 +29,25 @@
             <div class="quick-menu-container">
                 <button class="icon-button" id="menuButton" onclick="toggleQuickMenu()" title="Quick Actions">☰</button>
                 <div class="quick-menu" id="quickMenu">
+                    <!-- Auth Section - Top (only when signed out) -->
+                    <button class="quick-menu-item" id="btnSignIn" onclick="handleAuthClick()">
+                        <span class="quick-menu-icon">👤</span>
+                        <span id="textSignIn">Sign In</span>
+                    </button>
+
+                    <!-- Profile Section (only when signed in) -->
+                    <button class="quick-menu-item" id="btnProfile" onclick="openProfileModal()" style="display: none;">
+                        <span class="quick-menu-icon" id="profileIcon">👤</span>
+                        <span id="profileName">Profile</span>
+                    </button>
+                    <button class="quick-menu-item" id="btnLogout" onclick="handleLogout()" style="display: none;">
+                        <span class="quick-menu-icon">↪</span>
+                        <span id="textLogout">Logout</span>
+                    </button>
+
+                    <div class="menu-divider" id="authDivider"></div>
+
+                    <!-- Game Actions -->
                     <button class="quick-menu-item" id="btnResetGame" onclick="resetGame()">
                         <span class="quick-menu-icon">↻</span>
                         <span id="textResetGame">Reset Game</span>
@@ -39,16 +58,11 @@
                     </button>
                     <button class="quick-menu-item" onclick="switchSides()">
                         <span class="quick-menu-icon">⇄</span>
-                        <span>Switch Sides</span>
+                        <span id="textSwitchSides">Switch Sides</span>
                     </button>
                     <button class="quick-menu-item" onclick="switchColors()">
                         <span class="quick-menu-icon">🎨</span>
-                        <span>Switch Colors</span>
-                    </button>
-                    <div class="menu-divider"></div>
-                    <button class="quick-menu-item" id="btnAuth" onclick="handleAuthClick()">
-                        <span class="quick-menu-icon" id="authIcon">👤</span>
-                        <span id="authText">Sign In</span>
+                        <span id="textSwitchColors">Switch Colors</span>
                     </button>
                 </div>
             </div>
@@ -442,6 +456,62 @@
                         placeholder="Enter your name"
                         maxlength="30"
                     />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div class="modal-overlay" id="profileModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="profileModalTitle">My Profile</span>
+                <div class="modal-actions">
+                    <button class="modal-btn" id="btnCloseProfile" onclick="closeProfileModal()">Close</button>
+                </div>
+            </div>
+            <div class="modal-content">
+                <div class="profile-container">
+                    <!-- Profile Photo -->
+                    <div class="profile-photo-section">
+                        <img id="profilePhoto" src="" alt="Profile" class="profile-photo">
+                    </div>
+
+                    <!-- Profile Info - Read Only -->
+                    <div class="settings-section">
+                        <label class="profile-label" id="profileEmailLabel">Email</label>
+                        <div class="profile-readonly" id="profileEmail">-</div>
+                    </div>
+
+                    <div class="settings-section">
+                        <label class="profile-label" id="profileUidLabel">User ID</label>
+                        <div class="profile-readonly profile-uid" id="profileUid">-</div>
+                    </div>
+
+                    <div class="settings-section">
+                        <label class="profile-label" id="profileRankingLabel">Ranking</label>
+                        <div class="profile-readonly" id="profileRanking">Coming soon...</div>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="menu-divider" style="margin: 1rem 0;"></div>
+
+                    <!-- Editable Player Name -->
+                    <div class="settings-section">
+                        <label for="profilePlayerNameInput" class="profile-label profile-label-editable" id="profilePlayerNameLabel">Player Name</label>
+                        <input
+                            type="text"
+                            id="profilePlayerNameInput"
+                            class="player-name-input"
+                            placeholder="Enter your player name"
+                            maxlength="30"
+                        />
+                    </div>
+
+                    <!-- Update Button -->
+                    <button class="modal-btn save" id="btnUpdateProfile" onclick="updateProfile()">
+                        Update Profile
+                    </button>
                 </div>
             </div>
         </div>

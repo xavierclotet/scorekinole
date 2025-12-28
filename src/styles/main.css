@@ -1922,3 +1922,82 @@
             font-size: 0.9rem;
             margin-bottom: 0.5rem;
         }
+
+        /* Profile Modal Styles */
+        .profile-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .profile-photo-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .profile-photo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid var(--accent-green);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .profile-label {
+            display: block;
+            font-weight: 600;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .profile-readonly {
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 1rem;
+            word-wrap: break-word;
+            cursor: not-allowed;
+        }
+
+        .profile-uid {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        .profile-label-editable {
+            color: var(--accent-green) !important;
+        }
+
+        #btnUpdateProfile {
+            margin-top: 1rem;
+            width: 100%;
+            padding: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background: var(--accent-green);
+            color: var(--bg-primary);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        #btnUpdateProfile:hover {
+            background: #00dd77;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 221, 119, 0.3);
+        }
+
+        #btnUpdateProfile:active {
+            transform: translateY(0);
+        }

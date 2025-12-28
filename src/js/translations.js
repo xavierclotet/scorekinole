@@ -58,7 +58,21 @@ export const translations = {
         duration: 'Duración',
         close: 'Cerrar',
         raceTo: 'A {points}p',
-        bestOf: 'Al mejor de {games}'
+        bestOf: 'Al mejor de {games}',
+        signIn: 'Iniciar Sesión',
+        logout: 'Cerrar Sesión',
+        profile: 'Perfil',
+        myProfile: 'Mi Perfil',
+        email: 'Email',
+        userId: 'ID de Usuario',
+        ranking: 'Ranking',
+        playerName: 'Nombre de Jugador',
+        updateProfile: 'Actualizar Perfil',
+        profileUpdated: '¡Perfil actualizado correctamente!',
+        enterPlayerName: 'Por favor, introduce un nombre de jugador',
+        comingSoon: 'Próximamente...',
+        setPlayerName: 'Establece tu Nombre de Jugador',
+        playerNameDescription: 'Este nombre se usará en tus partidas y clasificaciones'
     },
     ca: {
         settings: 'Configuració',
@@ -119,7 +133,21 @@ export const translations = {
         duration: 'Durada',
         close: 'Tancar',
         raceTo: 'A {points}p',
-        bestOf: 'Al millor de {games}'
+        bestOf: 'Al millor de {games}',
+        signIn: 'Iniciar Sessió',
+        logout: 'Tancar Sessió',
+        profile: 'Perfil',
+        myProfile: 'El Meu Perfil',
+        email: 'Email',
+        userId: 'ID d\'Usuari',
+        ranking: 'Rànquing',
+        playerName: 'Nom de Jugador',
+        updateProfile: 'Actualitzar Perfil',
+        profileUpdated: 'Perfil actualitzat correctament!',
+        enterPlayerName: 'Si us plau, introdueix un nom de jugador',
+        comingSoon: 'Properament...',
+        setPlayerName: 'Estableix el teu Nom de Jugador',
+        playerNameDescription: 'Aquest nom s\'usarà a les teves partides i classificacions'
     },
     en: {
         settings: 'Settings',
@@ -180,7 +208,21 @@ export const translations = {
         duration: 'Duration',
         close: 'Close',
         raceTo: 'Race {points}',
-        bestOf: 'Best of {games}'
+        bestOf: 'Best of {games}',
+        signIn: 'Sign In',
+        logout: 'Logout',
+        profile: 'Profile',
+        myProfile: 'My Profile',
+        email: 'Email',
+        userId: 'User ID',
+        ranking: 'Ranking',
+        playerName: 'Player Name',
+        updateProfile: 'Update Profile',
+        profileUpdated: 'Profile updated successfully!',
+        enterPlayerName: 'Please enter a player name',
+        comingSoon: 'Coming soon...',
+        setPlayerName: 'Set Your Player Name',
+        playerNameDescription: 'This name will be used in your matches and rankings'
     }
 };
 
