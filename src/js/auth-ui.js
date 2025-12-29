@@ -204,52 +204,11 @@ function updateTeam1NameWithPlayer(photoURL) {
     console.log('✅ Team 1 name set to:', currentPlayerName);
   }
 
-  // Update Team 1 display with photo
+  // Update Team 1 display with player name only (no photo/icon)
   const team1NameEl = document.getElementById('team1Name');
   if (team1NameEl) {
-    // Clear all existing content (photo and text)
-    team1NameEl.innerHTML = '';
-
-    // Add photo or default icon
-    if (photoURL) {
-      console.log('📷 Attempting to add photo:', photoURL);
-      const photoImg = document.createElement('img');
-      photoImg.src = photoURL;
-      photoImg.alt = 'Profile';
-      photoImg.className = 'player-photo';
-      photoImg.referrerPolicy = 'no-referrer';  // Avoid referrer issues with Google images
-      // Use only CSS class, no inline styles
-
-      // Add error handler - fallback to default icon if image fails
-      photoImg.onerror = (e) => {
-        console.error('❌ Photo failed to load:', photoURL, e);
-        console.log('🔄 Using default user icon instead');
-        // Replace with default icon
-        const defaultIcon = document.createElement('span');
-        defaultIcon.textContent = '👤';
-        defaultIcon.className = 'player-photo-icon';
-        defaultIcon.style.cssText = 'font-size: 1.8rem; margin-right: 0.5rem; display: inline-block; vertical-align: middle;';
-        photoImg.replaceWith(defaultIcon);
-      };
-      photoImg.onload = () => {
-        console.log('✅ Photo loaded successfully:', photoURL);
-      };
-
-      team1NameEl.appendChild(photoImg);
-      console.log('✅ Team 1 photo element added to DOM');
-    } else {
-      // No photoURL - use default user icon
-      console.log('📷 No photoURL, using default user icon');
-      const defaultIcon = document.createElement('span');
-      defaultIcon.textContent = '👤';
-      defaultIcon.className = 'player-photo-icon';
-      defaultIcon.style.cssText = 'font-size: 1.8rem; margin-right: 0.5rem; display: inline-block; vertical-align: middle;';
-      team1NameEl.appendChild(defaultIcon);
-    }
-
-    // Add player name text
-    const nameText = document.createTextNode(currentPlayerName);
-    team1NameEl.appendChild(nameText);
+    // Set only the player name text (no photo or icon)
+    team1NameEl.textContent = currentPlayerName;
     console.log('✅ Team 1 display updated with name:', currentPlayerName);
   }
 
