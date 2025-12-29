@@ -61,6 +61,10 @@ async function updateAuthUI(user) {
         // First time user - show player name modal and use Google name temporarily
         console.log('⚠️ No profile or playerName, using Google name:', user.name);
         currentPlayerName = user.name || 'User';
+
+        // Update Team 1 with Google name and photo (even if no playerName yet)
+        updateTeam1NameWithPlayer(photoURL);
+
         showPlayerNameModal();
       } else {
         // Load player name
@@ -183,6 +187,11 @@ export async function savePlayerName() {
 function updateTeam1NameWithPlayer(photoURL) {
   if (!currentPlayerName) return;
 
+  console.log('🔍 updateTeam1NameWithPlayer called with:', {
+    playerName: currentPlayerName,
+    photoURL: photoURL
+  });
+
   // Update Team 1 state directly (avoid calling setTeam1Name to prevent errors)
   if (window.team1) {
     window.team1.name = currentPlayerName;
@@ -201,15 +210,41 @@ function updateTeam1NameWithPlayer(photoURL) {
     // Clear all existing content (photo and text)
     team1NameEl.innerHTML = '';
 
-    // Add photo if available
+    // Add photo or default icon
     if (photoURL) {
+      console.log('📷 Attempting to add photo:', photoURL);
       const photoImg = document.createElement('img');
       photoImg.src = photoURL;
       photoImg.alt = 'Profile';
       photoImg.className = 'player-photo';
-      photoImg.style.cssText = 'width: 2rem; height: 2rem; border-radius: 50%; object-fit: cover; margin-right: 0.5rem; vertical-align: middle;';
+      photoImg.referrerPolicy = 'no-referrer';  // Avoid referrer issues with Google images
+      // Use only CSS class, no inline styles
+
+      // Add error handler - fallback to default icon if image fails
+      photoImg.onerror = (e) => {
+        console.error('❌ Photo failed to load:', photoURL, e);
+        console.log('🔄 Using default user icon instead');
+        // Replace with default icon
+        const defaultIcon = document.createElement('span');
+        defaultIcon.textContent = '👤';
+        defaultIcon.className = 'player-photo-icon';
+        defaultIcon.style.cssText = 'font-size: 1.8rem; margin-right: 0.5rem; display: inline-block; vertical-align: middle;';
+        photoImg.replaceWith(defaultIcon);
+      };
+      photoImg.onload = () => {
+        console.log('✅ Photo loaded successfully:', photoURL);
+      };
+
       team1NameEl.appendChild(photoImg);
-      console.log('✅ Team 1 photo added');
+      console.log('✅ Team 1 photo element added to DOM');
+    } else {
+      // No photoURL - use default user icon
+      console.log('📷 No photoURL, using default user icon');
+      const defaultIcon = document.createElement('span');
+      defaultIcon.textContent = '👤';
+      defaultIcon.className = 'player-photo-icon';
+      defaultIcon.style.cssText = 'font-size: 1.8rem; margin-right: 0.5rem; display: inline-block; vertical-align: middle;';
+      team1NameEl.appendChild(defaultIcon);
     }
 
     // Add player name text
@@ -298,8 +333,22 @@ async function openProfileModal() {
   const profileUid = document.getElementById('profileUid');
   const profilePlayerNameInput = document.getElementById('profilePlayerNameInput');
 
-  if (profilePhoto && user.photo) {
-    profilePhoto.src = user.photo;
+  if (profilePhoto) {
+    if (user.photo) {
+      profilePhoto.src = user.photo;
+      profilePhoto.style.display = 'block';
+
+      // Add error handler for profile photo
+      profilePhoto.onerror = () => {
+        console.error('❌ Profile photo failed to load:', user.photo);
+        // Hide image and show default icon
+        profilePhoto.style.display = 'none';
+      };
+    } else {
+      // No photo URL - hide image element
+      profilePhoto.style.display = 'none';
+      console.log('⚠️ No profile photo available');
+    }
   }
   if (profileEmail) {
     profileEmail.textContent = user.email || '-';
