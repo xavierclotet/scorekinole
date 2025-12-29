@@ -4,7 +4,7 @@
 
 A beautiful, responsive web application designed to track scores, manage timers, and enhance your Crokinole gaming experience. Built with modern web technologies and optimized for mobile devices.
 
-![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
@@ -187,6 +187,9 @@ Sign in with Google to unlock additional features:
 Automatically tracks your last 10 completed matches with comprehensive details:
 - **Accessible via History Button**: Click the 📜 button (located where 20s counters used to be) to view past matches
 - **Auto-Display**: History modal automatically appears when a match completes
+- **Tabbed Interface**: Two tabs for easy navigation
+  - **Current Match (🎮)**: View live progress of the match in play with round-by-round breakdown
+  - **History (📜)**: Browse completed matches with full statistics
 - **Detailed Statistics**:
   - **For Points Mode**:
     - Match result with game wins (e.g., "Team1 wins 2-1")

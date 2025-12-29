@@ -58,6 +58,9 @@ let currentGameRounds = [];  // Track rounds within current game (for points mod
 let previousRoundTwenty1 = 0; // Track previous round 20s for team1
 let previousRoundTwenty2 = 0; // Track previous round 20s for team2
 
+// Tab state for history modal
+let activeHistoryTab = 'history'; // 'current' | 'history'
+
 // Color picker state
 let currentColorTeam = 1;
 let tempColor = '';
@@ -343,6 +346,17 @@ function saveMatchToHistory() {
         console.error('Failed to save match history:', e);
     }
 
+    // Check if history modal is open and on current match tab
+    const modal = document.getElementById('historyModal');
+    const isModalOpen = modal && modal.style.display === 'flex';
+
+    if (isModalOpen && activeHistoryTab === 'current') {
+        // Switch to history tab since match just ended
+        setTimeout(() => {
+            switchHistoryTab('history');
+        }, 500); // Small delay to let user see completion
+    }
+
     // Reset tracking
     matchStartTime = 0;
     currentMatchGames = [];
@@ -356,6 +370,28 @@ function openHistory() {
 
 function showMatchHistory() {
     const modal = document.getElementById('historyModal');
+
+    // Determine which tab to show
+    if (hasCurrentMatch()) {
+        activeHistoryTab = 'current';
+    } else {
+        activeHistoryTab = 'history';
+    }
+
+    // Update tab translations
+    updateHistoryTabTranslations();
+
+    // Show modal
+    modal.style.display = 'flex';
+
+    // Switch to appropriate tab
+    switchHistoryTab(activeHistoryTab);
+}
+
+/**
+ * Render history list only
+ */
+function renderHistoryList() {
     const content = document.getElementById('historyContent');
     const empty = document.getElementById('historyEmpty');
 
@@ -383,12 +419,324 @@ function showMatchHistory() {
             });
         });
     }
-
-    modal.style.display = 'flex';
 }
 
 function closeHistory() {
     document.getElementById('historyModal').style.display = 'none';
+}
+
+/**
+ * Check if there's a match currently in progress
+ */
+function hasCurrentMatch() {
+    if (matchStartTime === 0) return false;
+
+    if (gameSettings.gameMode === 'points') {
+        return currentMatchGames.length > 0 || team1.matches > 0 || team2.matches > 0;
+    } else {
+        return currentMatchRounds.length > 0 || roundsPlayed > 0;
+    }
+}
+
+/**
+ * Update tab text translations
+ */
+function updateHistoryTabTranslations() {
+    const tabCurrentText = document.getElementById('tabCurrentMatchText');
+    const tabHistoryText = document.getElementById('tabHistoryText');
+    const currentEmptyText = document.getElementById('currentMatchEmptyText');
+
+    if (tabCurrentText) tabCurrentText.textContent = t('currentMatch');
+    if (tabHistoryText) tabHistoryText.textContent = t('matchHistory');
+    if (currentEmptyText) currentEmptyText.textContent = t('noCurrentMatch');
+}
+
+/**
+ * Switch between tabs in history modal
+ */
+function switchHistoryTab(tab) {
+    activeHistoryTab = tab;
+
+    const currentTab = document.getElementById('tabCurrentMatch');
+    const historyTab = document.getElementById('tabHistory');
+    const currentContent = document.getElementById('currentMatchContent');
+    const historyContent = document.getElementById('historyContent');
+    const historyEmpty = document.getElementById('historyEmpty');
+
+    // Check if elements exist
+    if (!currentTab || !historyTab || !currentContent || !historyContent || !historyEmpty) {
+        console.error('History tab elements not found');
+        return;
+    }
+
+    if (tab === 'current') {
+        // Activate "Current Match" tab
+        currentTab.classList.add('active');
+        historyTab.classList.remove('active');
+        currentContent.style.display = 'block';
+        historyContent.style.display = 'none';
+        historyEmpty.style.display = 'none';
+
+        // Render current match
+        renderCurrentMatch();
+    } else {
+        // Activate "History" tab
+        currentTab.classList.remove('active');
+        historyTab.classList.add('active');
+        currentContent.style.display = 'none';
+
+        // Render history list
+        renderHistoryList();
+    }
+}
+
+/**
+ * Render current match in progress
+ */
+function renderCurrentMatch() {
+    const display = document.getElementById('currentMatchDisplay');
+    const empty = document.getElementById('currentMatchEmpty');
+
+    if (!hasCurrentMatch()) {
+        display.style.display = 'none';
+        empty.style.display = 'block';
+        return;
+    }
+
+    empty.style.display = 'none';
+    display.style.display = 'flex';
+
+    // Calculate elapsed duration
+    const duration = Math.floor((Date.now() - matchStartTime) / 1000);
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    let durationStr = '';
+    if (minutes > 0 && seconds > 0) {
+        durationStr = `${minutes}min ${seconds}s`;
+    } else if (minutes > 0) {
+        durationStr = `${minutes}min`;
+    } else if (seconds > 0) {
+        durationStr = `${seconds}s`;
+    }
+
+    // Build mode label
+    let modeLabel = '';
+    if (gameSettings.gameMode === 'points') {
+        modeLabel = t('raceTo').replace('{points}', gameSettings.pointsToWin);
+        if (gameSettings.matchesToWin > 1) {
+            modeLabel += ` • ${t('bestOf').replace('{games}', gameSettings.matchesToWin * 2 - 1)}`;
+        }
+    } else {
+        modeLabel = `${gameSettings.roundsToPlay} ${t('rounds')}`;
+    }
+    const typeLabel = gameSettings.gameType === 'singles' ? t('singles') : t('doubles');
+
+    // Build event info
+    let eventInfo = '';
+    if (gameSettings.eventTitle || gameSettings.matchPhase) {
+        const parts = [];
+        if (gameSettings.eventTitle) parts.push(gameSettings.eventTitle);
+        if (gameSettings.matchPhase) parts.push(gameSettings.matchPhase);
+        eventInfo = `<div style="font-weight: 600; color: var(--accent-green); margin-bottom: 0.5rem;">${parts.join(' • ')}</div>`;
+    }
+
+    // Current score display
+    let scoreDisplay = '';
+    let total20sTeam1 = team1.twenty;
+    let total20sTeam2 = team2.twenty;
+
+    if (gameSettings.gameMode === 'points') {
+        scoreDisplay = `${team1.matches} - ${team2.matches}`;
+    } else {
+        scoreDisplay = `${team1.points} - ${team2.points}`;
+    }
+
+    let twentyInfo = '';
+    if (total20sTeam1 > 0 || total20sTeam2 > 0) {
+        twentyInfo = ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${total20sTeam1}-${total20sTeam2}</span>`;
+    }
+
+    // Build header
+    const headerHtml = `
+        <div class="history-entry">
+            <div class="history-header">
+                <div style="flex: 1;">
+                    ${eventInfo}
+                    <div style="font-weight: 600; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="color: ${team1.color};">${team1.name}</span>
+                        <span style="color: var(--text-dim);">vs</span>
+                        <span style="color: ${team2.color};">${team2.name}</span>
+                    </div>
+                    <div class="history-meta">
+                        <div>${typeLabel} • ${modeLabel}</div>
+                        <div>${t('duration')}: ${durationStr}</div>
+                        <div>${t('rounds')}: ${roundsPlayed}</div>
+                    </div>
+                    <div class="history-result" style="color: var(--accent-green);">
+                        ${t('inProgress')}: ${scoreDisplay}${twentyInfo}
+                    </div>
+                </div>
+            </div>
+            <div class="history-body">
+                ${renderCurrentMatchRounds()}
+            </div>
+        </div>
+    `;
+
+    display.innerHTML = headerHtml;
+}
+
+/**
+ * Render rounds/games of current match
+ */
+function renderCurrentMatchRounds() {
+    if (gameSettings.gameMode === 'points') {
+        // Render completed games + current game in progress
+        let gamesHtml = '';
+
+        // Render completed games
+        currentMatchGames.forEach(game => {
+            const team1Color = team1.color;
+            const team2Color = team2.color;
+
+            const game20sTeam1 = game.team1.twentyCount || 0;
+            const game20sTeam2 = game.team2.twentyCount || 0;
+            const twentyDisplay = (game20sTeam1 > 0 || game20sTeam2 > 0)
+                ? ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${game20sTeam1}-${game20sTeam2}</span>`
+                : '';
+
+            const gameHeader = `<div style="font-weight: 600; margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem;">
+                ${t('game')} ${game.gameNumber} - ${game.team1.finalPoints}-${game.team2.finalPoints}
+                ${game.winner === 'team1' ? ` • ${team1.name}` : game.winner === 'team2' ? ` • ${team2.name}` : ''}
+                ${twentyDisplay}
+            </div>`;
+
+            // Render rounds within game
+            const roundsHtml = (game.rounds || []).map((round, ridx) => {
+                const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
+                const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
+
+                const prevRound = ridx > 0 ? game.rounds[ridx - 1] : null;
+                const team1RoundPoints = prevRound ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound : round.team1.pointsAfterRound;
+                const team2RoundPoints = prevRound ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound : round.team2.pointsAfterRound;
+
+                const show20s = gameSettings.show20s;
+                const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
+                const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
+
+                return `
+                    <div class="history-round-row">
+                        <span class="history-round-label">${t('round')} ${round.roundNumber}</span>
+                        <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
+                            <span class="history-team-name">${team1.name}</span>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                                <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
+                                ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="history-team-score" style="background: ${team2Color}20; border-left: 3px solid ${team2Color};">
+                            <span class="history-team-name">${team2.name}</span>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                                <span class="history-team-points">${team2Hammer}${team2RoundPoints}</span>
+                                ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            gamesHtml += `<div style="margin-bottom: 1rem;">${gameHeader}${roundsHtml}</div>`;
+        });
+
+        // Add current game in progress (if rounds have been played but game not complete)
+        if (currentGameRounds.length > 0) {
+            const currentGameNumber = currentMatchGames.length + 1;
+            const team1Color = team1.color;
+            const team2Color = team2.color;
+
+            const gameHeader = `<div style="font-weight: 600; margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,255,136,0.1); border: 1px solid var(--accent-green); border-radius: 0.5rem;">
+                ${t('game')} ${currentGameNumber} - ${t('inProgress')}
+            </div>`;
+
+            const roundsHtml = currentGameRounds.map((round, ridx) => {
+                const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
+                const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
+
+                const prevRound = ridx > 0 ? currentGameRounds[ridx - 1] : null;
+                const team1RoundPoints = prevRound ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound : round.team1.pointsAfterRound;
+                const team2RoundPoints = prevRound ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound : round.team2.pointsAfterRound;
+
+                const show20s = gameSettings.show20s;
+                const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
+                const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
+
+                return `
+                    <div class="history-round-row">
+                        <span class="history-round-label">${t('round')} ${round.roundNumber}</span>
+                        <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
+                            <span class="history-team-name">${team1.name}</span>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                                <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
+                                ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="history-team-score" style="background: ${team2Color}20; border-left: 3px solid ${team2Color};">
+                            <span class="history-team-name">${team2.name}</span>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                                <span class="history-team-points">${team2Hammer}${team2RoundPoints}</span>
+                                ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            gamesHtml += `<div style="margin-bottom: 1rem;">${gameHeader}${roundsHtml}</div>`;
+        }
+
+        return gamesHtml;
+    } else {
+        // Render rounds for rounds mode
+        const team1Color = team1.color;
+        const team2Color = team2.color;
+
+        return currentMatchRounds.map((round, idx) => {
+            const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
+            const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
+
+            const prevRound = idx > 0 ? currentMatchRounds[idx - 1] : null;
+            const team1RoundPoints = prevRound
+                ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound
+                : round.team1.pointsAfterRound;
+            const team2RoundPoints = prevRound
+                ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound
+                : round.team2.pointsAfterRound;
+
+            const show20s = gameSettings.show20s;
+            const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
+            const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
+
+            return `
+                <div class="history-round-row">
+                    <span class="history-round-label">${t('round')} ${round.roundNumber}</span>
+                    <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
+                        <span class="history-team-name">${team1.name}</span>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                            <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
+                            ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="history-team-score" style="background: ${team2Color}20; border-left: 3px solid ${team2Color};">
+                        <span class="history-team-name">${team2.name}</span>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
+                            <span class="history-team-points">${team2Hammer}${team2RoundPoints}</span>
+                            ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
 }
 
 function renderMatchEntry(match, index) {
@@ -1435,6 +1783,15 @@ function completeResetMatch() {
     updateDisplay();
     saveData();
     stopTimer();
+
+    // Check if history modal is open and on current match tab
+    const modal = document.getElementById('historyModal');
+    const isModalOpen = modal && modal.style.display === 'flex';
+
+    if (isModalOpen && activeHistoryTab === 'current') {
+        // Refresh current match display (will show empty state)
+        renderCurrentMatch();
+    }
     resetTimer();
     closeQuickMenu();
 }
@@ -2597,3 +2954,4 @@ window.giveFeedback = giveFeedback;
 window.incrementCounter = incrementCounter;
 window.selectStartingTeam = selectStartingTeam;
 window.closeHistory = closeHistory;
+window.switchHistoryTab = switchHistoryTab;

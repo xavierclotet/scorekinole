@@ -1,5 +1,5 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.2",
   "type": "module",
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.0.1",
@@ -17,6 +17,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "sync": "npx cap sync",
-    "build:apk": "npm run build && npx cap sync android && cd android && .\\gradlew.bat app:assembleRelease && cd .. && node rename-apk.js"
+    "build:apk": "npm run build && npx cap sync android && cd android && .\\gradlew.bat app:assembleRelease && cd .. && node rename-apk.js",
+    "deploy": "npm run build && firebase deploy"
   }
 }

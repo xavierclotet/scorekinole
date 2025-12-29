@@ -85,6 +85,82 @@
             padding: 1rem;
         }
 
+        /* History Tabs */
+        .history-tabs {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0 1rem;
+            border-bottom: 2px solid var(--divider);
+            background: rgba(10, 14, 26, 0.5);
+        }
+
+        .history-tab {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            padding: 1rem 0.75rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border-bottom: 3px solid transparent;
+            position: relative;
+            top: 2px;
+        }
+
+        .history-tab .tab-icon {
+            font-size: 1.1rem;
+        }
+
+        .history-tab .tab-text {
+            display: none; /* Hidden on mobile */
+        }
+
+        .history-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .history-tab.active {
+            color: var(--accent-green);
+            border-bottom-color: var(--accent-green);
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        /* Show tab text on larger screens */
+        @media (min-width: 400px) {
+            .history-tab .tab-text {
+                display: inline;
+            }
+        }
+
+        /* Pulse animation for "In Progress" */
+        .history-result[style*="accent-green"] {
+            animation: pulse-green 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        /* Responsive adjustments */
+        @media (orientation: portrait) and (max-height: 700px) {
+            .history-tabs {
+                padding: 0 0.75rem;
+            }
+
+            .history-tab {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.85rem;
+            }
+        }
+
         .history-content {
             display: flex;
             flex-direction: column;

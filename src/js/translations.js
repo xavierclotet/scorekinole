@@ -72,7 +72,10 @@ export const translations = {
         enterPlayerName: 'Por favor, introduce un nombre de jugador',
         comingSoon: 'Próximamente...',
         setPlayerName: 'Establece tu Nombre de Jugador',
-        playerNameDescription: 'Este nombre se usará en tus partidas y clasificaciones'
+        playerNameDescription: 'Este nombre se usará en tus partidas y clasificaciones',
+        currentMatch: 'Partida en Curso',
+        noCurrentMatch: 'No hay partida en curso. ¡Comienza a jugar!',
+        inProgress: 'En Progreso'
     },
     ca: {
         settings: 'Configuració',
@@ -147,7 +150,10 @@ export const translations = {
         enterPlayerName: 'Si us plau, introdueix un nom de jugador',
         comingSoon: 'Properament...',
         setPlayerName: 'Estableix el teu Nom de Jugador',
-        playerNameDescription: 'Aquest nom s\'usarà a les teves partides i classificacions'
+        playerNameDescription: 'Aquest nom s\'usarà a les teves partides i classificacions',
+        currentMatch: 'Partida en Curs',
+        noCurrentMatch: 'No hi ha partida en curs. Comença a jugar!',
+        inProgress: 'En Curs'
     },
     en: {
         settings: 'Settings',
@@ -222,7 +228,10 @@ export const translations = {
         enterPlayerName: 'Please enter a player name',
         comingSoon: 'Coming soon...',
         setPlayerName: 'Set Your Player Name',
-        playerNameDescription: 'This name will be used in your matches and rankings'
+        playerNameDescription: 'This name will be used in your matches and rankings',
+        currentMatch: 'Current Match',
+        noCurrentMatch: 'No match in progress. Start playing!',
+        inProgress: 'In Progress'
     }
 };
 
