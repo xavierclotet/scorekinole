@@ -53,6 +53,7 @@ export const translations = {
         game: 'Partida',
         round: 'Ronda',
         rounds: 'rondas',
+        edit: 'Editar',
         gana: 'gana',
         delete: 'Eliminar',
         duration: 'Duración',
@@ -75,7 +76,13 @@ export const translations = {
         playerNameDescription: 'Este nombre se usará en tus partidas y clasificaciones',
         currentMatch: 'Partida en Curso',
         noCurrentMatch: 'No hay partida en curso. ¡Comienza a jugar!',
-        inProgress: 'En Progreso'
+        inProgress: 'En Progreso',
+        currentRound: 'Ronda actual',
+        roundPoints: 'Puntos ronda',
+        synced: 'Sincronizado',
+        syncPending: 'Pendiente',
+        syncError: 'Error',
+        syncNow: 'Sincronizar'
     },
     ca: {
         settings: 'Configuració',
@@ -131,6 +138,7 @@ export const translations = {
         game: 'Partida',
         round: 'Ronda',
         rounds: 'rondes',
+        edit: 'Editar',
         gana: 'guanya',
         delete: 'Eliminar',
         duration: 'Durada',
@@ -153,7 +161,13 @@ export const translations = {
         playerNameDescription: 'Aquest nom s\'usarà a les teves partides i classificacions',
         currentMatch: 'Partida en Curs',
         noCurrentMatch: 'No hi ha partida en curs. Comença a jugar!',
-        inProgress: 'En Curs'
+        inProgress: 'En Curs',
+        currentRound: 'Ronda actual',
+        roundPoints: 'Punts ronda',
+        synced: 'Sincronitzat',
+        syncPending: 'Pendent',
+        syncError: 'Error',
+        syncNow: 'Sincronitzar'
     },
     en: {
         settings: 'Settings',
@@ -209,6 +223,7 @@ export const translations = {
         game: 'Game',
         round: 'Round',
         rounds: 'rounds',
+        edit: 'Edit',
         gana: 'wins',
         delete: 'Delete',
         duration: 'Duration',
@@ -231,7 +246,13 @@ export const translations = {
         playerNameDescription: 'This name will be used in your matches and rankings',
         currentMatch: 'Current Match',
         noCurrentMatch: 'No match in progress. Start playing!',
-        inProgress: 'In Progress'
+        inProgress: 'In Progress',
+        currentRound: 'Current round',
+        roundPoints: 'Round points',
+        synced: 'Synced',
+        syncPending: 'Pending',
+        syncError: 'Error',
+        syncNow: 'Sync'
     }
 };
 

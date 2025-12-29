@@ -4,7 +4,7 @@
 
 A beautiful, responsive web application designed to track scores, manage timers, and enhance your Crokinole gaming experience. Built with modern web technologies and optimized for mobile devices.
 
-![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.4-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
@@ -297,8 +297,13 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 - [x] User profiles with custom player names
 - [x] Profile photo display in-game
 - [x] Auto-fill Team 1 with signed-in player
+- [x] Cloud sync for match history across devices
+- [x] Firestore database restructuring for advanced queries
+  - Root-level matches collection for global filtering
+  - Query by tournament/event, date range, and user
+  - Composite indexes for performance optimization
+  - Foundation for rankings and analytics
 - [ ] Web version release (Firebase Hosting)
-- [ ] Cloud sync for match history across devices
 
 ### v2.0 (Future)
 - [ ] Player search and pairing system

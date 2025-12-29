@@ -1,5 +1,15 @@
 import { APP_VERSION, APP_NAME, DEFAULT_GAME_SETTINGS } from './constants.js';
 import { translations, t } from './translations.js';
+import {
+  deleteMatchFromCloud,
+  syncMatchToCloud,
+  syncCurrentMatchToCloud,
+  getCurrentMatchFromCloud,
+  deleteCurrentMatchFromCloud,
+  hasMatchLock,
+  isLockStale
+} from '../firebase/firestore.js';
+import { getCurrentUser } from '../firebase/auth.js';
 
 // Game State
 let gameSettings = { ...DEFAULT_GAME_SETTINGS };
@@ -254,6 +264,35 @@ function loadData() {
         }
     }
 
+    // Restore match state
+    const savedMatchState = localStorage.getItem('crokinoleMatchState');
+    if (savedMatchState) {
+        try {
+            const matchState = JSON.parse(savedMatchState);
+            matchStartTime = matchState.matchStartTime || 0;
+            roundsPlayed = matchState.roundsPlayed || 0;
+            currentMatchRounds = matchState.currentMatchRounds || [];
+            currentGameRounds = matchState.currentGameRounds || [];
+            currentMatchGames = matchState.currentMatchGames || [];
+            previousRoundTwenty1 = matchState.previousRoundTwenty1 || 0;
+            previousRoundTwenty2 = matchState.previousRoundTwenty2 || 0;
+            console.log('✅ Match state restored:', {
+                matchStartTime,
+                roundsPlayed,
+                currentMatchRoundsCount: currentMatchRounds.length,
+                currentGameRoundsCount: currentGameRounds.length,
+                currentMatchGamesCount: currentMatchGames.length
+            });
+        } catch (error) {
+            console.error('❌ Error loading match state:', error);
+        }
+    } else {
+        // Recalculate previousRoundTwenty values from current totals if no saved state
+        // This ensures 20s deltas are calculated correctly for the next round
+        previousRoundTwenty1 = team1.twenty || 0;
+        previousRoundTwenty2 = team2.twenty || 0;
+    }
+
     // Initialize timer with configured time
     timeRemaining = gameSettings.timerMinutes * 60 + gameSettings.timerSeconds;
 
@@ -279,6 +318,18 @@ function saveData() {
     localStorage.setItem('crokinoleGame', JSON.stringify(gameSettings));
     localStorage.setItem('crokinoleTeam1', JSON.stringify(team1));
     localStorage.setItem('crokinoleTeam2', JSON.stringify(team2));
+
+    // Save current match state
+    const matchState = {
+        matchStartTime,
+        roundsPlayed,
+        currentMatchRounds,
+        currentGameRounds,
+        currentMatchGames,
+        previousRoundTwenty1,
+        previousRoundTwenty2
+    };
+    localStorage.setItem('crokinoleMatchState', JSON.stringify(matchState));
 }
 
 function saveMatchToHistory() {
@@ -344,6 +395,24 @@ function saveMatchToHistory() {
         localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
     } catch (e) {
         console.error('Failed to save match history:', e);
+    }
+
+    // Auto-sync to Firebase if user is authenticated
+    if (getCurrentUser()) {
+        matchData.id = matchData.matchId; // Use matchId as id for Firebase
+        matchData.syncStatus = 'local'; // Initial status
+
+        syncMatchToCloud(matchData).then((syncedMatch) => {
+            if (syncedMatch.syncStatus === 'synced') {
+                // Update localStorage with synced status
+                matchData.syncStatus = 'synced';
+                history.matchHistory[0] = matchData; // Update first match (just added)
+                localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+                console.log('✅ Match auto-synced to cloud');
+            }
+        }).catch(err => {
+            console.error('❌ Auto-sync failed:', err);
+        });
     }
 
     // Check if history modal is open and on current match tab
@@ -415,7 +484,15 @@ function renderHistoryList() {
         content.querySelectorAll('.history-delete-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const index = parseInt(this.getAttribute('data-index'));
-                deleteHistoryEntry(index);
+                deleteHistoryEntry(index, this);
+            });
+        });
+
+        // Add event listeners for sync buttons
+        content.querySelectorAll('.history-sync-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-index'));
+                syncHistoryEntry(index, this);
             });
         });
     }
@@ -570,7 +647,7 @@ function renderCurrentMatch() {
                     <div class="history-meta">
                         <div>${typeLabel} • ${modeLabel}</div>
                         <div>${t('duration')}: ${durationStr}</div>
-                        <div>${t('rounds')}: ${roundsPlayed}</div>
+                        <div>${t('currentRound')}: ${roundsPlayed + 1}</div>
                     </div>
                     <div class="history-result" style="color: var(--accent-green);">
                         ${t('inProgress')}: ${scoreDisplay}${twentyInfo}
@@ -612,6 +689,7 @@ function renderCurrentMatchRounds() {
             </div>`;
 
             // Render rounds within game
+            const gameIdx = currentMatchGames.indexOf(game);
             const roundsHtml = (game.rounds || []).map((round, ridx) => {
                 const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
                 const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
@@ -621,6 +699,11 @@ function renderCurrentMatchRounds() {
                 const team2RoundPoints = prevRound ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound : round.team2.pointsAfterRound;
 
                 const show20s = gameSettings.show20s;
+                console.log(`🔍 [Points Mode] Game ${gameIdx + 1}, Round ${round.roundNumber} - twentyCount:`, {
+                    team1: round.team1.twentyCount,
+                    team2: round.team2.twentyCount,
+                    fullRound: round
+                });
                 const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
                 const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
 
@@ -641,6 +724,7 @@ function renderCurrentMatchRounds() {
                                 ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
                             </div>
                         </div>
+                        <button class="history-round-edit-btn" onclick="openEditRound(${ridx}, ${gameIdx})">✏️</button>
                     </div>
                 `;
             }).join('');
@@ -687,6 +771,7 @@ function renderCurrentMatchRounds() {
                                 ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
                             </div>
                         </div>
+                        <button class="history-round-edit-btn" onclick="openEditRound(${ridx}, -1)">✏️</button>
                     </div>
                 `;
             }).join('');
@@ -733,6 +818,7 @@ function renderCurrentMatchRounds() {
                             ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
                         </div>
                     </div>
+                    <button class="history-round-edit-btn" onclick="openEditRound(${idx}, -1)">✏️</button>
                 </div>
             `;
         }).join('');
@@ -943,6 +1029,24 @@ function renderMatchEntry(match, index) {
         eventInfo = `<div style="font-weight: 600; color: var(--accent-green); margin-bottom: 0.25rem;">${parts.join(' • ')}</div>`;
     }
 
+    // Sync status badge (only show if user is authenticated)
+    let syncBadge = '';
+    let syncButton = '';
+    const user = getCurrentUser();
+    if (user) {
+        const status = match.syncStatus || 'local';
+        if (status === 'synced') {
+            syncBadge = `<span class="sync-badge"><span class="sync-badge-icon">☁️</span>${t('synced')}</span>`;
+        } else if (status === 'error') {
+            syncBadge = `<span class="sync-badge error"><span class="sync-badge-icon">⚠️</span>${t('syncError')}</span>`;
+            syncButton = `<button class="history-sync-btn" data-index="${index}">${t('syncNow')}</button>`;
+        } else {
+            // local or pending
+            syncBadge = `<span class="sync-badge pending"><span class="sync-badge-icon">⏳</span>${t('syncPending')}</span>`;
+            syncButton = `<button class="history-sync-btn" data-index="${index}">${t('syncNow')}</button>`;
+        }
+    }
+
     return `
         <div class="history-entry">
             <div class="history-header">
@@ -952,9 +1056,12 @@ function renderMatchEntry(match, index) {
                         <div>${dateStr} ${timeStr}</div>
                         <div>${typeLabel} • ${modeLabel}${durationStr ? ' • ' + durationStr : ''}</div>
                     </div>
-                    <div class="history-result ${resultClass}">${resultText}${twentyInfo}</div>
+                    <div class="history-result ${resultClass}">${resultText}${twentyInfo}${syncBadge}</div>
                 </div>
-                <button class="history-delete-btn" data-index="${index}">${t('delete')}</button>
+                <div class="history-header-actions">
+                    ${syncButton}
+                    <button class="history-delete-btn" data-index="${index}">🗑️ ${t('delete')}</button>
+                </div>
             </div>
             <div class="history-body">
                 ${bodyHtml}
@@ -963,16 +1070,89 @@ function renderMatchEntry(match, index) {
     `;
 }
 
-function deleteHistoryEntry(index) {
+async function deleteHistoryEntry(index, button) {
     // Direct delete without confirmation to avoid sandbox issues
     const historyJson = localStorage.getItem('crokinoleMatchHistory');
     const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
 
+    const matchToDelete = history.matchHistory[index];
+
+    // Show visual feedback
+    if (button) {
+        button.disabled = true;
+        button.classList.add('deleting');
+        button.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">🗑️</span>';
+    }
+
+    // Delete from Firebase if match is synced
+    if (matchToDelete && matchToDelete.syncStatus === 'synced' && matchToDelete.id) {
+        try {
+            await deleteMatchFromCloud(matchToDelete.id);
+            console.log('✅ Match deleted from Firebase:', matchToDelete.id);
+        } catch (error) {
+            console.error('❌ Error deleting match from Firebase:', error);
+            // Continue with local deletion even if cloud delete fails
+        }
+    }
+
+    // Delete from localStorage
     history.matchHistory.splice(index, 1);
     localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
 
     // Refresh display
     showMatchHistory();
+}
+
+/**
+ * Sync a match from history to Firebase
+ * @param {number} index - Index of match in history array
+ * @param {HTMLElement} button - The sync button element
+ */
+async function syncHistoryEntry(index, button) {
+    const historyJson = localStorage.getItem('crokinoleMatchHistory');
+    const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
+
+    const matchToSync = history.matchHistory[index];
+    if (!matchToSync) {
+        console.error('Match not found at index:', index);
+        return;
+    }
+
+    // Disable button and show syncing state
+    button.disabled = true;
+    button.classList.add('syncing');
+    const originalText = button.textContent;
+    button.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">🔄</span>';
+
+    try {
+        console.log('🔄 Syncing match to cloud...', matchToSync);
+
+        // Sync to Firebase
+        const syncedMatch = await syncMatchToCloud(matchToSync);
+
+        // Update in localStorage
+        history.matchHistory[index] = syncedMatch;
+        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+
+        console.log('✅ Match synced successfully');
+
+        // Refresh display
+        showMatchHistory();
+    } catch (error) {
+        console.error('❌ Error syncing match:', error);
+
+        // Re-enable button
+        button.disabled = false;
+        button.classList.remove('syncing');
+        button.textContent = originalText;
+
+        // Update match with error status
+        history.matchHistory[index].syncStatus = 'error';
+        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+
+        // Refresh display to show error badge
+        showMatchHistory();
+    }
 }
 
 /**
@@ -1259,9 +1439,52 @@ function openTwentyDialog() {
     showTwentyInputForTeam(1);
 }
 
+/**
+ * Update the twentyCount in the most recently added round
+ * This must be called AFTER 20s are entered (or if no 20s dialog, immediately after round is saved)
+ */
+function updateLastRoundTwentyCount() {
+    const team1RoundTwenty = team1.twenty - previousRoundTwenty1;
+    const team2RoundTwenty = team2.twenty - previousRoundTwenty2;
+
+    console.log('🔄 Updating twentyCount in last round:', {
+        team1RoundTwenty,
+        team2RoundTwenty,
+        team1TotalTwenty: team1.twenty,
+        team2TotalTwenty: team2.twenty,
+        previousRoundTwenty1,
+        previousRoundTwenty2
+    });
+
+    if (gameSettings.gameMode === 'rounds') {
+        // Update the last round in currentMatchRounds
+        const lastRound = currentMatchRounds[currentMatchRounds.length - 1];
+        if (lastRound) {
+            lastRound.team1.twentyCount = team1RoundTwenty;
+            lastRound.team2.twentyCount = team2RoundTwenty;
+            console.log('✅ Updated twentyCount in currentMatchRounds');
+        }
+    } else {
+        // Update the last round in currentGameRounds
+        const lastRound = currentGameRounds[currentGameRounds.length - 1];
+        if (lastRound) {
+            lastRound.team1.twentyCount = team1RoundTwenty;
+            lastRound.team2.twentyCount = team2RoundTwenty;
+            console.log('✅ Updated twentyCount in currentGameRounds');
+        }
+    }
+
+    // Update previousRoundTwenty for next round
+    previousRoundTwenty1 = team1.twenty;
+    previousRoundTwenty2 = team2.twenty;
+}
+
 function closeTwentyDialog() {
     document.getElementById('twentyDialog').classList.remove('active');
     currentTwentyTeam = 0;
+
+    // Update the twentyCount now that user has entered the values
+    updateLastRoundTwentyCount();
 
     // Check if we need to check for winner/tie (in rounds mode after all rounds complete)
     const allRoundsCompleted = gameSettings.gameMode === 'rounds' && roundsPlayed >= gameSettings.roundsToPlay;
@@ -1282,6 +1505,11 @@ function closeTwentyDialog() {
 function updateHammerIndicator() {
     const team1Hammer = document.getElementById('team1Hammer');
     const team2Hammer = document.getElementById('team2Hammer');
+
+    // Check if elements exist before accessing properties
+    if (!team1Hammer || !team2Hammer) {
+        return;
+    }
 
     // Only show if setting is enabled
     if (gameSettings.showHammer) {
@@ -1566,6 +1794,14 @@ function updateScore(teamNum, delta) {
                 }
             };
 
+            console.log('📊 Round data saved:', {
+                roundNumber: roundsPlayed,
+                team1Twenty: team1RoundTwenty,
+                team2Twenty: team2RoundTwenty,
+                team1TotalTwenty: team1.twenty,
+                team2TotalTwenty: team2.twenty
+            });
+
             if (gameSettings.gameMode === 'rounds') {
                 currentMatchRounds.push(roundData);
             } else {
@@ -1573,9 +1809,8 @@ function updateScore(teamNum, delta) {
                 currentGameRounds.push(roundData);
             }
 
-            // Update previous round totals for next iteration
-            previousRoundTwenty1 = team1.twenty;
-            previousRoundTwenty2 = team2.twenty;
+            // NOTE: previousRoundTwenty1/2 will be updated in closeTwentyDialog()
+            // after the user enters the 20s values
 
             // Actualizar display de contador
             updateMatchesCounter();
@@ -1589,6 +1824,7 @@ function updateScore(teamNum, delta) {
                     openTwentyDialog();
                     return; // checkWinCondition or declareTie will be called after dialog closes
                 } else {
+                    updateLastRoundTwentyCount(); // Update 20s (will be 0 if not tracked)
                     checkWinConditionOrTie();
                     updateDisplay();
                     saveData();
@@ -1603,6 +1839,7 @@ function updateScore(teamNum, delta) {
                             return; // Exit - checkWinCondition will be called after dialog closes
                         } else {
                             toggleHammer(); // Just toggle hammer, no dialog
+                            updateLastRoundTwentyCount(); // Update 20s (will be 0 if not tracked)
                             // No 20s dialog, so check winner now
                             checkWinCondition();
                             updateDisplay();
@@ -1614,15 +1851,22 @@ function updateScore(teamNum, delta) {
                         return; // Exit - checkWinCondition will be called after dialog closes
                     } else {
                         // Game/match won, no 20s dialog, check winner now
+                        updateLastRoundTwentyCount(); // Update 20s (will be 0 if not tracked)
                         checkWinCondition();
                         updateDisplay();
                         saveData();
                     }
                 } else {
-                    // showHammer disabled, just check winner and update
-                    checkWinCondition();
-                    updateDisplay();
-                    saveData();
+                    // showHammer disabled
+                    if (gameSettings.show20s) {
+                        openTwentyDialog();
+                        return; // Exit - checkWinCondition will be called after dialog closes
+                    } else {
+                        updateLastRoundTwentyCount(); // Update 20s (will be 0 if not tracked)
+                        checkWinCondition();
+                        updateDisplay();
+                        saveData();
+                    }
                 }
             }
         } else {
@@ -2379,6 +2623,12 @@ function updateUILanguage() {
     if (playerNameModalTitle) playerNameModalTitle.textContent = t('setPlayerName');
     if (playerNameLabel) playerNameLabel.textContent = t('playerNameDescription');
     if (btnSavePlayerName) btnSavePlayerName.textContent = t('save');
+
+    // Update edit round modal labels
+    const editRoundPointsLabel = document.getElementById('editRoundPointsLabel');
+    const editRoundPointsLabel2 = document.getElementById('editRoundPointsLabel2');
+    if (editRoundPointsLabel) editRoundPointsLabel.textContent = t('roundPoints') + ':';
+    if (editRoundPointsLabel2) editRoundPointsLabel2.textContent = t('roundPoints') + ':';
 }
 
 // Color Picker
@@ -2955,3 +3205,178 @@ window.incrementCounter = incrementCounter;
 window.selectStartingTeam = selectStartingTeam;
 window.closeHistory = closeHistory;
 window.switchHistoryTab = switchHistoryTab;
+
+// Edit round variables
+let editingRoundIndex = -1;
+let editingGameIndex = -1;
+
+/**
+ * Open edit round modal
+ */
+function openEditRound(roundIndex, gameIndex) {
+    editingRoundIndex = roundIndex;
+    editingGameIndex = gameIndex;
+
+    // Get the round data
+    let round, rounds;
+    if (gameSettings.gameMode === 'rounds') {
+        rounds = currentMatchRounds;
+        round = rounds[roundIndex];
+    } else {
+        if (gameIndex === -1) {
+            rounds = currentGameRounds;
+            round = rounds[roundIndex];
+        } else {
+            rounds = currentMatchGames[gameIndex].rounds;
+            round = rounds[roundIndex];
+        }
+    }
+
+    if (!round) {
+        console.error('Round not found');
+        return;
+    }
+
+    // Calculate delta points
+    const prevRound = roundIndex > 0 ? rounds[roundIndex - 1] : null;
+    const team1RoundPoints = prevRound ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound : round.team1.pointsAfterRound;
+    const team2RoundPoints = prevRound ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound : round.team2.pointsAfterRound;
+
+    // Fill modal
+    document.getElementById('editRoundTitle').textContent = `${t('edit')} ${t('round')} ${round.roundNumber}`;
+    document.getElementById('editTeam1Label').textContent = team1.name;
+    document.getElementById('editTeam2Label').textContent = team2.name;
+
+    document.getElementById('editTeam1Points').value = team1RoundPoints;
+    document.getElementById('editTeam2Points').value = team2RoundPoints;
+    document.getElementById('editTeam1Twenty').value = round.team1.twentyCount || 0;
+    document.getElementById('editTeam2Twenty').value = round.team2.twentyCount || 0;
+
+    // Apply team colors to columns
+    const team1Column = document.getElementById('editRoundTeam1Column');
+    const team2Column = document.getElementById('editRoundTeam2Column');
+    const team1Header = document.getElementById('editRoundTeam1Header');
+    const team2Header = document.getElementById('editRoundTeam2Header');
+
+    if (team1Column && team2Column && team1Header && team2Header) {
+        team1Column.style.borderColor = team1.color;
+        team2Column.style.borderColor = team2.color;
+        team1Header.style.backgroundColor = team1.color;
+        team2Header.style.backgroundColor = team2.color;
+
+        // Set text color for contrast
+        team1Header.style.color = getContrastColor(team1.color);
+        team2Header.style.color = getContrastColor(team2.color);
+    }
+
+    // Show modal
+    document.getElementById('editRoundModal').style.display = 'flex';
+}
+
+/**
+ * Close edit round modal
+ */
+function closeEditRound() {
+    document.getElementById('editRoundModal').style.display = 'none';
+    editingRoundIndex = -1;
+    editingGameIndex = -1;
+}
+
+/**
+ * Save edited round
+ */
+function saveEditRound() {
+    const newTeam1Points = parseInt(document.getElementById('editTeam1Points').value) || 0;
+    const newTeam2Points = parseInt(document.getElementById('editTeam2Points').value) || 0;
+    const newTeam1Twenty = parseInt(document.getElementById('editTeam1Twenty').value) || 0;
+    const newTeam2Twenty = parseInt(document.getElementById('editTeam2Twenty').value) || 0;
+
+    // Get rounds array
+    let rounds;
+    if (gameSettings.gameMode === 'rounds') {
+        rounds = currentMatchRounds;
+    } else {
+        if (editingGameIndex === -1) {
+            rounds = currentGameRounds;
+        } else {
+            rounds = currentMatchGames[editingGameIndex].rounds;
+        }
+    }
+
+    // Calculate previous cumulative total
+    const prevRound = editingRoundIndex > 0 ? rounds[editingRoundIndex - 1] : null;
+    const prevTeam1Total = prevRound ? prevRound.team1.pointsAfterRound : 0;
+    const prevTeam2Total = prevRound ? prevRound.team2.pointsAfterRound : 0;
+
+    // Calculate old delta
+    const oldTeam1Delta = rounds[editingRoundIndex].team1.pointsAfterRound - prevTeam1Total;
+    const oldTeam2Delta = rounds[editingRoundIndex].team2.pointsAfterRound - prevTeam2Total;
+
+    // Calculate change
+    const team1Change = newTeam1Points - oldTeam1Delta;
+    const team2Change = newTeam2Points - oldTeam2Delta;
+    const team1TwentyChange = newTeam1Twenty - (rounds[editingRoundIndex].team1.twentyCount || 0);
+    const team2TwentyChange = newTeam2Twenty - (rounds[editingRoundIndex].team2.twentyCount || 0);
+
+    // Update the edited round
+    rounds[editingRoundIndex].team1.pointsAfterRound = prevTeam1Total + newTeam1Points;
+    rounds[editingRoundIndex].team2.pointsAfterRound = prevTeam2Total + newTeam2Points;
+    rounds[editingRoundIndex].team1.twentyCount = newTeam1Twenty;
+    rounds[editingRoundIndex].team2.twentyCount = newTeam2Twenty;
+
+    // Cascade changes to subsequent rounds
+    for (let i = editingRoundIndex + 1; i < rounds.length; i++) {
+        rounds[i].team1.pointsAfterRound += team1Change;
+        rounds[i].team2.pointsAfterRound += team2Change;
+    }
+
+    // Update team totals if editing affects current state
+    if (gameSettings.gameMode === 'points' && editingGameIndex === -1) {
+        team1.points += team1Change;
+        team2.points += team2Change;
+        team1.twenty += team1TwentyChange;
+        team2.twenty += team2TwentyChange;
+        updateDisplay();
+
+        if (editingRoundIndex === rounds.length - 1) {
+            previousRoundTwenty1 = team1.twenty;
+            previousRoundTwenty2 = team2.twenty;
+        }
+    }
+
+    if (gameSettings.gameMode === 'points' && editingGameIndex >= 0) {
+        const game = currentMatchGames[editingGameIndex];
+        game.team1.twentyCount += team1TwentyChange;
+        game.team2.twentyCount += team2TwentyChange;
+    }
+
+    if (gameSettings.gameMode === 'rounds') {
+        if (editingRoundIndex === rounds.length - 1) {
+            team1.points = rounds[editingRoundIndex].team1.pointsAfterRound;
+            team2.points = rounds[editingRoundIndex].team2.pointsAfterRound;
+            team1.twenty = rounds.reduce((sum, r) => sum + (r.team1.twentyCount || 0), 0);
+            team2.twenty = rounds.reduce((sum, r) => sum + (r.team2.twentyCount || 0), 0);
+            updateDisplay();
+            previousRoundTwenty1 = team1.twenty;
+            previousRoundTwenty2 = team2.twenty;
+        } else {
+            const lastRound = rounds[rounds.length - 1];
+            team1.points = lastRound.team1.pointsAfterRound;
+            team2.points = lastRound.team2.pointsAfterRound;
+            team1.twenty = rounds.reduce((sum, r) => sum + (r.team1.twentyCount || 0), 0);
+            team2.twenty = rounds.reduce((sum, r) => sum + (r.team2.twentyCount || 0), 0);
+            updateDisplay();
+        }
+    }
+
+    // Save and refresh
+    saveData();
+    if (activeHistoryTab === 'current') {
+        renderCurrentMatch();
+    }
+    closeEditRound();
+}
+
+window.openEditRound = openEditRound;
+window.closeEditRound = closeEditRound;
+window.saveEditRound = saveEditRound;

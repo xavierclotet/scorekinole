@@ -538,5 +538,51 @@
             </div>
         </div>
     </div>
+
+    <!-- Edit Round Modal -->
+    <div class="modal-overlay" id="editRoundModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="editRoundTitle">Editar Ronda</span>
+                <div class="modal-actions">
+                    <button class="modal-btn" onclick="closeEditRound()">Cancelar</button>
+                    <button class="modal-btn save" onclick="saveEditRound()">Guardar</button>
+                </div>
+            </div>
+            <div class="modal-content">
+                <div class="edit-round-columns">
+                    <!-- Team 1 Column -->
+                    <div class="edit-round-team-column" id="editRoundTeam1Column">
+                        <div class="edit-round-team-header" id="editRoundTeam1Header">
+                            <span id="editTeam1Label">Equip 1</span>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="editRoundPointsLabel">Punts ronda:</label>
+                            <input type="number" id="editTeam1Points" class="input-field" value="0" min="0" max="20">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">20s:</label>
+                            <input type="number" id="editTeam1Twenty" class="input-field" value="0" min="0" max="12">
+                        </div>
+                    </div>
+
+                    <!-- Team 2 Column -->
+                    <div class="edit-round-team-column" id="editRoundTeam2Column">
+                        <div class="edit-round-team-header" id="editRoundTeam2Header">
+                            <span id="editTeam2Label">Equip 2</span>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="editRoundPointsLabel2">Punts ronda:</label>
+                            <input type="number" id="editTeam2Points" class="input-field" value="0" min="0" max="20">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">20s:</label>
+                            <input type="number" id="editTeam2Twenty" class="input-field" value="0" min="0" max="12">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

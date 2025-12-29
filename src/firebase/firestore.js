@@ -8,13 +8,14 @@ import {
   getDocs,
   deleteDoc,
   query,
+  where,
   orderBy,
   limit,
   serverTimestamp
 } from 'firebase/firestore';
 
 /**
- * Sync match to Firestore
+ * Sync match to Firestore (root-level matches collection)
  * @param {Object} match Match object to sync
  * @returns {Promise<Object>} Match object with syncStatus added
  */
@@ -32,12 +33,15 @@ export async function syncMatchToCloud(match) {
 
   try {
     const matchId = match.id || generateMatchId();
-    const matchRef = doc(db, 'users', user.id, 'matches', matchId);
+    // Use root-level matches collection
+    const matchRef = doc(db, 'matches', matchId);
 
     const matchData = {
       ...match,
       id: matchId,
       userId: user.id,
+      userName: user.name || 'Unknown',
+      userEmail: user.email || '',
       syncedAt: serverTimestamp(),
       syncStatus: 'synced'
     };
@@ -69,8 +73,14 @@ export async function getMatchesFromCloud() {
   }
 
   try {
-    const matchesRef = collection(db, 'users', user.id, 'matches');
-    const q = query(matchesRef, orderBy('syncedAt', 'desc'), limit(50));
+    // Query root-level matches collection filtered by userId
+    const matchesRef = collection(db, 'matches');
+    const q = query(
+      matchesRef,
+      where('userId', '==', user.id),
+      orderBy('syncedAt', 'desc'),
+      limit(50)
+    );
     const querySnapshot = await getDocs(q);
 
     const matches = [];
@@ -104,7 +114,8 @@ export async function deleteMatchFromCloud(matchId) {
   }
 
   try {
-    const matchRef = doc(db, 'users', user.id, 'matches', matchId);
+    // Delete from root-level matches collection
+    const matchRef = doc(db, 'matches', matchId);
     await deleteDoc(matchRef);
     console.log('✅ Match deleted from cloud:', matchId);
     return true;
@@ -159,4 +170,255 @@ export function getMatchSyncStatus(match) {
  */
 export function isMatchSynced(match) {
   return match.syncStatus === 'synced';
+}
+
+// ============================================
+// CURRENT MATCH SYNC (with device lock)
+// ============================================
+
+/**
+ * Get or create device ID for this device
+ * @returns {string} Device UUID
+ */
+function getDeviceId() {
+  let deviceId = localStorage.getItem('crokinoleDeviceId');
+  if (!deviceId) {
+    deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('crokinoleDeviceId', deviceId);
+  }
+  return deviceId;
+}
+
+/**
+ * Sync current match to cloud
+ * @param {Object} matchData Current match data
+ * @returns {Promise<boolean>} Success status
+ */
+export async function syncCurrentMatchToCloud(matchData) {
+  if (!isFirebaseEnabled()) {
+    return false;
+  }
+
+  const user = getCurrentUser();
+  if (!user) {
+    return false;
+  }
+
+  try {
+    const deviceId = getDeviceId();
+    const matchRef = doc(db, 'users', user.id, 'currentMatch');
+
+    const data = {
+      ...matchData,
+      activeDevice: deviceId,
+      lastUpdate: serverTimestamp()
+    };
+
+    await setDoc(matchRef, data);
+    console.log('✅ Current match synced to cloud');
+    return true;
+  } catch (error) {
+    console.error('❌ Error syncing current match:', error);
+    return false;
+  }
+}
+
+/**
+ * Get current match from cloud
+ * @returns {Promise<Object|null>} Current match data or null
+ */
+export async function getCurrentMatchFromCloud() {
+  if (!isFirebaseEnabled()) {
+    return null;
+  }
+
+  const user = getCurrentUser();
+  if (!user) {
+    return null;
+  }
+
+  try {
+    const matchRef = doc(db, 'users', user.id, 'currentMatch');
+    const docSnap = await getDoc(matchRef);
+
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+    return null;
+  } catch (error) {
+    console.error('❌ Error getting current match from cloud:', error);
+    return null;
+  }
+}
+
+/**
+ * Delete current match from cloud
+ * @returns {Promise<boolean>} Success status
+ */
+export async function deleteCurrentMatchFromCloud() {
+  if (!isFirebaseEnabled()) {
+    return false;
+  }
+
+  const user = getCurrentUser();
+  if (!user) {
+    return false;
+  }
+
+  try {
+    const matchRef = doc(db, 'users', user.id, 'currentMatch');
+    await deleteDoc(matchRef);
+    console.log('✅ Current match deleted from cloud');
+    return true;
+  } catch (error) {
+    console.error('❌ Error deleting current match from cloud:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if this device owns the current match lock
+ * @param {Object} currentMatch Current match data from cloud
+ * @returns {boolean} True if this device owns the lock
+ */
+export function hasMatchLock(currentMatch) {
+  if (!currentMatch) return true; // No match in cloud, we can take control
+
+  const deviceId = getDeviceId();
+  return currentMatch.activeDevice === deviceId;
+}
+
+/**
+ * Check if current match lock is stale (no heartbeat in 2 minutes)
+ * @param {Object} currentMatch Current match data from cloud
+ * @returns {boolean} True if lock is stale
+ */
+export function isLockStale(currentMatch) {
+  if (!currentMatch || !currentMatch.lastUpdate) return true;
+
+  const now = Date.now();
+  const lastUpdate = currentMatch.lastUpdate.toMillis ? currentMatch.lastUpdate.toMillis() : currentMatch.lastUpdate;
+  const timeSinceUpdate = now - lastUpdate;
+
+  // Lock is stale if no update in 2 minutes
+  return timeSinceUpdate > 120000;
+}
+
+// ============================================
+// ADVANCED QUERIES (for future features)
+// ============================================
+
+/**
+ * Get matches filtered by event title
+ * @param {string} eventTitle Event title to filter by
+ * @param {number} maxResults Maximum number of results (default 50)
+ * @returns {Promise<Array>} Array of match objects
+ */
+export async function getMatchesByEvent(eventTitle, maxResults = 50) {
+  if (!isFirebaseEnabled()) {
+    return [];
+  }
+
+  const user = getCurrentUser();
+  if (!user) {
+    return [];
+  }
+
+  try {
+    const matchesRef = collection(db, 'matches');
+    const q = query(
+      matchesRef,
+      where('userId', '==', user.id),
+      where('eventTitle', '==', eventTitle),
+      orderBy('timestamp', 'desc'),
+      limit(maxResults)
+    );
+    const querySnapshot = await getDocs(q);
+
+    const matches = [];
+    querySnapshot.forEach((doc) => {
+      matches.push({ id: doc.id, ...doc.data() });
+    });
+
+    console.log(`✅ Retrieved ${matches.length} matches for event: ${eventTitle}`);
+    return matches;
+  } catch (error) {
+    console.error('❌ Error getting matches by event:', error);
+    return [];
+  }
+}
+
+/**
+ * Get matches filtered by date range
+ * @param {number} startTimestamp Start timestamp (milliseconds)
+ * @param {number} endTimestamp End timestamp (milliseconds)
+ * @param {number} maxResults Maximum number of results (default 50)
+ * @returns {Promise<Array>} Array of match objects
+ */
+export async function getMatchesByDateRange(startTimestamp, endTimestamp, maxResults = 50) {
+  if (!isFirebaseEnabled()) {
+    return [];
+  }
+
+  const user = getCurrentUser();
+  if (!user) {
+    return [];
+  }
+
+  try {
+    const matchesRef = collection(db, 'matches');
+    const q = query(
+      matchesRef,
+      where('userId', '==', user.id),
+      where('timestamp', '>=', startTimestamp),
+      where('timestamp', '<=', endTimestamp),
+      orderBy('timestamp', 'desc'),
+      limit(maxResults)
+    );
+    const querySnapshot = await getDocs(q);
+
+    const matches = [];
+    querySnapshot.forEach((doc) => {
+      matches.push({ id: doc.id, ...doc.data() });
+    });
+
+    console.log(`✅ Retrieved ${matches.length} matches between ${new Date(startTimestamp).toLocaleDateString()} - ${new Date(endTimestamp).toLocaleDateString()}`);
+    return matches;
+  } catch (error) {
+    console.error('❌ Error getting matches by date range:', error);
+    return [];
+  }
+}
+
+/**
+ * Get global matches (admin/analytics use)
+ * WARNING: This queries all matches across all users. Use with caution.
+ * @param {number} maxResults Maximum number of results (default 100)
+ * @returns {Promise<Array>} Array of match objects
+ */
+export async function getAllMatches(maxResults = 100) {
+  if (!isFirebaseEnabled()) {
+    return [];
+  }
+
+  try {
+    const matchesRef = collection(db, 'matches');
+    const q = query(
+      matchesRef,
+      orderBy('syncedAt', 'desc'),
+      limit(maxResults)
+    );
+    const querySnapshot = await getDocs(q);
+
+    const matches = [];
+    querySnapshot.forEach((doc) => {
+      matches.push({ id: doc.id, ...doc.data() });
+    });
+
+    console.log(`✅ Retrieved ${matches.length} global matches`);
+    return matches;
+  } catch (error) {
+    console.error('❌ Error getting all matches:', error);
+    return [];
+  }
 }
