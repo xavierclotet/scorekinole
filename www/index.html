@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Lexend:wght@400;600&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/main-D1hXW-1O.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/main-CT05K4I0.css">
+  <script type="module" crossorigin src="./assets/main-DRn_5djV.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/main-C11Ujv-p.css">
 </head>
 <body>
     <div class="app-container">
@@ -426,6 +426,10 @@
             <div class="modal-header">
                 <span class="modal-title" id="historyTitle">Match History</span>
                 <div class="modal-actions">
+                    <button class="modal-btn" id="btnSyncAll" onclick="syncAllMatches()" style="display: none;">
+                        <span id="syncAllIcon">🔄</span>
+                        <span id="syncAllText">Sync All</span>
+                    </button>
                     <button class="modal-btn" id="btnHistoryClose" onclick="closeHistory()">Close</button>
                 </div>
             </div>
@@ -439,6 +443,10 @@
                 <button class="history-tab active" id="tabHistory" onclick="switchHistoryTab('history')">
                     <span class="tab-icon">📜</span>
                     <span class="tab-text" id="tabHistoryText">Historial</span>
+                </button>
+                <button class="history-tab" id="tabDeleted" onclick="switchHistoryTab('deleted')">
+                    <span class="tab-icon">🗑️</span>
+                    <span class="tab-text" id="tabDeletedText">Eliminados</span>
                 </button>
             </div>
 
@@ -455,6 +463,12 @@
                 <div id="historyContent" class="tab-content history-content"></div>
                 <div id="historyEmpty" class="history-empty" style="display: none;">
                     <p id="historyEmptyText">No match history yet. Complete a match to see it here!</p>
+                </div>
+
+                <!-- Deleted Content -->
+                <div id="deletedContent" class="tab-content history-content" style="display: none;"></div>
+                <div id="deletedEmpty" class="history-empty" style="display: none;">
+                    <p id="deletedEmptyText">No hay partidas eliminadas</p>
                 </div>
             </div>
         </div>

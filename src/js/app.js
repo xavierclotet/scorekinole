@@ -1,15 +1,20 @@
 import { APP_VERSION, APP_NAME, DEFAULT_GAME_SETTINGS } from './constants.js';
 import { translations, t } from './translations.js';
 import {
-  deleteMatchFromCloud,
+  softDeleteMatchFromCloud,
   syncMatchToCloud,
   syncCurrentMatchToCloud,
   getCurrentMatchFromCloud,
   deleteCurrentMatchFromCloud,
   hasMatchLock,
-  isLockStale
+  isLockStale,
+  getMatchesFromCloud,
+  getDeletedMatchesFromCloud,
+  restoreMatchFromCloud,
+  permanentlyDeleteMatchFromCloud
 } from '../firebase/firestore.js';
 import { getCurrentUser } from '../firebase/auth.js';
+import { syncTeam1NameIfLoggedIn } from './auth-ui.js';
 
 // Game State
 let gameSettings = { ...DEFAULT_GAME_SETTINGS };
@@ -69,7 +74,7 @@ let previousRoundTwenty1 = 0; // Track previous round 20s for team1
 let previousRoundTwenty2 = 0; // Track previous round 20s for team2
 
 // Tab state for history modal
-let activeHistoryTab = 'history'; // 'current' | 'history'
+let activeHistoryTab = 'history'; // 'current' | 'history' | 'deleted'
 
 // Color picker state
 let currentColorTeam = 1;
@@ -332,6 +337,74 @@ function saveData() {
     localStorage.setItem('crokinoleMatchState', JSON.stringify(matchState));
 }
 
+/**
+ * Calculate match result from match data
+ * @param {Object} matchData - Match data object
+ * @returns {Object} Result object with winner, scores, and twenties
+ */
+function calculateMatchResult(matchData) {
+    const result = {
+        winner: 'tie',
+        team1Score: 0,
+        team2Score: 0,
+        team1Twenties: 0,
+        team2Twenties: 0,
+        resultText: ''
+    };
+
+    const team1Name = matchData.teams.team1.name;
+    const team2Name = matchData.teams.team2.name;
+
+    if (matchData.gameMode === 'points') {
+        // Calculate total 20s summing all games
+        result.team1Twenties = matchData.games.reduce((sum, game) => sum + (game.team1.twentyCount || 0), 0);
+        result.team2Twenties = matchData.games.reduce((sum, game) => sum + (game.team2.twentyCount || 0), 0);
+
+        // Calculate wins counting games won
+        const team1Wins = matchData.games.filter(g => g.winner === 'team1').length;
+        const team2Wins = matchData.games.filter(g => g.winner === 'team2').length;
+
+        result.team1Score = team1Wins;
+        result.team2Score = team2Wins;
+
+        if (team1Wins > team2Wins) {
+            result.winner = 'team1';
+            result.resultText = `${team1Name} ${t('gana')} ${team1Wins}-${team2Wins}`;
+        } else if (team2Wins > team1Wins) {
+            result.winner = 'team2';
+            result.resultText = `${team2Name} ${t('gana')} ${team2Wins}-${team1Wins}`;
+        } else {
+            result.winner = 'tie';
+            result.resultText = `${t('tie')} ${team1Wins}-${team2Wins}`;
+        }
+    } else {
+        // In rounds mode calculate summing all rounds
+        result.team1Twenties = matchData.rounds.reduce((sum, round) => sum + (round.team1.twentyCount || 0), 0);
+        result.team2Twenties = matchData.rounds.reduce((sum, round) => sum + (round.team2.twentyCount || 0), 0);
+
+        // Calculate final points summing all rounds
+        const lastRound = matchData.rounds[matchData.rounds.length - 1];
+        const team1Points = lastRound ? lastRound.team1.pointsAfterRound : 0;
+        const team2Points = lastRound ? lastRound.team2.pointsAfterRound : 0;
+
+        result.team1Score = team1Points;
+        result.team2Score = team2Points;
+
+        if (team1Points > team2Points) {
+            result.winner = 'team1';
+            result.resultText = `${team1Name} ${t('gana')} ${team1Points}-${team2Points}`;
+        } else if (team2Points > team1Points) {
+            result.winner = 'team2';
+            result.resultText = `${team2Name} ${t('gana')} ${team1Points}-${team2Points}`;
+        } else {
+            result.winner = 'tie';
+            result.resultText = `${t('tie')} ${team1Points}-${team2Points}`;
+        }
+    }
+
+    return result;
+}
+
 function saveMatchToHistory() {
     // Don't save if match just started (no meaningful data)
     if (matchStartTime === 0) return;
@@ -372,6 +445,9 @@ function saveMatchToHistory() {
         matchData.metadata.roundsToPlay = gameSettings.roundsToPlay;
         matchData.rounds = currentMatchRounds;
     }
+
+    // Calculate and store result
+    matchData.result = calculateMatchResult(matchData);
 
     // Load existing history
     const historyJson = localStorage.getItem('crokinoleMatchHistory');
@@ -440,8 +516,27 @@ function openHistory() {
 function showMatchHistory() {
     const modal = document.getElementById('historyModal');
 
+    // Check if there's content for each tab
+    const hasCurrentMatchContent = hasCurrentMatch();
+
+    // Check deleted matches
+    const historyJson = localStorage.getItem('crokinoleMatchHistory');
+    const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
+    const hasDeletedMatches = history.matchHistory.some(match => match.status === 'deleted');
+
+    // Show/hide tabs based on content
+    const tabCurrentMatch = document.getElementById('tabCurrentMatch');
+    const tabDeleted = document.getElementById('tabDeleted');
+
+    if (tabCurrentMatch) {
+        tabCurrentMatch.style.display = hasCurrentMatchContent ? 'flex' : 'none';
+    }
+    if (tabDeleted) {
+        tabDeleted.style.display = hasDeletedMatches ? 'flex' : 'none';
+    }
+
     // Determine which tab to show
-    if (hasCurrentMatch()) {
+    if (hasCurrentMatchContent) {
         activeHistoryTab = 'current';
     } else {
         activeHistoryTab = 'history';
@@ -449,6 +544,18 @@ function showMatchHistory() {
 
     // Update tab translations
     updateHistoryTabTranslations();
+
+    // Show/hide Sync All button based on auth state
+    const btnSyncAll = document.getElementById('btnSyncAll');
+    const syncAllText = document.getElementById('syncAllText');
+    const user = getCurrentUser();
+
+    if (btnSyncAll) {
+        btnSyncAll.style.display = user ? 'flex' : 'none';
+    }
+    if (syncAllText) {
+        syncAllText.textContent = t('syncAll') || 'Sync All';
+    }
 
     // Show modal
     modal.style.display = 'flex';
@@ -468,16 +575,21 @@ function renderHistoryList() {
     const historyJson = localStorage.getItem('crokinoleMatchHistory');
     const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
 
-    if (history.matchHistory.length === 0) {
+    // Filter out deleted matches (only show active matches)
+    const activeMatches = history.matchHistory.filter(match => match.status !== 'deleted');
+
+    if (activeMatches.length === 0) {
         content.style.display = 'none';
         empty.style.display = 'block';
     } else {
         content.style.display = 'flex';
         empty.style.display = 'none';
 
-        // Render history entries
-        content.innerHTML = history.matchHistory.map((match, index) => {
-            return renderMatchEntry(match, index);
+        // Render active history entries
+        content.innerHTML = activeMatches.map((match, index) => {
+            // Find original index in full array for delete/sync operations
+            const originalIndex = history.matchHistory.indexOf(match);
+            return renderMatchEntry(match, originalIndex);
         }).join('');
 
         // Add event listeners for delete buttons
@@ -498,8 +610,231 @@ function renderHistoryList() {
     }
 }
 
+/**
+ * Render deleted matches list
+ */
+function renderDeletedList() {
+    const content = document.getElementById('deletedContent');
+    const empty = document.getElementById('deletedEmpty');
+
+    // Load history
+    const historyJson = localStorage.getItem('crokinoleMatchHistory');
+    const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
+
+    // Filter only deleted matches
+    const deletedMatches = history.matchHistory.filter(match => match.status === 'deleted');
+
+    if (deletedMatches.length === 0) {
+        if (content) content.style.display = 'none';
+        if (empty) empty.style.display = 'block';
+    } else {
+        if (content) content.style.display = 'flex';
+        if (empty) empty.style.display = 'none';
+
+        // Render deleted entries
+        content.innerHTML = deletedMatches.map((match, index) => {
+            const originalIndex = history.matchHistory.indexOf(match);
+            return renderDeletedMatchEntry(match, originalIndex);
+        }).join('');
+
+        // Add event listeners for restore buttons
+        content.querySelectorAll('.history-restore-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-index'));
+                restoreHistoryEntry(index, this);
+            });
+        });
+
+        // Add event listeners for permanent delete buttons
+        content.querySelectorAll('.history-permanent-delete-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-index'));
+                permanentlyDeleteHistoryEntry(index, this);
+            });
+        });
+    }
+}
+
+/**
+ * Render a deleted match entry with restore and permanent delete options
+ */
+function renderDeletedMatchEntry(match, index) {
+    // Use pre-calculated result if available, otherwise calculate it
+    let result;
+    if (match.result) {
+        result = match.result;
+    } else {
+        // Fallback for old matches without result field
+        result = calculateMatchResult(match);
+    }
+
+    // Determine CSS class based on winner
+    let resultClass = 'tie';
+    if (result.winner === 'team1') {
+        resultClass = 'team1-win';
+    } else if (result.winner === 'team2') {
+        resultClass = 'team2-win';
+    }
+
+    // Build twenties info
+    let twentyInfo = '';
+    if (result.team1Twenties > 0 || result.team2Twenties > 0) {
+        twentyInfo = ` • ⭐ ${result.team1Twenties}-${result.team2Twenties}`;
+    }
+
+    const deletedDate = match.deletedAt ? new Date(match.deletedAt).toLocaleDateString() : '';
+
+    return `
+        <div class="history-entry deleted-entry">
+            <div class="history-header">
+                <div style="flex: 1;">
+                    <div class="history-meta">
+                        <div>Deleted: ${deletedDate}</div>
+                    </div>
+                    <div class="history-result ${resultClass}">${result.resultText}${twentyInfo}</div>
+                </div>
+                <div class="history-header-actions">
+                    <button class="history-restore-btn" data-index="${index}">♻️ ${t('restore')}</button>
+                    <button class="history-permanent-delete-btn" data-index="${index}">🗑️ ${t('permanentDelete')}</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Restore a deleted match
+ */
+async function restoreHistoryEntry(index, button) {
+    const historyJson = localStorage.getItem('crokinoleMatchHistory');
+    const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
+
+    const matchToRestore = history.matchHistory[index];
+    const user = getCurrentUser();
+
+    // Show visual feedback
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">♻️</span>';
+    }
+
+    if (user && matchToRestore && matchToRestore.syncStatus === 'synced' && matchToRestore.id) {
+        try {
+            await restoreMatchFromCloud(matchToRestore.id);
+            console.log('✅ Match restored in Firebase:', matchToRestore.id);
+
+            // Update localStorage
+            delete matchToRestore.status;
+            delete matchToRestore.deletedAt;
+            localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+        } catch (error) {
+            console.error('❌ Error restoring match:', error);
+        }
+    } else {
+        // Local-only restore
+        delete matchToRestore.status;
+        delete matchToRestore.deletedAt;
+        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+    }
+
+    // Refresh display
+    switchHistoryTab('deleted');
+}
+
+/**
+ * Permanently delete a match
+ */
+async function permanentlyDeleteHistoryEntry(index, button) {
+    const historyJson = localStorage.getItem('crokinoleMatchHistory');
+    const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
+
+    const matchToDelete = history.matchHistory[index];
+    const user = getCurrentUser();
+
+    // Show visual feedback
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">🗑️</span>';
+    }
+
+    if (user && matchToDelete && matchToDelete.syncStatus === 'synced' && matchToDelete.id) {
+        try {
+            await permanentlyDeleteMatchFromCloud(matchToDelete.id);
+            console.log('✅ Match permanently deleted from Firebase:', matchToDelete.id);
+        } catch (error) {
+            console.error('❌ Error permanently deleting match:', error);
+        }
+    }
+
+    // Remove from localStorage
+    history.matchHistory.splice(index, 1);
+    localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+
+    // Refresh display
+    switchHistoryTab('deleted');
+}
+
 function closeHistory() {
     document.getElementById('historyModal').style.display = 'none';
+}
+
+/**
+ * Sync all matches from Firebase (Firebase as source of truth)
+ * Clears local history and replaces it with Firebase data
+ * Only syncs matches where current user is the owner (userId matches)
+ */
+async function syncAllMatches() {
+    const user = getCurrentUser();
+
+    if (!user) {
+        console.warn('⚠️ User must be signed in to sync matches');
+        return;
+    }
+
+    const btnSyncAll = document.getElementById('btnSyncAll');
+    const syncAllIcon = document.getElementById('syncAllIcon');
+    const syncAllText = document.getElementById('syncAllText');
+
+    // Show loading state
+    if (btnSyncAll) btnSyncAll.disabled = true;
+    if (syncAllIcon) syncAllIcon.textContent = '⏳';
+    if (syncAllText) syncAllText.textContent = t('syncing') || 'Syncing...';
+
+    try {
+        // Get matches from Firebase filtered by current user's userId
+        const firebaseMatches = await getMatchesFromCloud();
+
+        console.log(`🔄 Syncing ${firebaseMatches.length} matches for user ${user.id}`);
+
+        // Clear local history and replace with Firebase data
+        const history = {
+            matchHistory: firebaseMatches.map(match => ({
+                ...match,
+                syncStatus: 'synced' // Mark all as synced since they come from Firebase
+            }))
+        };
+
+        // Save to localStorage
+        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+
+        // Refresh the history display
+        renderHistoryList();
+
+        // Log success (in future, could show a toast notification)
+        const message = firebaseMatches.length > 0
+            ? `${t('syncComplete') || 'Sync complete!'} ${firebaseMatches.length} ${firebaseMatches.length === 1 ? 'match' : 'matches'}`
+            : t('noMatchesFound') || 'No matches found in Firebase';
+        console.log('✅', message);
+
+    } catch (error) {
+        console.error('❌ Error syncing matches:', error);
+        // TODO: Show toast notification instead of alert
+    } finally {
+        // Restore button state
+        if (btnSyncAll) btnSyncAll.disabled = false;
+        if (syncAllIcon) syncAllIcon.textContent = '🔄';
+        if (syncAllText) syncAllText.textContent = t('syncAll') || 'Sync All';
+    }
 }
 
 /**
@@ -521,11 +856,15 @@ function hasCurrentMatch() {
 function updateHistoryTabTranslations() {
     const tabCurrentText = document.getElementById('tabCurrentMatchText');
     const tabHistoryText = document.getElementById('tabHistoryText');
+    const tabDeletedText = document.getElementById('tabDeletedText');
     const currentEmptyText = document.getElementById('currentMatchEmptyText');
+    const deletedEmptyText = document.getElementById('deletedEmptyText');
 
     if (tabCurrentText) tabCurrentText.textContent = t('currentMatch');
     if (tabHistoryText) tabHistoryText.textContent = t('matchHistory');
+    if (tabDeletedText) tabDeletedText.textContent = t('deleted');
     if (currentEmptyText) currentEmptyText.textContent = t('noCurrentMatch');
+    if (deletedEmptyText) deletedEmptyText.textContent = t('noDeletedMatches');
 }
 
 /**
@@ -536,9 +875,12 @@ function switchHistoryTab(tab) {
 
     const currentTab = document.getElementById('tabCurrentMatch');
     const historyTab = document.getElementById('tabHistory');
+    const deletedTab = document.getElementById('tabDeleted');
     const currentContent = document.getElementById('currentMatchContent');
     const historyContent = document.getElementById('historyContent');
     const historyEmpty = document.getElementById('historyEmpty');
+    const deletedContent = document.getElementById('deletedContent');
+    const deletedEmpty = document.getElementById('deletedEmpty');
 
     // Check if elements exist
     if (!currentTab || !historyTab || !currentContent || !historyContent || !historyEmpty) {
@@ -550,17 +892,34 @@ function switchHistoryTab(tab) {
         // Activate "Current Match" tab
         currentTab.classList.add('active');
         historyTab.classList.remove('active');
+        if (deletedTab) deletedTab.classList.remove('active');
         currentContent.style.display = 'block';
         historyContent.style.display = 'none';
         historyEmpty.style.display = 'none';
+        if (deletedContent) deletedContent.style.display = 'none';
+        if (deletedEmpty) deletedEmpty.style.display = 'none';
 
         // Render current match
         renderCurrentMatch();
+    } else if (tab === 'deleted') {
+        // Activate "Deleted" tab
+        currentTab.classList.remove('active');
+        historyTab.classList.remove('active');
+        if (deletedTab) deletedTab.classList.add('active');
+        currentContent.style.display = 'none';
+        historyContent.style.display = 'none';
+        historyEmpty.style.display = 'none';
+
+        // Render deleted list
+        renderDeletedList();
     } else {
         // Activate "History" tab
         currentTab.classList.remove('active');
         historyTab.classList.add('active');
+        if (deletedTab) deletedTab.classList.remove('active');
         currentContent.style.display = 'none';
+        if (deletedContent) deletedContent.style.display = 'none';
+        if (deletedEmpty) deletedEmpty.style.display = 'none';
 
         // Render history list
         renderHistoryList();
@@ -713,7 +1072,7 @@ function renderCurrentMatchRounds() {
                         <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
                             <span class="history-team-name">${team1.name}</span>
                             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
-                                <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
+                                <span class="history-team-points">${team1RoundPoints}${team1Hammer}</span>
                                 ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
                             </div>
                         </div>
@@ -760,7 +1119,7 @@ function renderCurrentMatchRounds() {
                         <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
                             <span class="history-team-name">${team1.name}</span>
                             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
-                                <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
+                                <span class="history-team-points">${team1RoundPoints}${team1Hammer}</span>
                                 ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
                             </div>
                         </div>
@@ -781,47 +1140,85 @@ function renderCurrentMatchRounds() {
 
         return gamesHtml;
     } else {
-        // Render rounds for rounds mode
-        const team1Color = team1.color;
-        const team2Color = team2.color;
+        // Render rounds for rounds mode - Tabla compacta horizontal (solo team1)
+        const team1Name = team1.name;
 
-        return currentMatchRounds.map((round, idx) => {
-            const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
-            const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
+        // Calculate scores per round for team1
+        const team1Scores = [];
+        const team1Twenties = [];
+        const roundHeaders = [];
+        let team1Total = 0;
+        let team1TwentiesTotal = 0;
+        let team2Total = 0;
 
+        currentMatchRounds.forEach((round, idx) => {
             const prevRound = idx > 0 ? currentMatchRounds[idx - 1] : null;
+
+            // Team 1 round points
             const team1RoundPoints = prevRound
                 ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound
                 : round.team1.pointsAfterRound;
+
+            // Team 2 round points (for comparison only)
             const team2RoundPoints = prevRound
                 ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound
                 : round.team2.pointsAfterRound;
 
-            const show20s = gameSettings.show20s;
-            const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
-            const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
+            team1Total = round.team1.pointsAfterRound;
+            team2Total = round.team2.pointsAfterRound;
 
-            return `
-                <div class="history-round-row">
-                    <span class="history-round-label">${t('round')} ${round.roundNumber}</span>
-                    <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
-                        <span class="history-team-name">${team1.name}</span>
-                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
-                            <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
-                            ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="history-team-score" style="background: ${team2Color}20; border-left: 3px solid ${team2Color};">
-                        <span class="history-team-name">${team2.name}</span>
-                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
-                            <span class="history-team-points">${team2Hammer}${team2RoundPoints}</span>
-                            ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
-                        </div>
-                    </div>
-                    <button class="history-round-edit-btn" onclick="openEditRound(${idx}, -1)">✏️</button>
-                </div>
-            `;
-        }).join('');
+            // Determine color based on result
+            let team1ColorClass = 'round-tie';
+            if (team1RoundPoints > team2RoundPoints) {
+                team1ColorClass = 'round-win';
+            } else if (team1RoundPoints < team2RoundPoints) {
+                team1ColorClass = 'round-loss';
+            }
+
+            // Build header with hammer if team1 had it
+            const team1Hammer = round.team1.hadHammer ? '🔨' : '';
+            roundHeaders.push(`<th class="round-col">R${idx + 1}${team1Hammer}</th>`);
+
+            team1Scores.push(`<td class="round-col ${team1ColorClass}">${team1RoundPoints}</td>`);
+
+            // 20s tracking
+            const team1TwentyCount = round.team1.twentyCount || 0;
+            team1TwentiesTotal += team1TwentyCount;
+
+            team1Twenties.push(`<td class="round-col">${team1TwentyCount > 0 ? team1TwentyCount : '-'}</td>`);
+        });
+
+        const show20sRow = gameSettings.show20s || team1TwentiesTotal > 0;
+
+        return `
+            <div class="rounds-table-container">
+                <table class="rounds-table">
+                    <thead>
+                        <tr>
+                            <th class="label-col"></th>
+                            ${roundHeaders.join('')}
+                            <th class="total-col">TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="label-col" style="color: ${team1Total > team2Total ? 'var(--accent-green)' : (team1Total < team2Total ? 'var(--accent-red)' : 'var(--text-dim)')}">${team1Name}</td>
+                            ${team1Scores.join('')}
+                            <td class="total-col" style="font-size: 1.35rem;">
+                                <span style="color: ${team1Total > team2Total ? 'var(--accent-green)' : (team1Total < team2Total ? 'var(--accent-red)' : 'var(--text-dim)')}">${team1Total}</span><span>-</span><span style="color: ${team1Total > team2Total ? 'var(--accent-red)' : (team1Total < team2Total ? 'var(--accent-green)' : 'var(--text-dim)')}">${team2Total}</span>
+                            </td>
+                        </tr>
+                        ${show20sRow ? `
+                        <tr class="twenties-row">
+                            <td class="label-col" style="opacity: 0.7;">Total 20's</td>
+                            ${team1Twenties.join('')}
+                            <td class="total-col" style="opacity: 0.9; font-size: 1.1rem;">${team1TwentiesTotal > 0 ? team1TwentiesTotal : '-'}</td>
+                        </tr>
+                        ` : ''}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 }
 
@@ -853,54 +1250,30 @@ function renderMatchEntry(match, index) {
         }
     }
 
-    let resultClass = 'tie';
-    let resultText = '';
-    let twentyInfo = '';
-
-    if (match.gameMode === 'points') {
-        // Calcular total de 20s sumando todos los games
-        const total20sTeam1 = match.games.reduce((sum, game) => sum + (game.team1.twentyCount || 0), 0);
-        const total20sTeam2 = match.games.reduce((sum, game) => sum + (game.team2.twentyCount || 0), 0);
-
-        if (total20sTeam1 > 0 || total20sTeam2 > 0) {
-            twentyInfo = ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${total20sTeam1}-${total20sTeam2}</span>`;
-        }
-
-        // Calcular wins contando games ganados
-        const team1Wins = match.games.filter(g => g.winner === 'team1').length;
-        const team2Wins = match.games.filter(g => g.winner === 'team2').length;
-
-        if (team1Wins > team2Wins) {
-            resultClass = 'team1-win';
-            resultText = `${match.teams.team1.name} ${t('gana')} ${team1Wins}-${team2Wins}`;
-        } else {
-            resultClass = 'team2-win';
-            resultText = `${match.teams.team2.name} ${t('gana')} ${team2Wins}-${team1Wins}`;
-        }
+    // Use pre-calculated result if available, otherwise calculate it
+    let result;
+    if (match.result) {
+        result = match.result;
     } else {
-        // En rounds mode calculamos sumando todas las rondas
-        const total20sTeam1 = match.rounds.reduce((sum, round) => sum + (round.team1.twentyCount || 0), 0);
-        const total20sTeam2 = match.rounds.reduce((sum, round) => sum + (round.team2.twentyCount || 0), 0);
-
-        if (total20sTeam1 > 0 || total20sTeam2 > 0) {
-            twentyInfo = ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${total20sTeam1}-${total20sTeam2}</span>`;
-        }
-
-        // Calcular puntos finales sumando todas las rondas
-        const lastRound = match.rounds[match.rounds.length - 1];
-        const team1Points = lastRound ? lastRound.team1.pointsAfterRound : 0;
-        const team2Points = lastRound ? lastRound.team2.pointsAfterRound : 0;
-
-        if (team1Points > team2Points) {
-            resultClass = 'team1-win';
-            resultText = `${match.teams.team1.name} ${t('gana')} ${team1Points}-${team2Points}`;
-        } else if (team2Points > team1Points) {
-            resultClass = 'team2-win';
-            resultText = `${match.teams.team2.name} ${t('gana')} ${team1Points}-${team2Points}`;
-        } else {
-            resultText = `${t('tie')} ${team1Points}-${team2Points}`;
-        }
+        // Fallback for old matches without result field
+        result = calculateMatchResult(match);
     }
+
+    // Determine CSS class based on winner
+    let resultClass = 'tie';
+    if (result.winner === 'team1') {
+        resultClass = 'team1-win';
+    } else if (result.winner === 'team2') {
+        resultClass = 'team2-win';
+    }
+
+    // Build twenties info
+    let twentyInfo = '';
+    if (result.team1Twenties > 0 || result.team2Twenties > 0) {
+        twentyInfo = ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${result.team1Twenties}-${result.team2Twenties}</span>`;
+    }
+
+    const resultText = result.resultText;
 
     // Build mode label with details
     let modeLabel = '';
@@ -920,102 +1293,191 @@ function renderMatchEntry(match, index) {
     let bodyHtml = '';
 
     if (match.gameMode === 'points') {
-        bodyHtml = match.games.map(game => {
-            const team1Color = match.teams.team1.color;
-            const team2Color = match.teams.team2.color;
+        // Modo points - Una tabla por cada partida mostrando sus rondas (solo team1)
+        const team1Name = match.teams.team1.name;
 
-            // Game header with winner and total 20s
-            const game20sTeam1 = game.team1.twentyCount || 0;
-            const game20sTeam2 = game.team2.twentyCount || 0;
-            const twentyDisplay = (game20sTeam1 > 0 || game20sTeam2 > 0)
-                ? ` <span style="font-size: 0.85rem; opacity: 0.75;">• ⭐ ${game20sTeam1}-${game20sTeam2}</span>`
-                : '';
+        // Calculate total games won by each team across all games
+        let team1GamesWon = 0;
+        let team2GamesWon = 0;
+        match.games.forEach(g => {
+            if (g.winner === 'team1') team1GamesWon++;
+            else if (g.winner === 'team2') team2GamesWon++;
+        });
 
-            let gameHeader = `<div style="font-weight: 600; margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem;">
-                ${t('game')} ${game.gameNumber} - ${game.team1.finalPoints}-${game.team2.finalPoints}
-                ${game.winner === 'team1' ? ` • ${match.teams.team1.name}` : ` • ${match.teams.team2.name}`}
-                ${twentyDisplay}
-            </div>`;
+        // Find maximum number of rounds across all games to keep table width consistent
+        const maxRounds = Math.max(...match.games.map(g => (g.rounds || []).length));
 
-            // Render rounds of this game
-            const roundsHtml = (game.rounds || []).map((round, idx) => {
-                const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
-                const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
+        bodyHtml = match.games.map((game, gameIdx) => {
+            // Calculate scores per round for team1 in this game
+            const team1Scores = [];
+            const team1Twenties = [];
+            const roundHeaders = [];
+            let team1Total = 0;
+            let team1TwentiesTotal = 0;
 
-                // Calculate points won in this round
-                const prevRound = idx > 0 ? game.rounds[idx - 1] : null;
-                const team1RoundPoints = prevRound ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound : round.team1.pointsAfterRound;
-                const team2RoundPoints = prevRound ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound : round.team2.pointsAfterRound;
+            // Loop through all possible rounds (maxRounds)
+            for (let idx = 0; idx < maxRounds; idx++) {
+                const round = (game.rounds || [])[idx];
 
-                // Show 20s if enabled
-                const show20s = match.metadata.show20s;
-                const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
-                const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
+                if (round) {
+                    const prevRound = idx > 0 ? game.rounds[idx - 1] : null;
 
-                return `
-                    <div class="history-round-row">
-                        <span class="history-round-label">${t('round')} ${round.roundNumber}</span>
-                        <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
-                            <span class="history-team-name">${match.teams.team1.name}</span>
-                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
-                                <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
-                                ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="history-team-score" style="background: ${team2Color}20; border-left: 3px solid ${team2Color};">
-                            <span class="history-team-name">${match.teams.team2.name}</span>
-                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
-                                <span class="history-team-points">${team2Hammer}${team2RoundPoints}</span>
-                                ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                    // Team 1 round points
+                    const team1RoundPoints = prevRound
+                        ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound
+                        : round.team1.pointsAfterRound;
 
-            return `<div style="margin-bottom: 1rem;">${gameHeader}${roundsHtml}</div>`;
-        }).join('');
-    } else {
-        bodyHtml = match.rounds.map((round, idx) => {
-            const team1Color = match.teams.team1.color;
-            const team2Color = match.teams.team2.color;
-            const team1Hammer = round.team1.hadHammer ? '🔨 ' : '';
-            const team2Hammer = round.team2.hadHammer ? '🔨 ' : '';
+                    // Team 2 round points (for comparison only)
+                    const team2RoundPoints = prevRound
+                        ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound
+                        : round.team2.pointsAfterRound;
 
-            // Calcular puntos ganados en esta ronda (diferencia con la anterior)
-            const prevRound = idx > 0 ? match.rounds[idx - 1] : null;
-            const team1RoundPoints = prevRound
-                ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound
-                : round.team1.pointsAfterRound;
-            const team2RoundPoints = prevRound
-                ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound
-                : round.team2.pointsAfterRound;
+                    team1Total = round.team1.pointsAfterRound;
 
-            // Mostrar 20s si show20s estaba activo, incluso si es 0
-            const show20s = match.metadata.show20s;
-            const team1Twenty = show20s ? `⭐${round.team1.twentyCount || 0}` : (round.team1.twentyCount > 0 ? `⭐${round.team1.twentyCount}` : '');
-            const team2Twenty = show20s ? `⭐${round.team2.twentyCount || 0}` : (round.team2.twentyCount > 0 ? `⭐${round.team2.twentyCount}` : '');
+                    // Determine color based on result
+                    let team1ColorClass = 'round-tie';
+                    if (team1RoundPoints > team2RoundPoints) {
+                        team1ColorClass = 'round-win';
+                    } else if (team1RoundPoints < team2RoundPoints) {
+                        team1ColorClass = 'round-loss';
+                    }
+
+                    // Build header with hammer if team1 had it
+                    const team1Hammer = round.team1.hadHammer ? '🔨' : '';
+                    roundHeaders.push(`<th class="round-col">R${idx + 1}${team1Hammer}</th>`);
+                    team1Scores.push(`<td class="round-col ${team1ColorClass}">${team1RoundPoints}</td>`);
+
+                    const team1TwentyCount = round.team1.twentyCount || 0;
+                    team1TwentiesTotal += team1TwentyCount;
+                    team1Twenties.push(`<td class="round-col">${team1TwentyCount > 0 ? team1TwentyCount : '-'}</td>`);
+                } else {
+                    // Empty cell for rounds that didn't happen in this game
+                    roundHeaders.push(`<th class="round-col">R${idx + 1}</th>`);
+                    team1Scores.push(`<td class="round-col" style="opacity: 0.3;">-</td>`);
+                    team1Twenties.push(`<td class="round-col" style="opacity: 0.3;">-</td>`);
+                }
+            }
+
+            const show20sRow = match.metadata.show20s || team1TwentiesTotal > 0;
+
+            // Team2 total points for this game
+            const team2Total = game.team2.finalPoints;
 
             return `
-                <div class="history-round-row">
-                    <span class="history-round-label">${t('round')} ${round.roundNumber}</span>
-                    <div class="history-team-score" style="background: ${team1Color}20; border-left: 3px solid ${team1Color};">
-                        <span class="history-team-name">${match.teams.team1.name}</span>
-                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
-                            <span class="history-team-points">${team1Hammer}${team1RoundPoints}</span>
-                            ${team1Twenty ? `<span style="font-size: 0.75rem;">${team1Twenty}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="history-team-score" style="background: ${team2Color}20; border-left: 3px solid ${team2Color};">
-                        <span class="history-team-name">${match.teams.team2.name}</span>
-                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem;">
-                            <span class="history-team-points">${team2Hammer}${team2RoundPoints}</span>
-                            ${team2Twenty ? `<span style="font-size: 0.75rem;">${team2Twenty}</span>` : ''}
-                        </div>
+                <div style="margin-bottom: 1rem;">
+                    <div class="rounds-table-container">
+                        <table class="rounds-table">
+                            <thead>
+                                <tr>
+                                    <th class="label-col" style="font-size: 0.85rem; font-weight: 600;">
+                                        ${t('game')} ${game.gameNumber}
+                                    </th>
+                                    ${roundHeaders.join('')}
+                                    <th class="total-col">TOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="label-col" style="color: ${game.winner === 'team1' ? 'var(--accent-green)' : (game.winner === 'team2' ? 'var(--accent-red)' : 'var(--text-dim)')}">${team1Name}</td>
+                                    ${team1Scores.join('')}
+                                    <td class="total-col" style="font-size: 1.35rem;">
+                                        <span style="color: ${game.winner === 'team1' ? 'var(--accent-green)' : 'var(--accent-red)'}">${team1Total}</span><span>-</span><span style="color: ${game.winner === 'team1' ? 'var(--accent-red)' : 'var(--accent-green)'}">${team2Total}</span>
+                                    </td>
+                                </tr>
+                                ${show20sRow ? `
+                                <tr class="twenties-row">
+                                    <td class="label-col" style="opacity: 0.7;">Total 20's</td>
+                                    ${team1Twenties.join('')}
+                                    <td class="total-col" style="opacity: 0.9; font-size: 1.1rem;">${team1TwentiesTotal > 0 ? team1TwentiesTotal : '-'}</td>
+                                </tr>
+                                ` : ''}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             `;
         }).join('');
+    } else {
+        // Modo rounds - Tabla compacta horizontal (solo muestra team1)
+        const team1Name = match.teams.team1.name;
+
+        // Calculate scores per round for team1
+        const team1Scores = [];
+        const team1Twenties = [];
+        const roundHeaders = [];
+        let team1Total = 0;
+        let team1TwentiesTotal = 0;
+
+        let team2Total = 0;
+
+        match.rounds.forEach((round, idx) => {
+            const prevRound = idx > 0 ? match.rounds[idx - 1] : null;
+
+            // Team 1 round points
+            const team1RoundPoints = prevRound
+                ? round.team1.pointsAfterRound - prevRound.team1.pointsAfterRound
+                : round.team1.pointsAfterRound;
+
+            // Team 2 round points (for comparison only)
+            const team2RoundPoints = prevRound
+                ? round.team2.pointsAfterRound - prevRound.team2.pointsAfterRound
+                : round.team2.pointsAfterRound;
+
+            team1Total = round.team1.pointsAfterRound;
+            team2Total = round.team2.pointsAfterRound;
+
+            // Determine color based on result
+            let team1ColorClass = 'round-tie';
+            if (team1RoundPoints > team2RoundPoints) {
+                team1ColorClass = 'round-win';
+            } else if (team1RoundPoints < team2RoundPoints) {
+                team1ColorClass = 'round-loss';
+            }
+
+            // Build header with hammer if team1 had it
+            const team1Hammer = round.team1.hadHammer ? '🔨' : '';
+            roundHeaders.push(`<th class="round-col">R${idx + 1}${team1Hammer}</th>`);
+
+            team1Scores.push(`<td class="round-col ${team1ColorClass}">${team1RoundPoints}</td>`);
+
+            // 20s tracking
+            const team1TwentyCount = round.team1.twentyCount || 0;
+            team1TwentiesTotal += team1TwentyCount;
+
+            team1Twenties.push(`<td class="round-col">${team1TwentyCount > 0 ? team1TwentyCount : '-'}</td>`);
+        });
+
+        const show20sRow = match.metadata.show20s || team1TwentiesTotal > 0;
+
+        bodyHtml = `
+            <div class="rounds-table-container">
+                <table class="rounds-table">
+                    <thead>
+                        <tr>
+                            <th class="label-col"></th>
+                            ${roundHeaders.join('')}
+                            <th class="total-col">TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="label-col" style="color: ${team1Total > team2Total ? 'var(--accent-green)' : (team1Total < team2Total ? 'var(--accent-red)' : 'var(--text-dim)')}">${team1Name}</td>
+                            ${team1Scores.join('')}
+                            <td class="total-col" style="font-size: 1.35rem;">
+                                <span style="color: ${team1Total > team2Total ? 'var(--accent-green)' : (team1Total < team2Total ? 'var(--accent-red)' : 'var(--text-dim)')}">${team1Total}</span><span>-</span><span style="color: ${team1Total > team2Total ? 'var(--accent-red)' : (team1Total < team2Total ? 'var(--accent-green)' : 'var(--text-dim)')}">${team2Total}</span>
+                            </td>
+                        </tr>
+                        ${show20sRow ? `
+                        <tr class="twenties-row">
+                            <td class="label-col" style="opacity: 0.7;">Total 20's</td>
+                            ${team1Twenties.join('')}
+                            <td class="total-col" style="opacity: 0.9; font-size: 1.1rem;">${team1TwentiesTotal > 0 ? team1TwentiesTotal : '-'}</td>
+                        </tr>
+                        ` : ''}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 
     // Event info
@@ -1071,11 +1533,11 @@ function renderMatchEntry(match, index) {
 }
 
 async function deleteHistoryEntry(index, button) {
-    // Direct delete without confirmation to avoid sandbox issues
     const historyJson = localStorage.getItem('crokinoleMatchHistory');
     const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
 
     const matchToDelete = history.matchHistory[index];
+    const user = getCurrentUser();
 
     // Show visual feedback
     if (button) {
@@ -1084,20 +1546,24 @@ async function deleteHistoryEntry(index, button) {
         button.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">🗑️</span>';
     }
 
-    // Delete from Firebase if match is synced
-    if (matchToDelete && matchToDelete.syncStatus === 'synced' && matchToDelete.id) {
+    // If user is logged in and match is synced: soft delete in Firebase
+    if (user && matchToDelete && matchToDelete.syncStatus === 'synced' && matchToDelete.id) {
         try {
-            await deleteMatchFromCloud(matchToDelete.id);
-            console.log('✅ Match deleted from Firebase:', matchToDelete.id);
-        } catch (error) {
-            console.error('❌ Error deleting match from Firebase:', error);
-            // Continue with local deletion even if cloud delete fails
-        }
-    }
+            await softDeleteMatchFromCloud(matchToDelete.id);
+            console.log('✅ Match soft deleted from Firebase:', matchToDelete.id);
 
-    // Delete from localStorage
-    history.matchHistory.splice(index, 1);
-    localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+            // Mark as deleted in localStorage too
+            matchToDelete.status = 'deleted';
+            matchToDelete.deletedAt = Date.now();
+            localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+        } catch (error) {
+            console.error('❌ Error soft deleting match from Firebase:', error);
+        }
+    } else {
+        // If user is NOT logged in: hard delete from localStorage
+        history.matchHistory.splice(index, 1);
+        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+    }
 
     // Refresh display
     showMatchHistory();
@@ -1153,6 +1619,14 @@ async function syncHistoryEntry(index, button) {
         // Refresh display to show error badge
         showMatchHistory();
     }
+}
+
+/**
+ * Get Team 1 object
+ * @returns {Object} Team 1 object
+ */
+export function getTeam1() {
+    return team1;
 }
 
 /**
@@ -2392,6 +2866,9 @@ function decrementTimerSeconds() {
 
 // Settings Modal
 function openSettings() {
+    // Sync Team 1 name if user is logged in (ensures player name is shown instead of "Team 1")
+    syncTeam1NameIfLoggedIn();
+
     document.getElementById('pointsToWin').value = gameSettings.pointsToWin;
     document.getElementById('matchesToWin').value = gameSettings.matchesToWin;
     document.getElementById('show20sCheckbox').checked = gameSettings.show20s;
@@ -2457,7 +2934,7 @@ function saveSettings() {
         closeSettings();
     } catch (error) {
         console.error('Error in saveSettings:', error);
-        alert('Error saving settings: ' + error.message);
+        console.error('❌ Error saving settings:', error.message);
     }
 }
 
@@ -2790,7 +3267,7 @@ function updatePresetTexts() {
 
 // Other actions
 function rateApp() {
-    alert('Thank you for your interest! Rate functionality would open app store.');
+    console.log('⭐ Rate app clicked');
 }
 
 function shareApp() {
@@ -2801,7 +3278,7 @@ function shareApp() {
             url: window.location.href
         });
     } else {
-        alert('Share: ' + window.location.href);
+        console.log('📤 Share fallback:', window.location.href);
     }
 }
 
@@ -3205,6 +3682,8 @@ window.incrementCounter = incrementCounter;
 window.selectStartingTeam = selectStartingTeam;
 window.closeHistory = closeHistory;
 window.switchHistoryTab = switchHistoryTab;
+window.syncAllMatches = syncAllMatches;
+window.toggleGameModeSettings = toggleGameModeSettings;
 
 // Edit round variables
 let editingRoundIndex = -1;

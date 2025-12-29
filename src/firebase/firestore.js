@@ -1,5 +1,6 @@
 import { db, isFirebaseEnabled } from './config.js';
 import { getCurrentUser } from './auth.js';
+import { getCurrentPlayerName } from '../js/auth-ui.js';
 import {
   collection,
   doc,
@@ -7,6 +8,7 @@ import {
   getDoc,
   getDocs,
   deleteDoc,
+  updateDoc,
   query,
   where,
   orderBy,
@@ -36,12 +38,47 @@ export async function syncMatchToCloud(match) {
     // Use root-level matches collection
     const matchRef = doc(db, 'matches', matchId);
 
+    // Detect which team the logged-in user played on
+    const playerName = getCurrentPlayerName();
+    const team1Name = match.teams?.team1?.name || '';
+    const team2Name = match.teams?.team2?.name || '';
+
+    let team1UserId = null;
+    let team2UserId = null;
+
+    // If player name matches team1, user played as team1
+    if (playerName && team1Name === playerName) {
+      team1UserId = user.id;
+    }
+    // If player name matches team2, user played as team2
+    else if (playerName && team2Name === playerName) {
+      team2UserId = user.id;
+    }
+
     const matchData = {
       ...match,
       id: matchId,
+      // User who saved the match
+      savedBy: {
+        userId: user.id,
+        userName: user.name || 'Unknown',
+        userEmail: user.email || ''
+      },
+      // Legacy fields for backward compatibility
       userId: user.id,
       userName: user.name || 'Unknown',
       userEmail: user.email || '',
+      // Player info for each team
+      players: {
+        team1: {
+          name: team1Name,
+          userId: team1UserId
+        },
+        team2: {
+          name: team2Name,
+          userId: team2UserId
+        }
+      },
       syncedAt: serverTimestamp(),
       syncStatus: 'synced'
     };
@@ -57,7 +94,8 @@ export async function syncMatchToCloud(match) {
 }
 
 /**
- * Get all matches from Firestore for current user
+ * Get all active (non-deleted) matches from Firestore where current user played
+ * Searches for matches where user is in team1 OR team2
  * @returns {Promise<Array>} Array of match objects
  */
 export async function getMatchesFromCloud() {
@@ -73,22 +111,71 @@ export async function getMatchesFromCloud() {
   }
 
   try {
-    // Query root-level matches collection filtered by userId
     const matchesRef = collection(db, 'matches');
-    const q = query(
-      matchesRef,
-      where('userId', '==', user.id),
-      orderBy('syncedAt', 'desc'),
-      limit(50)
-    );
-    const querySnapshot = await getDocs(q);
+    const matchesMap = new Map(); // Use Map to avoid duplicates
 
-    const matches = [];
-    querySnapshot.forEach((doc) => {
-      matches.push({ id: doc.id, ...doc.data() });
+    // Query 1: Matches where user played as team1 (exclude deleted)
+    try {
+      const q1 = query(
+        matchesRef,
+        where('players.team1.userId', '==', user.id),
+        where('status', '!=', 'deleted'),
+        orderBy('status'),
+        orderBy('syncedAt', 'desc'),
+        limit(50)
+      );
+      const snapshot1 = await getDocs(q1);
+      snapshot1.forEach((doc) => {
+        matchesMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+    } catch (err) {
+      console.warn('Query team1 failed (may need index):', err.message);
+    }
+
+    // Query 2: Matches where user played as team2 (exclude deleted)
+    try {
+      const q2 = query(
+        matchesRef,
+        where('players.team2.userId', '==', user.id),
+        where('status', '!=', 'deleted'),
+        orderBy('status'),
+        orderBy('syncedAt', 'desc'),
+        limit(50)
+      );
+      const snapshot2 = await getDocs(q2);
+      snapshot2.forEach((doc) => {
+        matchesMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+    } catch (err) {
+      console.warn('Query team2 failed (may need index):', err.message);
+    }
+
+    // Fallback: Query by legacy userId field (for old matches, exclude deleted)
+    try {
+      const q3 = query(
+        matchesRef,
+        where('userId', '==', user.id),
+        where('status', '!=', 'deleted'),
+        orderBy('status'),
+        orderBy('syncedAt', 'desc'),
+        limit(50)
+      );
+      const snapshot3 = await getDocs(q3);
+      snapshot3.forEach((doc) => {
+        matchesMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+    } catch (err) {
+      console.warn('Query legacy userId failed (may need index):', err.message);
+    }
+
+    // Convert Map to Array and sort by syncedAt
+    const matches = Array.from(matchesMap.values()).sort((a, b) => {
+      const timeA = a.syncedAt?.seconds || 0;
+      const timeB = b.syncedAt?.seconds || 0;
+      return timeB - timeA; // Descending order
     });
 
-    console.log(`✅ Retrieved ${matches.length} matches from cloud`);
+    console.log(`✅ Retrieved ${matches.length} active matches from cloud`);
     return matches;
   } catch (error) {
     console.error('❌ Error getting matches from cloud:', error);
@@ -97,11 +184,11 @@ export async function getMatchesFromCloud() {
 }
 
 /**
- * Delete match from Firestore
- * @param {string} matchId Match ID to delete
+ * Soft delete match from Firestore (mark as deleted)
+ * @param {string} matchId Match ID to mark as deleted
  * @returns {Promise<boolean>} Success status
  */
-export async function deleteMatchFromCloud(matchId) {
+export async function softDeleteMatchFromCloud(matchId) {
   if (!isFirebaseEnabled()) {
     console.warn('Firebase disabled - match not deleted from cloud');
     return true;
@@ -114,14 +201,162 @@ export async function deleteMatchFromCloud(matchId) {
   }
 
   try {
-    // Delete from root-level matches collection
     const matchRef = doc(db, 'matches', matchId);
-    await deleteDoc(matchRef);
-    console.log('✅ Match deleted from cloud:', matchId);
+    await updateDoc(matchRef, {
+      status: 'deleted',
+      deletedAt: serverTimestamp(),
+      deletedBy: user.id
+    });
+    console.log('✅ Match marked as deleted:', matchId);
     return true;
   } catch (error) {
-    console.error('❌ Error deleting match from cloud:', error);
+    console.error('❌ Error soft deleting match:', error);
     return false;
+  }
+}
+
+/**
+ * Permanently delete match from Firestore
+ * @param {string} matchId Match ID to permanently delete
+ * @returns {Promise<boolean>} Success status
+ */
+export async function permanentlyDeleteMatchFromCloud(matchId) {
+  if (!isFirebaseEnabled()) {
+    console.warn('Firebase disabled - match not deleted from cloud');
+    return true;
+  }
+
+  const user = getCurrentUser();
+  if (!user) {
+    console.warn('No user authenticated');
+    return false;
+  }
+
+  try {
+    const matchRef = doc(db, 'matches', matchId);
+    await deleteDoc(matchRef);
+    console.log('✅ Match permanently deleted from cloud:', matchId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error permanently deleting match:', error);
+    return false;
+  }
+}
+
+/**
+ * Restore deleted match
+ * @param {string} matchId Match ID to restore
+ * @returns {Promise<boolean>} Success status
+ */
+export async function restoreMatchFromCloud(matchId) {
+  if (!isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const user = getCurrentUser();
+  if (!user) {
+    console.warn('No user authenticated');
+    return false;
+  }
+
+  try {
+    const matchRef = doc(db, 'matches', matchId);
+    await updateDoc(matchRef, {
+      status: 'active',
+      restoredAt: serverTimestamp(),
+      restoredBy: user.id
+    });
+    console.log('✅ Match restored:', matchId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error restoring match:', error);
+    return false;
+  }
+}
+
+/**
+ * Get deleted matches from Firestore where current user played
+ * @returns {Promise<Array>} Array of deleted match objects
+ */
+export async function getDeletedMatchesFromCloud() {
+  if (!isFirebaseEnabled()) {
+    console.warn('Firebase disabled - returning empty deleted matches');
+    return [];
+  }
+
+  const user = getCurrentUser();
+  if (!user) {
+    console.warn('No user authenticated');
+    return [];
+  }
+
+  try {
+    const matchesRef = collection(db, 'matches');
+    const matchesMap = new Map();
+
+    // Query 1: Deleted matches where user played as team1
+    try {
+      const q1 = query(
+        matchesRef,
+        where('players.team1.userId', '==', user.id),
+        where('status', '==', 'deleted'),
+        orderBy('deletedAt', 'desc'),
+        limit(50)
+      );
+      const snapshot1 = await getDocs(q1);
+      snapshot1.forEach((doc) => {
+        matchesMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+    } catch (err) {
+      console.warn('Query deleted team1 failed (may need index):', err.message);
+    }
+
+    // Query 2: Deleted matches where user played as team2
+    try {
+      const q2 = query(
+        matchesRef,
+        where('players.team2.userId', '==', user.id),
+        where('status', '==', 'deleted'),
+        orderBy('deletedAt', 'desc'),
+        limit(50)
+      );
+      const snapshot2 = await getDocs(q2);
+      snapshot2.forEach((doc) => {
+        matchesMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+    } catch (err) {
+      console.warn('Query deleted team2 failed (may need index):', err.message);
+    }
+
+    // Fallback: Query by legacy userId field
+    try {
+      const q3 = query(
+        matchesRef,
+        where('userId', '==', user.id),
+        where('status', '==', 'deleted'),
+        orderBy('deletedAt', 'desc'),
+        limit(50)
+      );
+      const snapshot3 = await getDocs(q3);
+      snapshot3.forEach((doc) => {
+        matchesMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+    } catch (err) {
+      console.warn('Query deleted legacy userId failed (may need index):', err.message);
+    }
+
+    const matches = Array.from(matchesMap.values()).sort((a, b) => {
+      const timeA = a.deletedAt?.seconds || 0;
+      const timeB = b.deletedAt?.seconds || 0;
+      return timeB - timeA;
+    });
+
+    console.log(`✅ Retrieved ${matches.length} deleted matches from cloud`);
+    return matches;
+  } catch (error) {
+    console.error('❌ Error getting deleted matches:', error);
+    return [];
   }
 }
 

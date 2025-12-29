@@ -82,7 +82,17 @@ export const translations = {
         synced: 'Sincronizado',
         syncPending: 'Pendiente',
         syncError: 'Error',
-        syncNow: 'Sincronizar'
+        syncNow: 'Sincronizar',
+        syncAll: 'Sincronizar',
+        syncing: 'Sincronizando...',
+        mustBeSignedIn: 'Debes iniciar sesión para sincronizar',
+        syncComplete: 'Sincronización completa',
+        noMatchesFound: 'No se encontraron partidas en Firebase',
+        deleted: 'Eliminados',
+        noDeletedMatches: 'No hay partidas eliminadas',
+        permanentDelete: 'Eliminar permanentemente',
+        confirmPermanentDelete: '¿Eliminar permanentemente esta partida? Esta acción no se puede deshacer.',
+        restore: 'Restaurar'
     },
     ca: {
         settings: 'Configuració',
@@ -167,7 +177,17 @@ export const translations = {
         synced: 'Sincronitzat',
         syncPending: 'Pendent',
         syncError: 'Error',
-        syncNow: 'Sincronitzar'
+        syncNow: 'Sincronitzar',
+        syncAll: 'Sincronitzar',
+        syncing: 'Sincronitzant...',
+        mustBeSignedIn: 'Has d\'iniciar sessió per sincronitzar',
+        syncComplete: 'Sincronització completa',
+        noMatchesFound: 'No s\'han trobat partides a Firebase',
+        deleted: 'Eliminats',
+        noDeletedMatches: 'No hi ha partides eliminades',
+        permanentDelete: 'Eliminar permanentment',
+        confirmPermanentDelete: 'Eliminar permanentment aquesta partida? Aquesta acció no es pot desfer.',
+        restore: 'Restaurar'
     },
     en: {
         settings: 'Settings',
@@ -252,7 +272,17 @@ export const translations = {
         synced: 'Synced',
         syncPending: 'Pending',
         syncError: 'Error',
-        syncNow: 'Sync'
+        syncNow: 'Sync',
+        syncAll: 'Sync',
+        syncing: 'Syncing...',
+        mustBeSignedIn: 'You must be signed in to sync',
+        syncComplete: 'Sync complete',
+        noMatchesFound: 'No matches found in Firebase',
+        deleted: 'Deleted',
+        noDeletedMatches: 'No deleted matches',
+        permanentDelete: 'Delete permanently',
+        confirmPermanentDelete: 'Permanently delete this match? This action cannot be undone.',
+        restore: 'Restore'
     }
 };
 

@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.1.4';
+export const APP_VERSION = '1.1.6';
 export const APP_NAME = 'Scorekinole';
 
 export const DEFAULT_GAME_SETTINGS = {

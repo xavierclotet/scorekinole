@@ -12,13 +12,23 @@ service cloud.firestore {
     // Root-level matches collection - users can only read/write their own matches
     match /matches/{matchId} {
       // Read: only if the match belongs to the authenticated user
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Check userId (legacy), players.team1.userId, or players.team2.userId
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.players.team1.userId == request.auth.uid ||
+        resource.data.players.team2.userId == request.auth.uid
+      );
 
       // Create: only if the match is being created with the user's own ID
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
 
       // Update/Delete: only if the match belongs to the authenticated user
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Check userId (legacy), players.team1.userId, or players.team2.userId
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.players.team1.userId == request.auth.uid ||
+        resource.data.players.team2.userId == request.auth.uid
+      );
     }
 
     // Current match per user - users can only access their own

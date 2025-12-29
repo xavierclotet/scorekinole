@@ -2,6 +2,7 @@ import { signInWithGoogle, signOut, onAuthChange, getCurrentUser } from '../fire
 import { getUserProfile, saveUserProfile, getPlayerName } from '../firebase/userProfile.js';
 import { isFirebaseEnabled } from '../firebase/config.js';
 import { t } from './translations.js';
+import { getTeam1, setTeam1Name } from './app.js';
 
 // Auth UI state
 let currentPlayerName = '';
@@ -103,8 +104,7 @@ export async function handleAuthClick() {
         await signOut();
         console.log('User signed out');
       } catch (error) {
-        console.error('Error signing out:', error);
-        alert('Error signing out. Please try again.');
+        console.error('❌ Error signing out:', error);
       }
     }
   } else {
@@ -113,11 +113,9 @@ export async function handleAuthClick() {
       await signInWithGoogle();
       console.log('User signed in');
     } catch (error) {
-      console.error('Error signing in:', error);
+      console.error('❌ Error signing in:', error);
       if (error.code === 'auth/popup-closed-by-user') {
-        console.log('Sign in cancelled by user');
-      } else {
-        alert('Error signing in with Google. Please try again.');
+        console.log('⚠️ Sign in cancelled by user');
       }
     }
   }
@@ -155,7 +153,7 @@ export async function savePlayerName() {
   const playerName = input.value.trim();
 
   if (!playerName) {
-    alert('Please enter a player name');
+    console.warn('⚠️ Player name is required');
     return;
   }
 
@@ -175,8 +173,7 @@ export async function savePlayerName() {
     updateTeam1NameWithPlayer(photoURL);
     modal.style.display = 'none';
   } catch (error) {
-    console.error('Error saving player name:', error);
-    alert('Error saving player name. Please try again.');
+    console.error('❌ Error saving player name:', error);
   }
 }
 
@@ -187,34 +184,14 @@ export async function savePlayerName() {
 function updateTeam1NameWithPlayer(photoURL) {
   if (!currentPlayerName) return;
 
-  console.log('🔍 updateTeam1NameWithPlayer called with:', {
-    playerName: currentPlayerName,
-    photoURL: photoURL
-  });
+  // Update Team 1 name using the exported function from app.js
+  // This updates team1.name, saves to localStorage, and updates the display
+  setTeam1Name(currentPlayerName);
 
-  // Update Team 1 state directly (avoid calling setTeam1Name to prevent errors)
-  if (window.team1) {
-    window.team1.name = currentPlayerName;
-  }
-
-  // Update input field
+  // Update input field in Settings modal
   const team1Input = document.getElementById('team1NameInput');
   if (team1Input) {
     team1Input.value = currentPlayerName;
-    console.log('✅ Team 1 name set to:', currentPlayerName);
-  }
-
-  // Update Team 1 display with player name only (no photo/icon)
-  const team1NameEl = document.getElementById('team1Name');
-  if (team1NameEl) {
-    // Set only the player name text (no photo or icon)
-    team1NameEl.textContent = currentPlayerName;
-    console.log('✅ Team 1 display updated with name:', currentPlayerName);
-  }
-
-  // Save to localStorage if saveData exists
-  if (typeof window.saveData === 'function') {
-    window.saveData();
   }
 }
 
@@ -224,6 +201,23 @@ function updateTeam1NameWithPlayer(photoURL) {
  */
 export function getCurrentPlayerName() {
   return currentPlayerName;
+}
+
+/**
+ * Sync Team 1 name with current player name if user is logged in
+ * Called when opening Settings to ensure the input shows the correct name
+ */
+export function syncTeam1NameIfLoggedIn() {
+  if (currentPlayerName) {
+    const team1 = getTeam1();
+    if (team1) {
+      team1.name = currentPlayerName;
+      const team1Input = document.getElementById('team1NameInput');
+      if (team1Input) {
+        team1Input.value = currentPlayerName;
+      }
+    }
+  }
 }
 
 /**
@@ -269,8 +263,7 @@ async function handleLogout() {
     await signOut();
     console.log('User signed out');
   } catch (error) {
-    console.error('Error signing out:', error);
-    alert('Error signing out. Please try again.');
+    console.error('❌ Error signing out:', error);
   }
 }
 
@@ -344,7 +337,7 @@ async function updateProfile() {
   const newPlayerName = profilePlayerNameInput.value.trim();
 
   if (!newPlayerName) {
-    alert(t('enterPlayerName'));
+    console.warn('⚠️ Player name is required');
     return;
   }
 
@@ -372,8 +365,7 @@ async function updateProfile() {
 
     closeProfileModal();
   } catch (error) {
-    console.error('Error updating profile:', error);
-    alert('Error updating profile. Please try again.');
+    console.error('❌ Error updating profile:', error);
   }
 }
 

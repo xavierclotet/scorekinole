@@ -425,6 +425,10 @@
             <div class="modal-header">
                 <span class="modal-title" id="historyTitle">Match History</span>
                 <div class="modal-actions">
+                    <button class="modal-btn" id="btnSyncAll" onclick="syncAllMatches()" style="display: none;">
+                        <span id="syncAllIcon">🔄</span>
+                        <span id="syncAllText">Sync All</span>
+                    </button>
                     <button class="modal-btn" id="btnHistoryClose" onclick="closeHistory()">Close</button>
                 </div>
             </div>
@@ -438,6 +442,10 @@
                 <button class="history-tab active" id="tabHistory" onclick="switchHistoryTab('history')">
                     <span class="tab-icon">📜</span>
                     <span class="tab-text" id="tabHistoryText">Historial</span>
+                </button>
+                <button class="history-tab" id="tabDeleted" onclick="switchHistoryTab('deleted')">
+                    <span class="tab-icon">🗑️</span>
+                    <span class="tab-text" id="tabDeletedText">Eliminados</span>
                 </button>
             </div>
 
@@ -454,6 +462,12 @@
                 <div id="historyContent" class="tab-content history-content"></div>
                 <div id="historyEmpty" class="history-empty" style="display: none;">
                     <p id="historyEmptyText">No match history yet. Complete a match to see it here!</p>
+                </div>
+
+                <!-- Deleted Content -->
+                <div id="deletedContent" class="tab-content history-content" style="display: none;"></div>
+                <div id="deletedEmpty" class="history-empty" style="display: none;">
+                    <p id="deletedEmptyText">No hay partidas eliminadas</p>
                 </div>
             </div>
         </div>
