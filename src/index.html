@@ -598,5 +598,55 @@
             </div>
         </div>
     </div>
+
+    <!-- Team Confirmation Modal (Single Match) -->
+    <div class="modal-overlay" id="teamConfirmModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="teamConfirmTitle">Which team did you play on?</span>
+            </div>
+            <div class="modal-content">
+                <p class="team-confirm-subtitle" id="teamConfirmSubtitle">This match will be synced to your account</p>
+                <div class="team-confirm-match-info" id="teamConfirmMatchInfo">
+                    <!-- Match details will be populated here -->
+                </div>
+                <div class="team-confirm-buttons">
+                    <button class="team-choice-btn" id="btnConfirmTeam1" onclick="confirmTeamChoice(1)">
+                        <span id="confirmTeam1Name">Team 1</span>
+                    </button>
+                    <button class="team-choice-btn" id="btnConfirmTeam2" onclick="confirmTeamChoice(2)">
+                        <span id="confirmTeam2Name">Team 2</span>
+                    </button>
+                    <button class="team-choice-btn neutral" id="btnConfirmNone" onclick="confirmTeamChoice(null)">
+                        <span id="confirmNoneText">I didn't play</span>
+                    </button>
+                </div>
+                <button class="modal-btn" id="btnCancelTeamConfirm" onclick="closeTeamConfirmModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch Team Confirmation Modal (Multiple Matches) -->
+    <div class="modal-overlay" id="batchTeamConfirmModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="batchTeamConfirmTitle">Confirm your team for each match</span>
+            </div>
+            <div class="modal-content">
+                <div class="batch-confirm-progress" id="batchConfirmProgress">
+                    <!-- Progress will be shown here -->
+                </div>
+                <div class="batch-confirm-list" id="batchConfirmList">
+                    <!-- List of matches will be populated here -->
+                </div>
+                <div class="batch-confirm-actions">
+                    <button class="modal-btn" id="btnCancelBatchConfirm" onclick="closeBatchTeamConfirmModal()">Cancel</button>
+                    <button class="modal-btn save" id="btnSyncBatch" onclick="syncBatchConfirmedMatches()" disabled>
+                        <span id="batchSyncText">Sync Selected</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

@@ -11,7 +11,8 @@ import {
   getMatchesFromCloud,
   getDeletedMatchesFromCloud,
   restoreMatchFromCloud,
-  permanentlyDeleteMatchFromCloud
+  permanentlyDeleteMatchFromCloud,
+  matchNeedsTeamConfirmation
 } from '../firebase/firestore.js';
 import { getCurrentUser } from '../firebase/auth.js';
 import { syncTeam1NameIfLoggedIn } from './auth-ui.js';
@@ -352,8 +353,9 @@ function calculateMatchResult(matchData) {
         resultText: ''
     };
 
-    const team1Name = matchData.teams.team1.name;
-    const team2Name = matchData.teams.team2.name;
+    // Support old matches with teams field
+    const team1Name = matchData.players?.team1?.name || matchData.teams?.team1?.name || 'Team 1';
+    const team2Name = matchData.players?.team2?.name || matchData.teams?.team2?.name || 'Team 2';
 
     if (matchData.gameMode === 'points') {
         // Calculate total 20s summing all games
@@ -423,7 +425,8 @@ function saveMatchToHistory() {
             eventTitle: gameSettings.eventTitle || '',
             matchPhase: gameSettings.matchPhase || ''
         },
-        teams: {
+        // Player information for queries and display
+        players: {
             team1: {
                 name: team1.name,
                 color: team1.color
@@ -474,9 +477,14 @@ function saveMatchToHistory() {
     }
 
     // Auto-sync to Firebase if user is authenticated
-    if (getCurrentUser()) {
+    const currentUser = getCurrentUser();
+    if (currentUser) {
         matchData.id = matchData.matchId; // Use matchId as id for Firebase
+        matchData.userId = currentUser.id; // CRITICAL: Add userId for Firestore queries
         matchData.syncStatus = 'local'; // Initial status
+
+        // Add userId to players.team1 for advanced queries
+        matchData.players.team1.userId = currentUser.id;
 
         syncMatchToCloud(matchData).then((syncedMatch) => {
             if (syncedMatch.syncStatus === 'synced') {
@@ -597,14 +605,6 @@ function renderHistoryList() {
             btn.addEventListener('click', function() {
                 const index = parseInt(this.getAttribute('data-index'));
                 deleteHistoryEntry(index, this);
-            });
-        });
-
-        // Add event listeners for sync buttons
-        content.querySelectorAll('.history-sync-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const index = parseInt(this.getAttribute('data-index'));
-                syncHistoryEntry(index, this);
             });
         });
     }
@@ -779,9 +779,8 @@ function closeHistory() {
 }
 
 /**
- * Sync all matches from Firebase (Firebase as source of truth)
- * Clears local history and replaces it with Firebase data
- * Only syncs matches where current user is the owner (userId matches)
+ * Download all matches from cloud and merge with local
+ * Does NOT delete local matches - only adds cloud matches
  */
 async function syncAllMatches() {
     const user = getCurrentUser();
@@ -801,30 +800,81 @@ async function syncAllMatches() {
     if (syncAllText) syncAllText.textContent = t('syncing') || 'Syncing...';
 
     try {
-        // Get matches from Firebase filtered by current user's userId
+        // Step 1: Get local matches
+        const localData = JSON.parse(localStorage.getItem('crokinoleMatchHistory') || '{"matchHistory":[]}');
+        const localMatches = localData.matchHistory || [];
+
+        console.log(`📦 Found ${localMatches.length} local matches`);
+
+        // Step 2: Check if any local matches need team confirmation
+        const matchesNeedingConfirmation = localMatches.filter(match => matchNeedsTeamConfirmation(match));
+
+        if (matchesNeedingConfirmation.length > 0) {
+            console.log(`⚠️ ${matchesNeedingConfirmation.length} matches need team confirmation`);
+
+            // Restore button state
+            if (btnSyncAll) btnSyncAll.disabled = false;
+            if (syncAllIcon) syncAllIcon.textContent = '🔄';
+            if (syncAllText) syncAllText.textContent = t('syncAll') || 'Sync All';
+
+            // Show batch confirmation modal
+            showBatchTeamConfirmModal(matchesNeedingConfirmation);
+            return;
+        }
+
+        // Step 3: Download all matches from cloud for current user
+        console.log(`📥 Downloading matches from cloud...`);
         const firebaseMatches = await getMatchesFromCloud();
+        console.log(`📥 Downloaded ${firebaseMatches.length} matches from cloud`);
 
-        console.log(`🔄 Syncing ${firebaseMatches.length} matches for user ${user.id}`);
+        // Step 4: Sync local matches to cloud
+        for (const match of localMatches) {
+            if (match.syncStatus !== 'synced') {
+                try {
+                    const syncedMatch = await syncMatchToCloud(match);
+                    const index = localMatches.indexOf(match);
+                    localMatches[index] = syncedMatch;
+                } catch (err) {
+                    console.error('Error syncing match:', err);
+                }
+            }
+        }
 
-        // Clear local history and replace with Firebase data
+        // Step 5: Merge local and cloud matches (deduplicate by id)
+        const matchesMap = new Map();
+
+        // Add ALL local matches first (preserve local data)
+        localMatches.forEach(match => {
+            matchesMap.set(match.id || match.matchId, match);
+        });
+
+        // Add cloud matches (will overwrite local if same id - cloud is source of truth for synced matches)
+        firebaseMatches.forEach(match => {
+            matchesMap.set(match.id, { ...match, syncStatus: 'synced' });
+        });
+
+        // Convert to array and sort by timestamp (most recent first)
+        const mergedMatches = Array.from(matchesMap.values()).sort((a, b) => {
+            const timeA = a.timestamp || 0;
+            const timeB = b.timestamp || 0;
+            return timeB - timeA;
+        });
+
+        // Step 6: Save merged matches to localStorage
         const history = {
-            matchHistory: firebaseMatches.map(match => ({
-                ...match,
-                syncStatus: 'synced' // Mark all as synced since they come from Firebase
-            }))
+            schemaVersion: '1.0.0',
+            matchHistory: mergedMatches
         };
-
-        // Save to localStorage
         localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
 
         // Refresh the history display
         renderHistoryList();
 
-        // Log success (in future, could show a toast notification)
-        const message = firebaseMatches.length > 0
-            ? `${t('syncComplete') || 'Sync complete!'} ${firebaseMatches.length} ${firebaseMatches.length === 1 ? 'match' : 'matches'}`
-            : t('noMatchesFound') || 'No matches found in Firebase';
-        console.log('✅', message);
+        // Log success
+        const totalMatches = mergedMatches.length;
+        const addedFromCloud = firebaseMatches.length;
+        const message = `${t('syncComplete') || 'Sync complete!'} ${totalMatches} total (${addedFromCloud} from cloud)`;
+        console.log(`✅ ${message}`);
 
     } catch (error) {
         console.error('❌ Error syncing matches:', error);
@@ -1175,9 +1225,9 @@ function renderCurrentMatchRounds() {
                 team1ColorClass = 'round-loss';
             }
 
-            // Build header with hammer if team1 had it
+            // Build header with hammer if team1 had it and edit button
             const team1Hammer = round.team1.hadHammer ? '🔨' : '';
-            roundHeaders.push(`<th class="round-col">R${idx + 1}${team1Hammer}</th>`);
+            roundHeaders.push(`<th class="round-col">R${idx + 1}${team1Hammer} <button class="history-round-edit-btn-sm" onclick="openEditRound(${idx}, 0)" style="margin-left: 0.25rem;">✏️</button></th>`);
 
             team1Scores.push(`<td class="round-col ${team1ColorClass}">${team1RoundPoints}</td>`);
 
@@ -1294,7 +1344,8 @@ function renderMatchEntry(match, index) {
 
     if (match.gameMode === 'points') {
         // Modo points - Una tabla por cada partida mostrando sus rondas (solo team1)
-        const team1Name = match.teams.team1.name;
+        // Support old matches with teams field
+        const team1Name = match.players?.team1?.name || match.teams?.team1?.name || 'Team 1';
 
         // Calculate total games won by each team across all games
         let team1GamesWon = 0;
@@ -1399,7 +1450,8 @@ function renderMatchEntry(match, index) {
         }).join('');
     } else {
         // Modo rounds - Tabla compacta horizontal (solo muestra team1)
-        const team1Name = match.teams.team1.name;
+        // Support old matches with teams field
+        const team1Name = match.players?.team1?.name || match.teams?.team1?.name || 'Team 1';
 
         // Calculate scores per round for team1
         const team1Scores = [];
@@ -1493,7 +1545,6 @@ function renderMatchEntry(match, index) {
 
     // Sync status badge (only show if user is authenticated)
     let syncBadge = '';
-    let syncButton = '';
     const user = getCurrentUser();
     if (user) {
         const status = match.syncStatus || 'local';
@@ -1501,11 +1552,9 @@ function renderMatchEntry(match, index) {
             syncBadge = `<span class="sync-badge"><span class="sync-badge-icon">☁️</span>${t('synced')}</span>`;
         } else if (status === 'error') {
             syncBadge = `<span class="sync-badge error"><span class="sync-badge-icon">⚠️</span>${t('syncError')}</span>`;
-            syncButton = `<button class="history-sync-btn" data-index="${index}">${t('syncNow')}</button>`;
         } else {
             // local or pending
             syncBadge = `<span class="sync-badge pending"><span class="sync-badge-icon">⏳</span>${t('syncPending')}</span>`;
-            syncButton = `<button class="history-sync-btn" data-index="${index}">${t('syncNow')}</button>`;
         }
     }
 
@@ -1521,7 +1570,6 @@ function renderMatchEntry(match, index) {
                     <div class="history-result ${resultClass}">${resultText}${twentyInfo}${syncBadge}</div>
                 </div>
                 <div class="history-header-actions">
-                    ${syncButton}
                     <button class="history-delete-btn" data-index="${index}">🗑️ ${t('delete')}</button>
                 </div>
             </div>
@@ -1567,58 +1615,6 @@ async function deleteHistoryEntry(index, button) {
 
     // Refresh display
     showMatchHistory();
-}
-
-/**
- * Sync a match from history to Firebase
- * @param {number} index - Index of match in history array
- * @param {HTMLElement} button - The sync button element
- */
-async function syncHistoryEntry(index, button) {
-    const historyJson = localStorage.getItem('crokinoleMatchHistory');
-    const history = historyJson ? JSON.parse(historyJson) : { matchHistory: [] };
-
-    const matchToSync = history.matchHistory[index];
-    if (!matchToSync) {
-        console.error('Match not found at index:', index);
-        return;
-    }
-
-    // Disable button and show syncing state
-    button.disabled = true;
-    button.classList.add('syncing');
-    const originalText = button.textContent;
-    button.innerHTML = '<span style="display: inline-block; animation: spin 1s linear infinite;">🔄</span>';
-
-    try {
-        console.log('🔄 Syncing match to cloud...', matchToSync);
-
-        // Sync to Firebase
-        const syncedMatch = await syncMatchToCloud(matchToSync);
-
-        // Update in localStorage
-        history.matchHistory[index] = syncedMatch;
-        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
-
-        console.log('✅ Match synced successfully');
-
-        // Refresh display
-        showMatchHistory();
-    } catch (error) {
-        console.error('❌ Error syncing match:', error);
-
-        // Re-enable button
-        button.disabled = false;
-        button.classList.remove('syncing');
-        button.textContent = originalText;
-
-        // Update match with error status
-        history.matchHistory[index].syncStatus = 'error';
-        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
-
-        // Refresh display to show error badge
-        showMatchHistory();
-    }
 }
 
 /**
@@ -3859,3 +3855,381 @@ function saveEditRound() {
 window.openEditRound = openEditRound;
 window.closeEditRound = closeEditRound;
 window.saveEditRound = saveEditRound;
+
+// ============================================
+// BATCH TEAM CONFIRMATION MODAL
+// ============================================
+
+// Store matches pending confirmation
+let matchesPendingConfirmation = [];
+let matchConfirmations = new Map(); // matchId -> teamNumber (1, 2, or null)
+
+/**
+ * Show batch team confirmation modal
+ * @param {Array} matches Matches that need team confirmation
+ */
+function showBatchTeamConfirmModal(matches) {
+    matchesPendingConfirmation = matches;
+    matchConfirmations.clear();
+
+    const modal = document.getElementById('batchTeamConfirmModal');
+    const listContainer = document.getElementById('batchConfirmList');
+    const progressContainer = document.getElementById('batchConfirmProgress');
+    const btnSync = document.getElementById('btnSyncBatch');
+    const titleEl = document.getElementById('batchTeamConfirmTitle');
+    const btnCancel = document.getElementById('btnCancelBatchConfirm');
+    const btnSyncText = document.getElementById('batchSyncText');
+
+    if (!modal || !listContainer || !progressContainer || !btnSync) {
+        console.error('Batch team confirm modal elements not found');
+        return;
+    }
+
+    // Translate modal texts
+    if (titleEl) titleEl.textContent = t('confirmTeamForEachMatch');
+    if (btnCancel) btnCancel.textContent = t('cancel');
+    if (btnSyncText) btnSyncText.textContent = t('syncSelected');
+
+    // Update progress
+    updateBatchConfirmProgress();
+
+    // Render list of matches
+    listContainer.innerHTML = matches.map((match, index) => {
+        const team1Name = match.players?.team1?.name || 'Team 1';
+        const team2Name = match.players?.team2?.name || 'Team 2';
+
+        // Format date and time
+        const date = new Date(match.timestamp);
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear().toString().slice(-2);
+        const dateStr = `${day}/${month}/${year}`;
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        const timeStr = `${hours}:${minutes}`;
+
+        // Get match result
+        const result = match.result || calculateMatchResult(match);
+        const resultText = result.resultText;
+
+        // Build twenties info
+        let twentyInfo = '';
+        if (result.team1Twenties > 0 || result.team2Twenties > 0) {
+            twentyInfo = ` • ⭐ ${result.team1Twenties}-${result.team2Twenties}`;
+        }
+
+        // Build mode label
+        let modeLabel = '';
+        if (match.gameMode === 'points') {
+            const pointsToWin = match.metadata.pointsToWin || 7;
+            const matchesToWin = match.metadata.matchesToWin || 1;
+            modeLabel = t('raceTo').replace('{points}', pointsToWin);
+            if (matchesToWin > 1) {
+                modeLabel += ` • ${t('bestOf').replace('{games}', matchesToWin * 2 - 1)}`;
+            }
+        } else {
+            const roundsToPlay = match.metadata.roundsToPlay || 4;
+            modeLabel = `${roundsToPlay} ${t('rounds')}`;
+        }
+        const typeLabel = match.metadata.gameType === 'singles' ? t('singles') : t('doubles');
+
+        // Duration
+        let durationStr = '';
+        if (match.duration && match.duration > 0) {
+            const totalSeconds = match.duration;
+            const mins = Math.floor(totalSeconds / 60);
+            const secs = totalSeconds % 60;
+            if (mins > 0 && secs > 0) {
+                durationStr = ` • ${mins}min ${secs}s`;
+            } else if (mins > 0) {
+                durationStr = ` • ${mins}min`;
+            } else if (secs > 0) {
+                durationStr = ` • ${secs}s`;
+            }
+        }
+
+        // Event info
+        const eventTitle = match.metadata.eventTitle || '';
+        const matchPhase = match.metadata.matchPhase || '';
+        let eventInfo = '';
+        if (eventTitle || matchPhase) {
+            const parts = [];
+            if (eventTitle) parts.push(eventTitle);
+            if (matchPhase) parts.push(matchPhase);
+            eventInfo = `<div class="batch-confirm-event">${parts.join(' • ')}</div>`;
+        }
+
+        return `
+            <div class="batch-confirm-item" data-match-id="${match.id}">
+                <div class="batch-confirm-match-info">
+                    ${eventInfo}
+                    <div class="batch-confirm-meta">
+                        <div>${dateStr} ${timeStr}</div>
+                        <div>${typeLabel} • ${modeLabel}${durationStr}</div>
+                    </div>
+                    <div class="batch-confirm-result">${resultText}${twentyInfo}</div>
+                </div>
+                <div class="batch-confirm-selector">
+                    <select class="batch-team-select" data-match-id="${match.id}" onchange="selectBatchTeam('${match.id}', this.value)">
+                        <option value="">${t('whichTeamDidYouPlay')}</option>
+                        <option value="1">${team1Name}</option>
+                        <option value="2">${team2Name}</option>
+                        <option value="null">${t('iDidntPlay')}</option>
+                    </select>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Show modal
+    modal.style.display = 'flex';
+
+    // Disable sync button initially
+    btnSync.disabled = true;
+}
+
+/**
+ * Select team for a match in batch confirmation
+ * @param {string} matchId Match ID
+ * @param {string} teamNumber Team number as string ("1", "2", "null", or "")
+ */
+function selectBatchTeam(matchId, teamNumber) {
+    // If empty selection, remove from confirmations
+    if (teamNumber === '') {
+        matchConfirmations.delete(matchId);
+    } else {
+        // Convert to proper type
+        let teamValue;
+        if (teamNumber === 'null') {
+            teamValue = null;
+        } else {
+            teamValue = parseInt(teamNumber);
+        }
+        matchConfirmations.set(matchId, teamValue);
+    }
+
+    // Update progress
+    updateBatchConfirmProgress();
+
+    // Enable sync button if at least one match is confirmed
+    const btnSync = document.getElementById('btnSyncBatch');
+    if (btnSync) {
+        btnSync.disabled = matchConfirmations.size === 0;
+    }
+
+    // Update button text to show count
+    const btnSyncText = document.getElementById('batchSyncText');
+    if (btnSyncText) {
+        if (matchConfirmations.size > 0) {
+            btnSyncText.textContent = `${t('syncSelected')} (${matchConfirmations.size})`;
+        } else {
+            btnSyncText.textContent = t('syncSelected');
+        }
+    }
+}
+
+/**
+ * Update batch confirmation progress indicator
+ */
+function updateBatchConfirmProgress() {
+    const progressContainer = document.getElementById('batchConfirmProgress');
+    if (!progressContainer) return;
+
+    const total = matchesPendingConfirmation.length;
+    const confirmed = matchConfirmations.size;
+
+    // Only show progress if there are matches
+    if (total > 0) {
+        progressContainer.innerHTML = `
+            <div class="batch-progress-text">
+                ${confirmed} de ${total} ${t('matchesConfirmed')}
+            </div>
+            <div class="batch-progress-bar">
+                <div class="batch-progress-fill" style="width: ${(confirmed / total) * 100}%"></div>
+            </div>
+        `;
+    } else {
+        progressContainer.innerHTML = '';
+    }
+}
+
+/**
+ * Close batch team confirmation modal
+ */
+function closeBatchTeamConfirmModal() {
+    const modal = document.getElementById('batchTeamConfirmModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    matchesPendingConfirmation = [];
+    matchConfirmations.clear();
+}
+
+/**
+ * Sync matches after batch confirmation
+ */
+async function syncBatchConfirmedMatches() {
+    const btnSync = document.getElementById('btnSyncBatch');
+    const btnCancel = document.getElementById('btnCancelBatchConfirm');
+    const syncText = document.getElementById('batchSyncText');
+    const progressContainer = document.getElementById('batchConfirmProgress');
+
+    // Disable buttons
+    if (btnSync) btnSync.disabled = true;
+    if (btnCancel) btnCancel.disabled = true;
+    if (syncText) syncText.textContent = t('syncing') || 'Syncing...';
+
+    try {
+        // Load history
+        const localData = JSON.parse(localStorage.getItem('crokinoleMatchHistory') || '{"matchHistory":[]}');
+        const localMatches = localData.matchHistory || [];
+
+        const totalToSync = matchConfirmations.size;
+        let syncedCount = 0;
+
+        // Sync each confirmed match
+        for (const match of matchesPendingConfirmation) {
+            const teamSelection = matchConfirmations.get(match.id);
+            if (teamSelection !== undefined) {
+                // Show progress
+                if (progressContainer) {
+                    progressContainer.innerHTML = `
+                        <div class="batch-progress-text">
+                            ${t('syncing')} ${syncedCount + 1} de ${totalToSync}...
+                        </div>
+                        <div class="batch-progress-bar">
+                            <div class="batch-progress-fill" style="width: ${((syncedCount + 1) / totalToSync) * 100}%"></div>
+                        </div>
+                    `;
+                }
+
+                try {
+                    const syncedMatch = await syncMatchToCloud(match, { manualTeamSelection: teamSelection });
+
+                    // Update in local matches array
+                    const index = localMatches.findIndex(m => m.id === match.id);
+                    if (index !== -1) {
+                        localMatches[index] = syncedMatch;
+                    }
+
+                    syncedCount++;
+                } catch (err) {
+                    console.error(`Error syncing match ${match.id}:`, err);
+                }
+            }
+        }
+
+        // Save updated matches
+        const history = {
+            schemaVersion: '1.0.0',
+            matchHistory: localMatches
+        };
+        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+
+        // Close modal
+        closeBatchTeamConfirmModal();
+
+        // Continue with normal sync flow WITHOUT checking for confirmations again
+        // (we already handled the confirmations)
+        await continueNormalSync();
+
+    } catch (error) {
+        console.error('❌ Error in batch sync:', error);
+    } finally {
+        // Restore buttons
+        if (btnSync) btnSync.disabled = false;
+        if (btnCancel) btnCancel.disabled = false;
+        if (syncText) syncText.textContent = t('syncSelected') || 'Sync Selected';
+    }
+}
+
+/**
+ * Continue normal sync without checking for confirmations
+ * (used after batch confirmation is done)
+ */
+async function continueNormalSync() {
+    const btnSyncAll = document.getElementById('btnSyncAll');
+    const syncAllIcon = document.getElementById('syncAllIcon');
+    const syncAllText = document.getElementById('syncAllText');
+
+    // Show loading state
+    if (btnSyncAll) btnSyncAll.disabled = true;
+    if (syncAllIcon) syncAllIcon.textContent = '⏳';
+    if (syncAllText) syncAllText.textContent = t('syncing') || 'Syncing...';
+
+    try {
+        // Get local matches
+        const localData = JSON.parse(localStorage.getItem('crokinoleMatchHistory') || '{"matchHistory":[]}');
+        const localMatches = localData.matchHistory || [];
+
+        console.log(`📦 Found ${localMatches.length} local matches`);
+
+        // Download all matches from cloud for current user
+        console.log(`📥 Downloading matches from cloud...`);
+        const firebaseMatches = await getMatchesFromCloud();
+        console.log(`📥 Downloaded ${firebaseMatches.length} matches from cloud`);
+
+        // Sync local matches to cloud (only those not already synced)
+        for (const match of localMatches) {
+            if (match.syncStatus !== 'synced') {
+                try {
+                    const syncedMatch = await syncMatchToCloud(match);
+                    const index = localMatches.indexOf(match);
+                    localMatches[index] = syncedMatch;
+                } catch (err) {
+                    console.error('Error syncing match:', err);
+                }
+            }
+        }
+
+        // Merge local and cloud matches (deduplicate by id)
+        const matchesMap = new Map();
+
+        // Add ALL local matches first (preserve local data)
+        localMatches.forEach(match => {
+            matchesMap.set(match.id || match.matchId, match);
+        });
+
+        // Add cloud matches (will overwrite local if same id - cloud is source of truth for synced matches)
+        firebaseMatches.forEach(match => {
+            matchesMap.set(match.id, { ...match, syncStatus: 'synced' });
+        });
+
+        // Convert to array and sort by timestamp (most recent first)
+        const mergedMatches = Array.from(matchesMap.values()).sort((a, b) => {
+            const timeA = a.timestamp || 0;
+            const timeB = b.timestamp || 0;
+            return timeB - timeA;
+        });
+
+        // Save merged matches to localStorage
+        const history = {
+            schemaVersion: '1.0.0',
+            matchHistory: mergedMatches
+        };
+        localStorage.setItem('crokinoleMatchHistory', JSON.stringify(history));
+
+        // Refresh the history display
+        renderHistoryList();
+
+        // Log success
+        const totalMatches = mergedMatches.length;
+        const addedFromCloud = firebaseMatches.length;
+        const message = `${t('syncComplete') || 'Sync complete!'} ${totalMatches} total (${addedFromCloud} from cloud)`;
+        console.log(`✅ ${message}`);
+
+    } catch (error) {
+        console.error('❌ Error syncing matches:', error);
+    } finally {
+        // Restore button state
+        if (btnSyncAll) btnSyncAll.disabled = false;
+        if (syncAllIcon) syncAllIcon.textContent = '🔄';
+        if (syncAllText) syncAllText.textContent = t('syncAll') || 'Sync All';
+    }
+}
+
+// Export modal functions to window
+window.showBatchTeamConfirmModal = showBatchTeamConfirmModal;
+window.selectBatchTeam = selectBatchTeam;
+window.closeBatchTeamConfirmModal = closeBatchTeamConfirmModal;
+window.syncBatchConfirmedMatches = syncBatchConfirmedMatches;

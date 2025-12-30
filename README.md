@@ -4,7 +4,7 @@
 
 A beautiful, responsive web application designed to track scores, manage timers, and enhance your Crokinole gaming experience. Built with modern web technologies and optimized for mobile devices.
 
-![Version](https://img.shields.io/badge/version-1.1.6-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.7-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
@@ -193,6 +193,13 @@ Automatically tracks your completed matches with comprehensive cloud synchroniza
   - **Deleted (🗑️)**: Review deleted matches with restore option
 - **Cloud Synchronization** (when signed in):
   - **Auto-Sync**: Matches automatically sync to cloud after completion
+  - **Smart Team Detection**: Automatically detects which team you played on by matching your player name
+  - **Interactive Team Confirmation**: For matches played without login, intelligent modal prompts you to confirm which team you played on before syncing
+    - Shows complete match information (date, teams, result, event details)
+    - Dropdown selector with three options: Team 1, Team 2, or "I didn't play"
+    - Select only the matches you want to sync (partial sync supported)
+    - Real-time progress indicator during synchronization
+    - Unconfirmed matches remain local for later decision
   - **Sync All**: Manually sync all local matches with one tap
   - **Sync Status Indicators**: Visual badges showing synced/pending/error status per match
   - **Cross-Device**: Access your match history from any device
@@ -308,7 +315,16 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 ## 🎯 Roadmap
 
-### v1.1.6 (Current) - Enhanced History & Cloud Sync
+### v1.1.7 (Current) - In-Game Match Editing
+- [x] Edit current match functionality
+  - Edit button integrated in round headers (next to R1🔨, R2, etc.)
+  - Modify points and 20s for any completed round
+  - Two-column modal with team colors for easy identification
+  - Automatic recalculation of cumulative totals
+  - Works for both Points and Rounds game modes
+  - Changes persist automatically to localStorage
+
+### v1.1.6 - Enhanced History & Cloud Sync
 - [x] Native Android app release
 - [x] Match history with enhanced visual statistics
   - Compact horizontal tables with color-coded results
@@ -319,7 +335,11 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
   - Total 20's row without icons, properly aligned
 - [x] Cloud synchronization with Firebase
   - Auto-sync on match completion
-  - Manual "Sync All" for local matches
+  - Smart team detection based on player name matching
+  - Interactive team confirmation modal for unidentified matches
+  - Manual "Sync All" for local matches with batch confirmation
+  - Partial sync support (select specific matches to sync)
+  - Real-time progress feedback during synchronization
   - Sync status indicators per match
   - Cross-device match history access
 - [x] Soft delete & restore functionality
@@ -337,6 +357,10 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
   - Composite indexes for performance optimization
   - Security rules for user-level access control
   - Foundation for rankings and analytics
+- [x] Intelligent team assignment system
+  - Priority 1: Manual user confirmation via dropdown selector
+  - Priority 2: Automatic detection based on player name matching
+  - Priority 3: Keep unconfirmed matches as local-only
 - [ ] Web version release (Firebase Hosting)
 
 ### v2.0 (Future)

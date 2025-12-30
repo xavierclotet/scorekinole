@@ -92,7 +92,17 @@ export const translations = {
         noDeletedMatches: 'No hay partidas eliminadas',
         permanentDelete: 'Eliminar permanentemente',
         confirmPermanentDelete: '¿Eliminar permanentemente esta partida? Esta acción no se puede deshacer.',
-        restore: 'Restaurar'
+        restore: 'Restaurar',
+        whichTeamDidYouPlay: '¿En qué equipo jugaste?',
+        thisMatchWillBeSynced: 'Este partido será sincronizado con tu cuenta',
+        iDidntPlay: 'No jugué',
+        confirmTeamForEachMatch: 'Confirma tu equipo para cada partido',
+        selectTeamBeforeSyncing: 'Selecciona en qué equipo jugaste en cada partido antes de sincronizar',
+        syncSelected: 'Sincronizar Seleccionados',
+        matchesNeedingConfirmation: '{count} partidos necesitan confirmación',
+        matchesConfirmed: 'Partidos confirmados',
+        confirmed: 'Confirmado',
+        notConfirmed: 'Sin confirmar'
     },
     ca: {
         settings: 'Configuració',
@@ -187,7 +197,17 @@ export const translations = {
         noDeletedMatches: 'No hi ha partides eliminades',
         permanentDelete: 'Eliminar permanentment',
         confirmPermanentDelete: 'Eliminar permanentment aquesta partida? Aquesta acció no es pot desfer.',
-        restore: 'Restaurar'
+        restore: 'Restaurar',
+        whichTeamDidYouPlay: 'En quin equip vas jugar?',
+        thisMatchWillBeSynced: 'Aquesta partida serà sincronitzada amb el teu compte',
+        iDidntPlay: 'No vaig jugar',
+        confirmTeamForEachMatch: 'Confirma el teu equip per cada partida',
+        selectTeamBeforeSyncing: 'Selecciona en quin equip vas jugar a cada partida abans de sincronitzar',
+        syncSelected: 'Sincronitzar Seleccionats',
+        matchesNeedingConfirmation: '{count} partides necessiten confirmació',
+        matchesConfirmed: 'Partides confirmades',
+        confirmed: 'Confirmat',
+        notConfirmed: 'Sense confirmar'
     },
     en: {
         settings: 'Settings',
@@ -282,7 +302,17 @@ export const translations = {
         noDeletedMatches: 'No deleted matches',
         permanentDelete: 'Delete permanently',
         confirmPermanentDelete: 'Permanently delete this match? This action cannot be undone.',
-        restore: 'Restore'
+        restore: 'Restore',
+        whichTeamDidYouPlay: 'Which team did you play on?',
+        thisMatchWillBeSynced: 'This match will be synced to your account',
+        iDidntPlay: 'I didn\'t play',
+        confirmTeamForEachMatch: 'Confirm your team for each match',
+        selectTeamBeforeSyncing: 'Select which team you played on for each match before syncing',
+        syncSelected: 'Sync Selected',
+        matchesNeedingConfirmation: '{count} matches need confirmation',
+        matchesConfirmed: 'Matches confirmed',
+        confirmed: 'Confirmed',
+        notConfirmed: 'Not confirmed'
     }
 };
 

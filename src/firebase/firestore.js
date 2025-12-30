@@ -19,9 +19,11 @@ import {
 /**
  * Sync match to Firestore (root-level matches collection)
  * @param {Object} match Match object to sync
+ * @param {Object} options Optional configuration
+ * @param {number|null} options.manualTeamSelection Manual team selection (1, 2, or null for "didn't play")
  * @returns {Promise<Object>} Match object with syncStatus added
  */
-export async function syncMatchToCloud(match) {
+export async function syncMatchToCloud(match, options = {}) {
   if (!isFirebaseEnabled()) {
     console.warn('Firebase disabled - match not synced to cloud');
     return { ...match, syncStatus: 'local' };
@@ -40,19 +42,33 @@ export async function syncMatchToCloud(match) {
 
     // Detect which team the logged-in user played on
     const playerName = getCurrentPlayerName();
-    const team1Name = match.teams?.team1?.name || '';
-    const team2Name = match.teams?.team2?.name || '';
+    const team1Name = match.players?.team1?.name || '';
+    const team2Name = match.players?.team2?.name || '';
 
-    let team1UserId = null;
-    let team2UserId = null;
+    let team1UserId = match.players?.team1?.userId || null;
+    let team2UserId = match.players?.team2?.userId || null;
 
-    // If player name matches team1, user played as team1
-    if (playerName && team1Name === playerName) {
-      team1UserId = user.id;
+    // Priority 1: Manual team selection (explicit user choice)
+    if (options.manualTeamSelection !== undefined) {
+      if (options.manualTeamSelection === 1) {
+        team1UserId = user.id;
+        team2UserId = null;
+      } else if (options.manualTeamSelection === 2) {
+        team1UserId = null;
+        team2UserId = user.id;
+      }
+      // else if null: user didn't play, leave both as null
     }
-    // If player name matches team2, user played as team2
-    else if (playerName && team2Name === playerName) {
-      team2UserId = user.id;
+    // Priority 2: Auto-detection based on player name (only if not already set)
+    else if (!team1UserId && !team2UserId) {
+      // If player name matches team1, user played as team1
+      if (playerName && team1Name === playerName) {
+        team1UserId = user.id;
+      }
+      // If player name matches team2, user played as team2
+      else if (playerName && team2Name === playerName) {
+        team2UserId = user.id;
+      }
     }
 
     const matchData = {
@@ -114,13 +130,12 @@ export async function getMatchesFromCloud() {
     const matchesRef = collection(db, 'matches');
     const matchesMap = new Map(); // Use Map to avoid duplicates
 
-    // Query 1: Matches where user played as team1 (exclude deleted)
+    // Query 1: Matches where user played as team1 (only active)
     try {
       const q1 = query(
         matchesRef,
         where('players.team1.userId', '==', user.id),
-        where('status', '!=', 'deleted'),
-        orderBy('status'),
+        where('status', '==', 'active'),
         orderBy('syncedAt', 'desc'),
         limit(50)
       );
@@ -132,13 +147,12 @@ export async function getMatchesFromCloud() {
       console.warn('Query team1 failed (may need index):', err.message);
     }
 
-    // Query 2: Matches where user played as team2 (exclude deleted)
+    // Query 2: Matches where user played as team2 (only active)
     try {
       const q2 = query(
         matchesRef,
         where('players.team2.userId', '==', user.id),
-        where('status', '!=', 'deleted'),
-        orderBy('status'),
+        where('status', '==', 'active'),
         orderBy('syncedAt', 'desc'),
         limit(50)
       );
@@ -150,13 +164,12 @@ export async function getMatchesFromCloud() {
       console.warn('Query team2 failed (may need index):', err.message);
     }
 
-    // Fallback: Query by legacy userId field (for old matches, exclude deleted)
+    // Fallback: Query by legacy userId field (for old matches, only active)
     try {
       const q3 = query(
         matchesRef,
         where('userId', '==', user.id),
-        where('status', '!=', 'deleted'),
-        orderBy('status'),
+        where('status', '==', 'active'),
         orderBy('syncedAt', 'desc'),
         limit(50)
       );
@@ -405,6 +418,25 @@ export function getMatchSyncStatus(match) {
  */
 export function isMatchSynced(match) {
   return match.syncStatus === 'synced';
+}
+
+/**
+ * Check if match needs team confirmation before syncing
+ * @param {Object} match Match object
+ * @returns {boolean} True if match needs confirmation
+ */
+export function matchNeedsTeamConfirmation(match) {
+  // If match is already synced, no confirmation needed
+  if (match.syncStatus === 'synced') {
+    return false;
+  }
+
+  // Check if both teams have no userId assigned
+  const team1UserId = match.players?.team1?.userId;
+  const team2UserId = match.players?.team2?.userId;
+
+  // Needs confirmation if both userIds are null/undefined
+  return !team1UserId && !team2UserId;
 }
 
 // ============================================
