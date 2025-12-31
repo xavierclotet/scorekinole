@@ -1,0 +1,46 @@
+export interface MatchRound {
+    team1Points: number;
+    team2Points: number;
+    roundNumber: number;
+}
+
+export interface MatchGame {
+    team1Points: number;
+    team2Points: number;
+    gameNumber: number;
+    rounds: MatchRound[];
+    winner: 1 | 2 | null;
+}
+
+export interface MatchHistory {
+    id: string;
+    team1Name: string;
+    team2Name: string;
+    team1Color: string;
+    team2Color: string;
+    team1Score: number;
+    team2Score: number;
+    team1Rounds?: number;
+    team2Rounds?: number;
+    totalRounds?: number;
+    winner: 1 | 2 | null;
+    gameMode: 'points' | 'rounds';
+    gameType: 'singles' | 'doubles';
+    pointsToWin?: number;
+    roundsToPlay?: number;
+    matchesToWin: number;
+    games: MatchGame[];
+    startTime: number;
+    endTime: number;
+    duration: number;
+    eventTitle?: string;
+    matchPhase?: string;
+}
+
+export interface CurrentMatch {
+    startTime: number;
+    games: MatchGame[];
+    rounds: MatchRound[];
+}
+
+export type HistoryTab = 'current' | 'history' | 'deleted';

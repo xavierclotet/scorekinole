@@ -1,0 +1,82 @@
+/* Global CSS Variables */
+:root {
+	--bg-primary: #0a0e1a;
+	--bg-header: #151b2d;
+	--bg-modal: #1a1f35;
+	--team1-color: #1a3d5c;
+	--team2-color: #5c2d1a;
+	--accent-green: #00ff88;
+	--accent-red: #ff3366;
+	--text-primary: #ffffff;
+	--text-dim: #8899aa;
+	--divider: #2a3a4a;
+}
+
+/* Global Reset - already in app.html */
+* {
+	-webkit-tap-highlight-color: transparent;
+}
+
+/* Body Base Styles */
+body {
+	font-family: 'Lexend', sans-serif;
+	background: var(--bg-primary);
+	color: var(--text-primary);
+	touch-action: pan-y;
+}
+
+/* Background Gradient Animation */
+body::before {
+	content: '';
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: radial-gradient(
+			circle at 20% 80%,
+			rgba(26, 61, 92, 0.3) 0%,
+			transparent 50%
+		),
+		radial-gradient(
+			circle at 80% 20%,
+			rgba(92, 45, 26, 0.3) 0%,
+			transparent 50%
+		);
+	z-index: -1;
+	animation: pulse 8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 0.6;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+/* Global Scrollbar Styles */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: rgba(0, 0, 0, 0.2);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--accent-green, #00ff88);
+	border-radius: 4px;
+	transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: rgba(0, 255, 136, 0.8);
+}
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Lexend:wght@400;600&display=swap');
