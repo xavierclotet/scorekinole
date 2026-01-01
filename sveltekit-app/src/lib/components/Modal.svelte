@@ -32,28 +32,29 @@
 			aria-modal="true"
 			aria-labelledby="modal-title"
 		>
-			{#if title}
-				<h2 id="modal-title" class="modal-title">{title}</h2>
-			{/if}
+			<div class="modal-header">
+				{#if title}
+					<h2 id="modal-title" class="modal-title">{title}</h2>
+				{/if}
 
-			<button
-				class="close-btn"
-				on:click={onClose}
-				aria-label="Close"
-				type="button"
-			>
-				×
-			</button>
+				<div class="header-actions">
+					{#if $$slots.headerActions}
+						<slot name="headerActions" />
+					{/if}
+					<button
+						class="close-btn"
+						on:click={onClose}
+						aria-label="Close"
+						type="button"
+					>
+						×
+					</button>
+				</div>
+			</div>
 
 			<div class="modal-body">
 				<slot />
 			</div>
-
-			{#if $$slots.actions}
-				<div class="modal-footer">
-					<slot name="actions" />
-				</div>
-			{/if}
 		</div>
 	</div>
 {/if}
@@ -84,15 +85,16 @@
 
 	.modal-content {
 		background: var(--bg-modal, #1a1f35);
-		padding: 2rem;
+		padding: 1.5rem;
 		border-radius: 12px;
 		min-width: 50%;
 		max-width: 90%;
 		max-height: 90vh;
-		overflow-y: auto;
 		position: relative;
 		animation: slideIn 0.3s ease-out;
 		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+		display: flex;
+		flex-direction: column;
 	}
 
 	@keyframes slideIn {
@@ -106,17 +108,29 @@
 		}
 	}
 
+	.modal-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1.5rem;
+		gap: 1rem;
+		flex-shrink: 0;
+	}
+
 	.modal-title {
 		color: var(--accent-green, #00ff88);
-		margin: 0 0 1.5rem 0;
+		margin: 0;
 		font-size: 1.5rem;
-		padding-right: 2rem;
+		flex: 1;
+	}
+
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
 	.close-btn {
-		position: absolute;
-		top: 1rem;
-		right: 1rem;
 		background: none;
 		border: none;
 		font-size: 2rem;
@@ -129,6 +143,7 @@
 		justify-content: center;
 		border-radius: 50%;
 		transition: all 0.2s;
+		flex-shrink: 0;
 	}
 
 	.close-btn:hover {
@@ -138,31 +153,28 @@
 
 	.modal-body {
 		color: var(--text-color, #fff);
+		flex: 1;
+		overflow-y: hidden;
+		min-height: 0;
 	}
 
 	/* Scrollbar styling */
-	.modal-content::-webkit-scrollbar {
+	.modal-body::-webkit-scrollbar {
 		width: 8px;
 	}
 
-	.modal-content::-webkit-scrollbar-track {
+	.modal-body::-webkit-scrollbar-track {
 		background: rgba(0, 0, 0, 0.2);
 		border-radius: 4px;
 	}
 
-	.modal-content::-webkit-scrollbar-thumb {
+	.modal-body::-webkit-scrollbar-thumb {
 		background: var(--accent-green, #00ff88);
 		border-radius: 4px;
 	}
 
-	.modal-content::-webkit-scrollbar-thumb:hover {
+	.modal-body::-webkit-scrollbar-thumb:hover {
 		background: var(--accent-green-light, #00ffaa);
-	}
-
-	.modal-footer {
-		margin-top: 1.5rem;
-		padding-top: 1.5rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
 	}
 
 	/* Mobile responsiveness */

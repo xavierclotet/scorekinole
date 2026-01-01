@@ -1,6 +1,9 @@
 export interface MatchRound {
     team1Points: number;
     team2Points: number;
+    team1Twenty: number;
+    team2Twenty: number;
+    hammerTeam: 1 | 2 | null;
     roundNumber: number;
 }
 

@@ -98,6 +98,19 @@ export function resetMatchState() {
     saveMatchState();
 }
 
+// Reset only the current game (keep match history)
+export function resetGameOnly() {
+    currentGameRounds.set([]);
+    roundsPlayed.set(0);
+    lastRoundPoints.set({ team1: 0, team2: 0 });
+    matchState.update(state => ({
+        ...state,
+        currentGameRounds: [],
+        // Keep currentMatchGames and other match-level data
+    }));
+    saveMatchState();
+}
+
 // Add a new game to the match
 export function addGame(game: GameData) {
     currentMatchGames.update(games => [...games, game]);
@@ -157,7 +170,7 @@ export function setTwentyDialogPending(pending: boolean) {
 }
 
 // Complete a round (when 2 point difference detected)
-export function completeRound(team1Points: number, team2Points: number, team1Twenty: number, team2Twenty: number) {
+export function completeRound(team1Points: number, team2Points: number, team1Twenty: number, team2Twenty: number, hammerTeam: 1 | 2 | null = null) {
     // Increment global round counter
     roundsPlayed.update(n => {
         const newValue = n + 1;
@@ -180,14 +193,20 @@ export function completeRound(team1Points: number, team2Points: number, team1Twe
     };
 
     addRound(round);
-    lastRoundPoints.set({ team1: team1Points, team2: team2Points });
+
+    // Update lastRoundPoints by adding the round points to the previous total
+    const previousPoints = get(lastRoundPoints);
+    lastRoundPoints.set({
+        team1: previousPoints.team1 + team1Points,
+        team2: previousPoints.team2 + team2Points
+    });
 
     // Also update currentMatch rounds for the history modal
-    updateCurrentMatchRounds(team1Points, team2Points, currentRoundNumber);
+    updateCurrentMatchRounds(team1Points, team2Points, team1Twenty, team2Twenty, hammerTeam, currentRoundNumber);
 }
 
 // Update currentMatch with new round data
-function updateCurrentMatchRounds(team1Points: number, team2Points: number, roundNumber: number) {
+function updateCurrentMatchRounds(team1Points: number, team2Points: number, team1Twenty: number, team2Twenty: number, hammerTeam: 1 | 2 | null, roundNumber: number) {
     if (!browser) return;
 
     currentMatch.update(match => {
@@ -196,6 +215,9 @@ function updateCurrentMatchRounds(team1Points: number, team2Points: number, roun
         const newRound: MatchRound = {
             team1Points,
             team2Points,
+            team1Twenty,
+            team2Twenty,
+            hammerTeam,
             roundNumber
         };
 

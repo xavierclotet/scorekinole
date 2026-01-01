@@ -43,9 +43,9 @@ export interface GameSettings {
     /** Optional match phase label (e.g., "Final", "Semi-Final") */
     matchPhase: string;
 
-    /** X position of history button (draggable, null = default) */
-    historyBtnX: number | null;
+    /** X position of timer (draggable, null = default centered) */
+    timerX: number | null;
 
-    /** Y position of history button (draggable, null = default) */
-    historyBtnY: number | null;
+    /** Y position of timer (draggable, null = default centered) */
+    timerY: number | null;
 }

@@ -7,6 +7,33 @@
 
 	const dispatch = createEventDispatcher();
 
+	// Calculate if a color is dark (returns true if dark)
+	function isDarkColor(hexColor: string): boolean {
+		// Remove # if present
+		const hex = hexColor.replace('#', '');
+
+		// Convert to RGB
+		const r = parseInt(hex.substring(0, 2), 16);
+		const g = parseInt(hex.substring(2, 4), 16);
+		const b = parseInt(hex.substring(4, 6), 16);
+
+		// Calculate relative luminance using WCAG formula
+		const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+		// Return true if dark (luminance < 0.5)
+		return luminance < 0.5;
+	}
+
+	// Button text: use white if team color is dark, black if light (since button bg is team color)
+	$: team1TextColor = $team1.color && isDarkColor($team1.color) ? '#ffffff' : '#000000';
+	$: team2TextColor = $team2.color && isDarkColor($team2.color) ? '#ffffff' : '#000000';
+
+	// Border color: use white if team color is dark, otherwise use team color
+	// @ts-expect-error - Used in template style binding
+	$: team1BorderColor = $team1.color && isDarkColor($team1.color) ? '#ffffff' : $team1.color;
+	// @ts-expect-error - Used in template style binding
+	$: team2BorderColor = $team2.color && isDarkColor($team2.color) ? '#ffffff' : $team2.color;
+
 	function selectStartingTeam(teamNumber: 1 | 2) {
 		// The starting team does NOT have the hammer
 		// The other team gets the hammer
@@ -28,7 +55,11 @@
 </script>
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={close} role="button" tabindex="-1">
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<div class="modal-overlay" on:click={close}>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 		<div class="modal" on:click|stopPropagation role="dialog">
 			<div class="modal-header">
 				<span class="modal-title">{$t('hammerDialogTitle')}</span>
@@ -37,14 +68,14 @@
 				<div class="buttons">
 					<button
 						class="team-btn"
-						style="background: {$team1.color}; border-color: {$team1.color};"
+						style="background: {$team1.color}; border-color: {team1BorderColor}; color: {team1TextColor};"
 						on:click={() => selectStartingTeam(1)}
 					>
 						{$team1.name || 'Team 1'}
 					</button>
 					<button
 						class="team-btn"
-						style="background: {$team2.color}; border-color: {$team2.color};"
+						style="background: {$team2.color}; border-color: {team2BorderColor}; color: {team2TextColor};"
 						on:click={() => selectStartingTeam(2)}
 					>
 						{$team2.name || 'Team 2'}
@@ -73,7 +104,7 @@
 		background: #1a1f35;
 		padding: 2rem;
 		border-radius: 12px;
-		width: 50%;
+		width: 35%;
 		max-height: 90vh;
 		overflow-y: auto;
 	}
@@ -95,8 +126,8 @@
 	}
 
 	.buttons {
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
 		gap: 1rem;
 	}
 
@@ -104,7 +135,6 @@
 		padding: 1.5rem;
 		border: 3px solid;
 		border-radius: 12px;
-		color: #000;
 		font-size: 1.25rem;
 		font-weight: 700;
 		cursor: pointer;
@@ -121,9 +151,15 @@
 		transform: scale(0.98);
 	}
 
+	@media (max-width: 1024px) {
+		.modal {
+			width: 50%;
+		}
+	}
+
 	@media (max-width: 768px) {
 		.modal {
-			width: 90%;
+			width: 70%;
 		}
 
 		.modal-title {
@@ -133,6 +169,17 @@
 		.team-btn {
 			font-size: 1rem;
 			padding: 1.25rem;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.modal {
+			width: 90%;
+		}
+
+		.team-btn {
+			font-size: 0.9rem;
+			padding: 1rem;
 		}
 	}
 </style>

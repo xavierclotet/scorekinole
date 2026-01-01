@@ -5,7 +5,7 @@
 	import { team1, team2, updateTeam, resetTeams } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
 	import { completeCurrentMatch, startCurrentMatch, currentMatch } from '$lib/stores/history';
-	import { lastRoundPoints, completeRound, roundsPlayed } from '$lib/stores/matchState';
+	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames } from '$lib/stores/matchState';
 	import { get } from 'svelte/store';
 	import type { Team } from '$lib/types/team';
 
@@ -107,6 +107,13 @@
 	}
 
 	function incrementScore() {
+		// Block scoring if either team has already won
+		const t1 = get(team1);
+		const t2 = get(team2);
+		if (t1.hasWon || t2.hasWon) {
+			return; // Don't allow score changes after match is won
+		}
+
 		const previousT1 = get(lastRoundPoints).team1;
 		const previousT2 = get(lastRoundPoints).team2;
 
@@ -119,6 +126,13 @@
 	}
 
 	function decrementScore() {
+		// Block scoring if either team has already won
+		const t1 = get(team1);
+		const t2 = get(team2);
+		if (t1.hasWon || t2.hasWon) {
+			return; // Don't allow score changes after match is won
+		}
+
 		const previousT1 = get(lastRoundPoints).team1;
 		const previousT2 = get(lastRoundPoints).team2;
 
@@ -147,10 +161,11 @@
 			// Dispatch roundComplete event BEFORE completing the round
 			// This will trigger the 20s dialog if enabled
 			// The actual round completion will happen when the dialog closes
+			// Pass the ROUND points (changes), not total accumulated points
 			dispatch('roundComplete', {
 				winningTeam: roundWinner as 0 | 1 | 2,
-				team1Points: t1.points,
-				team2Points: t2.points
+				team1Points: team1Change,
+				team2Points: team2Change
 			});
 		}
 	}
@@ -167,14 +182,20 @@
 			updateTeam(2, { rounds: t2.rounds + 1 });
 		}
 
+		// Determine who has hammer BEFORE rotating
+		const hammerTeam = t1.hasHammer ? 1 : t2.hasHammer ? 2 : null;
+
 		// Rotate hammer after each round
 		rotateHammer();
 
-		// Save round data with the 20s that were just entered
-		completeRound(team1Points, team2Points, t1.twenty, t2.twenty);
+		// Save round data with the 20s that were just entered and who had hammer
+		completeRound(team1Points, team2Points, t1.twenty, t2.twenty, hammerTeam);
 
 		// Check if rounds mode is active and match should end
 		checkRoundsModeWin();
+
+		// Check if points mode is active and someone won
+		checkPointsModeWin();
 	}
 
 	function rotateHammer() {
@@ -211,32 +232,71 @@
 		}
 	}
 
+	function checkPointsModeWin() {
+		if ($gameSettings.gameMode !== 'points') return;
+
+		const t1 = get(team1);
+		const t2 = get(team2);
+
+		// Check if either team reached pointsToWin AND has 2-point lead
+		const pointDifference = Math.abs(t1.points - t2.points);
+		const team1Won = t1.points >= $gameSettings.pointsToWin && pointDifference >= 2 && t1.points > t2.points;
+		const team2Won = t2.points >= $gameSettings.pointsToWin && pointDifference >= 2 && t2.points > t1.points;
+
+		if (team1Won && !t1.hasWon) {
+			updateTeam(1, { hasWon: true });
+			updateTeam(2, { hasWon: false });
+		} else if (team2Won && !t2.hasWon) {
+			updateTeam(2, { hasWon: true });
+			updateTeam(1, { hasWon: false });
+		}
+
+		// Don't auto-save, let user manually trigger next game via Quick Menu
+	}
+
 	function checkWinCondition() {
-		const currentTeam = teamNumber === 1 ? $team1 : $team2;
-		const opponent = teamNumber === 1 ? $team2 : $team1;
+		// Victory is now checked only when a round completes, not on every point change
+		// See checkPointsModeWin() and checkRoundsModeWin()
+	}
 
-		if ($gameSettings.gameMode === 'points') {
-			// Points mode: first to reach pointsToWin with 2+ point lead
-			const hasWon =
-				currentTeam.points >= $gameSettings.pointsToWin &&
-				currentTeam.points - opponent.points >= 2;
+	function saveGameAndCheckMatchComplete() {
+		const t1 = get(team1);
+		const t2 = get(team2);
+		const settings = get(gameSettings);
+		const totalRoundsPlayed = get(roundsPlayed);
+		const matchGames = get(currentMatchGames);
 
-			// Check if this is a NEW win (not already won)
-			const wasAlreadyWon = currentTeam.hasWon;
+		// Save this completed game
+		const gameNumber = matchGames.length + 1;
+		const winner = t1.hasWon ? 1 : 2;
 
-			updateTeam(teamNumber, { hasWon });
+		const newGame = {
+			gameNumber,
+			winner,
+			team1Points: t1.points,
+			team2Points: t2.points,
+			team1Rounds: t1.rounds,
+			team2Rounds: t2.rounds,
+			team1Twenty: t1.twenty,
+			team2Twenty: t2.twenty,
+			timestamp: Date.now()
+		};
 
-			// Update opponent
-			const opponentNumber = teamNumber === 1 ? 2 : 1;
-			updateTeam(opponentNumber, { hasWon: false });
+		// Add game to currentMatchGames
+		currentMatchGames.update(games => [...games, newGame]);
 
-			// If this is a new win, save match to history
-			if (hasWon && !wasAlreadyWon) {
-				saveMatchToHistory();
-			}
+		// Check if someone won the match (reached matchesToWin)
+		const team1GamesWon = matchGames.filter(g => g.winner === 1).length + (winner === 1 ? 1 : 0);
+		const team2GamesWon = matchGames.filter(g => g.winner === 2).length + (winner === 2 ? 1 : 0);
+
+		const matchComplete = team1GamesWon >= settings.matchesToWin || team2GamesWon >= settings.matchesToWin;
+
+		if (matchComplete) {
+			// Match is complete, save to history
+			saveMatchToHistory();
 		} else {
-			// Rounds mode: win by rounds count at end
-			// (This will be handled by round completion logic later)
+			// Match continues, reset for next game
+			resetForNextGame();
 		}
 	}
 
@@ -249,10 +309,12 @@
 		const t1 = get(team1);
 		const t2 = get(team2);
 		const settings = get(gameSettings);
-		const totalRoundsPlayed = get(roundsPlayed);
+		const matchGames = get(currentMatchGames);
 
-		// Determine winner
-		const winner = t1.hasWon ? 1 : t2.hasWon ? 2 : null;
+		// Determine match winner based on games won
+		const team1GamesWon = matchGames.filter(g => g.winner === 1).length;
+		const team2GamesWon = matchGames.filter(g => g.winner === 2).length;
+		const matchWinner = team1GamesWon > team2GamesWon ? 1 : 2;
 
 		completeCurrentMatch({
 			team1Name: t1.name || 'Team 1',
@@ -263,15 +325,27 @@
 			team2Score: t2.points,
 			team1Rounds: t1.rounds,
 			team2Rounds: t2.rounds,
-			totalRounds: totalRoundsPlayed,
-			winner,
+			totalRounds: get(roundsPlayed),
+			winner: matchWinner,
 			gameMode: settings.gameMode,
 			gameType: settings.gameType,
 			pointsToWin: settings.pointsToWin,
 			roundsToPlay: settings.roundsToPlay,
 			matchesToWin: settings.matchesToWin,
-			games: []
+			games: matchGames
 		});
+	}
+
+	function resetForNextGame() {
+		// Reset points and game state for next game
+		updateTeam(1, { points: 0, rounds: 0, twenty: 0, hasWon: false });
+		updateTeam(2, { points: 0, rounds: 0, twenty: 0, hasWon: false });
+
+		// Reset only current game rounds (keep match history)
+		resetGameOnly();
+
+		// Start a new game
+		startCurrentMatch();
 	}
 
 	function handleNameChange(e: Event) {
@@ -321,18 +395,12 @@
 		</div>
 	</div>
 
-	<div class="score-display">
-		<div class="score">{team.points}</div>
-	</div>
-
 	{#if team.hasWon}
-		<div class="winner-badge">{$t('winner')}</div>
+		<div class="winner-badge">WINNER</div>
 	{/if}
 
-	<div class="team-stats">
-		{#if $gameSettings.show20s}
-			<span title={$t('twenties')}>20s: {team.twenty}</span>
-		{/if}
+	<div class="score-display">
+		<div class="score">{team.points}</div>
 	</div>
 </div>
 
@@ -476,8 +544,9 @@
 
 	.winner-badge {
 		position: absolute;
-		top: 1rem;
-		right: 1rem;
+		top: 8rem;
+		left: 50%;
+		transform: translateX(-50%);
 		background: rgba(255, 215, 0, 0.9);
 		color: #000;
 		padding: 0.5rem 1rem;
@@ -486,6 +555,7 @@
 		font-size: 0.9rem;
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 		animation: bounce 0.5s ease-in-out;
+		z-index: 10;
 	}
 
 	@keyframes bounce {
@@ -496,18 +566,6 @@
 		50% {
 			transform: translateY(-10px);
 		}
-	}
-
-	.team-stats {
-		display: flex;
-		gap: 1.5rem;
-		margin-top: 1rem;
-		font-size: 1rem;
-		opacity: 0.9;
-	}
-
-	.team-stats span {
-		font-weight: 600;
 	}
 
 	/* Responsive adjustments */
@@ -533,10 +591,6 @@
 
 		.score {
 			font-size: 5rem;
-		}
-
-		.team-stats {
-			font-size: 0.9rem;
 		}
 	}
 </style>

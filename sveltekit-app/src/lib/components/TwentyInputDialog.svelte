@@ -20,6 +20,46 @@
 	let team1Twenty: number | null = null;
 	let team2Twenty: number | null = null;
 
+	// Calculate if a color is dark (returns true if dark)
+	function isDarkColor(hexColor: string): boolean {
+		// Remove # if present
+		const hex = hexColor.replace('#', '');
+
+		// Convert to RGB
+		const r = parseInt(hex.substring(0, 2), 16);
+		const g = parseInt(hex.substring(2, 4), 16);
+		const b = parseInt(hex.substring(4, 6), 16);
+
+		// Calculate relative luminance using WCAG formula
+		const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+		// Return true if dark (luminance < 0.5)
+		return luminance < 0.5;
+	}
+
+	// Get appropriate color: use white if team color is dark, otherwise use team color
+	function getColorForDarkBackground(teamColor: string): string {
+		return isDarkColor(teamColor) ? '#ffffff' : teamColor;
+	}
+
+	// Color for selected buttons (solid background with team color)
+	// Use white text if team color is dark, black if light
+	$: team1SelectedTextColor = isDarkColor($team1.color) ? '#ffffff' : '#000000';
+	$: team2SelectedTextColor = isDarkColor($team2.color) ? '#ffffff' : '#000000';
+
+	// Color for unselected buttons (transparent background over dark modal)
+	// Use white if team color is dark (would be invisible), otherwise use team color
+	$: team1UnselectedTextColor = getColorForDarkBackground($team1.color);
+	$: team2UnselectedTextColor = getColorForDarkBackground($team2.color);
+
+	// Border color: use white if team color is dark, otherwise use team color
+	$: team1BorderColor = getColorForDarkBackground($team1.color);
+	$: team2BorderColor = getColorForDarkBackground($team2.color);
+
+	// Team header name color: use white if team color is dark, otherwise use team color
+	$: team1HeaderColor = getColorForDarkBackground($team1.color);
+	$: team2HeaderColor = getColorForDarkBackground($team2.color);
+
 	function selectTeam1Twenty(count: number) {
 		team1Twenty = count;
 		// Auto-save and close when both teams have values
@@ -66,7 +106,7 @@
 			<div class="modal-content">
 				<!-- Team 1 Section -->
 				<div class="team-section">
-					<div class="team-header" style="color: {$team1.color}">
+					<div class="team-header" style="color: {team1HeaderColor}">
 						{team1Name}
 					</div>
 					<div class="calculator">
@@ -74,6 +114,9 @@
 							<button
 								class="calc-btn"
 								class:selected={team1Twenty === num}
+								style="background: {team1Twenty === num ? $team1.color : `${$team1.color}20`};
+								       border-color: {team1BorderColor};
+								       color: {team1Twenty === num ? team1SelectedTextColor : team1UnselectedTextColor};"
 								on:click={() => selectTeam1Twenty(num)}
 							>
 								{num}
@@ -84,7 +127,7 @@
 
 				<!-- Team 2 Section -->
 				<div class="team-section">
-					<div class="team-header" style="color: {$team2.color}">
+					<div class="team-header" style="color: {team2HeaderColor}">
 						{team2Name}
 					</div>
 					<div class="calculator">
@@ -92,6 +135,9 @@
 							<button
 								class="calc-btn"
 								class:selected={team2Twenty === num}
+								style="background: {team2Twenty === num ? $team2.color : `${$team2.color}20`};
+								       border-color: {team2BorderColor};
+								       color: {team2Twenty === num ? team2SelectedTextColor : team2UnselectedTextColor};"
 								on:click={() => selectTeam2Twenty(num)}
 							>
 								{num}
@@ -177,10 +223,8 @@
 
 	.calc-btn {
 		padding: 1rem;
-		background: rgba(0, 255, 136, 0.1);
-		border: 2px solid #00ff88;
+		border: 2px solid;
 		border-radius: 12px;
-		color: #00ff88;
 		font-size: 1.25rem;
 		font-weight: 700;
 		cursor: pointer;
@@ -189,7 +233,7 @@
 	}
 
 	.calc-btn:hover {
-		background: rgba(0, 255, 136, 0.2);
+		filter: brightness(1.2);
 		transform: scale(1.05);
 	}
 
@@ -198,9 +242,7 @@
 	}
 
 	.calc-btn.selected {
-		background: #00ff88;
-		color: #000;
-		box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+		box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
 		transform: scale(1.1);
 	}
 

@@ -10,55 +10,78 @@
 	export let isOpen: boolean = false;
 	export let onClose: () => void = () => {};
 
-	// Local state for settings (edited values before save)
-	let localSettings: GameSettings = { ...$gameSettings };
-
-	// Sync local settings when modal opens
-	$: if (isOpen) {
-		localSettings = { ...$gameSettings };
-	}
-
-	function handleSave() {
-		gameSettings.set(localSettings);
-		gameSettings.save();
-		onClose();
-	}
-
-	function handleCancel() {
-		localSettings = { ...$gameSettings };
-		onClose();
-	}
-
+	// Auto-save: directly update the store on every change
 	function handleLanguageChange(lang: Language) {
-		localSettings = { ...localSettings, language: lang };
+		gameSettings.update(s => ({ ...s, language: lang }));
+		gameSettings.save();
 	}
 
 	function handleGameModeChange(mode: 'points' | 'rounds') {
-		localSettings = { ...localSettings, gameMode: mode };
+		gameSettings.update(s => ({ ...s, gameMode: mode }));
+		gameSettings.save();
 	}
 
 	function handleGameTypeChange(type: 'singles' | 'doubles') {
-		localSettings = { ...localSettings, gameType: type };
+		gameSettings.update(s => ({ ...s, gameType: type }));
+		gameSettings.save();
 	}
 
 	function handleToggle(key: 'show20s' | 'showHammer') {
-		localSettings = { ...localSettings, [key]: !localSettings[key] };
+		gameSettings.update(s => ({ ...s, [key]: !s[key] }));
+		gameSettings.save();
 	}
 
 	function handleNumberChange(key: keyof GameSettings, newValue: number) {
-		localSettings = { ...localSettings, [key]: newValue };
+		gameSettings.update(s => ({ ...s, [key]: newValue }));
+		gameSettings.save();
+	}
+
+	function handleTextChange(key: 'eventTitle' | 'matchPhase', value: string) {
+		gameSettings.update(s => ({ ...s, [key]: value }));
+		gameSettings.save();
 	}
 </script>
 
-<Modal {isOpen} title={$t('settings')} onClose={handleCancel}>
+<Modal {isOpen} title={$t('settings')} onClose={onClose}>
 	<div class="settings-content">
+		<!-- Event Information Section -->
+		<section class="settings-section">
+			<h3>{$t('eventInfo')}</h3>
+			<div class="event-inputs-grid">
+				<div class="input-group">
+					<label for="event-title">{$t('eventTitle')}</label>
+					<input
+						id="event-title"
+						type="text"
+						class="text-input"
+						value={$gameSettings.eventTitle}
+						on:input={(e) => handleTextChange('eventTitle', e.currentTarget.value)}
+						placeholder="Ej: TORNEIG DE CASA MEVA"
+						maxlength="50"
+					/>
+				</div>
+				<div class="input-group">
+					<label for="match-phase">{$t('matchPhase')}</label>
+					<input
+						id="match-phase"
+						type="text"
+						class="text-input"
+						value={$gameSettings.matchPhase}
+						on:input={(e) => handleTextChange('matchPhase', e.currentTarget.value)}
+						placeholder="Ej: Final, Semifinal, Grup A"
+						maxlength="30"
+					/>
+				</div>
+			</div>
+		</section>
+
 		<!-- Game Mode Section -->
 		<section class="settings-section">
 			<h3>{$t('gameMode')}</h3>
 			<div class="button-group">
 				<button
 					class="mode-button"
-					class:active={localSettings.gameMode === 'points'}
+					class:active={$gameSettings.gameMode === 'points'}
 					on:click={() => handleGameModeChange('points')}
 					type="button"
 				>
@@ -66,12 +89,43 @@
 				</button>
 				<button
 					class="mode-button"
-					class:active={localSettings.gameMode === 'rounds'}
+					class:active={$gameSettings.gameMode === 'rounds'}
 					on:click={() => handleGameModeChange('rounds')}
 					type="button"
 				>
 					{$t('modeRounds')}
 				</button>
+			</div>
+
+			<!-- Points/Rounds Configuration -->
+			<div class="mode-config">
+				{#if $gameSettings.gameMode === 'points'}
+					<NumberControl
+						value={$gameSettings.pointsToWin}
+						on:change={(e) => handleNumberChange('pointsToWin', e.detail)}
+						min={1}
+						max={200}
+						step={1}
+						label={$t('pointsToWin')}
+					/>
+					<NumberControl
+						value={$gameSettings.matchesToWin}
+						on:change={(e) => handleNumberChange('matchesToWin', e.detail)}
+						min={1}
+						max={10}
+						step={1}
+						label={$t('matchesToWin')}
+					/>
+				{:else}
+					<NumberControl
+						value={$gameSettings.roundsToPlay}
+						on:change={(e) => handleNumberChange('roundsToPlay', e.detail)}
+						min={1}
+						max={20}
+						step={1}
+						label={$t('roundsToPlay')}
+					/>
+				{/if}
 			</div>
 		</section>
 
@@ -81,7 +135,7 @@
 			<div class="button-group">
 				<button
 					class="mode-button"
-					class:active={localSettings.gameType === 'singles'}
+					class:active={$gameSettings.gameType === 'singles'}
 					on:click={() => handleGameTypeChange('singles')}
 					type="button"
 				>
@@ -89,7 +143,7 @@
 				</button>
 				<button
 					class="mode-button"
-					class:active={localSettings.gameType === 'doubles'}
+					class:active={$gameSettings.gameType === 'doubles'}
 					on:click={() => handleGameTypeChange('doubles')}
 					type="button"
 				>
@@ -98,43 +152,12 @@
 			</div>
 		</section>
 
-		<!-- Points/Rounds Configuration -->
-		<section class="settings-section">
-			{#if localSettings.gameMode === 'points'}
-				<NumberControl
-					value={localSettings.pointsToWin}
-					on:change={(e) => handleNumberChange('pointsToWin', e.detail)}
-					min={1}
-					max={200}
-					step={1}
-					label={$t('pointsToWin')}
-				/>
-				<NumberControl
-					value={localSettings.matchesToWin}
-					on:change={(e) => handleNumberChange('matchesToWin', e.detail)}
-					min={1}
-					max={10}
-					step={1}
-					label={$t('matchesToWin')}
-				/>
-			{:else}
-				<NumberControl
-					value={localSettings.roundsToPlay}
-					on:change={(e) => handleNumberChange('roundsToPlay', e.detail)}
-					min={1}
-					max={20}
-					step={1}
-					label={$t('roundsToPlay')}
-				/>
-			{/if}
-		</section>
-
 		<!-- Timer Configuration -->
 		<section class="settings-section">
 			<h3>{$t('timer')}</h3>
 			<div class="timer-controls">
 				<NumberControl
-					value={localSettings.timerMinutes}
+					value={$gameSettings.timerMinutes}
 					on:change={(e) => handleNumberChange('timerMinutes', e.detail)}
 					min={0}
 					max={60}
@@ -142,7 +165,7 @@
 					label="{$t('minutes')}"
 				/>
 				<NumberControl
-					value={localSettings.timerSeconds}
+					value={$gameSettings.timerSeconds}
 					on:change={(e) => handleNumberChange('timerSeconds', e.detail)}
 					min={0}
 					max={59}
@@ -152,67 +175,23 @@
 			</div>
 		</section>
 
-		<!-- Language Selection -->
-		<section class="settings-section">
-			<h3>{$t('language')}</h3>
-			<div class="language-grid">
-				<button
-					class="language-button"
-					class:active={localSettings.language === 'es'}
-					on:click={() => handleLanguageChange('es')}
-				>
-					🇪🇸 Español
-				</button>
-				<button
-					class="language-button"
-					class:active={localSettings.language === 'ca'}
-					on:click={() => handleLanguageChange('ca')}
-				>
-					🏴 Català
-				</button>
-				<button
-					class="language-button"
-					class:active={localSettings.language === 'en'}
-					on:click={() => handleLanguageChange('en')}
-				>
-					🇬🇧 English
-				</button>
-			</div>
-		</section>
-
 		<!-- Feature Toggles -->
 		<section class="settings-section">
 			<h3>{$t('features')}</h3>
 			<div class="toggle-list">
 				<label class="toggle-item" on:click|preventDefault={() => handleToggle('show20s')}>
 					<span>{$t('track20s')}</span>
-					<input type="checkbox" checked={localSettings.show20s} readonly />
+					<input type="checkbox" checked={$gameSettings.show20s} readonly />
 					<span class="toggle-switch"></span>
 				</label>
 
 				<label class="toggle-item" on:click|preventDefault={() => handleToggle('showHammer')}>
 					<span>{$t('hammer')}</span>
-					<input type="checkbox" checked={localSettings.showHammer} readonly />
+					<input type="checkbox" checked={$gameSettings.showHammer} readonly />
 					<span class="toggle-switch"></span>
 				</label>
 			</div>
 		</section>
-
-		<!-- App Info -->
-		<section class="settings-section app-info">
-			<p><strong>{$t('appTitle')}</strong></p>
-			<p>{$t('version')}: {localSettings.appVersion}</p>
-		</section>
-	</div>
-
-	<!-- Modal Actions -->
-	<div class="modal-actions" slot="actions">
-		<Button variant="secondary" on:click={handleCancel}>
-			{$t('cancel')}
-		</Button>
-		<Button variant="primary" on:click={handleSave}>
-			{$t('save')}
-		</Button>
 	</div>
 </Modal>
 
@@ -221,7 +200,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
-		padding: 1rem 0;
+		padding: 1rem;
 		max-height: 70vh;
 		overflow-y: auto;
 	}
@@ -243,6 +222,13 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 0.75rem;
+	}
+
+	.mode-config {
+		margin-top: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
 	}
 
 	.mode-button {
@@ -272,36 +258,6 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 1rem;
-	}
-
-	.language-grid {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 0.75rem;
-	}
-
-	.language-button {
-		padding: 0.75rem 1rem;
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid rgba(255, 255, 255, 0.2);
-		border-radius: 8px;
-		color: #fff;
-		font-size: 1rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.2s;
-		text-align: left;
-	}
-
-	.language-button:hover {
-		background: rgba(255, 255, 255, 0.15);
-		border-color: rgba(255, 255, 255, 0.3);
-	}
-
-	.language-button.active {
-		background: #00ff88;
-		color: #000;
-		border-color: #00ff88;
 	}
 
 	.toggle-list {
@@ -375,16 +331,52 @@
 		margin: 0.25rem 0;
 	}
 
-	.modal-actions {
-		display: flex;
+	.event-inputs-grid {
+		display: grid;
+		grid-template-columns: 2fr 1fr;
 		gap: 1rem;
-		justify-content: flex-end;
-		margin-top: 1.5rem;
-		padding-top: 1.5rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.input-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.input-group label {
+		font-size: 0.9rem;
+		color: rgba(255, 255, 255, 0.8);
+		font-weight: 600;
+	}
+
+	.text-input {
+		padding: 0.75rem 1rem;
+		background: rgba(255, 255, 255, 0.1);
+		border: 2px solid rgba(255, 255, 255, 0.2);
+		border-radius: 8px;
+		color: #fff;
+		font-size: 1rem;
+		font-family: inherit;
+		transition: all 0.2s;
+	}
+
+	.text-input::placeholder {
+		color: rgba(255, 255, 255, 0.4);
+	}
+
+	.text-input:focus {
+		outline: none;
+		border-color: #00ff88;
+		background: rgba(255, 255, 255, 0.15);
 	}
 
 	/* Responsive */
+	@media (max-width: 768px) {
+		.event-inputs-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+
 	@media (max-width: 600px) {
 		.settings-content {
 			max-height: 60vh;
@@ -398,12 +390,8 @@
 			grid-template-columns: 1fr;
 		}
 
-		.modal-actions {
-			flex-direction: column-reverse;
-		}
-
-		.modal-actions :global(button) {
-			width: 100%;
+		.event-inputs-grid {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

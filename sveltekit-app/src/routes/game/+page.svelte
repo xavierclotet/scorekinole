@@ -4,7 +4,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, switchColors } from '$lib/stores/teams';
 	import { timeRemaining, resetTimer, cleanupTimer } from '$lib/stores/timer';
-	import { loadMatchState, resetMatchState, roundsPlayed, currentGameStartHammer, twentyDialogPending, setTwentyDialogPending } from '$lib/stores/matchState';
+	import { loadMatchState, resetMatchState, roundsPlayed, currentGameStartHammer, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchGames, lastRoundPoints } from '$lib/stores/matchState';
 	import { loadHistory, startCurrentMatch, currentMatch } from '$lib/stores/history';
 	import TeamCard from '$lib/components/TeamCard.svelte';
 	import Timer from '$lib/components/Timer.svelte';
@@ -32,6 +32,23 @@
 	// Bind showTwentyDialog to the store
 	$: showTwentyDialog = $twentyDialogPending;
 
+	// Calculate wins for each team based on rounds played in current game
+	$: team1Wins = $currentGameRounds.filter(round => round.team1Points > round.team2Points).length;
+	$: team2Wins = $currentGameRounds.filter(round => round.team2Points > round.team1Points).length;
+
+	// Calculate games won in the match (for multi-game matches)
+	$: team1GamesWon = $currentMatchGames.filter(game => game.winner === 1).length;
+	$: team2GamesWon = $currentMatchGames.filter(game => game.winner === 2).length;
+
+	// Calculate points for current round in progress (subtract last round's ending points from current total)
+	$: team1CurrentRoundPoints = $team1.points - $lastRoundPoints.team1;
+	$: team2CurrentRoundPoints = $team2.points - $lastRoundPoints.team2;
+
+	// Debug logging
+	$: console.log('roundsPlayed:', $roundsPlayed, 'currentGameRounds:', $currentGameRounds, 'team1Wins:', team1Wins, 'team2Wins:', team2Wins);
+	$: console.log('team1.points:', $team1.points, 'team2.points:', $team2.points, 'lastRoundPoints:', $lastRoundPoints);
+	$: console.log('team1CurrentRoundPoints:', team1CurrentRoundPoints, 'team2CurrentRoundPoints:', team2CurrentRoundPoints);
+
 	onMount(() => {
 		gameSettings.load();
 		loadTeams();
@@ -51,11 +68,6 @@
 				resetTimer(totalSeconds);
 			}
 		});
-
-		// Show HammerDialog at match start (when no hammer has been assigned)
-		if ($currentGameStartHammer === null && $roundsPlayed === 0) {
-			showHammerDialog = true;
-		}
 
 		return () => {
 			unsubSettings();
@@ -90,6 +102,19 @@
 
 	function handleHammerSelected() {
 		showHammerDialog = false;
+	}
+
+	function handleMatchReset() {
+		// Only show hammer dialog if showHammer setting is enabled
+		if ($gameSettings.showHammer) {
+			// First set to false to force a re-render
+			showHammerDialog = false;
+
+			// Then use setTimeout to set to true
+			setTimeout(() => {
+				showHammerDialog = true;
+			}, 50);
+		}
 	}
 
 	function handleRoundComplete(event: CustomEvent<{ winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number }>) {
@@ -134,19 +159,22 @@
 <div class="game-page">
 	<header class="game-header">
 		<div class="left-section">
-			<QuickMenu />
+			<QuickMenu on:matchReset={handleMatchReset} />
 			<h1>Scorekinole</h1>
 		</div>
 
 		<div class="center-section">
+			{#if $gameSettings.eventTitle || $gameSettings.matchPhase}
+				<div class="event-info-header">
+					{#if $gameSettings.eventTitle}
+						<span class="event-title-header">{$gameSettings.eventTitle}</span>
+					{/if}
+					{#if $gameSettings.matchPhase}
+						<span class="event-phase-header">{$gameSettings.matchPhase}</span>
+					{/if}
+				</div>
+			{/if}
 			<Timer size="small" />
-			<div class="game-info">
-				{#if $gameSettings.gameMode === 'rounds'}
-					{$team1.rounds} / {$gameSettings.roundsToPlay}
-				{:else}
-					{$t('matchTo')} {$gameSettings.pointsToWin} {$t('points')}
-				{/if}
-			</div>
 		</div>
 
 		<div class="right-section">
@@ -163,6 +191,89 @@
 			</button>
 		</div>
 	</header>
+
+	<div class="game-info">
+		{#if $gameSettings.gameMode === 'rounds'}
+			{$t('roundShort')}{$roundsPlayed + 1} / {$gameSettings.roundsToPlay}
+		{:else}
+			{@const currentGameNumber = $currentMatchGames.length + 1}
+			{#if $team1.hasWon || $team2.hasWon}
+				{$t('gameShort')}{currentGameNumber} • {$t('roundShort')}{$roundsPlayed} • {$gameSettings.pointsToWin} {$t('points')}
+			{:else}
+				{$t('gameShort')}{currentGameNumber} • {$t('roundShort')}{$roundsPlayed + 1} • {$gameSettings.pointsToWin} {$t('points')}
+			{/if}
+		{/if}
+	</div>
+
+	<!-- Previous games results for multi-game matches -->
+	{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1 && $currentMatchGames.length > 0}
+		<div class="match-score-container">
+			<div class="previous-games">
+				{#each $currentMatchGames as game, i}
+					{@const winnerName = game.winner === 1 ? $team1.name : $team2.name}
+					{@const winnerPoints = game.winner === 1 ? game.team1Points : game.team2Points}
+					{@const loserPoints = game.winner === 1 ? game.team2Points : game.team1Points}
+					<div class="game-result">
+						<span class="game-number">P{game.gameNumber}:</span>
+						<span class="winner-name">{winnerName} ganó</span>
+						<span class="score">{winnerPoints}-{loserPoints}</span>
+					</div>
+				{/each}
+				<div class="match-total">
+					<span class="match-label">Match:</span>
+					<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team1GamesWon}</span>
+					<span>-</span>
+					<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team2GamesWon}</span>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Score table for current game (points mode) -->
+	{#if $gameSettings.gameMode === 'points' && ($currentGameRounds.length > 0 || team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0)}
+		<div class="score-table-container">
+			<table class="score-table">
+				<thead>
+					<tr>
+						<th></th>
+						{#each $currentGameRounds as _, i}
+							<th>R{i + 1}</th>
+						{/each}
+						<!-- Show current round in progress -->
+						{#if team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0}
+							<th class="current-round">R{$currentGameRounds.length + 1}</th>
+						{/if}
+						<th class="total-col"></th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr style="background: {$team1.color}20; border-left: 3px solid {$team1.color};">
+						<td class="team-name" style="color: {$team1.color};">{$team1.name}</td>
+						{#each $currentGameRounds as round}
+							<td>{round.team1Points}</td>
+						{/each}
+						<!-- Show current round in progress -->
+						{#if team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0}
+							<td class="current-round">{team1CurrentRoundPoints}</td>
+						{/if}
+						<td class="total-col" rowspan="2" style="vertical-align: middle; font-size: 1rem;">
+							{$team1.points}-{$team2.points}
+						</td>
+					</tr>
+					<tr style="background: {$team2.color}20; border-left: 3px solid {$team2.color};">
+						<td class="team-name" style="color: {$team2.color};">{$team2.name}</td>
+						{#each $currentGameRounds as round}
+							<td>{round.team2Points}</td>
+						{/each}
+						<!-- Show current round in progress -->
+						{#if team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0}
+							<td class="current-round">{team2CurrentRoundPoints}</td>
+						{/if}
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	{/if}
 
 	<div class="teams-container">
 		<TeamCard
@@ -249,12 +360,188 @@
 		white-space: nowrap;
 	}
 
+	.event-info-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: #00ff88;
+		font-weight: 700;
+		font-family: 'Orbitron', monospace;
+		text-align: center;
+		margin-bottom: 0.25rem;
+		max-width: 100%;
+		overflow: hidden;
+	}
+
+	.event-title-header {
+		font-size: 1rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.event-phase-header {
+		font-size: 1rem;
+		color: rgba(255, 255, 255, 0.7);
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.event-phase-header::before {
+		content: '•';
+		margin-right: 0.35rem;
+		color: rgba(0, 255, 136, 0.5);
+	}
+
 	.game-info {
-		font-size: 0.75rem;
+		position: fixed;
+		top: 3.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 50;
+		font-size: 0.85rem;
 		color: rgba(255, 255, 255, 0.7);
 		font-weight: 600;
 		font-family: 'Orbitron', monospace;
 		text-align: center;
+		padding: 0.5rem 1rem;
+		background: rgba(10, 14, 26, 0.95);
+		border: 2px solid rgba(0, 255, 136, 0.3);
+		border-radius: 12px;
+		backdrop-filter: blur(12px);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 136, 0.15);
+	}
+
+	.match-score-container {
+		position: fixed;
+		top: 7rem;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 50;
+	}
+
+	.previous-games {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: rgba(10, 14, 26, 0.95);
+		border: 2px solid rgba(0, 255, 136, 0.3);
+		border-radius: 12px;
+		backdrop-filter: blur(12px);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 136, 0.15);
+		font-family: 'Orbitron', monospace;
+		font-weight: 700;
+	}
+
+	.game-result {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.85rem;
+	}
+
+	.game-number {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.8rem;
+	}
+
+	.winner-name {
+		font-weight: 700;
+	}
+
+	.score {
+		color: rgba(255, 255, 255, 0.9);
+		font-size: 0.9rem;
+	}
+
+	.match-total {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding-top: 0.5rem;
+		margin-top: 0.5rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.2);
+		font-size: 1rem;
+	}
+
+	.match-label {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.85rem;
+	}
+
+	.match-result {
+		font-size: 1.2rem;
+	}
+
+	.score-table-container {
+		position: fixed;
+		bottom: 1rem;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 100;
+		background: rgba(10, 14, 26, 0.95);
+		border: 2px solid rgba(0, 255, 136, 0.3);
+		border-radius: 12px;
+		backdrop-filter: blur(12px);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 136, 0.15);
+		padding: 0.75rem;
+		max-width: 90vw;
+		overflow-x: auto;
+	}
+
+	.score-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-family: 'Orbitron', monospace;
+		font-size: 0.75rem;
+	}
+
+	.score-table th {
+		color: #00ff88;
+		font-weight: 700;
+		padding: 0.4rem 0.6rem;
+		text-align: center;
+		border-bottom: 1px solid rgba(0, 255, 136, 0.3);
+	}
+
+	.score-table td {
+		padding: 0.4rem 0.6rem;
+		text-align: center;
+		color: rgba(255, 255, 255, 0.9);
+		font-weight: 600;
+	}
+
+	.score-table .team-name {
+		text-align: left;
+		font-weight: 700;
+		font-size: 0.8rem;
+		white-space: nowrap;
+	}
+
+	.score-table .total-col {
+		font-weight: 700;
+		font-size: 0.85rem;
+		color: #00ff88;
+		border-left: 1px solid rgba(0, 255, 136, 0.3);
+	}
+
+	.score-table tbody tr {
+		border-radius: 6px;
+	}
+
+	.score-table .current-round {
+		background: rgba(0, 255, 136, 0.15);
+		font-weight: 700;
+		position: relative;
+	}
+
+	.score-table th.current-round {
+		color: #00d4ff;
 	}
 
 	.language-selector {
@@ -316,6 +603,12 @@
 
 	/* Responsive */
 
+	@media (max-width: 600px) {
+		.teams-container {
+			grid-template-columns: 1fr;
+		}
+	}
+
 	@media (max-width: 480px) {
 		.game-page {
 			padding: 0.3rem;
@@ -348,6 +641,15 @@
 		.teams-container {
 			gap: 0.5rem;
 		}
+
+		.event-info-header {
+			font-size: 0.65rem;
+		}
+
+		.game-info {
+			font-size: 0.65rem;
+			padding: 0.4rem 0.8rem;
+		}
 	}
 
 	@media (orientation: landscape) and (max-height: 600px) {
@@ -377,6 +679,16 @@
 
 		.teams-container {
 			gap: 0.5rem;
+		}
+
+		.event-info-header {
+			font-size: 0.65rem;
+		}
+
+		.game-info {
+			top: 3rem;
+			font-size: 0.9rem;
+			padding: 0.4rem 0.8rem;
 		}
 	}
 </style>
