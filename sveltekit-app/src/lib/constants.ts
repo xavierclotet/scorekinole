@@ -1,6 +1,6 @@
 import type { GameSettings } from './types/settings';
 
-export const APP_VERSION = '2.0.1';
+export const APP_VERSION = '2.0.2';
 export const APP_NAME = 'Scorekinole';
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
@@ -8,6 +8,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     pointsToWin: 7,
     timerMinutes: 10,
     timerSeconds: 0,
+    showTimer: true,
     language: 'ca',
     matchesToWin: 1,
     show20s: false,

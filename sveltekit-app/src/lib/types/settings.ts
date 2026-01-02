@@ -16,6 +16,9 @@ export interface GameSettings {
     /** Timer duration - seconds component */
     timerSeconds: number;
 
+    /** Whether to show the timer on the game screen */
+    showTimer: boolean;
+
     /** Active language: Spanish, Catalan, or English */
     language: 'es' | 'ca' | 'en';
 

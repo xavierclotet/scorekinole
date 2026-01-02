@@ -159,6 +159,64 @@ export function startCurrentMatch() {
     saveCurrentMatch();
 }
 
+// Reset/clear the current match
+export function resetCurrentMatch() {
+    currentMatch.set(null);
+    saveCurrentMatch();
+}
+
+// Add a completed game to current match and clear rounds for next game
+export function addGameToCurrentMatch(game: any) {
+    currentMatch.update(match => {
+        if (!match) {
+            // If no match exists, create one
+            return {
+                startTime: Date.now(),
+                games: [game],
+                rounds: []
+            };
+        }
+
+        return {
+            ...match,
+            games: [...match.games, game],
+            rounds: [] // Clear rounds for next game
+        };
+    });
+    saveCurrentMatch();
+}
+
+// Clear rounds from current match (when starting a new game)
+export function clearCurrentMatchRounds() {
+    currentMatch.update(match => {
+        if (!match) return match;
+        return {
+            ...match,
+            rounds: []
+        };
+    });
+    saveCurrentMatch();
+}
+
+// Update a round in the current match
+export function updateCurrentMatchRound(roundIndex: number, updates: Partial<{ team1Points: number; team2Points: number; team1Twenty: number; team2Twenty: number }>) {
+    currentMatch.update(match => {
+        if (!match || !match.rounds[roundIndex]) return match;
+
+        const updatedRounds = [...match.rounds];
+        updatedRounds[roundIndex] = {
+            ...updatedRounds[roundIndex],
+            ...updates
+        };
+
+        return {
+            ...match,
+            rounds: updatedRounds
+        };
+    });
+    saveCurrentMatch();
+}
+
 // Complete the current match and save to history
 export function completeCurrentMatch(matchData: Omit<MatchHistory, 'id' | 'startTime' | 'endTime' | 'duration'>) {
     const current = get(currentMatch);

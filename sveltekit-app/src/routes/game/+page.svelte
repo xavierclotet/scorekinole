@@ -26,8 +26,17 @@
 	let teamCard1: any;
 	let teamCard2: any;
 
+	// Reference to QuickMenu to call toggleMenu
+	let quickMenuComponent: any;
+
 	// Round completion data stored temporarily while 20s dialog is shown
 	let pendingRoundData: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number } | null = null;
+
+	// Event info editing state
+	let editingEventTitle = false;
+	let editingMatchPhase = false;
+	let eventTitleInput: HTMLInputElement;
+	let matchPhaseInput: HTMLInputElement;
 
 	// Bind showTwentyDialog to the store
 	$: showTwentyDialog = $twentyDialogPending;
@@ -39,6 +48,12 @@
 	// Calculate games won in the match (for multi-game matches)
 	$: team1GamesWon = $currentMatchGames.filter(game => game.winner === 1).length;
 	$: team2GamesWon = $currentMatchGames.filter(game => game.winner === 2).length;
+
+	// Check if match is complete
+	$: isMatchComplete = team1GamesWon >= $gameSettings.matchesToWin || team2GamesWon >= $gameSettings.matchesToWin;
+
+	// Show "Next Game" button when someone won AND match is not complete AND matchesToWin > 1
+	$: showNextGameButton = ($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points';
 
 	// Calculate points for current round in progress (subtract last round's ending points from current total)
 	$: team1CurrentRoundPoints = $team1.points - $lastRoundPoints.team1;
@@ -154,27 +169,121 @@
 		// Clear pending data
 		pendingRoundData = null;
 	}
+
+	function handleNextGame() {
+		// Call resetForNextGame on one of the TeamCard components
+		if (teamCard1) {
+			teamCard1.resetForNextGame();
+		}
+	}
+
+	function handleTitleClick() {
+		if (quickMenuComponent) {
+			quickMenuComponent.toggleMenu();
+		}
+	}
+
+	// Event info editing functions
+	function startEditingEventTitle() {
+		editingEventTitle = true;
+		setTimeout(() => {
+			if (eventTitleInput) {
+				eventTitleInput.focus();
+				eventTitleInput.select();
+			}
+		}, 10);
+	}
+
+	function startEditingMatchPhase() {
+		editingMatchPhase = true;
+		setTimeout(() => {
+			if (matchPhaseInput) {
+				matchPhaseInput.focus();
+				matchPhaseInput.select();
+			}
+		}, 10);
+	}
+
+	function saveEventTitle() {
+		editingEventTitle = false;
+		gameSettings.save();
+	}
+
+	function saveMatchPhase() {
+		editingMatchPhase = false;
+		gameSettings.save();
+	}
+
+	function handleEventTitleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			saveEventTitle();
+		} else if (e.key === 'Escape') {
+			editingEventTitle = false;
+		}
+	}
+
+	function handleMatchPhaseKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			saveMatchPhase();
+		} else if (e.key === 'Escape') {
+			editingMatchPhase = false;
+		}
+	}
 </script>
 
 <div class="game-page">
 	<header class="game-header">
 		<div class="left-section">
-			<QuickMenu on:matchReset={handleMatchReset} />
-			<h1>Scorekinole</h1>
+			<QuickMenu bind:this={quickMenuComponent} on:matchReset={handleMatchReset} />
+			<h1 on:click|stopPropagation={handleTitleClick} class="clickable-title">
+				Scorekinole
+				<span class="version-badge">v{$gameSettings.appVersion}</span>
+			</h1>
 		</div>
 
 		<div class="center-section">
-			{#if $gameSettings.eventTitle || $gameSettings.matchPhase}
-				<div class="event-info-header">
-					{#if $gameSettings.eventTitle}
-						<span class="event-title-header">{$gameSettings.eventTitle}</span>
-					{/if}
-					{#if $gameSettings.matchPhase}
-						<span class="event-phase-header">{$gameSettings.matchPhase}</span>
-					{/if}
-				</div>
+			<div class="event-info-header">
+				{#if editingEventTitle}
+					<input
+						bind:this={eventTitleInput}
+						bind:value={$gameSettings.eventTitle}
+						on:blur={saveEventTitle}
+						on:keydown={handleEventTitleKeydown}
+						class="event-title-input"
+						placeholder={$t('eventTitle')}
+					/>
+				{:else if $gameSettings.eventTitle}
+					<span class="event-title-header editable" on:click={startEditingEventTitle}>
+						{$gameSettings.eventTitle}
+					</span>
+				{:else}
+					<span class="event-title-header editable placeholder" on:click={startEditingEventTitle}>
+						+ {$t('eventTitle')}
+					</span>
+				{/if}
+
+				{#if editingMatchPhase}
+					<input
+						bind:this={matchPhaseInput}
+						bind:value={$gameSettings.matchPhase}
+						on:blur={saveMatchPhase}
+						on:keydown={handleMatchPhaseKeydown}
+						class="event-phase-input"
+						placeholder={$t('matchPhase')}
+					/>
+				{:else if $gameSettings.matchPhase}
+					<span class="event-phase-header editable" on:click={startEditingMatchPhase}>
+						{$gameSettings.matchPhase}
+					</span>
+				{:else}
+					<span class="event-phase-header editable placeholder" on:click={startEditingMatchPhase}>
+						+ {$t('matchPhase')}
+					</span>
+				{/if}
+			</div>
+			{#if $gameSettings.showTimer}
+				<Timer size="small" />
 			{/if}
-			<Timer size="small" />
 		</div>
 
 		<div class="right-section">
@@ -289,6 +398,15 @@
 			on:roundComplete={handleRoundComplete}
 		/>
 	</div>
+
+	<!-- Next Game Button -->
+	{#if showNextGameButton}
+		<div class="next-game-container">
+			<Button variant="primary" size="large" on:click={handleNextGame}>
+				▶ {$t('nextGame')}
+			</Button>
+		</div>
+	{/if}
 </div>
 
 <SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
@@ -360,6 +478,33 @@
 		white-space: nowrap;
 	}
 
+	.clickable-title {
+		cursor: pointer;
+		transition: all 0.2s;
+		user-select: none;
+	}
+
+	.clickable-title:hover {
+		transform: scale(1.05);
+		filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.5));
+	}
+
+	.clickable-title:active {
+		transform: scale(0.98);
+	}
+
+	.version-badge {
+		font-size: 0.5rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.4);
+		margin-left: 0;
+		vertical-align: baseline;
+		background: rgba(255, 255, 255, 0.05);
+		padding: 0.1rem 0.3rem;
+		border-radius: 4px;
+		font-family: 'Lexend', sans-serif;
+	}
+
 	.event-info-header {
 		display: flex;
 		align-items: center;
@@ -384,6 +529,44 @@
 		min-width: 0;
 	}
 
+	.event-title-header.editable {
+		cursor: pointer;
+		padding: 0.2rem 0.4rem;
+		border-radius: 4px;
+		transition: all 0.2s;
+	}
+
+	.event-title-header.editable:hover {
+		background: rgba(0, 255, 136, 0.15);
+	}
+
+	.event-title-header.placeholder {
+		color: rgba(0, 255, 136, 0.4);
+		font-style: italic;
+	}
+
+	.event-title-input {
+		background: rgba(0, 255, 136, 0.1);
+		border: 2px solid #00ff88;
+		border-radius: 4px;
+		padding: 0.2rem 0.4rem;
+		font-size: 1rem;
+		font-weight: 700;
+		color: #00ff88;
+		font-family: 'Orbitron', monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		text-align: center;
+		outline: none;
+		flex: 1;
+		min-width: 100px;
+	}
+
+	.event-title-input:focus {
+		background: rgba(0, 255, 136, 0.2);
+		box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+	}
+
 	.event-phase-header {
 		font-size: 1rem;
 		color: rgba(255, 255, 255, 0.7);
@@ -391,9 +574,46 @@
 		flex-shrink: 0;
 	}
 
+	.event-phase-header.editable {
+		cursor: pointer;
+		padding: 0.2rem 0.4rem;
+		border-radius: 4px;
+		transition: all 0.2s;
+	}
+
+	.event-phase-header.editable:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
+	}
+
+	.event-phase-header.placeholder {
+		color: rgba(255, 255, 255, 0.3);
+		font-style: italic;
+	}
+
+	.event-phase-input {
+		background: rgba(255, 255, 255, 0.1);
+		border: 2px solid rgba(255, 255, 255, 0.5);
+		border-radius: 4px;
+		padding: 0.2rem 0.4rem;
+		font-size: 1rem;
+		font-weight: 700;
+		color: #fff;
+		font-family: 'Orbitron', monospace;
+		text-align: center;
+		outline: none;
+		min-width: 80px;
+	}
+
+	.event-phase-input:focus {
+		background: rgba(255, 255, 255, 0.15);
+		border-color: #fff;
+		box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+	}
+
 	.event-phase-header::before {
 		content: '•';
-		margin-right: 0.35rem;
+		margin-right: 1rem;
 		color: rgba(0, 255, 136, 0.5);
 	}
 
@@ -599,6 +819,31 @@
 		gap: 1rem;
 		overflow: hidden;
 		align-items: stretch;
+	}
+
+	.next-game-container {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 100;
+		animation: fadeIn 0.3s ease-out;
+	}
+
+	.next-game-container :global(button) {
+		font-size: 1.2rem;
+		padding: 0.8rem 1.5rem;
+	}
+
+	@keyframes fadeIn {
+		from {
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.9);
+		}
+		to {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1);
+		}
 	}
 
 	/* Responsive */

@@ -15,7 +15,7 @@
 	let isOpen = false;
 	let isMatchComplete = false;
 
-	function toggleMenu() {
+	export function toggleMenu() {
 		isOpen = !isOpen;
 	}
 
@@ -190,10 +190,6 @@
 <svelte:window on:click={handleClickOutside} />
 
 <div class="quick-menu-container">
-	<button class="menu-button" on:click|stopPropagation={toggleMenu} aria-label="Quick menu">
-		☰
-	</button>
-
 	{#if isOpen}
 		<div class="quick-menu" on:click|stopPropagation>
 			<!-- Auth section -->
@@ -239,34 +235,9 @@
 		position: relative;
 	}
 
-	.menu-button {
-		width: 24px;
-		height: 24px;
-		border-radius: 6px;
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid rgba(255, 255, 255, 0.2);
-		color: #fff;
-		font-size: 0.8rem;
-		cursor: pointer;
-		transition: all 0.2s;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0;
-	}
-
-	.menu-button:hover {
-		background: rgba(255, 255, 255, 0.15);
-		transform: scale(1.05);
-	}
-
-	.menu-button:active {
-		transform: scale(0.95);
-	}
-
 	.quick-menu {
 		position: absolute;
-		top: 40px;
+		top: 0;
 		left: 0;
 		background: rgba(26, 31, 53, 0.98);
 		border: 2px solid rgba(0, 255, 136, 0.3);
@@ -328,14 +299,7 @@
 
 	/* Responsive */
 	@media (max-width: 480px) {
-		.menu-button {
-			width: 28px;
-			height: 28px;
-			font-size: 0.9rem;
-		}
-
 		.quick-menu {
-			top: 36px;
 			min-width: 180px;
 		}
 

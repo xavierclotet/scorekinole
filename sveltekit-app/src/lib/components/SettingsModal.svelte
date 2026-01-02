@@ -26,7 +26,7 @@
 		gameSettings.save();
 	}
 
-	function handleToggle(key: 'show20s' | 'showHammer') {
+	function handleToggle(key: 'show20s' | 'showHammer' | 'showTimer') {
 		gameSettings.update(s => ({ ...s, [key]: !s[key] }));
 		gameSettings.save();
 	}
@@ -35,43 +35,30 @@
 		gameSettings.update(s => ({ ...s, [key]: newValue }));
 		gameSettings.save();
 	}
-
-	function handleTextChange(key: 'eventTitle' | 'matchPhase', value: string) {
-		gameSettings.update(s => ({ ...s, [key]: value }));
-		gameSettings.save();
-	}
 </script>
 
 <Modal {isOpen} title={$t('settings')} onClose={onClose}>
 	<div class="settings-content">
-		<!-- Event Information Section -->
+		<!-- Game Type Section (Individual/Parejas) - FIRST -->
 		<section class="settings-section">
-			<h3>{$t('eventInfo')}</h3>
-			<div class="event-inputs-grid">
-				<div class="input-group">
-					<label for="event-title">{$t('eventTitle')}</label>
-					<input
-						id="event-title"
-						type="text"
-						class="text-input"
-						value={$gameSettings.eventTitle}
-						on:input={(e) => handleTextChange('eventTitle', e.currentTarget.value)}
-						placeholder="Ej: TORNEIG DE CASA MEVA"
-						maxlength="50"
-					/>
-				</div>
-				<div class="input-group">
-					<label for="match-phase">{$t('matchPhase')}</label>
-					<input
-						id="match-phase"
-						type="text"
-						class="text-input"
-						value={$gameSettings.matchPhase}
-						on:input={(e) => handleTextChange('matchPhase', e.currentTarget.value)}
-						placeholder="Ej: Final, Semifinal, Grup A"
-						maxlength="30"
-					/>
-				</div>
+			<h3>{$t('gameType')}</h3>
+			<div class="button-group">
+				<button
+					class="mode-button"
+					class:active={$gameSettings.gameType === 'singles'}
+					on:click={() => handleGameTypeChange('singles')}
+					type="button"
+				>
+					{$t('singles')}
+				</button>
+				<button
+					class="mode-button"
+					class:active={$gameSettings.gameType === 'doubles'}
+					on:click={() => handleGameTypeChange('doubles')}
+					type="button"
+				>
+					{$t('doubles')}
+				</button>
 			</div>
 		</section>
 
@@ -129,69 +116,54 @@
 			</div>
 		</section>
 
-		<!-- Game Type Section -->
-		<section class="settings-section">
-			<h3>{$t('gameType')}</h3>
-			<div class="button-group">
-				<button
-					class="mode-button"
-					class:active={$gameSettings.gameType === 'singles'}
-					on:click={() => handleGameTypeChange('singles')}
-					type="button"
-				>
-					{$t('singles')}
-				</button>
-				<button
-					class="mode-button"
-					class:active={$gameSettings.gameType === 'doubles'}
-					on:click={() => handleGameTypeChange('doubles')}
-					type="button"
-				>
-					{$t('doubles')}
-				</button>
-			</div>
-		</section>
-
-		<!-- Timer Configuration -->
-		<section class="settings-section">
-			<h3>{$t('timer')}</h3>
-			<div class="timer-controls">
-				<NumberControl
-					value={$gameSettings.timerMinutes}
-					on:change={(e) => handleNumberChange('timerMinutes', e.detail)}
-					min={0}
-					max={60}
-					step={1}
-					label="{$t('minutes')}"
-				/>
-				<NumberControl
-					value={$gameSettings.timerSeconds}
-					on:change={(e) => handleNumberChange('timerSeconds', e.detail)}
-					min={0}
-					max={59}
-					step={1}
-					label="{$t('seconds')}"
-				/>
-			</div>
-		</section>
-
 		<!-- Feature Toggles -->
 		<section class="settings-section">
 			<h3>{$t('features')}</h3>
-			<div class="toggle-list">
+			<div class="toggle-grid">
 				<label class="toggle-item" on:click|preventDefault={() => handleToggle('show20s')}>
-					<span>{$t('track20s')}</span>
+					<span class="toggle-label">{$t('track20s')}</span>
 					<input type="checkbox" checked={$gameSettings.show20s} readonly />
 					<span class="toggle-switch"></span>
 				</label>
 
 				<label class="toggle-item" on:click|preventDefault={() => handleToggle('showHammer')}>
-					<span>{$t('hammer')}</span>
+					<span class="toggle-label">{$t('hammer')}</span>
 					<input type="checkbox" checked={$gameSettings.showHammer} readonly />
+					<span class="toggle-switch"></span>
+				</label>
+
+				<label class="toggle-item" on:click|preventDefault={() => handleToggle('showTimer')}>
+					<span class="toggle-label">{$t('showTimer')}</span>
+					<input type="checkbox" checked={$gameSettings.showTimer} readonly />
 					<span class="toggle-switch"></span>
 				</label>
 			</div>
 		</section>
+
+		<!-- Timer Configuration - Only shown if showTimer is true -->
+		{#if $gameSettings.showTimer}
+			<section class="settings-section">
+				<h3>{$t('timer')}</h3>
+				<div class="timer-controls">
+					<NumberControl
+						value={$gameSettings.timerMinutes}
+						on:change={(e) => handleNumberChange('timerMinutes', e.detail)}
+						min={0}
+						max={60}
+						step={1}
+						label="{$t('minutes')}"
+					/>
+					<NumberControl
+						value={$gameSettings.timerSeconds}
+						on:change={(e) => handleNumberChange('timerSeconds', e.detail)}
+						min={0}
+						max={45}
+						step={15}
+						label="{$t('seconds')}"
+					/>
+				</div>
+			</section>
+		{/if}
 	</div>
 </Modal>
 
@@ -199,7 +171,7 @@
 	.settings-content {
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
+		gap: 1.25rem;
 		padding: 1rem;
 		max-height: 70vh;
 		overflow-y: auto;
@@ -208,12 +180,12 @@
 	.settings-section {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0.75rem;
 	}
 
 	.settings-section h3 {
 		margin: 0;
-		font-size: 1.2rem;
+		font-size: 1.1rem;
 		color: #00ff88;
 		font-weight: 700;
 	}
@@ -221,23 +193,23 @@
 	.button-group {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.mode-config {
-		margin-top: 1rem;
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
+		margin-top: 0.5rem;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
 	}
 
 	.mode-button {
-		padding: 1rem;
+		padding: 0.65rem 1rem;
 		background: rgba(255, 255, 255, 0.1);
 		border: 2px solid rgba(255, 255, 255, 0.2);
 		border-radius: 8px;
 		color: #fff;
-		font-size: 1rem;
+		font-size: 0.95rem;
 		font-weight: 600;
 		cursor: pointer;
 		transition: all 0.2s;
@@ -260,27 +232,37 @@
 		gap: 1rem;
 	}
 
-	.toggle-list {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
+	.toggle-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+		gap: 0.75rem;
 	}
 
 	.toggle-item {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		justify-content: space-between;
-		padding: 1rem;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.75rem;
 		background: rgba(255, 255, 255, 0.05);
+		border: 2px solid rgba(255, 255, 255, 0.1);
 		border-radius: 8px;
 		cursor: pointer;
 		position: relative;
+		transition: all 0.2s;
 	}
 
-	.toggle-item span:first-child {
-		font-size: 1rem;
+	.toggle-item:hover {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(0, 255, 136, 0.3);
+	}
+
+	.toggle-label {
+		font-size: 0.85rem;
 		color: #fff;
-		flex: 1;
+		text-align: center;
+		font-weight: 500;
 	}
 
 	.toggle-item input[type="checkbox"] {
@@ -292,18 +274,19 @@
 
 	.toggle-switch {
 		position: relative;
-		width: 50px;
-		height: 26px;
+		width: 44px;
+		height: 24px;
 		background: rgba(255, 255, 255, 0.2);
-		border-radius: 13px;
+		border-radius: 12px;
 		transition: all 0.3s;
+		flex-shrink: 0;
 	}
 
 	.toggle-switch::before {
 		content: '';
 		position: absolute;
-		top: 3px;
-		left: 3px;
+		top: 2px;
+		left: 2px;
 		width: 20px;
 		height: 20px;
 		background: #fff;
@@ -316,7 +299,7 @@
 	}
 
 	.toggle-item input:checked ~ .toggle-switch::before {
-		transform: translateX(24px);
+		transform: translateX(20px);
 	}
 
 	.app-info {
@@ -331,67 +314,122 @@
 		margin: 0.25rem 0;
 	}
 
-	.event-inputs-grid {
-		display: grid;
-		grid-template-columns: 2fr 1fr;
-		gap: 1rem;
-	}
-
-	.input-group {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.input-group label {
-		font-size: 0.9rem;
-		color: rgba(255, 255, 255, 0.8);
-		font-weight: 600;
-	}
-
-	.text-input {
-		padding: 0.75rem 1rem;
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid rgba(255, 255, 255, 0.2);
-		border-radius: 8px;
-		color: #fff;
-		font-size: 1rem;
-		font-family: inherit;
-		transition: all 0.2s;
-	}
-
-	.text-input::placeholder {
-		color: rgba(255, 255, 255, 0.4);
-	}
-
-	.text-input:focus {
-		outline: none;
-		border-color: #00ff88;
-		background: rgba(255, 255, 255, 0.15);
-	}
-
 	/* Responsive */
-	@media (max-width: 768px) {
-		.event-inputs-grid {
-			grid-template-columns: 1fr;
-		}
-	}
-
 	@media (max-width: 600px) {
 		.settings-content {
 			max-height: 60vh;
+			gap: 1rem;
 		}
 
-		.button-group {
-			grid-template-columns: 1fr;
+		.settings-section {
+			gap: 0.5rem;
+		}
+
+		.settings-section h3 {
+			font-size: 1rem;
+		}
+
+		.mode-button {
+			padding: 0.5rem 0.75rem;
+			font-size: 0.9rem;
+		}
+
+		.mode-config {
+			gap: 0.5rem;
 		}
 
 		.timer-controls {
-			grid-template-columns: 1fr;
+			gap: 0.5rem;
 		}
 
-		.event-inputs-grid {
-			grid-template-columns: 1fr;
+		.toggle-grid {
+			gap: 0.5rem;
+		}
+
+		.toggle-item {
+			padding: 0.65rem 0.5rem;
+		}
+
+		.toggle-label {
+			font-size: 0.8rem;
+		}
+
+		.toggle-switch {
+			width: 40px;
+			height: 22px;
+		}
+
+		.toggle-switch::before {
+			width: 18px;
+			height: 18px;
+		}
+
+		.toggle-item input:checked ~ .toggle-switch::before {
+			transform: translateX(18px);
+		}
+	}
+
+	/* Landscape optimization */
+	@media (orientation: landscape) {
+		.settings-content {
+			max-height: 75vh;
+			gap: 1rem;
+		}
+
+		.settings-section {
+			gap: 0.5rem;
+		}
+
+		.settings-section h3 {
+			font-size: 1rem;
+		}
+
+		.mode-config {
+			margin-top: 0.25rem;
+		}
+	}
+
+	@media (orientation: landscape) and (max-height: 600px) {
+		.settings-content {
+			padding: 0.75rem;
+			gap: 0.75rem;
+		}
+
+		.settings-section h3 {
+			font-size: 0.95rem;
+		}
+
+		.mode-button {
+			padding: 0.5rem 0.75rem;
+			font-size: 0.85rem;
+		}
+
+		.mode-config,
+		.timer-controls,
+		.toggle-grid {
+			gap: 0.5rem;
+		}
+
+		.toggle-item {
+			padding: 0.6rem 0.5rem;
+		}
+
+		.toggle-label {
+			font-size: 0.75rem;
+		}
+
+		.toggle-switch {
+			width: 38px;
+			height: 20px;
+		}
+
+		.toggle-switch::before {
+			width: 16px;
+			height: 16px;
+		}
+
+		.toggle-item input:checked ~ .toggle-switch::before {
+			transform: translateX(18px);
 		}
 	}
 </style>

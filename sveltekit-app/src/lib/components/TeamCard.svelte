@@ -4,7 +4,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, updateTeam, resetTeams } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
-	import { completeCurrentMatch, startCurrentMatch, currentMatch } from '$lib/stores/history';
+	import { completeCurrentMatch, startCurrentMatch, currentMatch, addGameToCurrentMatch, clearCurrentMatchRounds } from '$lib/stores/history';
 	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames } from '$lib/stores/matchState';
 	import { get } from 'svelte/store';
 	import type { Team } from '$lib/types/team';
@@ -227,8 +227,8 @@
 			}
 			// In case of tie, no winner
 
-			// Save match to history
-			saveMatchToHistory();
+			// Check if this game win completes the match
+			saveGameAndCheckMatchComplete();
 		}
 	}
 
@@ -246,12 +246,14 @@
 		if (team1Won && !t1.hasWon) {
 			updateTeam(1, { hasWon: true });
 			updateTeam(2, { hasWon: false });
+			// Check if this game win completes the match
+			saveGameAndCheckMatchComplete();
 		} else if (team2Won && !t2.hasWon) {
 			updateTeam(2, { hasWon: true });
 			updateTeam(1, { hasWon: false });
+			// Check if this game win completes the match
+			saveGameAndCheckMatchComplete();
 		}
-
-		// Don't auto-save, let user manually trigger next game via Quick Menu
 	}
 
 	function checkWinCondition() {
@@ -265,6 +267,7 @@
 		const settings = get(gameSettings);
 		const totalRoundsPlayed = get(roundsPlayed);
 		const matchGames = get(currentMatchGames);
+		const current = get(currentMatch);
 
 		// Save this completed game
 		const gameNumber = matchGames.length + 1;
@@ -282,8 +285,15 @@
 			timestamp: Date.now()
 		};
 
-		// Add game to currentMatchGames
+		// Add game to currentMatchGames (for backwards compatibility)
 		currentMatchGames.update(games => [...games, newGame]);
+
+		// Add game with rounds to currentMatch for history display
+		const gameWithRounds = {
+			...newGame,
+			rounds: current?.rounds || []
+		};
+		addGameToCurrentMatch(gameWithRounds);
 
 		// Check if someone won the match (reached matchesToWin)
 		const team1GamesWon = matchGames.filter(g => g.winner === 1).length + (winner === 1 ? 1 : 0);
@@ -292,51 +302,59 @@
 		const matchComplete = team1GamesWon >= settings.matchesToWin || team2GamesWon >= settings.matchesToWin;
 
 		if (matchComplete) {
+			// Increment the matches counter for the match winner
+			if (team1GamesWon >= settings.matchesToWin) {
+				updateTeam(1, { matches: t1.matches + 1 });
+			} else if (team2GamesWon >= settings.matchesToWin) {
+				updateTeam(2, { matches: t2.matches + 1 });
+			}
+
 			// Match is complete, save to history
 			saveMatchToHistory();
-		} else {
-			// Match continues, reset for next game
-			resetForNextGame();
 		}
+		// If match is NOT complete, don't reset automatically
+		// User will click "Next Game" button to continue
 	}
 
 	function saveMatchToHistory() {
-		// Ensure we have a current match started
-		if (!get(currentMatch)) {
-			startCurrentMatch();
-		}
-
 		const t1 = get(team1);
 		const t2 = get(team2);
 		const settings = get(gameSettings);
-		const matchGames = get(currentMatchGames);
+		const current = get(currentMatch);
+
+		// Ensure we have a current match
+		if (!current) {
+			console.error('No current match to save');
+			return;
+		}
 
 		// Determine match winner based on games won
-		const team1GamesWon = matchGames.filter(g => g.winner === 1).length;
-		const team2GamesWon = matchGames.filter(g => g.winner === 2).length;
+		const team1GamesWon = current.games.filter(g => g.winner === 1).length;
+		const team2GamesWon = current.games.filter(g => g.winner === 2).length;
 		const matchWinner = team1GamesWon > team2GamesWon ? 1 : 2;
 
+		// Use games from currentMatch which already have rounds
 		completeCurrentMatch({
 			team1Name: t1.name || 'Team 1',
 			team2Name: t2.name || 'Team 2',
 			team1Color: t1.color,
 			team2Color: t2.color,
-			team1Score: t1.points,
-			team2Score: t2.points,
-			team1Rounds: t1.rounds,
-			team2Rounds: t2.rounds,
+			team1Score: current.games.reduce((sum, g) => sum + g.team1Points, 0),
+			team2Score: current.games.reduce((sum, g) => sum + g.team2Points, 0),
 			totalRounds: get(roundsPlayed),
+			matchesToWin: settings.matchesToWin,
 			winner: matchWinner,
 			gameMode: settings.gameMode,
 			gameType: settings.gameType,
 			pointsToWin: settings.pointsToWin,
 			roundsToPlay: settings.roundsToPlay,
-			matchesToWin: settings.matchesToWin,
-			games: matchGames
+			eventTitle: settings.eventTitle,
+			matchPhase: settings.matchPhase,
+			games: current.games
 		});
 	}
 
-	function resetForNextGame() {
+	export function resetForNextGame() {
 		// Reset points and game state for next game
 		updateTeam(1, { points: 0, rounds: 0, twenty: 0, hasWon: false });
 		updateTeam(2, { points: 0, rounds: 0, twenty: 0, hasWon: false });
@@ -344,8 +362,8 @@
 		// Reset only current game rounds (keep match history)
 		resetGameOnly();
 
-		// Start a new game
-		startCurrentMatch();
+		// Rounds are already cleared by addGameToCurrentMatch()
+		// No need to call startCurrentMatch() again - match continues
 	}
 
 	function handleNameChange(e: Event) {
@@ -381,23 +399,24 @@
 			🎨
 		</button>
 		<div class="name-hammer-group">
-			<input
-				type="text"
-				class="team-name"
-				value={team.name}
-				on:input={handleNameChange}
-				placeholder={$t('teamName')}
-				aria-label="Team name"
-			/>
-			{#if team.hasHammer}
-				<div class="hammer-indicator" title={$t('hammer')}>🔨</div>
+			<div class="name-row">
+				<input
+					type="text"
+					class="team-name"
+					value={team.name}
+					on:input={handleNameChange}
+					placeholder={$t('teamName')}
+					aria-label="Team name"
+				/>
+				{#if team.hasHammer}
+					<div class="hammer-indicator" title={$t('hammer')}>🔨</div>
+				{/if}
+			</div>
+			{#if team.hasWon}
+				<div class="winner-badge">WINNER</div>
 			{/if}
 		</div>
 	</div>
-
-	{#if team.hasWon}
-		<div class="winner-badge">WINNER</div>
-	{/if}
 
 	<div class="score-display">
 		<div class="score">{team.points}</div>
@@ -485,6 +504,13 @@
 
 	.name-hammer-group {
 		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.name-row {
+		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 	}
@@ -543,19 +569,30 @@
 	}
 
 	.winner-badge {
-		position: absolute;
-		top: 8rem;
-		left: 50%;
-		transform: translateX(-50%);
-		background: rgba(255, 215, 0, 0.9);
+		background: linear-gradient(135deg, #ffd700, #ffed4e);
 		color: #000;
-		padding: 0.5rem 1rem;
+		padding: 0.4rem 1rem;
 		border-radius: 20px;
-		font-weight: 700;
-		font-size: 0.9rem;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-		animation: bounce 0.5s ease-in-out;
-		z-index: 10;
+		font-weight: 900;
+		font-size: 0.85rem;
+		letter-spacing: 0.05em;
+		box-shadow:
+			0 4px 12px rgba(255, 215, 0, 0.4),
+			0 0 20px rgba(255, 215, 0, 0.3);
+		animation: winnerGlow 1.5s ease-in-out infinite;
+	}
+
+	@keyframes winnerGlow {
+		0%, 100% {
+			box-shadow:
+				0 4px 12px rgba(255, 215, 0, 0.4),
+				0 0 20px rgba(255, 215, 0, 0.3);
+		}
+		50% {
+			box-shadow:
+				0 4px 16px rgba(255, 215, 0, 0.6),
+				0 0 30px rgba(255, 215, 0, 0.5);
+		}
 	}
 
 	@keyframes bounce {
@@ -577,6 +614,11 @@
 		.score {
 			font-size: 6rem;
 		}
+
+		.winner-badge {
+			font-size: 0.8rem;
+			padding: 0.35rem 0.85rem;
+		}
 	}
 
 	@media (max-width: 480px) {
@@ -591,6 +633,15 @@
 
 		.score {
 			font-size: 5rem;
+		}
+
+		.winner-badge {
+			font-size: 0.75rem;
+			padding: 0.3rem 0.75rem;
+		}
+
+		.hammer-indicator {
+			font-size: 1.2rem;
 		}
 	}
 </style>

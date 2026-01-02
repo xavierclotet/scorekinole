@@ -4,7 +4,7 @@
 
 A beautiful, responsive web application designed to track scores, manage timers, and enhance your Crokinole gaming experience. Built with modern web technologies and optimized for mobile devices.
 
-![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
@@ -380,6 +380,30 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
   - Challenge other players
   - Leaderboards
 - [ ] Export/import match history (CSV, JSON)
+
+## 📋 Changelog
+
+### v2.0.2 (2026-01-02)
+**UI/UX Improvements:**
+- ✨ Optimized settings layout for better space usage in portrait and landscape
+- 🎨 Reorganized settings order (Game Type first, then Game Mode)
+- 📐 Compact design with horizontal layouts for configuration options
+- 🎛️ Feature toggles now in responsive 2-3 column grid
+- 🏆 Winner badge now relative to team name (no longer moves when console opens)
+- ⏱️ Timer visibility toggle moved to Features section
+- ⏱️ Timer configuration section now conditional (only shows when enabled)
+- ⏱️ Timer seconds increment changed to 15-second intervals (0, 15, 30, 45)
+- 📱 Improved responsive design for mobile and landscape orientations
+- 🎯 Reduced padding and gaps throughout settings for more compact display
+
+**Technical:**
+- Updated NumberControl component for better compactness
+- Improved grid layouts with auto-fit for better responsiveness
+- Enhanced media queries for landscape and small screens
+
+### v2.0.1 (Previous)
+- Enhanced color contrast for dialogs on dark backgrounds
+- Various bug fixes and performance improvements
 
 ## 🏆 Credits
 

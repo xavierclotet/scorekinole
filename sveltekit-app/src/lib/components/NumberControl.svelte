@@ -61,29 +61,29 @@
 	.number-control {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.4rem;
 	}
 
 	.label {
 		color: var(--accent-green, #00ff88);
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		font-weight: 500;
 	}
 
 	.controls {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.75rem;
 	}
 
 	.control-btn {
-		width: 40px;
-		height: 40px;
+		width: 36px;
+		height: 36px;
 		border-radius: 50%;
 		border: 2px solid var(--accent-green, #00ff88);
 		background: transparent;
 		color: var(--accent-green, #00ff88);
-		font-size: 1.5rem;
+		font-size: 1.3rem;
 		font-weight: bold;
 		cursor: pointer;
 		display: flex;
@@ -130,9 +130,9 @@
 	}
 
 	.value {
-		min-width: 60px;
+		min-width: 50px;
 		text-align: center;
-		font-size: 1.5rem;
+		font-size: 1.3rem;
 		font-weight: bold;
 		color: var(--text-color, #fff);
 		user-select: none;
@@ -147,14 +147,40 @@
 	/* Mobile optimizations */
 	@media (max-width: 600px) {
 		.control-btn {
-			width: 36px;
-			height: 36px;
-			font-size: 1.25rem;
+			width: 32px;
+			height: 32px;
+			font-size: 1.2rem;
 		}
 
 		.value {
-			font-size: 1.25rem;
-			min-width: 50px;
+			font-size: 1.2rem;
+			min-width: 45px;
+		}
+
+		.label {
+			font-size: 0.8rem;
+		}
+	}
+
+	/* Landscape optimizations */
+	@media (orientation: landscape) and (max-height: 600px) {
+		.control-btn {
+			width: 32px;
+			height: 32px;
+			font-size: 1.2rem;
+		}
+
+		.value {
+			font-size: 1.1rem;
+			min-width: 40px;
+		}
+
+		.label {
+			font-size: 0.75rem;
+		}
+
+		.controls {
+			gap: 0.5rem;
 		}
 	}
 </style>

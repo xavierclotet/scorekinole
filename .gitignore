@@ -34,6 +34,15 @@ www/manifest.json
 capacitor.config.json
 dist/
 
+# SvelteKit build output
+.svelte-kit/
+sveltekit-app/.svelte-kit/
+
+# Keep www/ for Firebase deployment but ignore SvelteKit build artifacts
+# The static files (index.html, favicon, etc) should be tracked
+# But the compiled _app directory should be ignored
+www/_app/
+
 # Firebase cache and debug files
 .firebase/
 firebase-debug.log

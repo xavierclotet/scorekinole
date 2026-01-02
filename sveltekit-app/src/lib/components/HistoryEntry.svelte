@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
+	import { gameSettings } from '$lib/stores/gameSettings';
 	import type { MatchHistory } from '$lib/types/history';
 	import Button from './Button.svelte';
 	import { currentUser } from '$lib/firebase/auth';
@@ -26,109 +27,158 @@
 	}
 
 	$: winnerName = match.winner === 1 ? match.team1Name : match.winner === 2 ? match.team2Name : '-';
-	$: isTie = match.winner === null;
 	$: gameModeText = match.gameMode === 'points' ? `${$t('modePoints')} • ${$t('to')} ${match.pointsToWin}p` : `${$t('modeRounds')} • ${match.roundsToPlay} ${$t('rounds')}`;
 	$: gameTypeText = match.gameType === 'singles' ? $t('singles') : $t('doubles');
 
-	// Get all rounds from all games
-	$: allRounds = match.games.flatMap(game => game.rounds);
-
-	// Calculate total 20's per team
-	$: team1Total20s = allRounds.reduce((sum, r) => sum + (r.team1Twenty || 0), 0);
-	$: team2Total20s = allRounds.reduce((sum, r) => sum + (r.team2Twenty || 0), 0);
+	// Calculate games won by each team
+	$: team1GamesWon = match.games.filter(g => g.winner === 1).length;
+	$: team2GamesWon = match.games.filter(g => g.winner === 2).length;
 </script>
 
 <div class="history-entry">
-	<!-- Header with date and match info -->
-	<div class="entry-date">
-		{formatDate(match.startTime)}
-	</div>
-	<div class="match-summary">
-		{gameTypeText} • {gameModeText} • {formatDuration(match.duration)}
-	</div>
-
-	<!-- Winner announcement -->
-	<div class="winner-announcement">
-		<span class="winner-name">
-			{winnerName} {$t('wins')}
-		</span>
-		<span class="match-score">
-			{match.games.filter(g => g.winner === 1).length}-{match.games.filter(g => g.winner === 2).length}
-		</span>
-		• ⭐
-		<span class="total-score">
-			{match.team1Score}-{match.team2Score}
-		</span>
-	</div>
-
-	<!-- Cloud sync status -->
-	{#if $currentUser}
-		<div class="sync-status">
-			☁️ {$t('synced')}
+	<!-- Header with date and delete button -->
+	<div class="entry-header">
+		<div class="entry-header-info">
+			<div class="entry-date">
+				{formatDate(match.startTime)}
+			</div>
+			<div class="match-summary">
+				{gameTypeText} • {gameModeText} • {formatDuration(match.duration)}
+			</div>
 		</div>
-	{/if}
-
-	<!-- Rounds detail table -->
-	{#if allRounds.length > 0}
-		<div class="rounds-detail-table">
-			<table>
-				<thead>
-					<tr>
-						<th class="team-col"></th>
-						{#each allRounds as round, i}
-							<th class="round-col">
-								R{round.roundNumber}
-								{#if round.hammerTeam}
-									<span class="hammer-icon">🔨</span>
-								{/if}
-							</th>
-						{/each}
-						<th class="total-col">TOTAL</th>
-					</tr>
-				</thead>
-				<tbody>
-					<!-- Team 1 row -->
-					<tr style="border-left: 3px solid {match.team1Color}">
-						<td class="team-name" style="color: {match.team1Color}">{match.team1Name}</td>
-						{#each allRounds as round}
-							<td class="round-points">{round.team1Points}</td>
-						{/each}
-						<td class="total-points">{match.team1Score}-{match.team2Score}</td>
-					</tr>
-
-					<!-- Team 2 row (if needed for 20's) -->
-					{#if team1Total20s > 0 || team2Total20s > 0}
-						<tr class="twenties-row">
-							<td class="team-label">Total 20's</td>
-							{#each allRounds as round}
-								<td class="twenty-count">{round.team1Twenty || 0}</td>
-							{/each}
-							<td class="total-twenties">{team1Total20s}</td>
-						</tr>
-					{/if}
-				</tbody>
-			</table>
-		</div>
-	{/if}
-
-	<!-- Actions -->
-	<div class="entry-actions">
 		{#if onDelete}
-			<Button variant="danger" size="small" on:click={onDelete}>
+			<button class="delete-button" on:click={onDelete}>
 				🗑️ {$t('delete')}
-			</Button>
-		{/if}
-		{#if onRestore}
-			<Button variant="primary" size="small" on:click={onRestore}>
-				{$t('restore')}
-			</Button>
-		{/if}
-		{#if onPermanentDelete}
-			<Button variant="danger" size="small" on:click={onPermanentDelete}>
-				{$t('deletePermanent')}
-			</Button>
+			</button>
 		{/if}
 	</div>
+
+	<!-- Match Score Summary -->
+	<div class="match-score-summary">
+		<!-- Match total on the left -->
+		<div class="match-total-summary">
+			<span class="match-label">Match:</span>
+			<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : '#fff'};">{team1GamesWon}</span>
+			<span>-</span>
+			<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : '#fff'};">{team2GamesWon}</span>
+			{#if $currentUser}
+				<span class="sync-badge">☁️</span>
+			{/if}
+		</div>
+		<!-- Game results on the right -->
+		<div class="games-results">
+			{#each match.games as game}
+				{@const winnerName = game.winner === 1 ? match.team1Name : match.team2Name}
+				{@const winnerPoints = game.team1Points}
+				{@const loserPoints = game.team2Points}
+				{@const winner20s = game.winner === 1
+					? (game.rounds?.reduce((sum, r) => sum + r.team1Twenty, 0) ?? 0)
+					: (game.rounds?.reduce((sum, r) => sum + r.team2Twenty, 0) ?? 0)}
+				<div class="game-result-summary">
+					<span class="game-number">P{game.gameNumber}:</span>
+					<span class="winner-name">{winnerName} {$t('gana')}</span>
+					<span class="score">{winnerPoints}-{loserPoints}</span>
+					{#if $gameSettings.show20s && winner20s > 0}
+						<span class="twenties-summary">⭐ {winner20s}</span>
+					{/if}
+				</div>
+			{/each}
+		</div>
+	</div>
+
+	<!-- Games Table (same structure as HistoryModal) -->
+	{#if match.games.length > 0}
+		<div class="games-section">
+			{#each match.games as game, gameIndex}
+				<div class="game-table">
+					<!-- Table Header -->
+					<div class="game-row header">
+						<span class="team-name">
+							{$t('game')} {gameIndex + 1}
+						</span>
+						{#each game.rounds as _, idx}
+							<span class="round-col">R{idx + 1}</span>
+						{/each}
+						<span class="total-col">{$t('total').toUpperCase()}</span>
+					</div>
+
+					<!-- Team 1 Row -->
+					<div class="game-row">
+						<span class="team-name">
+							{match.team1Name}
+						</span>
+						{#each game.rounds as round}
+							<span class="round-col">
+								<span class="points-with-hammer">
+									{#if round.hammerTeam === 1}
+										<span class="hammer-indicator">🔨</span>
+									{/if}
+									{round.team1Points}
+								</span>
+								{#if $gameSettings.show20s && round.team1Twenty > 0}
+									<span class="twenty-indicator">⭐{round.team1Twenty}</span>
+								{/if}
+							</span>
+						{/each}
+						<span class="total-col total-score">
+							{game.team1Points}
+							{#if $gameSettings.show20s}
+								{@const total20s = game.rounds.reduce((sum, r) => sum + r.team1Twenty, 0)}
+								{#if total20s > 0}
+									<span class="twenty-indicator">⭐{total20s}</span>
+								{/if}
+							{/if}
+						</span>
+					</div>
+
+					<!-- Team 2 Row -->
+					<div class="game-row">
+						<span class="team-name">
+							{match.team2Name}
+						</span>
+						{#each game.rounds as round}
+							<span class="round-col">
+								<span class="points-with-hammer">
+									{#if round.hammerTeam === 2}
+										<span class="hammer-indicator">🔨</span>
+									{/if}
+									{round.team2Points}
+								</span>
+								{#if $gameSettings.show20s && round.team2Twenty > 0}
+									<span class="twenty-indicator">⭐{round.team2Twenty}</span>
+								{/if}
+							</span>
+						{/each}
+						<span class="total-col total-score">
+							{game.team2Points}
+							{#if $gameSettings.show20s}
+								{@const total20s = game.rounds.reduce((sum, r) => sum + r.team2Twenty, 0)}
+								{#if total20s > 0}
+									<span class="twenty-indicator">⭐{total20s}</span>
+								{/if}
+							{/if}
+						</span>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	<!-- Actions (only for deleted matches) -->
+	{#if onRestore || onPermanentDelete}
+		<div class="entry-actions">
+			{#if onRestore}
+				<Button variant="primary" size="small" on:click={onRestore}>
+					{$t('restore')}
+				</Button>
+			{/if}
+			{#if onPermanentDelete}
+				<Button variant="danger" size="small" on:click={onPermanentDelete}>
+					{$t('deletePermanent')}
+				</Button>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -149,6 +199,20 @@
 		box-shadow: 0 4px 12px rgba(0, 255, 136, 0.2);
 	}
 
+	.entry-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 0.5rem;
+	}
+
+	.entry-header-info {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
 	.entry-date {
 		font-size: 0.85rem;
 		color: rgba(255, 255, 255, 0.7);
@@ -160,118 +224,188 @@
 		color: rgba(255, 255, 255, 0.6);
 	}
 
-	.winner-announcement {
+	.delete-button {
+		background: rgba(255, 59, 48, 0.15);
+		border: 1px solid rgba(255, 59, 48, 0.3);
+		border-radius: 6px;
+		padding: 0.3rem 0.6rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+		flex-shrink: 0;
+		color: #ff3b30;
+		font-family: 'Orbitron', monospace;
+		white-space: nowrap;
+	}
+
+	.delete-button:hover {
+		background: rgba(255, 59, 48, 0.25);
+		border-color: rgba(255, 59, 48, 0.5);
+		transform: scale(1.05);
+	}
+
+	.delete-button:active {
+		transform: scale(0.95);
+	}
+
+	/* Match Score Summary */
+	.match-score-summary {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+		padding: 0.75rem;
+		background: rgba(0, 0, 0, 0.2);
+		border-radius: 8px;
+		font-family: 'Orbitron', monospace;
+		font-weight: 700;
+	}
+
+	.match-total-summary {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		font-size: 0.9rem;
-		font-weight: 700;
-		padding: 0.5rem 0;
+		font-size: 1rem;
+		flex-shrink: 0;
+	}
+
+	.match-label {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.85rem;
+	}
+
+	.match-result {
+		font-size: 1.2rem;
+	}
+
+	.sync-badge {
+		color: var(--accent-green, #00ff88);
+		font-size: 1rem;
+		margin-left: 0.25rem;
+	}
+
+	.games-results {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		justify-content: flex-end;
+		flex: 1;
+	}
+
+	.game-result-summary {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.75rem;
+		white-space: nowrap;
+	}
+
+	.game-number {
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.7rem;
 	}
 
 	.winner-name {
-		font-size: 1rem;
+		font-weight: 700;
 		color: rgba(255, 255, 255, 0.9);
-	}
-
-	.match-score,
-	.total-score {
-		color: rgba(255, 255, 255, 0.9);
-	}
-
-	.sync-status {
-		font-size: 0.8rem;
-		color: var(--accent-green, #00ff88);
-		font-weight: 600;
-		padding: 0.25rem 0;
-	}
-
-	.rounds-detail-table {
-		overflow-x: auto;
-		margin: 0.5rem 0;
-	}
-
-	.rounds-detail-table table {
-		width: 100%;
-		border-collapse: collapse;
 		font-size: 0.75rem;
-		background: rgba(0, 0, 0, 0.3);
+	}
+
+	.score {
+		color: rgba(255, 255, 255, 0.9);
+		font-size: 0.8rem;
+	}
+
+	.twenties-summary {
+		color: var(--accent-green, #00ff88);
+		font-size: 0.75rem;
+	}
+
+	/* Games Section */
+	.games-section {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.game-table {
+		background: rgba(255, 255, 255, 0.03);
 		border-radius: 8px;
 		overflow: hidden;
 	}
 
-	.rounds-detail-table th {
-		background: rgba(0, 255, 136, 0.1);
-		color: #00ff88;
+	.game-row {
+		display: flex;
+		gap: 0.5rem;
 		padding: 0.5rem;
+		align-items: center;
+	}
+
+	.game-row.header {
+		background: rgba(255, 255, 255, 0.05);
+		border-radius: 4px;
 		font-weight: 700;
-		text-align: center;
-		font-size: 0.7rem;
-		border-bottom: 2px solid rgba(0, 255, 136, 0.3);
-	}
-
-	.rounds-detail-table th.team-col {
-		text-align: left;
-		min-width: 80px;
-	}
-
-	.rounds-detail-table th.round-col {
-		min-width: 50px;
-	}
-
-	.rounds-detail-table th.total-col {
-		min-width: 60px;
-		font-weight: 900;
-	}
-
-	.rounds-detail-table td {
-		padding: 0.5rem;
-		text-align: center;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.rounds-detail-table .team-name,
-	.rounds-detail-table .team-label {
-		text-align: left;
-		font-weight: 700;
-		padding-left: 0.75rem;
-	}
-
-	.rounds-detail-table .round-points {
-		font-weight: 600;
-		color: rgba(255, 255, 255, 0.9);
-	}
-
-	.rounds-detail-table .total-points {
-		font-weight: 900;
 		font-size: 0.85rem;
-		color: #fff;
+		color: var(--accent-green, #00ff88);
+		margin-bottom: 0.25rem;
 	}
 
-	.rounds-detail-table .twenties-row {
-		background: rgba(255, 215, 0, 0.1);
-		border-left: 3px solid #ffd700;
-	}
-
-	.rounds-detail-table .team-label {
-		color: #ffd700;
-		font-size: 0.7rem;
-	}
-
-	.rounds-detail-table .twenty-count {
-		color: #ffd700;
+	.game-row .team-name {
+		width: 160px;
+		flex-shrink: 0;
 		font-weight: 600;
+		text-align: left;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		color: #f0f0f0;
 	}
 
-	.rounds-detail-table .total-twenties {
-		color: #ffd700;
-		font-weight: 900;
-		font-size: 0.85rem;
+	.game-row .round-col {
+		flex: 1;
+		min-width: 40px;
+		text-align: center;
+		font-size: 0.95rem;
+		color: rgba(255, 255, 255, 0.7);
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		align-items: center;
 	}
 
-	.hammer-icon {
+	.points-with-hammer {
+		display: flex;
+		align-items: center;
+		gap: 0.2rem;
+		justify-content: center;
+	}
+
+	.hammer-indicator {
 		font-size: 0.6rem;
-		margin-left: 2px;
+		opacity: 0.8;
+	}
+
+	.twenty-indicator {
+		font-size: 0.7rem;
+		color: var(--accent-green, #00ff88);
+		font-weight: 600;
+	}
+
+	.game-row .total-col {
+		text-align: center;
+		font-weight: 700;
+		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.6);
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		align-items: center;
+	}
+
+	.game-row .total-col.total-score {
+		font-size: 1.1rem;
+		color: var(--accent-green, #00ff88);
 	}
 
 	.entry-actions {
@@ -288,13 +422,8 @@
 			padding: 0.75rem;
 		}
 
-		.rounds-detail-table table {
-			font-size: 0.7rem;
-		}
-
-		.rounds-detail-table th,
-		.rounds-detail-table td {
-			padding: 0.35rem;
+		.game-row .team-name {
+			width: 120px;
 		}
 
 		.entry-actions {
