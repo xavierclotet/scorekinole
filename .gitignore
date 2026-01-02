@@ -38,10 +38,9 @@ dist/
 .svelte-kit/
 sveltekit-app/.svelte-kit/
 
-# Keep www/ for Firebase deployment but ignore SvelteKit build artifacts
-# The static files (index.html, favicon, etc) should be tracked
-# But the compiled _app directory should be ignored
-www/_app/
+# SvelteKit build output - entire www/ directory is generated
+# Firebase Hosting will deploy from this generated directory
+www/
 
 # Firebase cache and debug files
 .firebase/
