@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { language, t } from '$lib/stores/language';
 	import { gameSettings } from '$lib/stores/gameSettings';
+	import { APP_VERSION } from '$lib/constants';
 
 	onMount(() => {
 		gameSettings.load();
@@ -75,7 +76,7 @@
 	</div>
 
 	<footer class="footer">
-		<p>v{$gameSettings.appVersion}</p>
+		<p>v{APP_VERSION}</p>
 		<p>Made with ❤️ for Crokinole players</p>
 	</footer>
 </main>

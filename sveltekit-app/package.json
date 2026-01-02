@@ -11,7 +11,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"sync": "cd .. && npx cap sync",
-		"build:apk": "npm run build && cd .. && npx cap sync android && cd android && ..\\gradlew.bat app:assembleRelease && cd .. && node rename-apk.js",
+		"build:apk": "npm run build && cd .. && npx cap sync android && cd android && .\\gradlew.bat app:assembleRelease && cd .. && node rename-apk.js",
 		"deploy": "npm run build && cd .. && firebase deploy"
 	},
 	"devDependencies": {
