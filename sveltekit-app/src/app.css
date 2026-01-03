@@ -1,3 +1,6 @@
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Lexend:wght@400;600&display=swap');
+
 /* Global CSS Variables */
 :root {
 	--bg-primary: #0a0e1a;
@@ -77,6 +80,3 @@ body::before {
 ::-webkit-scrollbar-thumb:hover {
 	background: rgba(0, 255, 136, 0.8);
 }
-
-/* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Lexend:wght@400;600&display=swap');

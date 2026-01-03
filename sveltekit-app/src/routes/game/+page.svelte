@@ -14,13 +14,19 @@
 	import ColorPickerModal from '$lib/components/ColorPickerModal.svelte';
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
+	import ProfileModal from '$lib/components/ProfileModal.svelte';
+	import LoginModal from '$lib/components/LoginModal.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import { currentUser } from '$lib/firebase/auth';
 
 	let showSettings = false;
 	let showHistory = false;
 	let showColorPicker = false;
 	let colorPickerTeam: 1 | 2 = 1;
 	let showHammerDialog = false;
+	let showNewMatchConfirm = false;
+	let showProfile = false;
+	let showLogin = false;
 
 	// References to TeamCard components to call their methods
 	let teamCard1: any;
@@ -52,17 +58,19 @@
 	// Check if match is complete
 	$: isMatchComplete = team1GamesWon >= $gameSettings.matchesToWin || team2GamesWon >= $gameSettings.matchesToWin;
 
-	// Show "Next Game" button when someone won AND match is not complete AND matchesToWin > 1
-	$: showNextGameButton = ($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points';
+	// Show "Next Game" button when someone won AND match is not complete AND matchesToWin > 1 AND there are completed games
+	$: showNextGameButton = ($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points' && $currentMatchGames.length > 0;
 
 	// Calculate points for current round in progress (subtract last round's ending points from current total)
 	$: team1CurrentRoundPoints = $team1.points - $lastRoundPoints.team1;
 	$: team2CurrentRoundPoints = $team2.points - $lastRoundPoints.team2;
 
-	// Debug logging
-	$: console.log('roundsPlayed:', $roundsPlayed, 'currentGameRounds:', $currentGameRounds, 'team1Wins:', team1Wins, 'team2Wins:', team2Wins);
-	$: console.log('team1.points:', $team1.points, 'team2.points:', $team2.points, 'lastRoundPoints:', $lastRoundPoints);
-	$: console.log('team1CurrentRoundPoints:', team1CurrentRoundPoints, 'team2CurrentRoundPoints:', team2CurrentRoundPoints);
+	// Debug logs for game-info visibility
+	$: console.log('🔍 game-info debug:', {
+		roundsPlayed: $roundsPlayed,
+		currentGameRoundsLength: $currentGameRounds.length,
+		shouldShow: $roundsPlayed > 0 || $currentGameRounds.length > 0
+	});
 
 	onMount(() => {
 		gameSettings.load();
@@ -108,6 +116,34 @@
 
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
+	}
+
+	function handleNewMatchClick() {
+		showNewMatchConfirm = true;
+	}
+
+	function confirmNewMatch() {
+		showNewMatchConfirm = false;
+		handleResetMatch();
+		handleMatchReset(); // Show hammer dialog if needed
+	}
+
+	function cancelNewMatch() {
+		showNewMatchConfirm = false;
+	}
+
+	function handleLogin() {
+		showLogin = true;
+	}
+
+	function handleProfileOpen() {
+		showProfile = true;
+	}
+
+	function handleProfileUpdate(event: CustomEvent<{ playerName: string }>) {
+		// TODO: Update user profile with new player name
+		console.log('Profile update:', event.detail);
+		showProfile = false;
 	}
 
 	function openColorPicker(team: 1 | 2) {
@@ -234,11 +270,19 @@
 <div class="game-page">
 	<header class="game-header">
 		<div class="left-section">
-			<QuickMenu bind:this={quickMenuComponent} on:matchReset={handleMatchReset} />
+			<QuickMenu
+				bind:this={quickMenuComponent}
+				on:matchReset={handleMatchReset}
+				on:login={handleLogin}
+				on:profile={handleProfileOpen}
+			/>
 			<h1 on:click|stopPropagation={handleTitleClick} class="clickable-title">
 				Scorekinole
 				<span class="version-badge">v{$gameSettings.appVersion}</span>
 			</h1>
+			<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
+				📜
+			</button>
 		</div>
 
 		<div class="center-section">
@@ -292,27 +336,30 @@
 				<button class:active={$gameSettings.language === 'ca'} on:click={() => gameSettings.update(s => ({ ...s, language: 'ca' }))}>CA</button>
 				<button class:active={$gameSettings.language === 'en'} on:click={() => gameSettings.update(s => ({ ...s, language: 'en' }))}>EN</button>
 			</div>
-			<button class="icon-button" on:click={() => showHistory = true} aria-label="History">
-				📜
-			</button>
 			<button class="icon-button" on:click={() => showSettings = true} aria-label="Settings">
 				⚙️
 			</button>
 		</div>
 	</header>
 
-	<div class="game-info">
-		{#if $gameSettings.gameMode === 'rounds'}
-			{$t('roundShort')}{$roundsPlayed + 1} / {$gameSettings.roundsToPlay}
-		{:else}
-			{@const currentGameNumber = $currentMatchGames.length + 1}
-			{#if $team1.hasWon || $team2.hasWon}
-				{$t('gameShort')}{currentGameNumber} • {$t('roundShort')}{$roundsPlayed} • {$gameSettings.pointsToWin} {$t('points')}
+	{#if ($roundsPlayed > 0 || $currentGameRounds.length > 0) && !(($team1.hasWon || $team2.hasWon) && $currentMatchGames.length === 0)}
+		<div class="game-info">
+			{#if $gameSettings.gameMode === 'rounds'}
+				{#if $team1.hasWon || $team2.hasWon}
+					{$t('roundShort')}{$roundsPlayed} / {$gameSettings.roundsToPlay}
+				{:else}
+					{$t('roundShort')}{$roundsPlayed + 1} / {$gameSettings.roundsToPlay}
+				{/if}
 			{:else}
-				{$t('gameShort')}{currentGameNumber} • {$t('roundShort')}{$roundsPlayed + 1} • {$gameSettings.pointsToWin} {$t('points')}
+				{@const currentGameNumber = $currentMatchGames.length + 1}
+				{#if $team1.hasWon || $team2.hasWon}
+					{$t('gameShort')}{currentGameNumber} • {$t('roundShort')}{$roundsPlayed} • {$gameSettings.pointsToWin} {$t('points')}
+				{:else}
+					{$t('gameShort')}{currentGameNumber} • {$t('roundShort')}{$roundsPlayed + 1} • {$gameSettings.pointsToWin} {$t('points')}
+				{/if}
 			{/if}
-		{/if}
-	</div>
+		</div>
+	{/if}
 
 	<!-- Previous games results for multi-game matches -->
 	{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1 && $currentMatchGames.length > 0}
@@ -338,8 +385,8 @@
 		</div>
 	{/if}
 
-	<!-- Score table for current game (points mode) -->
-	{#if $gameSettings.gameMode === 'points' && ($currentGameRounds.length > 0 || team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0)}
+	<!-- Score table for current game -->
+	{#if $currentGameRounds.length > 0 || team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0}
 		<div class="score-table-container">
 			<table class="score-table">
 				<thead>
@@ -388,12 +435,16 @@
 		<TeamCard
 			bind:this={teamCard1}
 			teamNumber={1}
+			isMatchComplete={isMatchComplete}
+			currentGameNumber={$currentMatchGames.length}
 			on:changeColor={() => openColorPicker(1)}
 			on:roundComplete={handleRoundComplete}
 		/>
 		<TeamCard
 			bind:this={teamCard2}
 			teamNumber={2}
+			isMatchComplete={isMatchComplete}
+			currentGameNumber={$currentMatchGames.length}
 			on:changeColor={() => openColorPicker(2)}
 			on:roundComplete={handleRoundComplete}
 		/>
@@ -407,6 +458,29 @@
 			</Button>
 		</div>
 	{/if}
+
+	<!-- New Match Floating Button -->
+	<button class="floating-button new-match-button" on:click={handleNewMatchClick} aria-label={$t('newMatchButton')} title={$t('newMatchButton')}>
+		<span class="icon">⟲</span>
+		<span class="label">{$t('newMatchButton')}</span>
+	</button>
+
+	<!-- New Match Confirmation Modal -->
+	{#if showNewMatchConfirm}
+		<div class="confirm-overlay" on:click={cancelNewMatch}>
+			<div class="confirm-modal" on:click|stopPropagation>
+				<h3>{$t('confirmNewMatch')}</h3>
+				<div class="confirm-buttons">
+					<Button variant="secondary" on:click={cancelNewMatch}>
+						{$t('cancel')}
+					</Button>
+					<Button variant="primary" on:click={confirmNewMatch}>
+						{$t('confirm')}
+					</Button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
@@ -416,6 +490,16 @@
 <TwentyInputDialog
 	isOpen={showTwentyDialog}
 	on:close={handleTwentyInputClose}
+/>
+<ProfileModal
+	isOpen={showProfile}
+	user={$currentUser}
+	on:close={() => showProfile = false}
+	on:update={handleProfileUpdate}
+/>
+<LoginModal
+	isOpen={showLogin}
+	on:close={() => showLogin = false}
 />
 
 <style>
@@ -934,6 +1018,152 @@
 			top: 3rem;
 			font-size: 0.9rem;
 			padding: 0.4rem 0.8rem;
+		}
+	}
+
+	/* History Button - Destacado en left section */
+	.history-button {
+		background: linear-gradient(135deg, #00ff88, #00cc6a) !important;
+		color: #000 !important;
+		font-size: 1.3rem !important;
+		padding: 0.6rem 0.75rem !important;
+		box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+		transition: all 0.2s;
+	}
+
+	.history-button:hover {
+		transform: scale(1.05);
+		box-shadow: 0 3px 12px rgba(0, 255, 136, 0.5);
+	}
+
+	/* Floating Button - New Match */
+	.floating-button {
+		position: fixed;
+		bottom: 2rem;
+		left: 2rem;
+		z-index: 1000;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.8rem 1rem;
+		background: linear-gradient(135deg, #4a90e2, #2563eb);
+		border: none;
+		border-radius: 12px;
+		color: #ffd700;
+		font-weight: 700;
+		cursor: pointer;
+		box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+		transition: all 0.2s;
+		animation: fadeIn 0.3s ease-out;
+	}
+
+	.floating-button:hover {
+		transform: translateY(-3px);
+		box-shadow: 0 6px 16px rgba(74, 144, 226, 0.6);
+	}
+
+	.floating-button:active {
+		transform: translateY(-1px);
+	}
+
+	.floating-button .icon {
+		font-size: 1.8rem;
+		line-height: 1;
+	}
+
+	.floating-button .label {
+		font-size: 0.75rem;
+		line-height: 1;
+	}
+
+	/* Confirmation Modal */
+	.confirm-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background: rgba(0, 0, 0, 0.7);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 2000;
+		animation: fadeIn 0.2s ease-out;
+	}
+
+	.confirm-modal {
+		background: #1a1f35;
+		padding: 2rem;
+		border-radius: 12px;
+		border: 2px solid rgba(0, 255, 136, 0.3);
+		max-width: 90%;
+		width: 400px;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+	}
+
+	.confirm-modal h3 {
+		margin: 0 0 1.5rem 0;
+		color: #fff;
+		font-size: 1.1rem;
+		text-align: center;
+	}
+
+	.confirm-buttons {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1rem;
+	}
+
+	/* Responsive for floating button */
+	@media (max-width: 768px) {
+		.floating-button {
+			bottom: 1.5rem;
+			left: 1.5rem;
+			padding: 0.7rem 0.9rem;
+		}
+
+		.floating-button .icon {
+			font-size: 1.5rem;
+		}
+
+		.floating-button .label {
+			font-size: 0.7rem;
+		}
+
+		.history-button {
+			font-size: 1.2rem !important;
+			padding: 0.5rem 0.6rem !important;
+		}
+
+		.confirm-modal {
+			width: 90%;
+			padding: 1.5rem;
+		}
+
+		.confirm-modal h3 {
+			font-size: 1rem;
+		}
+	}
+
+	@media (orientation: landscape) and (max-height: 600px) {
+		.floating-button {
+			bottom: 1rem;
+			left: 1rem;
+			padding: 0.6rem 0.8rem;
+		}
+
+		.floating-button .icon {
+			font-size: 1.3rem;
+		}
+
+		.floating-button .label {
+			font-size: 0.65rem;
+		}
+
+		.history-button {
+			font-size: 1.1rem !important;
+			padding: 0.4rem 0.5rem !important;
 		}
 	}
 </style>

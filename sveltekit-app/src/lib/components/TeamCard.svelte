@@ -10,6 +10,8 @@
 	import type { Team } from '$lib/types/team';
 
 	export let teamNumber: 1 | 2 = 1;
+	export let isMatchComplete: boolean = false;
+	export let currentGameNumber: number = 1;
 
 	const dispatch = createEventDispatcher();
 
@@ -136,6 +138,12 @@
 		const previousT1 = get(lastRoundPoints).team1;
 		const previousT2 = get(lastRoundPoints).team2;
 
+		// Prevent decrementing if we're at the last completed round score
+		// This means no "partial" points have been added yet in the current round
+		if (t1.points === previousT1 && t2.points === previousT2) {
+			return; // Don't allow decrementing a completed round score
+		}
+
 		updateTeam(teamNumber, { points: Math.max(0, team.points - 1) });
 		vibrate(10);
 
@@ -221,14 +229,15 @@
 			if (t1.rounds > t2.rounds) {
 				updateTeam(1, { hasWon: true });
 				updateTeam(2, { hasWon: false });
+				// Check if this game win completes the match
+				saveGameAndCheckMatchComplete();
 			} else if (t2.rounds > t1.rounds) {
 				updateTeam(2, { hasWon: true });
 				updateTeam(1, { hasWon: false });
+				// Check if this game win completes the match
+				saveGameAndCheckMatchComplete();
 			}
-			// In case of tie, no winner
-
-			// Check if this game win completes the match
-			saveGameAndCheckMatchComplete();
+			// In case of tie, no winner - don't save game
 		}
 	}
 
@@ -269,6 +278,10 @@
 		const matchGames = get(currentMatchGames);
 		const current = get(currentMatch);
 
+		console.log('🟢 saveGameAndCheckMatchComplete called');
+		console.log('Settings:', settings);
+		console.log('matchesToWin:', settings.matchesToWin);
+
 		// Save this completed game
 		const gameNumber = matchGames.length + 1;
 		const winner = t1.hasWon ? 1 : 2;
@@ -285,6 +298,8 @@
 			timestamp: Date.now()
 		};
 
+		console.log('New game:', newGame);
+
 		// Add game to currentMatchGames (for backwards compatibility)
 		currentMatchGames.update(games => [...games, newGame]);
 
@@ -299,9 +314,15 @@
 		const team1GamesWon = matchGames.filter(g => g.winner === 1).length + (winner === 1 ? 1 : 0);
 		const team2GamesWon = matchGames.filter(g => g.winner === 2).length + (winner === 2 ? 1 : 0);
 
+		console.log('Team 1 games won:', team1GamesWon);
+		console.log('Team 2 games won:', team2GamesWon);
+
 		const matchComplete = team1GamesWon >= settings.matchesToWin || team2GamesWon >= settings.matchesToWin;
 
+		console.log('Match complete?', matchComplete);
+
 		if (matchComplete) {
+			console.log('✅ Match is complete! Saving to history...');
 			// Increment the matches counter for the match winner
 			if (team1GamesWon >= settings.matchesToWin) {
 				updateTeam(1, { matches: t1.matches + 1 });
@@ -311,6 +332,8 @@
 
 			// Match is complete, save to history
 			saveMatchToHistory();
+		} else {
+			console.log('❌ Match is NOT complete');
 		}
 		// If match is NOT complete, don't reset automatically
 		// User will click "Next Game" button to continue
@@ -322,16 +345,26 @@
 		const settings = get(gameSettings);
 		const current = get(currentMatch);
 
+		console.log('🔵 saveMatchToHistory called');
+		console.log('Current match:', current);
+
 		// Ensure we have a current match
 		if (!current) {
-			console.error('No current match to save');
+			console.error('❌ No current match to save');
 			return;
 		}
+
+		console.log('Current match games:', current.games);
 
 		// Determine match winner based on games won
 		const team1GamesWon = current.games.filter(g => g.winner === 1).length;
 		const team2GamesWon = current.games.filter(g => g.winner === 2).length;
 		const matchWinner = team1GamesWon > team2GamesWon ? 1 : 2;
+
+		console.log('Team 1 games won:', team1GamesWon);
+		console.log('Team 2 games won:', team2GamesWon);
+		console.log('Match winner:', matchWinner);
+		console.log('Calling completeCurrentMatch...');
 
 		// Use games from currentMatch which already have rounds
 		completeCurrentMatch({
@@ -412,8 +445,14 @@
 					<div class="hammer-indicator" title={$t('hammer')}>🔨</div>
 				{/if}
 			</div>
-			{#if team.hasWon}
-				<div class="winner-badge">WINNER</div>
+			{#if team.hasWon && currentGameNumber > 0}
+				<div class="winner-badge">
+					{#if isMatchComplete}
+						{$t('winner')}
+					{:else}
+						{$t('gameWin').replace('{n}', currentGameNumber.toString())}
+					{/if}
+				</div>
 			{/if}
 		</div>
 	</div>
@@ -520,11 +559,12 @@
 		border: none;
 		border-bottom: 2px solid var(--text-color);
 		color: var(--text-color);
-		font-size: 2rem;
+		font-size: 2.4rem;
 		font-weight: 700;
 		text-align: center;
 		padding: 0.25rem 0.5rem;
-		max-width: 200px;
+		max-width: 350px;
+		width: 100%;
 		transition: all 0.2s;
 	}
 
@@ -540,7 +580,7 @@
 	}
 
 	.hammer-indicator {
-		font-size: 1.5rem;
+		font-size: 2.2rem;
 		animation: swing 1s ease-in-out infinite;
 	}
 
@@ -562,7 +602,7 @@
 	}
 
 	.score {
-		font-size: 8rem;
+		font-size: 9.6rem;
 		font-weight: 900;
 		line-height: 1;
 		text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
@@ -608,11 +648,11 @@
 	/* Responsive adjustments */
 	@media (max-width: 768px) {
 		.team-name {
-			font-size: 1.8rem;
+			font-size: 2.16rem;
 		}
 
 		.score {
-			font-size: 6rem;
+			font-size: 7.2rem;
 		}
 
 		.winner-badge {
@@ -628,11 +668,11 @@
 		}
 
 		.team-name {
-			font-size: 1.5rem;
+			font-size: 1.8rem;
 		}
 
 		.score {
-			font-size: 5rem;
+			font-size: 6rem;
 		}
 
 		.winner-badge {

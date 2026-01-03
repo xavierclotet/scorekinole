@@ -73,7 +73,9 @@ export function saveCurrentMatch() {
 // Add match to history
 export function addMatchToHistory(match: MatchHistory) {
     matchHistory.update(history => {
-        const updated = [match, ...history];
+        // Ensure history is an array (in case it's null or undefined)
+        const currentHistory = Array.isArray(history) ? history : [];
+        const updated = [match, ...currentHistory];
         // Keep only last 50 matches
         const limited = updated.slice(0, 50);
         localStorage.setItem('crokinoleMatchHistory', JSON.stringify(limited));
@@ -228,13 +230,17 @@ export function completeCurrentMatch(matchData: Omit<MatchHistory, 'id' | 'start
 
     const completedMatch: MatchHistory = {
         ...matchData,
-        id: `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `match_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         startTime,
         endTime,
         duration
     };
 
     addMatchToHistory(completedMatch);
+
     currentMatch.set(null);
     saveCurrentMatch();
+
+    // Switch to history tab automatically
+    activeHistoryTab.set('history');
 }

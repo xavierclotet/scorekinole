@@ -55,16 +55,18 @@
 
 	<!-- Match Score Summary -->
 	<div class="match-score-summary">
-		<!-- Match total on the left -->
-		<div class="match-total-summary">
-			<span class="match-label">Match:</span>
-			<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : '#fff'};">{team1GamesWon}</span>
-			<span>-</span>
-			<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : '#fff'};">{team2GamesWon}</span>
-			{#if $currentUser}
-				<span class="sync-badge">☁️</span>
-			{/if}
-		</div>
+		<!-- Match total on the left (only show for multi-game matches in points mode) -->
+		{#if match.gameMode === 'points' && match.matchesToWin > 1}
+			<div class="match-total-summary">
+				<span class="match-label">Match:</span>
+				<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : '#fff'};">{team1GamesWon}</span>
+				<span>-</span>
+				<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : '#fff'};">{team2GamesWon}</span>
+				{#if $currentUser}
+					<span class="sync-badge">☁️</span>
+				{/if}
+			</div>
+		{/if}
 		<!-- Game results on the right -->
 		<div class="games-results">
 			{#each match.games as game}
@@ -287,10 +289,11 @@
 
 	.games-results {
 		display: flex;
-		flex-wrap: wrap;
+		flex-direction: column;
 		gap: 0.5rem;
-		justify-content: flex-end;
+		justify-content: flex-start;
 		flex: 1;
+		align-items: flex-end;
 	}
 
 	.game-result-summary {

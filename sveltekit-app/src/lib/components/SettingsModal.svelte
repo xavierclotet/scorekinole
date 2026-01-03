@@ -4,6 +4,7 @@
 	import NumberControl from './NumberControl.svelte';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { t } from '$lib/stores/language';
+	import { switchSides, switchColors } from '$lib/stores/teams';
 	import type { Language } from '$lib/i18n/translations';
 	import type { GameSettings } from '$lib/types/settings';
 
@@ -34,6 +35,14 @@
 	function handleNumberChange(key: keyof GameSettings, newValue: number) {
 		gameSettings.update(s => ({ ...s, [key]: newValue }));
 		gameSettings.save();
+	}
+
+	function handleSwitchSides() {
+		switchSides();
+	}
+
+	function handleSwitchColors() {
+		switchColors();
 	}
 </script>
 
@@ -164,6 +173,22 @@
 				</div>
 			</section>
 		{/if}
+
+		<!-- Advanced Actions Section -->
+		<section class="settings-section advanced-section">
+			<h3>{$t('advancedActions')}</h3>
+			<p class="description">{$t('switchSides')} / {$t('switchColors')}</p>
+			<div class="action-buttons">
+				<button class="action-button" on:click={handleSwitchSides} type="button">
+					<span class="icon">⇄</span>
+					<span>{$t('switchSides')}</span>
+				</button>
+				<button class="action-button" on:click={handleSwitchColors} type="button">
+					<span class="icon">🎨</span>
+					<span>{$t('switchColors')}</span>
+				</button>
+			</div>
+		</section>
 	</div>
 </Modal>
 
@@ -430,6 +455,76 @@
 
 		.toggle-item input:checked ~ .toggle-switch::before {
 			transform: translateX(18px);
+		}
+	}
+
+	/* Advanced Actions Section */
+	.advanced-section {
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		padding-top: 1rem;
+		margin-top: 0.5rem;
+	}
+
+	.description {
+		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.6);
+		margin: 0;
+		text-align: center;
+	}
+
+	.action-buttons {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.75rem;
+		margin-top: 0.5rem;
+	}
+
+	.action-button {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 1rem 0.75rem;
+		background: rgba(255, 255, 255, 0.08);
+		border: 2px solid rgba(255, 255, 255, 0.15);
+		border-radius: 8px;
+		color: #fff;
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.action-button:hover {
+		background: rgba(255, 255, 255, 0.12);
+		border-color: rgba(0, 255, 136, 0.4);
+		transform: translateY(-2px);
+	}
+
+	.action-button:active {
+		transform: translateY(0);
+	}
+
+	.action-button .icon {
+		font-size: 1.5rem;
+	}
+
+	@media (max-width: 600px) {
+		.action-buttons {
+			gap: 0.5rem;
+		}
+
+		.action-button {
+			padding: 0.75rem 0.5rem;
+			font-size: 0.85rem;
+		}
+
+		.action-button .icon {
+			font-size: 1.3rem;
+		}
+
+		.description {
+			font-size: 0.8rem;
 		}
 	}
 </style>

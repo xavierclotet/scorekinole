@@ -246,7 +246,7 @@
 				on:click={() => handleTabChange('history')}
 				type="button"
 			>
-				{$t('matchHistory')} ({$matchHistory.length})
+				{$t('matchHistory')}{#if $matchHistory && $matchHistory.length > 0} ({$matchHistory.length}){/if}
 			</button>
 			<button
 				class="tab"
@@ -254,7 +254,7 @@
 				on:click={() => handleTabChange('deleted')}
 				type="button"
 			>
-				{$t('deleted')} ({$deletedMatches.length})
+				{$t('deleted')}{#if $deletedMatches && $deletedMatches.length > 0} ({$deletedMatches.length}){/if}
 			</button>
 		</div>
 
@@ -305,19 +305,21 @@
 											{/if}
 										</div>
 									{/each}
-									<!-- Match total -->
-									<div class="match-total-summary">
-										<span class="match-label">Match:</span>
-										<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team1GamesWon}</span>
-										<span>-</span>
-										<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team2GamesWon}</span>
-										{#if $gameSettings.show20s}
-											{@const total20s = allGames.reduce((sum, g) => sum + (g.rounds?.reduce((s, r) => s + r.team1Twenty + r.team2Twenty, 0) ?? 0), 0)}
-											{#if total20s > 0}
-												<span class="match-twenties"> • ⭐ {total20s}</span>
+									<!-- Match total (only show for multi-game matches in points mode) -->
+									{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1}
+										<div class="match-total-summary">
+											<span class="match-label">Match:</span>
+											<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team1GamesWon}</span>
+											<span>-</span>
+											<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team2GamesWon}</span>
+											{#if $gameSettings.show20s}
+												{@const total20s = allGames.reduce((sum, g) => sum + (g.rounds?.reduce((s, r) => s + r.team1Twenty + r.team2Twenty, 0) ?? 0), 0)}
+												{#if total20s > 0}
+													<span class="match-twenties"> • ⭐ {total20s}</span>
+												{/if}
 											{/if}
-										{/if}
-									</div>
+										</div>
+									{/if}
 								</div>
 							{/if}
 

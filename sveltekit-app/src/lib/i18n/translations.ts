@@ -19,6 +19,7 @@ export const translations = {
         roundsWon: 'Rondas ganadas',
         teamName: 'Nombre del Equipo',
         winner: 'GANADOR',
+        gameWin: 'GANA PARTIDA {n}',
         hammer: 'Martillo',
         twenties: 'Veintes',
         swipeUp: 'Deslizar hacia arriba',
@@ -140,7 +141,11 @@ export const translations = {
         matchesNeedingConfirmation: '{count} partidos necesitan confirmación',
         matchesConfirmed: 'Partidos confirmados',
         confirmed: 'Confirmado',
-        notConfirmed: 'Sin confirmar'
+        notConfirmed: 'Sin confirmar',
+        advancedActions: 'Acciones Avanzadas',
+        newMatchButton: 'Nuevo Match',
+        confirmNewMatch: '¿Iniciar nuevo match? Se perderán los datos actuales',
+        login: 'Iniciar Sesión'
     },
     ca: {
         appTitle: 'Crokinole Scorer',
@@ -160,6 +165,7 @@ export const translations = {
         roundsWon: 'Rondes guanyades',
         teamName: 'Nom de l\'Equip',
         winner: 'GUANYADOR',
+        gameWin: 'GUANYA PARTIDA {n}',
         hammer: 'Martell',
         twenties: 'Vints',
         swipeUp: 'Lliscar cap amunt',
@@ -281,7 +287,11 @@ export const translations = {
         matchesNeedingConfirmation: '{count} partides necessiten confirmació',
         matchesConfirmed: 'Partides confirmades',
         confirmed: 'Confirmat',
-        notConfirmed: 'Sense confirmar'
+        notConfirmed: 'Sense confirmar',
+        advancedActions: 'Accions Avançades',
+        newMatchButton: 'Nou Match',
+        confirmNewMatch: 'Iniciar nou match? Es perdran les dades actuals',
+        login: 'Iniciar Sessió'
     },
     en: {
         appTitle: 'Crokinole Scorer',
@@ -301,6 +311,7 @@ export const translations = {
         roundsWon: 'Rounds won',
         teamName: 'Team Name',
         winner: 'WINNER',
+        gameWin: 'WINS GAME {n}',
         hammer: 'Hammer',
         twenties: 'Twenties',
         swipeUp: 'Swipe up',
@@ -422,7 +433,11 @@ export const translations = {
         matchesNeedingConfirmation: '{count} matches need confirmation',
         matchesConfirmed: 'Matches confirmed',
         confirmed: 'Confirmed',
-        notConfirmed: 'Not confirmed'
+        notConfirmed: 'Not confirmed',
+        advancedActions: 'Advanced Actions',
+        newMatchButton: 'New Match',
+        confirmNewMatch: 'Start new match? Current data will be lost',
+        login: 'Login'
     }
 } as const;
 

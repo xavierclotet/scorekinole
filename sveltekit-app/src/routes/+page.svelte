@@ -481,10 +481,15 @@
 		}
 	}
 
-	@media (orientation: landscape) and (max-height: 600px) {
+	@media (orientation: landscape) and (max-height: 700px) {
 		.landing {
 			justify-content: flex-start;
-			padding-top: 2rem;
+			padding-top: 1rem;
+			padding-bottom: 1rem;
+		}
+
+		.hero {
+			padding: 0.5rem 2rem;
 		}
 
 		.logo {
@@ -492,43 +497,65 @@
 		}
 
 		.logo-circle {
-			width: 60px;
-			height: 60px;
+			width: 50px;
+			height: 50px;
 		}
 
 		.logo-center {
-			font-size: 2rem;
+			font-size: 1.75rem;
 		}
 
 		.title {
-			font-size: 2rem;
+			font-size: 1.75rem;
+			margin-bottom: 0.25rem;
 		}
 
 		.subtitle {
-			margin-bottom: 1rem;
+			font-size: 0.9rem;
+			margin-bottom: 0.75rem;
 		}
 
 		.cta-button {
-			padding: 0.75rem 1.5rem;
-			font-size: 1rem;
-			margin-bottom: 1rem;
+			padding: 0.6rem 1.25rem;
+			font-size: 0.95rem;
+			margin-bottom: 0.75rem;
+		}
+
+		.cta-icon {
+			font-size: 1.2rem;
+		}
+
+		.cta-arrow {
+			font-size: 1.2rem;
 		}
 
 		.features {
 			grid-template-columns: repeat(4, 1fr);
 			gap: 0.5rem;
+			margin-top: 0.5rem;
 		}
 
 		.feature {
-			padding: 0.5rem;
+			padding: 0.4rem 0.5rem;
 		}
 
 		.feature-icon {
-			font-size: 1.5rem;
+			font-size: 1.25rem;
 		}
 
 		.feature-text {
-			font-size: 0.75rem;
+			font-size: 0.7rem;
+		}
+
+		.footer {
+			position: relative;
+			margin-top: 0.5rem;
+			bottom: auto;
+		}
+
+		.footer p {
+			margin: 0.1rem 0;
+			font-size: 0.7rem;
 		}
 	}
 </style>
