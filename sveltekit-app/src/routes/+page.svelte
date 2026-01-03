@@ -39,7 +39,7 @@
 	</div>
 
 	<div class="hero">
-		<div class="logo">🎯</div>
+		<img src="/icon.png" alt="Scorekinole" class="logo" />
 
 		<h1 class="title">Scorekinole</h1>
 		<p class="subtitle">{$t('appTitle')}</p>
@@ -130,8 +130,10 @@
 	}
 
 	.logo {
-		font-size: 5rem;
-		margin-bottom: 1rem;
+		width: 120px;
+		height: 120px;
+		margin-bottom: 1.5rem;
+		border-radius: 12px;
 		filter: drop-shadow(0 4px 12px rgba(0, 255, 136, 0.3));
 	}
 
@@ -208,7 +210,8 @@
 	/* Responsive */
 	@media (max-width: 600px) {
 		.logo {
-			font-size: 4rem;
+			width: 100px;
+			height: 100px;
 		}
 
 		.title {
