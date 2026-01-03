@@ -10,6 +10,12 @@
 	export let onDelete: (() => void) | null = null;
 	export let onPermanentDelete: (() => void) | null = null;
 
+	let isExpanded = false;
+
+	function toggleExpand() {
+		isExpanded = !isExpanded;
+	}
+
 	function formatDuration(milliseconds: number): string {
 		const seconds = Math.floor(milliseconds / 1000);
 		const minutes = Math.floor(seconds / 60);
@@ -36,23 +42,37 @@
 </script>
 
 <div class="history-entry">
-	<!-- Header with date and delete button -->
-	<div class="entry-header">
+	<!-- Header - Clickable to expand/collapse -->
+	<button class="entry-header" on:click={toggleExpand} type="button">
+		<div class="expand-icon" class:expanded={isExpanded}>
+			▶
+		</div>
 		<div class="entry-header-info">
+			<div class="entry-title">
+				{match.eventTitle || 'Scorekinole'}
+				{#if match.matchPhase}
+					<span class="phase">- {match.matchPhase}</span>
+				{/if}
+			</div>
 			<div class="entry-date">
 				{formatDate(match.startTime)}
 			</div>
-			<div class="match-summary">
-				{gameTypeText} • {gameModeText} • {formatDuration(match.duration)}
+			<div class="teams-summary">
+				<span style="color: {match.team1Color}">{match.team1Name}</span>
+				<span class="vs">vs</span>
+				<span style="color: {match.team2Color}">{match.team2Name}</span>
 			</div>
 		</div>
 		{#if onDelete}
-			<button class="delete-button" on:click={onDelete}>
-				🗑️ {$t('delete')}
+			<button class="delete-button" on:click|stopPropagation={onDelete}>
+				🗑️
 			</button>
 		{/if}
-	</div>
+	</button>
 
+	<!-- Expandable Detail -->
+	{#if isExpanded}
+	<div class="match-detail">
 	<!-- Match Score Summary -->
 	<div class="match-score-summary">
 		<!-- Match total on the left (only show for multi-game matches in points mode) -->
@@ -181,6 +201,8 @@
 			{/if}
 		</div>
 	{/if}
+	</div>
+	{/if}
 </div>
 
 <style>
@@ -203,27 +225,81 @@
 
 	.entry-header {
 		display: flex;
-		justify-content: space-between;
 		align-items: flex-start;
-		gap: 0.5rem;
+		gap: 0.75rem;
+		width: 100%;
+		background: none;
+		border: none;
+		padding: 0;
+		text-align: left;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.entry-header:hover {
+		opacity: 0.8;
+	}
+
+	.expand-icon {
+		flex-shrink: 0;
+		width: 20px;
+		height: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #00ff88;
+		font-size: 0.75rem;
+		transition: transform 0.2s;
+		margin-top: 0.25rem;
+	}
+
+	.expand-icon.expanded {
+		transform: rotate(90deg);
 	}
 
 	.entry-header-info {
 		flex: 1;
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: 0.35rem;
+	}
+
+	.entry-title {
+		font-size: 1rem;
+		color: #fff;
+		font-weight: 700;
+	}
+
+	.phase {
+		color: rgba(255, 255, 255, 0.7);
+		font-weight: 500;
 	}
 
 	.entry-date {
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.7);
-		font-weight: 600;
-	}
-
-	.match-summary {
 		font-size: 0.8rem;
 		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.teams-summary {
+		font-size: 0.9rem;
+		font-weight: 600;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.vs {
+		color: rgba(255, 255, 255, 0.5);
+		font-size: 0.75rem;
+	}
+
+	.match-detail {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		margin-top: 0.5rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
 	}
 
 	.delete-button {

@@ -616,7 +616,6 @@
 	.history-modal {
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
 		min-height: 400px;
 		max-height: 70vh;
 	}
@@ -626,6 +625,8 @@
 		gap: 0.5rem;
 		border-bottom: 2px solid rgba(255, 255, 255, 0.1);
 		overflow-x: auto;
+		flex-shrink: 0;
+		margin-bottom: 1.5rem;
 	}
 
 	.tab {
