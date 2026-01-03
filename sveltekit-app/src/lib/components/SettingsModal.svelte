@@ -177,7 +177,6 @@
 		<!-- Advanced Actions Section -->
 		<section class="settings-section advanced-section">
 			<h3>{$t('advancedActions')}</h3>
-			<p class="description">{$t('switchSides')} / {$t('switchColors')}</p>
 			<div class="action-buttons">
 				<button class="action-button" on:click={handleSwitchSides} type="button">
 					<span class="icon">⇄</span>

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import Button from './Button.svelte';
+	import { getUserProfile } from '$lib/firebase/userProfile';
 
 	export let isOpen: boolean = false;
 	export let user: any = null;
@@ -9,9 +10,24 @@
 	const dispatch = createEventDispatcher();
 
 	let playerNameInput = '';
+	let isLoading = false;
 
+	// Load player name from Firestore when modal opens
 	$: if (isOpen && user) {
-		playerNameInput = user.displayName || '';
+		loadPlayerName();
+	}
+
+	async function loadPlayerName() {
+		isLoading = true;
+		try {
+			const profile = await getUserProfile();
+			playerNameInput = profile?.playerName || user.name || user.displayName || '';
+		} catch (error) {
+			console.error('Error loading player name:', error);
+			playerNameInput = user.name || user.displayName || '';
+		} finally {
+			isLoading = false;
+		}
 	}
 
 	function close() {
@@ -37,8 +53,8 @@
 				{#if user}
 					<!-- Profile Photo -->
 					<div class="photo-section">
-						{#if user.photoURL}
-							<img src={user.photoURL} alt="Profile" class="photo" />
+						{#if user.photo || user.photoURL}
+							<img src={user.photo || user.photoURL} alt="Profile" class="photo" />
 						{:else}
 							<div class="photo-placeholder">
 								{user.email?.charAt(0).toUpperCase() || '?'}
@@ -54,7 +70,7 @@
 
 					<div class="info-section">
 						<label class="label">{$t('userId')}</label>
-						<div class="readonly uid">{user.uid || '-'}</div>
+						<div class="readonly uid">{user.id || user.uid || '-'}</div>
 					</div>
 
 					<div class="info-section">

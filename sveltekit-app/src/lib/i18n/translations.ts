@@ -145,7 +145,12 @@ export const translations = {
         advancedActions: 'Acciones Avanzadas',
         newMatchButton: 'Nuevo Match',
         confirmNewMatch: '¿Iniciar nuevo match? Se perderán los datos actuales',
-        login: 'Iniciar Sesión'
+        login: 'Iniciar Sesión',
+        loginWelcome: 'Inicia sesión para sincronizar tus partidas',
+        signingIn: 'Iniciando sesión...',
+        continueWithGoogle: 'Continuar con Google',
+        loginPrivacyNote: 'Tus datos se sincronizarán de forma segura con tu cuenta de Google',
+        loginError: 'Error al iniciar sesión'
     },
     ca: {
         appTitle: 'Crokinole Scorer',
@@ -291,7 +296,12 @@ export const translations = {
         advancedActions: 'Accions Avançades',
         newMatchButton: 'Nou Match',
         confirmNewMatch: 'Iniciar nou match? Es perdran les dades actuals',
-        login: 'Iniciar Sessió'
+        login: 'Iniciar Sessió',
+        loginWelcome: 'Inicia sessió per sincronitzar les teves partides',
+        signingIn: 'Iniciant sessió...',
+        continueWithGoogle: 'Continuar amb Google',
+        loginPrivacyNote: 'Les teves dades se sincronitzaran de forma segura amb el teu compte de Google',
+        loginError: 'Error en iniciar sessió'
     },
     en: {
         appTitle: 'Crokinole Scorer',
@@ -437,7 +447,12 @@ export const translations = {
         advancedActions: 'Advanced Actions',
         newMatchButton: 'New Match',
         confirmNewMatch: 'Start new match? Current data will be lost',
-        login: 'Login'
+        login: 'Login',
+        loginWelcome: 'Sign in to sync your matches',
+        signingIn: 'Signing in...',
+        continueWithGoogle: 'Continue with Google',
+        loginPrivacyNote: 'Your data will be securely synced with your Google account',
+        loginError: 'Error signing in'
     }
 } as const;
 

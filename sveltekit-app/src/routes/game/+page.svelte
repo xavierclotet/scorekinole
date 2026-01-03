@@ -18,6 +18,7 @@
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import { currentUser } from '$lib/firebase/auth';
+	import { saveUserProfile } from '$lib/firebase/userProfile';
 
 	let showSettings = false;
 	let showHistory = false;
@@ -140,9 +141,17 @@
 		showProfile = true;
 	}
 
-	function handleProfileUpdate(event: CustomEvent<{ playerName: string }>) {
-		// TODO: Update user profile with new player name
-		console.log('Profile update:', event.detail);
+	async function handleProfileUpdate(event: CustomEvent<{ playerName: string }>) {
+		try {
+			const result = await saveUserProfile(event.detail.playerName);
+			if (result) {
+				console.log('✅ Profile updated successfully:', event.detail.playerName);
+				// Update currentUser store with new name
+				currentUser.update(u => u ? { ...u, name: event.detail.playerName } : null);
+			}
+		} catch (error) {
+			console.error('❌ Error updating profile:', error);
+		}
 		showProfile = false;
 	}
 
@@ -461,8 +470,7 @@
 
 	<!-- New Match Floating Button -->
 	<button class="floating-button new-match-button" on:click={handleNewMatchClick} aria-label={$t('newMatchButton')} title={$t('newMatchButton')}>
-		<span class="icon">⟲</span>
-		<span class="label">{$t('newMatchButton')}</span>
+		▶️
 	</button>
 
 	<!-- New Match Confirmation Modal -->
@@ -1023,17 +1031,17 @@
 
 	/* History Button - Destacado en left section */
 	.history-button {
-		background: linear-gradient(135deg, #00ff88, #00cc6a) !important;
-		color: #000 !important;
-		font-size: 1.3rem !important;
-		padding: 0.6rem 0.75rem !important;
-		box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+		background: transparent !important;
+		color: #00ff88 !important;
+		border: 2px solid #00ff88 !important;
+		box-shadow: 0 2px 8px rgba(0, 255, 136, 0.2);
 		transition: all 0.2s;
 	}
 
 	.history-button:hover {
 		transform: scale(1.05);
-		box-shadow: 0 3px 12px rgba(0, 255, 136, 0.5);
+		background: rgba(0, 255, 136, 0.1) !important;
+		box-shadow: 0 3px 12px rgba(0, 255, 136, 0.4);
 	}
 
 	/* Floating Button - New Match */
@@ -1043,15 +1051,16 @@
 		left: 2rem;
 		z-index: 1000;
 		display: flex;
-		flex-direction: column;
 		align-items: center;
-		gap: 0.3rem;
-		padding: 0.8rem 1rem;
+		justify-content: center;
+		padding: 0.6rem;
+		width: 3rem;
+		height: 3rem;
 		background: linear-gradient(135deg, #4a90e2, #2563eb);
 		border: none;
-		border-radius: 12px;
+		border-radius: 50%;
 		color: #ffd700;
-		font-weight: 700;
+		font-size: 1.5rem;
 		cursor: pointer;
 		box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
 		transition: all 0.2s;
@@ -1120,15 +1129,9 @@
 		.floating-button {
 			bottom: 1.5rem;
 			left: 1.5rem;
-			padding: 0.7rem 0.9rem;
-		}
-
-		.floating-button .icon {
-			font-size: 1.5rem;
-		}
-
-		.floating-button .label {
-			font-size: 0.7rem;
+			width: 2.8rem;
+			height: 2.8rem;
+			font-size: 1.4rem;
 		}
 
 		.history-button {
@@ -1150,15 +1153,9 @@
 		.floating-button {
 			bottom: 1rem;
 			left: 1rem;
-			padding: 0.6rem 0.8rem;
-		}
-
-		.floating-button .icon {
+			width: 2.5rem;
+			height: 2.5rem;
 			font-size: 1.3rem;
-		}
-
-		.floating-button .label {
-			font-size: 0.65rem;
 		}
 
 		.history-button {

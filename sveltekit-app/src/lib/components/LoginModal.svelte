@@ -21,7 +21,7 @@
 			close();
 		} catch (err: any) {
 			console.error('Login error:', err);
-			error = err.message || 'Error al iniciar sesión';
+			error = err.message || $t('loginError');
 		} finally {
 			isLoading = false;
 		}
@@ -42,7 +42,7 @@
 				<button class="close-btn" on:click={close} aria-label="Close">×</button>
 			</div>
 			<div class="modal-content">
-				<p class="welcome-text">Inicia sesión para sincronizar tus partidas</p>
+				<p class="welcome-text">{$t('loginWelcome')}</p>
 
 				{#if error}
 					<div class="error-message">
@@ -58,16 +58,16 @@
 						disabled={isLoading}
 					>
 						{#if isLoading}
-							Iniciando sesión...
+							{$t('signingIn')}
 						{:else}
 							<span class="google-icon">G</span>
-							Continuar con Google
+							{$t('continueWithGoogle')}
 						{/if}
 					</Button>
 				</div>
 
 				<p class="privacy-note">
-					Tus datos se sincronizarán de forma segura con tu cuenta de Google
+					{$t('loginPrivacyNote')}
 				</p>
 			</div>
 		</div>
