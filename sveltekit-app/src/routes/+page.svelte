@@ -52,6 +52,9 @@
 			<span class="feature">⏱️ {$t('timer')}</span>
 			<span class="feature">📊 {$t('rounds')}</span>
 			<span class="feature">🏆 {$t('matchHistory')}</span>
+			<span class="feature">🔨 {$t('hammer')}</span>
+			<span class="feature">⭐ {$t('twenties')}</span>
+			<span class="feature">☁️ {$t('syncAll')}</span>
 		</div>
 	</div>
 
