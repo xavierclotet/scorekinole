@@ -53,6 +53,9 @@
 				{#if match.matchPhase}
 					<span class="phase">- {match.matchPhase}</span>
 				{/if}
+				{#if match.syncStatus === 'synced'}
+					<span class="sync-badge" title={$t('syncedWithCloud')}>☁️</span>
+				{/if}
 			</div>
 			<div class="entry-date">
 				{formatDate(match.startTime)}
@@ -268,11 +271,25 @@
 		font-size: 1rem;
 		color: #fff;
 		font-weight: 700;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
 	}
 
 	.phase {
 		color: rgba(255, 255, 255, 0.7);
 		font-weight: 500;
+	}
+
+	.sync-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.9rem;
+		color: #00ff88;
+		opacity: 0.9;
+		cursor: help;
 	}
 
 	.entry-date {

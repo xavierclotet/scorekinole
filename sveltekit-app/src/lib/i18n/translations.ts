@@ -150,7 +150,8 @@ export const translations = {
         signingIn: 'Iniciando sesión...',
         continueWithGoogle: 'Continuar con Google',
         loginPrivacyNote: 'Tus datos se sincronizarán de forma segura con tu cuenta de Google',
-        loginError: 'Error al iniciar sesión'
+        loginError: 'Error al iniciar sesión',
+        syncedWithCloud: 'Sincronizado con la nube'
     },
     ca: {
         appTitle: 'Crokinole Scorer',
@@ -301,7 +302,8 @@ export const translations = {
         signingIn: 'Iniciant sessió...',
         continueWithGoogle: 'Continuar amb Google',
         loginPrivacyNote: 'Les teves dades se sincronitzaran de forma segura amb el teu compte de Google',
-        loginError: 'Error en iniciar sessió'
+        loginError: 'Error en iniciar sessió',
+        syncedWithCloud: 'Sincronitzat amb el núvol'
     },
     en: {
         appTitle: 'Crokinole Scorer',
@@ -452,7 +454,8 @@ export const translations = {
         signingIn: 'Signing in...',
         continueWithGoogle: 'Continue with Google',
         loginPrivacyNote: 'Your data will be securely synced with your Google account',
-        loginError: 'Error signing in'
+        loginError: 'Error signing in',
+        syncedWithCloud: 'Synced with cloud'
     }
 } as const;
 

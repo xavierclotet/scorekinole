@@ -38,6 +38,22 @@ export interface MatchHistory {
     duration: number;
     eventTitle?: string;
     matchPhase?: string;
+    syncStatus?: 'local' | 'synced' | 'pending';
+    savedBy?: {
+        userId: string;
+        userName: string;
+        userEmail: string;
+    };
+    players?: {
+        team1?: {
+            name: string;
+            userId: string | null;
+        };
+        team2?: {
+            name: string;
+            userId: string | null;
+        };
+    };
 }
 
 export interface CurrentMatch {
