@@ -5,7 +5,7 @@
 	import { team1, team2, updateTeam, resetTeams } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
 	import { completeCurrentMatch, startCurrentMatch, currentMatch, addGameToCurrentMatch, clearCurrentMatchRounds } from '$lib/stores/history';
-	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames } from '$lib/stores/matchState';
+	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames, currentMatchRounds } from '$lib/stores/matchState';
 	import { get } from 'svelte/store';
 	import type { Team } from '$lib/types/team';
 
@@ -304,20 +304,28 @@
 		currentMatchGames.update(games => [...games, newGame]);
 
 		// Add game with rounds to currentMatch for history display
+		const rounds = get(currentMatchRounds);
 		const gameWithRounds = {
 			...newGame,
-			rounds: current?.rounds || []
+			rounds: rounds
 		};
 		addGameToCurrentMatch(gameWithRounds);
 
-		// Check if someone won the match (reached matchesToWin)
+		console.log('Game saved with rounds:', rounds.length);
+
+		// Check if someone won the match
 		const team1GamesWon = matchGames.filter(g => g.winner === 1).length + (winner === 1 ? 1 : 0);
 		const team2GamesWon = matchGames.filter(g => g.winner === 2).length + (winner === 2 ? 1 : 0);
 
 		console.log('Team 1 games won:', team1GamesWon);
 		console.log('Team 2 games won:', team2GamesWon);
+		console.log('Game mode:', settings.gameMode);
 
-		const matchComplete = team1GamesWon >= settings.matchesToWin || team2GamesWon >= settings.matchesToWin;
+		// In rounds mode, match is complete after first game
+		// In points mode, need to reach matchesToWin
+		const matchComplete = settings.gameMode === 'rounds'
+			? true
+			: (team1GamesWon >= settings.matchesToWin || team2GamesWon >= settings.matchesToWin);
 
 		console.log('Match complete?', matchComplete);
 
@@ -355,6 +363,7 @@
 		}
 
 		console.log('Current match games:', current.games);
+		console.log('First game rounds:', current.games[0]?.rounds);
 
 		// Determine match winner based on games won
 		const team1GamesWon = current.games.filter(g => g.winner === 1).length;

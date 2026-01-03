@@ -57,7 +57,11 @@
 	$: team2GamesWon = $currentMatchGames.filter(game => game.winner === 2).length;
 
 	// Check if match is complete
-	$: isMatchComplete = team1GamesWon >= $gameSettings.matchesToWin || team2GamesWon >= $gameSettings.matchesToWin;
+	// In rounds mode, match is complete after first game
+	// In points mode, match is complete when someone reaches matchesToWin
+	$: isMatchComplete = $gameSettings.gameMode === 'rounds'
+		? (team1GamesWon >= 1 || team2GamesWon >= 1)
+		: (team1GamesWon >= $gameSettings.matchesToWin || team2GamesWon >= $gameSettings.matchesToWin);
 
 	// Show "Next Game" button when someone won AND match is not complete AND matchesToWin > 1 AND there are completed games
 	$: showNextGameButton = ($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points' && $currentMatchGames.length > 0;
@@ -1098,7 +1102,14 @@
 		align-items: center;
 		justify-content: center;
 		z-index: 2000;
-		animation: fadeIn 0.2s ease-out;
+		opacity: 0;
+		animation: overlayFadeIn 0.15s ease-out forwards;
+	}
+
+	@keyframes overlayFadeIn {
+		to {
+			opacity: 1;
+		}
 	}
 
 	.confirm-modal {

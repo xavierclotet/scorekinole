@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import { DEFAULT_GAME_SETTINGS } from '$lib/constants';
+import { DEFAULT_GAME_SETTINGS, APP_VERSION } from '$lib/constants';
 import type { GameSettings } from '$lib/types/settings';
 import { browser } from '$app/environment';
 
@@ -49,7 +49,15 @@ function createGameSettings() {
 
                     // Validate parsed data before setting
                     if (isValidGameSettings(parsed)) {
-                        set(parsed);
+                        // Always update to current app version
+                        const updatedSettings = { ...parsed, appVersion: APP_VERSION };
+                        set(updatedSettings);
+
+                        // If version changed, save immediately to update localStorage
+                        if (parsed.appVersion !== APP_VERSION) {
+                            console.log(`📦 Updating version in localStorage: ${parsed.appVersion} → ${APP_VERSION}`);
+                            localStorage.setItem('crokinoleGame', JSON.stringify(updatedSettings));
+                        }
                     } else {
                         console.warn('Invalid settings in localStorage, using defaults');
                         set(DEFAULT_GAME_SETTINGS);

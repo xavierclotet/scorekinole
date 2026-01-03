@@ -27,7 +27,7 @@
 </script>
 
 <svelte:head>
-	<title>Scorekinole - Crokinole Scorer App</title>
+	<title>Scorekinole - Crokinole Scorer Arena App</title>
 	<meta name="description" content="Professional scoring app for Crokinole games. Track points, rounds, and matches with ease." />
 </svelte:head>
 

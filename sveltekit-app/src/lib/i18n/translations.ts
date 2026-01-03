@@ -3,7 +3,7 @@ export type Language = 'es' | 'ca' | 'en';
 export const translations = {
     es: {
         languageCode: 'es-ES',
-        appTitle: 'Crokinole Scorer',
+        appTitle: 'Crokinole Scorer Arena',
         settings: 'Configuración',
         cancel: 'Cancelar',
         save: 'Guardar',
@@ -158,7 +158,7 @@ export const translations = {
         syncedWithCloud: 'Sincronizado con la nube'
     },
     ca: {
-        appTitle: 'Crokinole Scorer',
+        appTitle: 'Crokinole Scorer Arena',
         settings: 'Configuració',
         cancel: 'Cancel·lar',
         save: 'Guardar',
@@ -313,7 +313,7 @@ export const translations = {
         syncedWithCloud: 'Sincronitzat amb el núvol'
     },
     en: {
-        appTitle: 'Crokinole Scorer',
+        appTitle: 'Crokinole Scorer Arena',
         settings: 'Settings',
         cancel: 'Cancel',
         save: 'Save',
