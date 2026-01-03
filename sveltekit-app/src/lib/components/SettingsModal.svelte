@@ -27,7 +27,7 @@
 		gameSettings.save();
 	}
 
-	function handleToggle(key: 'show20s' | 'showHammer' | 'showTimer') {
+	function handleToggle(key: 'show20s' | 'showHammer' | 'showTimer' | 'showScoreTable') {
 		gameSettings.update(s => ({ ...s, [key]: !s[key] }));
 		gameSettings.save();
 	}
@@ -146,6 +146,12 @@
 					<input type="checkbox" checked={$gameSettings.showTimer} readonly />
 					<span class="toggle-switch"></span>
 				</label>
+
+				<label class="toggle-item" on:click|preventDefault={() => handleToggle('showScoreTable')}>
+					<span class="toggle-label">{$t('showScoreTable')}</span>
+					<input type="checkbox" checked={$gameSettings.showScoreTable} readonly />
+					<span class="toggle-switch"></span>
+				</label>
 			</div>
 		</section>
 
@@ -197,8 +203,9 @@
 		flex-direction: column;
 		gap: 1.25rem;
 		padding: 1rem;
-		max-height: 70vh;
 		overflow-y: auto;
+		min-height: 0;
+		height: 100%;
 	}
 
 	.settings-section {
@@ -341,8 +348,8 @@
 	/* Responsive */
 	@media (max-width: 600px) {
 		.settings-content {
-			max-height: 60vh;
 			gap: 1rem;
+			padding-bottom: 2rem;
 		}
 
 		.settings-section {
@@ -396,7 +403,6 @@
 	/* Landscape optimization */
 	@media (orientation: landscape) {
 		.settings-content {
-			max-height: 75vh;
 			gap: 1rem;
 		}
 

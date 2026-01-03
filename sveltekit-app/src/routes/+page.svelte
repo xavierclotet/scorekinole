@@ -84,12 +84,14 @@
 		justify-content: center;
 		background: #0a0e1a;
 		overflow-y: auto;
+		padding-top: env(safe-area-inset-top, 0);
+		padding-bottom: env(safe-area-inset-bottom, 0);
 	}
 
 	.language-selector {
 		position: absolute;
-		top: 1rem;
-		right: 1rem;
+		top: max(1rem, env(safe-area-inset-top, 1rem));
+		right: max(1rem, env(safe-area-inset-right, 1rem));
 		display: flex;
 		gap: 0.5rem;
 		z-index: 10;
@@ -196,7 +198,7 @@
 
 	.footer {
 		position: absolute;
-		bottom: 1rem;
+		bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
 		text-align: center;
 		color: rgba(255, 255, 255, 0.4);
 		font-size: 0.85rem;
@@ -208,6 +210,110 @@
 	}
 
 	/* Responsive */
+
+	/* Landscape: layout horizontal para aprovechar el ancho */
+	@media (orientation: landscape) {
+		.landing {
+			padding: 1rem 2rem;
+			overflow-y: hidden;
+		}
+
+		.hero {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			grid-template-rows: auto auto auto;
+			gap: 0.5rem 1.5rem;
+			align-items: center;
+			text-align: left;
+			max-width: 100%;
+			padding: 1rem;
+		}
+
+		.logo {
+			grid-row: 1 / 4;
+			grid-column: 1;
+			width: 100px;
+			height: 100px;
+			margin-bottom: 0;
+		}
+
+		.title {
+			grid-row: 1;
+			grid-column: 2;
+			font-size: 2rem;
+			margin: 0;
+		}
+
+		.subtitle {
+			grid-row: 2;
+			grid-column: 2;
+			font-size: 0.9rem;
+			margin: 0;
+		}
+
+		.cta-button {
+			grid-row: 3;
+			grid-column: 2;
+			justify-self: start;
+			padding: 0.7rem 2rem;
+			font-size: 1rem;
+			margin-bottom: 0;
+		}
+
+		.features {
+			grid-row: 1 / 4;
+			grid-column: 3;
+			flex-direction: column;
+			gap: 0.5rem;
+			margin-left: 1rem;
+		}
+
+		.feature {
+			font-size: 0.8rem;
+			padding: 0.5rem 0.8rem;
+			white-space: nowrap;
+		}
+
+		.footer {
+			bottom: max(0.5rem, env(safe-area-inset-bottom, 0.5rem));
+		}
+
+		.language-selector {
+			top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+		}
+	}
+
+	/* Landscape con altura muy pequeña */
+	@media (orientation: landscape) and (max-height: 500px) {
+		.logo {
+			width: 70px;
+			height: 70px;
+		}
+
+		.title {
+			font-size: 1.5rem;
+		}
+
+		.subtitle {
+			font-size: 0.8rem;
+		}
+
+		.cta-button {
+			padding: 0.5rem 1.5rem;
+			font-size: 0.9rem;
+		}
+
+		.feature {
+			font-size: 0.7rem;
+			padding: 0.4rem 0.6rem;
+		}
+
+		.language-selector button {
+			padding: 0.3rem 0.6rem;
+			font-size: 0.7rem;
+		}
+	}
+
 	@media (max-width: 600px) {
 		.logo {
 			width: 100px;

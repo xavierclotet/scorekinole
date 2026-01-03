@@ -127,18 +127,54 @@
 	/* Mobile optimizations */
 	@media (max-width: 600px) {
 		.btn {
-			padding: 0.875rem 1.25rem;
-			font-size: 0.9375rem;
+			padding: 0.65rem 1rem;
+			font-size: 0.875rem;
 		}
 
 		.btn-small {
-			padding: 0.625rem 1rem;
-			font-size: 0.8125rem;
+			padding: 0.5rem 0.85rem;
+			font-size: 0.75rem;
 		}
 
 		.btn-large {
-			padding: 1rem 1.75rem;
-			font-size: 1rem;
+			padding: 0.85rem 1.5rem;
+			font-size: 0.95rem;
+		}
+	}
+
+	/* Portrait mobile - botones más compactos verticalmente */
+	@media (max-width: 600px) and (orientation: portrait) {
+		.btn {
+			padding: 0.6rem 0.9rem;
+			font-size: 0.85rem;
+		}
+
+		.btn-small {
+			padding: 0.45rem 0.75rem;
+			font-size: 0.7rem;
+		}
+
+		.btn-large {
+			padding: 0.75rem 1.25rem;
+			font-size: 0.9rem;
+		}
+	}
+
+	/* Landscape mobile - botones ultra compactos */
+	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+		.btn {
+			padding: 0.5rem 0.85rem;
+			font-size: 0.8rem;
+		}
+
+		.btn-small {
+			padding: 0.4rem 0.65rem;
+			font-size: 0.7rem;
+		}
+
+		.btn-large {
+			padding: 0.65rem 1.1rem;
+			font-size: 0.85rem;
 		}
 	}
 </style>

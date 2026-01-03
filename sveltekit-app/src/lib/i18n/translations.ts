@@ -3,7 +3,7 @@ export type Language = 'es' | 'ca' | 'en';
 export const translations = {
     es: {
         languageCode: 'es-ES',
-        appTitle: 'Crokinole Scorer Arena',
+        appTitle: 'Crokinole Scoring Arena',
         settings: 'Configuración',
         cancel: 'Cancelar',
         save: 'Guardar',
@@ -67,6 +67,7 @@ export const translations = {
         twentyDialogTitle: '¿Cuántos 20s?',
         confirm: 'Confirmar',
         showHammer: 'Mostrar Martillo',
+        showScoreTable: 'Mostrar Tabla de Puntos',
         hammerDialogTitle: 'Quien empieza la primera partida?',
         hammerDialogSubtitle: 'El otro equipo tendra el martillo',
         gameType: 'Tipo de Partida',
@@ -158,7 +159,7 @@ export const translations = {
         syncedWithCloud: 'Sincronizado con la nube'
     },
     ca: {
-        appTitle: 'Crokinole Scorer Arena',
+        appTitle: 'Crokinole Scoring Arena',
         settings: 'Configuració',
         cancel: 'Cancel·lar',
         save: 'Guardar',
@@ -222,6 +223,7 @@ export const translations = {
         twentyDialogTitle: 'Quants 20s?',
         confirm: 'Confirmar',
         showHammer: 'Mostrar Martell',
+        showScoreTable: 'Mostrar Taula de Punts',
         hammerDialogTitle: 'Qui comenca la primera partida?',
         hammerDialogSubtitle: 'Laltre equip tindra el martell',
         gameType: 'Tipus de Partida',
@@ -313,7 +315,7 @@ export const translations = {
         syncedWithCloud: 'Sincronitzat amb el núvol'
     },
     en: {
-        appTitle: 'Crokinole Scorer Arena',
+        appTitle: 'Crokinole Scoring Arena',
         settings: 'Settings',
         cancel: 'Cancel',
         save: 'Save',
@@ -377,6 +379,7 @@ export const translations = {
         twentyDialogTitle: 'How many 20s?',
         confirm: 'Confirm',
         showHammer: 'Show Hammer',
+        showScoreTable: 'Show Score Table',
         hammerDialogTitle: 'Who starts the first game?',
         hammerDialogSubtitle: 'The other team will have the hammer',
         gameType: 'Game Type',

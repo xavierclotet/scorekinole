@@ -360,21 +360,192 @@
 		border-top: 1px solid rgba(255, 255, 255, 0.1);
 	}
 
+	/* Responsive */
 	@media (max-width: 600px) {
 		.modal {
 			width: 95%;
+			max-height: 85vh;
+		}
+
+		.modal-header {
+			padding: 1rem;
 		}
 
 		.modal-header h2 {
-			font-size: 1.1rem;
+			font-size: 1rem;
+		}
+
+		.close-btn {
+			font-size: 1.6rem;
+			width: 28px;
+			height: 28px;
+		}
+
+		.modal-content {
+			padding: 1rem;
+		}
+
+		.description {
+			font-size: 0.85rem;
+			margin-bottom: 0.75rem;
+		}
+
+		.status-banner {
+			padding: 0.6rem 0.8rem;
+			font-size: 0.85rem;
+			margin-bottom: 1rem;
+		}
+
+		.matches-list {
+			gap: 0.75rem;
+			margin-bottom: 1rem;
+		}
+
+		.match-card {
+			padding: 0.75rem;
+		}
+
+		.match-title {
+			font-size: 0.9rem;
+			margin-bottom: 0.4rem;
+		}
+
+		.match-date {
+			font-size: 0.75rem;
+			margin-bottom: 0.4rem;
+		}
+
+		.teams {
+			font-size: 0.8rem;
+		}
+
+		.score {
+			font-size: 0.9rem;
 		}
 
 		.team-selection {
 			grid-template-columns: 1fr;
+			gap: 0.4rem;
+		}
+
+		.team-btn {
+			padding: 0.6rem 0.8rem;
+			font-size: 0.85rem;
 		}
 
 		.team-btn.didnt-play {
 			width: 100%;
+			padding: 0.6rem 0.8rem;
+		}
+
+		.modal-actions {
+			gap: 0.75rem;
+			margin-top: 0.75rem;
+			padding-top: 0.75rem;
+		}
+	}
+
+	/* Portrait mobile - maximize space */
+	@media (max-width: 600px) and (orientation: portrait) {
+		.modal {
+			max-height: 88vh;
+		}
+
+		.modal-header {
+			padding: 0.75rem;
+		}
+
+		.modal-content {
+			padding: 0.75rem;
+		}
+	}
+
+	/* Landscape mobile - compact */
+	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+		.modal {
+			max-height: 80vh;
+		}
+
+		.modal-header {
+			padding: 0.75rem;
+		}
+
+		.modal-header h2 {
+			font-size: 0.9rem;
+		}
+
+		.close-btn {
+			font-size: 1.4rem;
+			width: 24px;
+			height: 24px;
+		}
+
+		.modal-content {
+			padding: 0.75rem;
+		}
+
+		.description {
+			font-size: 0.75rem;
+			margin-bottom: 0.5rem;
+		}
+
+		.status-banner {
+			padding: 0.5rem 0.6rem;
+			font-size: 0.75rem;
+			margin-bottom: 0.75rem;
+		}
+
+		.matches-list {
+			gap: 0.5rem;
+			margin-bottom: 0.75rem;
+		}
+
+		.match-card {
+			padding: 0.5rem;
+		}
+
+		.match-info {
+			margin-bottom: 0.5rem;
+		}
+
+		.match-title {
+			font-size: 0.8rem;
+			margin-bottom: 0.3rem;
+		}
+
+		.match-date {
+			font-size: 0.7rem;
+			margin-bottom: 0.3rem;
+		}
+
+		.teams {
+			font-size: 0.75rem;
+		}
+
+		.score {
+			font-size: 0.85rem;
+			padding: 0 0.3rem;
+		}
+
+		.team-selection {
+			grid-template-columns: 1fr 1fr auto;
+			gap: 0.3rem;
+		}
+
+		.team-btn {
+			padding: 0.5rem 0.6rem;
+			font-size: 0.75rem;
+		}
+
+		.team-btn.didnt-play {
+			width: 50px;
+			padding: 0.5rem 0.3rem;
+		}
+
+		.modal-actions {
+			gap: 0.5rem;
+			margin-top: 0.5rem;
+			padding-top: 0.5rem;
 		}
 	}
 </style>

@@ -188,11 +188,68 @@
 		.modal-content {
 			min-width: 90%;
 			max-width: 95%;
-			padding: 1.5rem;
+			padding: 1rem;
+			max-height: 85vh;
+		}
+
+		.modal-header {
+			margin-bottom: 1rem;
 		}
 
 		.modal-title {
-			font-size: 1.25rem;
+			font-size: 1.1rem;
+		}
+
+		.close-btn {
+			font-size: 1.6rem;
+			width: 32px;
+			height: 32px;
+		}
+	}
+
+	/* Portrait mobile - maximize space */
+	@media (max-width: 600px) and (orientation: portrait) {
+		.modal-content {
+			max-height: 88vh;
+			padding: 0.75rem;
+		}
+
+		.modal-header {
+			margin-bottom: 0.75rem;
+		}
+
+		.modal-title {
+			font-size: 1rem;
+		}
+	}
+
+	/* Landscape - narrower modals to not take too much horizontal space */
+	@media (orientation: landscape) {
+		.modal-content {
+			max-width: 70%;
+		}
+	}
+
+	/* Landscape mobile - compact everything */
+	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+		.modal-content {
+			max-height: 80vh;
+			max-width: 60%;
+			padding: 0.75rem;
+		}
+
+		.modal-header {
+			margin-bottom: 0.5rem;
+		}
+
+		.modal-title {
+			font-size: 0.9rem;
+		}
+
+		.close-btn {
+			font-size: 1.4rem;
+			width: 28px;
+			height: 28px;
 		}
 	}
 </style>

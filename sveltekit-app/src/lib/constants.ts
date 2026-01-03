@@ -13,6 +13,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     matchesToWin: 1,
     show20s: false,
     showHammer: false,
+    showScoreTable: true,
     gameType: 'singles',
     gameMode: 'rounds',
     roundsToPlay: 4,

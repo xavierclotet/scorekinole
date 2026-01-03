@@ -4,6 +4,7 @@
 	import type { MatchHistory } from '$lib/types/history';
 	import Button from './Button.svelte';
 	import { currentUser } from '$lib/firebase/auth';
+	import { isColorDark } from '$lib/utils/colors';
 
 	export let match: MatchHistory;
 	export let onRestore: (() => void) | null = null;
@@ -37,24 +38,6 @@
 	// Capitalize first letter
 	function capitalize(str: string): string {
 		return str.charAt(0).toUpperCase() + str.slice(1);
-	}
-
-	// Check if color is dark (needs light background)
-	// Only returns true for very dark colors (almost black) that need a light background
-	function isColorDark(color: string): boolean {
-		const hex = color.replace('#', '');
-		const r = parseInt(hex.substr(0, 2), 16);
-		const g = parseInt(hex.substr(2, 2), 16);
-		const b = parseInt(hex.substr(4, 2), 16);
-
-		// Simple brightness formula: check if all RGB components are low
-		// Only flag as "needs background" if it's truly dark (close to black)
-		const brightness = (r + g + b) / 3;
-
-		// Also check if it's a very dark blue/navy (low brightness but high blue component)
-		const isDarkBlue = b > r && b > g && brightness < 80;
-
-		return brightness < 60 || isDarkBlue;
 	}
 
 	$: gameModeText = match.gameMode === 'points'

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import { vibrate } from '$lib/utils/vibration';
+	import { getContrastColor } from '$lib/utils/colors';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, updateTeam, resetTeams } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
@@ -23,15 +24,6 @@
 	let touchStartY = 0;
 	let touchStartTime = 0;
 	let isTouchDevice = false;
-
-	// Calculate contrast color for text based on background
-	function getContrastColor(hexColor: string): string {
-		const r = parseInt(hexColor.slice(1, 3), 16);
-		const g = parseInt(hexColor.slice(3, 5), 16);
-		const b = parseInt(hexColor.slice(5, 7), 16);
-		const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-		return luminance > 0.5 ? '#000000' : '#ffffff';
-	}
 
 	function handleTouchStart(e: TouchEvent) {
 		// Ignore if touch started on a button
@@ -691,6 +683,53 @@
 
 		.hammer-indicator {
 			font-size: 1.2rem;
+		}
+	}
+
+	/* Portrait mobile - score grande aprovechando altura */
+	@media (max-width: 768px) and (orientation: portrait) {
+		.score {
+			font-size: 9.6rem;
+		}
+
+		.team-name {
+			font-size: 2.4rem;
+		}
+	}
+
+	@media (max-width: 480px) and (orientation: portrait) {
+		.score {
+			font-size: 8rem;
+		}
+
+		.team-name {
+			font-size: 2rem;
+		}
+	}
+
+	/* Landscape mobile - score más pequeño por altura limitada */
+	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+		.team-card {
+			min-height: 200px;
+			padding: 0.75rem;
+		}
+
+		.team-name {
+			font-size: 1.6rem;
+		}
+
+		.score {
+			font-size: 5rem;
+			margin: 1rem 0;
+		}
+
+		.winner-badge {
+			font-size: 0.7rem;
+			padding: 0.25rem 0.6rem;
+		}
+
+		.hammer-indicator {
+			font-size: 1rem;
 		}
 	}
 </style>

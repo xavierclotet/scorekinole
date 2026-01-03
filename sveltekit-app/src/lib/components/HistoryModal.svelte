@@ -716,8 +716,9 @@
 	.history-modal {
 		display: flex;
 		flex-direction: column;
-		min-height: 400px;
+		height: 100%;
 		max-height: 70vh;
+		overflow: hidden;
 	}
 
 	.tabs {
@@ -755,6 +756,8 @@
 	.tab-content {
 		flex: 1;
 		overflow-y: auto;
+		min-height: 0;
+		padding-bottom: 1rem;
 	}
 
 	.current-match-tab,
@@ -763,6 +766,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+		padding-bottom: 1rem;
 	}
 
 	.current-match-info {
@@ -1126,15 +1130,15 @@
 		background: rgba(0, 255, 136, 0.1);
 		border: 2px solid rgba(0, 255, 136, 0.3);
 		border-radius: 6px;
-		padding: 0.35rem 0.75rem;
+		padding: 0.3rem 0.6rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.4rem;
+		gap: 0.3rem;
 		cursor: pointer;
 		color: var(--accent-green, #00ff88);
 		transition: all 0.3s;
-		font-size: 0.8rem;
+		font-size: 0.75rem;
 		font-weight: 600;
 		white-space: nowrap;
 	}
@@ -1156,12 +1160,12 @@
 	}
 
 	.sync-button .sync-icon {
-		font-size: 1rem;
+		font-size: 0.85rem;
 	}
 
 	.sync-button .syncing {
 		display: inline-block;
-		font-size: 1rem;
+		font-size: 0.85rem;
 		animation: spin 1s linear infinite;
 	}
 
@@ -1181,16 +1185,164 @@
 	/* Responsive */
 	@media (max-width: 600px) {
 		.history-modal {
-			max-height: 60vh;
+			max-height: 75vh;
 		}
 
 		.tabs {
 			gap: 0.25rem;
+			margin-bottom: 1rem;
 		}
 
 		.tab {
-			padding: 0.5rem 1rem;
-			font-size: 0.9rem;
+			padding: 0.5rem 0.75rem;
+			font-size: 0.8rem;
+		}
+
+		.match-header h3 {
+			font-size: 0.95rem;
+		}
+
+		.match-header .phase {
+			font-size: 0.85rem;
+		}
+
+		.match-datetime {
+			font-size: 0.75rem;
+		}
+
+		.game-info {
+			font-size: 0.8rem;
+		}
+
+		.game-row .team-name {
+			width: 100px;
+			font-size: 0.85rem;
+		}
+
+		.game-row .round-col {
+			font-size: 0.85rem;
+			min-width: 35px;
+		}
+
+		.game-row .total-col {
+			width: 60px;
+			font-size: 0.75rem;
+		}
+
+		.game-row .total-col.total-score {
+			font-size: 0.95rem;
+		}
+
+		.game-row.header {
+			font-size: 0.75rem;
+		}
+
+		.current-match-info {
+			padding: 0.75rem;
+			gap: 0.5rem;
+		}
+
+		.game-table {
+			padding: 0.75rem;
+		}
+
+		.sync-button {
+			padding: 0.25rem 0.5rem;
+			font-size: 0.65rem;
+			gap: 0.25rem;
+		}
+
+		.sync-button .sync-icon,
+		.sync-button .syncing {
+			font-size: 0.75rem;
+		}
+
+		.tab-content {
+			padding-bottom: 2rem;
+		}
+
+		.current-match-tab,
+		.history-tab,
+		.deleted-tab {
+			padding-bottom: 2rem;
+		}
+	}
+
+	/* Portrait mobile - maximize vertical space */
+	@media (max-width: 600px) and (orientation: portrait) {
+		.history-modal {
+			max-height: 80vh;
+		}
+
+		.tabs {
+			margin-bottom: 0.75rem;
+		}
+	}
+
+	/* Landscape mobile - reduce even more */
+	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+		.history-modal {
+			max-height: 70vh;
+		}
+
+		.tabs {
+			margin-bottom: 0.5rem;
+		}
+
+		.tab {
+			padding: 0.4rem 0.6rem;
+			font-size: 0.75rem;
+		}
+
+		.match-header h3 {
+			font-size: 0.85rem;
+		}
+
+		.match-header .phase {
+			font-size: 0.75rem;
+		}
+
+		.current-match-info {
+			padding: 0.5rem;
+			gap: 0.4rem;
+		}
+
+		.game-table {
+			padding: 0.5rem;
+		}
+
+		.game-row {
+			padding: 0.3rem;
+		}
+
+		.game-row .team-name {
+			width: 80px;
+			font-size: 0.75rem;
+		}
+
+		.game-row .round-col {
+			font-size: 0.75rem;
+			min-width: 30px;
+		}
+
+		.game-row .total-col {
+			width: 50px;
+			font-size: 0.7rem;
+		}
+
+		.game-row .total-col.total-score {
+			font-size: 0.85rem;
+		}
+
+		.sync-button {
+			padding: 0.2rem 0.4rem;
+			font-size: 0.6rem;
+			gap: 0.2rem;
+		}
+
+		.sync-button .sync-icon,
+		.sync-button .syncing {
+			font-size: 0.7rem;
 		}
 	}
 </style>

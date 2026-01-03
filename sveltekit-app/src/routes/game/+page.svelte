@@ -19,6 +19,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
+	import { isColorDark } from '$lib/utils/colors';
 
 	let showSettings = false;
 	let showHistory = false;
@@ -399,7 +400,7 @@
 	{/if}
 
 	<!-- Score table for current game -->
-	{#if $currentGameRounds.length > 0 || team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0}
+	{#if $gameSettings.showScoreTable && ($currentGameRounds.length > 0 || team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0)}
 		<div class="score-table-container">
 			<table class="score-table">
 				<thead>
@@ -417,7 +418,7 @@
 				</thead>
 				<tbody>
 					<tr style="background: {$team1.color}20; border-left: 3px solid {$team1.color};">
-						<td class="team-name" style="color: {$team1.color};">{$team1.name}</td>
+						<td class="team-name" style="color: {$team1.color}; {isColorDark($team1.color) ? 'background: white; padding: 2px 6px; border-radius: 4px;' : ''}">{$team1.name}</td>
 						{#each $currentGameRounds as round}
 							<td>{round.team1Points}</td>
 						{/each}
@@ -430,7 +431,7 @@
 						</td>
 					</tr>
 					<tr style="background: {$team2.color}20; border-left: 3px solid {$team2.color};">
-						<td class="team-name" style="color: {$team2.color};">{$team2.name}</td>
+						<td class="team-name" style="color: {$team2.color}; {isColorDark($team2.color) ? 'background: white; padding: 2px 6px; border-radius: 4px;' : ''}">{$team2.name}</td>
 						{#each $currentGameRounds as round}
 							<td>{round.team2Points}</td>
 						{/each}
@@ -524,6 +525,7 @@
 		display: flex;
 		flex-direction: column;
 		padding: 0.5rem;
+		padding-top: max(1rem, env(safe-area-inset-top, 1rem));
 		background: linear-gradient(135deg, #0f1419 0%, #1a1f35 100%);
 		color: #fff;
 		overflow: hidden;
@@ -860,6 +862,37 @@
 		color: #00d4ff;
 	}
 
+	/* Make score table smaller on mobile to not cover the score */
+	@media (max-width: 800px) {
+		.score-table-container {
+			padding: 0.5rem;
+			font-size: 0.65rem;
+			bottom: 0.5rem;
+		}
+
+		.score-table {
+			font-size: 0.65rem;
+		}
+
+		.score-table th {
+			padding: 0.3rem 0.4rem;
+			font-size: 0.65rem;
+		}
+
+		.score-table td {
+			padding: 0.3rem 0.4rem;
+			font-size: 0.65rem;
+		}
+
+		.score-table .team-name {
+			font-size: 0.7rem;
+		}
+
+		.score-table .total-col {
+			font-size: 0.75rem;
+		}
+	}
+
 	.language-selector {
 		display: flex;
 		gap: 0.25rem;
@@ -944,6 +977,20 @@
 
 	/* Responsive */
 
+	/* Portrait: más espacio superior */
+	@media (orientation: portrait) {
+		.game-page {
+			padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem));
+		}
+	}
+
+	/* Landscape: menos espacio superior */
+	@media (orientation: landscape) {
+		.game-page {
+			padding-top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
+		}
+	}
+
 	@media (max-width: 600px) {
 		.teams-container {
 			grid-template-columns: 1fr;
@@ -953,6 +1000,7 @@
 	@media (max-width: 480px) {
 		.game-page {
 			padding: 0.3rem;
+			padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem));
 		}
 
 		.game-header {
@@ -994,6 +1042,10 @@
 	}
 
 	@media (orientation: landscape) and (max-height: 600px) {
+		.game-page {
+			padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+		}
+
 		.game-header {
 			padding: 0.3rem;
 			margin-bottom: 0.3rem;
@@ -1160,6 +1212,13 @@
 		}
 	}
 
+	@media (orientation: landscape) {
+		.confirm-modal {
+			width: 350px;
+			max-width: 60%;
+		}
+	}
+
 	@media (orientation: landscape) and (max-height: 600px) {
 		.floating-button {
 			bottom: 1rem;
@@ -1172,6 +1231,17 @@
 		.history-button {
 			font-size: 1.1rem !important;
 			padding: 0.4rem 0.5rem !important;
+		}
+
+		.confirm-modal {
+			width: 300px;
+			max-width: 50%;
+			padding: 1rem;
+		}
+
+		.confirm-modal h3 {
+			font-size: 0.9rem;
+			margin-bottom: 1rem;
 		}
 	}
 </style>

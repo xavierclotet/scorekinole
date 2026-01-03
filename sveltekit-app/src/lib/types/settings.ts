@@ -31,6 +31,9 @@ export interface GameSettings {
     /** Whether to show hammer indicator */
     showHammer: boolean;
 
+    /** Whether to show the score table at the bottom of the screen */
+    showScoreTable: boolean;
+
     /** Singles (1v1) or doubles (2v2) game type */
     gameType: 'singles' | 'doubles';
 
