@@ -33,7 +33,33 @@
 	}
 
 	$: winnerName = match.winner === 1 ? match.team1Name : match.winner === 2 ? match.team2Name : '-';
-	$: gameModeText = match.gameMode === 'points' ? `${$t('modePoints')} • ${$t('to')} ${match.pointsToWin}p` : `${$t('modeRounds')} • ${match.roundsToPlay} ${$t('rounds')}`;
+
+	// Capitalize first letter
+	function capitalize(str: string): string {
+		return str.charAt(0).toUpperCase() + str.slice(1);
+	}
+
+	// Check if color is dark (needs light background)
+	// Only returns true for very dark colors (almost black) that need a light background
+	function isColorDark(color: string): boolean {
+		const hex = color.replace('#', '');
+		const r = parseInt(hex.substr(0, 2), 16);
+		const g = parseInt(hex.substr(2, 2), 16);
+		const b = parseInt(hex.substr(4, 2), 16);
+
+		// Simple brightness formula: check if all RGB components are low
+		// Only flag as "needs background" if it's truly dark (close to black)
+		const brightness = (r + g + b) / 3;
+
+		// Also check if it's a very dark blue/navy (low brightness but high blue component)
+		const isDarkBlue = b > r && b > g && brightness < 80;
+
+		return brightness < 60 || isDarkBlue;
+	}
+
+	$: gameModeText = match.gameMode === 'points'
+		? `${capitalize($t('match'))} ${$t('to')} ${match.pointsToWin} ${$t('points')}${match.matchesToWin > 1 ? ` ${$t('to')} ${match.matchesToWin} ${$t('matches')}` : ''}`
+		: `${capitalize($t('match'))} ${$t('to')} ${match.roundsToPlay} ${$t('rounds')}`;
 	$: gameTypeText = match.gameType === 'singles' ? $t('singles') : $t('doubles');
 
 	// Calculate games won by each team
@@ -53,24 +79,43 @@
 				{#if match.matchPhase}
 					<span class="phase">- {match.matchPhase}</span>
 				{/if}
-				{#if match.syncStatus === 'synced'}
-					<span class="sync-badge" title={$t('syncedWithCloud')}>☁️</span>
-				{/if}
+				<span class="entry-date"> {formatDate(match.startTime)}</span>
 			</div>
-			<div class="entry-date">
-				{formatDate(match.startTime)}
+			<div class="game-mode-info">
+				{gameModeText}
 			</div>
 			<div class="teams-summary">
-				<span style="color: {match.team1Color}">{match.team1Name}</span>
+				<span
+				class="team-name-span"
+				class:dark-color={isColorDark(match.team1Color)}
+				style="color: {match.team1Color}"
+			>
+				{match.team1Name}
+			</span>
 				<span class="vs">vs</span>
-				<span style="color: {match.team2Color}">{match.team2Name}</span>
+				<span
+				class="team-name-span"
+				class:dark-color={isColorDark(match.team2Color)}
+				style="color: {match.team2Color}"
+			>
+				{match.team2Name}
+			</span>
 			</div>
 		</div>
-		{#if onDelete}
-			<button class="delete-button" on:click|stopPropagation={onDelete}>
-				🗑️
-			</button>
-		{/if}
+		<div class="header-actions">
+			{#if $currentUser}
+				{#if match.syncStatus === 'synced'}
+					<span class="sync-badge synced">{$t('synced')}</span>
+				{:else}
+					<span class="sync-badge pending">{$t('pending')}</span>
+				{/if}
+			{/if}
+			{#if onDelete}
+				<button class="delete-button" on:click|stopPropagation={onDelete} type="button">
+					🗑️
+				</button>
+			{/if}
+		</div>
 	</button>
 
 	<!-- Expandable Detail -->
@@ -282,19 +327,50 @@
 		font-weight: 500;
 	}
 
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-shrink: 0;
+	}
+
 	.sync-badge {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 0.9rem;
+		padding: 0.25rem 0.5rem;
+		border-radius: 12px;
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.3px;
+		white-space: nowrap;
+	}
+
+	.sync-badge.synced {
+		background: rgba(0, 255, 136, 0.2);
+		border: 1.5px solid rgba(0, 255, 136, 0.5);
 		color: #00ff88;
-		opacity: 0.9;
-		cursor: help;
+	}
+
+	.sync-badge.pending {
+		background: rgba(255, 152, 0, 0.2);
+		border: 1.5px solid rgba(255, 152, 0, 0.5);
+		color: #ff9800;
 	}
 
 	.entry-date {
-		font-size: 0.8rem;
-		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
+		font-weight: 400;
+		margin-left: 0.5rem;
+	}
+
+	.game-mode-info {
+		font-size: 0.75rem;
+		color: rgba(0, 255, 136, 0.8);
+		font-weight: 600;
+		letter-spacing: 0.3px;
 	}
 
 	.teams-summary {
@@ -303,6 +379,17 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+	}
+
+	.team-name-span {
+		padding: 0.15rem 0;
+		border-radius: 4px;
+		transition: all 0.2s;
+	}
+
+	.team-name-span.dark-color {
+		background: rgba(255, 255, 255, 0.9);
+		padding: 0.2rem 0.5rem;
 	}
 
 	.vs {
@@ -322,9 +409,9 @@
 	.delete-button {
 		background: rgba(255, 59, 48, 0.15);
 		border: 1px solid rgba(255, 59, 48, 0.3);
-		border-radius: 6px;
+		border-radius: 12px;
 		padding: 0.3rem 0.6rem;
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		font-weight: 600;
 		cursor: pointer;
 		transition: all 0.2s;
@@ -372,12 +459,6 @@
 
 	.match-result {
 		font-size: 1.2rem;
-	}
-
-	.sync-badge {
-		color: var(--accent-green, #00ff88);
-		font-size: 1rem;
-		margin-left: 0.25rem;
 	}
 
 	.games-results {

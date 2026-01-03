@@ -2,6 +2,8 @@
 	import Modal from './Modal.svelte';
 	import Button from './Button.svelte';
 	import HistoryEntry from './HistoryEntry.svelte';
+	import SyncConfirmModal from './SyncConfirmModal.svelte';
+	import Toast from './Toast.svelte';
 	import { t } from '$lib/stores/language';
 	import { team1, team2, saveTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
@@ -16,33 +18,26 @@
 		clearDeletedMatches,
 		updateCurrentMatchRound
 	} from '$lib/stores/history';
-	import type { HistoryTab } from '$lib/types/history';
+	import type { HistoryTab, MatchHistory } from '$lib/types/history';
 	import { onDestroy } from 'svelte';
+	import { currentUser } from '$lib/firebase/auth';
+	import { syncLocalMatchesToCloud, getMatchesFromCloud } from '$lib/firebase/firestore';
+	import { browser } from '$app/environment';
+	import { get } from 'svelte/store';
 
 	export let isOpen: boolean = false;
 	export let onClose: () => void = () => {};
 
-	// Contrast calculation functions
-	function getLuminance(color: string): number {
-		const hex = color.replace('#', '');
-		const r = parseInt(hex.substr(0, 2), 16) / 255;
-		const g = parseInt(hex.substr(2, 2), 16) / 255;
-		const b = parseInt(hex.substr(4, 2), 16) / 255;
+	// Sync state
+	let isSyncing = false;
+	let showSyncConfirm = false;
+	let matchesToSync: MatchHistory[] = [];
 
-		const [rs, gs, bs] = [r, g, b].map(c =>
-			c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
-		);
-
-		return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
-	}
-
-	function getContrastColor(bgColor: string): string {
-		const luminance = getLuminance(bgColor);
-		return luminance > 0.5 ? '#000000' : '#FFFFFF';
-	}
+	// Toast state
+	let showToast = false;
+	let toastMessage = '';
 
 	// Force re-render for duration updates
-	// @ts-expect-error - Used in reactive declarations
 	let now = Date.now();
 	let interval: ReturnType<typeof setInterval> | null = null;
 
@@ -135,12 +130,6 @@
 	$: durationSeconds = Math.floor((matchDurationMs / 1000) % 60);
 	$: durationText = `${durationMinutes}${$t('minuteShort')} ${durationSeconds}${$t('secondShort')}`;
 
-	// Match status text
-	$: matchStatusText = team1GamesWon > team2GamesWon
-		? `${$team1.name} ${$t('wins')} ${team1GamesWon}-${team2GamesWon}`
-		: team2GamesWon > team1GamesWon
-		? `${$team2.name} ${$t('wins')} ${team2GamesWon}-${team1GamesWon}`
-		: `${team1GamesWon}-${team2GamesWon}`;
 
 	// Get all games including the current in-progress game
 	$: allGames = $currentMatch?.games ?? [];
@@ -226,9 +215,104 @@
 			cancelEditing();
 		}
 	}
+
+	// Sync function - shows confirmation modal first
+	function handleSync() {
+		if (!$currentUser) {
+			console.warn('User not authenticated');
+			return;
+		}
+
+		// Get local matches that haven't been synced yet
+		matchesToSync = $matchHistory.filter(m => m.syncStatus !== 'synced');
+
+		if (matchesToSync.length === 0) {
+			console.log('ℹ️ All matches already synced');
+			// Show toast notification
+			toastMessage = $t('allMatchesAlreadySynced');
+			showToast = true;
+			// Still fetch from cloud
+			fetchFromCloud();
+			return;
+		}
+
+		// Show confirmation modal
+		showSyncConfirm = true;
+	}
+
+	// Handle sync confirmation with team selections
+	async function handleSyncConfirm(event: CustomEvent<{ selections: Map<string, 1 | 2 | null> }>) {
+		const selections = event.detail.selections;
+		isSyncing = true;
+
+		try {
+			// Filter only matches where user clicked any button (Team 1, Team 2, or "No jugué")
+			const matchesToSyncFiltered = matchesToSync.filter(m => selections.has(m.id));
+			console.log(`🔄 Syncing ${matchesToSyncFiltered.length} selected matches to cloud...`);
+
+			const syncedMatches: MatchHistory[] = [];
+			for (const match of matchesToSyncFiltered) {
+				const teamSelection = selections.get(match.id);
+				const result = await syncLocalMatchesToCloud([match], { manualTeamSelection: teamSelection });
+				syncedMatches.push(...result);
+			}
+
+			// Update local history with synced status
+			matchHistory.update(history => {
+				return history.map(localMatch => {
+					const syncedMatch = syncedMatches.find(sm => sm.id === localMatch.id);
+					return syncedMatch || localMatch;
+				});
+			});
+
+			// Save to localStorage
+			if (browser) {
+				localStorage.setItem('crokinoleMatchHistory', JSON.stringify(get(matchHistory)));
+			}
+
+			// Get matches from cloud
+			await fetchFromCloud();
+
+			console.log(`✅ Sync complete!`);
+
+		} catch (error) {
+			console.error('❌ Error during sync:', error);
+		} finally {
+			isSyncing = false;
+		}
+	}
+
+	// Fetch matches from cloud
+	async function fetchFromCloud() {
+		try {
+			console.log('🔄 Fetching matches from cloud...');
+			const cloudMatches = await getMatchesFromCloud();
+			console.log(`✅ Retrieved ${cloudMatches.length} matches from cloud`);
+			// TODO: Merge cloud matches with local history
+		} catch (error) {
+			console.error('❌ Error fetching from cloud:', error);
+		}
+	}
 </script>
 
 <Modal {isOpen} title={$t('matchHistory')} onClose={onClose}>
+	<svelte:fragment slot="headerActions">
+		{#if $currentUser}
+			<button
+				class="sync-button"
+				on:click={handleSync}
+				disabled={isSyncing}
+				type="button"
+			>
+				{#if isSyncing}
+					<span class="syncing">⟳</span>
+				{:else}
+					<span class="sync-icon">☁️</span>
+				{/if}
+				<span class="sync-text">{$t('syncAll')}</span>
+			</button>
+		{/if}
+	</svelte:fragment>
 	<div class="history-modal">
 		<!-- Tabs Navigation -->
 		<div class="tabs">
@@ -611,6 +695,22 @@
 		</div>
 	</div>
 </Modal>
+
+<!-- Sync Confirmation Modal -->
+<SyncConfirmModal
+	isOpen={showSyncConfirm}
+	matches={matchesToSync}
+	on:confirm={handleSyncConfirm}
+	on:close={() => showSyncConfirm = false}
+/>
+
+<!-- Toast Notification -->
+<Toast
+	message={toastMessage}
+	visible={showToast}
+	duration={3000}
+	onClose={() => showToast = false}
+/>
 
 <style>
 	.history-modal {
@@ -1019,6 +1119,63 @@
 
 	.edit-input[type=number] {
 		-moz-appearance: textfield;
+	}
+
+	/* Sync Button */
+	.sync-button {
+		background: rgba(0, 255, 136, 0.1);
+		border: 2px solid rgba(0, 255, 136, 0.3);
+		border-radius: 6px;
+		padding: 0.35rem 0.75rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		cursor: pointer;
+		color: var(--accent-green, #00ff88);
+		transition: all 0.3s;
+		font-size: 0.8rem;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.sync-button:hover:not(:disabled) {
+		background: rgba(0, 255, 136, 0.2);
+		border-color: var(--accent-green, #00ff88);
+		transform: translateY(-2px);
+		box-shadow: 0 4px 8px rgba(0, 255, 136, 0.2);
+	}
+
+	.sync-button:active:not(:disabled) {
+		transform: translateY(0);
+	}
+
+	.sync-button:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.sync-button .sync-icon {
+		font-size: 1rem;
+	}
+
+	.sync-button .syncing {
+		display: inline-block;
+		font-size: 1rem;
+		animation: spin 1s linear infinite;
+	}
+
+	.sync-button .sync-text {
+		font-family: 'Orbitron', monospace;
+	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	/* Responsive */
