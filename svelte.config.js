@@ -7,8 +7,8 @@ const config = {
 
 	kit: {
 		adapter: adapter({
-			pages: '../www',
-			assets: '../www',
+			pages: 'www',
+			assets: 'www',
 			fallback: 'index.html',
 			precompress: false,
 			strict: false

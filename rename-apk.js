@@ -7,8 +7,8 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Read package.json from sveltekit-app folder
-const packageJsonPath = path.join(__dirname, 'sveltekit-app', 'package.json');
+// Read package.json from root folder
+const packageJsonPath = path.join(__dirname, 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
 const version = packageJson.version;

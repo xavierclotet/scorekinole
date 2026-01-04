@@ -36,7 +36,6 @@ dist/
 
 # SvelteKit build output
 .svelte-kit/
-sveltekit-app/.svelte-kit/
 
 # SvelteKit build output - entire www/ directory is generated
 # Firebase Hosting will deploy from this generated directory
