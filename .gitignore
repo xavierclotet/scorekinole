@@ -37,6 +37,9 @@ dist/
 # SvelteKit build output
 .svelte-kit/
 
+# Vite temporary files
+*.timestamp-*.mjs
+
 # SvelteKit build output - entire www/ directory is generated
 # Firebase Hosting will deploy from this generated directory
 www/
