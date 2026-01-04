@@ -20,6 +20,12 @@
 	let team1Twenty: number | null = null;
 	let team2Twenty: number | null = null;
 
+	// Reset values when dialog opens
+	$: if (isOpen) {
+		team1Twenty = null;
+		team2Twenty = null;
+	}
+
 	// Calculate if a color is dark (returns true if dark)
 	function isDarkColor(hexColor: string): boolean {
 		// Remove # if present
@@ -119,8 +125,8 @@
 							<button
 								class="calc-btn"
 								class:selected={team1Twenty === num}
-								style="background: {team1Twenty === num ? $team1.color : `${$team1.color}20`};
-								       border-color: {team1BorderColor};
+								style="background: {team1Twenty === num ? $team1.color : `${$team1.color}10`};
+								       border-color: {team1Twenty === num ? $team1.color : `${team1BorderColor}40`};
 								       color: {team1Twenty === num ? team1SelectedTextColor : team1UnselectedTextColor};"
 								on:click={() => selectTeam1Twenty(num)}
 							>
@@ -140,8 +146,8 @@
 							<button
 								class="calc-btn"
 								class:selected={team2Twenty === num}
-								style="background: {team2Twenty === num ? $team2.color : `${$team2.color}20`};
-								       border-color: {team2BorderColor};
+								style="background: {team2Twenty === num ? $team2.color : `${$team2.color}10`};
+								       border-color: {team2Twenty === num ? $team2.color : `${team2BorderColor}40`};
 								       color: {team2Twenty === num ? team2SelectedTextColor : team2UnselectedTextColor};"
 								on:click={() => selectTeam2Twenty(num)}
 							>

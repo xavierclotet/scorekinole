@@ -16,7 +16,8 @@
 		restoreMatch,
 		permanentlyDeleteMatch,
 		clearDeletedMatches,
-		updateCurrentMatchRound
+		updateCurrentMatchRound,
+		saveCurrentMatch
 	} from '$lib/stores/history';
 	import type { HistoryTab, MatchHistory } from '$lib/types/history';
 	import { onDestroy } from 'svelte';
@@ -159,6 +160,7 @@
 		roundIndex: number;
 		team: 1 | 2;
 		field: 'points' | 'twenty';
+		gameIndex?: number; // undefined = current in-progress game, number = completed game
 	};
 	let editingField: EditingField | null = null;
 	let editInputValue: string = '';
@@ -166,6 +168,19 @@
 
 	function startEditing(roundIndex: number, team: 1 | 2, field: 'points' | 'twenty', currentValue: number) {
 		editingField = { roundIndex, team, field };
+		editInputValue = currentValue.toString();
+
+		// Focus the input after it's rendered
+		setTimeout(() => {
+			if (editInputElement) {
+				editInputElement.focus();
+				editInputElement.select();
+			}
+		}, 10);
+	}
+
+	function startEditingCompletedGame(gameIndex: number, roundIndex: number, team: 1 | 2, field: 'points' | 'twenty', currentValue: number) {
+		editingField = { roundIndex, team, field, gameIndex };
 		editInputValue = currentValue.toString();
 
 		// Focus the input after it's rendered
@@ -191,21 +206,74 @@
 			return;
 		}
 
-		const { roundIndex, team, field } = editingField;
-		const updates: any = {};
+		const { roundIndex, team, field, gameIndex } = editingField;
 
-		if (field === 'points') {
-			updates[`team${team}Points`] = value;
+		if (gameIndex !== undefined) {
+			// Editing a completed game
+			updateCompletedGameRound(gameIndex, roundIndex, team, field, value);
+		} else {
+			// Editing current in-progress game
+			const updates: any = {};
 
-			// Also update the team points in the actual game state
-			// We need to recalculate total points based on all rounds
-			updateTeamPointsFromRounds(roundIndex, team, value);
-		} else if (field === 'twenty') {
-			updates[`team${team}Twenty`] = value;
+			if (field === 'points') {
+				updates[`team${team}Points`] = value;
+
+				// Also update the team points in the actual game state
+				// We need to recalculate total points based on all rounds
+				updateTeamPointsFromRounds(roundIndex, team, value);
+			} else if (field === 'twenty') {
+				updates[`team${team}Twenty`] = value;
+			}
+
+			updateCurrentMatchRound(roundIndex, updates);
 		}
 
-		updateCurrentMatchRound(roundIndex, updates);
 		cancelEditing();
+	}
+
+	function updateCompletedGameRound(gameIndex: number, roundIndex: number, team: 1 | 2, field: 'points' | 'twenty', value: number) {
+		currentMatch.update(match => {
+			if (!match || !match.games[gameIndex] || !match.games[gameIndex].rounds[roundIndex]) return match;
+
+			const updatedGames = [...match.games];
+			const updatedRounds = [...updatedGames[gameIndex].rounds];
+
+			// Update the specific field
+			if (field === 'points') {
+				updatedRounds[roundIndex] = {
+					...updatedRounds[roundIndex],
+					[`team${team}Points`]: value
+				};
+
+				// Recalculate game totals
+				const team1Total = updatedRounds.reduce((sum, r) => sum + r.team1Points, 0);
+				const team2Total = updatedRounds.reduce((sum, r) => sum + r.team2Points, 0);
+
+				updatedGames[gameIndex] = {
+					...updatedGames[gameIndex],
+					rounds: updatedRounds,
+					team1Points: team1Total,
+					team2Points: team2Total
+				};
+			} else if (field === 'twenty') {
+				updatedRounds[roundIndex] = {
+					...updatedRounds[roundIndex],
+					[`team${team}Twenty`]: value
+				};
+
+				updatedGames[gameIndex] = {
+					...updatedGames[gameIndex],
+					rounds: updatedRounds
+				};
+			}
+
+			return {
+				...match,
+				games: updatedGames
+			};
+		});
+
+		saveCurrentMatch();
 	}
 
 	function updateTeamPointsFromRounds(changedRoundIndex: number, team: 1 | 2, newPoints: number) {
@@ -481,7 +549,7 @@
 							{#if allGames.length > 0 || hasCurrentGame}
 								<div class="games-section">
 									{#each allGames as game, gameIndex}
-										<div class="game-table">
+										<div class="game-table completed-game">
 											<!-- Table Header -->
 											<div class="game-row header">
 												<span class="team-name">
@@ -498,16 +566,52 @@
 												<span class="team-name">
 													{$team1.name}
 												</span>
-												{#each game.rounds as round}
+												{#each game.rounds as round, roundIndex}
 													<span class="round-col">
 														<span class="points-with-hammer">
 															{#if $gameSettings.showHammer && round.hammerTeam === 1}
 																<span class="hammer-indicator">🔨</span>
 															{/if}
-															{round.team1Points}
+															{#if editingField && editingField.roundIndex === roundIndex && editingField.team === 1 && editingField.field === 'points' && editingField.gameIndex === gameIndex}
+																<input
+																	bind:this={editInputElement}
+																	bind:value={editInputValue}
+																	on:keydown={handleEditKeydown}
+																	on:blur={saveEdit}
+																	type="number"
+																	min="0"
+																	class="edit-input"
+																/>
+															{:else}
+																<button
+																	class="editable-value"
+																	on:click={() => startEditingCompletedGame(gameIndex, roundIndex, 1, 'points', round.team1Points)}
+																	type="button"
+																>
+																	{round.team1Points}
+																</button>
+															{/if}
 														</span>
 														{#if $gameSettings.show20s}
-															<span class="twenty-indicator">⭐{round.team1Twenty}</span>
+															{#if editingField && editingField.roundIndex === roundIndex && editingField.team === 1 && editingField.field === 'twenty' && editingField.gameIndex === gameIndex}
+																<input
+																	bind:this={editInputElement}
+																	bind:value={editInputValue}
+																	on:keydown={handleEditKeydown}
+																	on:blur={saveEdit}
+																	type="number"
+																	min="0"
+																	class="edit-input edit-input-twenty"
+																/>
+															{:else}
+																<button
+																	class="twenty-indicator editable-twenty"
+																	on:click={() => startEditingCompletedGame(gameIndex, roundIndex, 1, 'twenty', round.team1Twenty)}
+																	type="button"
+																>
+																	⭐{round.team1Twenty}
+																</button>
+															{/if}
 														{/if}
 													</span>
 												{/each}
@@ -527,16 +631,52 @@
 												<span class="team-name">
 													{$team2.name}
 												</span>
-												{#each game.rounds as round}
+												{#each game.rounds as round, roundIndex}
 													<span class="round-col">
 														<span class="points-with-hammer">
 															{#if $gameSettings.showHammer && round.hammerTeam === 2}
 																<span class="hammer-indicator">🔨</span>
 															{/if}
-															{round.team2Points}
+															{#if editingField && editingField.roundIndex === roundIndex && editingField.team === 2 && editingField.field === 'points' && editingField.gameIndex === gameIndex}
+																<input
+																	bind:this={editInputElement}
+																	bind:value={editInputValue}
+																	on:keydown={handleEditKeydown}
+																	on:blur={saveEdit}
+																	type="number"
+																	min="0"
+																	class="edit-input"
+																/>
+															{:else}
+																<button
+																	class="editable-value"
+																	on:click={() => startEditingCompletedGame(gameIndex, roundIndex, 2, 'points', round.team2Points)}
+																	type="button"
+																>
+																	{round.team2Points}
+																</button>
+															{/if}
 														</span>
 														{#if $gameSettings.show20s}
-															<span class="twenty-indicator">⭐{round.team2Twenty}</span>
+															{#if editingField && editingField.roundIndex === roundIndex && editingField.team === 2 && editingField.field === 'twenty' && editingField.gameIndex === gameIndex}
+																<input
+																	bind:this={editInputElement}
+																	bind:value={editInputValue}
+																	on:keydown={handleEditKeydown}
+																	on:blur={saveEdit}
+																	type="number"
+																	min="0"
+																	class="edit-input edit-input-twenty"
+																/>
+															{:else}
+																<button
+																	class="twenty-indicator editable-twenty"
+																	on:click={() => startEditingCompletedGame(gameIndex, roundIndex, 2, 'twenty', round.team2Twenty)}
+																	type="button"
+																>
+																	⭐{round.team2Twenty}
+																</button>
+															{/if}
 														{/if}
 													</span>
 												{/each}
@@ -609,22 +749,13 @@
 																	min="0"
 																	class="edit-input edit-input-twenty"
 																/>
-															{:else if round.team1Twenty > 0}
+															{:else}
 																<button
 																	class="twenty-indicator editable-twenty"
 																	on:click={() => startEditing(roundIndex, 1, 'twenty', round.team1Twenty)}
 																	type="button"
 																>
 																	⭐{round.team1Twenty}
-																</button>
-															{:else}
-																<button
-																	class="twenty-indicator-add"
-																	on:click={() => startEditing(roundIndex, 1, 'twenty', 0)}
-																	type="button"
-																	title={$t('track20s')}
-																>
-																	⭐+
 																</button>
 															{/if}
 														{/if}
@@ -680,22 +811,13 @@
 																	min="0"
 																	class="edit-input edit-input-twenty"
 																/>
-															{:else if round.team2Twenty > 0}
+															{:else}
 																<button
 																	class="twenty-indicator editable-twenty"
 																	on:click={() => startEditing(roundIndex, 2, 'twenty', round.team2Twenty)}
 																	type="button"
 																>
 																	⭐{round.team2Twenty}
-																</button>
-															{:else}
-																<button
-																	class="twenty-indicator-add"
-																	on:click={() => startEditing(roundIndex, 2, 'twenty', 0)}
-																	type="button"
-																	title={$t('track20s')}
-																>
-																	⭐+
 																</button>
 															{/if}
 														{/if}
@@ -978,6 +1100,10 @@
 		padding: 1rem;
 	}
 
+	.game-table.completed-game {
+		border: 1px solid rgba(100, 150, 255, 0.2);
+	}
+
 	.game-table.current-game {
 		border: 2px solid var(--accent-green, #00ff88);
 	}
@@ -1060,9 +1186,14 @@
 	}
 
 	.twenty-indicator {
-		font-size: 0.7rem;
+		font-size: 0.65rem;
 		color: var(--accent-green, #00ff88);
 		font-weight: 600;
+	}
+
+	/* Twenty indicator in round columns - smaller */
+	.round-col .twenty-indicator {
+		font-size: 0.6rem;
 	}
 
 	.game-row .total-col {
