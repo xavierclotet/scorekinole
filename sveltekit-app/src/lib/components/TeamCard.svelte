@@ -471,7 +471,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
+		justify-content: space-evenly;
 		background-color: var(--team-color);
 		color: var(--text-color);
 		border-radius: 12px;
@@ -605,7 +605,7 @@
 	}
 
 	.score {
-		font-size: 9.6rem;
+		font-size: 13.6rem;
 		font-weight: 900;
 		line-height: 1;
 		text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
@@ -731,7 +731,7 @@
 		}
 
 		.hammer-indicator {
-			font-size: 1rem;
+			font-size: 1.4rem;
 		}
 	}
 </style>

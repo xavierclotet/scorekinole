@@ -49,7 +49,7 @@
 <Modal {isOpen} title={$t('settings')} onClose={onClose}>
 	<div class="settings-modal">
 		<div class="settings-content">
-		<!-- Game Type Section (Individual/Parejas) - FIRST -->
+		<!-- Game Type Section (Individual/Parejas) -->
 		<section class="settings-section">
 			<h3>{$t('gameType')}</h3>
 			<div class="button-group">
@@ -181,9 +181,9 @@
 			</section>
 		{/if}
 
-		<!-- Advanced Actions Section -->
+		<!-- Actions Section -->
 		<section class="settings-section advanced-section">
-			<h3>{$t('advancedActions')}</h3>
+			<h3>{$t('actions')}</h3>
 			<div class="action-buttons">
 				<button class="action-button" on:click={handleSwitchSides} type="button">
 					<span class="icon">⇄</span>
@@ -192,6 +192,37 @@
 				<button class="action-button" on:click={handleSwitchColors} type="button">
 					<span class="icon">🎨</span>
 					<span>{$t('switchColors')}</span>
+				</button>
+			</div>
+		</section>
+
+		<!-- Language Section -->
+		<section class="settings-section">
+			<h3>{$t('language')}</h3>
+			<div class="button-group-three">
+				<button
+					class="mode-button"
+					class:active={$gameSettings.language === 'es'}
+					on:click={() => handleLanguageChange('es')}
+					type="button"
+				>
+					Español
+				</button>
+				<button
+					class="mode-button"
+					class:active={$gameSettings.language === 'ca'}
+					on:click={() => handleLanguageChange('ca')}
+					type="button"
+				>
+					Català
+				</button>
+				<button
+					class="mode-button"
+					class:active={$gameSettings.language === 'en'}
+					on:click={() => handleLanguageChange('en')}
+					type="button"
+				>
+					English
 				</button>
 			</div>
 		</section>
@@ -254,6 +285,12 @@
 	.button-group {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+	}
+
+	.button-group-three {
+		display: grid;
+		grid-template-columns: 1fr 1fr 1fr;
 		gap: 0.5rem;
 	}
 

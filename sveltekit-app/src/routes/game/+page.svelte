@@ -305,9 +305,6 @@
 				Scorekinole
 				<span class="version-badge">v{$gameSettings.appVersion}</span>
 			</h1>
-			<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
-				📜
-			</button>
 		</div>
 
 		<div class="center-section">
@@ -356,11 +353,9 @@
 		</div>
 
 		<div class="right-section">
-			<div class="language-selector">
-				<button class:active={$gameSettings.language === 'es'} on:click={() => gameSettings.update(s => ({ ...s, language: 'es' }))}>ES</button>
-				<button class:active={$gameSettings.language === 'ca'} on:click={() => gameSettings.update(s => ({ ...s, language: 'ca' }))}>CA</button>
-				<button class:active={$gameSettings.language === 'en'} on:click={() => gameSettings.update(s => ({ ...s, language: 'en' }))}>EN</button>
-			</div>
+			<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
+				📜
+			</button>
 			<button class="icon-button" on:click={() => showSettings = true} aria-label="Settings">
 				⚙️
 			</button>
@@ -904,33 +899,6 @@
 		}
 	}
 
-	.language-selector {
-		display: flex;
-		gap: 0.25rem;
-	}
-
-	.language-selector button {
-		padding: 0.25rem 0.5rem;
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid transparent;
-		border-radius: 6px;
-		color: #fff;
-		cursor: pointer;
-		transition: all 0.2s;
-		font-weight: 600;
-		font-size: 0.75rem;
-	}
-
-	.language-selector button:hover {
-		background: rgba(255, 255, 255, 0.15);
-	}
-
-	.language-selector button.active {
-		background: #00ff88;
-		color: #000;
-		border-color: #00ff88;
-	}
-
 	.icon-button {
 		font-size: 1rem;
 		padding: 0.25rem;
@@ -993,12 +961,22 @@
 		.game-page {
 			padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem));
 		}
+
+		/* Hide event info in portrait to save space */
+		.center-section .event-info-header {
+			display: none;
+		}
+
+		/* Center the timer when event info is hidden */
+		.center-section {
+			justify-content: center;
+		}
 	}
 
 	/* Landscape: menos espacio superior */
 	@media (orientation: landscape) {
 		.game-page {
-			padding-top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
+			padding-top: max(0.3rem, env(safe-area-inset-top, 0.3rem));
 		}
 	}
 
@@ -1027,11 +1005,6 @@
 			font-size: 0.65rem;
 		}
 
-		.language-selector button {
-			font-size: 0.7rem;
-			padding: 0.2rem 0.4rem;
-		}
-
 		.icon-button {
 			width: 28px;
 			height: 28px;
@@ -1054,7 +1027,7 @@
 
 	@media (orientation: landscape) and (max-height: 600px) {
 		.game-page {
-			padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+			padding-top: max(0.25rem, env(safe-area-inset-top, 0.25rem));
 		}
 
 		.game-header {
@@ -1068,11 +1041,6 @@
 
 		.game-info {
 			font-size: 0.7rem;
-		}
-
-		.language-selector button {
-			font-size: 0.65rem;
-			padding: 0.15rem 0.3rem;
 		}
 
 		.icon-button {
