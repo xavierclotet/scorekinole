@@ -1,4 +1,4 @@
-import { db, isFirebaseEnabled } from './config';
+import { db, auth, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
@@ -8,6 +8,7 @@ import {
 	doc,
 	setDoc,
 	getDocs,
+	getDoc,
 	deleteDoc,
 	updateDoc,
 	query,
@@ -43,6 +44,26 @@ export async function syncMatchToCloud(
 	try {
 		const matchId = match.id || generateMatchId();
 		const matchRef = doc(db!, 'matches', matchId);
+
+		// Check if document already exists (ignore permission errors for non-existent docs)
+		let docExists = false;
+		try {
+			const docSnap = await getDoc(matchRef);
+			docExists = docSnap.exists();
+		} catch (err) {
+			// Document doesn't exist or user doesn't have read permission yet
+			console.log('⚠️ Could not check if document exists (will attempt CREATE)');
+		}
+
+		// Debug: log user info and Firebase auth state
+		console.log('🔍 Syncing match with user:', {
+			userId: user.id,
+			userName: user.name,
+			userEmail: user.email,
+			firebaseAuthCurrentUser: auth?.currentUser?.uid,
+			documentExists: docExists,
+			operation: docExists ? 'UPDATE' : 'CREATE'
+		});
 
 		// Detect which team the logged-in user played on
 		const team1Name = match.team1Name || '';
@@ -95,17 +116,39 @@ export async function syncMatchToCloud(
 			syncStatus: 'synced'
 		};
 
-		await setDoc(matchRef, {
+		// Prepare data for Firestore
+		const firestoreData = {
 			...matchData,
 			syncedAt: serverTimestamp(),
 			status: 'active' // Mark as active (not deleted)
+		};
+
+		// Debug: log data being sent to Firestore
+		console.log('📤 Sending to Firestore:', {
+			matchId,
+			savedBy: matchData.savedBy,
+			players: matchData.players,
+			status: 'active',
+			allKeys: Object.keys(firestoreData),
+			fullData: firestoreData
 		});
+
+		console.log('🔍 Full Firestore data:', JSON.stringify(firestoreData, null, 2));
+		console.log('🔍 Verifying savedBy.userId path:', {
+			savedByExists: !!firestoreData.savedBy,
+			userIdExists: !!firestoreData.savedBy?.userId,
+			savedByUserId: firestoreData.savedBy?.userId,
+			authUid: auth?.currentUser?.uid,
+			match: firestoreData.savedBy?.userId === auth?.currentUser?.uid
+		});
+
+		await setDoc(matchRef, firestoreData);
 		console.log('✅ Match synced to cloud:', matchId);
 
 		return matchData;
 	} catch (error) {
 		console.error('❌ Error syncing match:', error);
-		return { ...match, syncStatus: 'local' };
+		return { ...match, syncStatus: 'error' as const };
 	}
 }
 

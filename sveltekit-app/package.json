@@ -1,7 +1,7 @@
 {
 	"name": "sveltekit-app",
 	"private": true,
-	"version": "2.0.4",
+	"version": "2.0.6",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -12,7 +12,8 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"sync": "cd .. && npx cap sync",
 		"build:apk": "npm run build && cd .. && npx cap sync android && cd android && .\\gradlew.bat app:assembleRelease && cd .. && node rename-apk.js",
-		"deploy": "npm run build && cd .. && firebase deploy"
+		"deploy": "npm run build && cd .. && firebase deploy",
+		"deploy:rules": "cd .. && firebase deploy --only firestore:rules"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-static": "^3.0.0",

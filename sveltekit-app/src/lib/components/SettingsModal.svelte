@@ -47,7 +47,8 @@
 </script>
 
 <Modal {isOpen} title={$t('settings')} onClose={onClose}>
-	<div class="settings-content">
+	<div class="settings-modal">
+		<div class="settings-content">
 		<!-- Game Type Section (Individual/Parejas) - FIRST -->
 		<section class="settings-section">
 			<h3>{$t('gameType')}</h3>
@@ -194,10 +195,19 @@
 				</button>
 			</div>
 		</section>
+		</div>
 	</div>
 </Modal>
 
 <style>
+	.settings-modal {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		max-height: 70vh;
+		overflow: hidden;
+	}
+
 	.settings-content {
 		display: flex;
 		flex-direction: column;
@@ -205,7 +215,27 @@
 		padding: 1rem;
 		overflow-y: auto;
 		min-height: 0;
-		height: 100%;
+		flex: 1;
+		padding-bottom: 1rem;
+	}
+
+	/* Scrollbar styling */
+	.settings-content::-webkit-scrollbar {
+		width: 8px;
+	}
+
+	.settings-content::-webkit-scrollbar-track {
+		background: rgba(0, 0, 0, 0.2);
+		border-radius: 4px;
+	}
+
+	.settings-content::-webkit-scrollbar-thumb {
+		background: var(--accent-green, #00ff88);
+		border-radius: 4px;
+	}
+
+	.settings-content::-webkit-scrollbar-thumb:hover {
+		background: var(--accent-green-light, #00ffaa);
 	}
 
 	.settings-section {
@@ -347,6 +377,10 @@
 
 	/* Responsive */
 	@media (max-width: 600px) {
+		.settings-modal {
+			max-height: 75vh;
+		}
+
 		.settings-content {
 			gap: 1rem;
 			padding-bottom: 2rem;
@@ -400,6 +434,13 @@
 		}
 	}
 
+	/* Portrait mobile - maximize vertical space */
+	@media (max-width: 600px) and (orientation: portrait) {
+		.settings-modal {
+			max-height: 80vh;
+		}
+	}
+
 	/* Landscape optimization */
 	@media (orientation: landscape) {
 		.settings-content {
@@ -420,6 +461,10 @@
 	}
 
 	@media (orientation: landscape) and (max-height: 600px) {
+		.settings-modal {
+			max-height: 70vh;
+		}
+
 		.settings-content {
 			padding: 0.75rem;
 			gap: 0.75rem;

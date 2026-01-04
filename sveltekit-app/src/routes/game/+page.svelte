@@ -125,7 +125,14 @@
 	}
 
 	function handleNewMatchClick() {
-		showNewMatchConfirm = true;
+		// If match is already complete, start new match directly without confirmation
+		if (isMatchComplete) {
+			handleResetMatch();
+			handleMatchReset(); // Show hammer dialog if needed
+		} else {
+			// Match is in progress, show confirmation
+			showNewMatchConfirm = true;
+		}
 	}
 
 	function confirmNewMatch() {
@@ -225,6 +232,10 @@
 		if (teamCard1) {
 			teamCard1.resetForNextGame();
 		}
+
+		// Reset timer to default value for the new game
+		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
+		resetTimer(totalSeconds);
 	}
 
 	function handleTitleClick() {
@@ -418,7 +429,7 @@
 				</thead>
 				<tbody>
 					<tr style="background: {$team1.color}20; border-left: 3px solid {$team1.color};">
-						<td class="team-name" style="color: {$team1.color}; {isColorDark($team1.color) ? 'background: white; padding: 2px 6px; border-radius: 4px;' : ''}">{$team1.name}</td>
+						<td class="team-name" style="color: {$team1.color}; {isColorDark($team1.color) ? 'background: rgba(255, 255, 255, 0.85); padding: 2px 6px; border-radius: 4px;' : ''}">{$team1.name}</td>
 						{#each $currentGameRounds as round}
 							<td>{round.team1Points}</td>
 						{/each}
@@ -431,7 +442,7 @@
 						</td>
 					</tr>
 					<tr style="background: {$team2.color}20; border-left: 3px solid {$team2.color};">
-						<td class="team-name" style="color: {$team2.color}; {isColorDark($team2.color) ? 'background: white; padding: 2px 6px; border-radius: 4px;' : ''}">{$team2.name}</td>
+						<td class="team-name" style="color: {$team2.color}; {isColorDark($team2.color) ? 'background: rgba(255, 255, 255, 0.85); padding: 2px 6px; border-radius: 4px;' : ''}">{$team2.name}</td>
 						{#each $currentGameRounds as round}
 							<td>{round.team2Points}</td>
 						{/each}

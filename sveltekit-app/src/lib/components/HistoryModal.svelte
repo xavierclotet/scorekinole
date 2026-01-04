@@ -21,7 +21,7 @@
 	import type { HistoryTab, MatchHistory } from '$lib/types/history';
 	import { onDestroy } from 'svelte';
 	import { currentUser } from '$lib/firebase/auth';
-	import { syncLocalMatchesToCloud, getMatchesFromCloud } from '$lib/firebase/firestore';
+	import { syncLocalMatchesToCloud, getMatchesFromCloud, syncMatchToCloud } from '$lib/firebase/firestore';
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
 
@@ -118,11 +118,30 @@
 		minute: '2-digit'
 	}) : '';
 
-	// Format game info line
-	$: gameTypeText = $gameSettings.gameType === 'singles' ? $t('singles') : $t('doubles');
-	$: gameModeText = $gameSettings.gameMode === 'points'
-		? `${$t('to')} ${$gameSettings.pointsToWin}${$t('points').toLowerCase()}`
-		: `${$gameSettings.roundsToPlay} ${$t('rounds').toLowerCase()}`;
+	// Build complete match configuration badges for current match
+	$: currentMatchConfigBadges = (() => {
+		const badges = [];
+
+		// Game type
+		badges.push($gameSettings.gameType === 'singles' ? `👤 ${$t('singles')}` : `👥 ${$t('doubles')}`);
+
+		// Game mode
+		if ($gameSettings.gameMode === 'rounds') {
+			badges.push(`🎯 ${$gameSettings.roundsToPlay} ${$t('rounds')}`);
+		} else {
+			if ($gameSettings.matchesToWin > 1) {
+				badges.push(`🎯 ${$gameSettings.pointsToWin}pts • Win ${$gameSettings.matchesToWin} games`);
+			} else {
+				badges.push(`🎯 ${$gameSettings.pointsToWin} ${$t('points')}`);
+			}
+		}
+
+		// Additional features
+		if ($gameSettings.showHammer) badges.push('🔨 Hammer');
+		if ($gameSettings.show20s) badges.push('⭐ 20s');
+
+		return badges;
+	})();
 
 	// Calculate actual match duration (uses 'now' to trigger updates)
 	$: matchDurationMs = $currentMatch ? (now - $currentMatch.startTime) : 0;
@@ -282,16 +301,61 @@
 		}
 	}
 
-	// Fetch matches from cloud
+	// Fetch matches from cloud and merge with local history
 	async function fetchFromCloud() {
 		try {
 			console.log('🔄 Fetching matches from cloud...');
 			const cloudMatches = await getMatchesFromCloud();
 			console.log(`✅ Retrieved ${cloudMatches.length} matches from cloud`);
-			// TODO: Merge cloud matches with local history
+
+			// Merge cloud matches with local history
+			const localMatches = get(matchHistory);
+			const mergedMap = new Map<string, MatchHistory>();
+
+			// Add cloud matches first (they are source of truth for synced matches)
+			cloudMatches.forEach(m => mergedMap.set(m.id, m));
+
+			// Add local matches that aren't in cloud (pending/local matches)
+			localMatches.forEach(m => {
+				if (!mergedMap.has(m.id)) {
+					mergedMap.set(m.id, m);
+				}
+			});
+
+			// Update store and localStorage
+			const mergedMatches = Array.from(mergedMap.values())
+				.sort((a, b) => b.startTime - a.startTime);
+
+			matchHistory.set(mergedMatches);
+
+			if (browser) {
+				localStorage.setItem('crokinoleMatchHistory', JSON.stringify(mergedMatches));
+			}
+
+			console.log(`✅ Merged ${mergedMatches.length} total matches (${cloudMatches.length} from cloud, ${localMatches.length} local)`);
 		} catch (error) {
 			console.error('❌ Error fetching from cloud:', error);
 		}
+	}
+
+	// Retry sync for a single match that failed
+	function handleRetrySync(matchId: string) {
+		if (!$currentUser) {
+			console.warn('User not authenticated');
+			return;
+		}
+
+		const match = $matchHistory.find(m => m.id === matchId);
+		if (!match) {
+			console.warn('Match not found:', matchId);
+			return;
+		}
+
+		console.log('🔄 Retrying sync for match:', matchId);
+
+		// Show sync confirmation modal with just this match
+		matchesToSync = [match];
+		showSyncConfirm = true;
 	}
 </script>
 
@@ -364,9 +428,12 @@
 								{matchDate} {matchTime}
 							</div>
 
-							<!-- Game Info: Individual • A 7p • Duration (Ej: 10m 9s) -->
+							<!-- Game Info: Badges with configuration -->
 							<div class="game-info">
-								{gameTypeText} • {gameModeText} • {durationText}
+								{#each currentMatchConfigBadges as badge}
+									<span class="config-badge">{badge}</span>
+								{/each}
+								<span class="config-badge duration-badge">⏱️ {durationText}</span>
 							</div>
 
 							<!-- Match Score Summary (like score-container) -->
@@ -384,7 +451,7 @@
 											<span class="game-number">P{game.gameNumber}:</span>
 											<span class="winner-name">{winnerName} {$t('gana')}</span>
 											<span class="score">{winnerPoints}-{loserPoints}</span>
-											{#if $gameSettings.show20s && winner20s > 0}
+											{#if $gameSettings.show20s}
 												<span class="twenties-summary">⭐ {winner20s}</span>
 											{/if}
 										</div>
@@ -406,7 +473,6 @@
 									{/if}
 								</div>
 							{/if}
-
 							<!-- Games Table -->
 							{#if allGames.length > 0 || hasCurrentGame}
 								<div class="games-section">
@@ -431,12 +497,12 @@
 												{#each game.rounds as round}
 													<span class="round-col">
 														<span class="points-with-hammer">
-															{#if round.hammerTeam === 1}
+															{#if $gameSettings.showHammer && round.hammerTeam === 1}
 																<span class="hammer-indicator">🔨</span>
 															{/if}
 															{round.team1Points}
 														</span>
-														{#if $gameSettings.show20s && round.team1Twenty > 0}
+														{#if $gameSettings.show20s}
 															<span class="twenty-indicator">⭐{round.team1Twenty}</span>
 														{/if}
 													</span>
@@ -460,12 +526,12 @@
 												{#each game.rounds as round}
 													<span class="round-col">
 														<span class="points-with-hammer">
-															{#if round.hammerTeam === 2}
+															{#if $gameSettings.showHammer && round.hammerTeam === 2}
 																<span class="hammer-indicator">🔨</span>
 															{/if}
 															{round.team2Points}
 														</span>
-														{#if $gameSettings.show20s && round.team2Twenty > 0}
+														{#if $gameSettings.show20s}
 															<span class="twenty-indicator">⭐{round.team2Twenty}</span>
 														{/if}
 													</span>
@@ -658,6 +724,7 @@
 								<HistoryEntry
 									{match}
 									onDelete={() => handleDelete(match.id)}
+									onRetrySync={() => handleRetrySync(match.id)}
 								/>
 							{/each}
 						</div>
@@ -797,9 +864,27 @@
 	}
 
 	.game-info {
-		color: rgba(255, 255, 255, 0.8);
-		font-size: 0.9rem;
-		font-weight: 500;
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+	}
+
+	.config-badge {
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.85);
+		font-weight: 600;
+		padding: 0.25rem 0.6rem;
+		background: rgba(0, 255, 136, 0.12);
+		border: 1px solid rgba(0, 255, 136, 0.3);
+		border-radius: 10px;
+		white-space: nowrap;
+		letter-spacing: 0.3px;
+	}
+
+	.duration-badge {
+		background: rgba(100, 150, 255, 0.12);
+		border-color: rgba(100, 150, 255, 0.3);
 	}
 
 	/* Match Score Summary (like score-container) */
@@ -965,8 +1050,9 @@
 	}
 
 	.hammer-indicator {
-		font-size: 0.6rem;
-		opacity: 0.8;
+		font-size: 0.85rem;
+		opacity: 1;
+		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 	}
 
 	.twenty-indicator {

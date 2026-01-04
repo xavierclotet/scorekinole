@@ -8,7 +8,12 @@
  * @param color - Hex color string (with or without #)
  * @returns true if the color is very dark, false otherwise
  */
-export function isColorDark(color: string): boolean {
+export function isColorDark(color: string | undefined): boolean {
+	// Handle undefined or empty colors
+	if (!color) {
+		return false;
+	}
+
 	const hex = color.replace('#', '');
 	const r = parseInt(hex.substring(0, 2), 16);
 	const g = parseInt(hex.substring(2, 4), 16);
@@ -29,7 +34,12 @@ export function isColorDark(color: string): boolean {
  * @param color - Hex color string (with or without #)
  * @returns Luminance value between 0 (dark) and 1 (light)
  */
-export function getLuminance(color: string): number {
+export function getLuminance(color: string | undefined): number {
+	// Handle undefined or empty colors - return neutral luminance
+	if (!color) {
+		return 0.5;
+	}
+
 	const hex = color.replace('#', '');
 	const r = parseInt(hex.substring(0, 2), 16);
 	const g = parseInt(hex.substring(2, 4), 16);
@@ -44,6 +54,11 @@ export function getLuminance(color: string): number {
  * @param backgroundColor - Hex color string (with or without #)
  * @returns '#000000' for light backgrounds, '#ffffff' for dark backgrounds
  */
-export function getContrastColor(backgroundColor: string): string {
+export function getContrastColor(backgroundColor: string | undefined): string {
+	// Handle undefined or empty colors - return black as default
+	if (!backgroundColor) {
+		return '#000000';
+	}
+
 	return getLuminance(backgroundColor) > 0.5 ? '#000000' : '#ffffff';
 }

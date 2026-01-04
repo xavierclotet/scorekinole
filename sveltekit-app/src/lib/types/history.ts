@@ -38,7 +38,9 @@ export interface MatchHistory {
     duration: number;
     eventTitle?: string;
     matchPhase?: string;
-    syncStatus?: 'local' | 'synced' | 'pending';
+    showHammer?: boolean;
+    show20s?: boolean;
+    syncStatus?: 'local' | 'synced' | 'pending' | 'error';
     savedBy?: {
         userId: string;
         userName: string;

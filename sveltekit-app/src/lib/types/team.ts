@@ -46,6 +46,8 @@ export interface MatchState {
     currentMatchRounds: RoundData[];
     /** Rounds in the current game only */
     currentGameRounds: RoundData[];
+    /** Global round counter (shared by both teams) */
+    roundsPlayed: number;
 }
 
 /**
@@ -88,6 +90,8 @@ export interface RoundData {
     team1Twenty: number;
     /** 20s scored by team 2 in this round */
     team2Twenty: number;
+    /** Which team has the hammer (starts second) */
+    hammerTeam: 1 | 2 | null;
     /** Unix timestamp when round was completed */
     timestamp: number;
 }

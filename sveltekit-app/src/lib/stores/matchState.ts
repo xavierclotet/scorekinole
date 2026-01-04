@@ -13,7 +13,8 @@ const defaultMatchState: MatchState = {
     matchStartTime: null,
     currentMatchGames: [],
     currentMatchRounds: [],
-    currentGameRounds: []
+    currentGameRounds: [],
+    roundsPlayed: 0
 };
 
 // Track last round points for round completion detection
@@ -56,18 +57,19 @@ export function loadMatchState() {
             currentMatchGames.set(state.currentMatchGames ?? []);
             currentMatchRounds.set(state.currentMatchRounds ?? []);
             currentGameRounds.set(state.currentGameRounds ?? []);
+
+            // Migrate from old separate roundsPlayed if needed
+            const savedRounds = localStorage.getItem('crokinoleRoundsPlayed');
+            if (savedRounds && state.roundsPlayed === undefined) {
+                state.roundsPlayed = parseInt(savedRounds, 10);
+                // Clean up old key
+                localStorage.removeItem('crokinoleRoundsPlayed');
+                matchState.set(state);
+            }
+
+            roundsPlayed.set(state.roundsPlayed ?? 0);
         } catch (e) {
             console.error('Error loading match state:', e);
-        }
-    }
-
-    // Load roundsPlayed separately
-    const savedRounds = localStorage.getItem('crokinoleRoundsPlayed');
-    if (savedRounds) {
-        try {
-            roundsPlayed.set(parseInt(savedRounds, 10));
-        } catch (e) {
-            console.error('Error loading rounds played:', e);
         }
     }
 }
@@ -107,7 +109,7 @@ export function resetGameOnly() {
     matchState.update(state => ({
         ...state,
         currentGameRounds: [],
-        // Keep currentMatchGames and other match-level data
+        roundsPlayed: 0
     }));
     saveMatchState();
 }
@@ -173,16 +175,14 @@ export function setTwentyDialogPending(pending: boolean) {
 // Complete a round (when 2 point difference detected)
 export function completeRound(team1Points: number, team2Points: number, team1Twenty: number, team2Twenty: number, hammerTeam: 1 | 2 | null = null) {
     // Increment global round counter
-    roundsPlayed.update(n => {
-        const newValue = n + 1;
-        // Save to localStorage
-        if (browser) {
-            localStorage.setItem('crokinoleRoundsPlayed', newValue.toString());
-        }
-        return newValue;
-    });
-
+    roundsPlayed.update(n => n + 1);
     const currentRoundNumber = get(roundsPlayed);
+
+    // Update matchState with new roundsPlayed
+    matchState.update(state => ({
+        ...state,
+        roundsPlayed: currentRoundNumber
+    }));
 
     const round: RoundData = {
         roundNumber: currentRoundNumber,
@@ -190,6 +190,7 @@ export function completeRound(team1Points: number, team2Points: number, team1Twe
         team2Points,
         team1Twenty,
         team2Twenty,
+        hammerTeam,
         timestamp: Date.now()
     };
 

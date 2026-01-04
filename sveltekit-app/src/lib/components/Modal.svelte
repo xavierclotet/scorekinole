@@ -154,8 +154,10 @@
 	.modal-body {
 		color: var(--text-color, #fff);
 		flex: 1;
-		overflow-y: hidden;
+		overflow-y: visible;
 		min-height: 0;
+		display: flex;
+		flex-direction: column;
 	}
 
 	/* Scrollbar styling */

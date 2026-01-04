@@ -384,6 +384,8 @@
 			roundsToPlay: settings.roundsToPlay,
 			eventTitle: settings.eventTitle,
 			matchPhase: settings.matchPhase,
+			showHammer: settings.showHammer,
+			show20s: settings.show20s,
 			games: current.games
 		});
 	}

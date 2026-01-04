@@ -1,39 +1,39 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is the owner/participant of the match
+    function isMatchParticipant(matchData) {
+      return matchData.savedBy.userId == request.auth.uid ||
+             (matchData.players.team1.userId != null && matchData.players.team1.userId == request.auth.uid) ||
+             (matchData.players.team2.userId != null && matchData.players.team2.userId == request.auth.uid);
+    }
+
+    match /matches/{matchId} {
+      // Allow create if authenticated and user is the one creating it
+      allow create: if isAuthenticated() &&
+                      request.resource.data.savedBy.userId == request.auth.uid;
+
+      // Allow read if authenticated and user is a participant
+      allow read: if isAuthenticated() && isMatchParticipant(resource.data);
+
+      // Allow update/delete if authenticated and user is the owner (savedBy)
+      allow update, delete: if isAuthenticated() &&
+                              resource.data.savedBy.userId == request.auth.uid;
+    }
 
     // User profiles - users can only read/write their own profile
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Root-level matches collection - users can only read/write their own matches
-    match /matches/{matchId} {
-      // Read: only if the match belongs to the authenticated user
-      // Check userId (legacy), players.team1.userId, or players.team2.userId
-      allow read: if request.auth != null && (
-        resource.data.userId == request.auth.uid ||
-        resource.data.players.team1.userId == request.auth.uid ||
-        resource.data.players.team2.userId == request.auth.uid
-      );
-
-      // Create: only if the match is being created with the user's own ID
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-
-      // Update/Delete: only if the match belongs to the authenticated user
-      // Check userId (legacy), players.team1.userId, or players.team2.userId
-      allow update, delete: if request.auth != null && (
-        resource.data.userId == request.auth.uid ||
-        resource.data.players.team1.userId == request.auth.uid ||
-        resource.data.players.team2.userId == request.auth.uid
-      );
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // Current match per user - users can only access their own
     match /currentMatch/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // Deny all other access

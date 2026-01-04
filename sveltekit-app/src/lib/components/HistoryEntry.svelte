@@ -10,6 +10,7 @@
 	export let onRestore: (() => void) | null = null;
 	export let onDelete: (() => void) | null = null;
 	export let onPermanentDelete: (() => void) | null = null;
+	export let onRetrySync: (() => void) | null = null;
 
 	let isExpanded = false;
 
@@ -40,14 +41,34 @@
 		return str.charAt(0).toUpperCase() + str.slice(1);
 	}
 
-	$: gameModeText = match.gameMode === 'points'
-		? `${capitalize($t('match'))} ${$t('to')} ${match.pointsToWin} ${$t('points')}${match.matchesToWin > 1 ? ` ${$t('to')} ${match.matchesToWin} ${$t('matches')}` : ''}`
-		: `${capitalize($t('match'))} ${$t('to')} ${match.roundsToPlay} ${$t('rounds')}`;
-	$: gameTypeText = match.gameType === 'singles' ? $t('singles') : $t('doubles');
+	// Build complete match configuration badges
+	$: matchConfigBadges = (() => {
+		const badges = [];
+
+		// Game type
+		badges.push(match.gameType === 'singles' ? `👤 ${$t('singles')}` : `👥 ${$t('doubles')}`);
+
+		// Game mode
+		if (match.gameMode === 'rounds') {
+			badges.push(`🎯 ${match.roundsToPlay} ${$t('rounds')}`);
+		} else {
+			if (match.matchesToWin > 1) {
+				badges.push(`🎯 ${match.pointsToWin}pts • Win ${match.matchesToWin} games`);
+			} else {
+				badges.push(`🎯 ${match.pointsToWin} ${$t('points')}`);
+			}
+		}
+
+		// Additional features
+		if (match.showHammer) badges.push('🔨 Hammer');
+		if (match.show20s) badges.push('⭐ 20s');
+
+		return badges;
+	})();
 
 	// Calculate games won by each team
-	$: team1GamesWon = match.games.filter(g => g.winner === 1).length;
-	$: team2GamesWon = match.games.filter(g => g.winner === 2).length;
+	$: team1GamesWon = match.games?.filter(g => g.winner === 1).length ?? 0;
+	$: team2GamesWon = match.games?.filter(g => g.winner === 2).length ?? 0;
 </script>
 
 <div class="history-entry">
@@ -65,7 +86,9 @@
 				<span class="entry-date"> {formatDate(match.startTime)}</span>
 			</div>
 			<div class="game-mode-info">
-				{gameModeText}
+				{#each matchConfigBadges as badge}
+					<span class="config-badge">{badge}</span>
+				{/each}
 			</div>
 			<div class="teams-summary">
 				<span
@@ -88,9 +111,18 @@
 		<div class="header-actions">
 			{#if $currentUser}
 				{#if match.syncStatus === 'synced'}
-					<span class="sync-badge synced">{$t('synced')}</span>
+					<span class="sync-badge synced">✅ {$t('synced')}</span>
+				{:else if match.syncStatus === 'error'}
+					<button
+						class="sync-badge error clickable"
+						on:click|stopPropagation={onRetrySync}
+						type="button"
+						title="Click to retry sync"
+					>
+						❌ Error (retry)
+					</button>
 				{:else}
-					<span class="sync-badge pending">{$t('pending')}</span>
+					<span class="sync-badge pending">⏳ {$t('pending')}</span>
 				{/if}
 			{/if}
 			{#if onDelete}
@@ -131,7 +163,7 @@
 					<span class="game-number">P{game.gameNumber}:</span>
 					<span class="winner-name">{winnerName} {$t('gana')}</span>
 					<span class="score">{winnerPoints}-{loserPoints}</span>
-					{#if $gameSettings.show20s && winner20s > 0}
+					{#if (match.show20s ?? $gameSettings.show20s) && winner20s > 0}
 						<span class="twenties-summary">⭐ {winner20s}</span>
 					{/if}
 				</div>
@@ -163,19 +195,19 @@
 						{#each game.rounds as round}
 							<span class="round-col">
 								<span class="points-with-hammer">
-									{#if round.hammerTeam === 1}
+									{#if (match.showHammer ?? true) && round.hammerTeam === 1}
 										<span class="hammer-indicator">🔨</span>
 									{/if}
 									{round.team1Points}
 								</span>
-								{#if $gameSettings.show20s && round.team1Twenty > 0}
+								{#if (match.show20s ?? $gameSettings.show20s)}
 									<span class="twenty-indicator">⭐{round.team1Twenty}</span>
 								{/if}
 							</span>
 						{/each}
 						<span class="total-col total-score">
 							{game.team1Points}
-							{#if $gameSettings.show20s}
+							{#if match.show20s ?? $gameSettings.show20s}
 								{@const total20s = game.rounds.reduce((sum, r) => sum + r.team1Twenty, 0)}
 								{#if total20s > 0}
 									<span class="twenty-indicator">⭐{total20s}</span>
@@ -192,19 +224,19 @@
 						{#each game.rounds as round}
 							<span class="round-col">
 								<span class="points-with-hammer">
-									{#if round.hammerTeam === 2}
+									{#if (match.showHammer ?? true) && round.hammerTeam === 2}
 										<span class="hammer-indicator">🔨</span>
 									{/if}
 									{round.team2Points}
 								</span>
-								{#if $gameSettings.show20s && round.team2Twenty > 0}
+								{#if (match.show20s ?? $gameSettings.show20s)}
 									<span class="twenty-indicator">⭐{round.team2Twenty}</span>
 								{/if}
 							</span>
 						{/each}
 						<span class="total-col total-score">
 							{game.team2Points}
-							{#if $gameSettings.show20s}
+							{#if match.show20s ?? $gameSettings.show20s}
 								{@const total20s = game.rounds.reduce((sum, r) => sum + r.team2Twenty, 0)}
 								{#if total20s > 0}
 									<span class="twenty-indicator">⭐{total20s}</span>
@@ -342,6 +374,27 @@
 		color: #ff9800;
 	}
 
+	.sync-badge.error {
+		background: rgba(255, 59, 48, 0.2);
+		border: 1.5px solid rgba(255, 59, 48, 0.5);
+		color: #ff3b30;
+	}
+
+	.sync-badge.error.clickable {
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.sync-badge.error.clickable:hover {
+		background: rgba(255, 59, 48, 0.3);
+		border-color: rgba(255, 59, 48, 0.7);
+		transform: scale(1.05);
+	}
+
+	.sync-badge.error.clickable:active {
+		transform: scale(0.98);
+	}
+
 	.entry-date {
 		font-size: 0.75rem;
 		color: rgba(255, 255, 255, 0.5);
@@ -350,9 +403,21 @@
 	}
 
 	.game-mode-info {
-		font-size: 0.75rem;
-		color: rgba(0, 255, 136, 0.8);
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		flex-wrap: wrap;
+	}
+
+	.config-badge {
+		font-size: 0.65rem;
+		color: rgba(255, 255, 255, 0.85);
 		font-weight: 600;
+		padding: 0.2rem 0.5rem;
+		background: rgba(0, 255, 136, 0.12);
+		border: 1px solid rgba(0, 255, 136, 0.3);
+		border-radius: 10px;
+		white-space: nowrap;
 		letter-spacing: 0.3px;
 	}
 
@@ -542,8 +607,9 @@
 	}
 
 	.hammer-indicator {
-		font-size: 0.6rem;
-		opacity: 0.8;
+		font-size: 0.85rem;
+		opacity: 1;
+		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 	}
 
 	.twenty-indicator {
