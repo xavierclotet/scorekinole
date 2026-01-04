@@ -22,13 +22,27 @@ export function loadHistory() {
         const savedHistory = localStorage.getItem('crokinoleMatchHistory');
         if (savedHistory) {
             const parsed = JSON.parse(savedHistory);
-            matchHistory.set(parsed);
+            // Remove duplicates by ID (in case localStorage is corrupted)
+            const deduped = deduplicateMatches(parsed);
+            matchHistory.set(deduped);
+            // Save cleaned data back
+            if (deduped.length !== parsed.length) {
+                console.log(`🧹 Cleaned ${parsed.length - deduped.length} duplicate matches from history`);
+                localStorage.setItem('crokinoleMatchHistory', JSON.stringify(deduped));
+            }
         }
 
         const savedDeleted = localStorage.getItem('crokinoleDeletedMatches');
         if (savedDeleted) {
             const parsed = JSON.parse(savedDeleted);
-            deletedMatches.set(parsed);
+            // Remove duplicates by ID
+            const deduped = deduplicateMatches(parsed);
+            deletedMatches.set(deduped);
+            // Save cleaned data back
+            if (deduped.length !== parsed.length) {
+                console.log(`🧹 Cleaned ${parsed.length - deduped.length} duplicate matches from deleted`);
+                localStorage.setItem('crokinoleDeletedMatches', JSON.stringify(deduped));
+            }
         }
 
         const savedCurrent = localStorage.getItem('crokinoleCurrentMatch');
@@ -39,6 +53,19 @@ export function loadHistory() {
     } catch (e) {
         console.error('Error loading history:', e);
     }
+}
+
+// Helper function to remove duplicate matches by ID
+function deduplicateMatches(matches: MatchHistory[]): MatchHistory[] {
+    const seen = new Map<string, MatchHistory>();
+
+    matches.forEach(match => {
+        if (match && match.id && !seen.has(match.id)) {
+            seen.set(match.id, match);
+        }
+    });
+
+    return Array.from(seen.values());
 }
 
 // Save history to localStorage

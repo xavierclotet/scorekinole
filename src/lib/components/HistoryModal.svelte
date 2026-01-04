@@ -313,11 +313,15 @@
 			const mergedMap = new Map<string, MatchHistory>();
 
 			// Add cloud matches first (they are source of truth for synced matches)
-			cloudMatches.forEach(m => mergedMap.set(m.id, m));
+			cloudMatches.forEach(m => {
+				if (m && m.id) {
+					mergedMap.set(m.id, m);
+				}
+			});
 
 			// Add local matches that aren't in cloud (pending/local matches)
 			localMatches.forEach(m => {
-				if (!mergedMap.has(m.id)) {
+				if (m && m.id && !mergedMap.has(m.id)) {
 					mergedMap.set(m.id, m);
 				}
 			});
