@@ -4,7 +4,7 @@
 
 A beautiful, responsive web application designed to track scores, manage timers, and enhance your Crokinole gaming experience. Built with modern web technologies and optimized for mobile devices.
 
-![Version](https://img.shields.io/badge/version-2.0.7-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.8-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
@@ -315,7 +315,19 @@ This is a closed-source project. If you'd like to report bugs or suggest feature
 
 ## 🎯 Roadmap
 
-### v1.1.7 (Current) - In-Game Match Editing
+### v2.0.8 (Current) - Bug Fixes & UX Improvements
+- [x] **Fixed**: Match history rounds accumulation bug
+  - Rounds from previous games no longer accumulate in subsequent games
+  - Each game now correctly shows only its own rounds
+- [x] **Fixed**: 20s counter duplication issue
+  - 20s counters now properly reset after each round
+  - Previous round values no longer carry over automatically
+- [x] **Enhanced**: 20s input dialog now mandatory
+  - Dialog cannot be closed without selecting values for both teams
+  - Click outside dialog no longer closes it
+  - Ensures accurate 20s tracking for every round
+
+### v1.1.7 - In-Game Match Editing
 - [x] Edit current match functionality
   - Edit button integrated in round headers (next to R1🔨, R2, etc.)
   - Modify points and 20s for any completed round

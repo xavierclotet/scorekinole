@@ -104,11 +104,13 @@ export function resetMatchState() {
 // Reset only the current game (keep match history)
 export function resetGameOnly() {
     currentGameRounds.set([]);
+    currentMatchRounds.set([]); // Also clear match rounds for new game
     roundsPlayed.set(0);
     lastRoundPoints.set({ team1: 0, team2: 0 });
     matchState.update(state => ({
         ...state,
         currentGameRounds: [],
+        currentMatchRounds: [], // Also clear match rounds for new game
         roundsPlayed: 0
     }));
     saveMatchState();

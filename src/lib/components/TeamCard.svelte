@@ -191,6 +191,10 @@
 		// Save round data with the 20s that were just entered and who had hammer
 		completeRound(team1Points, team2Points, t1.twenty, t2.twenty, hammerTeam);
 
+		// Reset 20s counters for next round
+		updateTeam(1, { twenty: 0 });
+		updateTeam(2, { twenty: 0 });
+
 		// Check if rounds mode is active and match should end
 		checkRoundsModeWin();
 

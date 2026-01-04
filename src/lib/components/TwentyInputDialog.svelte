@@ -85,6 +85,11 @@
 	}
 
 	function close() {
+		// Only allow closing if both teams have selected a value
+		if (team1Twenty === null || team2Twenty === null) {
+			return; // Don't close if values not selected
+		}
+
 		// Reset values
 		team1Twenty = null;
 		team2Twenty = null;
@@ -96,7 +101,7 @@
 {#if isOpen}
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="modal-overlay" on:click={close}>
+	<div class="modal-overlay">
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div class="modal" on:click|stopPropagation>
