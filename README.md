@@ -8,6 +8,20 @@ A beautiful, responsive web application designed to track scores, manage timers,
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Web%20%7C%20iOS%20%7C%20Android-brightgreen.svg)
 
+## 📥 Download
+
+### Android App
+[![Download APK](https://img.shields.io/badge/Download-APK-green.svg)](https://github.com/xavierclotet/scorekinole/releases/latest)
+
+**Latest Release:** [v2.0.9](https://github.com/xavierclotet/scorekinole/releases/latest)
+
+1. Download the APK from [GitHub Releases](https://github.com/xavierclotet/scorekinole/releases)
+2. Enable "Install from Unknown Sources" on your Android device
+3. Install the APK file
+
+### Web Version
+Access the web app directly at: **Coming Soon**
+
 ## ✨ Features
 
 ### 🎮 Core Gameplay
@@ -93,9 +107,9 @@ The app is built with **Vite** for optimal performance. After running `npm run b
 - Firefox 88+
 
 ### Mobile Apps
-Native Android app available. iOS version coming soon.
+Native Android app available for direct download. iOS version coming soon.
 - 📱 **App Store** (iOS 13+) - Coming Soon
-- 🤖 **Google Play Store** (Android 8+) - Available
+- 🤖 **Android APK** (Android 8+) - [Download from Releases](https://github.com/xavierclotet/scorekinole/releases/latest)
 
 ## 📖 User Guide
 

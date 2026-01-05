@@ -1,0 +1,74 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v2.0.9
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build Android Release APK
+        run: cd android && ./gradlew app:assembleRelease
+
+      - name: Rename APK
+        run: node rename-apk.js
+
+      - name: Get version from package.json
+        id: package-version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android/app/build/outputs/apk/release/scorekinole-${{ steps.package-version.outputs.version }}.apk
+          body: |
+            ## 🎯 ScoreCroki v${{ steps.package-version.outputs.version }}
+
+            ### 📥 Installation
+            1. Download `scorekinole-${{ steps.package-version.outputs.version }}.apk` below
+            2. Enable "Install from Unknown Sources" on your Android device
+            3. Open the APK file to install
+
+            ### 📋 Changes
+            See [CHANGELOG](https://github.com/xavierclotet/scorekinole/blob/main/README.md#-changelog) for details.
+
+            ### ⚙️ Requirements
+            - Android 8.0 (Oreo) or higher
+
+            ---
+
+            **Full Changelog**: https://github.com/xavierclotet/scorekinole/compare/v${{ github.event.before }}...${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

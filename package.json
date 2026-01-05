@@ -12,6 +12,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"sync": "npx cap sync",
 		"build:apk": "npm run build && npx cap sync android && cd android && .\\gradlew.bat app:assembleRelease && cd .. && node rename-apk.js",
+		"release": "node scripts/create-release.js",
 		"deploy": "npm run build && firebase deploy",
 		"deploy:rules": "firebase deploy --only firestore:rules"
 	},
