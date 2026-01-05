@@ -29,7 +29,6 @@ android/
 assets/
 icons/
 node_modules/
-package-lock.json
 www/manifest.json
 capacitor.config.json
 dist/
