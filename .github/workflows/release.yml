@@ -43,17 +43,21 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > android/app/release.keystore
+          echo "Keystore created at: android/app/release.keystore"
+          ls -la android/app/release.keystore
 
       - name: Create gradle.properties
         run: |
           cat > android/gradle.properties << EOF
-          RELEASE_STORE_FILE=release.keystore
+          RELEASE_STORE_FILE=${{ github.workspace }}/android/app/release.keystore
           RELEASE_STORE_PASSWORD=${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}
           android.useAndroidX=true
           android.enableJetifier=true
           EOF
+          echo "gradle.properties created:"
+          cat android/gradle.properties
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
