@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { language, t } from '$lib/stores/language';
 	import { gameSettings } from '$lib/stores/gameSettings';
+	import { canAccessAdmin } from '$lib/stores/admin';
 	import { APP_VERSION } from '$lib/constants';
 
 	onMount(() => {
@@ -24,6 +25,10 @@
 		gameSettings.update(settings => ({ ...settings, language: lang }));
 		gameSettings.save();
 	}
+
+	function goToAdmin() {
+		goto('/admin');
+	}
 </script>
 
 <svelte:head>
@@ -37,6 +42,12 @@
 		<button class:active={$gameSettings.language === 'ca'} on:click={() => changeLanguage('ca')}>CA</button>
 		<button class:active={$gameSettings.language === 'en'} on:click={() => changeLanguage('en')}>EN</button>
 	</div>
+
+	{#if $canAccessAdmin}
+		<button class="admin-link" on:click={goToAdmin} title={$t('adminPanel')}>
+			🛡️
+		</button>
+	{/if}
 
 	<div class="hero">
 		<img src="/icon.png" alt="Scorekinole" class="logo" />
@@ -121,6 +132,32 @@
 		border-color: #00ff88;
 		color: #000;
 		font-weight: 700;
+	}
+
+	.admin-link {
+		position: absolute;
+		top: max(1rem, env(safe-area-inset-top, 1rem));
+		left: max(1rem, env(safe-area-inset-left, 1rem));
+		width: 50px;
+		height: 50px;
+		background: rgba(255, 255, 255, 0.05);
+		border: 2px solid rgba(255, 255, 255, 0.1);
+		border-radius: 50%;
+		color: #00ff88;
+		font-size: 1.5rem;
+		cursor: pointer;
+		transition: all 0.3s;
+		backdrop-filter: blur(10px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 10;
+	}
+
+	.admin-link:hover {
+		background: rgba(0, 255, 136, 0.2);
+		border-color: #00ff88;
+		transform: scale(1.1);
 	}
 
 	.hero {

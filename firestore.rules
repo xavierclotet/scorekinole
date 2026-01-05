@@ -6,6 +6,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
     // Helper function to check if user is the owner/participant of the match
     function isMatchParticipant(matchData) {
       return matchData.savedBy.userId == request.auth.uid ||
@@ -18,17 +24,27 @@ service cloud.firestore {
       allow create: if isAuthenticated() &&
                       request.resource.data.savedBy.userId == request.auth.uid;
 
-      // Allow read if authenticated and user is a participant
-      allow read: if isAuthenticated() && isMatchParticipant(resource.data);
+      // Allow read if authenticated and user is a participant OR admin
+      allow read: if isAuthenticated() && (
+        isMatchParticipant(resource.data) || isAdmin()
+      );
 
-      // Allow update/delete if authenticated and user is the owner (savedBy)
-      allow update, delete: if isAuthenticated() &&
-                              resource.data.savedBy.userId == request.auth.uid;
+      // Allow update/delete if authenticated and user is the owner (savedBy) OR admin
+      allow update, delete: if isAuthenticated() && (
+        resource.data.savedBy.userId == request.auth.uid || isAdmin()
+      );
     }
 
-    // User profiles - users can only read/write their own profile
+    // User profiles
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      // Users can read/write their own profile
+      // Admins can read/write any profile
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || isAdmin()
+      );
+      allow write: if isAuthenticated() && (
+        request.auth.uid == userId || isAdmin()
+      );
     }
 
     // Current match per user - users can only access their own

@@ -8,6 +8,7 @@ export interface UserProfile {
   playerName: string;
   email: string | null;
   photoURL: string | null;
+  isAdmin?: boolean;
   updatedAt?: any;
   createdAt?: any;
 }
