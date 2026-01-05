@@ -40,6 +40,11 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Check build.gradle signing config
+        run: |
+          echo "Checking if build.gradle has signing configuration:"
+          cat android/app/build.gradle | grep -A 10 "signingConfigs"
+
       - name: Decode keystore
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > android/app/release.keystore
@@ -65,11 +70,14 @@ jobs:
       - name: Build Android Release APK (Signed)
         run: |
           cd android
+          echo "Building with signing configuration..."
+          echo "Keystore path: ${{ github.workspace }}/android/app/release.keystore"
           ./gradlew app:assembleRelease \
             -PRELEASE_STORE_FILE=${{ github.workspace }}/android/app/release.keystore \
             -PRELEASE_STORE_PASSWORD=${{ secrets.RELEASE_STORE_PASSWORD }} \
             -PRELEASE_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS }} \
-            -PRELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}
+            -PRELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }} \
+            --info | grep -i "sign"
 
       - name: Get version from package.json
         id: package-version
