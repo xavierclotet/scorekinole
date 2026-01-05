@@ -43,12 +43,18 @@ jobs:
       - name: Build Android Release APK
         run: cd android && ./gradlew app:assembleRelease
 
+      - name: List generated APK files
+        run: ls -la android/app/build/outputs/apk/release/
+
       - name: Get version from package.json
         id: package-version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Rename APK
-        run: mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/scorekinole-${{ steps.package-version.outputs.version }}.apk
+        run: |
+          cd android/app/build/outputs/apk/release/
+          APK_FILE=$(ls *.apk | head -n 1)
+          mv "$APK_FILE" scorekinole-${{ steps.package-version.outputs.version }}.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
