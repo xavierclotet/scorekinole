@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "648322505256",
+    "project_id": "scorekinole",
+    "storage_bucket": "scorekinole.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:648322505256:android:a6efeb63b84d88edb4f31d",
+        "android_client_info": {
+          "package_name": "com.scorekinole.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "648322505256-4run1brfkicq63uon8i7lib84o799dth.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.scorekinole.app",
+            "certificate_hash": "240d0ce8157fd7c61ba82fd74355ac70b2674258"
+          }
+        },
+        {
+          "client_id": "648322505256-jl9f6kh7nkhulpcjvc9i2ve3g13880gs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.scorekinole.app",
+            "certificate_hash": "84aa1c27fcae7ce7c273cec4a27e8247c65dd4b1"
+          }
+        },
+        {
+          "client_id": "648322505256-j4j11fqnr6p1minvnppodo02f2tbfejt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfAE85VjsKtbmJf_iD7AG_n00nVJ603fs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "648322505256-j4j11fqnr6p1minvnppodo02f2tbfejt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

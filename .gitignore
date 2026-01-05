@@ -25,7 +25,9 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build and generated files
-android/
+android/app/build/
+android/.gradle/
+android/build/
 assets/
 icons/
 node_modules/
