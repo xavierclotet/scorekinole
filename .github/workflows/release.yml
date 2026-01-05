@@ -63,7 +63,13 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Build Android Release APK (Signed)
-        run: cd android && ./gradlew app:assembleRelease
+        run: |
+          cd android
+          ./gradlew app:assembleRelease \
+            -PRELEASE_STORE_FILE=${{ github.workspace }}/android/app/release.keystore \
+            -PRELEASE_STORE_PASSWORD=${{ secrets.RELEASE_STORE_PASSWORD }} \
+            -PRELEASE_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS }} \
+            -PRELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}
 
       - name: Get version from package.json
         id: package-version
