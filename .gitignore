@@ -30,7 +30,6 @@ assets/
 icons/
 node_modules/
 www/manifest.json
-capacitor.config.json
 dist/
 
 # SvelteKit build output

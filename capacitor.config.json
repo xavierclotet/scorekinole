@@ -1,0 +1,14 @@
+{
+  "appId": "com.scorekinole.app",
+  "appName": "Scorekinole arena",
+  "webDir": "www",
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"],
+      "google": {
+        "serverClientId": "648322505256-j4j11fqnr6p1minvnppodo02f2tbfejt.apps.googleusercontent.com"
+      }
+    }
+  }
+}
