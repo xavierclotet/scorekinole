@@ -40,10 +40,16 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Check build.gradle signing config
+      - name: Inject signing config into build.gradle
         run: |
-          echo "Checking if build.gradle has signing configuration:"
-          cat android/app/build.gradle | grep -A 10 "signingConfigs"
+          # Add signing configuration to build.gradle
+          sed -i '/defaultConfig {/i\    signingConfigs {\n        release {\n            if (project.hasProperty("RELEASE_STORE_FILE")) {\n                storeFile file(project.property("RELEASE_STORE_FILE"))\n                storePassword project.property("RELEASE_STORE_PASSWORD")\n                keyAlias project.property("RELEASE_KEY_ALIAS")\n                keyPassword project.property("RELEASE_KEY_PASSWORD")\n            }\n        }\n    }\n' android/app/build.gradle
+
+          # Add signingConfig to release buildType
+          sed -i '/buildTypes {/,/release {/s/release {/release {\n            signingConfig signingConfigs.release/' android/app/build.gradle
+
+          echo "Modified build.gradle:"
+          cat android/app/build.gradle
 
       - name: Decode keystore
         run: |
