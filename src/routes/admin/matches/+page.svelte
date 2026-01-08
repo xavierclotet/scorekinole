@@ -123,7 +123,7 @@
 
   function getGameModeInfo(match: MatchHistory): string {
     if (match.gameMode === 'points') {
-      return `A ${match.pointsToWin} puntos`;
+      return `${match.pointsToWin}p (${match.matchesToWin} games)`;
     } else if (match.gameMode === 'rounds') {
       return `${match.roundsToPlay} rondas`;
     }
