@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { language, t } from '$lib/stores/language';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, switchColors } from '$lib/stores/teams';
@@ -239,9 +240,7 @@
 	}
 
 	function handleTitleClick() {
-		if (quickMenuComponent) {
-			quickMenuComponent.toggleMenu();
-		}
+		goto('/');
 	}
 
 	// Event info editing functions
@@ -295,12 +294,6 @@
 <div class="game-page">
 	<header class="game-header">
 		<div class="left-section">
-			<QuickMenu
-				bind:this={quickMenuComponent}
-				on:matchReset={handleMatchReset}
-				on:login={handleLogin}
-				on:profile={handleProfileOpen}
-			/>
 			<h1 on:click|stopPropagation={handleTitleClick} class="clickable-title">
 				Scorekinole
 				<span class="version-badge">v{$gameSettings.appVersion}</span>
@@ -353,6 +346,15 @@
 		</div>
 
 		<div class="right-section">
+			<QuickMenu
+				bind:this={quickMenuComponent}
+				on:matchReset={handleMatchReset}
+				on:login={handleLogin}
+				on:profile={handleProfileOpen}
+			/>
+			<button class="icon-button user-button" on:click={() => quickMenuComponent?.toggleMenu()} aria-label="User Profile" title="Profile">
+				👤
+			</button>
 			<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
 				📜
 			</button>
@@ -1062,6 +1064,21 @@
 			font-size: 0.9rem;
 			padding: 0.4rem 0.8rem;
 		}
+	}
+
+	/* User Button - Profile */
+	.user-button {
+		background: transparent !important;
+		color: #00d4ff !important;
+		border: 2px solid #00d4ff !important;
+		box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2);
+		transition: all 0.2s;
+	}
+
+	.user-button:hover {
+		transform: scale(1.05);
+		background: rgba(0, 212, 255, 0.1) !important;
+		box-shadow: 0 3px 12px rgba(0, 212, 255, 0.4);
 	}
 
 	/* History Button - Destacado en left section */

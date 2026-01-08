@@ -893,14 +893,6 @@
 
   /* Responsive */
   @media (max-width: 1200px) {
-    .matches-table th,
-    .matches-table td {
-      padding: 0.85rem 1rem;
-      font-size: 0.85rem;
-    }
-  }
-
-  @media (max-width: 768px) {
     .matches-container {
       padding: 0.75rem;
       width: 98%;

@@ -2,6 +2,10 @@
 .claude/
 CLAUDE.md
 
+# AI Assistant rules
+.roo/
+AGENTS.md
+
 # Environment variables
 .env
 .env.local

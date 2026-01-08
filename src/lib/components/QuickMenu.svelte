@@ -35,7 +35,7 @@
 	// Click outside to close
 	function handleClickOutside(event: MouseEvent) {
 		const target = event.target as HTMLElement;
-		if (isOpen && !target.closest('.quick-menu-container')) {
+		if (isOpen && !target.closest('.quick-menu-container') && !target.closest('.user-button')) {
 			closeMenu();
 		}
 	}
@@ -78,12 +78,13 @@
 <style>
 	.quick-menu-container {
 		position: relative;
+		display: inline-block;
 	}
 
 	.quick-menu {
 		position: absolute;
-		top: 0;
-		left: 0;
+		top: -0.5rem;
+		right: -2rem;
 		background: rgba(26, 31, 53, 0.98);
 		border: 2px solid rgba(0, 255, 136, 0.3);
 		border-radius: 12px;
