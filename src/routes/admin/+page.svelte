@@ -20,6 +20,13 @@
       icon: '🎯',
       path: '/admin/matches',
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+    },
+    {
+      title: 'tournamentManagement',
+      description: 'manageTournamentsDesc',
+      icon: '🏆',
+      path: '/admin/tournaments',
+      gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
     }
   ];
 
@@ -69,7 +76,7 @@
   .admin-container {
     max-width: 1100px;
     margin: 0 auto;
-    padding: 2.5rem 2rem;
+    padding: 1.5rem 2rem;
     min-height: 100vh;
     background: #fafafa;
     transition: background-color 0.3s, color 0.3s;
@@ -80,7 +87,7 @@
   }
 
   .admin-header {
-    margin-bottom: 3.5rem;
+    margin-bottom: 2rem;
   }
 
   .header-top {
@@ -138,14 +145,14 @@
   }
 
   .shield-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
   }
 
   .admin-header h1 {
-    font-size: 2.2rem;
-    margin: 0 0 0.75rem 0;
+    font-size: 1.8rem;
+    margin: 0 0 0.5rem 0;
     color: #1a1a1a;
     font-weight: 700;
     letter-spacing: -0.5px;
@@ -179,8 +186,8 @@
 
   .admin-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
     max-width: 900px;
     margin: 0 auto;
   }
@@ -195,7 +202,7 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    height: 240px;
+    height: 180px;
   }
 
   .admin-container[data-theme='dark'] .admin-card {
@@ -225,14 +232,14 @@
     top: 0;
     left: 0;
     right: 0;
-    height: 80px;
+    height: 60px;
     opacity: 0.9;
     transition: opacity 0.3s;
   }
 
   .card-content {
     position: relative;
-    padding: 2rem 2rem 1.5rem;
+    padding: 1.25rem 1.5rem 1rem;
     text-align: left;
     height: 100%;
     display: flex;
@@ -240,14 +247,14 @@
   }
 
   .icon {
-    font-size: 3rem;
-    margin-bottom: 0.5rem;
+    font-size: 2.25rem;
+    margin-bottom: 0.35rem;
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
   }
 
   .admin-card h2 {
-    font-size: 1.4rem;
-    margin: 0 0 0.75rem 0;
+    font-size: 1.15rem;
+    margin: 0 0 0.5rem 0;
     color: #1a1a1a;
     font-weight: 700;
     letter-spacing: -0.3px;
@@ -260,8 +267,8 @@
 
   .admin-card p {
     color: #666;
-    font-size: 0.95rem;
-    line-height: 1.6;
+    font-size: 0.85rem;
+    line-height: 1.4;
     margin: 0;
     flex: 1;
     transition: color 0.3s;
@@ -272,11 +279,11 @@
   }
 
   .arrow {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     color: #999;
     align-self: flex-end;
     transition: transform 0.3s, color 0.3s;
-    margin-top: 1rem;
+    margin-top: 0.5rem;
   }
 
   .admin-container[data-theme='dark'] .arrow {

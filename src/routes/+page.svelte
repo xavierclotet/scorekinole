@@ -5,6 +5,17 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { canAccessAdmin } from '$lib/stores/admin';
 	import { APP_VERSION } from '$lib/constants';
+	import QuickMenu from '$lib/components/QuickMenu.svelte';
+	import ProfileModal from '$lib/components/ProfileModal.svelte';
+	import LoginModal from '$lib/components/LoginModal.svelte';
+	import { currentUser } from '$lib/firebase/auth';
+	import { saveUserProfile } from '$lib/firebase/userProfile';
+
+	let showProfile = false;
+	let showLogin = false;
+
+	// Reference to QuickMenu to call toggleMenu
+	let quickMenuComponent: any;
 
 	onMount(() => {
 		gameSettings.load();
@@ -29,6 +40,28 @@
 	function goToAdmin() {
 		goto('/admin');
 	}
+
+	function handleLogin() {
+		showLogin = true;
+	}
+
+	function handleProfileOpen() {
+		showProfile = true;
+	}
+
+	async function handleProfileUpdate(event: CustomEvent<{ playerName: string }>) {
+		try {
+			const result = await saveUserProfile(event.detail.playerName);
+			if (result) {
+				console.log('✅ Profile updated successfully:', event.detail.playerName);
+				// Update currentUser store with new name
+				currentUser.update(u => u ? { ...u, name: event.detail.playerName } : null);
+			}
+		} catch (error) {
+			console.error('❌ Error updating profile:', error);
+		}
+		showProfile = false;
+	}
 </script>
 
 <svelte:head>
@@ -37,10 +70,23 @@
 </svelte:head>
 
 <main class="landing">
-	<div class="language-selector">
-		<button class:active={$gameSettings.language === 'es'} on:click={() => changeLanguage('es')}>ES</button>
-		<button class:active={$gameSettings.language === 'ca'} on:click={() => changeLanguage('ca')}>CA</button>
-		<button class:active={$gameSettings.language === 'en'} on:click={() => changeLanguage('en')}>EN</button>
+	<div class="top-right-container">
+		<div class="language-selector">
+			<button class:active={$gameSettings.language === 'es'} on:click={() => changeLanguage('es')}>ES</button>
+			<button class:active={$gameSettings.language === 'ca'} on:click={() => changeLanguage('ca')}>CA</button>
+			<button class:active={$gameSettings.language === 'en'} on:click={() => changeLanguage('en')}>EN</button>
+		</div>
+
+		<div class="profile-container">
+			<QuickMenu
+				bind:this={quickMenuComponent}
+				on:login={handleLogin}
+				on:profile={handleProfileOpen}
+			/>
+			<button class="icon-button user-button" on:click={() => quickMenuComponent?.toggleMenu()} aria-label="User Profile" title="Profile">
+				👤
+			</button>
+		</div>
 	</div>
 
 	{#if $canAccessAdmin}
@@ -74,6 +120,17 @@
 	</footer>
 </main>
 
+<ProfileModal
+	isOpen={showProfile}
+	user={$currentUser}
+	on:close={() => showProfile = false}
+	on:update={handleProfileUpdate}
+/>
+<LoginModal
+	isOpen={showLogin}
+	on:close={() => showLogin = false}
+/>
+
 <style>
 	:global(body) {
 		margin: 0;
@@ -99,13 +156,24 @@
 		padding-bottom: env(safe-area-inset-bottom, 0);
 	}
 
-	.language-selector {
+	.top-right-container {
 		position: absolute;
 		top: max(1rem, env(safe-area-inset-top, 1rem));
 		right: max(1rem, env(safe-area-inset-right, 1rem));
 		display: flex;
 		gap: 0.5rem;
+		align-items: center;
 		z-index: 10;
+	}
+
+	.language-selector {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.profile-container {
+		display: flex;
+		align-items: center;
 	}
 
 	.language-selector button {
@@ -132,6 +200,41 @@
 		border-color: #00ff88;
 		color: #000;
 		font-weight: 700;
+	}
+
+	.icon-button {
+		font-size: 1rem;
+		padding: 0.5rem;
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 6px;
+		color: #fff;
+		cursor: pointer;
+		transition: all 0.2s;
+		width: auto;
+		height: auto;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.icon-button:hover {
+		background: rgba(255, 255, 255, 0.2);
+		transform: scale(1.1);
+	}
+
+	.user-button {
+		background: transparent !important;
+		color: #00d4ff !important;
+		border: 2px solid #00d4ff !important;
+		box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2);
+		transition: all 0.2s;
+	}
+
+	.user-button:hover {
+		transform: scale(1.05);
+		background: rgba(0, 212, 255, 0.1) !important;
+		box-shadow: 0 3px 12px rgba(0, 212, 255, 0.4);
 	}
 
 	.admin-link {

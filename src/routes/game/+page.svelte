@@ -11,15 +11,10 @@
 	import Timer from '$lib/components/Timer.svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import HistoryModal from '$lib/components/HistoryModal.svelte';
-	import QuickMenu from '$lib/components/QuickMenu.svelte';
 	import ColorPickerModal from '$lib/components/ColorPickerModal.svelte';
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
-	import ProfileModal from '$lib/components/ProfileModal.svelte';
-	import LoginModal from '$lib/components/LoginModal.svelte';
 	import Button from '$lib/components/Button.svelte';
-	import { currentUser } from '$lib/firebase/auth';
-	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import { isColorDark } from '$lib/utils/colors';
 
 	let showSettings = false;
@@ -28,15 +23,10 @@
 	let colorPickerTeam: 1 | 2 = 1;
 	let showHammerDialog = false;
 	let showNewMatchConfirm = false;
-	let showProfile = false;
-	let showLogin = false;
 
 	// References to TeamCard components to call their methods
 	let teamCard1: any;
 	let teamCard2: any;
-
-	// Reference to QuickMenu to call toggleMenu
-	let quickMenuComponent: any;
 
 	// Round completion data stored temporarily while 20s dialog is shown
 	let pendingRoundData: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number } | null = null;
@@ -146,27 +136,7 @@
 		showNewMatchConfirm = false;
 	}
 
-	function handleLogin() {
-		showLogin = true;
-	}
 
-	function handleProfileOpen() {
-		showProfile = true;
-	}
-
-	async function handleProfileUpdate(event: CustomEvent<{ playerName: string }>) {
-		try {
-			const result = await saveUserProfile(event.detail.playerName);
-			if (result) {
-				console.log('✅ Profile updated successfully:', event.detail.playerName);
-				// Update currentUser store with new name
-				currentUser.update(u => u ? { ...u, name: event.detail.playerName } : null);
-			}
-		} catch (error) {
-			console.error('❌ Error updating profile:', error);
-		}
-		showProfile = false;
-	}
 
 	function openColorPicker(team: 1 | 2) {
 		colorPickerTeam = team;
@@ -346,15 +316,6 @@
 		</div>
 
 		<div class="right-section">
-			<QuickMenu
-				bind:this={quickMenuComponent}
-				on:matchReset={handleMatchReset}
-				on:login={handleLogin}
-				on:profile={handleProfileOpen}
-			/>
-			<button class="icon-button user-button" on:click={() => quickMenuComponent?.toggleMenu()} aria-label="User Profile" title="Profile">
-				👤
-			</button>
 			<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
 				📜
 			</button>
@@ -512,16 +473,7 @@
 	isOpen={showTwentyDialog}
 	on:close={handleTwentyInputClose}
 />
-<ProfileModal
-	isOpen={showProfile}
-	user={$currentUser}
-	on:close={() => showProfile = false}
-	on:update={handleProfileUpdate}
-/>
-<LoginModal
-	isOpen={showLogin}
-	on:close={() => showLogin = false}
-/>
+
 
 <style>
 	.game-page {
@@ -902,7 +854,7 @@
 	}
 
 	.icon-button {
-		font-size: 1rem;
+		font-size: 1.2rem;
 		padding: 0.25rem;
 		background: rgba(255, 255, 255, 0.1);
 		border: 2px solid rgba(255, 255, 255, 0.2);
@@ -1066,26 +1018,11 @@
 		}
 	}
 
-	/* User Button - Profile */
-	.user-button {
-		background: transparent !important;
-		color: #00d4ff !important;
-		border: 2px solid #00d4ff !important;
-		box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2);
-		transition: all 0.2s;
-	}
 
-	.user-button:hover {
-		transform: scale(1.05);
-		background: rgba(0, 212, 255, 0.1) !important;
-		box-shadow: 0 3px 12px rgba(0, 212, 255, 0.4);
-	}
 
 	/* History Button - Destacado en left section */
 	.history-button {
 		background: transparent !important;
-		color: #00ff88 !important;
-		border: 2px solid #00ff88 !important;
 		box-shadow: 0 2px 8px rgba(0, 255, 136, 0.2);
 		transition: all 0.2s;
 	}
