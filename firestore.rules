@@ -52,6 +52,18 @@ service cloud.firestore {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Tournaments - admin-only management
+    match /tournaments/{tournamentId} {
+      // Only admins can create tournaments
+      allow create: if isAdmin();
+
+      // Authenticated users can read tournaments, admins can do everything
+      allow read: if isAuthenticated();
+
+      // Only admins can update/delete tournaments
+      allow update, delete: if isAdmin();
+    }
+
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;
