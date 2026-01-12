@@ -1,0 +1,225 @@
+/**
+ * Tournament transition logic
+ * Handle qualification and bracket preview
+ */
+
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from './config';
+import { getTournament } from './tournaments';
+import type { TournamentParticipant } from '$lib/types/tournament';
+
+/**
+ * Recursively remove undefined values from an object
+ * Firestore doesn't accept undefined values
+ */
+function cleanUndefined<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanUndefined(item)) as T;
+  }
+
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    Object.entries(obj).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleaned[key] = cleanUndefined(value);
+      }
+    });
+    return cleaned as T;
+  }
+
+  return obj;
+}
+
+/**
+ * Update qualified participants for a group
+ *
+ * @param tournamentId Tournament ID
+ * @param groupIndex Group index
+ * @param qualifiedParticipantIds Array of participant IDs to qualify
+ * @returns true if successful
+ */
+export async function updateQualifiers(
+  tournamentId: string,
+  groupIndex: number,
+  qualifiedParticipantIds: string[]
+): Promise<boolean> {
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament || !tournament.groupStage) {
+      console.error('Tournament or group stage not found');
+      return false;
+    }
+
+    const group = tournament.groupStage.groups[groupIndex];
+    if (!group) {
+      console.error('Group not found');
+      return false;
+    }
+
+    // Update standings with qualification status
+    const updatedStandings = group.standings.map(standing => ({
+      ...standing,
+      qualifiedForFinal: qualifiedParticipantIds.includes(standing.participantId)
+    }));
+
+    // Update in-memory
+    tournament.groupStage.groups[groupIndex].standings = updatedStandings;
+
+    if (!db) {
+      console.error('Firestore not initialized');
+      return false;
+    }
+
+    // Clean undefined values before writing to Firestore
+    const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+
+    // Write entire groupStage back to Firestore to preserve array structure
+    await updateDoc(doc(db, 'tournaments', tournamentId), {
+      groupStage: cleanedGroupStage
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating qualifiers:', error);
+    return false;
+  }
+}
+
+/**
+ * Auto-select top N qualifiers from each group
+ *
+ * @param tournamentId Tournament ID
+ * @param qualifiersPerGroup Number of qualifiers per group
+ * @returns true if successful
+ */
+export async function autoSelectQualifiers(
+  tournamentId: string,
+  qualifiersPerGroup: number
+): Promise<boolean> {
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament || !tournament.groupStage) {
+      console.error('Tournament or group stage not found');
+      return false;
+    }
+
+    if (!db) {
+      console.error('Firestore not initialized');
+      return false;
+    }
+
+    // Update each group
+    for (let gi = 0; gi < tournament.groupStage.groups.length; gi++) {
+      const group = tournament.groupStage.groups[gi];
+
+      // Sort standings by position and take top N
+      const topN = group.standings
+        .sort((a, b) => a.position - b.position)
+        .slice(0, qualifiersPerGroup)
+        .map(s => s.participantId);
+
+      // Update standings in-memory
+      tournament.groupStage.groups[gi].standings = group.standings.map(standing => ({
+        ...standing,
+        qualifiedForFinal: topN.includes(standing.participantId)
+      }));
+    }
+
+    // Clean undefined values before writing to Firestore
+    const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+
+    // Write entire groupStage back to Firestore to preserve array structure
+    await updateDoc(doc(db, 'tournaments', tournamentId), {
+      groupStage: cleanedGroupStage
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error auto-selecting qualifiers:', error);
+    return false;
+  }
+}
+
+/**
+ * Get all qualified participants with their seeds
+ *
+ * @param tournamentId Tournament ID
+ * @returns Array of qualified participants with seed info
+ */
+export async function getQualifiedParticipants(
+  tournamentId: string
+): Promise<Array<{ participant: TournamentParticipant; seed: number; groupName: string; position: number }>> {
+  const tournament = await getTournament(tournamentId);
+  if (!tournament || !tournament.groupStage) {
+    return [];
+  }
+
+  const qualified: Array<{ participant: TournamentParticipant; seed: number; groupName: string; position: number }> = [];
+
+  // Collect all qualified participants from all groups
+  for (const group of tournament.groupStage.groups) {
+    const qualifiedStandings = group.standings
+      .filter(s => s.qualifiedForFinal)
+      .sort((a, b) => a.position - b.position);
+
+    qualifiedStandings.forEach(standing => {
+      const participant = tournament.participants.find(p => p.id === standing.participantId);
+      if (participant) {
+        qualified.push({
+          participant,
+          seed: qualified.length + 1,
+          groupName: group.name,
+          position: standing.position
+        });
+      }
+    });
+  }
+
+  return qualified;
+}
+
+/**
+ * Validate that number of qualifiers is valid for bracket
+ * Must be power of 2 (2, 4, 8, 16, 32)
+ *
+ * @param numQualifiers Total number of qualifiers
+ * @returns true if valid
+ */
+export function isValidBracketSize(numQualifiers: number): boolean {
+  if (numQualifiers < 2) return false;
+  return (numQualifiers & (numQualifiers - 1)) === 0; // Check if power of 2
+}
+
+/**
+ * Get bracket round names based on number of participants
+ *
+ * @param numParticipants Number of participants in bracket
+ * @returns Array of round names
+ */
+export function getBracketRoundNames(numParticipants: number): string[] {
+  const rounds: string[] = [];
+  let currentSize = numParticipants;
+
+  while (currentSize >= 2) {
+    if (currentSize === 2) {
+      rounds.push('Final');
+    } else if (currentSize === 4) {
+      rounds.push('Semifinales');
+    } else if (currentSize === 8) {
+      rounds.push('Cuartos de Final');
+    } else if (currentSize === 16) {
+      rounds.push('Octavos de Final');
+    } else if (currentSize === 32) {
+      rounds.push('Dieciseisavos de Final');
+    } else {
+      rounds.push(`Ronda de ${currentSize}`);
+    }
+    currentSize = currentSize / 2;
+  }
+
+  return rounds;
+}

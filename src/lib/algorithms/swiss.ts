@@ -1,0 +1,248 @@
+/**
+ * Swiss pairing algorithm
+ * Maximizes variety of opponents and tables
+ */
+
+import type {
+  GroupMatch,
+  TournamentParticipant,
+  GroupStanding,
+  SwissPairing
+} from '$lib/types/tournament';
+
+/**
+ * Generate Swiss pairings for a round
+ *
+ * Round 1: Random pairings
+ * Subsequent rounds:
+ * - Sort by points
+ * - Pair within point groups (top vs top)
+ * - Avoid repeat pairings
+ * - Maximize table variety
+ *
+ * @param participants Tournament participants
+ * @param standings Current standings
+ * @param previousPairings Previous pairings to avoid repeats
+ * @param roundNumber Current round number
+ * @param tableHistory Table usage history for variety
+ * @returns Array of matches for this round
+ */
+export function generateSwissPairings(
+  participants: TournamentParticipant[],
+  standings: GroupStanding[],
+  previousPairings: SwissPairing[],
+  roundNumber: number,
+  tableHistory?: Map<string, number[]>
+): GroupMatch[] {
+  if (roundNumber === 1) {
+    return generateRandomPairings(participants);
+  }
+
+  return generatePointBasedPairings(participants, standings, previousPairings);
+}
+
+/**
+ * Generate random pairings for round 1
+ */
+function generateRandomPairings(participants: TournamentParticipant[]): GroupMatch[] {
+  const shuffled = [...participants].sort(() => Math.random() - 0.5);
+  const matches: GroupMatch[] = [];
+
+  // Add BYE if odd
+  const hasBye = shuffled.length % 2 !== 0;
+  if (hasBye) {
+    const byePlayer = shuffled.pop()!;
+    matches.push(createByeMatch(byePlayer.id, 1));
+  }
+
+  // Create matches
+  for (let i = 0; i < shuffled.length; i += 2) {
+    matches.push({
+      id: `swiss-r1-m${Math.floor(i / 2) + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      participantA: shuffled[i].id,
+      participantB: shuffled[i + 1].id,
+      status: 'PENDING'
+    });
+  }
+
+  return matches;
+}
+
+/**
+ * Generate point-based pairings for subsequent rounds
+ */
+function generatePointBasedPairings(
+  participants: TournamentParticipant[],
+  standings: GroupStanding[],
+  previousPairings: SwissPairing[]
+): GroupMatch[] {
+  // Create map of participant standings
+  const standingsMap = new Map<string, GroupStanding>();
+  standings.forEach(s => standingsMap.set(s.participantId, s));
+
+  // Sort participants by points (descending)
+  const sorted = [...participants].sort((a, b) => {
+    const aStanding = standingsMap.get(a.id);
+    const bStanding = standingsMap.get(b.id);
+    if (!aStanding || !bStanding) return 0;
+    return bStanding.points - aStanding.points;
+  });
+
+  // Build set of previous pairings for quick lookup
+  const previousPairs = new Set<string>();
+  previousPairings.forEach(pairing => {
+    pairing.matches.forEach(match => {
+      if (match.participantB !== 'BYE') {
+        const pair = [match.participantA, match.participantB].sort().join('-');
+        previousPairs.add(pair);
+      }
+    });
+  });
+
+  // Pair participants
+  const paired = new Set<string>();
+  const matches: GroupMatch[] = [];
+  let matchCounter = 1;
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (paired.has(sorted[i].id)) continue;
+
+    const participantA = sorted[i];
+    let participantB: TournamentParticipant | null = null;
+
+    // Find best opponent (same point group, not previously paired)
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (paired.has(sorted[j].id)) continue;
+
+      const candidate = sorted[j];
+      const pairKey = [participantA.id, candidate.id].sort().join('-');
+
+      // Check if already paired before
+      if (!previousPairs.has(pairKey)) {
+        participantB = candidate;
+        break;
+      }
+    }
+
+    // If no unpaired opponent found, pair with next available
+    if (!participantB) {
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (!paired.has(sorted[j].id)) {
+          participantB = sorted[j];
+          break;
+        }
+      }
+    }
+
+    if (participantB) {
+      paired.add(participantA.id);
+      paired.add(participantB.id);
+
+      matches.push({
+        id: `swiss-r${previousPairings.length + 1}-m${matchCounter++}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        participantA: participantA.id,
+        participantB: participantB.id,
+        status: 'PENDING'
+      });
+    } else {
+      // Odd one out gets BYE
+      matches.push(createByeMatch(participantA.id, previousPairings.length + 1));
+      paired.add(participantA.id);
+    }
+  }
+
+  return matches;
+}
+
+/**
+ * Create a BYE match (automatic win)
+ */
+function createByeMatch(participantId: string, roundNumber: number): GroupMatch {
+  return {
+    id: `swiss-r${roundNumber}-bye-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    participantA: participantId,
+    participantB: 'BYE',
+    status: 'WALKOVER',
+    winner: participantId,
+    gamesWonA: 2,
+    gamesWonB: 0,
+    walkedOverAt: Date.now()
+  };
+}
+
+/**
+ * Assign tables to matches with variety optimization
+ *
+ * Tries to maximize variety of tables each participant uses
+ *
+ * @param matches Matches to assign tables
+ * @param totalTables Total number of tables available
+ * @param tableHistory History of table usage per participant
+ * @returns Matches with table assignments
+ */
+export function assignTablesWithVariety(
+  matches: GroupMatch[],
+  totalTables: number,
+  tableHistory: Map<string, number[]> = new Map()
+): GroupMatch[] {
+  const assignedMatches = [...matches];
+
+  for (const match of assignedMatches) {
+    if (match.participantB === 'BYE') {
+      // BYE matches don't need tables
+      continue;
+    }
+
+    // Get tables already used by these participants
+    const usedByA = tableHistory.get(match.participantA) || [];
+    const usedByB = tableHistory.get(match.participantB) || [];
+    const usedByBoth = new Set([...usedByA, ...usedByB]);
+
+    // Find table with least usage by these participants
+    let bestTable = 1;
+    let minUsage = Infinity;
+
+    for (let table = 1; table <= totalTables; table++) {
+      const usageCount = usedByBoth.has(table)
+        ? usedByA.filter(t => t === table).length + usedByB.filter(t => t === table).length
+        : 0;
+
+      if (usageCount < minUsage) {
+        minUsage = usageCount;
+        bestTable = table;
+      }
+    }
+
+    match.tableNumber = bestTable;
+
+    // Update history
+    if (!tableHistory.has(match.participantA)) {
+      tableHistory.set(match.participantA, []);
+    }
+    if (!tableHistory.has(match.participantB)) {
+      tableHistory.set(match.participantB, []);
+    }
+    tableHistory.get(match.participantA)!.push(bestTable);
+    tableHistory.get(match.participantB)!.push(bestTable);
+  }
+
+  return assignedMatches;
+}
+
+/**
+ * Validate Swiss system configuration
+ *
+ * @param numParticipants Number of participants
+ * @param numRounds Number of rounds
+ * @returns true if valid
+ */
+export function validateSwissSystem(numParticipants: number, numRounds: number): boolean {
+  // Need at least 4 participants
+  if (numParticipants < 4) return false;
+
+  // Typical Swiss has 3-7 rounds
+  // Maximum reasonable: log2(participants) + 2
+  const maxRounds = Math.ceil(Math.log2(numParticipants)) + 2;
+
+  return numRounds >= 3 && numRounds <= maxRounds;
+}

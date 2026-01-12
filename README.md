@@ -4,7 +4,7 @@
 
 Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. Perfect for casual games and professional tournaments.
 
-![Version](https://img.shields.io/badge/version-2.0.12-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Android-brightgreen.svg)
 
@@ -12,7 +12,7 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 
 ## 📥 **DOWNLOAD ANDROID APP**
 
-### 👉 [**DOWNLOAD LATEST VERSION (v2.0.12)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
+### 👉 [**DOWNLOAD LATEST VERSION (v2.1.0)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
 
 **Installation:**
 1. Download the APK file from the link above
@@ -54,6 +54,24 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 - **Quick Actions**: Reset game, switch sides, swap colors instantly
 - **Edit Matches**: Modify points and 20s for any completed round
 - **Offline Mode**: Works perfectly without internet connection
+
+### 🏆 **Tournament Management (Admin)**
+- **Full Tournament System**: Create and manage professional Crokinole tournaments
+- **Two Tournament Formats**:
+  - **One Phase**: Direct elimination bracket
+  - **Two Phases**: Group stage (Round Robin or Swiss) + Final elimination bracket
+- **Group Stage Options**:
+  - Round Robin: Automatic scheduling with multiple groups
+  - Swiss System: Intelligent pairing based on performance
+- **Advanced Features**:
+  - ELO rating calculation and tracking
+  - Automatic bracket generation with visual connectors
+  - Real-time match tracking and scoring
+  - Participant management with Google account integration
+  - Customizable game modes per phase (points or rounds)
+  - Table assignment and rotation
+  - Match history and statistics
+- **Beautiful Bracket Visualization**: Visual arrows connecting matches showing tournament progression
 
 ---
 
@@ -101,7 +119,15 @@ Need help or want to report a bug?
 
 ## 📋 Recent Updates
 
-### v2.0.12 (Latest - 2026-01-08)
+### v2.1.0 (Latest - 2026-01-12)
+- Major tournament system restructuring
+- Moved game configuration to phase-specific objects (groupStage/finalStage)
+- Improved bracket visualization with connecting arrows
+- Fixed tournament validation and participant management
+- Enhanced UI/UX for tournament creation and management
+- Centered final match in bracket view between semifinals
+
+### v2.0.12 (2026-01-08)
 - Improved points mode display in admin matches
 - Enhanced game mode visualization
 
