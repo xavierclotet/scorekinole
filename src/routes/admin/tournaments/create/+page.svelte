@@ -5,10 +5,11 @@
   import Toast from '$lib/components/Toast.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { goto } from '$app/navigation';
-  import { createTournament, searchUsers, getTournament, updateTournament } from '$lib/firebase/tournaments';
+  import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, EloConfig } from '$lib/types/tournament';
   import type { UserProfile } from '$lib/firebase/userProfile';
+  import { DEVELOPED_COUNTRIES } from '$lib/constants';
 
   // Edit mode
   let editMode = false;
@@ -26,6 +27,9 @@
   let key = '';
   let name = '';
   let description = '';
+  let edition: number = 1;
+  let country = 'España';
+  let city = '';
   let tournamentDate = '';  // Date input string (YYYY-MM-DD)
   let gameType: 'singles' | 'doubles' = 'singles';
   let show20s = true;
@@ -67,6 +71,11 @@
   let searchResults: UserProfile[] = [];
   let searchLoading = false;
   let guestName = 'Player1';  // Input for guest player name
+
+  // Tournament name search
+  let tournamentNameResults: string[] = [];
+  let nameSearchLoading = false;
+  let showNameDropdown = false;
 
   // Validation
   let validationErrors: string[] = [];
@@ -128,6 +137,9 @@
       key = tournament.key;
       name = tournament.name;
       description = tournament.description || '';
+      edition = tournament.edition || 1;
+      country = tournament.country || '';
+      city = tournament.city || '';
       tournamentDate = tournament.tournamentDate ? new Date(tournament.tournamentDate).toISOString().split('T')[0] : '';
       gameType = tournament.gameType;
 
@@ -225,6 +237,9 @@
       key = data.key || key; // Keep generated key if no draft key
       name = data.name || '';
       description = data.description || '';
+      edition = data.edition || 1;
+      country = data.country || '';
+      city = data.city || '';
       tournamentDate = data.tournamentDate || '';
       gameType = data.gameType || 'singles';
 
@@ -280,6 +295,9 @@
         key,
         name,
         description,
+        edition,
+        country,
+        city,
         tournamentDate,
         gameType,
         numTables,
@@ -328,6 +346,38 @@
     searchLoading = true;
     searchResults = await searchUsers(searchQuery);
     searchLoading = false;
+  }
+
+  async function handleNameSearch() {
+    if (name.length < 2) {
+      tournamentNameResults = [];
+      showNameDropdown = false;
+      return;
+    }
+
+    nameSearchLoading = true;
+    tournamentNameResults = await searchTournamentNames(name);
+    showNameDropdown = tournamentNameResults.length > 0;
+    nameSearchLoading = false;
+  }
+
+  function selectTournamentName(selectedName: string) {
+    name = selectedName;
+    showNameDropdown = false;
+    tournamentNameResults = [];
+  }
+
+  function handleNameInputBlur() {
+    // Delay hiding dropdown to allow click on results
+    setTimeout(() => {
+      showNameDropdown = false;
+    }, 200);
+  }
+
+  function handleNameInputFocus() {
+    if (tournamentNameResults.length > 0) {
+      showNameDropdown = true;
+    }
   }
 
   function addRegisteredUser(user: UserProfile & { userId?: string }) {
@@ -381,6 +431,15 @@
     }
     if (!/^[A-Z0-9]{6}$/.test(key)) {
       errors.push('La clave debe ser exactamente 6 caracteres alfanuméricos (A-Z, 0-9)');
+    }
+    if (!edition || edition < 1 || edition > 1000) {
+      errors.push('La edición debe ser un número entre 1 y 1000');
+    }
+    if (!country) {
+      errors.push('El país es obligatorio');
+    }
+    if (!city.trim()) {
+      errors.push('La ciudad es obligatoria');
     }
     return errors;
   }
@@ -532,6 +591,9 @@
         key: key.toUpperCase().trim(),
         name: name.trim(),
         description: description.trim() || undefined,
+        edition: edition,
+        country: country,
+        city: city.trim(),
         tournamentDate: tournamentDate ? new Date(tournamentDate).getTime() : undefined,
         gameType,
         show20s,
@@ -653,20 +715,13 @@
 
   $: searchQuery, handleSearch();
 
-  // Reactive validation - force re-validation when any relevant field changes
-  $: {
-    // Re-run validation when participants array changes
-    const participantCount = participants.length;
-    const validationTrigger = key + name + gameType + gameMode + pointsToWin + roundsToPlay + matchesToWin +
-             groupGameMode + groupPointsToWin + groupRoundsToPlay + groupMatchesToWin +
-             finalPointsToWin + finalMatchesToWin + phaseType + numTables + numGroups +
-             numSwissRounds + participantCount + currentStep;
-
-    console.log('[Reactive] Running validation for step:', currentStep, 'participants:', participantCount);
-    console.log('[Reactive] Current name:', name, 'key:', key);
-    [validationErrors, validationWarnings] = getValidationForStep(currentStep);
-    console.log('[Reactive] Validation results - errors:', validationErrors.length, validationErrors);
-  }
+  // Reactive validation - re-run when any relevant field changes
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  $: key, name, edition, country, city, gameType, gameMode, pointsToWin, roundsToPlay, matchesToWin,
+     groupGameMode, groupPointsToWin, groupRoundsToPlay, groupMatchesToWin,
+     finalPointsToWin, finalMatchesToWin, phaseType, numTables, numGroups,
+     numSwissRounds, participants.length, currentStep,
+     [validationErrors, validationWarnings] = getValidationForStep(currentStep);
 </script>
 
 <AdminGuard>
@@ -731,15 +786,53 @@
             <small class="help-text">6 caracteres alfanuméricos (A-Z, 0-9). Esta clave permitirá a los jugadores actualizar el marcador en tiempo real durante el torneo.</small>
           </div>
 
-          <div class="form-group">
-            <label for="name">Nombre del Torneo *</label>
-            <input
-              id="name"
-              type="text"
-              bind:value={name}
-              placeholder="Ej: Campeonato de Primavera 2024"
-              class="input-field"
-            />
+          <div class="form-row name-edition-row">
+            <div class="form-group edition-group">
+              <label for="edition">Edición *</label>
+              <input
+                id="edition"
+                type="number"
+                bind:value={edition}
+                placeholder="Nº"
+                class="input-field"
+                min="1"
+                max="1000"
+              />
+            </div>
+
+            <div class="form-group name-search-group">
+              <label for="name">Nombre del Torneo *</label>
+              <div class="name-search-wrapper">
+                <input
+                  id="name"
+                  type="text"
+                  bind:value={name}
+                  placeholder="Ej: Open de Catalunya"
+                  class="input-field"
+                  on:input={handleNameSearch}
+                  on:blur={handleNameInputBlur}
+                  on:focus={handleNameInputFocus}
+                  autocomplete="off"
+                />
+                {#if nameSearchLoading}
+                  <span class="name-search-loading">🔄</span>
+                {/if}
+                {#if showNameDropdown && tournamentNameResults.length > 0}
+                  <div class="name-dropdown">
+                    {#each tournamentNameResults as tournamentName}
+                      <button
+                        type="button"
+                        class="name-dropdown-item"
+                        on:click={() => selectTournamentName(tournamentName)}
+                      >
+                        {tournamentName}
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+              <small class="help-text">Escribe para buscar nombres existentes o crea uno nuevo</small>
+            </div>
           </div>
 
           <div class="form-group">
@@ -751,6 +844,35 @@
               rows="3"
               class="input-field"
             ></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="country">País *</label>
+              <select
+                id="country"
+                bind:value={country}
+                class="input-field"
+              >
+                <option value="">Seleccionar país...</option>
+                {#each DEVELOPED_COUNTRIES as countryOption}
+                  <option value={countryOption}>{countryOption}</option>
+                {/each}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="city">Ciudad *</label>
+              <input
+                id="city"
+                type="text"
+                bind:value={city}
+                placeholder="Ej: Barcelona"
+                class="input-field"
+                maxlength="50"
+              />
+              <small class="help-text">Máximo 50 caracteres</small>
+            </div>
           </div>
 
           <div class="form-group">
@@ -1212,7 +1334,7 @@
               </div>
               <div class="review-item">
                 <span class="review-label">Nombre:</span>
-                <span class="review-value">{name}</span>
+                <span class="review-value">{edition}º {name}</span>
               </div>
               {#if description}
                 <div class="review-item">
@@ -1220,6 +1342,10 @@
                   <span class="review-value">{description}</span>
                 </div>
               {/if}
+              <div class="review-item">
+                <span class="review-label">Ubicación:</span>
+                <span class="review-value">{city}, {country}</span>
+              </div>
               {#if tournamentDate}
                 <div class="review-item">
                   <span class="review-label">Fecha:</span>
@@ -1371,7 +1497,6 @@
 
   /* Header */
   .wizard-header {
-    margin-bottom: 1rem;
     flex-shrink: 0;
   }
 
@@ -1424,7 +1549,7 @@
   .subtitle {
     font-size: 0.85rem;
     color: #666;
-    margin: 0 0 1.5rem 0;
+    margin: 0 0 1rem 0;
     transition: color 0.3s;
   }
 
@@ -1720,6 +1845,91 @@
 
   .wizard-container[data-theme='dark'] .phase-config hr {
     border-top-color: #2d3748;
+  }
+
+  /* Edition + Name Row */
+  .name-edition-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .edition-group {
+    flex: 0 0 80px;
+  }
+
+  .edition-group .input-field {
+    text-align: center;
+  }
+
+  /* Tournament Name Search */
+  .name-search-group {
+    position: relative;
+    flex: 1;
+  }
+
+  .name-search-wrapper {
+    position: relative;
+  }
+
+  .name-search-loading {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    animation: spin 1s linear infinite;
+  }
+
+  .name-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .wizard-container[data-theme='dark'] .name-dropdown {
+    background: #1a2332;
+    border-color: #2d3748;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .name-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: #333;
+    transition: background-color 0.2s;
+  }
+
+  .wizard-container[data-theme='dark'] .name-dropdown-item {
+    color: #e1e8ed;
+    border-bottom-color: #2d3748;
+  }
+
+  .name-dropdown-item:hover {
+    background: #f8f8f8;
+  }
+
+  .wizard-container[data-theme='dark'] .name-dropdown-item:hover {
+    background: #2d3748;
+  }
+
+  .name-dropdown-item:last-child {
+    border-bottom: none;
   }
 
   /* Participants */

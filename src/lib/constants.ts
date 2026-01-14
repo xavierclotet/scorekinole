@@ -22,3 +22,30 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     timerX: null,
     timerY: null
 };
+
+export const DEVELOPED_COUNTRIES = [
+    'Alemania',
+    'Australia',
+    'Austria',
+    'Bélgica',
+    'Canadá',
+    'Corea del Sur',
+    'Dinamarca',
+    'España',
+    'Estados Unidos',
+    'Finlandia',
+    'Francia',
+    'Hungría',
+    'Islandia',
+    'Italia',
+    'Japón',
+    'Luxemburgo',
+    'Noruega',
+    'Nueva Zelanda',
+    'Países Bajos',
+    'Reino Unido',
+    'Rumanía',
+    'Singapur',
+    'Suecia',
+    'Suiza'
+];

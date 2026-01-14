@@ -160,42 +160,24 @@
       {#if tournament}
         <div class="tournament-header">
           <div class="header-content">
-            <h1>{tournament.name}</h1>
+            <div class="title-row">
+              <h1>{tournament.edition ? `${tournament.edition}º ` : ''}{tournament.name}</h1>
+              {#if tournament.tournamentDate}
+                <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+              {/if}
+            </div>
+            {#if tournament.city && tournament.country}
+              <p class="location">{tournament.city} ({tournament.country})</p>
+            {/if}
             {#if tournament.description}
               <p class="description">{tournament.description}</p>
             {/if}
             <div class="tournament-meta">
-              <span class="meta-item">
+            
+
+               <span class="meta-item">
                 🔑 {tournament.key}
               </span>
-              <span class="meta-item">
-                🎮 {tournament.gameType === 'singles' ? 'Singles' : 'Doubles'}
-              </span>
-              {#if tournament.phaseType === 'TWO_PHASE' && tournament.groupStage}
-                <span class="meta-item">
-                  {tournament.groupStage.gameMode === 'points'
-                    ? `${tournament.groupStage.pointsToWin} puntos (grupos)`
-                    : `${tournament.groupStage.roundsToPlay} rondas (grupos)`}
-                </span>
-              {:else if tournament.finalStage}
-                <span class="meta-item">
-                  {tournament.finalStage.gameMode === 'points'
-                    ? `${tournament.finalStage.pointsToWin} puntos`
-                    : `${tournament.finalStage.roundsToPlay} rondas`}
-                </span>
-              {/if}
-              <span class="meta-item">
-                👥 {tournament.participants.length} participantes
-              </span>
-              {#if tournament.tournamentDate}
-                <span class="meta-item">
-                  📅 {new Date(tournament.tournamentDate).toLocaleDateString('es-ES', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </span>
-              {/if}
             </div>
           </div>
           <div class="header-right">
@@ -251,41 +233,53 @@
       {:else}
         <!-- Tournament Dashboard Content -->
         <div class="dashboard-grid">
-          <!-- Participants Section -->
+          <!-- General Configuration Section -->
           <section class="dashboard-card">
-            <h2>Participantes</h2>
-            <div class="participants-grid">
-              {#each tournament.participants as participant, i (participant.id)}
-                <div class="participant-item">
-                  <div class="participant-info">
-                    <span class="participant-number">#{i + 1}</span>
-                    <span class="participant-name">{participant.name}</span>
-                    {#if participant.type === 'GUEST'}
-                      <span class="guest-badge">Invitado</span>
-                    {/if}
-                  </div>
-                  {#if tournament.eloConfig.enabled}
-                    <span class="elo-badge">ELO: {participant.eloSnapshot || 1500}</span>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </section>
-
-          <!-- Configuration Section -->
-          <section class="dashboard-card">
-            <h2>Configuración</h2>
+            <h2>Configuración General</h2>
             <div class="config-list">
               <div class="config-item">
-                <span class="config-label">Tipo de Fase:</span>
+                <span class="config-label">Formato:</span>
                 <span class="config-value">
                   {tournament.phaseType === 'ONE_PHASE' ? '1 Fase (Solo Final)' : '2 Fases (Grupos + Final)'}
                 </span>
               </div>
 
-              {#if tournament.phaseType === 'TWO_PHASE' && tournament.groupStage}
+              <div class="config-item">
+                <span class="config-label">🎮 Modalidad:</span>
+                <span class="config-value">
+                  {tournament.gameType === 'singles' ? 'Singles' : 'Dobles'}
+                </span>
+              </div>
+
+              <div class="config-item">
+                <span class="config-label">🪑 Mesas Disponibles:</span>
+                <span class="config-value">{tournament.numTables}</span>
+              </div>
+
+              <div class="config-item">
+                <span class="config-label">🎯 Contar 20s:</span>
+                <span class="config-value">{tournament.show20s ? '✅ Sí' : '❌ No'}</span>
+              </div>
+
+              <div class="config-item">
+                <span class="config-label">🔨 Mostrar Hammer:</span>
+                <span class="config-value">{tournament.showHammer ? '✅ Sí' : '❌ No'}</span>
+              </div>
+
+              <div class="config-item">
+                <span class="config-label">📊 Sistema ELO:</span>
+                <span class="config-value">{tournament.eloConfig.enabled ? '✅ Activado' : '❌ Desactivado'}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Group Stage Configuration (only for TWO_PHASE) -->
+          {#if tournament.phaseType === 'TWO_PHASE' && tournament.groupStage}
+            <section class="dashboard-card">
+              <h2>⚔️ Fase de Grupos</h2>
+              <div class="config-list">
                 <div class="config-item">
-                  <span class="config-label">Fase de Grupos:</span>
+                  <span class="config-label">Sistema:</span>
                   <span class="config-value">
                     {tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : 'Sistema Suizo'}
                   </span>
@@ -304,7 +298,7 @@
                 {/if}
 
                 <div class="config-item">
-                  <span class="config-label">Modo de Juego (Grupos):</span>
+                  <span class="config-label">Modo de Juego:</span>
                   <span class="config-value">
                     {tournament.groupStage.gameMode === 'points'
                       ? `Por Puntos (${tournament.groupStage.pointsToWin})`
@@ -313,26 +307,27 @@
                 </div>
 
                 <div class="config-item">
-                  <span class="config-label">Partidos a Ganar (Grupos):</span>
+                  <span class="config-label">Partidos a Ganar:</span>
                   <span class="config-value">Best of {tournament.groupStage.matchesToWin}</span>
                 </div>
-              {/if}
-
-              <div class="config-item">
-                <span class="config-label">Mesas Disponibles:</span>
-                <span class="config-value">{tournament.numTables}</span>
               </div>
+            </section>
+          {/if}
 
+          <!-- Final Stage Configuration -->
+          <section class="dashboard-card">
+            <h2>🏆 Fase Final</h2>
+            <div class="config-list">
               {#if tournament.phaseType === 'TWO_PHASE' && tournament.finalStageConfig}
                 <div class="config-item">
-                  <span class="config-label">Modo de Juego (Final):</span>
+                  <span class="config-label">Modo de Juego:</span>
                   <span class="config-value">
                     Por Puntos ({tournament.finalStageConfig.pointsToWin})
                   </span>
                 </div>
 
                 <div class="config-item">
-                  <span class="config-label">Partidos a Ganar (Final):</span>
+                  <span class="config-label">Partidos a Ganar:</span>
                   <span class="config-value">Best of {tournament.finalStageConfig.matchesToWin}</span>
                 </div>
               {:else if tournament.finalStage}
@@ -349,22 +344,33 @@
                   <span class="config-label">Partidos a Ganar:</span>
                   <span class="config-value">Best of {tournament.finalStage.matchesToWin}</span>
                 </div>
+              {:else}
+                <div class="config-item">
+                  <span class="config-label">Estado:</span>
+                  <span class="config-value">Pendiente de configurar</span>
+                </div>
               {/if}
+            </div>
+          </section>
 
-              <div class="config-item">
-                <span class="config-label">Contar 20s:</span>
-                <span class="config-value">{tournament.show20s ? 'Sí' : 'No'}</span>
-              </div>
-
-              <div class="config-item">
-                <span class="config-label">Mostrar Hammer:</span>
-                <span class="config-value">{tournament.showHammer ? 'Sí' : 'No'}</span>
-              </div>
-
-              <div class="config-item">
-                <span class="config-label">Sistema ELO:</span>
-                <span class="config-value">{tournament.eloConfig.enabled ? 'Activado' : 'Desactivado'}</span>
-              </div>
+          <!-- Participants Section -->
+          <section class="dashboard-card participants-card">
+            <h2>👥 Participantes ({tournament.participants.length})</h2>
+            <div class="participants-grid">
+              {#each tournament.participants as participant, i (participant.id)}
+                <div class="participant-item">
+                  <div class="participant-info">
+                    <span class="participant-number">#{i + 1}</span>
+                    <span class="participant-name">{participant.name}</span>
+                    {#if participant.type === 'GUEST'}
+                      <span class="guest-badge">Invitado</span>
+                    {/if}
+                  </div>
+                  {#if tournament.eloConfig.enabled}
+                    <span class="elo-badge">ELO: {participant.eloSnapshot || 1500}</span>
+                  {/if}
+                </div>
+              {/each}
             </div>
           </section>
         </div>
@@ -379,7 +385,7 @@
         <h2>🚀 Iniciar Torneo</h2>
         <p>¿Estás listo para iniciar el torneo?</p>
         <div class="tournament-info">
-          <strong>{tournament.name}</strong>
+          <strong>{tournament.edition ? `${tournament.edition}º ` : ''}{tournament.name}</strong>
           <br />
           <span>{tournament.participants.length} participantes</span>
           <br />
@@ -409,7 +415,7 @@
         <h2>Confirmar Cancelación</h2>
         <p>¿Estás seguro de que deseas cancelar este torneo?</p>
         <div class="tournament-info">
-          <strong>{tournament.name}</strong>
+          <strong>{tournament.edition ? `${tournament.edition}º ` : ''}{tournament.name}</strong>
           <br />
           <span>{tournament.participants.length} participantes</span>
         </div>
@@ -562,9 +568,16 @@
     background: #fecaca;
   }
 
+  .title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
   .header-content h1 {
     font-size: 1.6rem;
-    margin: 0 0 0.5rem 0;
+    margin: 0;
     color: #1a1a1a;
     font-weight: 700;
     transition: color 0.3s;
@@ -572,6 +585,28 @@
 
   .tournament-page[data-theme='dark'] .header-content h1 {
     color: #e1e8ed;
+  }
+
+  .tournament-date {
+    font-size: 0.9rem;
+    color: #999;
+    font-weight: 400;
+    transition: color 0.3s;
+  }
+
+  .tournament-page[data-theme='dark'] .tournament-date {
+    color: #6b7a94;
+  }
+
+  .location {
+    font-size: 0.95rem;
+    color: #888;
+    margin: 0.25rem 0 0.5rem 0;
+    transition: color 0.3s;
+  }
+
+  .tournament-page[data-theme='dark'] .location {
+    color: #6b7a94;
   }
 
   .description {
@@ -695,6 +730,11 @@
     gap: 1.5rem;
   }
 
+  /* Make participants card span full width */
+  .participants-card {
+    grid-column: 1 / -1;
+  }
+
   .dashboard-card {
     background: white;
     border-radius: 12px;
@@ -722,8 +762,8 @@
 
   /* Participants */
   .participants-grid {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.75rem;
   }
 
@@ -826,6 +866,10 @@
   /* Responsive */
   @media (max-width: 600px) {
     .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .participants-grid {
       grid-template-columns: 1fr;
     }
 

@@ -35,6 +35,9 @@ export interface Tournament {
   key: string;                  // 6-character alphanumeric identifier
   name: string;
   description?: string;
+  edition: number;              // Edition number of the tournament (e.g., 1st, 2nd, etc.)
+  country: string;              // Country where tournament takes place
+  city: string;                 // City where tournament takes place
   tournamentDate?: number;      // Timestamp of when tournament is scheduled
   status: TournamentStatus;
   phaseType: TournamentPhaseType;

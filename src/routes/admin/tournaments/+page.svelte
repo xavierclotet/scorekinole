@@ -225,8 +225,7 @@
               <th class="status-col">Estado</th>
               <th class="type-col hide-mobile">Tipo</th>
               <th class="mode-col hide-mobile">Modo</th>
-              <th class="participants-col">Participantes</th>
-              <th class="date-col hide-mobile">Fecha</th>
+              <th class="participants-col">Players</th>
               <th class="created-col hide-mobile">Creado</th>
               <th class="actions-col">Acciones</th>
             </tr>
@@ -236,7 +235,12 @@
               <tr class="tournament-row" on:click={() => viewTournament(tournament.id)}>
                 <td class="name-cell">
                   <div class="tournament-name">
-                    <strong class="tournament-title">{tournament.name}</strong>
+                    <div class="name-row">
+                      <strong class="tournament-title" title={tournament.name}>{tournament.name.length > 20 ? tournament.name.substring(0, 20) + '...' : tournament.name}</strong>
+                      {#if tournament.tournamentDate}
+                        <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+                      {/if}
+                    </div>
                     {#if tournament.description}
                       <small class="tournament-desc">{tournament.description}</small>
                     {/if}
@@ -261,26 +265,10 @@
                 <td class="participants-cell">
                   👥 {tournament.participants.length}
                 </td>
-                <td class="date-cell hide-mobile">
-                  {tournament.tournamentDate
-                    ? new Date(tournament.tournamentDate).toLocaleDateString('es-ES', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: '2-digit'
-                      })
-                    : '-'}
-                </td>
                 <td class="created-cell hide-mobile">
                   {formatDate(tournament.createdAt)}
                 </td>
                 <td class="actions-cell">
-                  <button
-                    class="action-btn edit-btn"
-                    on:click|stopPropagation={() => viewTournament(tournament.id)}
-                    title="Ver/Editar"
-                  >
-                    ✏️
-                  </button>
                   <button
                     class="action-btn delete-btn"
                     on:click|stopPropagation={() => confirmDelete(tournament)}
@@ -852,13 +840,25 @@
     gap: 0.25rem;
   }
 
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   .tournament-title {
     font-weight: 600;
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  }
+
+  .tournament-date {
+    font-size: 0.75rem;
+    color: #999;
     white-space: nowrap;
-    max-width: 100%;
+    transition: color 0.3s;
+  }
+
+  .tournaments-container[data-theme='dark'] .tournament-date {
+    color: #6b7a94;
   }
 
   .tournament-desc {

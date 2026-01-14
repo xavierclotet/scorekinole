@@ -86,6 +86,9 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
       id: tournamentId,
       key: data.key,
       name: data.name || 'Nuevo Torneo',
+      edition: data.edition || 1,
+      country: data.country || 'España',
+      city: data.city || '',
       status: 'DRAFT',
       phaseType: data.phaseType || 'ONE_PHASE',
       gameType: data.gameType || 'singles',
@@ -347,6 +350,45 @@ export async function cancelTournament(id: string): Promise<boolean> {
     status: 'CANCELLED',
     completedAt: Date.now()
   });
+}
+
+/**
+ * Search unique tournament names for autocomplete
+ *
+ * @param searchQuery Search query (partial name)
+ * @returns Array of unique tournament names
+ */
+export async function searchTournamentNames(searchQuery: string): Promise<string[]> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return [];
+  }
+
+  try {
+    const tournamentsRef = collection(db!, 'tournaments');
+    const snapshot = await getDocs(tournamentsRef);
+
+    const namesSet = new Set<string>();
+    const queryLower = searchQuery.toLowerCase();
+
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.name) {
+        // If there's a search query, filter by it
+        if (!searchQuery || data.name.toLowerCase().includes(queryLower)) {
+          namesSet.add(data.name);
+        }
+      }
+    });
+
+    // Convert to array and sort alphabetically
+    const names = Array.from(namesSet).sort((a, b) => a.localeCompare(b));
+
+    return names.slice(0, 10); // Limit to 10 results
+  } catch (error) {
+    console.error('❌ Error searching tournament names:', error);
+    return [];
+  }
 }
 
 /**
