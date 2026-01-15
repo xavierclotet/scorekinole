@@ -2,10 +2,9 @@
  * Tournament ELO calculation and application
  */
 
-import { db, isFirebaseEnabled } from './config';
+import { isFirebaseEnabled } from './config';
 import { getTournament, updateTournament } from './tournaments';
 import { calculateExpectedPositions, calculateAllEloDeltas } from '$lib/algorithms/elo';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { browser } from '$app/environment';
 import type { EloCalculation } from '$lib/types/tournament';
 
@@ -204,6 +203,7 @@ export async function calculateEloDeltas(tournamentId: string): Promise<EloCalcu
 
 /**
  * Apply ELO updates to user profiles
+ * Updates both REGISTERED users (by userId) and GUEST users (by name match or create)
  *
  * @param tournamentId Tournament ID
  * @returns true if successful
@@ -226,26 +226,54 @@ export async function applyEloUpdates(tournamentId: string): Promise<boolean> {
   }
 
   try {
-    const calculations = await calculateEloDeltas(tournamentId);
+    // Import helper functions
+    const { getOrCreateUserByName, addTournamentRecord } = await import('./userProfile');
 
-    // Update each registered user's ELO
+    const calculations = await calculateEloDeltas(tournamentId);
+    const totalParticipants = tournament.participants.filter(p => p.status === 'ACTIVE').length;
+
+    // Update each participant's ELO (both REGISTERED and GUEST)
     for (const calc of calculations) {
       const participant = tournament.participants.find(p => p.id === calc.participantId);
+      if (!participant) continue;
 
-      if (participant && participant.type === 'REGISTERED' && participant.userId) {
-        const userRef = doc(db!, 'users', participant.userId);
+      // Build tournament record
+      const tournamentRecord = {
+        tournamentId: tournament.id,
+        tournamentName: tournament.name,
+        tournamentDate: tournament.completedAt || Date.now(),
+        finalPosition: participant.finalPosition || 0,
+        totalParticipants,
+        eloBefore: calc.initialElo,
+        eloAfter: calc.finalElo,
+        eloDelta: calc.delta
+      };
 
-        await updateDoc(userRef, {
-          elo: calc.finalElo,
-          tournamentsPlayed: (participant as any).tournamentsPlayed || 0 + 1,
-          updatedAt: serverTimestamp()
-        });
+      let userId: string | null = null;
 
-        console.log(`✅ Updated ELO for user ${participant.userId}: ${calc.initialElo} → ${calc.finalElo} (${calc.delta > 0 ? '+' : ''}${calc.delta})`);
+      if (participant.type === 'REGISTERED' && participant.userId) {
+        // REGISTERED user - use existing userId
+        userId = participant.userId;
+      } else {
+        // GUEST user - find or create by exact name match
+        const result = await getOrCreateUserByName(participant.name);
+        if (result) {
+          userId = result.userId;
+          if (result.created) {
+            console.log(`📝 Created new user for GUEST "${participant.name}"`);
+          }
+        }
+      }
+
+      if (userId) {
+        // Add tournament record and update ELO
+        await addTournamentRecord(userId, tournamentRecord, calc.finalElo);
+      } else {
+        console.warn(`⚠️ Could not find/create user for participant "${participant.name}"`);
       }
     }
 
-    // Update participant current ELO in tournament
+    // Update participant current ELO in tournament document
     const updatedParticipants = tournament.participants.map(p => {
       const calc = calculations.find(c => c.participantId === p.id);
       if (calc) {

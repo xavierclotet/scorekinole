@@ -182,6 +182,7 @@ export interface SwissPairing {
  */
 export interface GroupMatch {
   id: string;
+  groupId?: string;            // ID of the group this match belongs to
   participantA: string;        // Participant ID
   participantB: string;        // Participant ID or 'BYE'
   tableNumber?: number;
@@ -364,4 +365,19 @@ export interface MatchCorrection {
     scoreB: number;
   };
   reason?: string;
+}
+
+/**
+ * Tournament record for user history
+ * Stored in user profile to track ELO changes
+ */
+export interface TournamentRecord {
+  tournamentId: string;
+  tournamentName: string;
+  tournamentDate: number;        // completedAt timestamp
+  finalPosition: number;
+  totalParticipants: number;
+  eloBefore: number;
+  eloAfter: number;
+  eloDelta: number;
 }

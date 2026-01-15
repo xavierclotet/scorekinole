@@ -393,12 +393,10 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
 
   // Sort standings
   const standings = Array.from(standingsMap.values()).sort((a, b) => {
-    // 1. Points
-    if (b.points !== a.points) return b.points - a.points;
-    // 2. Total 20s
-    if (b.total20s !== a.total20s) return b.total20s - a.total20s;
-    // 3. Total points scored
-    return b.totalPointsScored - a.totalPointsScored;
+    // 1. Total points scored (sum of all round points)
+    if (b.totalPointsScored !== a.totalPointsScored) return b.totalPointsScored - a.totalPointsScored;
+    // 2. Total 20s (tiebreaker)
+    return b.total20s - a.total20s;
   });
 
   // Assign positions

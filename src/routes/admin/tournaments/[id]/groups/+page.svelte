@@ -22,6 +22,7 @@
   let isTransitioning = false;
   let showMatchDialog = false;
   let selectedMatch: GroupMatch | null = null;
+  let activeGroupId: string | null = null;
 
   $: tournamentId = $page.params.id;
 
@@ -66,6 +67,10 @@
     }
 
     selectedMatch = match;
+    // Track which group this match belongs to
+    if (match.groupId) {
+      activeGroupId = match.groupId;
+    }
     showMatchDialog = true;
   }
 
@@ -224,7 +229,7 @@
           </button>
         </div>
       {:else}
-        <GroupsView {tournament} onMatchClick={handleMatchClick} />
+        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} />
       {/if}
     </div>
   </div>

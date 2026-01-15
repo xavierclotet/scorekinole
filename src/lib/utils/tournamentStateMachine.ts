@@ -128,16 +128,13 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
 
   if (groupStageType === 'ROUND_ROBIN') {
     // Import and generate schedule
-    const { splitIntoGroups, generateRoundRobinSchedule: generateRRSchedule, assignTablesToRounds } = await import('$lib/algorithms/roundRobin');
+    const { splitIntoGroups, generateRoundRobinSchedule: generateRRSchedule, assignTablesGlobally } = await import('$lib/algorithms/roundRobin');
     const groups = splitIntoGroups(updatedParticipants, numGroups);
 
-    // Generate schedule for each group
+    // Generate schedule for each group (without table assignment yet)
     for (const group of groups) {
       const rounds = generateRRSchedule(group.participants);
-
-      // Assign tables with rotation strategy for maximum variety
-      const roundsWithTables = assignTablesToRounds(rounds, tournament.numTables);
-      group.schedule = roundsWithTables;
+      group.schedule = rounds;
 
       // Initialize standings
       group.standings = group.participants.map(participantId => ({
@@ -153,6 +150,10 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
         qualifiedForFinal: false
       }));
     }
+
+    // Assign tables GLOBALLY across all groups
+    // This ensures no table is used twice in the same round across any group
+    assignTablesGlobally(groups, tournament.numTables);
 
     const totalRounds = groups[0]?.schedule?.length || 0;
     groupStage = {

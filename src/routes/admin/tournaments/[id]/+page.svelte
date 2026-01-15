@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import CompletedTournamentView from '$lib/components/tournament/CompletedTournamentView.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { getTournament, cancelTournament as cancelTournamentFirebase } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
@@ -233,6 +234,14 @@
       {:else}
         <!-- Tournament Dashboard Content -->
         <div class="dashboard-grid">
+          <!-- Completed Tournament Results Section (at the top) -->
+          {#if tournament.status === 'COMPLETED'}
+            <section class="dashboard-card results-card">
+              <h2>📋 Resultados del Torneo</h2>
+              <CompletedTournamentView {tournament} />
+            </section>
+          {/if}
+
           <!-- General Configuration Section -->
           <section class="dashboard-card">
             <h2>Configuración General</h2>
@@ -353,26 +362,6 @@
             </div>
           </section>
 
-          <!-- Participants Section -->
-          <section class="dashboard-card participants-card">
-            <h2>👥 Participantes ({tournament.participants.length})</h2>
-            <div class="participants-grid">
-              {#each tournament.participants as participant, i (participant.id)}
-                <div class="participant-item">
-                  <div class="participant-info">
-                    <span class="participant-number">#{i + 1}</span>
-                    <span class="participant-name">{participant.name}</span>
-                    {#if participant.type === 'GUEST'}
-                      <span class="guest-badge">Invitado</span>
-                    {/if}
-                  </div>
-                  {#if tournament.eloConfig.enabled}
-                    <span class="elo-badge">ELO: {participant.eloSnapshot || 1500}</span>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </section>
         </div>
       {/if}
     </div>
@@ -730,8 +719,8 @@
     gap: 1.5rem;
   }
 
-  /* Make participants card span full width */
-  .participants-card {
+  /* Make results card span full width */
+  .results-card {
     grid-column: 1 / -1;
   }
 
@@ -758,68 +747,6 @@
 
   .tournament-page[data-theme='dark'] .dashboard-card h2 {
     color: #e1e8ed;
-  }
-
-  /* Participants */
-  .participants-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-
-  .participant-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem;
-    background: #f9fafb;
-    border-radius: 8px;
-    transition: background-color 0.3s;
-  }
-
-  .tournament-page[data-theme='dark'] .participant-item {
-    background: #0f1419;
-  }
-
-  .participant-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .participant-number {
-    font-weight: 600;
-    color: #666;
-    min-width: 30px;
-    transition: color 0.3s;
-  }
-
-  .tournament-page[data-theme='dark'] .participant-number {
-    color: #8b9bb3;
-  }
-
-  .participant-name {
-    color: #1a1a1a;
-    font-weight: 500;
-    transition: color 0.3s;
-  }
-
-  .tournament-page[data-theme='dark'] .participant-name {
-    color: #e1e8ed;
-  }
-
-  .guest-badge {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.5rem;
-    background: #fef3c7;
-    color: #92400e;
-    border-radius: 4px;
-  }
-
-  .elo-badge {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #667eea;
   }
 
   /* Configuration */
@@ -866,10 +793,6 @@
   /* Responsive */
   @media (max-width: 600px) {
     .dashboard-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .participants-grid {
       grid-template-columns: 1fr;
     }
 
@@ -955,27 +878,8 @@
       margin-bottom: 0.75rem;
     }
 
-    .participant-item,
     .config-item {
       padding: 0.5rem;
-    }
-
-    .participant-number {
-      font-size: 0.85rem;
-      min-width: 25px;
-    }
-
-    .participant-name {
-      font-size: 0.85rem;
-    }
-
-    .guest-badge {
-      font-size: 0.7rem;
-      padding: 0.15rem 0.4rem;
-    }
-
-    .elo-badge {
-      font-size: 0.75rem;
     }
 
     .config-label,

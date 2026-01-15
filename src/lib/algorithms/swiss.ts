@@ -174,18 +174,24 @@ function createByeMatch(participantId: string, roundNumber: number): GroupMatch 
  * Assign tables to matches with variety optimization
  *
  * Tries to maximize variety of tables each participant uses
+ * CRITICAL: Ensures no table is used twice in the same round
  *
  * @param matches Matches to assign tables
  * @param totalTables Total number of tables available
  * @param tableHistory History of table usage per participant
+ * @param tablesAlreadyUsed Tables already used in this round (for cross-group coordination)
  * @returns Matches with table assignments
  */
 export function assignTablesWithVariety(
   matches: GroupMatch[],
   totalTables: number,
-  tableHistory: Map<string, number[]> = new Map()
+  tableHistory: Map<string, number[]> = new Map(),
+  tablesAlreadyUsed: Set<number> = new Set()
 ): GroupMatch[] {
   const assignedMatches = [...matches];
+
+  // Track tables used in THIS round (must be unique)
+  const tablesUsedInRound = new Set<number>(tablesAlreadyUsed);
 
   for (const match of assignedMatches) {
     if (match.participantB === 'BYE') {
@@ -193,27 +199,37 @@ export function assignTablesWithVariety(
       continue;
     }
 
-    // Get tables already used by these participants
+    // Get tables already used by these participants historically
     const usedByA = tableHistory.get(match.participantA) || [];
     const usedByB = tableHistory.get(match.participantB) || [];
-    const usedByBoth = new Set([...usedByA, ...usedByB]);
 
-    // Find table with least usage by these participants
+    // Find the best available table that:
+    // 1. Is NOT already used in this round (CRITICAL)
+    // 2. Has least usage by both participants historically
     let bestTable = 1;
     let minUsage = Infinity;
 
     for (let table = 1; table <= totalTables; table++) {
-      const usageCount = usedByBoth.has(table)
-        ? usedByA.filter(t => t === table).length + usedByB.filter(t => t === table).length
-        : 0;
+      // CRITICAL: Skip if table already used in this round
+      if (tablesUsedInRound.has(table)) {
+        continue;
+      }
 
-      if (usageCount < minUsage) {
-        minUsage = usageCount;
+      // Calculate historical usage
+      const usageA = usedByA.filter(t => t === table).length;
+      const usageB = usedByB.filter(t => t === table).length;
+      const totalUsage = usageA + usageB;
+
+      if (totalUsage < minUsage) {
+        minUsage = totalUsage;
         bestTable = table;
       }
     }
 
     match.tableNumber = bestTable;
+
+    // Mark table as used in this round
+    tablesUsedInRound.add(bestTable);
 
     // Update history
     if (!tableHistory.has(match.participantA)) {

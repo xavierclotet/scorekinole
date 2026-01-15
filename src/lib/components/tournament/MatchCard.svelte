@@ -48,15 +48,12 @@
 >
   <div class="match-header">
     <div class="header-left">
-      {#if roundNumber !== undefined}
-        <span class="round-label">Ronda {roundNumber}</span>
-      {/if}
-      <span class="status-badge" style="background: {statusInfo.color}">
-        {statusInfo.text}
-      </span>
+       <span class="table-badge">Mesa {match.tableNumber}</span>
     </div>
     {#if match.tableNumber}
-      <span class="table-badge">Mesa {match.tableNumber}</span>
+     <span class="status-badge" style="background: {statusInfo.color}">
+        {statusInfo.text}
+      </span>
     {/if}
   </div>
 

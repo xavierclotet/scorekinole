@@ -29,29 +29,24 @@ export function resolveTiebreaker(
 
   // Sort standings
   const sorted = [...standings].sort((a, b) => {
-    // 1. Points (descending)
-    if (a.points !== b.points) {
-      return b.points - a.points;
-    }
-
-    // 2. Total 20s (descending)
-    if (a.total20s !== b.total20s) {
-      return b.total20s - a.total20s;
-    }
-
-    // 3. Total points scored (descending)
+    // 1. Total points scored (descending) - sum of all round points
     if (a.totalPointsScored !== b.totalPointsScored) {
       return b.totalPointsScored - a.totalPointsScored;
     }
 
-    // 4. Head-to-head (only if exactly 2 participants tied)
+    // 2. Total 20s (descending) - tiebreaker
+    if (a.total20s !== b.total20s) {
+      return b.total20s - a.total20s;
+    }
+
+    // 3. Head-to-head (only if exactly 2 participants tied)
     if (a.headToHeadRecord && b.headToHeadRecord) {
       const aVsB = a.headToHeadRecord[b.participantId];
       if (aVsB === 'WIN') return -1;
       if (aVsB === 'LOSS') return 1;
     }
 
-    // 5. Initial ELO (descending)
+    // 4. Initial ELO (descending)
     const participantA = participantMap.get(a.participantId);
     const participantB = participantMap.get(b.participantId);
 

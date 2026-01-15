@@ -8,6 +8,16 @@
   // Create participant map for quick lookup
   $: participantMap = new Map(participants.map(p => [p.id, p]));
 
+  // Sort standings by totalPointsScored (desc), then total20s (desc) for display
+  $: sortedStandings = [...standings].sort((a, b) => {
+    // 1. Total points scored (descending)
+    if (b.totalPointsScored !== a.totalPointsScored) {
+      return b.totalPointsScored - a.totalPointsScored;
+    }
+    // 2. Total 20s (descending)
+    return b.total20s - a.total20s;
+  });
+
   // Get participant name by ID
   function getParticipantName(participantId: string): string {
     return participantMap.get(participantId)?.name || 'Unknown';
@@ -17,6 +27,7 @@
   function getParticipantElo(participantId: string): number {
     return participantMap.get(participantId)?.currentElo || participantMap.get(participantId)?.eloSnapshot || 1500;
   }
+
 </script>
 
 <div class="standings-table">
@@ -25,48 +36,47 @@
       <tr>
         <th class="pos-col">#</th>
         <th class="name-col">Participante</th>
-        {#if showElo}
-          <th class="elo-col">ELO</th>
-        {/if}
         <th class="matches-col">PJ</th>
         <th class="wins-col">G</th>
         <th class="losses-col">P</th>
         <th class="ties-col">E</th>
         <th class="points-col">Pts</th>
         <th class="twenties-col">20s</th>
-        <th class="scored-col">Puntos</th>
       </tr>
     </thead>
     <tbody>
-      {#each standings as standing, i (standing.participantId)}
+      {#each sortedStandings as standing, i (standing.participantId)}
         <tr class:qualified={standing.qualifiedForFinal}>
           <td class="pos-col">
             <span class="position-badge" class:qualified={standing.qualifiedForFinal}>
-              {standing.position || i + 1}
+              {i + 1}
             </span>
           </td>
           <td class="name-col">
-            {getParticipantName(standing.participantId)}
-            {#if standing.qualifiedForFinal}
-              <span class="qualified-badge">✓</span>
-            {/if}
+            <span class="participant-info">
+              <span class="participant-name">
+                {getParticipantName(standing.participantId)}
+                {#if standing.qualifiedForFinal}
+                  <span class="qualified-badge">✓</span>
+                {/if}
+              </span>
+              {#if showElo}
+                <span class="elo-badge">{getParticipantElo(standing.participantId)}</span>
+              {/if}
+            </span>
           </td>
-          {#if showElo}
-            <td class="elo-col">{getParticipantElo(standing.participantId)}</td>
-          {/if}
           <td class="matches-col">{standing.matchesPlayed}</td>
           <td class="wins-col">{standing.matchesWon}</td>
           <td class="losses-col">{standing.matchesLost}</td>
           <td class="ties-col">{standing.matchesTied}</td>
-          <td class="points-col"><strong>{standing.points}</strong></td>
+          <td class="points-col"><strong>{standing.totalPointsScored}</strong></td>
           <td class="twenties-col">{standing.total20s}</td>
-          <td class="scored-col">{standing.totalPointsScored}</td>
         </tr>
       {/each}
     </tbody>
   </table>
 
-  {#if standings.length === 0}
+  {#if sortedStandings.length === 0}
     <div class="empty-state">
       <p>No hay clasificación disponible aún</p>
     </div>
@@ -109,18 +119,16 @@
   }
 
   th.name-col {
-    min-width: 150px;
+    min-width: 140px;
   }
 
-  th.elo-col,
   th.matches-col,
   th.wins-col,
   th.losses-col,
   th.ties-col,
   th.points-col,
-  th.twenties-col,
-  th.scored-col {
-    width: 60px;
+  th.twenties-col {
+    width: 50px;
     text-align: center;
   }
 
@@ -147,15 +155,42 @@
   }
 
   td.pos-col,
-  td.elo-col,
   td.matches-col,
   td.wins-col,
   td.losses-col,
   td.ties-col,
   td.points-col,
-  td.twenties-col,
-  td.scored-col {
+  td.twenties-col {
     text-align: center;
+  }
+
+  /* Participant name with ELO badge */
+  .participant-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .participant-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .elo-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    background: #e5e7eb;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+  }
+
+  :global([data-theme='dark']) .elo-badge {
+    background: #2d3748;
+    color: #8b9bb3;
   }
 
   .position-badge {
@@ -254,19 +289,22 @@
     }
 
     th.name-col {
-      min-width: 120px;
+      min-width: 100px;
     }
 
     th.pos-col,
-    th.elo-col,
     th.matches-col,
     th.wins-col,
     th.losses-col,
     th.ties-col,
     th.points-col,
-    th.twenties-col,
-    th.scored-col {
-      width: 45px;
+    th.twenties-col {
+      width: 38px;
+    }
+
+    .elo-badge {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.3rem;
     }
 
     .position-badge {

@@ -207,11 +207,13 @@ export function validateRoundRobinGroupSize(
  *
  * @param rounds Array of rounds with matches
  * @param totalTables Total number of tables available
+ * @param tablesUsedByRound Optional map of already-used tables per round (for cross-group coordination)
  * @returns Rounds with table assignments
  */
 export function assignTablesToRounds(
   rounds: RoundRobinRound[],
-  totalTables: number
+  totalTables: number,
+  tablesUsedByRound?: Map<number, Set<number>>
 ): RoundRobinRound[] {
   const assignedRounds = [...rounds];
 
@@ -220,7 +222,10 @@ export function assignTablesToRounds(
 
   for (const round of assignedRounds) {
     // Track which tables are used in THIS round (must be unique)
-    const tablesUsedInRound = new Set<number>();
+    // Start with tables already used by other groups in this round
+    const tablesUsedInRound = new Set<number>(
+      tablesUsedByRound?.get(round.roundNumber) || []
+    );
 
     // For each match in this round
     for (let matchIndex = 0; matchIndex < round.matches.length; matchIndex++) {
@@ -236,13 +241,13 @@ export function assignTablesToRounds(
       const usedByB = tableHistory.get(match.participantB) || [];
 
       // Find the best available table that:
-      // 1. Is NOT already used in this round (CRITICAL)
+      // 1. Is NOT already used in this round (CRITICAL - includes other groups)
       // 2. Is least used by both participants historically
       let bestTable = 1;
       let minTotalUsage = Infinity;
 
       for (let table = 1; table <= totalTables; table++) {
-        // CRITICAL: Skip if table already used in this round
+        // CRITICAL: Skip if table already used in this round (by this or other groups)
         if (tablesUsedInRound.has(table)) {
           continue;
         }
@@ -269,8 +274,16 @@ export function assignTablesToRounds(
       // Assign table to match
       match.tableNumber = bestTable;
 
-      // Mark table as used in this round
+      // Mark table as used in this round (for this group)
       tablesUsedInRound.add(bestTable);
+
+      // Also update the shared map so other groups know this table is taken
+      if (tablesUsedByRound) {
+        if (!tablesUsedByRound.has(round.roundNumber)) {
+          tablesUsedByRound.set(round.roundNumber, new Set());
+        }
+        tablesUsedByRound.get(round.roundNumber)!.add(bestTable);
+      }
 
       // Update historical usage
       if (!tableHistory.has(match.participantA)) {
@@ -285,4 +298,33 @@ export function assignTablesToRounds(
   }
 
   return assignedRounds;
+}
+
+/**
+ * Assign tables globally across all groups
+ * Ensures no table is used twice in the same round across any group
+ *
+ * @param groups Array of groups with their schedules
+ * @param totalTables Total number of tables available
+ * @returns Groups with table assignments
+ */
+export function assignTablesGlobally(
+  groups: Group[],
+  totalTables: number
+): Group[] {
+  // Track which tables are used per round number across ALL groups
+  const tablesUsedByRound = new Map<number, Set<number>>();
+
+  // Process groups in order, passing the shared table usage map
+  for (const group of groups) {
+    if (group.schedule) {
+      group.schedule = assignTablesToRounds(
+        group.schedule,
+        totalTables,
+        tablesUsedByRound
+      );
+    }
+  }
+
+  return groups;
 }
