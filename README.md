@@ -56,22 +56,75 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 - **Offline Mode**: Works perfectly without internet connection
 
 ### 🏆 **Tournament Management (Admin)**
-- **Full Tournament System**: Create and manage professional Crokinole tournaments
-- **Two Tournament Formats**:
-  - **One Phase**: Direct elimination bracket
-  - **Two Phases**: Group stage (Round Robin or Swiss) + Final elimination bracket
-- **Group Stage Options**:
-  - Round Robin: Automatic scheduling with multiple groups
-  - Swiss System: Intelligent pairing based on performance
-- **Advanced Features**:
-  - ELO rating calculation and tracking
-  - Automatic bracket generation with visual connectors
-  - Real-time match tracking and scoring
-  - Participant management with Google account integration
-  - Customizable game modes per phase (points or rounds)
-  - Table assignment and rotation
-  - Match history and statistics
-- **Beautiful Bracket Visualization**: Visual arrows connecting matches showing tournament progression
+
+Complete tournament administration system for professional Crokinole events:
+
+#### **Tournament Creation Wizard**
+- **5-step guided setup**: Basic info → Format → Ranking → Participants → Review
+- **Draft auto-save**: Progress saved automatically, resume anytime
+- **Tournament key**: Unique 6-character alphanumeric identifier for each event
+- **Edition tracking**: Auto-increment edition numbers for recurring tournaments
+- **Location**: Country and city configuration
+
+#### **Tournament Formats**
+- **One Phase**: Direct elimination bracket (2-64 participants)
+- **Two Phases**: Group stage + Final bracket
+  - Group stage: Round Robin or Swiss System
+  - Final stage: Single bracket or Gold/Silver divisions
+
+#### **Group Stage Options**
+- **Round Robin**: Automatic scheduling with configurable number of groups
+- **Swiss System**: Intelligent pairing based on performance
+  - Configurable number of rounds
+  - Ranking by wins (2/1/0) or total points scored
+
+#### **Final Stage Options**
+- **Single Bracket**: Standard elimination tournament
+- **Split Divisions**: Gold and Silver brackets
+  - Independent configuration for each bracket
+  - Different game modes and match formats per division
+
+#### **Game Configuration Per Phase**
+- **By Points**: First to X points (e.g., first to 7)
+- **By Rounds**: Fixed rounds (e.g., 4 rounds)
+- **Best of X**: Configurable matches to win (Best of 1, 3, 5, etc.)
+- **Advanced bracket config**: Different settings for early rounds, semifinals, and finals
+
+#### **Tier-Based Ranking System**
+- **4 tournament tiers** with different point distributions:
+  - Major (Tier 1): 1000-100 points
+  - National (Tier 2): 500-50 points
+  - Regional (Tier 3): 250-25 points
+  - Club (Tier 4): 100-10 points
+- **Automatic ranking updates** after tournament completion
+- **Ranking snapshots** preserved for historical records
+
+#### **Participant Management**
+- **Registered users**: Search and add from Firebase database
+- **Guest players**: Quick add without account
+- **Doubles support**: Pair configuration
+- **Minimum 2 participants** required to start
+
+#### **Tournament States**
+- **DRAFT**: Initial setup, editable configuration
+- **GROUP_STAGE**: Group matches in progress (Two Phase only)
+- **TRANSITION**: Select qualifiers for final bracket
+- **FINAL_STAGE**: Bracket matches in progress
+- **COMPLETED**: Results finalized, rankings applied
+- **CANCELLED**: Tournament cancelled
+
+#### **Match Management**
+- **Table assignment**: Configurable number of tables
+- **Real-time scoring**: Live score entry and updates
+- **20s tracking**: Optional center shot counting
+- **Hammer display**: Visual hammer indicator
+- **No-show handling**: Walkover support
+
+#### **Visualization**
+- **Beautiful bracket display**: Visual connectors between matches
+- **Group standings**: Live updated tables with tiebreakers
+- **Match details**: Round-by-round breakdown
+- **Tournament results**: Final standings with all statistics
 
 ---
 
