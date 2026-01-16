@@ -84,6 +84,30 @@ export interface Tournament {
     silverPointsToWin?: number;
     silverRoundsToPlay?: number;
     silverMatchesToWin?: number;
+    // Per-phase configuration (optional, overrides default config above)
+    earlyRoundsGameMode?: 'points' | 'rounds';
+    earlyRoundsPointsToWin?: number;
+    earlyRoundsToPlay?: number;
+    semifinalGameMode?: 'points' | 'rounds';
+    semifinalPointsToWin?: number;
+    semifinalRoundsToPlay?: number;
+    semifinalMatchesToWin?: number;
+    finalGameMode?: 'points' | 'rounds';
+    finalPointsToWin?: number;
+    finalRoundsToPlay?: number;
+    finalMatchesToWin?: number;
+    // Silver bracket per-phase config (only for SPLIT_DIVISIONS)
+    silverEarlyRoundsGameMode?: 'points' | 'rounds';
+    silverEarlyRoundsPointsToWin?: number;
+    silverEarlyRoundsToPlay?: number;
+    silverSemifinalGameMode?: 'points' | 'rounds';
+    silverSemifinalPointsToWin?: number;
+    silverSemifinalRoundsToPlay?: number;
+    silverSemifinalMatchesToWin?: number;
+    silverFinalGameMode?: 'points' | 'rounds';
+    silverFinalPointsToWin?: number;
+    silverFinalRoundsToPlay?: number;
+    silverFinalMatchesToWin?: number;
   };
 
   // Timestamps
@@ -290,6 +314,37 @@ export interface FinalStage {
   silverPointsToWin?: number;
   silverRoundsToPlay?: number;
   silverMatchesToWin?: number;
+
+  // Per-phase configuration for bracket (optional, overrides default config)
+  // Early rounds (octavos, cuartos, etc.)
+  earlyRoundsGameMode?: 'points' | 'rounds';  // default: 'rounds'
+  earlyRoundsPointsToWin?: number;            // default: 7
+  earlyRoundsToPlay?: number;                 // default: 4
+
+  // Semifinals configuration
+  semifinalGameMode?: 'points' | 'rounds';    // default: 'points'
+  semifinalPointsToWin?: number;              // default: 7
+  semifinalRoundsToPlay?: number;
+  semifinalMatchesToWin?: number;             // default: 1
+
+  // Final configuration
+  finalGameMode?: 'points' | 'rounds';        // default: 'points'
+  finalPointsToWin?: number;                  // default: 9
+  finalRoundsToPlay?: number;
+  finalMatchesToWin?: number;                 // default: 1
+
+  // Silver bracket per-phase configuration (only for SPLIT_DIVISIONS)
+  silverEarlyRoundsGameMode?: 'points' | 'rounds';
+  silverEarlyRoundsPointsToWin?: number;
+  silverEarlyRoundsToPlay?: number;
+  silverSemifinalGameMode?: 'points' | 'rounds';
+  silverSemifinalPointsToWin?: number;
+  silverSemifinalRoundsToPlay?: number;
+  silverSemifinalMatchesToWin?: number;
+  silverFinalGameMode?: 'points' | 'rounds';
+  silverFinalPointsToWin?: number;
+  silverFinalRoundsToPlay?: number;
+  silverFinalMatchesToWin?: number;
 }
 
 /**

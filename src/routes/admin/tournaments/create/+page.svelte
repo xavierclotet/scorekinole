@@ -63,6 +63,35 @@
   let silverRoundsToPlay = 4;
   let silverMatchesToWin = 1;
 
+  // Advanced bracket phase configuration
+  let showAdvancedBracketConfig = false;
+  // Early rounds (octavos, cuartos)
+  let earlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
+  let earlyRoundsPointsToWin = 7;
+  let earlyRoundsToPlay = 4;
+  // Semifinals
+  let semifinalGameMode: 'points' | 'rounds' = 'points';
+  let semifinalPointsToWin = 7;
+  let semifinalRoundsToPlay = 4;
+  let semifinalMatchesToWin = 1;
+  // Final
+  let bracketFinalGameMode: 'points' | 'rounds' = 'points';
+  let bracketFinalPointsToWin = 9;
+  let bracketFinalRoundsToPlay = 4;
+  let bracketFinalMatchesToWin = 1;
+  // Silver bracket advanced config
+  let silverEarlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
+  let silverEarlyRoundsPointsToWin = 7;
+  let silverEarlyRoundsToPlay = 4;
+  let silverSemifinalGameMode: 'points' | 'rounds' = 'points';
+  let silverSemifinalPointsToWin = 7;
+  let silverSemifinalRoundsToPlay = 4;
+  let silverSemifinalMatchesToWin = 1;
+  let silverBracketFinalGameMode: 'points' | 'rounds' = 'points';
+  let silverBracketFinalPointsToWin = 9;
+  let silverBracketFinalRoundsToPlay = 4;
+  let silverBracketFinalMatchesToWin = 1;
+
   // Backward compatibility: for ONE_PHASE tournaments
   let gameMode: 'points' | 'rounds' = 'points';
   let pointsToWin = 7;
@@ -719,7 +748,38 @@
           silverGameMode: finalStageMode === 'SPLIT_DIVISIONS' ? silverGameMode : undefined,
           silverPointsToWin: finalStageMode === 'SPLIT_DIVISIONS' && silverGameMode === 'points' ? silverPointsToWin : undefined,
           silverRoundsToPlay: finalStageMode === 'SPLIT_DIVISIONS' && silverGameMode === 'rounds' ? silverRoundsToPlay : undefined,
-          silverMatchesToWin: finalStageMode === 'SPLIT_DIVISIONS' ? silverMatchesToWin : undefined
+          silverMatchesToWin: finalStageMode === 'SPLIT_DIVISIONS' ? silverMatchesToWin : undefined,
+          // Advanced per-phase configuration (if enabled)
+          ...(showAdvancedBracketConfig ? {
+            // Early rounds (octavos, cuartos)
+            earlyRoundsGameMode,
+            earlyRoundsPointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
+            earlyRoundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
+            // Semifinals
+            semifinalGameMode,
+            semifinalPointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
+            semifinalRoundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
+            semifinalMatchesToWin,
+            // Final
+            finalGameMode: bracketFinalGameMode,
+            finalPointsToWin: bracketFinalGameMode === 'points' ? bracketFinalPointsToWin : undefined,
+            finalRoundsToPlay: bracketFinalGameMode === 'rounds' ? bracketFinalRoundsToPlay : undefined,
+            finalMatchesToWin: bracketFinalMatchesToWin,
+            // Silver bracket advanced config (only for SPLIT_DIVISIONS)
+            ...(finalStageMode === 'SPLIT_DIVISIONS' ? {
+              silverEarlyRoundsGameMode,
+              silverEarlyRoundsPointsToWin: silverEarlyRoundsGameMode === 'points' ? silverEarlyRoundsPointsToWin : undefined,
+              silverEarlyRoundsToPlay: silverEarlyRoundsGameMode === 'rounds' ? silverEarlyRoundsToPlay : undefined,
+              silverSemifinalGameMode,
+              silverSemifinalPointsToWin: silverSemifinalGameMode === 'points' ? silverSemifinalPointsToWin : undefined,
+              silverSemifinalRoundsToPlay: silverSemifinalGameMode === 'rounds' ? silverSemifinalRoundsToPlay : undefined,
+              silverSemifinalMatchesToWin,
+              silverFinalGameMode: silverBracketFinalGameMode,
+              silverFinalPointsToWin: silverBracketFinalGameMode === 'points' ? silverBracketFinalPointsToWin : undefined,
+              silverFinalRoundsToPlay: silverBracketFinalGameMode === 'rounds' ? silverBracketFinalRoundsToPlay : undefined,
+              silverFinalMatchesToWin: silverBracketFinalMatchesToWin
+            } : {})
+          } : {})
         };
       } else {
         // ONE_PHASE: final stage configuration (for bracket directly)
@@ -1374,6 +1434,283 @@
                           </div>
                         </div>
                       {/if}
+                    </div>
+                  {/if}
+                </div>
+
+                <!-- Advanced bracket phase configuration -->
+                <div class="advanced-config-section">
+                  <button
+                    type="button"
+                    class="advanced-toggle"
+                    on:click={() => showAdvancedBracketConfig = !showAdvancedBracketConfig}
+                  >
+                    {showAdvancedBracketConfig ? '▼' : '▶'} Configuración Avanzada por Fase
+                  </button>
+
+                  {#if showAdvancedBracketConfig}
+                    <div class="advanced-config-content">
+                      <p class="advanced-hint">
+                        Configura diferentes reglas para cada fase del bracket. Si no se configura, todas las fases usarán la configuración básica de arriba.
+                      </p>
+
+                      <!-- Gold Bracket Advanced Config -->
+                      <div class="phase-configs-container" class:split={finalStageMode === 'SPLIT_DIVISIONS'}>
+                        <div class="phase-configs-group" class:gold={finalStageMode === 'SPLIT_DIVISIONS'}>
+                          {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                            <h5>🥇 Bracket Oro - Por Fase</h5>
+                          {/if}
+
+                          <!-- Early Rounds -->
+                          <div class="phase-config-box early">
+                            <h6>🏃 Fases Tempranas (Octavos, Cuartos)</h6>
+                            <div class="form-row compact">
+                              <div class="form-group">
+                                <label>Modo</label>
+                                <select bind:value={earlyRoundsGameMode} class="input-field small">
+                                  <option value="rounds">Rondas</option>
+                                  <option value="points">Puntos</option>
+                                </select>
+                              </div>
+                              <div class="form-group">
+                                {#if earlyRoundsGameMode === 'rounds'}
+                                  <label>Rondas</label>
+                                  <input
+                                    type="number"
+                                    bind:value={earlyRoundsToPlay}
+                                    min="1"
+                                    max="20"
+                                    class="input-field small"
+                                  />
+                                {:else}
+                                  <label>Puntos</label>
+                                  <input
+                                    type="number"
+                                    bind:value={earlyRoundsPointsToWin}
+                                    min="1"
+                                    max="20"
+                                    class="input-field small"
+                                  />
+                                {/if}
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Semifinals -->
+                          <div class="phase-config-box semi">
+                            <h6>🔥 Semifinales</h6>
+                            <div class="form-row compact">
+                              <div class="form-group">
+                                <label>Modo</label>
+                                <select bind:value={semifinalGameMode} class="input-field small">
+                                  <option value="points">Puntos</option>
+                                  <option value="rounds">Rondas</option>
+                                </select>
+                              </div>
+                              <div class="form-group">
+                                {#if semifinalGameMode === 'rounds'}
+                                  <label>Rondas</label>
+                                  <input
+                                    type="number"
+                                    bind:value={semifinalRoundsToPlay}
+                                    min="1"
+                                    max="20"
+                                    class="input-field small"
+                                  />
+                                {:else}
+                                  <label>Puntos</label>
+                                  <input
+                                    type="number"
+                                    bind:value={semifinalPointsToWin}
+                                    min="1"
+                                    max="20"
+                                    class="input-field small"
+                                  />
+                                {/if}
+                              </div>
+                              <div class="form-group">
+                                <label>Best of</label>
+                                <select bind:value={semifinalMatchesToWin} class="input-field small">
+                                  <option value={1}>1</option>
+                                  <option value={3}>3</option>
+                                  <option value={5}>5</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Final -->
+                          <div class="phase-config-box final">
+                            <h6>🏆 Final</h6>
+                            <div class="form-row compact">
+                              <div class="form-group">
+                                <label>Modo</label>
+                                <select bind:value={bracketFinalGameMode} class="input-field small">
+                                  <option value="points">Puntos</option>
+                                  <option value="rounds">Rondas</option>
+                                </select>
+                              </div>
+                              <div class="form-group">
+                                {#if bracketFinalGameMode === 'rounds'}
+                                  <label>Rondas</label>
+                                  <input
+                                    type="number"
+                                    bind:value={bracketFinalRoundsToPlay}
+                                    min="1"
+                                    max="20"
+                                    class="input-field small"
+                                  />
+                                {:else}
+                                  <label>Puntos</label>
+                                  <input
+                                    type="number"
+                                    bind:value={bracketFinalPointsToWin}
+                                    min="1"
+                                    max="20"
+                                    class="input-field small"
+                                  />
+                                {/if}
+                              </div>
+                              <div class="form-group">
+                                <label>Best of</label>
+                                <select bind:value={bracketFinalMatchesToWin} class="input-field small">
+                                  <option value={1}>1</option>
+                                  <option value={3}>3</option>
+                                  <option value={5}>5</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Silver Bracket Advanced Config -->
+                        {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                          <div class="phase-configs-group silver">
+                            <h5>🥈 Bracket Plata - Por Fase</h5>
+
+                            <!-- Early Rounds Silver -->
+                            <div class="phase-config-box early">
+                              <h6>🏃 Fases Tempranas</h6>
+                              <div class="form-row compact">
+                                <div class="form-group">
+                                  <label>Modo</label>
+                                  <select bind:value={silverEarlyRoundsGameMode} class="input-field small">
+                                    <option value="rounds">Rondas</option>
+                                    <option value="points">Puntos</option>
+                                  </select>
+                                </div>
+                                <div class="form-group">
+                                  {#if silverEarlyRoundsGameMode === 'rounds'}
+                                    <label>Rondas</label>
+                                    <input
+                                      type="number"
+                                      bind:value={silverEarlyRoundsToPlay}
+                                      min="1"
+                                      max="20"
+                                      class="input-field small"
+                                    />
+                                  {:else}
+                                    <label>Puntos</label>
+                                    <input
+                                      type="number"
+                                      bind:value={silverEarlyRoundsPointsToWin}
+                                      min="1"
+                                      max="20"
+                                      class="input-field small"
+                                    />
+                                  {/if}
+                                </div>
+                              </div>
+                            </div>
+
+                            <!-- Semifinals Silver -->
+                            <div class="phase-config-box semi">
+                              <h6>🔥 Semifinales</h6>
+                              <div class="form-row compact">
+                                <div class="form-group">
+                                  <label>Modo</label>
+                                  <select bind:value={silverSemifinalGameMode} class="input-field small">
+                                    <option value="points">Puntos</option>
+                                    <option value="rounds">Rondas</option>
+                                  </select>
+                                </div>
+                                <div class="form-group">
+                                  {#if silverSemifinalGameMode === 'rounds'}
+                                    <label>Rondas</label>
+                                    <input
+                                      type="number"
+                                      bind:value={silverSemifinalRoundsToPlay}
+                                      min="1"
+                                      max="20"
+                                      class="input-field small"
+                                    />
+                                  {:else}
+                                    <label>Puntos</label>
+                                    <input
+                                      type="number"
+                                      bind:value={silverSemifinalPointsToWin}
+                                      min="1"
+                                      max="20"
+                                      class="input-field small"
+                                    />
+                                  {/if}
+                                </div>
+                                <div class="form-group">
+                                  <label>Best of</label>
+                                  <select bind:value={silverSemifinalMatchesToWin} class="input-field small">
+                                    <option value={1}>1</option>
+                                    <option value={3}>3</option>
+                                    <option value={5}>5</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+
+                            <!-- Final Silver -->
+                            <div class="phase-config-box final">
+                              <h6>🏆 Final</h6>
+                              <div class="form-row compact">
+                                <div class="form-group">
+                                  <label>Modo</label>
+                                  <select bind:value={silverBracketFinalGameMode} class="input-field small">
+                                    <option value="points">Puntos</option>
+                                    <option value="rounds">Rondas</option>
+                                  </select>
+                                </div>
+                                <div class="form-group">
+                                  {#if silverBracketFinalGameMode === 'rounds'}
+                                    <label>Rondas</label>
+                                    <input
+                                      type="number"
+                                      bind:value={silverBracketFinalRoundsToPlay}
+                                      min="1"
+                                      max="20"
+                                      class="input-field small"
+                                    />
+                                  {:else}
+                                    <label>Puntos</label>
+                                    <input
+                                      type="number"
+                                      bind:value={silverBracketFinalPointsToWin}
+                                      min="1"
+                                      max="20"
+                                      class="input-field small"
+                                    />
+                                  {/if}
+                                </div>
+                                <div class="form-group">
+                                  <label>Best of</label>
+                                  <select bind:value={silverBracketFinalMatchesToWin} class="input-field small">
+                                    <option value={1}>1</option>
+                                    <option value={3}>3</option>
+                                    <option value={5}>5</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        {/if}
+                      </div>
                     </div>
                   {/if}
                 </div>
@@ -2606,6 +2943,167 @@
 
   .match-config-box.silver {
     border-left: 3px solid #9ca3af;
+  }
+
+  /* Advanced bracket config */
+  .advanced-config-section {
+    margin-top: 1.5rem;
+    border-top: 1px dashed #e5e7eb;
+    padding-top: 1rem;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-config-section {
+    border-color: #374151;
+  }
+
+  .advanced-toggle {
+    background: none;
+    border: none;
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #667eea;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: color 0.2s;
+  }
+
+  .advanced-toggle:hover {
+    color: #4f46e5;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-toggle {
+    color: #818cf8;
+  }
+
+  .advanced-config-content {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-config-content {
+    background: #0f172a;
+    border-color: #334155;
+  }
+
+  .advanced-hint {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin: 0 0 1rem 0;
+    padding: 0.5rem;
+    background: #e0f2fe;
+    border-radius: 6px;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-hint {
+    background: #1e3a5f;
+    color: #94a3b8;
+  }
+
+  .phase-configs-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .phase-configs-container.split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  @media (max-width: 900px) {
+    .phase-configs-container.split {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .phase-configs-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .phase-configs-group h5 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: #1e293b;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-configs-group h5 {
+    color: #e2e8f0;
+  }
+
+  .phase-configs-group.gold h5 {
+    color: #b45309;
+  }
+
+  .phase-configs-group.silver h5 {
+    color: #6b7280;
+  }
+
+  .phase-config-box {
+    padding: 0.75rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-config-box {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .phase-config-box h6 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: #475569;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-config-box h6 {
+    color: #94a3b8;
+  }
+
+  .phase-config-box.early {
+    border-left: 3px solid #6366f1;
+  }
+
+  .phase-config-box.semi {
+    border-left: 3px solid #f59e0b;
+  }
+
+  .phase-config-box.final {
+    border-left: 3px solid #10b981;
+  }
+
+  .form-row.compact {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .form-row.compact .form-group {
+    flex: 1;
+    min-width: 80px;
+    margin-bottom: 0;
+  }
+
+  .form-row.compact label {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .input-field.small {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.85rem;
   }
 
   /* Brackets container */

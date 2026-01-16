@@ -477,20 +477,20 @@
             </p>
           </div>
           <div class="header-actions">
-            {#if isSuperAdminUser}
-              {@const isSwiss = tournament.groupStage?.type === 'SWISS'}
-              {@const currentRound = tournament.groupStage?.currentRound || 1}
-              {@const totalSwissRounds = tournament.groupStage?.numSwissRounds || tournament.numSwissRounds || 0}
-              {@const allSwissRoundsComplete = isSwiss && currentRound >= totalSwissRounds && tournament.groupStage?.groups.every(g => {
+            {#if tournament.groupStage}
+              {@const isSwiss = tournament.groupStage.type === 'SWISS'}
+              {@const currentRound = tournament.groupStage.currentRound || 1}
+              {@const totalSwissRounds = tournament.groupStage.numSwissRounds || tournament.numSwissRounds || 0}
+              {@const allSwissRoundsComplete = isSwiss && currentRound >= totalSwissRounds && tournament.groupStage.groups.every(g => {
                 const currentPairing = g.pairings?.find(p => p.roundNumber === currentRound);
                 return currentPairing?.matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
               })}
-              {@const allRoundRobinComplete = !isSwiss && tournament.groupStage?.groups.every(g => {
+              {@const allRoundRobinComplete = !isSwiss && tournament.groupStage.groups.every(g => {
                 const matches = g.schedule?.flatMap(r => r.matches) || [];
                 return matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
               })}
-              {@const hasPendingMatches = !allSwissRoundsComplete && !allRoundRobinComplete}
-              {#if hasPendingMatches}
+              {@const allMatchesComplete = allSwissRoundsComplete || allRoundRobinComplete}
+              {#if isSuperAdminUser && !allMatchesComplete}
                 <button
                   class="action-btn autofill"
                   on:click={autoFillAllMatches}
@@ -508,14 +508,16 @@
                   {/if}
                 </button>
               {/if}
+              {#if allMatchesComplete}
+                <button
+                  class="action-btn complete"
+                  on:click={confirmCompleteGroups}
+                  disabled={isTransitioning}
+                >
+                  {isTransitioning ? '⏳ Completando...' : '✅ Completar Fase de Grupos'}
+                </button>
+              {/if}
             {/if}
-            <button
-              class="action-btn complete"
-              on:click={confirmCompleteGroups}
-              disabled={isTransitioning}
-            >
-              {isTransitioning ? '⏳ Completando...' : '✅ Completar Fase de Grupos'}
-            </button>
           </div>
         </div>
       {/if}

@@ -115,6 +115,18 @@ export async function generateBracket(
     pointsToWin?: number;
     roundsToPlay?: number;
     matchesToWin: number;
+    // Per-phase configuration
+    earlyRoundsGameMode?: 'points' | 'rounds';
+    earlyRoundsPointsToWin?: number;
+    earlyRoundsToPlay?: number;
+    semifinalGameMode?: 'points' | 'rounds';
+    semifinalPointsToWin?: number;
+    semifinalRoundsToPlay?: number;
+    semifinalMatchesToWin?: number;
+    finalGameMode?: 'points' | 'rounds';
+    finalPointsToWin?: number;
+    finalRoundsToPlay?: number;
+    finalMatchesToWin?: number;
   }
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
@@ -210,7 +222,19 @@ export async function generateBracket(
         gameMode: finalStageConfig.gameMode,
         pointsToWin: finalStageConfig.pointsToWin,
         roundsToPlay: finalStageConfig.roundsToPlay,
-        matchesToWin: finalStageConfig.matchesToWin
+        matchesToWin: finalStageConfig.matchesToWin,
+        // Per-phase configuration
+        earlyRoundsGameMode: finalStageConfig.earlyRoundsGameMode,
+        earlyRoundsPointsToWin: finalStageConfig.earlyRoundsPointsToWin,
+        earlyRoundsToPlay: finalStageConfig.earlyRoundsToPlay,
+        semifinalGameMode: finalStageConfig.semifinalGameMode,
+        semifinalPointsToWin: finalStageConfig.semifinalPointsToWin,
+        semifinalRoundsToPlay: finalStageConfig.semifinalRoundsToPlay,
+        semifinalMatchesToWin: finalStageConfig.semifinalMatchesToWin,
+        finalGameMode: finalStageConfig.finalGameMode,
+        finalPointsToWin: finalStageConfig.finalPointsToWin,
+        finalRoundsToPlay: finalStageConfig.finalRoundsToPlay,
+        finalMatchesToWin: finalStageConfig.finalMatchesToWin
       }
     });
   } catch (error) {

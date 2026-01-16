@@ -183,13 +183,28 @@
           await updateQualifiers(tournamentId, groupIndex, qualifiedIds);
         }
 
-        // Generate single bracket
-        const bracketSuccess = await generateBracket(tournamentId, {
+        // Generate single bracket - pass all config including per-phase settings
+        const bracketConfig = {
           gameMode: finalGameMode,
           pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
           roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
-          matchesToWin: finalMatchesToWin
-        });
+          matchesToWin: finalMatchesToWin,
+          // Pass per-phase configuration from finalStageConfig if available
+          ...(tournament.finalStageConfig ? {
+            earlyRoundsGameMode: tournament.finalStageConfig.earlyRoundsGameMode,
+            earlyRoundsPointsToWin: tournament.finalStageConfig.earlyRoundsPointsToWin,
+            earlyRoundsToPlay: tournament.finalStageConfig.earlyRoundsToPlay,
+            semifinalGameMode: tournament.finalStageConfig.semifinalGameMode,
+            semifinalPointsToWin: tournament.finalStageConfig.semifinalPointsToWin,
+            semifinalRoundsToPlay: tournament.finalStageConfig.semifinalRoundsToPlay,
+            semifinalMatchesToWin: tournament.finalStageConfig.semifinalMatchesToWin,
+            finalGameMode: tournament.finalStageConfig.finalGameMode,
+            finalPointsToWin: tournament.finalStageConfig.finalPointsToWin,
+            finalRoundsToPlay: tournament.finalStageConfig.finalRoundsToPlay,
+            finalMatchesToWin: tournament.finalStageConfig.finalMatchesToWin
+          } : {})
+        };
+        const bracketSuccess = await generateBracket(tournamentId, bracketConfig);
 
         if (!bracketSuccess) {
           toastMessage = '❌ Error al generar bracket';

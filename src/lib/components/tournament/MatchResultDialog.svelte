@@ -3,12 +3,18 @@
   import type { GroupMatch, TournamentParticipant, Tournament } from '$lib/types/tournament';
   import { t } from '$lib/stores/language';
   import { adminTheme } from '$lib/stores/adminTheme';
+  import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
 
   export let match: GroupMatch;
   export let participants: TournamentParticipant[];
   export let tournament: Tournament;
   export let visible: boolean = false;
   export let isBracket: boolean = false;  // Whether this is a bracket match (uses final stage config)
+  // Bracket phase info (for per-phase configuration)
+  export let bracketRoundNumber: number = 1;
+  export let bracketTotalRounds: number = 1;
+  export let bracketIsThirdPlace: boolean = false;
+  export let bracketIsSilver: boolean = false;
 
   const dispatch = createEventDispatcher<{
     close: void;
@@ -29,20 +35,21 @@
   $: participantB = participantMap.get(match.participantB);
   $: isBye = match.participantB === 'BYE';
 
-  // Game mode - use final stage config if in bracket, otherwise use group stage config
+  // Game mode - use phase-specific config if in bracket, otherwise use group stage config
   $: gameConfig = isBracket && tournament.finalStage
-    ? {
-        gameMode: tournament.finalStage.gameMode,
-        pointsToWin: tournament.finalStage.pointsToWin,
-        roundsToPlay: tournament.finalStage.roundsToPlay,
-        matchesToWin: tournament.finalStage.matchesToWin
-      }
+    ? getPhaseConfig(
+        tournament.finalStage,
+        bracketRoundNumber,
+        bracketTotalRounds,
+        bracketIsThirdPlace,
+        bracketIsSilver
+      )
     : tournament.groupStage
     ? {
         gameMode: tournament.groupStage.gameMode,
-        pointsToWin: tournament.groupStage.pointsToWin,
-        roundsToPlay: tournament.groupStage.roundsToPlay,
-        matchesToWin: tournament.groupStage.matchesToWin
+        pointsToWin: tournament.groupStage.pointsToWin || 7,
+        roundsToPlay: tournament.groupStage.roundsToPlay || 4,
+        matchesToWin: tournament.groupStage.matchesToWin || 1
       }
     : {
         // Legacy fallback

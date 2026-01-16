@@ -16,6 +16,7 @@
   } from '$lib/firebase/tournamentBracket';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
+  import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
 
   let tournament: Tournament | null = null;
   let loading = true;
@@ -25,6 +26,8 @@
   let showMatchDialog = false;
   let selectedMatch: BracketMatch | null = null;
   let selectedBracketType: 'gold' | 'silver' = 'gold';
+  let selectedRoundNumber: number = 1;
+  let selectedIsThirdPlace: boolean = false;
   let isSuperAdminUser = false;
   let isAutoFilling = false;
 
@@ -107,10 +110,17 @@
     return statusMap[status] || { text: status, color: '#6b7280' };
   }
 
-  function handleMatchClick(match: BracketMatch, bracketType: 'gold' | 'silver' = 'gold') {
+  function handleMatchClick(
+    match: BracketMatch,
+    bracketType: 'gold' | 'silver' = 'gold',
+    roundNumber: number = 1,
+    isThirdPlace: boolean = false
+  ) {
     if (!match.participantA || !match.participantB) return;
     selectedMatch = match;
     selectedBracketType = bracketType;
+    selectedRoundNumber = roundNumber;
+    selectedIsThirdPlace = isThirdPlace;
     showMatchDialog = true;
   }
 
@@ -227,12 +237,14 @@
       async function simulateMatch(
         match: BracketMatch,
         bracketType: 'gold' | 'silver',
-        pointsToWin: number,
-        matchesToWin: number
+        config: { gameMode: 'points' | 'rounds'; pointsToWin: number; roundsToPlay: number; matchesToWin: number }
       ): Promise<boolean> {
         if (match.status !== 'PENDING' || !match.participantA || !match.participantB) {
           return false;
         }
+
+        const { gameMode, pointsToWin, roundsToPlay, matchesToWin } = config;
+        const isRoundsMode = gameMode === 'rounds';
 
         const requiredWins = Math.ceil(matchesToWin / 2);
         let gamesA = 0;
@@ -259,7 +271,11 @@
           let gamePointsB = 0;
           let roundInGame = 0;
 
-          while (true) {
+          // For rounds mode, play exactly roundsToPlay rounds
+          // For points mode, play until reaching pointsToWin with 2+ lead
+          const maxRoundsInGame = isRoundsMode ? roundsToPlay : 100; // 100 is a safety limit for points mode
+
+          while (roundInGame < maxRoundsInGame) {
             roundInGame++;
             const distribution = Math.random();
             let roundPointsA = 0;
@@ -295,11 +311,14 @@
               twentiesB: round20sB
             });
 
-            const maxPoints = Math.max(gamePointsA, gamePointsB);
-            const diff = Math.abs(gamePointsA - gamePointsB);
-
-            if (maxPoints >= pointsToWin && diff >= 2) {
-              break;
+            // Check game end condition
+            if (!isRoundsMode) {
+              // Points mode: check for win
+              const maxPoints = Math.max(gamePointsA, gamePointsB);
+              const diff = Math.abs(gamePointsA - gamePointsB);
+              if (maxPoints >= pointsToWin && diff >= 2) {
+                break;
+              }
             }
           }
 
@@ -342,6 +361,7 @@
       async function processBracket(bracketType: 'gold' | 'silver'): Promise<number> {
         let bracketFilledCount = 0;
         let hasMoreMatches = true;
+        const isSilver = bracketType === 'silver';
 
         while (hasMoreMatches) {
           hasMoreMatches = false;
@@ -356,18 +376,21 @@
 
           if (!currentBracket) break;
 
-          // Get config for this bracket
-          const pointsToWin = bracketType === 'gold'
-            ? (tournament.finalStage.pointsToWin || 7)
-            : (tournament.finalStage.silverPointsToWin || 7);
-          const matchesToWin = bracketType === 'gold'
-            ? (tournament.finalStage.matchesToWin || 3)
-            : (tournament.finalStage.silverMatchesToWin || 3);
+          const totalRounds = currentBracket.totalRounds;
 
           // Process rounds in order
           for (const round of currentBracket.rounds) {
+            // Get phase-specific config for this round
+            const phaseConfig = getPhaseConfig(
+              tournament.finalStage,
+              round.roundNumber,
+              totalRounds,
+              false, // not third place
+              isSilver
+            );
+
             for (const match of round.matches) {
-              if (await simulateMatch(match, bracketType, pointsToWin, matchesToWin)) {
+              if (await simulateMatch(match, bracketType, phaseConfig)) {
                 hasMoreMatches = true;
                 bracketFilledCount++;
               }
@@ -376,9 +399,19 @@
 
           // Also process 3rd place match if available
           const thirdPlace = currentBracket.thirdPlaceMatch;
-          if (thirdPlace && await simulateMatch(thirdPlace, bracketType, pointsToWin, matchesToWin)) {
-            hasMoreMatches = true;
-            bracketFilledCount++;
+          if (thirdPlace) {
+            // 3rd place uses semifinal config
+            const thirdPlaceConfig = getPhaseConfig(
+              tournament.finalStage,
+              totalRounds, // doesn't matter for third place
+              totalRounds,
+              true, // is third place
+              isSilver
+            );
+            if (await simulateMatch(thirdPlace, bracketType, thirdPlaceConfig)) {
+              hasMoreMatches = true;
+              bracketFilledCount++;
+            }
           }
         }
 
@@ -518,8 +551,8 @@
                   <div
                     class="bracket-match"
                     class:clickable={match.participantA && match.participantB}
-                    on:click={() => handleMatchClick(match, activeTab)}
-                    on:keydown={(e) => e.key === 'Enter' && handleMatchClick(match, activeTab)}
+                    on:click={() => handleMatchClick(match, activeTab, round.roundNumber, false)}
+                    on:keydown={(e) => e.key === 'Enter' && handleMatchClick(match, activeTab, round.roundNumber, false)}
                     role="button"
                     tabindex="0"
                   >
@@ -579,8 +612,8 @@
                 <div
                   class="bracket-match third-place-match"
                   class:clickable={thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
-                  on:click={() => handleMatchClick(thirdPlaceMatch, activeTab)}
-                  on:keydown={(e) => e.key === 'Enter' && handleMatchClick(thirdPlaceMatch, activeTab)}
+                  on:click={() => handleMatchClick(thirdPlaceMatch, activeTab, bracket?.totalRounds || 1, true)}
+                  on:keydown={(e) => e.key === 'Enter' && handleMatchClick(thirdPlaceMatch, activeTab, bracket?.totalRounds || 1, true)}
                   role="button"
                   tabindex="0"
                 >
@@ -637,6 +670,10 @@
     {tournament}
     visible={showMatchDialog}
     isBracket={true}
+    bracketRoundNumber={selectedRoundNumber}
+    bracketTotalRounds={bracket?.totalRounds || 1}
+    bracketIsThirdPlace={selectedIsThirdPlace}
+    bracketIsSilver={selectedBracketType === 'silver'}
     on:close={handleCloseDialog}
     on:save={handleSaveMatch}
     on:noshow={handleNoShow}
