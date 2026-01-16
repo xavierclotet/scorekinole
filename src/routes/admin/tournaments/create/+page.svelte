@@ -5,7 +5,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { goto } from '$app/navigation';
-  import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames } from '$lib/firebase/tournaments';
+  import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, EloConfig } from '$lib/types/tournament';
   import type { UserProfile } from '$lib/firebase/userProfile';
@@ -30,7 +30,7 @@
   let edition: number = 1;
   let country = 'España';
   let city = '';
-  let tournamentDate = '';  // Date input string (YYYY-MM-DD)
+  let tournamentDate = new Date().toISOString().split('T')[0];  // Date input string (YYYY-MM-DD), defaults to today
   let gameType: 'singles' | 'doubles' = 'singles';
   let show20s = true;
   let showHammer = true;
@@ -61,9 +61,8 @@
   // Step 3: ELO Configuration
   let eloEnabled = true;
   let initialElo = 1500;
-  let kFactor = 2.0;
+  let kFactor = 2;
   let maxDelta = 25;
-  let isFirstTournament = false;
 
   // Step 4: Participants
   let participants: Partial<TournamentParticipant>[] = [];
@@ -71,9 +70,10 @@
   let searchResults: UserProfile[] = [];
   let searchLoading = false;
   let guestName = 'Player1';  // Input for guest player name
+  let guestNameMatchedUser: UserProfile | null = null;  // User that matches guest name
 
   // Tournament name search
-  let tournamentNameResults: string[] = [];
+  let tournamentNameResults: TournamentNameInfo[] = [];
   let nameSearchLoading = false;
   let showNameDropdown = false;
 
@@ -203,7 +203,6 @@
       initialElo = tournament.eloConfig.initialElo;
       kFactor = tournament.eloConfig.kFactor;
       maxDelta = tournament.eloConfig.maxDelta;
-      isFirstTournament = tournament.eloConfig.isFirstTournament;
 
       // Step 4 - Load participants
       participants = tournament.participants.map(p => ({
@@ -271,7 +270,6 @@
       initialElo = data.initialElo || 1500;
       kFactor = data.kFactor || 2.0;
       maxDelta = data.maxDelta || 25;
-      isFirstTournament = data.isFirstTournament || false;
 
       // Step 4
       participants = data.participants || [];
@@ -321,7 +319,6 @@
         initialElo,
         kFactor,
         maxDelta,
-        isFirstTournament,
         participants
       };
 
@@ -344,7 +341,12 @@
     }
 
     searchLoading = true;
-    searchResults = await searchUsers(searchQuery);
+    const results = await searchUsers(searchQuery);
+    // Filter out users already added as participants
+    const addedUserIds = participants
+      .filter(p => p.type === 'REGISTERED' && p.userId)
+      .map(p => p.userId);
+    searchResults = results.filter(u => !addedUserIds.includes(u.userId));
     searchLoading = false;
   }
 
@@ -361,8 +363,10 @@
     nameSearchLoading = false;
   }
 
-  function selectTournamentName(selectedName: string) {
-    name = selectedName;
+  function selectTournamentName(info: TournamentNameInfo) {
+    name = info.name;
+    // Auto-fill next edition number
+    edition = info.maxEdition + 1;
     showNameDropdown = false;
     tournamentNameResults = [];
   }
@@ -380,6 +384,15 @@
     }
   }
 
+  // Calculate suggested ELO parameters based on number of participants
+  function updateEloSuggestions() {
+    const numParticipants = participants.length;
+    if (numParticipants >= 4) {
+      // maxDelta = maximum possible ELO change = (numParticipants - 1) * kFactor
+      maxDelta = (numParticipants - 1) * kFactor;
+    }
+  }
+
   function addRegisteredUser(user: UserProfile & { userId?: string }) {
     const alreadyAdded = participants.some(p => p.userId === user.userId);
     if (alreadyAdded) {
@@ -394,17 +407,46 @@
         type: 'REGISTERED',
         userId: user.userId,
         name: user.playerName,
-        email: user.email || undefined
+        email: user.email || undefined,
+        eloSnapshot: user.elo || 1500
       }
     ];
 
     searchQuery = '';
     searchResults = [];
+    updateEloSuggestions();
     saveDraft(); // Save after adding participant
   }
 
-  function addGuestPlayer() {
+  async function checkGuestNameMatch() {
+    if (!guestName || guestName.trim().length < 3) {
+      guestNameMatchedUser = null;
+      return;
+    }
+
+    // Search for exact name match (case-insensitive)
+    const results = await searchUsers(guestName.trim());
+    const exactMatch = results.find(
+      u => u.playerName?.toLowerCase() === guestName.trim().toLowerCase()
+    );
+
+    guestNameMatchedUser = exactMatch || null;
+  }
+
+  async function addGuestPlayer() {
     if (!guestName || guestName.trim().length < 3) return;
+
+    // Check for existing user with same name
+    await checkGuestNameMatch();
+
+    if (guestNameMatchedUser) {
+      // User exists - auto-fill search and show suggestion
+      searchQuery = guestName.trim();
+      await handleSearch();
+      toastMessage = `⚠️ Existe un usuario registrado con el nombre "${guestName}". Añádelo desde la lista de usuarios.`;
+      showToast = true;
+      return;
+    }
 
     participants = [
       ...participants,
@@ -416,11 +458,14 @@
 
     // Set next player number based on total participants
     guestName = `Player${participants.length + 1}`;
+    guestNameMatchedUser = null;
+    updateEloSuggestions();
     saveDraft(); // Save after adding guest
   }
 
   function removeParticipant(index: number) {
     participants = participants.filter((_, i) => i !== index);
+    updateEloSuggestions();
     saveDraft(); // Save after removing participant
   }
 
@@ -582,8 +627,7 @@
         enabled: eloEnabled,
         initialElo,
         kFactor,
-        maxDelta,
-        isFirstTournament
+        maxDelta
       };
 
       // Build tournament data with phase-specific configuration
@@ -715,6 +759,14 @@
 
   $: searchQuery, handleSearch();
 
+  // Calculate max players based on tables and game type
+  $: playersPerTable = gameType === 'singles' ? 2 : 4;
+  $: maxPlayersForTables = numTables * playersPerTable;
+
+  // Calculate tables needed for current participants
+  $: tablesNeeded = Math.ceil(participants.length / playersPerTable);
+  $: extraTables = numTables - tablesNeeded;
+
   // Reactive validation - re-run when any relevant field changes
   // eslint-disable-next-line @typescript-eslint/no-unused-expressions
   $: key, name, edition, country, city, gameType, gameMode, pointsToWin, roundsToPlay, matchesToWin,
@@ -819,13 +871,14 @@
                 {/if}
                 {#if showNameDropdown && tournamentNameResults.length > 0}
                   <div class="name-dropdown">
-                    {#each tournamentNameResults as tournamentName}
+                    {#each tournamentNameResults as info}
                       <button
                         type="button"
                         class="name-dropdown-item"
-                        on:click={() => selectTournamentName(tournamentName)}
+                        on:click={() => selectTournamentName(info)}
                       >
-                        {tournamentName}
+                        <span class="name-dropdown-name">{info.name}</span>
+                        <span class="name-dropdown-edition">Ed. {info.maxEdition} → {info.maxEdition + 1}</span>
                       </button>
                     {/each}
                   </div>
@@ -917,7 +970,10 @@
               max="20"
               class="input-field"
             />
-            <small class="help-text">Mesas físicas disponibles para jugar simultáneamente</small>
+            <small class="help-text">
+              Mesas físicas disponibles para jugar simultáneamente.
+              <strong>Máximo {maxPlayersForTables} jugadores</strong> ({gameType === 'singles' ? '2 por mesa' : '4 por mesa en dobles'})
+            </small>
           </div>
 
           <div class="form-group">
@@ -1162,32 +1218,18 @@
           {#if eloEnabled}
             <div class="elo-config">
               <div class="form-group">
-                <label for="initialElo">ELO Inicial</label>
-                <input
-                  id="initialElo"
-                  type="number"
-                  bind:value={initialElo}
-                  min="100"
-                  max="3000"
-                  step="50"
-                  class="input-field"
-                />
-                <small class="help-text">ELO por defecto: 1500</small>
-              </div>
-
-              <div class="form-group">
                 <label for="kFactor">K-Factor (sensibilidad)</label>
                 <input
                   id="kFactor"
                   type="number"
                   bind:value={kFactor}
-                  min="0.5"
+                  min="1"
                   max="10"
-                  step="0.5"
+                  step="1"
                   class="input-field"
                 />
                 <small class="help-text">
-                  Factor de cambio de ELO. Recomendado: 2.0 (mayor = cambios más grandes)
+                  Puntos por posición de diferencia. Ej: K=2, quedas 3 posiciones mejor de lo esperado = +6 ELO
                 </small>
               </div>
 
@@ -1203,19 +1245,10 @@
                   class="input-field"
                 />
                 <small class="help-text">
-                  Máximo de puntos que se pueden ganar/perder. Recomendado: ±25
+                  Límite de puntos por torneo. Ej: ±25 significa que aunque la fórmula dé +40, solo ganas +25
                 </small>
               </div>
 
-              <div class="form-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" bind:checked={isFirstTournament} />
-                  <span>Es el primer torneo (K-Factor reducido a 75%)</span>
-                </label>
-                <small class="help-text">
-                  Reduce el impacto del primer torneo en el ranking
-                </small>
-              </div>
             </div>
           {/if}
         </div>
@@ -1225,6 +1258,21 @@
       {#if currentStep === 4}
         <div class="step-container">
           <h2>👥 Agregar Participantes</h2>
+
+          {#if participants.length >= maxPlayersForTables}
+            <div class="max-participants-warning">
+              ⚠️ Has alcanzado el límite de <strong>{maxPlayersForTables} jugadores</strong> para {numTables} {numTables === 1 ? 'mesa' : 'mesas'}
+            </div>
+          {:else}
+            <div class="participants-limit-info">
+              📊 {participants.length} / {maxPlayersForTables} jugadores (máximo para {numTables} {numTables === 1 ? 'mesa' : 'mesas'})
+              {#if participants.length > 0 && extraTables > 0}
+                <span class="extra-tables-hint">
+                  — Usarás {tablesNeeded} de {numTables} {numTables === 1 ? 'mesa' : 'mesas'} ({extraTables} {extraTables === 1 ? 'sobrante' : 'sobrantes'})
+                </span>
+              {/if}
+            </div>
+          {/if}
 
           <div class="participants-section">
             <div class="add-participants">
@@ -1244,13 +1292,17 @@
 
                 {#if searchResults.length > 0}
                   <div class="search-results">
-                    {#each searchResults as user}
+                    {#each searchResults.slice(0, 10) as user}
                       <button
                         class="search-result-item"
                         on:click={() => addRegisteredUser({ ...user, userId: user.userId || '' })}
+                        disabled={participants.length >= maxPlayersForTables}
                       >
                         <div class="user-info">
-                          <strong>{user.playerName}</strong>
+                          <div class="user-name-row">
+                            <strong>{user.playerName}</strong>
+                            <span class="user-elo">{user.elo || 1500}</span>
+                          </div>
                           {#if user.email}
                             <span class="user-email">{user.email}</span>
                           {/if}
@@ -1279,7 +1331,7 @@
                   <button
                     class="guest-button"
                     on:click={addGuestPlayer}
-                    disabled={guestName.trim().length < 3}
+                    disabled={guestName.trim().length < 3 || participants.length >= maxPlayersForTables}
                   >
                     + Agregar
                   </button>
@@ -1303,7 +1355,12 @@
                   {#each participants as participant, index}
                     <div class="participant-card">
                       <div class="participant-info">
-                        <strong>{participant.name}</strong>
+                        <div class="participant-name-row">
+                          <strong>{participant.name}</strong>
+                          {#if participant.type === 'REGISTERED' && participant.eloSnapshot}
+                            <span class="participant-elo">{participant.eloSnapshot}</span>
+                          {/if}
+                        </div>
                         <span class="participant-type">
                           {participant.type === 'REGISTERED' ? '👤 Registrado' : '🎭 Invitado'}
                         </span>
@@ -1682,6 +1739,48 @@
     color: #e1e8ed;
   }
 
+  /* Participants limit indicators */
+  .participants-limit-info {
+    background: #e8f4fd;
+    border: 1px solid #b3d7f5;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #1a5a96;
+  }
+
+  .wizard-container[data-theme='dark'] .participants-limit-info {
+    background: #1a3a5c;
+    border-color: #2a5a8c;
+    color: #a0c4e8;
+  }
+
+  .extra-tables-hint {
+    color: #e67e22;
+    font-weight: 500;
+  }
+
+  .wizard-container[data-theme='dark'] .extra-tables-hint {
+    color: #f5a623;
+  }
+
+  .max-participants-warning {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #856404;
+  }
+
+  .wizard-container[data-theme='dark'] .max-participants-warning {
+    background: #5c4a1a;
+    border-color: #8a6d1a;
+    color: #ffd54f;
+  }
+
   /* Form Elements */
   .form-group {
     margin-bottom: 1.5rem;
@@ -1902,7 +2001,9 @@
   }
 
   .name-dropdown-item {
-    display: block;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     width: 100%;
     padding: 0.75rem 1rem;
     text-align: left;
@@ -1930,6 +2031,24 @@
 
   .name-dropdown-item:last-child {
     border-bottom: none;
+  }
+
+  .name-dropdown-name {
+    flex: 1;
+  }
+
+  .name-dropdown-edition {
+    font-size: 0.8rem;
+    color: #666;
+    background: #f0f0f0;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
+  }
+
+  .wizard-container[data-theme='dark'] .name-dropdown-edition {
+    color: #a0aec0;
+    background: #2d3748;
   }
 
   /* Participants */
@@ -2029,6 +2148,12 @@
     gap: 0.25rem;
   }
 
+  .user-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   .user-info strong {
     color: #333;
     transition: color 0.3s;
@@ -2036,6 +2161,20 @@
 
   .wizard-container[data-theme='dark'] .user-info strong {
     color: #e1e8ed;
+  }
+
+  .user-elo {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #666;
+    background: #e8e8e8;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+  }
+
+  .wizard-container[data-theme='dark'] .user-elo {
+    color: #a0aec0;
+    background: #2d3748;
   }
 
   .user-email {
@@ -2132,6 +2271,26 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+  }
+
+  .participant-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .participant-elo {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #666;
+    background: #e8e8e8;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+  }
+
+  .wizard-container[data-theme='dark'] .participant-elo {
+    color: #a0aec0;
+    background: #2d3748;
   }
 
   .participant-type {

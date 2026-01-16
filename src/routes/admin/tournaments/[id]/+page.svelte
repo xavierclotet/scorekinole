@@ -162,7 +162,7 @@
         <div class="tournament-header">
           <div class="header-content">
             <div class="title-row">
-              <h1>{tournament.edition ? `${tournament.edition}º ` : ''}{tournament.name}</h1>
+              <h1>{tournament.edition ? `#${tournament.edition} ` : ''}{tournament.name}</h1>
               {#if tournament.tournamentDate}
                 <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
               {/if}

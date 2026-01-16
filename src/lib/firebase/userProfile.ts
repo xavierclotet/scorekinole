@@ -10,6 +10,7 @@ export interface UserProfile {
   email: string | null;
   photoURL: string | null;
   isAdmin?: boolean;
+  isSuperAdmin?: boolean;
   // ELO and tournament tracking
   elo?: number;                          // Current ELO (default 1500)
   tournaments?: TournamentRecord[];      // Tournament history
@@ -202,5 +203,70 @@ export async function getUserProfileById(userId: string): Promise<UserProfile | 
   } catch (error) {
     console.error('❌ Error getting user profile by ID:', error);
     return null;
+  }
+}
+
+/**
+ * Remove a tournament record from user's history and revert ELO
+ * Used when deleting a tournament to undo ELO changes
+ *
+ * @param userId Firestore user ID
+ * @param tournamentId Tournament ID to remove
+ * @returns true if successful
+ */
+export async function removeTournamentRecord(
+  userId: string,
+  tournamentId: string
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  try {
+    const userRef = doc(db!, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      console.warn(`User ${userId} not found`);
+      return false;
+    }
+
+    const profile = userSnap.data() as UserProfile;
+    const tournaments = profile.tournaments || [];
+
+    // Find the tournament record to remove
+    const tournamentIndex = tournaments.findIndex(t => t.tournamentId === tournamentId);
+
+    if (tournamentIndex === -1) {
+      console.log(`Tournament ${tournamentId} not found in user ${userId} history`);
+      return true; // Not an error - tournament wasn't in history
+    }
+
+    const removedRecord = tournaments[tournamentIndex];
+
+    // Remove tournament from array
+    const updatedTournaments = [
+      ...tournaments.slice(0, tournamentIndex),
+      ...tournaments.slice(tournamentIndex + 1)
+    ];
+
+    // Revert ELO: subtract the delta that was added
+    // If eloDelta was +3, we subtract 3 (go back to eloBefore)
+    // If eloDelta was -2, we subtract -2 = add 2 (go back to eloBefore)
+    const currentElo = profile.elo || 1500;
+    const revertedElo = currentElo - removedRecord.eloDelta;
+
+    await setDoc(userRef, {
+      elo: revertedElo,
+      tournaments: updatedTournaments,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    console.log(`✅ Removed tournament ${tournamentId} from user ${userId}: ELO ${currentElo} → ${revertedElo} (reverted ${removedRecord.eloDelta > 0 ? '+' : ''}${removedRecord.eloDelta})`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error removing tournament record:', error);
+    return false;
   }
 }

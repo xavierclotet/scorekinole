@@ -11,6 +11,7 @@
   import { getTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import { updateMatchResult, markNoShow } from '$lib/firebase/tournamentMatches';
+  import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
 
   let tournament: Tournament | null = null;
@@ -23,11 +24,14 @@
   let showMatchDialog = false;
   let selectedMatch: GroupMatch | null = null;
   let activeGroupId: string | null = null;
+  let isSuperAdminUser = false;
+  let isAutoFilling = false;
 
   $: tournamentId = $page.params.id;
 
   onMount(async () => {
     await loadTournament();
+    isSuperAdminUser = await isSuperAdmin();
   });
 
   async function loadTournament() {
@@ -115,6 +119,149 @@
     selectedMatch = null;
   }
 
+  /**
+   * Auto-fill all pending matches with random results (SuperAdmin only)
+   */
+  async function autoFillAllMatches() {
+    if (!tournament || !tournament.groupStage || !tournamentId) return;
+
+    isAutoFilling = true;
+    let filledCount = 0;
+
+    try {
+      const gameMode = tournament.groupStage.gameMode || 'rounds';
+      const roundsToPlay = tournament.groupStage.roundsToPlay || 4;
+      const pointsToWin = tournament.groupStage.pointsToWin || 7;
+      const matchesToWin = tournament.groupStage.matchesToWin || 1;
+
+      // Get all pending matches from all groups
+      for (const group of tournament.groupStage.groups) {
+        const matches = group.schedule
+          ? group.schedule.flatMap(r => r.matches)
+          : group.pairings
+          ? group.pairings.flatMap(p => p.matches)
+          : [];
+
+        const pendingMatches = matches.filter(
+          m => m.status === 'PENDING' && m.participantB !== 'BYE'
+        );
+
+        for (const match of pendingMatches) {
+          // Generate random result based on game mode
+          let result: {
+            gamesWonA: number;
+            gamesWonB: number;
+            totalPointsA: number;
+            totalPointsB: number;
+            total20sA: number;
+            total20sB: number;
+          };
+
+          if (gameMode === 'rounds') {
+            // For rounds mode: distribute 2 points per round randomly
+            let totalA = 0;
+            let totalB = 0;
+            let twentiesA = 0;
+            let twentiesB = 0;
+
+            for (let r = 0; r < roundsToPlay; r++) {
+              // Randomly distribute 2 points (2-0, 1-1, 0-2)
+              const distribution = Math.random();
+              if (distribution < 0.4) {
+                totalA += 2; // Team A wins round
+                if (Math.random() < 0.15) twentiesA++;
+              } else if (distribution < 0.8) {
+                totalB += 2; // Team B wins round
+                if (Math.random() < 0.15) twentiesB++;
+              } else {
+                totalA += 1; // Tie
+                totalB += 1;
+              }
+            }
+
+            // In rounds mode, winner is who has more points
+            const winnerA = totalA > totalB ? 1 : 0;
+            const winnerB = totalB > totalA ? 1 : 0;
+
+            result = {
+              gamesWonA: winnerA,
+              gamesWonB: winnerB,
+              totalPointsA: totalA,
+              totalPointsB: totalB,
+              total20sA: twentiesA,
+              total20sB: twentiesB
+            };
+          } else {
+            // For points mode: play until someone reaches pointsToWin
+            let gamesA = 0;
+            let gamesB = 0;
+            let totalPointsA = 0;
+            let totalPointsB = 0;
+            let total20sA = 0;
+            let total20sB = 0;
+
+            const requiredWins = Math.ceil(matchesToWin / 2);
+
+            while (gamesA < requiredWins && gamesB < requiredWins) {
+              // Simulate a game
+              let gamePointsA = 0;
+              let gamePointsB = 0;
+
+              while (gamePointsA < pointsToWin && gamePointsB < pointsToWin) {
+                // Each round, distribute 2 points
+                const distribution = Math.random();
+                if (distribution < 0.45) {
+                  gamePointsA += 2;
+                  if (Math.random() < 0.1) total20sA++;
+                } else if (distribution < 0.9) {
+                  gamePointsB += 2;
+                  if (Math.random() < 0.1) total20sB++;
+                } else {
+                  gamePointsA += 1;
+                  gamePointsB += 1;
+                }
+              }
+
+              totalPointsA += gamePointsA;
+              totalPointsB += gamePointsB;
+
+              if (gamePointsA > gamePointsB) {
+                gamesA++;
+              } else {
+                gamesB++;
+              }
+            }
+
+            result = {
+              gamesWonA: gamesA,
+              gamesWonB: gamesB,
+              totalPointsA,
+              totalPointsB,
+              total20sA,
+              total20sB
+            };
+          }
+
+          // Save the result
+          const success = await updateMatchResult(tournamentId, match.id, result);
+          if (success) {
+            filledCount++;
+          }
+        }
+      }
+
+      toastMessage = `✅ ${filledCount} partidos rellenados automáticamente`;
+      showToast = true;
+      await loadTournament(); // Reload to show updated results
+    } catch (err) {
+      console.error('Error auto-filling matches:', err);
+      toastMessage = '❌ Error al rellenar partidos';
+      showToast = true;
+    } finally {
+      isAutoFilling = false;
+    }
+  }
+
   function confirmCompleteGroups() {
     if (!tournament || !tournament.groupStage) return;
 
@@ -200,6 +347,16 @@
             </p>
           </div>
           <div class="header-actions">
+            {#if isSuperAdminUser}
+              <button
+                class="action-btn autofill"
+                on:click={autoFillAllMatches}
+                disabled={isAutoFilling}
+                title="Solo visible para SuperAdmin - Rellenar partidos con resultados aleatorios"
+              >
+                {isAutoFilling ? '⏳ Rellenando...' : '🎲 Auto-rellenar'}
+              </button>
+            {/if}
             <button
               class="action-btn complete"
               on:click={confirmCompleteGroups}
@@ -400,6 +557,21 @@
   }
 
   .action-btn.complete:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .action-btn.autofill {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+  }
+
+  .action-btn.autofill:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+  }
+
+  .action-btn.autofill:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }

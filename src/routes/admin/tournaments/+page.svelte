@@ -222,12 +222,13 @@
           <thead>
             <tr>
               <th class="name-col">Nombre</th>
+              <th class="city-col hide-mobile">Ciudad</th>
               <th class="status-col">Estado</th>
               <th class="type-col hide-mobile">Tipo</th>
               <th class="mode-col hide-mobile">Modo</th>
               <th class="participants-col">Players</th>
               <th class="created-col hide-mobile">Creado</th>
-              <th class="actions-col">Acciones</th>
+              <th class="actions-col"></th>
             </tr>
           </thead>
           <tbody>
@@ -236,6 +237,9 @@
                 <td class="name-cell">
                   <div class="tournament-name">
                     <div class="name-row">
+                      {#if tournament.edition}
+                        <span class="edition-badge">#{tournament.edition}</span>
+                      {/if}
                       <strong class="tournament-title" title={tournament.name}>{tournament.name.length > 20 ? tournament.name.substring(0, 20) + '...' : tournament.name}</strong>
                       {#if tournament.tournamentDate}
                         <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
@@ -245,6 +249,9 @@
                       <small class="tournament-desc">{tournament.description}</small>
                     {/if}
                   </div>
+                </td>
+                <td class="city-cell hide-mobile">
+                  {tournament.city || '-'}
                 </td>
                 <td class="status-cell">
                   <span
@@ -848,6 +855,28 @@
 
   .tournament-title {
     font-weight: 600;
+  }
+
+  .edition-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem 0.4rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    min-width: 24px;
+  }
+
+  .city-cell {
+    color: #666;
+    font-size: 0.85rem;
+  }
+
+  .tournaments-container[data-theme='dark'] .city-cell {
+    color: #8b9bb3;
   }
 
   .tournament-date {

@@ -90,9 +90,21 @@ export function generateBracket(participants: TournamentParticipant[]): Bracket 
     });
   }
 
+  // Create 3rd/4th place match if there are semifinals (4+ participants)
+  let thirdPlaceMatch: BracketMatch | undefined;
+  if (numParticipants >= 4) {
+    thirdPlaceMatch = {
+      id: `bracket-3rd-place-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      position: 0,
+      status: 'PENDING'
+      // participantA and participantB will be filled with semifinal losers
+    };
+  }
+
   return {
     rounds,
-    totalRounds
+    totalRounds,
+    thirdPlaceMatch
   };
 }
 
@@ -173,6 +185,7 @@ export function getRoundName(roundNumber: number, totalRounds: number): string {
 
 /**
  * Advance winner to next match
+ * Also advances loser to 3rd/4th place match if it's a semifinal
  *
  * @param bracket Current bracket
  * @param matchId Match ID of completed match
@@ -185,6 +198,11 @@ export function advanceWinner(
   winnerId: string
 ): Bracket {
   const updatedBracket = JSON.parse(JSON.stringify(bracket)) as Bracket;
+
+  // Check if this is the 3rd place match
+  if (updatedBracket.thirdPlaceMatch?.id === matchId) {
+    return updatedBracket; // No advancement needed for 3rd place match
+  }
 
   // Find the match
   let completedMatch: BracketMatch | undefined;
@@ -199,8 +217,34 @@ export function advanceWinner(
     }
   }
 
-  if (!completedMatch || !completedMatch.nextMatchId) {
-    return updatedBracket; // Final match or not found
+  if (!completedMatch) {
+    return updatedBracket; // Match not found
+  }
+
+  // Check if this is a semifinal match (second to last round)
+  const isSemifinal = roundIndex === updatedBracket.rounds.length - 2;
+
+  // Advance loser to 3rd place match if it's a semifinal
+  if (isSemifinal && updatedBracket.thirdPlaceMatch) {
+    const loserId = completedMatch.participantA === winnerId
+      ? completedMatch.participantB
+      : completedMatch.participantA;
+
+    if (loserId) {
+      const currentMatchIndex = updatedBracket.rounds[roundIndex].matches.indexOf(completedMatch);
+      const isFirstSemifinal = currentMatchIndex === 0;
+
+      if (isFirstSemifinal) {
+        updatedBracket.thirdPlaceMatch.participantA = loserId;
+      } else {
+        updatedBracket.thirdPlaceMatch.participantB = loserId;
+      }
+    }
+  }
+
+  // If no next match (final), just return
+  if (!completedMatch.nextMatchId) {
+    return updatedBracket;
   }
 
   // Find next match

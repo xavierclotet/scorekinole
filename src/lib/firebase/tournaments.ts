@@ -99,8 +99,7 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
         enabled: true,
         initialElo: 1500,
         kFactor: 2.0,
-        maxDelta: 25,
-        isFirstTournament: false
+        maxDelta: 25
       },
       participants: [],
       finalStage: {
@@ -305,6 +304,9 @@ export async function updateTournament(
 /**
  * Delete tournament
  *
+ * IMPORTANT: This will revert ELO changes for all participants
+ * before deleting the tournament document
+ *
  * @param id Tournament ID
  * @returns true if successful
  */
@@ -328,6 +330,15 @@ export async function deleteTournament(id: string): Promise<boolean> {
   }
 
   try {
+    // First, revert ELO changes for all participants
+    const { revertTournamentElo } = await import('./tournamentElo');
+    const eloReverted = await revertTournamentElo(id);
+
+    if (!eloReverted) {
+      console.warn('⚠️ Failed to revert ELO, but continuing with deletion');
+    }
+
+    // Then delete the tournament document
     const tournamentRef = doc(db!, 'tournaments', id);
     await deleteDoc(tournamentRef);
 
@@ -353,12 +364,21 @@ export async function cancelTournament(id: string): Promise<boolean> {
 }
 
 /**
+ * Tournament name with max edition info
+ */
+export interface TournamentNameInfo {
+  name: string;
+  maxEdition: number;
+}
+
+/**
  * Search unique tournament names for autocomplete
+ * Returns name and max edition for auto-filling next edition number
  *
  * @param searchQuery Search query (partial name)
- * @returns Array of unique tournament names
+ * @returns Array of tournament name info with max editions
  */
-export async function searchTournamentNames(searchQuery: string): Promise<string[]> {
+export async function searchTournamentNames(searchQuery: string): Promise<TournamentNameInfo[]> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
     return [];
@@ -368,7 +388,8 @@ export async function searchTournamentNames(searchQuery: string): Promise<string
     const tournamentsRef = collection(db!, 'tournaments');
     const snapshot = await getDocs(tournamentsRef);
 
-    const namesSet = new Set<string>();
+    // Track max edition per tournament name
+    const namesMap = new Map<string, number>();
     const queryLower = searchQuery.toLowerCase();
 
     snapshot.forEach(docSnap => {
@@ -376,15 +397,21 @@ export async function searchTournamentNames(searchQuery: string): Promise<string
       if (data.name) {
         // If there's a search query, filter by it
         if (!searchQuery || data.name.toLowerCase().includes(queryLower)) {
-          namesSet.add(data.name);
+          const currentMax = namesMap.get(data.name) || 0;
+          const edition = data.edition || 1;
+          if (edition > currentMax) {
+            namesMap.set(data.name, edition);
+          }
         }
       }
     });
 
-    // Convert to array and sort alphabetically
-    const names = Array.from(namesSet).sort((a, b) => a.localeCompare(b));
+    // Convert to array of TournamentNameInfo and sort alphabetically
+    const results: TournamentNameInfo[] = Array.from(namesMap.entries())
+      .map(([name, maxEdition]) => ({ name, maxEdition }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-    return names.slice(0, 10); // Limit to 10 results
+    return results.slice(0, 10); // Limit to 10 results
   } catch (error) {
     console.error('❌ Error searching tournament names:', error);
     return [];

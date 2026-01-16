@@ -87,9 +87,8 @@ export interface Tournament {
 export interface EloConfig {
   enabled: boolean;
   initialElo: number;      // Default: 1500
-  kFactor: number;         // Default: 2.0 (1.5 if isFirstTournament)
+  kFactor: number;         // Default: 2.0
   maxDelta: number;        // Default: ±25
-  isFirstTournament: boolean;
 }
 
 /**
@@ -266,6 +265,7 @@ export interface FinalStage {
 export interface Bracket {
   rounds: BracketRound[];
   totalRounds: number;          // log2(participants)
+  thirdPlaceMatch?: BracketMatch;  // 3rd/4th place match (losers of semifinals)
 }
 
 /**

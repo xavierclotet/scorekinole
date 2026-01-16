@@ -50,6 +50,29 @@ export async function isAdmin(): Promise<boolean> {
 }
 
 /**
+ * Check if current user is super admin
+ */
+export async function isSuperAdmin(): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    return false;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    return false;
+  }
+
+  // Check if user has superAdmin role in Firestore
+  try {
+    const profile = await getUserProfile();
+    return profile?.isSuperAdmin === true;
+  } catch (error) {
+    console.error('Error checking super admin status:', error);
+    return false;
+  }
+}
+
+/**
  * Get all users (admin only)
  */
 export async function getAllUsers(): Promise<AdminUserInfo[]> {

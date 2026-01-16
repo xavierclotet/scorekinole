@@ -9,7 +9,7 @@
     update: string[]; // Array of qualified participant IDs
   }>();
 
-  let topNValue = 4; // Default to top 4
+  let topNValue = 2; // Default to top 2
 
   // Ensure groups is an array (Firestore may return object)
   $: groups = Array.isArray(tournament.groupStage?.groups)
@@ -33,23 +33,23 @@
   $: participantMap = new Map(tournament.participants.map(p => [p.id, p]));
 
   // Local state for selection (make it reactive to standings changes)
-  // If no qualifiers set yet, auto-select top 2 by default
+  // If no qualifiers set yet, auto-select based on topNValue
   $: selectedParticipants = (() => {
     const currentQualified = standings.filter((s: any) => s.qualifiedForFinal).map((s: any) => s.participantId);
 
-    // If no qualifiers selected yet, auto-select top 2
-    if (currentQualified.length === 0 && standings.length >= 2) {
-      const top2 = standings
+    // If no qualifiers selected yet, auto-select topNValue participants
+    if (currentQualified.length === 0 && standings.length >= topNValue) {
+      const topN = standings
         .sort((a: any, b: any) => a.position - b.position)
-        .slice(0, 2)
+        .slice(0, topNValue)
         .map((s: any) => s.participantId);
 
       // Dispatch the auto-selection
-      if (top2.length > 0) {
-        setTimeout(() => dispatch('update', top2), 0);
+      if (topN.length > 0) {
+        setTimeout(() => dispatch('update', topN), 0);
       }
 
-      return new Set<string>(top2);
+      return new Set<string>(topN);
     }
 
     return new Set<string>(currentQualified);

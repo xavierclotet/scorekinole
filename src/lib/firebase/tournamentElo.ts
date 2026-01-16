@@ -7,11 +7,81 @@ import { getTournament, updateTournament } from './tournaments';
 import { calculateExpectedPositions, calculateAllEloDeltas } from '$lib/algorithms/elo';
 import { browser } from '$app/environment';
 import type { EloCalculation } from '$lib/types/tournament';
+import { getOrCreateUserByName, getUserProfileById, removeTournamentRecord } from './userProfile';
+
+/**
+ * Fetch current ELO for all participants from Firestore users collection
+ * This ensures we use their accumulated ELO, not the default 1500
+ *
+ * @param tournamentId Tournament ID
+ * @returns true if successful
+ */
+export async function syncParticipantElos(tournamentId: string): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const tournament = await getTournament(tournamentId);
+  if (!tournament) {
+    console.error('Tournament not found');
+    return false;
+  }
+
+  if (!tournament.eloConfig.enabled) {
+    console.log('ELO not enabled for this tournament');
+    return true;
+  }
+
+  try {
+    const updatedParticipants = await Promise.all(
+      tournament.participants.map(async (participant) => {
+        let userElo = 1500; // Default ELO
+
+        // Try to find user's current ELO
+        if (participant.userId) {
+          // REGISTERED user - get by userId
+          const profile = await getUserProfileById(participant.userId);
+          if (profile?.elo !== undefined) {
+            userElo = profile.elo;
+          }
+        } else {
+          // GUEST user - search by name
+          const result = await getOrCreateUserByName(participant.name);
+          if (result) {
+            const profile = await getUserProfileById(result.userId);
+            if (profile?.elo !== undefined) {
+              userElo = profile.elo;
+            }
+          }
+        }
+
+        console.log(`📊 ${participant.name}: ELO ${userElo}`);
+
+        return {
+          ...participant,
+          eloSnapshot: userElo,
+          currentElo: userElo
+        };
+      })
+    );
+
+    await updateTournament(tournamentId, {
+      participants: updatedParticipants
+    });
+
+    console.log(`✅ Synced ELO for ${updatedParticipants.length} participants`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error syncing participant ELOs:', error);
+    return false;
+  }
+}
 
 /**
  * Calculate expected positions for all participants
  *
- * Called when tournament starts
+ * Called when tournament starts - first syncs ELOs from user profiles
  *
  * @param tournamentId Tournament ID
  * @returns true if successful
@@ -31,16 +101,26 @@ export async function calculateTournamentExpectedPositions(
   }
 
   try {
-    const expectedPositions = calculateExpectedPositions(tournament.participants);
+    // First, sync ELOs from user profiles to get their current accumulated ELO
+    await syncParticipantElos(tournamentId);
+
+    // Re-fetch tournament to get updated ELOs
+    const updatedTournament = await getTournament(tournamentId);
+    if (!updatedTournament) {
+      console.error('Tournament not found after ELO sync');
+      return false;
+    }
+
+    const expectedPositions = calculateExpectedPositions(updatedTournament.participants);
 
     // Update participants with expected positions
-    const updatedParticipants = tournament.participants.map(p => ({
+    const finalParticipants = updatedTournament.participants.map(p => ({
       ...p,
       expectedPosition: expectedPositions.get(p.id) || 0
     }));
 
     return await updateTournament(tournamentId, {
-      participants: updatedParticipants
+      participants: finalParticipants
     });
   } catch (error) {
     console.error('❌ Error calculating expected positions:', error);
@@ -83,47 +163,112 @@ export async function calculateFinalPositions(tournamentId: string): Promise<boo
     // Override with bracket results (more precise for top finishers)
     if (tournament.finalStage && tournament.finalStage.isComplete) {
       const bracket = tournament.finalStage.bracket;
-      let currentPosition = 1;
 
-      // Process rounds in reverse (final first)
-      for (let i = bracket.rounds.length - 1; i >= 0; i--) {
+      // First, handle the final match (positions 1 and 2)
+      const finalRound = bracket.rounds[bracket.rounds.length - 1];
+      const finalMatch = finalRound.matches[0];
+      if (finalMatch.winner && finalMatch.participantA && finalMatch.participantB) {
+        const winner = updatedParticipants.find(p => p.id === finalMatch.winner);
+        if (winner) {
+          winner.finalPosition = 1;
+        }
+        const loser = updatedParticipants.find(
+          p => p.id === (finalMatch.winner === finalMatch.participantA ? finalMatch.participantB : finalMatch.participantA)
+        );
+        if (loser) {
+          loser.finalPosition = 2;
+        }
+      }
+
+      // Handle 3rd place match (positions 3 and 4)
+      const thirdPlaceMatch = bracket.thirdPlaceMatch;
+      if (thirdPlaceMatch?.winner && thirdPlaceMatch.participantA && thirdPlaceMatch.participantB) {
+        const thirdPlace = updatedParticipants.find(p => p.id === thirdPlaceMatch.winner);
+        if (thirdPlace) {
+          thirdPlace.finalPosition = 3;
+        }
+        const fourthPlace = updatedParticipants.find(
+          p => p.id === (thirdPlaceMatch.winner === thirdPlaceMatch.participantA ? thirdPlaceMatch.participantB : thirdPlaceMatch.participantA)
+        );
+        if (fourthPlace) {
+          fourthPlace.finalPosition = 4;
+        }
+      }
+
+      // Process remaining rounds (for positions 5-8, 9-16, etc.)
+      let currentPosition = 5; // Start from 5 since 1-4 are handled
+      for (let i = bracket.rounds.length - 2; i >= 0; i--) {
         const round = bracket.rounds[i];
+
+        // Skip semifinals (already processed via 3rd place match)
+        if (i === bracket.rounds.length - 2) continue;
 
         round.matches.forEach(match => {
           if (match.winner && match.participantA && match.participantB) {
-            // Winner gets current position (or better)
-            const winner = updatedParticipants.find(p => p.id === match.winner);
-            if (winner && (!winner.finalPosition || currentPosition < winner.finalPosition)) {
-              winner.finalPosition = currentPosition;
-            }
-
-            // Loser gets next position
+            // Loser of this round gets current position
             const loser = updatedParticipants.find(
               p => p.id === (match.winner === match.participantA ? match.participantB : match.participantA)
             );
             if (loser && !loser.finalPosition) {
-              loser.finalPosition = currentPosition + 1;
+              loser.finalPosition = currentPosition++;
             }
           }
         });
-
-        currentPosition = currentPosition * 2; // Double for next round
       }
     }
 
-    // For participants without final position (didn't make bracket), use group stage
+    // For participants without final position (didn't make bracket), order by total points
     if (tournament.phaseType === 'TWO_PHASE' && tournament.groupStage) {
       let nextPosition = updatedParticipants.filter(p => p.finalPosition).length + 1;
 
-      tournament.groupStage.groups.forEach(group => {
-        const sortedStandings = [...group.standings].sort((a, b) => a.position - b.position);
+      // Ensure groups is an array
+      const groups = Array.isArray(tournament.groupStage.groups)
+        ? tournament.groupStage.groups
+        : Object.values(tournament.groupStage.groups);
 
-        sortedStandings.forEach(standing => {
+      // Collect all standings from all groups for participants without final position
+      const remainingStandings: Array<{
+        participantId: string;
+        totalPointsScored: number;
+        total20s: number;
+        points: number;
+      }> = [];
+
+      groups.forEach((group: any) => {
+        const standings = Array.isArray(group.standings)
+          ? group.standings
+          : Object.values(group.standings || {});
+
+        standings.forEach((standing: any) => {
           const participant = updatedParticipants.find(p => p.id === standing.participantId);
           if (participant && !participant.finalPosition) {
-            participant.finalPosition = nextPosition++;
+            remainingStandings.push({
+              participantId: standing.participantId,
+              totalPointsScored: standing.totalPointsScored || 0,
+              total20s: standing.total20s || 0,
+              points: standing.points || 0
+            });
           }
         });
+      });
+
+      // Sort by total points scored (descending), then by 20s (descending), then by match points (descending)
+      remainingStandings.sort((a, b) => {
+        if (b.totalPointsScored !== a.totalPointsScored) {
+          return b.totalPointsScored - a.totalPointsScored;
+        }
+        if (b.total20s !== a.total20s) {
+          return b.total20s - a.total20s;
+        }
+        return b.points - a.points;
+      });
+
+      // Assign positions
+      remainingStandings.forEach(standing => {
+        const participant = updatedParticipants.find(p => p.id === standing.participantId);
+        if (participant) {
+          participant.finalPosition = nextPosition++;
+        }
       });
     }
 
@@ -177,9 +322,7 @@ export async function calculateEloDeltas(tournamentId: string): Promise<EloCalcu
         initialElo: result.initialElo,
         expectedPosition: participant.expectedPosition,
         actualPosition: participant.finalPosition || 0,
-        kFactor: tournament.eloConfig.isFirstTournament
-          ? tournament.eloConfig.kFactor * 0.75
-          : tournament.eloConfig.kFactor,
+        kFactor: tournament.eloConfig.kFactor,
         delta: result.delta,
         finalElo: result.finalElo,
         isDoubles: tournament.gameType === 'doubles',
@@ -293,6 +436,87 @@ export async function applyEloUpdates(tournamentId: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('❌ Error applying ELO updates:', error);
+    return false;
+  }
+}
+
+/**
+ * Revert ELO updates for all participants when a tournament is deleted
+ * This removes the tournament from each user's history and reverts their ELO
+ *
+ * @param tournamentId Tournament ID
+ * @returns true if successful
+ */
+export async function revertTournamentElo(tournamentId: string): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const tournament = await getTournament(tournamentId);
+  if (!tournament) {
+    console.error('Tournament not found');
+    return false;
+  }
+
+  // Only revert if ELO was enabled and tournament was completed (ELO was applied)
+  if (!tournament.eloConfig.enabled) {
+    console.log('ELO not enabled for this tournament - nothing to revert');
+    return true;
+  }
+
+  if (tournament.status !== 'COMPLETED') {
+    console.log('Tournament not completed - ELO was never applied, nothing to revert');
+    return true;
+  }
+
+  try {
+    console.log(`🔄 Reverting ELO for tournament "${tournament.name}" (${tournamentId})`);
+
+    // Process each participant
+    for (const participant of tournament.participants) {
+      if (participant.status !== 'ACTIVE') continue;
+
+      let userId: string | null = null;
+
+      if (participant.type === 'REGISTERED' && participant.userId) {
+        // REGISTERED user - use existing userId
+        userId = participant.userId;
+      } else {
+        // GUEST user - find by exact name match
+        const result = await getOrCreateUserByName(participant.name);
+        if (result && !result.created) {
+          userId = result.userId;
+        }
+      }
+
+      if (userId) {
+        await removeTournamentRecord(userId, tournamentId);
+      }
+
+      // Also handle partner in doubles
+      if (tournament.gameType === 'doubles' && participant.partner) {
+        let partnerUserId: string | null = null;
+
+        if (participant.partner.type === 'REGISTERED' && participant.partner.userId) {
+          partnerUserId = participant.partner.userId;
+        } else {
+          const result = await getOrCreateUserByName(participant.partner.name);
+          if (result && !result.created) {
+            partnerUserId = result.userId;
+          }
+        }
+
+        if (partnerUserId) {
+          await removeTournamentRecord(partnerUserId, tournamentId);
+        }
+      }
+    }
+
+    console.log(`✅ Reverted ELO for all participants in tournament "${tournament.name}"`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error reverting tournament ELO:', error);
     return false;
   }
 }

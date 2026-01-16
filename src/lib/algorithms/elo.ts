@@ -73,11 +73,8 @@ export function calculateEloDelta(
   actualPosition: number,
   config: EloConfig
 ): number {
-  // Adjust kFactor if first tournament
-  const kFactor = config.isFirstTournament ? config.kFactor * 0.75 : config.kFactor;
-
   // Calculate raw delta
-  let delta = (expectedPosition - actualPosition) * kFactor;
+  let delta = (expectedPosition - actualPosition) * config.kFactor;
 
   // Apply cap
   if (delta > config.maxDelta) {
@@ -198,8 +195,7 @@ export function calculateEloFromInput(input: EloInput): EloResult {
     enabled: true,
     initialElo: input.initialElo,
     kFactor: input.kFactor,
-    maxDelta: input.maxDelta,
-    isFirstTournament: false
+    maxDelta: input.maxDelta
   };
 
   let delta: number;

@@ -10,10 +10,28 @@
   let selectedMatch: GroupMatch | BracketMatch | null = null;
   let isBracketMatch = false;
 
+  // Sort participants by final position for the final standings
+  $: sortedParticipants = [...tournament.participants]
+    .filter(p => p.status === 'ACTIVE' && p.finalPosition)
+    .sort((a, b) => (a.finalPosition || 999) - (b.finalPosition || 999));
+
   // Get participant name by ID
   function getParticipantName(participantId: string | undefined): string {
     if (!participantId) return 'TBD';
     return tournament.participants.find(p => p.id === participantId)?.name || 'Unknown';
+  }
+
+  // Get position medal/emoji
+  function getPositionDisplay(position: number): string {
+    if (position === 1) return '🥇';
+    if (position === 2) return '🥈';
+    if (position === 3) return '🥉';
+    return `${position}º`;
+  }
+
+  // Calculate ELO delta for display
+  function getEloDelta(participant: typeof tournament.participants[0]): number {
+    return participant.currentElo - participant.eloSnapshot;
   }
 
   // Handle match click to show details
@@ -59,6 +77,48 @@
 </script>
 
 <div class="completed-view">
+  <!-- Final Standings with ELO -->
+  <div class="final-standings-section">
+    <h3 class="section-title">🏆 Clasificación Final</h3>
+    <div class="standings-table-container">
+      <table class="final-standings-table">
+        <thead>
+          <tr>
+            <th class="pos-col">#</th>
+            <th class="name-col">Participante</th>
+            {#if tournament.eloConfig.enabled}
+              <th class="elo-col">ELO</th>
+              <th class="delta-col">+/-</th>
+            {/if}
+          </tr>
+        </thead>
+        <tbody>
+          {#each sortedParticipants as participant (participant.id)}
+            {@const delta = getEloDelta(participant)}
+            <tr class:top-3={participant.finalPosition && participant.finalPosition <= 3}>
+              <td class="pos-col">
+                <span class="position-display" class:medal={participant.finalPosition && participant.finalPosition <= 3}>
+                  {getPositionDisplay(participant.finalPosition || 0)}
+                </span>
+              </td>
+              <td class="name-col">{participant.name}</td>
+              {#if tournament.eloConfig.enabled}
+                <td class="elo-col">
+                  <span class="elo-value">{participant.currentElo}</span>
+                </td>
+                <td class="delta-col">
+                  <span class="elo-delta" class:positive={delta > 0} class:negative={delta < 0}>
+                    {delta > 0 ? '+' : ''}{delta}
+                  </span>
+                </td>
+              {/if}
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Tab Navigation -->
   <div class="tab-navigation">
     {#if tournament.phaseType === 'TWO_PHASE'}
@@ -174,6 +234,46 @@
               </div>
             </div>
           {/each}
+
+          <!-- 3rd/4th Place Match -->
+          {#if tournament.finalStage.bracket.thirdPlaceMatch}
+            {@const thirdPlaceMatch = tournament.finalStage.bracket.thirdPlaceMatch}
+            <div class="bracket-round third-place-round">
+              <h3 class="round-name third-place">3º y 4º Puesto</h3>
+              <div class="matches-column">
+                <button
+                  class="bracket-match third-place-match"
+                  class:clickable={thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
+                  on:click={() => thirdPlaceMatch.participantA && thirdPlaceMatch.participantB && handleMatchClick(thirdPlaceMatch, true)}
+                  disabled={!thirdPlaceMatch.participantA || !thirdPlaceMatch.participantB}
+                >
+                  <div
+                    class="match-participant"
+                    class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
+                    class:tbd={!thirdPlaceMatch.participantA}
+                  >
+                    <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
+                    {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
+                      <span class="score">{thirdPlaceMatch.totalPointsA || 0}</span>
+                    {/if}
+                  </div>
+
+                  <div class="vs-divider"></div>
+
+                  <div
+                    class="match-participant"
+                    class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
+                    class:tbd={!thirdPlaceMatch.participantB}
+                  >
+                    <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
+                    {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
+                      <span class="score">{thirdPlaceMatch.totalPointsB || 0}</span>
+                    {/if}
+                  </div>
+                </button>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -195,6 +295,145 @@
 <style>
   .completed-view {
     width: 100%;
+  }
+
+  /* Final Standings Section */
+  .final-standings-section {
+    margin-bottom: 2rem;
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+
+  :global([data-theme='dark']) .final-standings-section {
+    background: #0f1419;
+  }
+
+  .section-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0 0 1rem 0;
+  }
+
+  :global([data-theme='dark']) .section-title {
+    color: #e1e8ed;
+  }
+
+  .standings-table-container {
+    overflow-x: auto;
+  }
+
+  .final-standings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  .final-standings-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .final-standings-table th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    color: white;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .final-standings-table th.pos-col {
+    width: 60px;
+    text-align: center;
+  }
+
+  .final-standings-table th.elo-col,
+  .final-standings-table th.delta-col {
+    width: 80px;
+    text-align: center;
+  }
+
+  .final-standings-table tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+    transition: background-color 0.2s;
+  }
+
+  :global([data-theme='dark']) .final-standings-table tbody tr {
+    border-bottom-color: #2d3748;
+  }
+
+  .final-standings-table tbody tr:hover {
+    background: rgba(102, 126, 234, 0.05);
+  }
+
+  .final-standings-table tbody tr.top-3 {
+    background: rgba(16, 185, 129, 0.05);
+  }
+
+  :global([data-theme='dark']) .final-standings-table tbody tr.top-3 {
+    background: rgba(16, 185, 129, 0.1);
+  }
+
+  .final-standings-table td {
+    padding: 0.75rem 1rem;
+    color: #374151;
+  }
+
+  :global([data-theme='dark']) .final-standings-table td {
+    color: #e1e8ed;
+  }
+
+  .final-standings-table td.pos-col {
+    text-align: center;
+  }
+
+  .position-display {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #6b7280;
+  }
+
+  .position-display.medal {
+    font-size: 1.3rem;
+  }
+
+  .final-standings-table td.name-col {
+    font-weight: 600;
+  }
+
+  .final-standings-table td.elo-col,
+  .final-standings-table td.delta-col {
+    text-align: center;
+  }
+
+  .elo-value {
+    font-weight: 600;
+    color: #667eea;
+  }
+
+  .elo-delta {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+
+  .elo-delta.positive {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+  }
+
+  .elo-delta.negative {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
   }
 
   /* Tab Navigation */
@@ -298,10 +537,10 @@
     color: #8b9bb3;
   }
 
-  /* Matches List */
+  /* Matches List - 2 columns on wide screens */
   .matches-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
   }
 
@@ -492,6 +731,35 @@
     background: #2d3748;
   }
 
+  /* 3rd/4th place match styles */
+  .third-place-round {
+    margin-left: 2rem;
+    border-left: 3px dashed #d97706;
+    padding-left: 2rem;
+  }
+
+  .round-name.third-place {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  }
+
+  .third-place-match {
+    border-color: #d97706;
+  }
+
+  .third-place-match:hover:not(:disabled) {
+    border-color: #b45309;
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2);
+  }
+
+  :global([data-theme='dark']) .third-place-match {
+    border-color: #d97706;
+  }
+
+  :global([data-theme='dark']) .third-place-match:hover:not(:disabled) {
+    border-color: #f59e0b;
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+  }
+
   /* Responsive */
   @media (max-width: 850px) {
     .groups-section {
@@ -519,6 +787,11 @@
 
     .match-participant .participant-name {
       font-size: 0.85rem;
+    }
+
+    /* Switch to 1 column on narrow screens */
+    .matches-list {
+      grid-template-columns: 1fr;
     }
   }
 </style>

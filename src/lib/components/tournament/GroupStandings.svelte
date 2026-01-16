@@ -3,6 +3,8 @@
 
   export let standings: GroupStanding[];
   export let participants: TournamentParticipant[];
+  // showElo prop kept for backwards compatibility but no longer used
+  // ELO is now shown only in the final standings
   export let showElo: boolean = false;
 
   // Create participant map for quick lookup
@@ -22,12 +24,6 @@
   function getParticipantName(participantId: string): string {
     return participantMap.get(participantId)?.name || 'Unknown';
   }
-
-  // Get participant ELO by ID
-  function getParticipantElo(participantId: string): number {
-    return participantMap.get(participantId)?.currentElo || participantMap.get(participantId)?.eloSnapshot || 1500;
-  }
-
 </script>
 
 <div class="standings-table">
@@ -53,15 +49,10 @@
             </span>
           </td>
           <td class="name-col">
-            <span class="participant-info">
-              <span class="participant-name">
-                {getParticipantName(standing.participantId)}
-                {#if standing.qualifiedForFinal}
-                  <span class="qualified-badge">✓</span>
-                {/if}
-              </span>
-              {#if showElo}
-                <span class="elo-badge">{getParticipantElo(standing.participantId)}</span>
+            <span class="participant-name">
+              {getParticipantName(standing.participantId)}
+              {#if standing.qualifiedForFinal}
+                <span class="qualified-badge">✓</span>
               {/if}
             </span>
           </td>
@@ -164,33 +155,10 @@
     text-align: center;
   }
 
-  /* Participant name with ELO badge */
-  .participant-info {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
   .participant-name {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-  }
-
-  .elo-badge {
-    display: inline-block;
-    padding: 0.15rem 0.4rem;
-    background: #e5e7eb;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #6b7280;
-  }
-
-  :global([data-theme='dark']) .elo-badge {
-    background: #2d3748;
-    color: #8b9bb3;
   }
 
   .position-badge {
@@ -300,11 +268,6 @@
     th.points-col,
     th.twenties-col {
       width: 38px;
-    }
-
-    .elo-badge {
-      font-size: 0.65rem;
-      padding: 0.1rem 0.3rem;
     }
 
     .position-badge {

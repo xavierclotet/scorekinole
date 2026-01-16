@@ -9,6 +9,7 @@
   import { adminTheme } from '$lib/stores/adminTheme';
   import { getTournament } from '$lib/firebase/tournaments';
   import { updateBracketMatch, advanceWinner } from '$lib/firebase/tournamentBracket';
+  import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
 
   let tournament: Tournament | null = null;
@@ -18,13 +19,17 @@
   let toastMessage = '';
   let showMatchDialog = false;
   let selectedMatch: BracketMatch | null = null;
+  let isSuperAdminUser = false;
+  let isAutoFilling = false;
 
   $: tournamentId = $page.params.id;
   $: bracket = tournament?.finalStage?.bracket;
   $: rounds = bracket?.rounds || [];
+  $: thirdPlaceMatch = bracket?.thirdPlaceMatch;
 
   onMount(async () => {
     await loadTournament();
+    isSuperAdminUser = await isSuperAdmin();
   });
 
   async function loadTournament() {
@@ -169,6 +174,128 @@
     selectedMatch = null;
   }
 
+  /**
+   * Auto-fill all pending bracket matches with random results (SuperAdmin only)
+   * Simulates games until reaching pointsToWin (default 7) with 2+ point lead
+   */
+  async function autoFillAllMatches() {
+    if (!tournament || !tournament.finalStage?.bracket || !tournamentId) return;
+
+    isAutoFilling = true;
+    let filledCount = 0;
+
+    try {
+      const pointsToWin = tournament.finalStage.pointsToWin || 7;
+      const matchesToWin = tournament.finalStage.matchesToWin || 3;
+      const requiredWins = Math.ceil(matchesToWin / 2);
+
+      // Helper function to simulate a match
+      async function simulateMatch(match: BracketMatch): Promise<boolean> {
+        if (match.status !== 'PENDING' || !match.participantA || !match.participantB) {
+          return false;
+        }
+
+        let gamesA = 0;
+        let gamesB = 0;
+        let totalPointsA = 0;
+        let totalPointsB = 0;
+        let total20sA = 0;
+        let total20sB = 0;
+
+        while (gamesA < requiredWins && gamesB < requiredWins) {
+          let gamePointsA = 0;
+          let gamePointsB = 0;
+
+          while (true) {
+            const distribution = Math.random();
+            if (distribution < 0.45) {
+              gamePointsA += 2;
+              if (Math.random() < 0.12) total20sA++;
+            } else if (distribution < 0.9) {
+              gamePointsB += 2;
+              if (Math.random() < 0.12) total20sB++;
+            } else {
+              gamePointsA += 1;
+              gamePointsB += 1;
+            }
+
+            const maxPoints = Math.max(gamePointsA, gamePointsB);
+            const diff = Math.abs(gamePointsA - gamePointsB);
+
+            if (maxPoints >= pointsToWin && diff >= 2) {
+              break;
+            }
+          }
+
+          totalPointsA += gamePointsA;
+          totalPointsB += gamePointsB;
+
+          if (gamePointsA > gamePointsB) {
+            gamesA++;
+          } else {
+            gamesB++;
+          }
+        }
+
+        const winner = gamesA > gamesB ? match.participantA : match.participantB;
+
+        await updateBracketMatch(tournamentId, match.id, {
+          status: 'COMPLETED',
+          gamesWonA: gamesA,
+          gamesWonB: gamesB,
+          totalPointsA,
+          totalPointsB,
+          total20sA,
+          total20sB,
+          winner
+        });
+
+        if (winner) {
+          await advanceWinner(tournamentId, match.id, winner);
+        }
+
+        return true;
+      }
+
+      // Keep processing until no more matches can be filled
+      let hasMoreMatches = true;
+      while (hasMoreMatches) {
+        hasMoreMatches = false;
+
+        // Reload tournament to get current bracket state
+        tournament = await getTournament(tournamentId);
+        if (!tournament?.finalStage?.bracket) break;
+
+        // Process rounds in order
+        for (const round of tournament.finalStage.bracket.rounds) {
+          for (const match of round.matches) {
+            if (await simulateMatch(match)) {
+              hasMoreMatches = true;
+              filledCount++;
+            }
+          }
+        }
+
+        // Also process 3rd place match if available
+        const thirdPlace = tournament.finalStage.bracket.thirdPlaceMatch;
+        if (thirdPlace && await simulateMatch(thirdPlace)) {
+          hasMoreMatches = true;
+          filledCount++;
+        }
+      }
+
+      toastMessage = `✅ ${filledCount} partidos rellenados automáticamente`;
+      showToast = true;
+      await loadTournament(); // Final reload
+    } catch (err) {
+      console.error('Error auto-filling bracket matches:', err);
+      toastMessage = '❌ Error al rellenar partidos';
+      showToast = true;
+    } finally {
+      isAutoFilling = false;
+    }
+  }
+
   // Convert BracketMatch to GroupMatch format for the dialog
   $: dialogMatch = selectedMatch ? {
     ...selectedMatch,
@@ -206,6 +333,18 @@
             <h1>{tournament.name}</h1>
             <p class="subtitle">Fase Final - Bracket de Eliminación</p>
           </div>
+          {#if isSuperAdminUser}
+            <div class="header-actions">
+              <button
+                class="action-btn autofill"
+                on:click={autoFillAllMatches}
+                disabled={isAutoFilling}
+                title="Solo visible para SuperAdmin - Rellenar partidos con resultados aleatorios"
+              >
+                {isAutoFilling ? '⏳ Rellenando...' : '🎲 Auto-rellenar'}
+              </button>
+            </div>
+          {/if}
         </div>
       {/if}
     </header>
@@ -287,6 +426,60 @@
               </div>
             </div>
           {/each}
+
+          <!-- 3rd/4th Place Match -->
+          {#if thirdPlaceMatch}
+            <div class="bracket-round third-place-round">
+              <h2 class="round-name third-place">3º y 4º Puesto</h2>
+              <div class="matches-column">
+                <div
+                  class="bracket-match third-place-match"
+                  class:clickable={thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
+                  on:click={() => handleMatchClick(thirdPlaceMatch)}
+                  on:keydown={(e) => e.key === 'Enter' && handleMatchClick(thirdPlaceMatch)}
+                  role="button"
+                  tabindex="0"
+                >
+                  <div
+                    class="match-participant"
+                    class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
+                    class:tbd={!thirdPlaceMatch.participantA}
+                  >
+                    <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
+                    {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
+                      <span class="score">{thirdPlaceMatch.totalPointsA || 0}</span>
+                      {#if tournament.show20s && thirdPlaceMatch.total20sA !== undefined}
+                        <span class="twenties">🎯{thirdPlaceMatch.total20sA}</span>
+                      {/if}
+                    {/if}
+                  </div>
+
+                  <div class="vs-divider"></div>
+
+                  <div
+                    class="match-participant"
+                    class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
+                    class:tbd={!thirdPlaceMatch.participantB}
+                  >
+                    <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
+                    {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
+                      <span class="score">{thirdPlaceMatch.totalPointsB || 0}</span>
+                      {#if tournament.show20s && thirdPlaceMatch.total20sB !== undefined}
+                        <span class="twenties">🎯{thirdPlaceMatch.total20sB}</span>
+                      {/if}
+                    {/if}
+                  </div>
+
+                  {#if thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
+                    {@const statusInfo = getStatusDisplay(thirdPlaceMatch.status)}
+                    <div class="status-badge" style="background: {statusInfo.color}">
+                      {statusInfo.text}
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -363,6 +556,38 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1rem;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .action-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .action-btn.autofill {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+  }
+
+  .action-btn.autofill:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+  }
+
+  .action-btn.autofill:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .header-content h1 {
@@ -730,6 +955,36 @@
     letter-spacing: 0.03em;
   }
 
+  /* 3rd/4th place match styles */
+  .third-place-round {
+    margin-left: 2rem;
+    border-left: 3px dashed #d97706;
+    padding-left: 2rem;
+  }
+
+  .round-name.third-place {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    color: white;
+  }
+
+  .bracket-page[data-theme='dark'] .round-name.third-place {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    color: white;
+  }
+
+  .third-place-match {
+    border-color: #d97706;
+  }
+
+  .third-place-match::after,
+  .third-place-match::before {
+    display: none !important;
+  }
+
+  .third-place-round .matches-column::after {
+    display: none !important;
+  }
+
   @media (max-width: 768px) {
     .page-content {
       padding: 1rem;
@@ -758,6 +1013,11 @@
 
     .participant-name {
       font-size: 0.85rem;
+    }
+
+    .third-place-round {
+      margin-left: 1rem;
+      padding-left: 1rem;
     }
   }
 </style>

@@ -5,6 +5,7 @@
 
 import { getTournament, updateTournament } from './tournaments';
 import { generateBracket as generateBracketAlgorithm, advanceWinner as advanceWinnerAlgorithm, getQualifiedParticipants } from '$lib/algorithms/bracket';
+import { calculateFinalPositions, applyEloUpdates } from './tournamentElo';
 import type { BracketMatch } from '$lib/types/tournament';
 
 /**
@@ -166,16 +167,25 @@ export async function updateBracketMatch(
       cleanResult.completedAt = Date.now();
     }
 
-    // Find and update match
-    for (const round of bracket.rounds) {
-      const matchIndex = round.matches.findIndex(m => m.id === matchId);
-      if (matchIndex !== -1) {
-        round.matches[matchIndex] = {
-          ...round.matches[matchIndex],
-          ...cleanResult
-        };
-        matchUpdated = true;
-        break;
+    // Find and update match (check 3rd place match first)
+    if (bracket.thirdPlaceMatch?.id === matchId) {
+      bracket.thirdPlaceMatch = {
+        ...bracket.thirdPlaceMatch,
+        ...cleanResult
+      };
+      matchUpdated = true;
+    } else {
+      // Search in rounds
+      for (const round of bracket.rounds) {
+        const matchIndex = round.matches.findIndex(m => m.id === matchId);
+        if (matchIndex !== -1) {
+          round.matches[matchIndex] = {
+            ...round.matches[matchIndex],
+            ...cleanResult
+          };
+          matchUpdated = true;
+          break;
+        }
       }
     }
 
@@ -226,28 +236,47 @@ export async function advanceWinner(
       winnerId
     );
 
-    // Check if this was the final
+    // Check if final match is complete
     const finalRound = updatedBracket.rounds[updatedBracket.rounds.length - 1];
     const finalMatch = finalRound.matches[0];
     const isFinalComplete = finalMatch.status === 'COMPLETED' || finalMatch.status === 'WALKOVER';
 
-    // Update tournament - if final is complete, also set tournament status to COMPLETED
+    // Check if 3rd place match is complete (if it exists)
+    const thirdPlaceMatch = updatedBracket.thirdPlaceMatch;
+    const isThirdPlaceComplete = !thirdPlaceMatch ||
+      thirdPlaceMatch.status === 'COMPLETED' ||
+      thirdPlaceMatch.status === 'WALKOVER';
+
+    // Tournament is complete only when both final AND 3rd place match are done
+    const isTournamentComplete = isFinalComplete && isThirdPlaceComplete;
+
+    // Update tournament - if all matches complete, also set tournament status to COMPLETED
     const updateData: any = {
       finalStage: {
         ...tournament.finalStage,
         bracket: updatedBracket,
-        isComplete: isFinalComplete,
+        isComplete: isTournamentComplete,
         winner: isFinalComplete ? finalMatch.winner : undefined
       }
     };
 
-    // If final match is complete, mark entire tournament as COMPLETED
-    if (isFinalComplete) {
+    // If all matches are complete, mark entire tournament as COMPLETED
+    if (isTournamentComplete) {
       updateData.status = 'COMPLETED';
-      console.log('🏆 Final match completed - marking tournament as COMPLETED');
+      updateData.completedAt = Date.now();
+      console.log('🏆 Final and 3rd place matches completed - marking tournament as COMPLETED');
     }
 
-    return await updateTournament(tournamentId, updateData);
+    const success = await updateTournament(tournamentId, updateData);
+
+    // If tournament just completed, calculate positions and apply ELO updates
+    if (success && isFinalComplete) {
+      console.log('📊 Calculating final positions and ELO updates...');
+      await calculateFinalPositions(tournamentId);
+      await applyEloUpdates(tournamentId);
+    }
+
+    return success;
   } catch (error) {
     console.error('❌ Error advancing winner:', error);
     return false;
@@ -335,13 +364,32 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
     return false;
   }
 
+  // Verify 3rd place match is complete (if it exists)
+  const thirdPlaceMatch = tournament.finalStage.bracket.thirdPlaceMatch;
+  if (thirdPlaceMatch) {
+    if (thirdPlaceMatch.status !== 'COMPLETED' && thirdPlaceMatch.status !== 'WALKOVER') {
+      console.error('3rd place match is not complete');
+      return false;
+    }
+  }
+
   // Mark final stage as complete and update tournament status
-  return await updateTournament(tournamentId, {
+  const success = await updateTournament(tournamentId, {
     status: 'COMPLETED',
+    completedAt: Date.now(),
     finalStage: {
       ...tournament.finalStage,
       isComplete: true,
       winner: finalMatch.winner
     }
   });
+
+  // Calculate positions and apply ELO updates
+  if (success) {
+    console.log('📊 Calculating final positions and ELO updates...');
+    await calculateFinalPositions(tournamentId);
+    await applyEloUpdates(tournamentId);
+  }
+
+  return success;
 }
