@@ -15,6 +15,12 @@
   $: goldBracket = tournament.finalStage?.bracket;
   $: silverBracket = tournament.finalStage?.silverBracket;
 
+  // Match configuration - determines if we show games won or total points
+  $: goldMatchesToWin = tournament.finalStage?.matchesToWin || 1;
+  $: silverMatchesToWin = tournament.finalStage?.silverMatchesToWin || 1;
+  $: showGoldGamesWon = goldMatchesToWin > 1;
+  $: showSilverGamesWon = silverMatchesToWin > 1;
+
   // Sort participants by final position for the final standings
   $: sortedParticipants = [...tournament.participants]
     .filter(p => p.status === 'ACTIVE' && p.finalPosition)
@@ -34,9 +40,9 @@
     return `${position}º`;
   }
 
-  // Calculate ELO delta for display
-  function getEloDelta(participant: typeof tournament.participants[0]): number {
-    return participant.currentElo - participant.eloSnapshot;
+  // Calculate ranking delta for display
+  function getRankingDelta(participant: typeof tournament.participants[0]): number {
+    return participant.currentRanking - participant.rankingSnapshot;
   }
 
   // Handle match click to show details
@@ -82,7 +88,7 @@
 </script>
 
 <div class="completed-view">
-  <!-- Final Standings with ELO -->
+  <!-- Final Standings with Ranking -->
   <div class="final-standings-section">
     <h3 class="section-title">🏆 Clasificación Final</h3>
     <div class="standings-table-container">
@@ -91,15 +97,15 @@
           <tr>
             <th class="pos-col">#</th>
             <th class="name-col">Participante</th>
-            {#if tournament.eloConfig.enabled}
-              <th class="elo-col">ELO</th>
+            {#if tournament.rankingConfig?.enabled}
+              <th class="ranking-col">Ranking</th>
               <th class="delta-col">+/-</th>
             {/if}
           </tr>
         </thead>
         <tbody>
           {#each sortedParticipants as participant (participant.id)}
-            {@const delta = getEloDelta(participant)}
+            {@const delta = getRankingDelta(participant)}
             <tr class:top-3={participant.finalPosition && participant.finalPosition <= 3}>
               <td class="pos-col">
                 <span class="position-display" class:medal={participant.finalPosition && participant.finalPosition <= 3}>
@@ -107,12 +113,12 @@
                 </span>
               </td>
               <td class="name-col">{participant.name}</td>
-              {#if tournament.eloConfig.enabled}
-                <td class="elo-col">
-                  <span class="elo-value">{participant.currentElo}</span>
+              {#if tournament.rankingConfig?.enabled}
+                <td class="ranking-col">
+                  <span class="ranking-value">{participant.currentRanking}</span>
                 </td>
                 <td class="delta-col">
-                  <span class="elo-delta" class:positive={delta > 0} class:negative={delta < 0}>
+                  <span class="ranking-delta" class:positive={delta > 0} class:negative={delta < 0}>
                     {delta > 0 ? '+' : ''}{delta}
                   </span>
                 </td>
@@ -159,7 +165,7 @@
               <GroupStandings
                 standings={group.standings}
                 participants={tournament.participants}
-                showElo={tournament.eloConfig.enabled}
+                showElo={tournament.rankingConfig?.enabled}
                 isSwiss={tournament.groupStage?.type === 'SWISS'}
                 rankingSystem={tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
               />
@@ -221,7 +227,7 @@
                         <span class="seed">#{match.seedA}</span>
                       {/if}
                       {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                        <span class="score">{match.totalPointsA || 0}</span>
+                        <span class="score">{showGoldGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
                       {/if}
                     </div>
 
@@ -237,7 +243,7 @@
                         <span class="seed">#{match.seedB}</span>
                       {/if}
                       {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                        <span class="score">{match.totalPointsB || 0}</span>
+                        <span class="score">{showGoldGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
                       {/if}
                     </div>
                   </button>
@@ -265,7 +271,7 @@
                   >
                     <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
-                      <span class="score">{thirdPlaceMatch.totalPointsA || 0}</span>
+                      <span class="score">{showGoldGamesWon ? (thirdPlaceMatch.gamesWonA || 0) : (thirdPlaceMatch.totalPointsA || 0)}</span>
                     {/if}
                   </div>
 
@@ -278,7 +284,7 @@
                   >
                     <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
-                      <span class="score">{thirdPlaceMatch.totalPointsB || 0}</span>
+                      <span class="score">{showGoldGamesWon ? (thirdPlaceMatch.gamesWonB || 0) : (thirdPlaceMatch.totalPointsB || 0)}</span>
                     {/if}
                   </div>
                 </button>
@@ -312,7 +318,7 @@
                           <span class="seed">#{match.seedA}</span>
                         {/if}
                         {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                          <span class="score">{match.totalPointsA || 0}</span>
+                          <span class="score">{showSilverGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
                         {/if}
                       </div>
 
@@ -328,7 +334,7 @@
                           <span class="seed">#{match.seedB}</span>
                         {/if}
                         {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                          <span class="score">{match.totalPointsB || 0}</span>
+                          <span class="score">{showSilverGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
                         {/if}
                       </div>
                     </button>
@@ -356,7 +362,7 @@
                     >
                       <span class="participant-name">{getParticipantName(silverThirdPlace.participantA)}</span>
                       {#if silverThirdPlace.status === 'COMPLETED' || silverThirdPlace.status === 'WALKOVER'}
-                        <span class="score">{silverThirdPlace.totalPointsA || 0}</span>
+                        <span class="score">{showSilverGamesWon ? (silverThirdPlace.gamesWonA || 0) : (silverThirdPlace.totalPointsA || 0)}</span>
                       {/if}
                     </div>
 
@@ -369,7 +375,7 @@
                     >
                       <span class="participant-name">{getParticipantName(silverThirdPlace.participantB)}</span>
                       {#if silverThirdPlace.status === 'COMPLETED' || silverThirdPlace.status === 'WALKOVER'}
-                        <span class="score">{silverThirdPlace.totalPointsB || 0}</span>
+                        <span class="score">{showSilverGamesWon ? (silverThirdPlace.gamesWonB || 0) : (silverThirdPlace.totalPointsB || 0)}</span>
                       {/if}
                     </div>
                   </button>
@@ -453,7 +459,7 @@
     text-align: center;
   }
 
-  .final-standings-table th.elo-col,
+  .final-standings-table th.ranking-col,
   .final-standings-table th.delta-col {
     width: 80px;
     text-align: center;
@@ -512,17 +518,17 @@
     font-weight: 600;
   }
 
-  .final-standings-table td.elo-col,
+  .final-standings-table td.ranking-col,
   .final-standings-table td.delta-col {
     text-align: center;
   }
 
-  .elo-value {
+  .ranking-value {
     font-weight: 600;
     color: #667eea;
   }
 
-  .elo-delta {
+  .ranking-delta {
     display: inline-block;
     padding: 0.2rem 0.5rem;
     border-radius: 4px;
@@ -530,12 +536,12 @@
     font-size: 0.85rem;
   }
 
-  .elo-delta.positive {
+  .ranking-delta.positive {
     background: rgba(16, 185, 129, 0.15);
     color: #10b981;
   }
 
-  .elo-delta.negative {
+  .ranking-delta.negative {
     background: rgba(239, 68, 68, 0.15);
     color: #ef4444;
   }

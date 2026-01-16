@@ -108,7 +108,7 @@
           <th class="losses-col">P</th>
           <th class="ties-col">E</th>
           {#if rankingSystem === 'WINS'}
-            <th class="points-col primary-col" title={isSwiss ? 'Puntos Swiss (1/0.5/0)' : 'Puntos (2/1/0)'}>Pts</th>
+            <th class="points-col primary-col" title="Puntos (2/1/0)">Pts</th>
           {/if}
           <th class="twenties-col">20s</th>
           <th class="scored-col" class:primary-col={rankingSystem === 'POINTS'} title="Puntos totales de Crokinole">PT</th>
@@ -117,7 +117,7 @@
       <tbody>
         {#each standings as standing}
           {@const isSelected = selectedParticipants.has(standing.participantId)}
-          {@const swissPoints = standing.swissPoints ?? (standing.matchesWon + standing.matchesTied * 0.5)}
+          {@const swissPoints = standing.swissPoints ?? (standing.matchesWon * 2 + standing.matchesTied)}
           <tr
             class:selected={isSelected}
             on:click={() => toggleParticipant(standing.participantId)}
@@ -144,7 +144,7 @@
             <td class="ties-col">{standing.matchesTied}</td>
             {#if rankingSystem === 'WINS'}
               <td class="points-col primary-col">
-                <strong>{isSwiss ? (swissPoints % 1 === 0 ? swissPoints : swissPoints.toFixed(1)) : standing.points}</strong>
+                <strong>{isSwiss ? swissPoints : standing.points}</strong>
               </td>
             {/if}
             <td class="twenties-col">{standing.total20s}</td>

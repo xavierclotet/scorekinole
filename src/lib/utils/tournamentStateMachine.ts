@@ -5,7 +5,7 @@
 
 import { getTournament, updateTournament } from '$lib/firebase/tournaments';
 import { generateBracket } from '$lib/firebase/tournamentBracket';
-import { calculateFinalPositions, applyEloUpdates } from '$lib/firebase/tournamentElo';
+import { calculateFinalPositions, applyRankingUpdates, syncParticipantRankings } from '$lib/firebase/tournamentRanking';
 import type { TournamentStatus } from '$lib/types/tournament';
 
 /**
@@ -86,30 +86,32 @@ export async function transitionTournament(
  * Validates:
  * - Minimum 4 participants
  * - Generates schedule/pairings
- * - Snapshots ELO
- * - Calculates expected positions
+ * - Snapshots ranking
  */
 async function startGroupStage(tournamentId: string): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
+  let tournament = await getTournament(tournamentId);
   if (!tournament) return false;
 
   // Validate minimum participants
-  if (tournament.participants.length < 4) {
-    console.error('Tournament requires at least 4 participants');
+  if (tournament.participants.length < 2) {
+    console.error('Tournament requires at least 2 participants');
     return false;
   }
 
-  // Calculate expected positions (in-memory only, don't update yet)
-  let updatedParticipants = tournament.participants;
-  if (tournament.eloConfig.enabled) {
-    const expectedPositions = await import('$lib/algorithms/elo').then(m =>
-      m.calculateExpectedPositions(tournament.participants)
-    );
-    updatedParticipants = tournament.participants.map(p => ({
-      ...p,
-      expectedPosition: expectedPositions.get(p.id) || 0
-    }));
+  // Sync participant rankings from user profiles
+  // This ensures we use their current accumulated ranking points
+  if (tournament.rankingConfig?.enabled) {
+    console.log('📊 Syncing participant rankings from user profiles...');
+    await syncParticipantRankings(tournamentId);
+    // Re-fetch tournament to get updated rankingSnapshots
+    const refreshedTournament = await getTournament(tournamentId);
+    if (refreshedTournament) {
+      tournament = refreshedTournament;
+    }
   }
+
+  // Use participants as-is (no expected positions calculation needed with new tier system)
+  let updatedParticipants = tournament.participants;
 
   // Generate schedule based on type (in-memory only, don't update yet)
   let groupStage;
@@ -296,8 +298,21 @@ async function enterTransition(tournamentId: string): Promise<boolean> {
  * - Seeds participants
  */
 async function startFinalStage(tournamentId: string): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
+  let tournament = await getTournament(tournamentId);
   if (!tournament) return false;
+
+  // For ONE_PHASE tournaments, sync rankings here
+  // (For TWO_PHASE, this is done in startGroupStage)
+  if (tournament.phaseType === 'ONE_PHASE' && tournament.rankingConfig?.enabled) {
+    console.log('📊 [ONE_PHASE] Syncing participant rankings from user profiles...');
+    await syncParticipantRankings(tournamentId);
+
+    // Re-fetch tournament to get updated rankingSnapshots
+    const refreshedTournament = await getTournament(tournamentId);
+    if (refreshedTournament) {
+      tournament = refreshedTournament;
+    }
+  }
 
   // Generate bracket
   const bracketSuccess = await generateBracket(tournamentId);
@@ -317,8 +332,8 @@ async function startFinalStage(tournamentId: string): Promise<boolean> {
  *
  * Validates:
  * - Final match completed
- * - Calculates ELO deltas
- * - Applies ELO updates to user profiles
+ * - Calculates ranking points
+ * - Applies ranking updates to user profiles
  */
 async function completeTournament(tournamentId: string): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
@@ -339,11 +354,11 @@ async function completeTournament(tournamentId: string): Promise<boolean> {
     console.warn('Failed to calculate final positions');
   }
 
-  // Apply ELO updates
-  if (tournament.eloConfig.enabled) {
-    const eloSuccess = await applyEloUpdates(tournamentId);
-    if (!eloSuccess) {
-      console.warn('Failed to apply ELO updates');
+  // Apply ranking updates
+  if (tournament.rankingConfig?.enabled) {
+    const rankingSuccess = await applyRankingUpdates(tournamentId);
+    if (!rankingSuccess) {
+      console.warn('Failed to apply ranking updates');
     }
   }
 
@@ -378,7 +393,7 @@ export function getEditableFields(status: TournamentStatus): string[] {
       'numGroups',
       'numSwissRounds',
       'participants',
-      'eloConfig'
+      'rankingConfig'
     ],
     GROUP_STAGE: ['match results', 'no-show', 'tableAssignment'],
     TRANSITION: ['qualifiers'],

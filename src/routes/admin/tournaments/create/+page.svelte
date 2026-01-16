@@ -7,7 +7,8 @@
   import { goto } from '$app/navigation';
   import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
-  import type { TournamentParticipant, EloConfig, FinalStageMode } from '$lib/types/tournament';
+  import type { TournamentParticipant, RankingConfig, FinalStageMode, TournamentTier } from '$lib/types/tournament';
+  import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import { DEVELOPED_COUNTRIES } from '$lib/constants';
 
@@ -41,7 +42,7 @@
   let groupStageType: 'ROUND_ROBIN' | 'SWISS' = 'ROUND_ROBIN';
   let numGroups = 1;
   let numSwissRounds = 5;
-  let rankingSystem: 'WINS' | 'POINTS' = 'WINS';  // WINS = 2/1/0 (RR) or 1/0.5/0 (Swiss), POINTS = total points scored
+  let rankingSystem: 'WINS' | 'POINTS' = 'WINS';  // WINS = 2/1/0 (both RR and Swiss), POINTS = total points scored
 
   // Group stage game config
   let groupGameMode: 'points' | 'rounds' = 'rounds';
@@ -68,11 +69,9 @@
   let roundsToPlay = 4;
   let matchesToWin = 3;
 
-  // Step 3: ELO Configuration
-  let eloEnabled = true;
-  let initialElo = 1500;
-  let kFactor = 2;
-  let maxDelta = 25;
+  // Step 3: Ranking Configuration
+  let rankingEnabled = true;
+  let selectedTier: TournamentTier = 'CLUB';
 
   // Step 4: Participants
   let participants: Partial<TournamentParticipant>[] = [];
@@ -234,10 +233,8 @@
       }
 
       // Step 3
-      eloEnabled = tournament.eloConfig.enabled;
-      initialElo = tournament.eloConfig.initialElo;
-      kFactor = tournament.eloConfig.kFactor;
-      maxDelta = tournament.eloConfig.maxDelta;
+      rankingEnabled = tournament.rankingConfig?.enabled ?? true;
+      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
       // Step 4 - Load participants
       participants = tournament.participants.map(p => ({
@@ -313,10 +310,8 @@
       matchesToWin = data.matchesToWin || 3;
 
       // Step 3
-      eloEnabled = data.eloEnabled ?? true;
-      initialElo = data.initialElo || 1500;
-      kFactor = data.kFactor || 2.0;
-      maxDelta = data.maxDelta || 25;
+      rankingEnabled = data.rankingEnabled ?? true;
+      selectedTier = data.selectedTier || 'CLUB';
 
       // Step 4
       participants = data.participants || [];
@@ -373,10 +368,8 @@
         matchesToWin,
         show20s,
         showHammer,
-        eloEnabled,
-        initialElo,
-        kFactor,
-        maxDelta,
+        rankingEnabled,
+        selectedTier,
         participants
       };
 
@@ -452,15 +445,6 @@
     }
   }
 
-  // Calculate suggested ELO parameters based on number of participants
-  function updateEloSuggestions() {
-    const numParticipants = participants.length;
-    if (numParticipants >= 4) {
-      // maxDelta = maximum possible ELO change = (numParticipants - 1) * kFactor
-      maxDelta = (numParticipants - 1) * kFactor;
-    }
-  }
-
   function addRegisteredUser(user: UserProfile & { userId?: string }) {
     const alreadyAdded = participants.some(p => p.userId === user.userId);
     if (alreadyAdded) {
@@ -476,13 +460,12 @@
         userId: user.userId,
         name: user.playerName,
         email: user.email || undefined,
-        eloSnapshot: user.elo || 1500
+        rankingSnapshot: user.ranking || 0
       }
     ];
 
-    searchQuery = '';
-    searchResults = [];
-    updateEloSuggestions();
+    // Remove added user from search results without clearing the search query
+    searchResults = searchResults.filter(u => u.userId !== user.userId);
     saveDraft(); // Save after adding participant
   }
 
@@ -573,24 +556,16 @@
 
   function getStep3Errors(): string[] {
     const errors: string[] = [];
-    if (eloEnabled) {
-      if (initialElo < 100 || initialElo > 3000) {
-        errors.push('ELO inicial debe estar entre 100 y 3000');
-      }
-      if (kFactor <= 0 || kFactor > 10) {
-        errors.push('K-Factor debe estar entre 0 y 10');
-      }
-      if (maxDelta <= 0 || maxDelta > 200) {
-        errors.push('Delta máximo debe estar entre 0 y 200');
-      }
+    if (rankingEnabled && !selectedTier) {
+      errors.push('Debes seleccionar una categoría de torneo');
     }
     return errors;
   }
 
   function getStep4Errors(): string[] {
     const errors: string[] = [];
-    if (participants.length < 4) {
-      errors.push('Se requieren al menos 4 participantes');
+    if (participants.length < 2) {
+      errors.push('Se requieren al menos 2 participantes');
     }
     return errors;
   }
@@ -691,11 +666,9 @@
     creating = true;
 
     try {
-      const eloConfig: EloConfig = {
-        enabled: eloEnabled,
-        initialElo,
-        kFactor,
-        maxDelta
+      const rankingConfig: RankingConfig = {
+        enabled: rankingEnabled,
+        tier: selectedTier
       };
 
       // Build tournament data with phase-specific configuration
@@ -712,7 +685,7 @@
         showHammer,
         numTables,
         phaseType,
-        eloConfig
+        rankingConfig
       };
 
       // Set phase configuration based on phase type
@@ -750,6 +723,23 @@
         };
       } else {
         // ONE_PHASE: final stage configuration (for bracket directly)
+        // Ensure values have defaults to prevent undefined
+        const finalGameModeValue = gameMode || 'points';
+        const finalPointsToWinValue = pointsToWin || 7;
+        const finalRoundsToPlayValue = roundsToPlay || 4;
+        const finalMatchesToWinValue = matchesToWin || 1;
+
+        console.log('📝 ONE_PHASE config:', {
+          gameMode,
+          pointsToWin,
+          roundsToPlay,
+          matchesToWin,
+          finalGameModeValue,
+          finalPointsToWinValue,
+          finalRoundsToPlayValue,
+          finalMatchesToWinValue
+        });
+
         tournamentData.finalStage = {
           type: 'SINGLE_ELIMINATION',
           mode: 'SINGLE_BRACKET',
@@ -758,10 +748,10 @@
             totalRounds: 0
           },
           isComplete: false,
-          gameMode: gameMode,
-          pointsToWin: gameMode === 'points' ? pointsToWin : undefined,
-          roundsToPlay: gameMode === 'rounds' ? roundsToPlay : undefined,
-          matchesToWin: matchesToWin
+          gameMode: finalGameModeValue,
+          pointsToWin: finalGameModeValue === 'points' ? finalPointsToWinValue : undefined,
+          roundsToPlay: finalGameModeValue === 'rounds' ? finalRoundsToPlayValue : undefined,
+          matchesToWin: finalMatchesToWinValue
         };
       }
 
@@ -869,6 +859,11 @@
       <div class="title-section">
         <h1>{editMode ? '✏️ Editar Torneo' : '🏆 Crear Nuevo Torneo'}</h1>
         <p class="subtitle">Configura tu torneo en {totalSteps} sencillos pasos</p>
+        {#if !editMode}
+          <button class="clear-draft-btn" on:click={() => { clearDraft(); location.reload(); }} title="Empezar de nuevo">
+            🔄 Limpiar borrador
+          </button>
+        {/if}
       </div>
 
       <!-- Progress bar -->
@@ -886,7 +881,7 @@
             <div class="step-label">
               {#if i === 0}Info Básica
               {:else if i === 1}Formato
-              {:else if i === 2}ELO
+              {:else if i === 2}Ranking
               {:else if i === 3}Participantes
               {:else}Revisión
               {/if}
@@ -1428,16 +1423,28 @@
                   </div>
                 </div>
               {:else}
-                <div class="form-group">
-                  <label for="roundsToPlay">Número de Rondas por Partido</label>
-                  <input
-                    id="roundsToPlay"
-                    type="number"
-                    bind:value={roundsToPlay}
-                    min="1"
-                    max="20"
-                    class="input-field"
-                  />
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="roundsToPlay">Número de Rondas por Partido</label>
+                    <input
+                      id="roundsToPlay"
+                      type="number"
+                      bind:value={roundsToPlay}
+                      min="1"
+                      max="20"
+                      class="input-field"
+                    />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="matchesToWinRounds">Partidos a Ganar (Best of)</label>
+                    <select id="matchesToWinRounds" bind:value={matchesToWin} class="input-field">
+                      <option value={1}>1 (sin revancha)</option>
+                      <option value={3}>3 (gana a 2)</option>
+                      <option value={5}>5 (gana a 3)</option>
+                      <option value={7}>7 (gana a 4)</option>
+                    </select>
+                  </div>
                 </div>
               {/if}
             </div>
@@ -1466,55 +1473,99 @@
         </div>
       {/if}
 
-      <!-- Step 3: ELO Configuration -->
+      <!-- Step 3: Ranking Configuration -->
       {#if currentStep === 3}
         <div class="step-container">
-          <h2>📊 Configuración de Ranking ELO</h2>
+          <h2>📊 Configuración de Ranking</h2>
 
           <div class="form-group">
             <label class="checkbox-label">
-              <input type="checkbox" bind:checked={eloEnabled} />
-              <span>Habilitar sistema de ranking ELO</span>
+              <input type="checkbox" bind:checked={rankingEnabled} />
+              <span>Habilitar sistema de ranking</span>
             </label>
             <small class="help-text">
-              El ELO permite llevar un ranking de jugadores basado en rendimiento en torneos
+              Permite llevar un ranking de jugadores basado en rendimiento en torneos
             </small>
           </div>
 
-          {#if eloEnabled}
-            <div class="elo-config">
-              <div class="form-group">
-                <label for="kFactor">K-Factor (sensibilidad)</label>
-                <input
-                  id="kFactor"
-                  type="number"
-                  bind:value={kFactor}
-                  min="1"
-                  max="10"
-                  step="1"
-                  class="input-field"
-                />
-                <small class="help-text">
-                  Puntos por posición de diferencia. Ej: K=2, quedas 3 posiciones mejor de lo esperado = +6 ELO
-                </small>
+          {#if rankingEnabled}
+            <div class="ranking-config">
+              <h4>🏆 Selecciona la categoría del torneo</h4>
+              <p class="tier-description">Los puntos de ranking dependen de la categoría:</p>
+
+              <div class="tier-selection">
+                <label class="tier-option {selectedTier === 'CLUB' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="CLUB" />
+                  <div class="tier-card">
+                    <div class="tier-header">
+                      <span class="tier-badge tier-4">Tier 4</span>
+                      <span class="tier-name">Club</span>
+                    </div>
+                    <div class="tier-desc">Torneo local de club</div>
+                    <div class="tier-points">🥇 15 pts al 1º</div>
+                  </div>
+                </label>
+
+                <label class="tier-option {selectedTier === 'REGIONAL' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="REGIONAL" />
+                  <div class="tier-card">
+                    <div class="tier-header">
+                      <span class="tier-badge tier-3">Tier 3</span>
+                      <span class="tier-name">Regional</span>
+                    </div>
+                    <div class="tier-desc">Torneo inter-clubes</div>
+                    <div class="tier-points">🥇 25 pts al 1º</div>
+                  </div>
+                </label>
+
+                <label class="tier-option {selectedTier === 'NATIONAL' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="NATIONAL" />
+                  <div class="tier-card">
+                    <div class="tier-header">
+                      <span class="tier-badge tier-2">Tier 2</span>
+                      <span class="tier-name">Nacional</span>
+                    </div>
+                    <div class="tier-desc">Open nacional</div>
+                    <div class="tier-points">🥇 40 pts al 1º</div>
+                  </div>
+                </label>
+
+                <label class="tier-option {selectedTier === 'MAJOR' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="MAJOR" />
+                  <div class="tier-card">
+                    <div class="tier-header">
+                      <span class="tier-badge tier-1">Tier 1</span>
+                      <span class="tier-name">Major</span>
+                    </div>
+                    <div class="tier-desc">Tavistock / Mundial</div>
+                    <div class="tier-points">🥇 50 pts al 1º</div>
+                  </div>
+                </label>
               </div>
 
-              <div class="form-group">
-                <label for="maxDelta">Delta Máximo (±)</label>
-                <input
-                  id="maxDelta"
-                  type="number"
-                  bind:value={maxDelta}
-                  min="5"
-                  max="200"
-                  step="5"
-                  class="input-field"
-                />
-                <small class="help-text">
-                  Límite de puntos por torneo. Ej: ±25 significa que aunque la fórmula dé +40, solo ganas +25
-                </small>
+              <!-- Points distribution for selected tier -->
+              <div class="points-distribution">
+                <h4>📊 Distribución de puntos para {getTierInfo(selectedTier).name}</h4>
+                <table class="points-table">
+                  <thead>
+                    <tr>
+                      <th>Posición</th>
+                      {#each getPointsDistribution(selectedTier) as item}
+                        <th>{item.position}º</th>
+                      {/each}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Puntos</td>
+                      {#each getPointsDistribution(selectedTier) as item}
+                        <td class="points">{item.points}</td>
+                      {/each}
+                    </tr>
+                  </tbody>
+                </table>
+                <small class="help-text">A partir del 5º puesto los puntos disminuyen gradualmente (mínimo 1 punto)</small>
               </div>
-
             </div>
           {/if}
         </div>
@@ -1567,7 +1618,7 @@
                         <div class="user-info">
                           <div class="user-name-row">
                             <strong>{user.playerName}</strong>
-                            <span class="user-elo">{user.elo || 1500}</span>
+                            <span class="user-ranking">{user.ranking || 0}</span>
                           </div>
                           {#if user.email}
                             <span class="user-email">{user.email}</span>
@@ -1603,7 +1654,7 @@
                   </button>
                 </div>
                 <small class="help-text">
-                  Los invitados pueden participar pero no tendrán perfil ni ELO permanente (mínimo 3 caracteres)
+                  Los invitados pueden participar pero no tendrán perfil ni ranking permanente (mínimo 3 caracteres)
                 </small>
               </div>
             </div>
@@ -1614,7 +1665,7 @@
               {#if participants.length === 0}
                 <div class="empty-participants">
                   <p>Aún no has agregado participantes</p>
-                  <small>Mínimo 4 participantes requeridos</small>
+                  <small>Mínimo 2 participantes requeridos</small>
                 </div>
               {:else}
                 <div class="participants-grid">
@@ -1623,8 +1674,8 @@
                       <div class="participant-info">
                         <div class="participant-name-row">
                           <strong>{participant.name}</strong>
-                          {#if participant.type === 'REGISTERED' && participant.eloSnapshot}
-                            <span class="participant-elo">{participant.eloSnapshot}</span>
+                          {#if participant.type === 'REGISTERED' && participant.rankingSnapshot}
+                            <span class="participant-ranking">{participant.rankingSnapshot}</span>
                           {/if}
                         </div>
                         <span class="participant-type">
@@ -1712,7 +1763,7 @@
                   <span class="review-label">Clasificación:</span>
                   <span class="review-value">
                     {rankingSystem === 'WINS'
-                      ? (groupStageType === 'ROUND_ROBIN' ? 'Por Victorias (2/1/0)' : 'Por Victorias (1/0.5/0)')
+                      ? 'Por Victorias (2/1/0)'
                       : 'Por Puntos Totales'}
                   </span>
                 </div>
@@ -1740,16 +1791,16 @@
             </div>
 
             <div class="review-group">
-              <h3>Sistema ELO</h3>
+              <h3>Sistema de Ranking</h3>
               <div class="review-item">
                 <span class="review-label">Estado:</span>
-                <span class="review-value">{eloEnabled ? '✅ Habilitado' : '❌ Deshabilitado'}</span>
+                <span class="review-value">{rankingEnabled ? '✅ Habilitado' : '❌ Deshabilitado'}</span>
               </div>
-              {#if eloEnabled}
+              {#if rankingEnabled}
                 <div class="review-item">
-                  <span class="review-label">Configuración:</span>
+                  <span class="review-label">Categoría:</span>
                   <span class="review-value">
-                    ELO inicial {initialElo}, K-Factor {kFactor}, ±{maxDelta} max
+                    {getTierInfo(selectedTier).name} - {getTierInfo(selectedTier).basePoints} pts al 1º
                   </span>
                 </div>
               {/if}
@@ -1885,6 +1936,10 @@
     background: #2d3748;
   }
 
+  .title-section {
+    position: relative;
+  }
+
   .title-section h1 {
     font-size: 1.6rem;
     margin: 0 0 0.3rem 0;
@@ -1902,6 +1957,37 @@
     color: #666;
     margin: 0 0 1rem 0;
     transition: color 0.3s;
+  }
+
+  .clear-draft-btn {
+    position: absolute;
+    right: 0;
+    top: 0;
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .clear-draft-btn:hover {
+    background: #f5f5f5;
+    border-color: #ccc;
+    color: #333;
+  }
+
+  .wizard-container[data-theme='dark'] .clear-draft-btn {
+    border-color: #444;
+    color: #8b9bb3;
+  }
+
+  .wizard-container[data-theme='dark'] .clear-draft-btn:hover {
+    background: #2d3748;
+    border-color: #555;
+    color: #e1e8ed;
   }
 
   .wizard-container[data-theme='dark'] .subtitle {
@@ -2213,7 +2299,7 @@
   }
 
   .phase-config,
-  .elo-config {
+  .ranking-config {
     margin-top: 1.5rem;
     padding: 1.5rem;
     background: #f8f8f8;
@@ -2222,16 +2308,193 @@
   }
 
   .wizard-container[data-theme='dark'] .phase-config,
-  .wizard-container[data-theme='dark'] .elo-config {
+  .wizard-container[data-theme='dark'] .ranking-config {
     background: #0f1419;
   }
 
   .phase-config h3,
-  .elo-config h3 {
+  .ranking-config h3 {
     font-size: 1.1rem;
     margin: 0 0 1rem 0;
     color: #555;
     transition: color 0.3s;
+  }
+
+  .ranking-config h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    color: #1976d2;
+  }
+
+  .wizard-container[data-theme='dark'] .ranking-config h4 {
+    color: #4dabf7;
+  }
+
+  .tier-description {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 1rem;
+  }
+
+  .wizard-container[data-theme='dark'] .tier-description {
+    color: #8b9bb3;
+  }
+
+  /* Tier Selection Cards */
+  .tier-selection {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .tier-option {
+    cursor: pointer;
+  }
+
+  .tier-option input[type="radio"] {
+    display: none;
+  }
+
+  .tier-card {
+    padding: 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    transition: all 0.2s ease;
+  }
+
+  .wizard-container[data-theme='dark'] .tier-card {
+    background: #1a2332;
+    border-color: #374151;
+  }
+
+  .tier-option:hover .tier-card {
+    border-color: #90caf9;
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
+  }
+
+  .tier-option.selected .tier-card {
+    border-color: #1976d2;
+    background: #e3f2fd;
+    box-shadow: 0 2px 12px rgba(33, 150, 243, 0.25);
+  }
+
+  .wizard-container[data-theme='dark'] .tier-option.selected .tier-card {
+    border-color: #4dabf7;
+    background: #1a2a3a;
+  }
+
+  .tier-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .tier-badge {
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .tier-badge.tier-1 { background: #d4af37; }
+  .tier-badge.tier-2 { background: #1976d2; }
+  .tier-badge.tier-3 { background: #388e3c; }
+  .tier-badge.tier-4 { background: #7b1fa2; }
+
+  .tier-name {
+    font-weight: 600;
+    color: #333;
+  }
+
+  .wizard-container[data-theme='dark'] .tier-name {
+    color: #e1e8ed;
+  }
+
+  .tier-desc {
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+  }
+
+  .wizard-container[data-theme='dark'] .tier-desc {
+    color: #8b9bb3;
+  }
+
+  .tier-points {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #2e7d32;
+  }
+
+  .wizard-container[data-theme='dark'] .tier-points {
+    color: #66bb6a;
+  }
+
+  /* Points Distribution Table */
+  .points-distribution {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #e8f4fd;
+    border-radius: 8px;
+    border-left: 4px solid #2196f3;
+  }
+
+  .wizard-container[data-theme='dark'] .points-distribution {
+    background: #1a2a3a;
+    border-left-color: #4dabf7;
+  }
+
+  .points-distribution h4 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.95rem;
+    color: #1976d2;
+  }
+
+  .wizard-container[data-theme='dark'] .points-distribution h4 {
+    color: #4dabf7;
+  }
+
+  .points-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .points-table th,
+  .points-table td {
+    padding: 0.4rem 0.5rem;
+    text-align: center;
+    border: 1px solid #c5dff5;
+  }
+
+  .wizard-container[data-theme='dark'] .points-table th,
+  .wizard-container[data-theme='dark'] .points-table td {
+    border-color: #374151;
+  }
+
+  .points-table th {
+    background: #c5dff5;
+    font-weight: 600;
+    color: #1565c0;
+  }
+
+  .wizard-container[data-theme='dark'] .points-table th {
+    background: #1a2332;
+    color: #4dabf7;
+  }
+
+  .points-table td.points {
+    color: #2e7d32;
+    font-weight: 600;
+  }
+
+  .wizard-container[data-theme='dark'] .points-table td.points {
+    color: #66bb6a;
   }
 
   /* Phase sections - Professional design */
@@ -2458,7 +2721,7 @@
   }
 
   .wizard-container[data-theme='dark'] .phase-config h3,
-  .wizard-container[data-theme='dark'] .elo-config h3 {
+  .wizard-container[data-theme='dark'] .ranking-config h3 {
     color: #8b9bb3;
   }
 
@@ -2701,7 +2964,7 @@
     color: #e1e8ed;
   }
 
-  .user-elo {
+  .user-ranking {
     font-size: 0.7rem;
     font-weight: 500;
     color: #666;
@@ -2710,7 +2973,7 @@
     border-radius: 4px;
   }
 
-  .wizard-container[data-theme='dark'] .user-elo {
+  .wizard-container[data-theme='dark'] .user-ranking {
     color: #a0aec0;
     background: #2d3748;
   }
@@ -2817,7 +3080,7 @@
     gap: 0.5rem;
   }
 
-  .participant-elo {
+  .participant-ranking {
     font-size: 0.75rem;
     font-weight: 500;
     color: #666;
@@ -2826,7 +3089,7 @@
     border-radius: 4px;
   }
 
-  .wizard-container[data-theme='dark'] .participant-elo {
+  .wizard-container[data-theme='dark'] .participant-ranking {
     color: #a0aec0;
     background: #2d3748;
   }

@@ -1,6 +1,6 @@
 /**
  * Tournament management types
- * Core data structures for tournament system with ELO ranking
+ * Core data structures for tournament system with ranking
  */
 
 // Tournament lifecycle states
@@ -9,7 +9,7 @@ export type TournamentStatus =
   | 'GROUP_STAGE'    // Group matches in progress
   | 'TRANSITION'     // Between group and final stage
   | 'FINAL_STAGE'    // Bracket matches in progress
-  | 'COMPLETED'      // Tournament finished, ELO applied
+  | 'COMPLETED'      // Tournament finished, ranking applied
   | 'CANCELLED';     // Tournament cancelled
 
 // Tournament configuration
@@ -19,7 +19,7 @@ export type FinalStageType = 'SINGLE_ELIMINATION';
 export type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS';  // Single bracket or Gold/Silver divisions
 
 // Group stage ranking system: by wins or by total points scored
-// WINS: Round Robin uses 2/1/0, Swiss uses 1/0.5/0
+// WINS: Both Round Robin and Swiss use 2/1/0 (win/tie/loss)
 // POINTS: Sum of all Crokinole points scored
 export type GroupRankingSystem = 'WINS' | 'POINTS';
 
@@ -61,8 +61,8 @@ export interface Tournament {
   numGroups?: number;                // For Round Robin (legacy field, will be moved to groupStage)
   numSwissRounds?: number;           // For Swiss (legacy field, will be moved to groupStage)
 
-  // ELO configuration
-  eloConfig: EloConfig;
+  // Ranking configuration
+  rankingConfig: RankingConfig;
 
   // Participants
   participants: TournamentParticipant[];
@@ -98,13 +98,16 @@ export interface Tournament {
 }
 
 /**
- * ELO configuration for tournament
+ * Tournament tier type
  */
-export interface EloConfig {
+export type TournamentTier = 'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR';
+
+/**
+ * Ranking configuration for tournament
+ */
+export interface RankingConfig {
   enabled: boolean;
-  initialElo: number;      // Default: 1500
-  kFactor: number;         // Default: 2.0
-  maxDelta: number;        // Default: ±25
+  tier?: TournamentTier;   // Tournament category (affects points)
 }
 
 /**
@@ -125,10 +128,9 @@ export interface TournamentParticipant {
     email?: string;
   };
 
-  // ELO tracking
-  eloSnapshot: number;         // ELO at tournament start
-  currentElo: number;          // Current ELO (updated during tournament)
-  expectedPosition: number;    // Expected rank based on initial ELO
+  // Ranking tracking
+  rankingSnapshot: number;     // Ranking at tournament start
+  currentRanking: number;      // Current ranking (updated after tournament)
   finalPosition?: number;      // Actual final rank
 
   // Status
@@ -156,7 +158,7 @@ export interface GroupStage {
   // Configuration specific to group stage type
   numGroups?: number;          // For Round Robin
   numSwissRounds?: number;     // For Swiss
-  rankingSystem?: GroupRankingSystem;  // How to rank: 'WINS' (2/1/0 for RR, 1/0.5/0 for Swiss) or 'POINTS' (total scored)
+  rankingSystem?: GroupRankingSystem;  // How to rank: 'WINS' (2/1/0 for both RR and Swiss) or 'POINTS' (total scored)
   swissRankingSystem?: SwissRankingSystem;  // @deprecated - use rankingSystem instead
 }
 
@@ -250,7 +252,8 @@ export interface GroupStanding {
   // Points (2 for win, 1 for tie, 0 for loss) - Used for Round Robin
   points: number;
 
-  // Swiss Points (1 for win, 0.5 for tie, 0 for loss) - Used for Swiss system
+  // Swiss Points (2 for win, 1 for tie, 0 for loss) - Used for Swiss system
+  // Same scale as Round Robin points for consistency
   swissPoints?: number;
 
   // Tie-breaker criteria
@@ -353,7 +356,7 @@ export interface BracketMatch {
 }
 
 /**
- * ELO calculation result
+ * Ranking calculation result
  */
 export interface EloCalculation {
   tournamentId: string;
@@ -399,7 +402,7 @@ export interface MatchCorrection {
 
 /**
  * Tournament record for user history
- * Stored in user profile to track ELO changes
+ * Stored in user profile to track ranking changes
  */
 export interface TournamentRecord {
   tournamentId: string;
@@ -407,7 +410,7 @@ export interface TournamentRecord {
   tournamentDate: number;        // completedAt timestamp
   finalPosition: number;
   totalParticipants: number;
-  eloBefore: number;
-  eloAfter: number;
-  eloDelta: number;
+  rankingBefore: number;
+  rankingAfter: number;
+  rankingDelta: number;
 }

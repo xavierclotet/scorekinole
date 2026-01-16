@@ -372,35 +372,31 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
     standingB.matchesPlayed++;
 
     // Update wins/losses/ties and points based on ranking system
+    // Both Round Robin and Swiss use 2/1/0 (win/tie/loss)
     if (match.winner === match.participantA) {
       standingA.matchesWon++;
       standingB.matchesLost++;
-      // Points: Round Robin = 2/1/0, Swiss = 1/0.5/0
+      standingA.points += 2;  // 2 points for win
       if (isSwiss) {
-        standingA.swissPoints = (standingA.swissPoints || 0) + 1;
-        standingA.points += 2;  // Also update points for display consistency
-      } else {
-        standingA.points += 2;  // 2 points for win in Round Robin
+        standingA.swissPoints = (standingA.swissPoints || 0) + 2;
       }
     } else if (match.winner === match.participantB) {
       standingB.matchesWon++;
       standingA.matchesLost++;
+      standingB.points += 2;  // 2 points for win
       if (isSwiss) {
-        standingB.swissPoints = (standingB.swissPoints || 0) + 1;
-        standingB.points += 2;
-      } else {
-        standingB.points += 2;  // 2 points for win in Round Robin
+        standingB.swissPoints = (standingB.swissPoints || 0) + 2;
       }
     } else {
       // Tie (shouldn't happen in Best of X, but handle it)
       standingA.matchesTied++;
       standingB.matchesTied++;
-      if (isSwiss) {
-        standingA.swissPoints = (standingA.swissPoints || 0) + 0.5;
-        standingB.swissPoints = (standingB.swissPoints || 0) + 0.5;
-      }
       standingA.points += 1;
       standingB.points += 1;
+      if (isSwiss) {
+        standingA.swissPoints = (standingA.swissPoints || 0) + 1;
+        standingB.swissPoints = (standingB.swissPoints || 0) + 1;
+      }
     }
 
     // Update 20s
@@ -423,11 +419,10 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
       return (isSwiss ? (b.swissPoints || 0) - (a.swissPoints || 0) : b.points - a.points);
     } else {
       // Sort by match points (WINS system - default)
+      // Both Swiss and Round Robin use 2/1/0
       if (isSwiss) {
-        // Swiss: use swissPoints (1/0.5/0)
         if ((b.swissPoints || 0) !== (a.swissPoints || 0)) return (b.swissPoints || 0) - (a.swissPoints || 0);
       } else {
-        // Round Robin: use points (2/1/0)
         if (b.points !== a.points) return b.points - a.points;
       }
       // Tiebreaker 1: total 20s

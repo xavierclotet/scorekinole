@@ -9,25 +9,25 @@ import type { GroupStanding, TournamentParticipant, SwissRankingSystem } from '$
  * Resolve tie-breakers in standings
  *
  * For Swiss system with WINS ranking:
- * 1. Swiss Points (1 per win, 0.5 per tie, 0 per loss)
+ * 1. Swiss Points (2 per win, 1 per tie, 0 per loss)
  * 2. Head-to-head record
  * 3. Total 20s scored
- * 4. Initial ELO order
+ * 4. Initial ranking order
  *
  * For Swiss system with POINTS ranking:
  * 1. Total points scored in matches
  * 2. Total 20s scored
  * 3. Head-to-head record
- * 4. Initial ELO order
+ * 4. Initial ranking order
  *
  * For Round Robin:
  * 1. Total points scored in matches
  * 2. Total 20s scored
  * 3. Head-to-head record
- * 4. Initial ELO order
+ * 4. Initial ranking order
  *
  * @param standings Current standings
- * @param participants Tournament participants (for ELO reference)
+ * @param participants Tournament participants (for ranking reference)
  * @param isSwiss Whether this is a Swiss system tournament
  * @param swissRankingSystem Swiss ranking system: 'WINS' or 'POINTS'
  * @returns Sorted standings with positions
@@ -38,18 +38,18 @@ export function resolveTiebreaker(
   isSwiss: boolean = false,
   swissRankingSystem: SwissRankingSystem = 'WINS'
 ): GroupStanding[] {
-  // Create participant map for quick ELO lookup
+  // Create participant map for quick ranking lookup
   const participantMap = new Map<string, TournamentParticipant>();
   participants.forEach(p => participantMap.set(p.id, p));
 
   // Sort standings
   const sorted = [...standings].sort((a, b) => {
     if (isSwiss && swissRankingSystem === 'WINS') {
-      // SWISS SYSTEM (WINS): swissPoints > head-to-head > 20s > ELO
+      // SWISS SYSTEM (WINS): swissPoints > head-to-head > 20s > ranking
 
-      // 1. Swiss Points (1/0.5/0) - PRIMARY
-      const aSwiss = a.swissPoints ?? (a.matchesWon + a.matchesTied * 0.5);
-      const bSwiss = b.swissPoints ?? (b.matchesWon + b.matchesTied * 0.5);
+      // 1. Swiss Points (2/1/0) - PRIMARY
+      const aSwiss = a.swissPoints ?? (a.matchesWon * 2 + a.matchesTied);
+      const bSwiss = b.swissPoints ?? (b.matchesWon * 2 + b.matchesTied);
       if (aSwiss !== bSwiss) {
         return bSwiss - aSwiss;
       }
@@ -66,7 +66,7 @@ export function resolveTiebreaker(
         return b.total20s - a.total20s;
       }
     } else {
-      // ROUND ROBIN or SWISS with POINTS: totalPointsScored > 20s > head-to-head > ELO
+      // ROUND ROBIN or SWISS with POINTS: totalPointsScored > 20s > head-to-head > ranking
 
       // 1. Total points scored (descending)
       if (a.totalPointsScored !== b.totalPointsScored) {
@@ -86,12 +86,12 @@ export function resolveTiebreaker(
       }
     }
 
-    // Fallback: Initial ELO (descending)
+    // Fallback: Initial ranking (descending)
     const participantA = participantMap.get(a.participantId);
     const participantB = participantMap.get(b.participantId);
 
     if (participantA && participantB) {
-      return participantB.eloSnapshot - participantA.eloSnapshot;
+      return participantB.rankingSnapshot - participantA.rankingSnapshot;
     }
 
     return 0;

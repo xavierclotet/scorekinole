@@ -5,7 +5,7 @@
 
 import { getTournament, updateTournament } from './tournaments';
 import { generateBracket as generateBracketAlgorithm, advanceWinner as advanceWinnerAlgorithm } from '$lib/algorithms/bracket';
-import { calculateFinalPositions, applyEloUpdates } from './tournamentElo';
+import { calculateFinalPositions, applyRankingUpdates } from './tournamentRanking';
 import type { BracketMatch } from '$lib/types/tournament';
 
 /**
@@ -383,16 +383,16 @@ export async function advanceWinner(
       console.log('🏆 All brackets completed - marking tournament as COMPLETED');
     }
 
-    // Check if tournament was already completed (to avoid double ELO application)
+    // Check if tournament was already completed (to avoid double ranking application)
     const wasAlreadyCompleted = tournament.status === 'COMPLETED';
 
     const success = await updateTournament(tournamentId, updateData);
 
-    // If tournament JUST completed (not already completed before), calculate positions and apply ELO updates
+    // If tournament JUST completed (not already completed before), calculate positions and apply ranking updates
     if (success && isTournamentComplete && !wasAlreadyCompleted) {
-      console.log('📊 Calculating final positions and ELO updates...');
+      console.log('📊 Calculating final positions and ranking updates...');
       await calculateFinalPositions(tournamentId);
-      await applyEloUpdates(tournamentId);
+      await applyRankingUpdates(tournamentId);
     }
 
     return success;
@@ -540,16 +540,16 @@ export async function advanceSilverWinner(
       console.log('🏆 All brackets completed - marking tournament as COMPLETED');
     }
 
-    // Check if tournament was already completed (to avoid double ELO application)
+    // Check if tournament was already completed (to avoid double ranking application)
     const wasAlreadyCompleted = tournament.status === 'COMPLETED';
 
     const success = await updateTournament(tournamentId, updateData);
 
-    // If tournament JUST completed, calculate positions and apply ELO updates
+    // If tournament JUST completed, calculate positions and apply ranking updates
     if (success && isTournamentComplete && !wasAlreadyCompleted) {
-      console.log('📊 Calculating final positions and ELO updates...');
+      console.log('📊 Calculating final positions and ranking updates...');
       await calculateFinalPositions(tournamentId);
-      await applyEloUpdates(tournamentId);
+      await applyRankingUpdates(tournamentId);
     }
 
     return success;
@@ -685,9 +685,9 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
     return false;
   }
 
-  // Check if tournament was already completed (to avoid double ELO application)
+  // Check if tournament was already completed (to avoid double ranking application)
   if (tournament.status === 'COMPLETED') {
-    console.log('Tournament already completed - skipping ELO updates');
+    console.log('Tournament already completed - skipping ranking updates');
     return true;
   }
 
@@ -735,9 +735,9 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
 
   // Calculate positions and apply ELO updates
   if (success) {
-    console.log('📊 Calculating final positions and ELO updates...');
+    console.log('📊 Calculating final positions and ranking updates...');
     await calculateFinalPositions(tournamentId);
-    await applyEloUpdates(tournamentId);
+    await applyRankingUpdates(tournamentId);
   }
 
   return success;

@@ -3,9 +3,9 @@
 
   export let standings: GroupStanding[];
   export let participants: TournamentParticipant[];
-  // showElo prop kept for backwards compatibility but no longer used
-  // ELO is now shown only in the final standings
-  export let showElo: boolean = false;
+  // showRanking prop kept for backwards compatibility but no longer used
+  // Ranking is now shown only in the final standings
+  export let showRanking: boolean = false;
   // Whether this is a Swiss system (affects sorting and display)
   export let isSwiss: boolean = false;
   // Ranking system: 'WINS' or 'POINTS' (total points scored)
@@ -34,9 +34,9 @@
     } else {
       // By WINS
       if (isSwiss) {
-        // Swiss: swissPoints (1/0.5/0) > head-to-head > 20s
-        const aSwiss = a.swissPoints ?? (a.matchesWon + a.matchesTied * 0.5);
-        const bSwiss = b.swissPoints ?? (b.matchesWon + b.matchesTied * 0.5);
+        // Swiss: swissPoints (2/1/0) > head-to-head > 20s
+        const aSwiss = a.swissPoints ?? (a.matchesWon * 2 + a.matchesTied);
+        const bSwiss = b.swissPoints ?? (b.matchesWon * 2 + b.matchesTied);
         if (bSwiss !== aSwiss) return bSwiss - aSwiss;
 
         // Head-to-head
@@ -59,10 +59,10 @@
     return participantMap.get(participantId)?.name || 'Unknown';
   }
 
-  // Format Swiss points (show .5 for ties)
+  // Format Swiss points (2/1/0 system - always integers)
   function formatSwissPoints(standing: GroupStanding): string {
-    const pts = standing.swissPoints ?? (standing.matchesWon + standing.matchesTied * 0.5);
-    return pts % 1 === 0 ? pts.toString() : pts.toFixed(1);
+    const pts = standing.swissPoints ?? (standing.matchesWon * 2 + standing.matchesTied);
+    return pts.toString();
   }
 
   // Show Pts column when ranking by WINS
@@ -80,7 +80,7 @@
         <th class="losses-col">P</th>
         <th class="ties-col">E</th>
         {#if showPtsColumn}
-          <th class="points-col" title={isSwiss ? 'Puntos Swiss (1/0.5/0)' : 'Puntos (2/1/0)'}>Pts</th>
+          <th class="points-col" title="Puntos (2/1/0)">Pts</th>
         {/if}
         <th class="total-points-col" title="Puntos totales de Crokinole">Puntos</th>
         <th class="twenties-col">20s</th>

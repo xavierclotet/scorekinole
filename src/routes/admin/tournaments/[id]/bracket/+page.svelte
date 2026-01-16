@@ -49,6 +49,12 @@
   $: rounds = activeTab === 'gold' ? goldRounds : silverRounds;
   $: thirdPlaceMatch = activeTab === 'gold' ? goldThirdPlaceMatch : silverThirdPlaceMatch;
 
+  // Match configuration - determines if we show games won or total points
+  $: matchesToWin = activeTab === 'gold'
+    ? (tournament?.finalStage?.matchesToWin || 1)
+    : (tournament?.finalStage?.silverMatchesToWin || 1);
+  $: showGamesWon = matchesToWin > 1;
+
   onMount(async () => {
     await loadTournament();
     isSuperAdminUser = await isSuperAdmin();
@@ -527,7 +533,7 @@
                         <span class="seed">#{match.seedA}</span>
                       {/if}
                       {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                        <span class="score">{match.totalPointsA || 0}</span>
+                        <span class="score">{showGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
                         {#if tournament.show20s && match.total20sA !== undefined}
                           <span class="twenties">🎯{match.total20sA}</span>
                         {/if}
@@ -546,7 +552,7 @@
                         <span class="seed">#{match.seedB}</span>
                       {/if}
                       {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                        <span class="score">{match.totalPointsB || 0}</span>
+                        <span class="score">{showGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
                         {#if tournament.show20s && match.total20sB !== undefined}
                           <span class="twenties">🎯{match.total20sB}</span>
                         {/if}
@@ -585,7 +591,7 @@
                   >
                     <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
-                      <span class="score">{thirdPlaceMatch.totalPointsA || 0}</span>
+                      <span class="score">{showGamesWon ? (thirdPlaceMatch.gamesWonA || 0) : (thirdPlaceMatch.totalPointsA || 0)}</span>
                       {#if tournament.show20s && thirdPlaceMatch.total20sA !== undefined}
                         <span class="twenties">🎯{thirdPlaceMatch.total20sA}</span>
                       {/if}
@@ -601,7 +607,7 @@
                   >
                     <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
-                      <span class="score">{thirdPlaceMatch.totalPointsB || 0}</span>
+                      <span class="score">{showGamesWon ? (thirdPlaceMatch.gamesWonB || 0) : (thirdPlaceMatch.totalPointsB || 0)}</span>
                       {#if tournament.show20s && thirdPlaceMatch.total20sB !== undefined}
                         <span class="twenties">🎯{thirdPlaceMatch.total20sB}</span>
                       {/if}

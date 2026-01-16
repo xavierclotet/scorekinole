@@ -95,11 +95,9 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
       show20s: data.show20s ?? true,
       showHammer: data.showHammer ?? true,
       numTables: data.numTables || 1,
-      eloConfig: data.eloConfig || {
+      rankingConfig: data.rankingConfig || {
         enabled: true,
-        initialElo: 1500,
-        kFactor: 2.0,
-        maxDelta: 25
+        tier: 'CLUB'
       },
       participants: [],
       finalStage: {
@@ -108,7 +106,14 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
           rounds: [],
           totalRounds: 0
         },
-        isComplete: false
+        isComplete: false,
+        // Merge game config from data.finalStage if provided (for ONE_PHASE tournaments)
+        // Only include defined values (Firebase rejects undefined)
+        ...(data.finalStage?.mode && { mode: data.finalStage.mode }),
+        ...(data.finalStage?.gameMode && { gameMode: data.finalStage.gameMode }),
+        ...(data.finalStage?.pointsToWin !== undefined && { pointsToWin: data.finalStage.pointsToWin }),
+        ...(data.finalStage?.roundsToPlay !== undefined && { roundsToPlay: data.finalStage.roundsToPlay }),
+        ...(data.finalStage?.matchesToWin !== undefined && { matchesToWin: data.finalStage.matchesToWin })
       },
       createdAt: Date.now(),
       createdBy: {
@@ -304,7 +309,7 @@ export async function updateTournament(
 /**
  * Delete tournament
  *
- * IMPORTANT: This will revert ELO changes for all participants
+ * IMPORTANT: This will revert ranking changes for all participants
  * before deleting the tournament document
  *
  * @param id Tournament ID
@@ -330,12 +335,12 @@ export async function deleteTournament(id: string): Promise<boolean> {
   }
 
   try {
-    // First, revert ELO changes for all participants
-    const { revertTournamentElo } = await import('./tournamentElo');
-    const eloReverted = await revertTournamentElo(id);
+    // First, revert ranking changes for all participants
+    const { revertTournamentRanking } = await import('./tournamentRanking');
+    const rankingReverted = await revertTournamentRanking(id);
 
-    if (!eloReverted) {
-      console.warn('⚠️ Failed to revert ELO, but continuing with deletion');
+    if (!rankingReverted) {
+      console.warn('⚠️ Failed to revert ranking, but continuing with deletion');
     }
 
     // Then delete the tournament document

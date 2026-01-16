@@ -27,17 +27,16 @@ export async function addParticipant(
     return false;
   }
 
-  // ELO will be fetched when tournament starts via calculateTournamentExpectedPositions
-  // For now, just use default
-  const elo = 1500;
+  // Ranking will be fetched when tournament starts via syncParticipantRankings
+  // For now, just use default (0)
+  const ranking = 0;
 
   const participant: any = {
     id: `participant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     type: participantData.type || 'GUEST',
     name: participantData.name || 'Participante',
-    eloSnapshot: elo,
-    currentElo: elo,
-    expectedPosition: 0, // Will be calculated when tournament starts
+    rankingSnapshot: ranking,
+    currentRanking: ranking,
     status: 'ACTIVE'
   };
 
@@ -75,9 +74,9 @@ export async function addParticipants(
     return false;
   }
 
-  // ELO will be fetched when tournament starts via calculateTournamentExpectedPositions
-  // For now, just use default
-  const elo = 1500;
+  // Ranking will be fetched when tournament starts via syncParticipantRankings
+  // For now, just use default (0)
+  const ranking = 0;
 
   // Create all participant objects
   const newParticipants = participantsData.map(participantData => {
@@ -85,9 +84,8 @@ export async function addParticipants(
       id: `participant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: participantData.type || 'GUEST',
       name: participantData.name || 'Participante',
-      eloSnapshot: elo,
-      currentElo: elo,
-      expectedPosition: 0, // Will be calculated when tournament starts
+      rankingSnapshot: ranking,
+      currentRanking: ranking,
       status: 'ACTIVE'
     };
 

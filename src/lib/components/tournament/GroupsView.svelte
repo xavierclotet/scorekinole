@@ -494,7 +494,7 @@
                   <GroupStandings
                     standings={group.standings}
                     participants={tournament.participants}
-                    showElo={tournament.eloConfig.enabled}
+                    showElo={tournament.rankingConfig?.enabled}
                     {isSwiss}
                     {rankingSystem}
                   />

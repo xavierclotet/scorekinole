@@ -11,8 +11,8 @@ export interface UserProfile {
   photoURL: string | null;
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
-  // ELO and tournament tracking
-  elo?: number;                          // Current ELO (default 1500)
+  // Ranking and tournament tracking
+  ranking?: number;                      // Current ranking points (starts at 0)
   tournaments?: TournamentRecord[];      // Tournament history
   authProvider?: 'google' | null;        // null = GUEST without auth
   mergedFrom?: string[];                 // IDs of GUEST users merged into this one
@@ -132,7 +132,7 @@ export async function getOrCreateUserByName(name: string): Promise<{ userId: str
       email: null,
       photoURL: null,
       authProvider: null,
-      elo: 1500,
+      ranking: 0,
       tournaments: [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -148,17 +148,17 @@ export async function getOrCreateUserByName(name: string): Promise<{ userId: str
 }
 
 /**
- * Add a tournament record to user's history and update ELO
+ * Add a tournament record to user's history and update ranking
  * Prevents duplicates by checking if tournament already exists in history
  *
  * @param userId Firestore user ID
  * @param record Tournament record to add
- * @param newElo New ELO value after tournament
+ * @param newRanking New ranking value after tournament
  */
 export async function addTournamentRecord(
   userId: string,
   record: TournamentRecord,
-  newElo: number
+  newRanking: number
 ): Promise<boolean> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
@@ -180,12 +180,12 @@ export async function addTournamentRecord(
     }
 
     await setDoc(userRef, {
-      elo: newElo,
+      ranking: newRanking,
       tournaments: arrayUnion(record),
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Added tournament record for user ${userId}: ELO ${record.eloBefore} → ${newElo} (${record.eloDelta > 0 ? '+' : ''}${record.eloDelta})`);
+    console.log(`✅ Added tournament record for user ${userId}: Ranking ${record.rankingBefore} → ${newRanking} (+${record.rankingDelta})`);
     return true;
   } catch (error) {
     console.error('❌ Error adding tournament record:', error);
@@ -219,8 +219,8 @@ export async function getUserProfileById(userId: string): Promise<UserProfile | 
 }
 
 /**
- * Remove a tournament record from user's history and revert ELO
- * Used when deleting a tournament to undo ELO changes
+ * Remove a tournament record from user's history and revert ranking
+ * Used when deleting a tournament to undo ranking changes
  *
  * @param userId Firestore user ID
  * @param tournamentId Tournament ID to remove
@@ -263,19 +263,17 @@ export async function removeTournamentRecord(
       ...tournaments.slice(tournamentIndex + 1)
     ];
 
-    // Revert ELO: subtract the delta that was added
-    // If eloDelta was +3, we subtract 3 (go back to eloBefore)
-    // If eloDelta was -2, we subtract -2 = add 2 (go back to eloBefore)
-    const currentElo = profile.elo || 1500;
-    const revertedElo = currentElo - removedRecord.eloDelta;
+    // Revert ranking: subtract the delta that was added
+    const currentRanking = profile.ranking || 0;
+    const revertedRanking = currentRanking - removedRecord.rankingDelta;
 
     await setDoc(userRef, {
-      elo: revertedElo,
+      ranking: revertedRanking,
       tournaments: updatedTournaments,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Removed tournament ${tournamentId} from user ${userId}: ELO ${currentElo} → ${revertedElo} (reverted ${removedRecord.eloDelta > 0 ? '+' : ''}${removedRecord.eloDelta})`);
+    console.log(`✅ Removed tournament ${tournamentId} from user ${userId}: Ranking ${currentRanking} → ${revertedRanking} (reverted +${removedRecord.rankingDelta})`);
     return true;
   } catch (error) {
     console.error('❌ Error removing tournament record:', error);

@@ -28,9 +28,7 @@
   let editNumTables = 1;
   let editShow20s = false;
   let editShowHammer = false;
-  let editEloEnabled = false;
-  let editEloKFactor = 2.0;
-  let editEloMaxDelta = 25;
+  let editRankingEnabled = false;
 
   $: tournamentId = $page.params.id;
 
@@ -88,9 +86,9 @@
   function confirmStart() {
     if (!tournament) return;
 
-    // Validation: minimum 4 participants
-    if (tournament.participants.length < 4) {
-      toastMessage = '❌ Se requieren al menos 4 participantes para iniciar el torneo';
+    // Validation: minimum 2 participants
+    if (tournament.participants.length < 2) {
+      toastMessage = '❌ Se requieren al menos 2 participantes para iniciar el torneo';
       showToast = true;
       return;
     }
@@ -168,9 +166,7 @@
     editNumTables = tournament.numTables;
     editShow20s = tournament.show20s;
     editShowHammer = tournament.showHammer;
-    editEloEnabled = tournament.eloConfig.enabled;
-    editEloKFactor = tournament.eloConfig.kFactor;
-    editEloMaxDelta = tournament.eloConfig.maxDelta;
+    editRankingEnabled = tournament.rankingConfig?.enabled ?? true;
 
     showQuickEdit = true;
   }
@@ -206,11 +202,9 @@
         numTables: editNumTables,
         show20s: editShow20s,
         showHammer: editShowHammer,
-        eloConfig: {
-          enabled: editEloEnabled,
-          initialElo: tournament.eloConfig.initialElo,
-          kFactor: editEloKFactor,
-          maxDelta: editEloMaxDelta
+        rankingConfig: {
+          enabled: editRankingEnabled,
+          tier: tournament.rankingConfig?.tier || 'CLUB'
         }
       };
 
@@ -351,7 +345,7 @@
               <div class="config-item">
                 <span class="config-label">Formato:</span>
                 <span class="config-value">
-                  {tournament.phaseType === 'ONE_PHASE' ? '1 Fase (Solo Final)' : '2 Fases (Grupos + Final)'}
+                  {tournament.phaseType === 'ONE_PHASE' ? '1 Fase (Fase Final)' : '2 Fases (Grupos + Final)'}
                 </span>
               </div>
 
@@ -378,8 +372,16 @@
               </div>
 
               <div class="config-item">
-                <span class="config-label">📊 Sistema ELO:</span>
-                <span class="config-value">{tournament.eloConfig.enabled ? '✅ Activado' : '❌ Desactivado'}</span>
+                <span class="config-label">📊 Sistema Ranking:</span>
+                <span class="config-value">
+                  {#if tournament.rankingConfig?.enabled}
+                    ✅ {tournament.rankingConfig.tier === 'MAJOR' ? 'Major (Tier 1)' :
+                        tournament.rankingConfig.tier === 'NATIONAL' ? 'Nacional (Tier 2)' :
+                        tournament.rankingConfig.tier === 'REGIONAL' ? 'Regional (Tier 3)' : 'Club (Tier 4)'}
+                  {:else}
+                    ❌ Desactivado
+                  {/if}
+                </span>
               </div>
             </div>
           </section>
@@ -558,13 +560,13 @@
                     <span class="config-label">Modo de Juego:</span>
                     <span class="config-value">
                       {tournament.finalStage.gameMode === 'points'
-                        ? `Por Puntos (${tournament.finalStage.pointsToWin})`
-                        : `Por Rondas (${tournament.finalStage.roundsToPlay})`}
+                        ? `Por Puntos (${tournament.finalStage.pointsToWin || 7})`
+                        : `Por Rondas (${tournament.finalStage.roundsToPlay || 4})`}
                     </span>
                   </div>
                   <div class="config-item">
                     <span class="config-label">Partidos a Ganar:</span>
-                    <span class="config-value">Best of {tournament.finalStage.matchesToWin}</span>
+                    <span class="config-value">Best of {tournament.finalStage.matchesToWin || 1}</span>
                   </div>
                 </div>
               {/if}
@@ -603,7 +605,7 @@
         </div>
         <p class="info-text">
           {tournament.phaseType === 'TWO_PHASE'
-            ? 'Se generará el calendario de la fase de grupos y se calcularán las posiciones esperadas según ELO.'
+            ? 'Se generará el calendario de la fase de grupos.'
             : 'Se generará el bracket de eliminación directa con los participantes registrados.'}
         </p>
         <div class="confirm-actions">
@@ -709,44 +711,22 @@
             </div>
           </div>
 
-          <!-- ELO Section -->
+          <!-- Ranking Section -->
           <div class="form-section">
-            <h3>📊 Sistema ELO</h3>
+            <h3>📊 Sistema de Ranking</h3>
 
-            <label class="toggle-item elo-toggle">
-              <input type="checkbox" bind:checked={editEloEnabled} />
+            <label class="toggle-item ranking-toggle">
+              <input type="checkbox" bind:checked={editRankingEnabled} />
               <span class="toggle-label">
                 <span class="toggle-icon">📈</span>
-                Sistema ELO Activado
+                Sistema de Ranking Activado
               </span>
             </label>
 
-            {#if editEloEnabled}
-              <div class="elo-params">
-                <div class="form-group inline">
-                  <label for="edit-kfactor">Factor K</label>
-                  <input
-                    type="number"
-                    id="edit-kfactor"
-                    bind:value={editEloKFactor}
-                    min="0.5"
-                    max="10"
-                    step="0.5"
-                  />
-                </div>
-
-                <div class="form-group inline">
-                  <label for="edit-maxdelta">Delta Máximo (±)</label>
-                  <input
-                    type="number"
-                    id="edit-maxdelta"
-                    bind:value={editEloMaxDelta}
-                    min="5"
-                    max="100"
-                    step="5"
-                  />
-                </div>
-              </div>
+            {#if editRankingEnabled && tournament.rankingConfig?.tier}
+              <p class="ranking-info">
+                Categoría: <strong>{tournament.rankingConfig.tier}</strong>
+              </p>
             {/if}
           </div>
         </div>
@@ -1759,23 +1739,8 @@
     font-size: 1.1rem;
   }
 
-  .elo-toggle {
+  .ranking-toggle {
     margin-bottom: 0.75rem;
-  }
-
-  .elo-params {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    padding: 1rem;
-    background: #f0f4ff;
-    border-radius: 10px;
-    border: 1px solid #c7d2fe;
-  }
-
-  .modal-backdrop[data-theme='dark'] .elo-params {
-    background: #1e293b;
-    border-color: #3b4a6b;
   }
 
   .form-group.inline {
@@ -1824,10 +1789,6 @@
 
     .quick-edit-actions {
       border-radius: 0;
-    }
-
-    .elo-params {
-      grid-template-columns: 1fr;
     }
   }
 </style>

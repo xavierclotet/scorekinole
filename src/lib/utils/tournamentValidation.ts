@@ -2,11 +2,10 @@
  * Tournament validation utilities
  */
 
-import type { Tournament, TournamentParticipant, EloConfig } from '$lib/types/tournament';
+import type { Tournament, TournamentParticipant, RankingConfig } from '$lib/types/tournament';
 import { isPowerOfTwo } from '$lib/algorithms/bracket';
 import { validateRoundRobinGroupSize } from '$lib/algorithms/roundRobin';
 import { validateSwissSystem } from '$lib/algorithms/swiss';
-import { validateEloConfig } from '$lib/algorithms/elo';
 
 /**
  * Validation result
@@ -81,11 +80,9 @@ export function validateTournament(tournament: Partial<Tournament>): ValidationR
     }
   }
 
-  // ELO configuration
-  if (tournament.eloConfig) {
-    if (!validateEloConfig(tournament.eloConfig)) {
-      errors.push('Configuración de ELO inválida');
-    }
+  // Ranking configuration - just check it exists if enabled
+  if (tournament.rankingConfig?.enabled && !tournament.rankingConfig.tier) {
+    warnings.push('No se ha seleccionado categoría de ranking');
   }
 
   return {

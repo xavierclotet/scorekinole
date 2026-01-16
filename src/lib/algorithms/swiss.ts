@@ -80,7 +80,7 @@ function generatePointBasedPairings(
   const standingsMap = new Map<string, GroupStanding>();
   standings.forEach(s => standingsMap.set(s.participantId, s));
 
-  // Sort participants by Swiss points (1/0.5/0) descending
+  // Sort participants by Swiss points (2/1/0) descending
   // This ensures players with similar scores are paired together
   const sorted = [...participants].sort((a, b) => {
     const aStanding = standingsMap.get(a.id);
@@ -88,8 +88,8 @@ function generatePointBasedPairings(
     if (!aStanding || !bStanding) return 0;
 
     // Use swissPoints if available, otherwise calculate from wins/ties
-    const aSwiss = aStanding.swissPoints ?? (aStanding.matchesWon + aStanding.matchesTied * 0.5);
-    const bSwiss = bStanding.swissPoints ?? (bStanding.matchesWon + bStanding.matchesTied * 0.5);
+    const aSwiss = aStanding.swissPoints ?? (aStanding.matchesWon * 2 + aStanding.matchesTied);
+    const bSwiss = bStanding.swissPoints ?? (bStanding.matchesWon * 2 + bStanding.matchesTied);
     return bSwiss - aSwiss;
   });
 

@@ -104,7 +104,7 @@ export function generateRoundRobinSchedule(participants: string[]): RoundRobinRo
  * Split participants into balanced groups using snake draft
  *
  * Algorithm:
- * - Sort participants by ELO (descending)
+ * - Sort participants by ranking (descending)
  * - Distribute using snake pattern: A, B, C, A, B, C, C, B, A, C, B, A...
  *
  * @param participants Array of tournament participants
@@ -133,8 +133,8 @@ export function splitIntoGroups(
     }];
   }
 
-  // Sort participants by ELO (descending)
-  const sortedParticipants = [...participants].sort((a, b) => b.eloSnapshot - a.eloSnapshot);
+  // Sort participants by ranking (descending)
+  const sortedParticipants = [...participants].sort((a, b) => b.rankingSnapshot - a.rankingSnapshot);
 
   // Initialize groups
   const groups: Group[] = [];

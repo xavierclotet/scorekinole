@@ -362,12 +362,12 @@ export async function recalculateStandings(
         standing.points = calculateMatchPoints(standing.matchesWon, standing.matchesTied);
       });
 
-      // For Swiss: calculate swissPoints (1/0.5/0)
+      // For Swiss: calculate swissPoints (2/1/0 - same as Round Robin)
       const isSwiss = tournament.groupStage?.type === 'SWISS';
       const swissRankingSystem = tournament.groupStage?.swissRankingSystem || 'WINS';
       if (isSwiss) {
         standingsMap.forEach(standing => {
-          standing.swissPoints = standing.matchesWon * 1 + standing.matchesTied * 0.5;
+          standing.swissPoints = standing.matchesWon * 2 + standing.matchesTied * 1;
         });
       }
 
