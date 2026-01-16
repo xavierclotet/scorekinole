@@ -8,7 +8,12 @@
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { getTournament } from '$lib/firebase/tournaments';
-  import { updateBracketMatch, advanceWinner } from '$lib/firebase/tournamentBracket';
+  import {
+    updateBracketMatch,
+    advanceWinner,
+    updateSilverBracketMatch,
+    advanceSilverWinner
+  } from '$lib/firebase/tournamentBracket';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
 
@@ -19,13 +24,30 @@
   let toastMessage = '';
   let showMatchDialog = false;
   let selectedMatch: BracketMatch | null = null;
+  let selectedBracketType: 'gold' | 'silver' = 'gold';
   let isSuperAdminUser = false;
   let isAutoFilling = false;
 
+  // Current view for split divisions
+  let activeTab: 'gold' | 'silver' = 'gold';
+
   $: tournamentId = $page.params.id;
-  $: bracket = tournament?.finalStage?.bracket;
-  $: rounds = bracket?.rounds || [];
-  $: thirdPlaceMatch = bracket?.thirdPlaceMatch;
+  $: isSplitDivisions = tournament?.finalStage?.mode === 'SPLIT_DIVISIONS';
+
+  // Gold bracket
+  $: goldBracket = tournament?.finalStage?.bracket;
+  $: goldRounds = goldBracket?.rounds || [];
+  $: goldThirdPlaceMatch = goldBracket?.thirdPlaceMatch;
+
+  // Silver bracket
+  $: silverBracket = tournament?.finalStage?.silverBracket;
+  $: silverRounds = silverBracket?.rounds || [];
+  $: silverThirdPlaceMatch = silverBracket?.thirdPlaceMatch;
+
+  // Active bracket based on tab
+  $: bracket = activeTab === 'gold' ? goldBracket : silverBracket;
+  $: rounds = activeTab === 'gold' ? goldRounds : silverRounds;
+  $: thirdPlaceMatch = activeTab === 'gold' ? goldThirdPlaceMatch : silverThirdPlaceMatch;
 
   onMount(async () => {
     await loadTournament();
@@ -79,9 +101,10 @@
     return statusMap[status] || { text: status, color: '#6b7280' };
   }
 
-  function handleMatchClick(match: BracketMatch) {
+  function handleMatchClick(match: BracketMatch, bracketType: 'gold' | 'silver' = 'gold') {
     if (!match.participantA || !match.participantB) return;
     selectedMatch = match;
+    selectedBracketType = bracketType;
     showMatchDialog = true;
   }
 
@@ -99,8 +122,12 @@
         winner = selectedMatch.participantB;
       }
 
+      // Use the correct functions based on bracket type
+      const updateMatch = selectedBracketType === 'silver' ? updateSilverBracketMatch : updateBracketMatch;
+      const advanceMatchWinner = selectedBracketType === 'silver' ? advanceSilverWinner : advanceWinner;
+
       // Update match
-      await updateBracketMatch(tournamentId, selectedMatch.id, {
+      await updateMatch(tournamentId, selectedMatch.id, {
         status: 'COMPLETED',
         gamesWonA: result.gamesWonA,
         gamesWonB: result.gamesWonB,
@@ -114,7 +141,7 @@
 
       // Advance winner to next round
       if (winner) {
-        await advanceWinner(tournamentId, selectedMatch.id, winner);
+        await advanceMatchWinner(tournamentId, selectedMatch.id, winner);
       }
 
       toastMessage = '✅ Resultado guardado';
@@ -143,8 +170,12 @@
 
       if (!winner) return;
 
+      // Use the correct functions based on bracket type
+      const updateMatch = selectedBracketType === 'silver' ? updateSilverBracketMatch : updateBracketMatch;
+      const advanceMatchWinner = selectedBracketType === 'silver' ? advanceSilverWinner : advanceWinner;
+
       // Update match as walkover
-      await updateBracketMatch(tournamentId, selectedMatch.id, {
+      await updateMatch(tournamentId, selectedMatch.id, {
         status: 'WALKOVER',
         winner,
         gamesWonA: selectedMatch.participantA === winner ? 2 : 0,
@@ -153,7 +184,7 @@
       });
 
       // Advance winner
-      await advanceWinner(tournamentId, selectedMatch.id, winner);
+      await advanceMatchWinner(tournamentId, selectedMatch.id, winner);
 
       toastMessage = '✅ Walkover registrado';
       showToast = true;
@@ -183,18 +214,21 @@
 
     isAutoFilling = true;
     let filledCount = 0;
+    const currentTournamentId = tournamentId; // Store in local variable for TypeScript
 
     try {
-      const pointsToWin = tournament.finalStage.pointsToWin || 7;
-      const matchesToWin = tournament.finalStage.matchesToWin || 3;
-      const requiredWins = Math.ceil(matchesToWin / 2);
-
-      // Helper function to simulate a match
-      async function simulateMatch(match: BracketMatch): Promise<boolean> {
+      // Helper function to simulate a match for a specific bracket type
+      async function simulateMatch(
+        match: BracketMatch,
+        bracketType: 'gold' | 'silver',
+        pointsToWin: number,
+        matchesToWin: number
+      ): Promise<boolean> {
         if (match.status !== 'PENDING' || !match.participantA || !match.participantB) {
           return false;
         }
 
+        const requiredWins = Math.ceil(matchesToWin / 2);
         let gamesA = 0;
         let gamesB = 0;
         let totalPointsA = 0;
@@ -202,22 +236,58 @@
         let total20sA = 0;
         let total20sB = 0;
 
+        // Store all rounds with game number
+        const allRounds: Array<{
+          gameNumber: number;
+          roundInGame: number;
+          pointsA: number;
+          pointsB: number;
+          twentiesA: number;
+          twentiesB: number;
+        }> = [];
+
+        let gameNumber = 0;
         while (gamesA < requiredWins && gamesB < requiredWins) {
+          gameNumber++;
           let gamePointsA = 0;
           let gamePointsB = 0;
+          let roundInGame = 0;
 
           while (true) {
+            roundInGame++;
             const distribution = Math.random();
+            let roundPointsA = 0;
+            let roundPointsB = 0;
+            let round20sA = 0;
+            let round20sB = 0;
+
             if (distribution < 0.45) {
-              gamePointsA += 2;
-              if (Math.random() < 0.12) total20sA++;
+              roundPointsA = 2;
+              roundPointsB = 0;
+              if (Math.random() < 0.12) round20sA = 1;
             } else if (distribution < 0.9) {
-              gamePointsB += 2;
-              if (Math.random() < 0.12) total20sB++;
+              roundPointsA = 0;
+              roundPointsB = 2;
+              if (Math.random() < 0.12) round20sB = 1;
             } else {
-              gamePointsA += 1;
-              gamePointsB += 1;
+              roundPointsA = 1;
+              roundPointsB = 1;
             }
+
+            gamePointsA += roundPointsA;
+            gamePointsB += roundPointsB;
+            total20sA += round20sA;
+            total20sB += round20sB;
+
+            // Save round data
+            allRounds.push({
+              gameNumber,
+              roundInGame,
+              pointsA: roundPointsA,
+              pointsB: roundPointsB,
+              twentiesA: round20sA,
+              twentiesB: round20sB
+            });
 
             const maxPoints = Math.max(gamePointsA, gamePointsB);
             const diff = Math.abs(gamePointsA - gamePointsB);
@@ -239,7 +309,11 @@
 
         const winner = gamesA > gamesB ? match.participantA : match.participantB;
 
-        await updateBracketMatch(tournamentId, match.id, {
+        // Use correct functions based on bracket type
+        const updateMatch = bracketType === 'silver' ? updateSilverBracketMatch : updateBracketMatch;
+        const advanceMatchWinner = bracketType === 'silver' ? advanceSilverWinner : advanceWinner;
+
+        await updateMatch(currentTournamentId, match.id, {
           status: 'COMPLETED',
           gamesWonA: gamesA,
           gamesWonB: gamesB,
@@ -247,41 +321,70 @@
           totalPointsB,
           total20sA,
           total20sB,
+          rounds: allRounds,
           winner
         });
 
         if (winner) {
-          await advanceWinner(tournamentId, match.id, winner);
+          await advanceMatchWinner(currentTournamentId, match.id, winner);
         }
 
         return true;
       }
 
-      // Keep processing until no more matches can be filled
-      let hasMoreMatches = true;
-      while (hasMoreMatches) {
-        hasMoreMatches = false;
+      // Process a bracket (gold or silver)
+      async function processBracket(bracketType: 'gold' | 'silver'): Promise<number> {
+        let bracketFilledCount = 0;
+        let hasMoreMatches = true;
 
-        // Reload tournament to get current bracket state
-        tournament = await getTournament(tournamentId);
-        if (!tournament?.finalStage?.bracket) break;
+        while (hasMoreMatches) {
+          hasMoreMatches = false;
 
-        // Process rounds in order
-        for (const round of tournament.finalStage.bracket.rounds) {
-          for (const match of round.matches) {
-            if (await simulateMatch(match)) {
-              hasMoreMatches = true;
-              filledCount++;
+          // Reload tournament to get current bracket state
+          tournament = await getTournament(currentTournamentId);
+          if (!tournament?.finalStage) break;
+
+          const currentBracket = bracketType === 'gold'
+            ? tournament.finalStage.bracket
+            : tournament.finalStage.silverBracket;
+
+          if (!currentBracket) break;
+
+          // Get config for this bracket
+          const pointsToWin = bracketType === 'gold'
+            ? (tournament.finalStage.pointsToWin || 7)
+            : (tournament.finalStage.silverPointsToWin || 7);
+          const matchesToWin = bracketType === 'gold'
+            ? (tournament.finalStage.matchesToWin || 3)
+            : (tournament.finalStage.silverMatchesToWin || 3);
+
+          // Process rounds in order
+          for (const round of currentBracket.rounds) {
+            for (const match of round.matches) {
+              if (await simulateMatch(match, bracketType, pointsToWin, matchesToWin)) {
+                hasMoreMatches = true;
+                bracketFilledCount++;
+              }
             }
+          }
+
+          // Also process 3rd place match if available
+          const thirdPlace = currentBracket.thirdPlaceMatch;
+          if (thirdPlace && await simulateMatch(thirdPlace, bracketType, pointsToWin, matchesToWin)) {
+            hasMoreMatches = true;
+            bracketFilledCount++;
           }
         }
 
-        // Also process 3rd place match if available
-        const thirdPlace = tournament.finalStage.bracket.thirdPlaceMatch;
-        if (thirdPlace && await simulateMatch(thirdPlace)) {
-          hasMoreMatches = true;
-          filledCount++;
-        }
+        return bracketFilledCount;
+      }
+
+      // Process gold bracket
+      filledCount += await processBracket('gold');
+
+      // Process silver bracket if SPLIT_DIVISIONS
+      if (tournament.finalStage.mode === 'SPLIT_DIVISIONS' && tournament.finalStage.silverBracket) {
+        filledCount += await processBracket('silver');
       }
 
       toastMessage = `✅ ${filledCount} partidos rellenados automáticamente`;
@@ -331,7 +434,9 @@
         <div class="tournament-header">
           <div class="header-content">
             <h1>{tournament.name}</h1>
-            <p class="subtitle">Fase Final - Bracket de Eliminación</p>
+            <p class="subtitle">
+              Fase Final - {isSplitDivisions ? 'Liga Oro / Liga Plata' : 'Bracket de Eliminación'}
+            </p>
           </div>
           {#if isSuperAdminUser}
             <div class="header-actions">
@@ -346,6 +451,32 @@
             </div>
           {/if}
         </div>
+
+        <!-- Tabs for SPLIT_DIVISIONS -->
+        {#if isSplitDivisions}
+          <div class="bracket-tabs">
+            <button
+              class="tab-btn"
+              class:active={activeTab === 'gold'}
+              on:click={() => activeTab = 'gold'}
+            >
+              🥇 Liga Oro
+              {#if goldBracket?.thirdPlaceMatch?.winner || goldRounds[goldRounds.length - 1]?.matches[0]?.winner}
+                <span class="tab-complete">✓</span>
+              {/if}
+            </button>
+            <button
+              class="tab-btn"
+              class:active={activeTab === 'silver'}
+              on:click={() => activeTab = 'silver'}
+            >
+              🥈 Liga Plata
+              {#if silverBracket?.thirdPlaceMatch?.winner || silverRounds[silverRounds.length - 1]?.matches[0]?.winner}
+                <span class="tab-complete">✓</span>
+              {/if}
+            </button>
+          </div>
+        {/if}
       {/if}
     </header>
 
@@ -365,7 +496,14 @@
           </button>
         </div>
       {:else if bracket}
-        <div class="bracket-container">
+        <!-- Bracket title for split divisions -->
+        {#if isSplitDivisions}
+          <div class="bracket-title" class:gold={activeTab === 'gold'} class:silver={activeTab === 'silver'}>
+            {activeTab === 'gold' ? '🥇 Liga Oro' : '🥈 Liga Plata'}
+          </div>
+        {/if}
+
+        <div class="bracket-container" class:silver-bracket={activeTab === 'silver'}>
           {#each rounds as round (round.roundNumber)}
             <div class="bracket-round">
               <h2 class="round-name">{round.name}</h2>
@@ -374,8 +512,8 @@
                   <div
                     class="bracket-match"
                     class:clickable={match.participantA && match.participantB}
-                    on:click={() => handleMatchClick(match)}
-                    on:keydown={(e) => e.key === 'Enter' && handleMatchClick(match)}
+                    on:click={() => handleMatchClick(match, activeTab)}
+                    on:keydown={(e) => e.key === 'Enter' && handleMatchClick(match, activeTab)}
                     role="button"
                     tabindex="0"
                   >
@@ -435,8 +573,8 @@
                 <div
                   class="bracket-match third-place-match"
                   class:clickable={thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
-                  on:click={() => handleMatchClick(thirdPlaceMatch)}
-                  on:keydown={(e) => e.key === 'Enter' && handleMatchClick(thirdPlaceMatch)}
+                  on:click={() => handleMatchClick(thirdPlaceMatch, activeTab)}
+                  on:keydown={(e) => e.key === 'Enter' && handleMatchClick(thirdPlaceMatch, activeTab)}
                   role="button"
                   tabindex="0"
                 >
@@ -614,7 +752,7 @@
   }
 
   .page-content {
-    padding: 2rem;
+    padding: 1.5rem;
     max-height: calc(100vh - 200px);
     overflow-y: auto;
     overflow-x: auto;
@@ -714,7 +852,7 @@
     gap: 6rem;
     padding: 1rem;
     min-width: max-content;
-    align-items: center;
+    align-items: stretch;
   }
 
   .bracket-round {
@@ -723,12 +861,6 @@
     gap: 1rem;
     min-width: 250px;
     position: relative;
-    flex: 1;
-  }
-
-  /* Align non-final rounds to start */
-  .bracket-round:not(:last-child) {
-    align-self: flex-start;
   }
 
   .round-name {
@@ -750,16 +882,46 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }
 
+  /* Final round styling - gold/prominent (default) */
+  .bracket-round:not(.third-place-round):last-of-type .round-name,
+  .bracket-round:nth-last-of-type(2):not(.third-place-round):has(+ .third-place-round) .round-name {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #78350f;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+  }
+
+  .bracket-page[data-theme='dark'] .bracket-round:not(.third-place-round):last-of-type .round-name,
+  .bracket-page[data-theme='dark'] .bracket-round:nth-last-of-type(2):not(.third-place-round):has(+ .third-place-round) .round-name {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #78350f;
+  }
+
+  /* Final round styling - silver bracket */
+  .silver-bracket .bracket-round:not(.third-place-round):last-of-type .round-name,
+  .silver-bracket .bracket-round:nth-last-of-type(2):not(.third-place-round):has(+ .third-place-round) .round-name {
+    background: linear-gradient(135deg, #e5e7eb 0%, #9ca3af 100%);
+    color: #374151;
+    box-shadow: 0 4px 12px rgba(156, 163, 175, 0.4);
+  }
+
+  .bracket-page[data-theme='dark'] .silver-bracket .bracket-round:not(.third-place-round):last-of-type .round-name,
+  .bracket-page[data-theme='dark'] .silver-bracket .bracket-round:nth-last-of-type(2):not(.third-place-round):has(+ .third-place-round) .round-name {
+    background: linear-gradient(135deg, #6b7280 0%, #9ca3af 100%);
+    color: #e5e7eb;
+  }
+
   .matches-column {
     display: flex;
     flex-direction: column;
     gap: 2rem;
     justify-content: space-around;
     position: relative;
+    flex: 1;
   }
 
-  /* Centering for final round (last round) */
-  .bracket-round:last-child .matches-column {
+  /* Centering for final round (last round before 3rd place) */
+  .bracket-round:not(.third-place-round):last-of-type .matches-column,
+  .bracket-round:nth-last-of-type(2):not(.third-place-round):has(+ .third-place-round) .matches-column {
     justify-content: center;
   }
 
@@ -789,9 +951,16 @@
     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
   }
 
-  /* Remove connector from final round */
-  .bracket-round:last-child .bracket-match::after {
+  /* Remove connector from true final round (no 3rd place after) */
+  .bracket-round:last-child:not(.third-place-round) .bracket-match::after {
     display: none;
+  }
+
+  /* But show connector when there's a 3rd place match after */
+  .bracket-round:nth-last-child(2):not(.third-place-round) .bracket-match::after {
+    display: block;
+    width: 9rem;
+    background: linear-gradient(90deg, #b8956e 0%, #d4a574 100%);
   }
 
   /* Vertical connector lines for pairs of matches */
@@ -958,22 +1127,21 @@
   /* 3rd/4th place match styles */
   .third-place-round {
     margin-left: 2rem;
-    border-left: 3px dashed #d97706;
-    padding-left: 2rem;
   }
 
   .round-name.third-place {
-    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-    color: white;
+    background: linear-gradient(135deg, #d4a574 0%, #b8956e 100%);
+    color: #5c4033;
+    box-shadow: 0 2px 6px rgba(180, 137, 94, 0.3);
   }
 
   .bracket-page[data-theme='dark'] .round-name.third-place {
-    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-    color: white;
+    background: linear-gradient(135deg, #a67c52 0%, #8b6914 100%);
+    color: #fef3c7;
   }
 
   .third-place-match {
-    border-color: #d97706;
+    border-color: #b8956e;
   }
 
   .third-place-match::after,
@@ -983,6 +1151,94 @@
 
   .third-place-round .matches-column::after {
     display: none !important;
+  }
+
+  /* Bracket tabs for SPLIT_DIVISIONS */
+  .bracket-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background: #f3f4f6;
+    border-radius: 12px;
+    width: fit-content;
+  }
+
+  .bracket-page[data-theme='dark'] .bracket-tabs {
+    background: #0f1419;
+  }
+
+  .tab-btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .tab-btn:hover {
+    background: #e5e7eb;
+  }
+
+  .bracket-page[data-theme='dark'] .tab-btn {
+    color: #8b9bb3;
+  }
+
+  .bracket-page[data-theme='dark'] .tab-btn:hover {
+    background: #2d3748;
+  }
+
+  .tab-btn.active {
+    background: white;
+    color: #1a1a1a;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .bracket-page[data-theme='dark'] .tab-btn.active {
+    background: #1a2332;
+    color: #e1e8ed;
+  }
+
+  .tab-complete {
+    color: #10b981;
+    font-weight: 700;
+  }
+
+  /* Bracket title */
+  .bracket-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 12px;
+  }
+
+  .bracket-title.gold {
+    background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%);
+    color: #92400e;
+  }
+
+  .bracket-title.silver {
+    background: linear-gradient(135deg, #e5e7eb 0%, #9ca3af 100%);
+    color: #374151;
+  }
+
+  .bracket-page[data-theme='dark'] .bracket-title.gold {
+    background: linear-gradient(135deg, #78350f 0%, #b45309 100%);
+    color: #fbbf24;
+  }
+
+  .bracket-page[data-theme='dark'] .bracket-title.silver {
+    background: linear-gradient(135deg, #374151 0%, #6b7280 100%);
+    color: #e5e7eb;
   }
 
   @media (max-width: 768px) {
@@ -1017,7 +1273,10 @@
 
     .third-place-round {
       margin-left: 1rem;
-      padding-left: 1rem;
+    }
+
+    .bracket-round:nth-last-child(2):not(.third-place-round) .bracket-match::after {
+      width: 4rem;
     }
   }
 </style>

@@ -362,9 +362,18 @@ export async function recalculateStandings(
         standing.points = calculateMatchPoints(standing.matchesWon, standing.matchesTied);
       });
 
+      // For Swiss: calculate swissPoints (1/0.5/0)
+      const isSwiss = tournament.groupStage?.type === 'SWISS';
+      const swissRankingSystem = tournament.groupStage?.swissRankingSystem || 'WINS';
+      if (isSwiss) {
+        standingsMap.forEach(standing => {
+          standing.swissPoints = standing.matchesWon * 1 + standing.matchesTied * 0.5;
+        });
+      }
+
       // Apply tie-breaker and sort
       const standings = Array.from(standingsMap.values());
-      const sortedStandings = resolveTiebreaker(standings, tournament.participants);
+      const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, swissRankingSystem);
 
       // Update group standings
       group.standings = sortedStandings;

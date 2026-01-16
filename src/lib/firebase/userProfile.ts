@@ -149,6 +149,7 @@ export async function getOrCreateUserByName(name: string): Promise<{ userId: str
 
 /**
  * Add a tournament record to user's history and update ELO
+ * Prevents duplicates by checking if tournament already exists in history
  *
  * @param userId Firestore user ID
  * @param record Tournament record to add
@@ -166,6 +167,17 @@ export async function addTournamentRecord(
 
   try {
     const userRef = doc(db!, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    // Check if tournament record already exists (prevent duplicates)
+    if (userSnap.exists()) {
+      const profile = userSnap.data() as UserProfile;
+      const existingRecord = profile.tournaments?.find(t => t.tournamentId === record.tournamentId);
+      if (existingRecord) {
+        console.log(`⚠️ Tournament ${record.tournamentId} already in user ${userId} history - skipping duplicate`);
+        return true; // Already exists, don't add duplicate
+      }
+    }
 
     await setDoc(userRef, {
       elo: newElo,

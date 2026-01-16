@@ -16,6 +16,15 @@ export type TournamentStatus =
 export type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE';
 export type GroupStageType = 'ROUND_ROBIN' | 'SWISS';
 export type FinalStageType = 'SINGLE_ELIMINATION';
+export type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS';  // Single bracket or Gold/Silver divisions
+
+// Group stage ranking system: by wins or by total points scored
+// WINS: Round Robin uses 2/1/0, Swiss uses 1/0.5/0
+// POINTS: Sum of all Crokinole points scored
+export type GroupRankingSystem = 'WINS' | 'POINTS';
+
+// Legacy alias for backwards compatibility
+export type SwissRankingSystem = GroupRankingSystem;
 
 // Match status
 export type MatchStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'WALKOVER';
@@ -64,10 +73,17 @@ export interface Tournament {
 
   // Final stage config (stored during tournament creation for TWO_PHASE tournaments)
   finalStageConfig?: {
+    mode: FinalStageMode;           // Single bracket or split divisions (Gold/Silver)
+    // Gold bracket config (or single bracket if mode is SINGLE_BRACKET)
     gameMode: 'points' | 'rounds';
     pointsToWin?: number;
     roundsToPlay?: number;
     matchesToWin: number;
+    // Silver bracket config (only used when mode is SPLIT_DIVISIONS)
+    silverGameMode?: 'points' | 'rounds';
+    silverPointsToWin?: number;
+    silverRoundsToPlay?: number;
+    silverMatchesToWin?: number;
   };
 
   // Timestamps
@@ -140,6 +156,8 @@ export interface GroupStage {
   // Configuration specific to group stage type
   numGroups?: number;          // For Round Robin
   numSwissRounds?: number;     // For Swiss
+  rankingSystem?: GroupRankingSystem;  // How to rank: 'WINS' (2/1/0 for RR, 1/0.5/0 for Swiss) or 'POINTS' (total scored)
+  swissRankingSystem?: SwissRankingSystem;  // @deprecated - use rankingSystem instead
 }
 
 /**
@@ -229,8 +247,11 @@ export interface GroupStanding {
   matchesLost: number;
   matchesTied: number;
 
-  // Points (3 for win, 1 for tie, 0 for loss)
+  // Points (2 for win, 1 for tie, 0 for loss) - Used for Round Robin
   points: number;
+
+  // Swiss Points (1 for win, 0.5 for tie, 0 for loss) - Used for Swiss system
+  swissPoints?: number;
 
   // Tie-breaker criteria
   total20s: number;                // Tie-breaker 1
@@ -248,15 +269,24 @@ export interface GroupStanding {
  */
 export interface FinalStage {
   type: FinalStageType;
-  bracket: Bracket;
+  mode: FinalStageMode;         // Single bracket or split divisions
+  bracket: Bracket;             // Gold bracket (or single bracket)
+  silverBracket?: Bracket;      // Silver bracket (only for SPLIT_DIVISIONS)
   isComplete: boolean;
-  winner?: string;              // Participant ID
+  winner?: string;              // Participant ID (Gold winner)
+  silverWinner?: string;        // Silver bracket winner (only for SPLIT_DIVISIONS)
 
-  // Phase-specific game configuration (can differ from group stage)
+  // Phase-specific game configuration for Gold bracket (can differ from group stage)
   gameMode: 'points' | 'rounds';
   pointsToWin?: number;        // For points mode (e.g., 7 points)
   roundsToPlay?: number;       // For rounds mode (e.g., 4 rounds)
   matchesToWin: number;        // Best of X (e.g., best of 3)
+
+  // Silver bracket game configuration (only for SPLIT_DIVISIONS)
+  silverGameMode?: 'points' | 'rounds';
+  silverPointsToWin?: number;
+  silverRoundsToPlay?: number;
+  silverMatchesToWin?: number;
 }
 
 /**

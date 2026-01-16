@@ -17,6 +17,8 @@
   // External state for expanded rounds (controlled by parent)
   export let expandedRoundsState: Set<number> | null = null;
   export let onExpandedRoundsChange: ((expanded: Set<number>) => void) | undefined = undefined;
+  // Total rounds configured for the tournament (for Swiss system, this is numSwissRounds)
+  export let totalRounds: number | null = null;
 
   // Internal state (used when no external state is provided)
   let internalExpandedRounds: Set<number> = new Set();
@@ -105,7 +107,7 @@
       {/if}
     </div>
   {:else}
-    {@const totalRoundsCount = safeRounds.length}
+    {@const totalRoundsCount = totalRounds || safeRounds.length}
     {#each filteredRounds as round (round.roundNumber)}
       {@const progress = getRoundProgress(round.matches)}
       {@const isExpanded = expandedRounds.has(round.roundNumber)}
@@ -130,7 +132,7 @@
               </svg>
             </span>
             <div class="round-title">
-              <span class="round-number">{round.roundNumber}</span>
+              <span class="round-number">Ronda {round.roundNumber}</span>
               {#if isComplete}
                 <span class="complete-badge">Completada</span>
               {:else if isLastRound}
@@ -263,10 +265,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
+    padding: 0.25rem 0.75rem;
     background: #f3f4f6;
-    border-radius: 50%;
+    border-radius: 1rem;
     font-size: 0.9rem;
     font-weight: 700;
     color: #374151;
@@ -430,8 +431,7 @@
     }
 
     .round-number {
-      width: 1.5rem;
-      height: 1.5rem;
+      padding: 0.2rem 0.6rem;
       font-size: 0.8rem;
     }
 
@@ -481,8 +481,7 @@
     }
 
     .round-number {
-      width: 1.4rem;
-      height: 1.4rem;
+      padding: 0.15rem 0.5rem;
       font-size: 0.75rem;
     }
 

@@ -11,6 +11,7 @@
   import { getTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import { updateMatchResult, markNoShow } from '$lib/firebase/tournamentMatches';
+  import { generateSwissPairings } from '$lib/firebase/tournamentGroups';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
 
@@ -78,6 +79,24 @@
     showMatchDialog = true;
   }
 
+  async function handleGenerateNextRound() {
+    if (!tournament || !tournamentId) return;
+
+    const currentRound = tournament.groupStage?.currentRound || 1;
+    const nextRound = currentRound + 1;
+
+    const success = await generateSwissPairings(tournamentId, nextRound);
+
+    if (success) {
+      toastMessage = `✅ Ronda ${nextRound} generada correctamente`;
+      showToast = true;
+      await loadTournament();
+    } else {
+      toastMessage = '❌ Error al generar la siguiente ronda';
+      showToast = true;
+    }
+  }
+
   async function handleSaveResult(event: CustomEvent) {
     if (!selectedMatch || !tournamentId) return;
 
@@ -120,7 +139,9 @@
   }
 
   /**
-   * Auto-fill all pending matches with random results (SuperAdmin only)
+   * Auto-fill pending matches with random results (SuperAdmin only)
+   * For Swiss system: only fills matches of the current round
+   * For Round Robin: fills all pending matches
    */
   async function autoFillAllMatches() {
     if (!tournament || !tournament.groupStage || !tournamentId) return;
@@ -133,14 +154,26 @@
       const roundsToPlay = tournament.groupStage.roundsToPlay || 4;
       const pointsToWin = tournament.groupStage.pointsToWin || 7;
       const matchesToWin = tournament.groupStage.matchesToWin || 1;
+      const isSwiss = tournament.groupStage.type === 'SWISS';
+      const currentRound = tournament.groupStage.currentRound || 1;
 
-      // Get all pending matches from all groups
+      // Get matches to fill based on tournament type
       for (const group of tournament.groupStage.groups) {
-        const matches = group.schedule
-          ? group.schedule.flatMap(r => r.matches)
-          : group.pairings
-          ? group.pairings.flatMap(p => p.matches)
-          : [];
+        let matches: GroupMatch[];
+
+        if (isSwiss && group.pairings) {
+          // Swiss: only get matches from current round
+          const currentRoundPairing = group.pairings.find(p => p.roundNumber === currentRound);
+          matches = currentRoundPairing ? currentRoundPairing.matches : [];
+        } else if (group.schedule) {
+          // Round Robin: get all matches
+          matches = group.schedule.flatMap(r => r.matches);
+        } else if (group.pairings) {
+          // Fallback for Swiss without current round filter
+          matches = group.pairings.flatMap(p => p.matches);
+        } else {
+          matches = [];
+        }
 
         const pendingMatches = matches.filter(
           m => m.status === 'PENDING' && m.participantB !== 'BYE'
@@ -155,6 +188,14 @@
             totalPointsB: number;
             total20sA: number;
             total20sB: number;
+            rounds: Array<{
+              gameNumber: number;
+              roundInGame: number;
+              pointsA: number | null;
+              pointsB: number | null;
+              twentiesA: number;
+              twentiesB: number;
+            }>;
           };
 
           if (gameMode === 'rounds') {
@@ -163,20 +204,56 @@
             let totalB = 0;
             let twentiesA = 0;
             let twentiesB = 0;
+            const rounds: Array<{
+              gameNumber: number;
+              roundInGame: number;
+              pointsA: number | null;
+              pointsB: number | null;
+              twentiesA: number;
+              twentiesB: number;
+            }> = [];
 
             for (let r = 0; r < roundsToPlay; r++) {
               // Randomly distribute 2 points (2-0, 1-1, 0-2)
               const distribution = Math.random();
+              let roundPointsA = 0;
+              let roundPointsB = 0;
+
+              // Generate 20s more realistically (0-3 per player per round)
+              // Higher chance of getting at least one 20
+              const generate20s = () => {
+                const roll = Math.random();
+                if (roll < 0.35) return 0;      // 35% chance of 0
+                if (roll < 0.65) return 1;      // 30% chance of 1
+                if (roll < 0.85) return 2;      // 20% chance of 2
+                return 3;                        // 15% chance of 3
+              };
+
+              let roundTwentiesA = generate20s();
+              let roundTwentiesB = generate20s();
+
               if (distribution < 0.4) {
-                totalA += 2; // Team A wins round
-                if (Math.random() < 0.15) twentiesA++;
+                roundPointsA = 2; // Team A wins round
               } else if (distribution < 0.8) {
-                totalB += 2; // Team B wins round
-                if (Math.random() < 0.15) twentiesB++;
+                roundPointsB = 2; // Team B wins round
               } else {
-                totalA += 1; // Tie
-                totalB += 1;
+                roundPointsA = 1; // Tie
+                roundPointsB = 1;
               }
+
+              totalA += roundPointsA;
+              totalB += roundPointsB;
+              twentiesA += roundTwentiesA;
+              twentiesB += roundTwentiesB;
+
+              rounds.push({
+                gameNumber: 1,
+                roundInGame: r + 1,
+                pointsA: roundPointsA,
+                pointsB: roundPointsB,
+                twentiesA: roundTwentiesA,
+                twentiesB: roundTwentiesB
+              });
             }
 
             // In rounds mode, winner is who has more points
@@ -189,7 +266,8 @@
               totalPointsA: totalA,
               totalPointsB: totalB,
               total20sA: twentiesA,
-              total20sB: twentiesB
+              total20sB: twentiesB,
+              rounds
             };
           } else {
             // For points mode: play until someone reaches pointsToWin
@@ -199,27 +277,68 @@
             let totalPointsB = 0;
             let total20sA = 0;
             let total20sB = 0;
+            const rounds: Array<{
+              gameNumber: number;
+              roundInGame: number;
+              pointsA: number | null;
+              pointsB: number | null;
+              twentiesA: number;
+              twentiesB: number;
+            }> = [];
 
             const requiredWins = Math.ceil(matchesToWin / 2);
+            let gameNumber = 0;
 
             while (gamesA < requiredWins && gamesB < requiredWins) {
+              gameNumber++;
               // Simulate a game
               let gamePointsA = 0;
               let gamePointsB = 0;
+              let roundInGame = 0;
 
               while (gamePointsA < pointsToWin && gamePointsB < pointsToWin) {
+                roundInGame++;
                 // Each round, distribute 2 points
                 const distribution = Math.random();
+                let roundPointsA = 0;
+                let roundPointsB = 0;
+                let roundTwentiesA = 0;
+                let roundTwentiesB = 0;
+
+                // Generate 20s more realistically (0-3 per player per round)
+                const generate20s = () => {
+                  const roll = Math.random();
+                  if (roll < 0.35) return 0;      // 35% chance of 0
+                  if (roll < 0.65) return 1;      // 30% chance of 1
+                  if (roll < 0.85) return 2;      // 20% chance of 2
+                  return 3;                        // 15% chance of 3
+                };
+
+                roundTwentiesA = generate20s();
+                roundTwentiesB = generate20s();
+
                 if (distribution < 0.45) {
-                  gamePointsA += 2;
-                  if (Math.random() < 0.1) total20sA++;
+                  roundPointsA = 2;
                 } else if (distribution < 0.9) {
-                  gamePointsB += 2;
-                  if (Math.random() < 0.1) total20sB++;
+                  roundPointsB = 2;
                 } else {
-                  gamePointsA += 1;
-                  gamePointsB += 1;
+                  roundPointsA = 1;
+                  roundPointsB = 1;
                 }
+
+                gamePointsA += roundPointsA;
+                gamePointsB += roundPointsB;
+                total20sA += roundTwentiesA;
+                total20sB += roundTwentiesB;
+
+                rounds.push({
+                  gameNumber,
+                  roundInGame,
+                  pointsA: roundPointsA,
+                  pointsB: roundPointsB,
+                  twentiesA: roundTwentiesA,
+                  twentiesB: roundTwentiesB
+                });
               }
 
               totalPointsA += gamePointsA;
@@ -238,7 +357,8 @@
               totalPointsA,
               totalPointsB,
               total20sA,
-              total20sB
+              total20sB,
+              rounds
             };
           }
 
@@ -250,7 +370,9 @@
         }
       }
 
-      toastMessage = `✅ ${filledCount} partidos rellenados automáticamente`;
+      toastMessage = isSwiss
+        ? `✅ ${filledCount} partidos de Ronda ${currentRound} rellenados`
+        : `✅ ${filledCount} partidos rellenados automáticamente`;
       showToast = true;
       await loadTournament(); // Reload to show updated results
     } catch (err) {
@@ -338,9 +460,17 @@
       {#if tournament}
         <div class="tournament-header">
           <div class="header-content">
-            <h1>{tournament.name}</h1>
+            <div class="title-row">
+              <h1>{tournament.edition ? `#${tournament.edition} ` : ''}{tournament.name}</h1>
+              {#if tournament.tournamentDate}
+                <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+              {/if}
+            </div>
+            {#if tournament.city && tournament.country}
+              <p class="location">{tournament.city} ({tournament.country})</p>
+            {/if}
             <p class="subtitle">
-              {tournament.groupStage?.type === 'ROUND_ROBIN' ? 'Round Robin' : 'Sistema Suizo'}
+              Fase de grupos - {tournament.groupStage?.type === 'ROUND_ROBIN' ? 'Round Robin' : 'Sistema Suizo'}
               {#if tournament.groupStage?.numGroups && tournament.groupStage.numGroups > 1}
                 - {tournament.groupStage.numGroups} Grupos
               {/if}
@@ -348,14 +478,36 @@
           </div>
           <div class="header-actions">
             {#if isSuperAdminUser}
-              <button
-                class="action-btn autofill"
-                on:click={autoFillAllMatches}
-                disabled={isAutoFilling}
-                title="Solo visible para SuperAdmin - Rellenar partidos con resultados aleatorios"
-              >
-                {isAutoFilling ? '⏳ Rellenando...' : '🎲 Auto-rellenar'}
-              </button>
+              {@const isSwiss = tournament.groupStage?.type === 'SWISS'}
+              {@const currentRound = tournament.groupStage?.currentRound || 1}
+              {@const totalSwissRounds = tournament.groupStage?.numSwissRounds || tournament.numSwissRounds || 0}
+              {@const allSwissRoundsComplete = isSwiss && currentRound >= totalSwissRounds && tournament.groupStage?.groups.every(g => {
+                const currentPairing = g.pairings?.find(p => p.roundNumber === currentRound);
+                return currentPairing?.matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
+              })}
+              {@const allRoundRobinComplete = !isSwiss && tournament.groupStage?.groups.every(g => {
+                const matches = g.schedule?.flatMap(r => r.matches) || [];
+                return matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
+              })}
+              {@const hasPendingMatches = !allSwissRoundsComplete && !allRoundRobinComplete}
+              {#if hasPendingMatches}
+                <button
+                  class="action-btn autofill"
+                  on:click={autoFillAllMatches}
+                  disabled={isAutoFilling}
+                  title={isSwiss
+                    ? `Solo visible para SuperAdmin - Rellenar partidos de Ronda ${currentRound}`
+                    : 'Solo visible para SuperAdmin - Rellenar partidos con resultados aleatorios'}
+                >
+                  {#if isAutoFilling}
+                    ⏳ Rellenando...
+                  {:else if isSwiss}
+                    🎲 Auto-rellenar Ronda {currentRound}
+                  {:else}
+                    🎲 Auto-rellenar
+                  {/if}
+                </button>
+              {/if}
             {/if}
             <button
               class="action-btn complete"
@@ -386,7 +538,7 @@
           </button>
         </div>
       {:else}
-        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} />
+        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} onGenerateNextRound={handleGenerateNextRound} />
       {/if}
     </div>
   </div>
@@ -507,9 +659,16 @@
     flex: 1;
   }
 
+  .title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
   .header-content h1 {
     font-size: 1.6rem;
-    margin: 0 0 0.5rem 0;
+    margin: 0;
     color: #1a1a1a;
     font-weight: 700;
     transition: color 0.3s;
@@ -517,6 +676,28 @@
 
   .groups-page[data-theme='dark'] .header-content h1 {
     color: #e1e8ed;
+  }
+
+  .tournament-date {
+    font-size: 0.9rem;
+    color: #999;
+    font-weight: 400;
+    transition: color 0.3s;
+  }
+
+  .groups-page[data-theme='dark'] .tournament-date {
+    color: #6b7a94;
+  }
+
+  .location {
+    font-size: 0.95rem;
+    color: #888;
+    margin: 0.25rem 0 0.5rem 0;
+    transition: color 0.3s;
+  }
+
+  .groups-page[data-theme='dark'] .location {
+    color: #6b7a94;
   }
 
   .subtitle {
@@ -579,7 +760,7 @@
   /* Content */
   .page-content {
     width: 100%;
-    padding: 2rem;
+    padding: 1.5rem;
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;

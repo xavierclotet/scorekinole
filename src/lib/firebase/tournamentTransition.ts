@@ -183,6 +183,72 @@ export async function getQualifiedParticipants(
 }
 
 /**
+ * Calculate suggested number of qualifiers based on total participants
+ *
+ * The goal is to have a fair bracket that uses power of 2 participants.
+ * Logic:
+ * - Find the largest power of 2 that is <= half of total participants
+ * - But ensure at least 4 qualify (for semifinals) if possible
+ *
+ * Examples:
+ * - 8 participants → 4 qualifiers (semifinals)
+ * - 10-15 participants → 8 qualifiers (quarterfinals)
+ * - 16-31 participants → 8 qualifiers (quarterfinals)
+ * - 32+ participants → 16 qualifiers
+ * - 6 participants → 4 qualifiers
+ * - 4-5 participants → 4 qualifiers (all or almost all qualify)
+ *
+ * @param totalParticipants Total number of participants in the tournament
+ * @param numGroups Number of groups (to calculate per-group suggestion)
+ * @returns Object with total suggested qualifiers and per-group suggestion
+ */
+export function calculateSuggestedQualifiers(
+  totalParticipants: number,
+  numGroups: number = 1
+): { total: number; perGroup: number } {
+  if (totalParticipants < 4) {
+    // Very small tournament - all qualify
+    const validSize = totalParticipants >= 2 ? (totalParticipants <= 2 ? 2 : 4) : 2;
+    return { total: validSize, perGroup: Math.ceil(validSize / numGroups) };
+  }
+
+  // Target: around half the participants, but must be power of 2
+  const halfParticipants = Math.floor(totalParticipants / 2);
+
+  // Find the largest power of 2 that is <= halfParticipants
+  // But ensure minimum of 4 (semifinals)
+  let suggested = 4; // Minimum: semifinals
+
+  // Powers of 2: 4, 8, 16, 32
+  const powersOf2 = [4, 8, 16, 32];
+
+  for (const power of powersOf2) {
+    if (power <= halfParticipants) {
+      suggested = power;
+    } else {
+      break;
+    }
+  }
+
+  // Special case: if we have exactly power of 2 participants,
+  // we might want half of them
+  if (totalParticipants === 8) suggested = 4;
+  if (totalParticipants === 16) suggested = 8;
+  if (totalParticipants === 32) suggested = 16;
+
+  // Ensure suggested doesn't exceed total participants
+  if (suggested > totalParticipants) {
+    // Find the largest valid power of 2 <= total
+    suggested = powersOf2.filter(p => p <= totalParticipants).pop() || 2;
+  }
+
+  // Calculate per group
+  const perGroup = Math.ceil(suggested / numGroups);
+
+  return { total: suggested, perGroup };
+}
+
+/**
  * Validate that number of qualifiers is valid for bracket
  * Must be power of 2 (2, 4, 8, 16, 32)
  *

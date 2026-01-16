@@ -4,21 +4,29 @@
 
   export let tournament: Tournament;
   export let groupIndex: number;
+  export let topN: number = 2; // Controlled from parent
+  export let showTopControl: boolean = false; // Only show in first group or externally
 
   const dispatch = createEventDispatcher<{
     update: string[]; // Array of qualified participant IDs
   }>();
-
-  let topNValue = 2; // Default to top 2
 
   // Ensure groups is an array (Firestore may return object)
   $: groups = Array.isArray(tournament.groupStage?.groups)
     ? tournament.groupStage.groups
     : Object.values(tournament.groupStage?.groups || {});
 
-  // Auto-select when topNValue changes
-  $: if (topNValue >= 1 && topNValue <= 10 && standings.length > 0) {
-    selectTop(topNValue);
+  // Get ranking configuration
+  $: isSwiss = tournament.groupStage?.type === 'SWISS';
+  $: rankingSystem = (tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS') as 'WINS' | 'POINTS';
+
+  // Track previous topN to detect changes
+  let previousTopN = topN;
+
+  // Auto-select when topN prop changes from parent
+  $: if (topN !== previousTopN && topN >= 1 && topN <= 10 && standings.length > 0) {
+    previousTopN = topN;
+    selectTop(topN);
   }
 
   $: group = groups[groupIndex];
@@ -33,23 +41,23 @@
   $: participantMap = new Map(tournament.participants.map(p => [p.id, p]));
 
   // Local state for selection (make it reactive to standings changes)
-  // If no qualifiers set yet, auto-select based on topNValue
+  // If no qualifiers set yet, auto-select based on topN
   $: selectedParticipants = (() => {
     const currentQualified = standings.filter((s: any) => s.qualifiedForFinal).map((s: any) => s.participantId);
 
-    // If no qualifiers selected yet, auto-select topNValue participants
-    if (currentQualified.length === 0 && standings.length >= topNValue) {
-      const topN = standings
+    // If no qualifiers selected yet, auto-select topN participants
+    if (currentQualified.length === 0 && standings.length >= topN) {
+      const topNList = standings
         .sort((a: any, b: any) => a.position - b.position)
-        .slice(0, topNValue)
+        .slice(0, topN)
         .map((s: any) => s.participantId);
 
       // Dispatch the auto-selection
-      if (topN.length > 0) {
-        setTimeout(() => dispatch('update', topN), 0);
+      if (topNList.length > 0) {
+        setTimeout(() => dispatch('update', topNList), 0);
       }
 
-      return new Set<string>(topN);
+      return new Set<string>(topNList);
     }
 
     return new Set<string>(currentQualified);
@@ -75,11 +83,6 @@
     dispatch('update', Array.from(selectedParticipants));
   }
 
-  function clearSelection() {
-    selectedParticipants = new Set();
-    dispatch('update', Array.from(selectedParticipants));
-  }
-
   function getParticipantName(participantId: string): string {
     return participantMap.get(participantId)?.name || 'Unknown';
   }
@@ -90,20 +93,6 @@
 <div class="qualifier-selection">
   <div class="group-header">
     <h3>{group?.name}</h3>
-    <div class="selection-info">
-      <span class="count">{selectedCount} clasificados</span>
-      <label class="top-n-label">
-        <span>Top</span>
-        <input
-          type="number"
-          class="top-n-input"
-          bind:value={topNValue}
-          min="1"
-          max="10"
-        />
-      </label>
-      <button class="quick-btn clear" on:click={clearSelection}>✕</button>
-    </div>
   </div>
 
   <!-- Standings table with checkboxes -->
@@ -118,14 +107,17 @@
           <th class="wins-col">G</th>
           <th class="losses-col">P</th>
           <th class="ties-col">E</th>
-          <th class="points-col">Pts</th>
+          {#if rankingSystem === 'WINS'}
+            <th class="points-col primary-col" title={isSwiss ? 'Puntos Swiss (1/0.5/0)' : 'Puntos (2/1/0)'}>Pts</th>
+          {/if}
           <th class="twenties-col">20s</th>
-          <th class="scored-col">Puntos</th>
+          <th class="scored-col" class:primary-col={rankingSystem === 'POINTS'} title="Puntos totales de Crokinole">PT</th>
         </tr>
       </thead>
       <tbody>
         {#each standings as standing}
           {@const isSelected = selectedParticipants.has(standing.participantId)}
+          {@const swissPoints = standing.swissPoints ?? (standing.matchesWon + standing.matchesTied * 0.5)}
           <tr
             class:selected={isSelected}
             on:click={() => toggleParticipant(standing.participantId)}
@@ -150,9 +142,15 @@
             <td class="wins-col">{standing.matchesWon}</td>
             <td class="losses-col">{standing.matchesLost}</td>
             <td class="ties-col">{standing.matchesTied}</td>
-            <td class="points-col"><strong>{standing.points}</strong></td>
+            {#if rankingSystem === 'WINS'}
+              <td class="points-col primary-col">
+                <strong>{isSwiss ? (swissPoints % 1 === 0 ? swissPoints : swissPoints.toFixed(1)) : standing.points}</strong>
+              </td>
+            {/if}
             <td class="twenties-col">{standing.total20s}</td>
-            <td class="scored-col">{standing.totalPointsScored}</td>
+            <td class="scored-col" class:primary-col={rankingSystem === 'POINTS'}>
+              {#if rankingSystem === 'POINTS'}<strong>{standing.totalPointsScored}</strong>{:else}{standing.totalPointsScored}{/if}
+            </td>
           </tr>
         {/each}
       </tbody>
@@ -198,84 +196,6 @@
     border-radius: 6px;
     font-size: 0.85rem;
     font-weight: 600;
-  }
-
-  .quick-select {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .top-n-label {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #1a1a1a;
-  }
-
-  :global([data-theme='dark']) .top-n-label {
-    color: #e1e8ed;
-  }
-
-  .top-n-input {
-    width: 50px;
-    padding: 0.35rem 0.5rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-align: center;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    background: white;
-    color: #1a1a1a;
-    transition: all 0.2s;
-  }
-
-  .top-n-input:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.15);
-  }
-
-  :global([data-theme='dark']) .top-n-input {
-    background: #0f1419;
-    color: #e1e8ed;
-    border-color: #2d3748;
-  }
-
-  :global([data-theme='dark']) .top-n-input:focus {
-    border-color: #667eea;
-  }
-
-  .quick-btn {
-    padding: 0.4rem 0.8rem;
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #1a1a1a;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .quick-btn:hover {
-    background: #667eea;
-    color: white;
-    border-color: #667eea;
-  }
-
-  .quick-btn.clear {
-    background: #fee;
-    border-color: #fcc;
-    color: #c00;
-  }
-
-  .quick-btn.clear:hover {
-    background: #fcc;
   }
 
   .standings-table {
@@ -408,6 +328,16 @@
   .scored-col {
     width: 80px;
     color: #6b7280;
+  }
+
+  /* Primary column (used for ranking) */
+  .primary-col {
+    background: rgba(102, 126, 234, 0.08);
+    color: #667eea !important;
+  }
+
+  th.primary-col {
+    background: rgba(102, 126, 234, 0.15);
   }
 
   /* Dark mode */

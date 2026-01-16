@@ -1,29 +1,72 @@
 <script lang="ts">
-  import type { GroupStanding, TournamentParticipant } from '$lib/types/tournament';
+  import type { GroupStanding, TournamentParticipant, GroupRankingSystem } from '$lib/types/tournament';
 
   export let standings: GroupStanding[];
   export let participants: TournamentParticipant[];
   // showElo prop kept for backwards compatibility but no longer used
   // ELO is now shown only in the final standings
   export let showElo: boolean = false;
+  // Whether this is a Swiss system (affects sorting and display)
+  export let isSwiss: boolean = false;
+  // Ranking system: 'WINS' or 'POINTS' (total points scored)
+  // Supports both new rankingSystem and legacy swissRankingSystem prop
+  export let rankingSystem: GroupRankingSystem = 'WINS';
+  // @deprecated - use rankingSystem instead
+  export let swissRankingSystem: GroupRankingSystem = 'WINS';
+
+  // Use rankingSystem if provided, fallback to swissRankingSystem for backwards compatibility
+  $: effectiveRankingSystem = rankingSystem || swissRankingSystem || 'WINS';
 
   // Create participant map for quick lookup
   $: participantMap = new Map(participants.map(p => [p.id, p]));
 
-  // Sort standings by totalPointsScored (desc), then total20s (desc) for display
+  // Sort standings based on ranking system
   $: sortedStandings = [...standings].sort((a, b) => {
-    // 1. Total points scored (descending)
-    if (b.totalPointsScored !== a.totalPointsScored) {
-      return b.totalPointsScored - a.totalPointsScored;
+    if (effectiveRankingSystem === 'POINTS') {
+      // By POINTS: totalPointsScored > 20s > head-to-head
+      if (b.totalPointsScored !== a.totalPointsScored) {
+        return b.totalPointsScored - a.totalPointsScored;
+      }
+      if (b.total20s !== a.total20s) return b.total20s - a.total20s;
+      if (a.headToHeadRecord?.[b.participantId] === 'WIN') return -1;
+      if (a.headToHeadRecord?.[b.participantId] === 'LOSS') return 1;
+      return 0;
+    } else {
+      // By WINS
+      if (isSwiss) {
+        // Swiss: swissPoints (1/0.5/0) > head-to-head > 20s
+        const aSwiss = a.swissPoints ?? (a.matchesWon + a.matchesTied * 0.5);
+        const bSwiss = b.swissPoints ?? (b.matchesWon + b.matchesTied * 0.5);
+        if (bSwiss !== aSwiss) return bSwiss - aSwiss;
+
+        // Head-to-head
+        if (a.headToHeadRecord?.[b.participantId] === 'WIN') return -1;
+        if (a.headToHeadRecord?.[b.participantId] === 'LOSS') return 1;
+
+        // 20s
+        return b.total20s - a.total20s;
+      } else {
+        // Round Robin: points (2/1/0) > 20s > totalPointsScored
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.total20s !== a.total20s) return b.total20s - a.total20s;
+        return b.totalPointsScored - a.totalPointsScored;
+      }
     }
-    // 2. Total 20s (descending)
-    return b.total20s - a.total20s;
   });
 
   // Get participant name by ID
   function getParticipantName(participantId: string): string {
     return participantMap.get(participantId)?.name || 'Unknown';
   }
+
+  // Format Swiss points (show .5 for ties)
+  function formatSwissPoints(standing: GroupStanding): string {
+    const pts = standing.swissPoints ?? (standing.matchesWon + standing.matchesTied * 0.5);
+    return pts % 1 === 0 ? pts.toString() : pts.toFixed(1);
+  }
+
+  // Show Pts column when ranking by WINS
+  $: showPtsColumn = effectiveRankingSystem === 'WINS';
 </script>
 
 <div class="standings-table">
@@ -36,7 +79,10 @@
         <th class="wins-col">G</th>
         <th class="losses-col">P</th>
         <th class="ties-col">E</th>
-        <th class="points-col">Pts</th>
+        {#if showPtsColumn}
+          <th class="points-col" title={isSwiss ? 'Puntos Swiss (1/0.5/0)' : 'Puntos (2/1/0)'}>Pts</th>
+        {/if}
+        <th class="total-points-col" title="Puntos totales de Crokinole">Puntos</th>
         <th class="twenties-col">20s</th>
       </tr>
     </thead>
@@ -60,7 +106,14 @@
           <td class="wins-col">{standing.matchesWon}</td>
           <td class="losses-col">{standing.matchesLost}</td>
           <td class="ties-col">{standing.matchesTied}</td>
-          <td class="points-col"><strong>{standing.totalPointsScored}</strong></td>
+          {#if showPtsColumn}
+            <td class="points-col" class:primary={effectiveRankingSystem === 'WINS'}>
+              <strong>{isSwiss ? formatSwissPoints(standing) : standing.points}</strong>
+            </td>
+          {/if}
+          <td class="total-points-col" class:primary={effectiveRankingSystem === 'POINTS'}>
+            <strong>{standing.totalPointsScored}</strong>
+          </td>
           <td class="twenties-col">{standing.total20s}</td>
         </tr>
       {/each}
@@ -118,6 +171,7 @@
   th.losses-col,
   th.ties-col,
   th.points-col,
+  th.total-points-col,
   th.twenties-col {
     width: 50px;
     text-align: center;
@@ -128,12 +182,25 @@
     transition: background-color 0.15s;
   }
 
-  tbody tr:hover {
+  /* Zebra striping - filas alternas */
+  tbody tr:nth-child(odd) {
+    background: #ffffff;
+  }
+
+  tbody tr:nth-child(even) {
     background: #f9fafb;
+  }
+
+  tbody tr:hover {
+    background: #f3f4f6;
   }
 
   tbody tr.qualified {
     background: #f0fdf4;
+  }
+
+  tbody tr.qualified:nth-child(even) {
+    background: #ecfdf5;
   }
 
   tbody tr.qualified:hover {
@@ -151,8 +218,13 @@
   td.losses-col,
   td.ties-col,
   td.points-col,
+  td.total-points-col,
   td.twenties-col {
     text-align: center;
+  }
+
+  td.total-points-col.primary {
+    background: rgba(102, 126, 234, 0.08);
   }
 
   .participant-name {
@@ -211,6 +283,15 @@
     border-bottom-color: #2d3748;
   }
 
+  /* Dark mode zebra striping */
+  :global([data-theme='dark']) tbody tr:nth-child(odd) {
+    background: #1a2332;
+  }
+
+  :global([data-theme='dark']) tbody tr:nth-child(even) {
+    background: #151c28;
+  }
+
   :global([data-theme='dark']) tbody tr:hover {
     background: #0f1419;
   }
@@ -219,12 +300,20 @@
     background: rgba(16, 185, 129, 0.1);
   }
 
+  :global([data-theme='dark']) tbody tr.qualified:nth-child(even) {
+    background: rgba(16, 185, 129, 0.08);
+  }
+
   :global([data-theme='dark']) tbody tr.qualified:hover {
     background: rgba(16, 185, 129, 0.15);
   }
 
   :global([data-theme='dark']) td {
     color: #e1e8ed;
+  }
+
+  :global([data-theme='dark']) td.total-points-col.primary {
+    background: rgba(102, 126, 234, 0.15);
   }
 
   :global([data-theme='dark']) .position-badge {
@@ -266,6 +355,7 @@
     th.losses-col,
     th.ties-col,
     th.points-col,
+    th.total-points-col,
     th.twenties-col {
       width: 38px;
     }

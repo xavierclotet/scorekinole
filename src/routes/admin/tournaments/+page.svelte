@@ -265,9 +265,17 @@
                   {tournament.gameType === 'singles' ? '1v1' : '2v2'}
                 </td>
                 <td class="mode-cell hide-mobile">
-                  {tournament.gameMode === 'points'
-                    ? `${tournament.pointsToWin || 7} pts`
-                    : `${tournament.roundsToPlay || 4} rondas`}
+                  {#if tournament.groupStage?.type}
+                    <span class="mode-group">
+                      {tournament.groupStage.type === 'SWISS' ? 'Suizo' : 'RR'}
+                    </span>
+                    <span class="mode-separator">+</span>
+                  {/if}
+                  {#if tournament.finalStage?.mode === 'SPLIT_DIVISIONS' || tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS'}
+                    <span class="mode-final split">Oro/Plata</span>
+                  {:else}
+                    <span class="mode-final">1F</span>
+                  {/if}
                 </td>
                 <td class="participants-cell">
                   👥 {tournament.participants.length}
@@ -318,8 +326,6 @@
 
 <style>
   .tournaments-container {
-    max-width: 1200px;
-    margin: 0 auto;
     padding: 1.5rem 2rem;
     min-height: 100vh;
     background: #fafafa;
@@ -939,6 +945,60 @@
 
   .delete-btn {
     color: #ef4444;
+  }
+
+  .mode-cell {
+    white-space: nowrap;
+  }
+
+  .mode-group {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    background: #e0f2fe;
+    color: #0369a1;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .tournaments-container[data-theme='dark'] .mode-group {
+    background: #1e3a5f;
+    color: #7dd3fc;
+  }
+
+  .mode-separator {
+    margin: 0 0.25rem;
+    color: #999;
+    font-size: 0.75rem;
+  }
+
+  .tournaments-container[data-theme='dark'] .mode-separator {
+    color: #6b7a94;
+  }
+
+  .mode-final {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    background: #f3f4f6;
+    color: #374151;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .mode-final.split {
+    background: linear-gradient(135deg, #fcd34d 0%, #c0c0c0 100%);
+    color: #1f2937;
+  }
+
+  .tournaments-container[data-theme='dark'] .mode-final {
+    background: #374151;
+    color: #d1d5db;
+  }
+
+  .tournaments-container[data-theme='dark'] .mode-final.split {
+    background: linear-gradient(135deg, #b8860b 0%, #808080 100%);
+    color: #f9fafb;
   }
 
   /* Modal Styles */

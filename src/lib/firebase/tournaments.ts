@@ -369,6 +369,9 @@ export async function cancelTournament(id: string): Promise<boolean> {
 export interface TournamentNameInfo {
   name: string;
   maxEdition: number;
+  description?: string;
+  country?: string;
+  city?: string;
 }
 
 /**
@@ -388,8 +391,8 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
     const tournamentsRef = collection(db!, 'tournaments');
     const snapshot = await getDocs(tournamentsRef);
 
-    // Track max edition per tournament name
-    const namesMap = new Map<string, number>();
+    // Track max edition per tournament name with additional info
+    const namesMap = new Map<string, { maxEdition: number; description?: string; country?: string; city?: string }>();
     const queryLower = searchQuery.toLowerCase();
 
     snapshot.forEach(docSnap => {
@@ -397,10 +400,16 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
       if (data.name) {
         // If there's a search query, filter by it
         if (!searchQuery || data.name.toLowerCase().includes(queryLower)) {
-          const currentMax = namesMap.get(data.name) || 0;
+          const currentInfo = namesMap.get(data.name);
           const edition = data.edition || 1;
-          if (edition > currentMax) {
-            namesMap.set(data.name, edition);
+          if (!currentInfo || edition > currentInfo.maxEdition) {
+            // Store info from the tournament with the highest edition
+            namesMap.set(data.name, {
+              maxEdition: edition,
+              description: data.description,
+              country: data.country,
+              city: data.city
+            });
           }
         }
       }
@@ -408,7 +417,13 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
 
     // Convert to array of TournamentNameInfo and sort alphabetically
     const results: TournamentNameInfo[] = Array.from(namesMap.entries())
-      .map(([name, maxEdition]) => ({ name, maxEdition }))
+      .map(([name, info]) => ({
+        name,
+        maxEdition: info.maxEdition,
+        description: info.description,
+        country: info.country,
+        city: info.city
+      }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     return results.slice(0, 10); // Limit to 10 results

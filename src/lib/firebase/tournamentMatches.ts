@@ -324,6 +324,11 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
   const group = tournament.groupStage.groups[groupIndex];
   if (!group) return;
 
+  // Get ranking system configuration
+  // Supports both new rankingSystem and legacy swissRankingSystem
+  const rankingSystem = tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
+  const isSwiss = tournament.groupStage.type === 'SWISS';
+
   // Get all matches from schedule or pairings
   let matches: GroupMatch[] = [];
 
@@ -346,6 +351,7 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
       matchesLost: 0,
       matchesTied: 0,
       points: 0,
+      swissPoints: isSwiss ? 0 : undefined,
       total20s: 0,
       totalPointsScored: 0,
       qualifiedForFinal: false
@@ -365,20 +371,35 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
     standingA.matchesPlayed++;
     standingB.matchesPlayed++;
 
-    // Update wins/losses/ties
+    // Update wins/losses/ties and points based on ranking system
     if (match.winner === match.participantA) {
       standingA.matchesWon++;
-      standingA.points += 3;
       standingB.matchesLost++;
+      // Points: Round Robin = 2/1/0, Swiss = 1/0.5/0
+      if (isSwiss) {
+        standingA.swissPoints = (standingA.swissPoints || 0) + 1;
+        standingA.points += 2;  // Also update points for display consistency
+      } else {
+        standingA.points += 2;  // 2 points for win in Round Robin
+      }
     } else if (match.winner === match.participantB) {
       standingB.matchesWon++;
-      standingB.points += 3;
       standingA.matchesLost++;
+      if (isSwiss) {
+        standingB.swissPoints = (standingB.swissPoints || 0) + 1;
+        standingB.points += 2;
+      } else {
+        standingB.points += 2;  // 2 points for win in Round Robin
+      }
     } else {
       // Tie (shouldn't happen in Best of X, but handle it)
       standingA.matchesTied++;
-      standingA.points += 1;
       standingB.matchesTied++;
+      if (isSwiss) {
+        standingA.swissPoints = (standingA.swissPoints || 0) + 0.5;
+        standingB.swissPoints = (standingB.swissPoints || 0) + 0.5;
+      }
+      standingA.points += 1;
       standingB.points += 1;
     }
 
@@ -386,17 +407,34 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
     if (match.total20sA) standingA.total20s += match.total20sA;
     if (match.total20sB) standingB.total20s += match.total20sB;
 
-    // Update total points scored
+    // Update total points scored (Crokinole points)
     if (match.totalPointsA) standingA.totalPointsScored += match.totalPointsA;
     if (match.totalPointsB) standingB.totalPointsScored += match.totalPointsB;
   });
 
-  // Sort standings
+  // Sort standings based on ranking system
   const standings = Array.from(standingsMap.values()).sort((a, b) => {
-    // 1. Total points scored (sum of all round points)
-    if (b.totalPointsScored !== a.totalPointsScored) return b.totalPointsScored - a.totalPointsScored;
-    // 2. Total 20s (tiebreaker)
-    return b.total20s - a.total20s;
+    if (rankingSystem === 'POINTS') {
+      // Sort by total Crokinole points scored
+      if (b.totalPointsScored !== a.totalPointsScored) return b.totalPointsScored - a.totalPointsScored;
+      // Tiebreaker: total 20s
+      if (b.total20s !== a.total20s) return b.total20s - a.total20s;
+      // Tiebreaker: match points
+      return (isSwiss ? (b.swissPoints || 0) - (a.swissPoints || 0) : b.points - a.points);
+    } else {
+      // Sort by match points (WINS system - default)
+      if (isSwiss) {
+        // Swiss: use swissPoints (1/0.5/0)
+        if ((b.swissPoints || 0) !== (a.swissPoints || 0)) return (b.swissPoints || 0) - (a.swissPoints || 0);
+      } else {
+        // Round Robin: use points (2/1/0)
+        if (b.points !== a.points) return b.points - a.points;
+      }
+      // Tiebreaker 1: total 20s
+      if (b.total20s !== a.total20s) return b.total20s - a.total20s;
+      // Tiebreaker 2: total points scored
+      return b.totalPointsScored - a.totalPointsScored;
+    }
   });
 
   // Assign positions

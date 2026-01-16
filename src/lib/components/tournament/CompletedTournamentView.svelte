@@ -10,6 +10,11 @@
   let selectedMatch: GroupMatch | BracketMatch | null = null;
   let isBracketMatch = false;
 
+  // Check if this is a split divisions tournament
+  $: isSplitDivisions = tournament.finalStage?.mode === 'SPLIT_DIVISIONS';
+  $: goldBracket = tournament.finalStage?.bracket;
+  $: silverBracket = tournament.finalStage?.silverBracket;
+
   // Sort participants by final position for the final standings
   $: sortedParticipants = [...tournament.participants]
     .filter(p => p.status === 'ACTIVE' && p.finalPosition)
@@ -155,6 +160,8 @@
                 standings={group.standings}
                 participants={tournament.participants}
                 showElo={tournament.eloConfig.enabled}
+                isSwiss={tournament.groupStage?.type === 'SWISS'}
+                rankingSystem={tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
               />
             </div>
 
@@ -188,6 +195,10 @@
     {:else if activeTab === 'bracket' && tournament.finalStage?.bracket}
       <!-- Bracket View -->
       <div class="bracket-section">
+        <!-- Gold Bracket (or single bracket) -->
+        {#if isSplitDivisions}
+          <h3 class="bracket-division-title gold">🥇 Liga Oro</h3>
+        {/if}
         <div class="bracket-container">
           {#each tournament.finalStage.bracket.rounds as round (round.roundNumber)}
             <div class="bracket-round">
@@ -235,7 +246,7 @@
             </div>
           {/each}
 
-          <!-- 3rd/4th Place Match -->
+          <!-- 3rd/4th Place Match (Gold) -->
           {#if tournament.finalStage.bracket.thirdPlaceMatch}
             {@const thirdPlaceMatch = tournament.finalStage.bracket.thirdPlaceMatch}
             <div class="bracket-round third-place-round">
@@ -275,6 +286,98 @@
             </div>
           {/if}
         </div>
+
+        <!-- Silver Bracket (only for SPLIT_DIVISIONS) -->
+        {#if isSplitDivisions && silverBracket}
+          <h3 class="bracket-division-title silver">🥈 Liga Plata</h3>
+          <div class="bracket-container">
+            {#each silverBracket.rounds as round (round.roundNumber)}
+              <div class="bracket-round">
+                <h3 class="round-name silver">{round.name}</h3>
+                <div class="matches-column">
+                  {#each round.matches as match (match.id)}
+                    <button
+                      class="bracket-match"
+                      class:clickable={match.participantA && match.participantB}
+                      on:click={() => match.participantA && match.participantB && handleMatchClick(match, true)}
+                      disabled={!match.participantA || !match.participantB}
+                    >
+                      <div
+                        class="match-participant"
+                        class:winner={match.winner === match.participantA}
+                        class:tbd={!match.participantA}
+                      >
+                        <span class="participant-name">{getParticipantName(match.participantA)}</span>
+                        {#if match.seedA}
+                          <span class="seed">#{match.seedA}</span>
+                        {/if}
+                        {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+                          <span class="score">{match.totalPointsA || 0}</span>
+                        {/if}
+                      </div>
+
+                      <div class="vs-divider"></div>
+
+                      <div
+                        class="match-participant"
+                        class:winner={match.winner === match.participantB}
+                        class:tbd={!match.participantB}
+                      >
+                        <span class="participant-name">{getParticipantName(match.participantB)}</span>
+                        {#if match.seedB}
+                          <span class="seed">#{match.seedB}</span>
+                        {/if}
+                        {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+                          <span class="score">{match.totalPointsB || 0}</span>
+                        {/if}
+                      </div>
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/each}
+
+            <!-- 3rd/4th Place Match (Silver) -->
+            {#if silverBracket.thirdPlaceMatch}
+              {@const silverThirdPlace = silverBracket.thirdPlaceMatch}
+              <div class="bracket-round third-place-round">
+                <h3 class="round-name third-place silver">3º y 4º Puesto</h3>
+                <div class="matches-column">
+                  <button
+                    class="bracket-match third-place-match"
+                    class:clickable={silverThirdPlace.participantA && silverThirdPlace.participantB}
+                    on:click={() => silverThirdPlace.participantA && silverThirdPlace.participantB && handleMatchClick(silverThirdPlace, true)}
+                    disabled={!silverThirdPlace.participantA || !silverThirdPlace.participantB}
+                  >
+                    <div
+                      class="match-participant"
+                      class:winner={silverThirdPlace.winner === silverThirdPlace.participantA}
+                      class:tbd={!silverThirdPlace.participantA}
+                    >
+                      <span class="participant-name">{getParticipantName(silverThirdPlace.participantA)}</span>
+                      {#if silverThirdPlace.status === 'COMPLETED' || silverThirdPlace.status === 'WALKOVER'}
+                        <span class="score">{silverThirdPlace.totalPointsA || 0}</span>
+                      {/if}
+                    </div>
+
+                    <div class="vs-divider"></div>
+
+                    <div
+                      class="match-participant"
+                      class:winner={silverThirdPlace.winner === silverThirdPlace.participantB}
+                      class:tbd={!silverThirdPlace.participantB}
+                    >
+                      <span class="participant-name">{getParticipantName(silverThirdPlace.participantB)}</span>
+                      {#if silverThirdPlace.status === 'COMPLETED' || silverThirdPlace.status === 'WALKOVER'}
+                        <span class="score">{silverThirdPlace.totalPointsB || 0}</span>
+                      {/if}
+                    </div>
+                  </button>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -295,6 +398,7 @@
 <style>
   .completed-view {
     width: 100%;
+    overflow: hidden;
   }
 
   /* Final Standings Section */
@@ -611,14 +715,37 @@
   /* Bracket Section */
   .bracket-section {
     overflow-x: auto;
+    overflow-y: hidden;
     padding: 1rem 0;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #667eea #f1f1f1;
+  }
+
+  .bracket-section::-webkit-scrollbar {
+    height: 10px;
+  }
+
+  .bracket-section::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 5px;
+  }
+
+  .bracket-section::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 5px;
+  }
+
+  .bracket-section::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
   }
 
   .bracket-container {
-    display: flex;
+    display: inline-flex;
     gap: 2rem;
-    min-width: fit-content;
-    padding: 0 1rem;
+    min-width: max-content;
+    padding: 0 1rem 1rem 1rem;
   }
 
   .bracket-round {
@@ -664,6 +791,14 @@
   .bracket-match:disabled {
     cursor: default;
     opacity: 0.7;
+  }
+
+  :global([data-theme='dark']) .bracket-section {
+    scrollbar-color: #667eea #1a2332;
+  }
+
+  :global([data-theme='dark']) .bracket-section::-webkit-scrollbar-track {
+    background: #1a2332;
   }
 
   :global([data-theme='dark']) .bracket-match {
@@ -758,6 +893,46 @@
   :global([data-theme='dark']) .third-place-match:hover:not(:disabled) {
     border-color: #f59e0b;
     box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+  }
+
+  /* Division titles for Gold/Silver brackets */
+  .bracket-division-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 1rem;
+    margin: 1.5rem 0 1rem 0;
+    border-radius: 12px;
+  }
+
+  .bracket-division-title.gold {
+    background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%);
+    color: #92400e;
+  }
+
+  .bracket-division-title.silver {
+    background: linear-gradient(135deg, #e5e7eb 0%, #9ca3af 100%);
+    color: #374151;
+    margin-top: 2.5rem;
+  }
+
+  :global([data-theme='dark']) .bracket-division-title.gold {
+    background: linear-gradient(135deg, #78350f 0%, #b45309 100%);
+    color: #fbbf24;
+  }
+
+  :global([data-theme='dark']) .bracket-division-title.silver {
+    background: linear-gradient(135deg, #374151 0%, #6b7280 100%);
+    color: #e5e7eb;
+  }
+
+  /* Silver bracket round names */
+  .round-name.silver {
+    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+  }
+
+  .round-name.third-place.silver {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
   }
 
   /* Responsive */

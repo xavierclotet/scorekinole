@@ -115,9 +115,16 @@
         // Points mode bracket: start with empty rounds (dynamic)
         rounds = [];
         currentGameNumber = 1;
-        gamesWonA = 0;
-        gamesWonB = 0;
-        currentGameComplete = false;
+        // For completed matches without rounds, load games won from match data
+        if (match.status === 'COMPLETED' || match.status === 'WALKOVER') {
+          gamesWonA = match.gamesWonA || 0;
+          gamesWonB = match.gamesWonB || 0;
+          currentGameComplete = true;
+        } else {
+          gamesWonA = 0;
+          gamesWonB = 0;
+          currentGameComplete = false;
+        }
       } else {
         // Rounds mode (groups & brackets): initialize fixed rounds
         rounds = Array.from({ length: numRounds }, (_, i) => ({
@@ -429,86 +436,110 @@
           <!-- Points Mode: Dynamic Rounds with Games -->
           {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
             <!-- Read-only view for completed matches -->
+            {@const displayTotalA = rounds.length > 0 ? totalPointsA : (match.totalPointsA || 0)}
+            {@const displayTotalB = rounds.length > 0 ? totalPointsB : (match.totalPointsB || 0)}
+            {@const display20sA = rounds.length > 0 ? total20sA : (match.total20sA || 0)}
+            {@const display20sB = rounds.length > 0 ? total20sB : (match.total20sB || 0)}
+
             <div class="match-complete-notice">
               <div class="match-winner">
                 🏆 Partido Finalizado - Ganador: {gamesWonA > gamesWonB ? participantA?.name : participantB?.name}
               </div>
               <div class="match-score-summary">
-                {participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name}
+                {participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name} (partidas)
               </div>
             </div>
 
-            <!-- Display each game with round-by-round details -->
-            {#each Array.from(gamesByNumber.entries()) as [gameNum, gameRounds]}
-              {@const gamePointsA = gameRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0)}
-              {@const gamePointsB = gameRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0)}
-              {@const game20sA = gameRounds.reduce((sum, r) => sum + r.twentiesA, 0)}
-              {@const game20sB = gameRounds.reduce((sum, r) => sum + r.twentiesB, 0)}
+            {#if rounds.length > 0}
+              <!-- Display each game with round-by-round details -->
+              {#each Array.from(gamesByNumber.entries()) as [gameNum, gameRounds]}
+                {@const gamePointsA = gameRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0)}
+                {@const gamePointsB = gameRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0)}
+                {@const game20sA = gameRounds.reduce((sum, r) => sum + r.twentiesA, 0)}
+                {@const game20sB = gameRounds.reduce((sum, r) => sum + r.twentiesB, 0)}
 
-              <div class="completed-game">
-                <div class="completed-game-header">
-                  <span class="game-title">Partida {gameNum}</span>
-                  <span class="game-winner">
-                    Ganador: {gamePointsA > gamePointsB ? participantA?.name : participantB?.name} ({gamePointsA}-{gamePointsB})
-                  </span>
-                </div>
+                <div class="completed-game">
+                  <div class="completed-game-header">
+                    <span class="game-title">Partida {gameNum}</span>
+                    <span class="game-winner">
+                      Ganador: {gamePointsA > gamePointsB ? participantA?.name : participantB?.name} ({gamePointsA}-{gamePointsB})
+                    </span>
+                  </div>
 
-                <div class="rounds-table-container">
-                  <table class="rounds-table readonly">
-                    <thead>
-                      <tr class="header-main">
-                        <th class="player-col" rowspan="2">Jugador</th>
-                        {#each gameRounds as _, i}
-                          <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
-                        {/each}
-                        <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
-                      </tr>
-                      {#if tournament.show20s}
-                        <tr class="header-sub">
-                          {#each gameRounds as _}
+                  <div class="rounds-table-container">
+                    <table class="rounds-table readonly">
+                      <thead>
+                        <tr class="header-main">
+                          <th class="player-col" rowspan="2">Jugador</th>
+                          {#each gameRounds as _, i}
+                            <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                          {/each}
+                          <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                        </tr>
+                        {#if tournament.show20s}
+                          <tr class="header-sub">
+                            {#each gameRounds as _}
+                              <th class="sub-col points-col">P</th>
+                              <th class="sub-col twenties-col">🎯</th>
+                            {/each}
                             <th class="sub-col points-col">P</th>
                             <th class="sub-col twenties-col">🎯</th>
+                          </tr>
+                        {/if}
+                      </thead>
+                      <tbody>
+                        <!-- Player A -->
+                        <tr class="player-row">
+                          <td class="player-name">{participantA?.name}</td>
+                          {#each gameRounds as round}
+                            <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
+                            {#if tournament.show20s}
+                              <td class="round-cell twenties-cell readonly">{round.twentiesA || 0}</td>
+                            {/if}
                           {/each}
-                          <th class="sub-col points-col">P</th>
-                          <th class="sub-col twenties-col">🎯</th>
+                          <td class="total-cell points-total readonly">{gamePointsA}</td>
+                          {#if tournament.show20s}
+                            <td class="total-cell twenties-total readonly">{game20sA}</td>
+                          {/if}
                         </tr>
-                      {/if}
-                    </thead>
-                    <tbody>
-                      <!-- Player A -->
-                      <tr class="player-row">
-                        <td class="player-name">{participantA?.name}</td>
-                        {#each gameRounds as round}
-                          <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
-                          {#if tournament.show20s}
-                            <td class="round-cell twenties-cell readonly">{round.twentiesA || 0}</td>
-                          {/if}
-                        {/each}
-                        <td class="total-cell points-total readonly">{gamePointsA}</td>
-                        {#if tournament.show20s}
-                          <td class="total-cell twenties-total readonly">{game20sA}</td>
-                        {/if}
-                      </tr>
 
-                      <!-- Player B -->
-                      <tr class="player-row">
-                        <td class="player-name">{participantB?.name}</td>
-                        {#each gameRounds as round}
-                          <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
+                        <!-- Player B -->
+                        <tr class="player-row">
+                          <td class="player-name">{participantB?.name}</td>
+                          {#each gameRounds as round}
+                            <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
+                            {#if tournament.show20s}
+                              <td class="round-cell twenties-cell readonly">{round.twentiesB || 0}</td>
+                            {/if}
+                          {/each}
+                          <td class="total-cell points-total readonly">{gamePointsB}</td>
                           {#if tournament.show20s}
-                            <td class="round-cell twenties-cell readonly">{round.twentiesB || 0}</td>
+                            <td class="total-cell twenties-total readonly">{game20sB}</td>
                           {/if}
-                        {/each}
-                        <td class="total-cell points-total readonly">{gamePointsB}</td>
-                        {#if tournament.show20s}
-                          <td class="total-cell twenties-total readonly">{game20sB}</td>
-                        {/if}
-                      </tr>
-                    </tbody>
-                  </table>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              {/each}
+            {:else}
+              <!-- No round details available, show summary only -->
+              <div class="summary-only-notice">
+                <p>No hay detalle de rondas disponible para este partido.</p>
+                <div class="summary-stats">
+                  <div class="stat-row">
+                    <span class="stat-label">Puntos totales:</span>
+                    <span class="stat-value">{participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}</span>
+                  </div>
+                  {#if tournament.show20s}
+                    <div class="stat-row">
+                      <span class="stat-label">20s totales:</span>
+                      <span class="stat-value">{participantA?.name} {display20sA} - {display20sB} {participantB?.name}</span>
+                    </div>
+                  {/if}
                 </div>
               </div>
-            {/each}
+            {/if}
 
           {:else}
             <!-- Editable view for pending matches -->
@@ -678,172 +709,265 @@
           {/if}
 
         {:else}
-          <!-- Rounds Mode OR Group Stage: Existing Fixed Rounds Table -->
-          <div class="rounds-table-container">
-            <table class="rounds-table">
-              <thead>
-                <tr class="header-main">
-                  <th class="player-col" rowspan="2">Jugador</th>
-                  {#each Array(numRounds) as _, i}
-                    <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
-                  {/each}
-                  <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
-                </tr>
-                {#if tournament.show20s}
-                  <tr class="header-sub">
-                    {#each Array(numRounds) as _}
-                      <th class="sub-col points-col">P</th>
-                      <th class="sub-col twenties-col">🎯</th>
-                    {/each}
-                    <th class="sub-col points-col">P</th>
-                    <th class="sub-col twenties-col">🎯</th>
-                  </tr>
-                {/if}
-              </thead>
-              <tbody>
-                <!-- Player A -->
-                <tr class="player-row">
-                  <td class="player-name">{participantA?.name}</td>
-                  {#each rounds as round, roundIndex}
-                    <td class="round-cell points-cell">
-                      <div class="points-selector">
-                        <button
-                          type="button"
-                          class="point-btn"
-                          class:selected={round.pointsA === 2}
-                          on:click={() => handlePointsChange(roundIndex, 'A', 2)}
-                        >
-                          2
-                        </button>
-                        <button
-                          type="button"
-                          class="point-btn"
-                          class:selected={round.pointsA === 1}
-                          on:click={() => handlePointsChange(roundIndex, 'A', 1)}
-                        >
-                          1
-                        </button>
-                        <button
-                          type="button"
-                          class="point-btn"
-                          class:selected={round.pointsA === 0}
-                          on:click={() => handlePointsChange(roundIndex, 'A', 0)}
-                        >
-                          0
-                        </button>
-                      </div>
-                    </td>
-                    {#if tournament.show20s}
-                      <td class="round-cell twenties-cell">
-                        <input
-                          type="number"
-                          min="0"
-                          max={tournament.gameType === 'singles' ? 8 : 12}
-                          value={round.twentiesA}
-                          on:input={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
-                          class="twenties-input"
-                        />
-                      </td>
-                    {/if}
-                  {/each}
-                  <td class="total-cell points-cell">
-                    <span class="total-value">{totalPointsA}</span>
-                    {#if !isRoundsMode}
-                      <span class="games-won">({gamesWonA}G)</span>
-                    {/if}
-                  </td>
-                  {#if tournament.show20s}
-                    <td class="total-cell twenties-cell">
-                      <span class="total-value total-twenties">{total20sA}</span>
-                    </td>
-                  {/if}
-                </tr>
+          <!-- Rounds Mode OR Group Stage -->
+          {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+            <!-- Read-only view for completed matches -->
+            {@const displayTotalA = rounds.length > 0 ? totalPointsA : (match.totalPointsA || 0)}
+            {@const displayTotalB = rounds.length > 0 ? totalPointsB : (match.totalPointsB || 0)}
+            {@const display20sA = rounds.length > 0 ? total20sA : (match.total20sA || 0)}
+            {@const display20sB = rounds.length > 0 ? total20sB : (match.total20sB || 0)}
 
-                <!-- Player B -->
-                <tr class="player-row">
-                  <td class="player-name">{participantB?.name}</td>
-                  {#each rounds as round, roundIndex}
-                    <td class="round-cell points-cell">
-                      <div class="points-selector">
-                        <button
-                          type="button"
-                          class="point-btn"
-                          class:selected={round.pointsB === 2}
-                          on:click={() => handlePointsChange(roundIndex, 'B', 2)}
-                        >
-                          2
-                        </button>
-                        <button
-                          type="button"
-                          class="point-btn"
-                          class:selected={round.pointsB === 1}
-                          on:click={() => handlePointsChange(roundIndex, 'B', 1)}
-                        >
-                          1
-                        </button>
-                        <button
-                          type="button"
-                          class="point-btn"
-                          class:selected={round.pointsB === 0}
-                          on:click={() => handlePointsChange(roundIndex, 'B', 0)}
-                        >
-                          0
-                        </button>
-                      </div>
-                    </td>
-                    {#if tournament.show20s}
-                      <td class="round-cell twenties-cell">
-                        <input
-                          type="number"
-                          min="0"
-                          max={tournament.gameType === 'singles' ? 8 : 12}
-                          value={round.twentiesB}
-                          on:input={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
-                          class="twenties-input"
-                        />
-                      </td>
-                    {/if}
-                  {/each}
-                  <td class="total-cell points-cell">
-                    <span class="total-value">{totalPointsB}</span>
-                    {#if !isRoundsMode}
-                      <span class="games-won">({gamesWonB}G)</span>
-                    {/if}
-                  </td>
-                  {#if tournament.show20s}
-                    <td class="total-cell twenties-cell">
-                      <span class="total-value total-twenties">{total20sB}</span>
-                    </td>
-                  {/if}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Validation messages (only for rounds mode) -->
-          {#if isRoundsMode && !canSave && (totalPointsA > 0 || totalPointsB > 0)}
-            <div class="validation-error">
-              {#if isBracket && gamesWonA === gamesWonB}
-                ⚠️ No se permiten empates en la fase de eliminación. Debe haber un ganador.
-              {:else}
-                ⚠️ Debes completar todas las rondas
-              {/if}
-            </div>
-          {/if}
-
-          <!-- No-show section (only show if no results have been entered) -->
-          {#if !hasAnyResult}
-            <div class="noshow-section">
-              <h3>⚠️ No-show</h3>
-              <div class="noshow-buttons">
-                <button class="noshow-btn" on:click={() => handleNoShow(match.participantA)}>
-                  {participantA?.name} no se presentó
-                </button>
-                <button class="noshow-btn" on:click={() => handleNoShow(match.participantB)}>
-                  {participantB?.name} no se presentó
-                </button>
+            <div class="match-complete-notice">
+              <div class="match-winner">
+                🏆 Partido Finalizado - Ganador: {match.winner === match.participantA ? participantA?.name : participantB?.name}
+              </div>
+              <div class="match-score-summary">
+                {participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}
               </div>
             </div>
+
+            {#if rounds.length > 0}
+              <!-- Show round-by-round details if available -->
+              <div class="rounds-table-container">
+                <table class="rounds-table readonly">
+                  <thead>
+                    <tr class="header-main">
+                      <th class="player-col" rowspan="2">Jugador</th>
+                      {#each rounds as _, i}
+                        <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                      {/each}
+                      <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                    </tr>
+                    {#if tournament.show20s}
+                      <tr class="header-sub">
+                        {#each rounds as _}
+                          <th class="sub-col points-col">P</th>
+                          <th class="sub-col twenties-col">🎯</th>
+                        {/each}
+                        <th class="sub-col points-col">P</th>
+                        <th class="sub-col twenties-col">🎯</th>
+                      </tr>
+                    {/if}
+                  </thead>
+                  <tbody>
+                    <!-- Player A -->
+                    <tr class="player-row">
+                      <td class="player-name">{participantA?.name}</td>
+                      {#each rounds as round}
+                        <td class="round-cell readonly">{round.pointsA ?? '-'}</td>
+                        {#if tournament.show20s}
+                          <td class="round-cell readonly">{round.twentiesA || 0}</td>
+                        {/if}
+                      {/each}
+                      <td class="total-cell readonly">{displayTotalA}</td>
+                      {#if tournament.show20s}
+                        <td class="total-cell readonly">{display20sA}</td>
+                      {/if}
+                    </tr>
+
+                    <!-- Player B -->
+                    <tr class="player-row">
+                      <td class="player-name">{participantB?.name}</td>
+                      {#each rounds as round}
+                        <td class="round-cell readonly">{round.pointsB ?? '-'}</td>
+                        {#if tournament.show20s}
+                          <td class="round-cell readonly">{round.twentiesB || 0}</td>
+                        {/if}
+                      {/each}
+                      <td class="total-cell readonly">{displayTotalB}</td>
+                      {#if tournament.show20s}
+                        <td class="total-cell readonly">{display20sB}</td>
+                      {/if}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            {:else}
+              <!-- No round details available, show summary only -->
+              <div class="summary-only-notice">
+                <p>No hay detalle de rondas disponible para este partido.</p>
+                <div class="summary-stats">
+                  <div class="stat-row">
+                    <span class="stat-label">Puntos totales:</span>
+                    <span class="stat-value">{participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}</span>
+                  </div>
+                  {#if tournament.show20s}
+                    <div class="stat-row">
+                      <span class="stat-label">20s totales:</span>
+                      <span class="stat-value">{participantA?.name} {display20sA} - {display20sB} {participantB?.name}</span>
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+          {:else}
+            <!-- Editable view for pending matches -->
+            <div class="rounds-table-container">
+              <table class="rounds-table">
+                <thead>
+                  <tr class="header-main">
+                    <th class="player-col" rowspan="2">Jugador</th>
+                    {#each Array(numRounds) as _, i}
+                      <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                    {/each}
+                    <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                  </tr>
+                  {#if tournament.show20s}
+                    <tr class="header-sub">
+                      {#each Array(numRounds) as _}
+                        <th class="sub-col points-col">P</th>
+                        <th class="sub-col twenties-col">🎯</th>
+                      {/each}
+                      <th class="sub-col points-col">P</th>
+                      <th class="sub-col twenties-col">🎯</th>
+                    </tr>
+                  {/if}
+                </thead>
+                <tbody>
+                  <!-- Player A -->
+                  <tr class="player-row">
+                    <td class="player-name">{participantA?.name}</td>
+                    {#each rounds as round, roundIndex}
+                      <td class="round-cell points-cell">
+                        <div class="points-selector">
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsA === 2}
+                            on:click={() => handlePointsChange(roundIndex, 'A', 2)}
+                          >
+                            2
+                          </button>
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsA === 1}
+                            on:click={() => handlePointsChange(roundIndex, 'A', 1)}
+                          >
+                            1
+                          </button>
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsA === 0}
+                            on:click={() => handlePointsChange(roundIndex, 'A', 0)}
+                          >
+                            0
+                          </button>
+                        </div>
+                      </td>
+                      {#if tournament.show20s}
+                        <td class="round-cell twenties-cell">
+                          <input
+                            type="number"
+                            min="0"
+                            max={tournament.gameType === 'singles' ? 8 : 12}
+                            value={round.twentiesA}
+                            on:input={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
+                            class="twenties-input"
+                          />
+                        </td>
+                      {/if}
+                    {/each}
+                    <td class="total-cell points-cell">
+                      <span class="total-value">{totalPointsA}</span>
+                      {#if !isRoundsMode}
+                        <span class="games-won">({gamesWonA}G)</span>
+                      {/if}
+                    </td>
+                    {#if tournament.show20s}
+                      <td class="total-cell twenties-cell">
+                        <span class="total-value total-twenties">{total20sA}</span>
+                      </td>
+                    {/if}
+                  </tr>
+
+                  <!-- Player B -->
+                  <tr class="player-row">
+                    <td class="player-name">{participantB?.name}</td>
+                    {#each rounds as round, roundIndex}
+                      <td class="round-cell points-cell">
+                        <div class="points-selector">
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsB === 2}
+                            on:click={() => handlePointsChange(roundIndex, 'B', 2)}
+                          >
+                            2
+                          </button>
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsB === 1}
+                            on:click={() => handlePointsChange(roundIndex, 'B', 1)}
+                          >
+                            1
+                          </button>
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsB === 0}
+                            on:click={() => handlePointsChange(roundIndex, 'B', 0)}
+                          >
+                            0
+                          </button>
+                        </div>
+                      </td>
+                      {#if tournament.show20s}
+                        <td class="round-cell twenties-cell">
+                          <input
+                            type="number"
+                            min="0"
+                            max={tournament.gameType === 'singles' ? 8 : 12}
+                            value={round.twentiesB}
+                            on:input={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
+                            class="twenties-input"
+                          />
+                        </td>
+                      {/if}
+                    {/each}
+                    <td class="total-cell points-cell">
+                      <span class="total-value">{totalPointsB}</span>
+                      {#if !isRoundsMode}
+                        <span class="games-won">({gamesWonB}G)</span>
+                      {/if}
+                    </td>
+                    {#if tournament.show20s}
+                      <td class="total-cell twenties-cell">
+                        <span class="total-value total-twenties">{total20sB}</span>
+                      </td>
+                    {/if}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Validation messages (only for rounds mode) -->
+            {#if isRoundsMode && !canSave && (totalPointsA > 0 || totalPointsB > 0)}
+              <div class="validation-error">
+                {#if isBracket && gamesWonA === gamesWonB}
+                  ⚠️ No se permiten empates en la fase de eliminación. Debe haber un ganador.
+                {:else}
+                  ⚠️ Debes completar todas las rondas
+                {/if}
+              </div>
+            {/if}
+
+            <!-- No-show section (only show if no results have been entered) -->
+            {#if !hasAnyResult}
+              <div class="noshow-section">
+                <h3>⚠️ No-show</h3>
+                <div class="noshow-buttons">
+                  <button class="noshow-btn" on:click={() => handleNoShow(match.participantA)}>
+                    {participantA?.name} no se presentó
+                  </button>
+                  <button class="noshow-btn" on:click={() => handleNoShow(match.participantB)}>
+                    {participantB?.name} no se presentó
+                  </button>
+                </div>
+              </div>
+            {/if}
           {/if}
         {/if}
       </div>
@@ -1152,6 +1276,46 @@
     font-weight: 700;
     color: #92400e;
     margin-top: 0.5rem;
+  }
+
+  /* Summary only notice (when no round details available) */
+  .summary-only-notice {
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-top: 1rem;
+  }
+
+  .summary-only-notice p {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin: 0 0 1rem 0;
+  }
+
+  .summary-only-notice .summary-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .summary-only-notice .stat-row {
+    background: white;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .dialog-backdrop[data-theme='dark'] .summary-only-notice {
+    background: #0f1419;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .summary-only-notice p {
+    color: #8b9bb3;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .summary-only-notice .stat-row {
+    background: #1a2332;
   }
 
   /* Completed game display */

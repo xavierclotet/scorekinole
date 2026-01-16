@@ -7,7 +7,7 @@
   import { goto } from '$app/navigation';
   import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
-  import type { TournamentParticipant, EloConfig } from '$lib/types/tournament';
+  import type { TournamentParticipant, EloConfig, FinalStageMode } from '$lib/types/tournament';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import { DEVELOPED_COUNTRIES } from '$lib/constants';
 
@@ -36,11 +36,12 @@
   let showHammer = true;
 
   // Step 2: Tournament Format
-  let numTables = 2;
+  let numTables = 4;
   let phaseType: 'ONE_PHASE' | 'TWO_PHASE' = 'TWO_PHASE';
   let groupStageType: 'ROUND_ROBIN' | 'SWISS' = 'ROUND_ROBIN';
-  let numGroups = 2;
+  let numGroups = 1;
   let numSwissRounds = 5;
+  let rankingSystem: 'WINS' | 'POINTS' = 'WINS';  // WINS = 2/1/0 (RR) or 1/0.5/0 (Swiss), POINTS = total points scored
 
   // Group stage game config
   let groupGameMode: 'points' | 'rounds' = 'rounds';
@@ -48,9 +49,18 @@
   let groupRoundsToPlay = 4;
   let groupMatchesToWin = 1;
 
-  // Final stage game config (only for TWO_PHASE, always points mode)
+  // Final stage game config (only for TWO_PHASE)
+  let finalStageMode: 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' = 'SINGLE_BRACKET';
+  // Gold bracket config (or single bracket if SINGLE_BRACKET mode)
+  let finalGameMode: 'points' | 'rounds' = 'points';
   let finalPointsToWin = 7;
+  let finalRoundsToPlay = 4;
   let finalMatchesToWin = 1;
+  // Silver bracket config (only for SPLIT_DIVISIONS mode) - default: 4 rounds, best of 1
+  let silverGameMode: 'points' | 'rounds' = 'rounds';
+  let silverPointsToWin = 7;
+  let silverRoundsToPlay = 4;
+  let silverMatchesToWin = 1;
 
   // Backward compatibility: for ONE_PHASE tournaments
   let gameMode: 'points' | 'rounds' = 'points';
@@ -160,6 +170,7 @@
           groupMatchesToWin = tournament.groupStage.matchesToWin || 1;
           numGroups = tournament.groupStage.numGroups || 2;
           numSwissRounds = tournament.groupStage.numSwissRounds || 4;
+          rankingSystem = tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
         } else {
           // Legacy fallback: read from tournament root level
           groupStageType = tournament.groupStageType || 'ROUND_ROBIN';
@@ -173,14 +184,38 @@
 
         // Final stage config from finalStageConfig or finalStage
         if (tournament.finalStageConfig) {
+          finalStageMode = tournament.finalStageConfig.mode || 'SINGLE_BRACKET';
+          finalGameMode = tournament.finalStageConfig.gameMode || 'points';
           finalPointsToWin = tournament.finalStageConfig.pointsToWin || 7;
-          finalMatchesToWin = tournament.finalStageConfig.matchesToWin || 3;
+          finalRoundsToPlay = tournament.finalStageConfig.roundsToPlay || 4;
+          finalMatchesToWin = tournament.finalStageConfig.matchesToWin || 1;
+          // Silver bracket config
+          silverGameMode = tournament.finalStageConfig.silverGameMode || 'points';
+          silverPointsToWin = tournament.finalStageConfig.silverPointsToWin || 7;
+          silverRoundsToPlay = tournament.finalStageConfig.silverRoundsToPlay || 4;
+          silverMatchesToWin = tournament.finalStageConfig.silverMatchesToWin || 1;
         } else if (tournament.finalStage) {
+          finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
+          finalGameMode = tournament.finalStage.gameMode || 'points';
           finalPointsToWin = tournament.finalStage.pointsToWin || 7;
-          finalMatchesToWin = tournament.finalStage.matchesToWin || 3;
+          finalRoundsToPlay = tournament.finalStage.roundsToPlay || 4;
+          finalMatchesToWin = tournament.finalStage.matchesToWin || 1;
+          // Silver bracket config
+          silverGameMode = tournament.finalStage.silverGameMode || 'points';
+          silverPointsToWin = tournament.finalStage.silverPointsToWin || 7;
+          silverRoundsToPlay = tournament.finalStage.silverRoundsToPlay || 4;
+          silverMatchesToWin = tournament.finalStage.silverMatchesToWin || 1;
         } else {
+          finalStageMode = 'SINGLE_BRACKET';
+          finalGameMode = 'points';
           finalPointsToWin = 7;
-          finalMatchesToWin = 3;
+          finalRoundsToPlay = 4;
+          finalMatchesToWin = 1;
+          // Silver bracket default: 4 rounds, best of 1
+          silverGameMode = 'rounds';
+          silverPointsToWin = 7;
+          silverRoundsToPlay = 4;
+          silverMatchesToWin = 1;
         }
       } else {
         // ONE_PHASE: load from finalStage
@@ -248,6 +283,7 @@
       groupStageType = data.groupStageType || 'ROUND_ROBIN';
       numGroups = data.numGroups || 2;
       numSwissRounds = data.numSwissRounds || 4;
+      rankingSystem = data.rankingSystem || data.swissRankingSystem || 'WINS';
       show20s = data.show20s ?? true;
       showHammer = data.showHammer ?? true;
 
@@ -256,8 +292,19 @@
       groupPointsToWin = data.groupPointsToWin || 7;
       groupRoundsToPlay = data.groupRoundsToPlay || 4;
       groupMatchesToWin = data.groupMatchesToWin || 1;
+
+      // Final stage config
+      finalStageMode = data.finalStageMode || 'SINGLE_BRACKET';
+      finalGameMode = data.finalGameMode || 'points';
       finalPointsToWin = data.finalPointsToWin || 7;
-      finalMatchesToWin = data.finalMatchesToWin || 3;
+      finalRoundsToPlay = data.finalRoundsToPlay || 4;
+      finalMatchesToWin = data.finalMatchesToWin || 1;
+
+      // Silver bracket config - default: 4 rounds, best of 1
+      silverGameMode = data.silverGameMode || 'rounds';
+      silverPointsToWin = data.silverPointsToWin || 7;
+      silverRoundsToPlay = data.silverRoundsToPlay || 4;
+      silverMatchesToWin = data.silverMatchesToWin || 1;
 
       // Backward compatibility for ONE_PHASE
       gameMode = data.gameMode || 'points';
@@ -303,12 +350,23 @@
         groupStageType,
         numGroups,
         numSwissRounds,
+        rankingSystem,
         groupGameMode,
         groupPointsToWin,
         groupRoundsToPlay,
         groupMatchesToWin,
+        // Final stage config
+        finalStageMode,
+        finalGameMode,
         finalPointsToWin,
+        finalRoundsToPlay,
         finalMatchesToWin,
+        // Silver bracket config
+        silverGameMode,
+        silverPointsToWin,
+        silverRoundsToPlay,
+        silverMatchesToWin,
+        // ONE_PHASE backward compatibility
         gameMode,
         pointsToWin,
         roundsToPlay,
@@ -367,6 +425,16 @@
     name = info.name;
     // Auto-fill next edition number
     edition = info.maxEdition + 1;
+    // Auto-fill description, country, and city from previous edition
+    if (info.description) {
+      description = info.description;
+    }
+    if (info.country) {
+      country = info.country;
+    }
+    if (info.city) {
+      city = info.city;
+    }
     showNameDropdown = false;
     tournamentNameResults = [];
   }
@@ -661,20 +729,30 @@
           roundsToPlay: groupGameMode === 'rounds' ? groupRoundsToPlay : undefined,
           matchesToWin: groupMatchesToWin,
           numGroups: groupStageType === 'ROUND_ROBIN' ? numGroups : undefined,
-          numSwissRounds: groupStageType === 'SWISS' ? numSwissRounds : undefined
+          numSwissRounds: groupStageType === 'SWISS' ? numSwissRounds : undefined,
+          rankingSystem: rankingSystem
         };
 
         // Final stage configuration will be set when transitioning (in generateBracket)
         // We store it in finalStageConfig for now
         tournamentData.finalStageConfig = {
-          gameMode: 'points',  // Always points for final stage
-          pointsToWin: finalPointsToWin,
-          matchesToWin: finalMatchesToWin
+          mode: finalStageMode,
+          // Gold bracket config (or single bracket if SINGLE_BRACKET mode)
+          gameMode: finalGameMode,
+          pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
+          roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
+          matchesToWin: finalMatchesToWin,
+          // Silver bracket config (only for SPLIT_DIVISIONS mode)
+          silverGameMode: finalStageMode === 'SPLIT_DIVISIONS' ? silverGameMode : undefined,
+          silverPointsToWin: finalStageMode === 'SPLIT_DIVISIONS' && silverGameMode === 'points' ? silverPointsToWin : undefined,
+          silverRoundsToPlay: finalStageMode === 'SPLIT_DIVISIONS' && silverGameMode === 'rounds' ? silverRoundsToPlay : undefined,
+          silverMatchesToWin: finalStageMode === 'SPLIT_DIVISIONS' ? silverMatchesToWin : undefined
         };
       } else {
         // ONE_PHASE: final stage configuration (for bracket directly)
         tournamentData.finalStage = {
           type: 'SINGLE_ELIMINATION',
+          mode: 'SINGLE_BRACKET',
           bracket: {
             rounds: [],
             totalRounds: 0
@@ -967,7 +1045,7 @@
               type="number"
               bind:value={numTables}
               min="1"
-              max="20"
+              max="100"
               class="input-field"
             />
             <small class="help-text">
@@ -991,132 +1069,318 @@
           </div>
 
           {#if phaseType === 'TWO_PHASE'}
-            <div class="phase-config">
-              <h3>Configuración de Fase de Grupos</h3>
-
-              <div class="form-group">
-                <label>Tipo de Fase de Grupos</label>
-                <div class="radio-group">
-                  <label class="radio-label">
-                    <input type="radio" bind:group={groupStageType} value="ROUND_ROBIN" />
-                    <span>Round Robin (todos contra todos)</span>
-                  </label>
-                  <label class="radio-label">
-                    <input type="radio" bind:group={groupStageType} value="SWISS" />
-                    <span>Sistema Suizo (emparejamiento por puntos)</span>
-                  </label>
+            <!-- FASE 1: GRUPOS -->
+            <div class="phase-section">
+              <div class="phase-header groups">
+                <span class="phase-icon">👥</span>
+                <div class="phase-title">
+                  <h3>Fase 1: Grupos</h3>
+                  <small>Configuración de la fase clasificatoria</small>
                 </div>
               </div>
 
-              {#if groupStageType === 'ROUND_ROBIN'}
+              <div class="phase-content">
                 <div class="form-group">
-                  <label for="numGroups">Número de Grupos</label>
-                  <input
-                    id="numGroups"
-                    type="number"
-                    bind:value={numGroups}
-                    min="1"
-                    max="8"
-                    class="input-field"
-                  />
-                  <small class="help-text">Los participantes se dividirán equitativamente</small>
+                  <label>Sistema de Grupos</label>
+                  <div class="radio-group">
+                    <label class="radio-label">
+                      <input type="radio" bind:group={groupStageType} value="ROUND_ROBIN" />
+                      <span>Round Robin</span>
+                    </label>
+                    <label class="radio-label">
+                      <input type="radio" bind:group={groupStageType} value="SWISS" />
+                      <span>Sistema Suizo</span>
+                    </label>
+                  </div>
+                  <small class="help-text">
+                    {groupStageType === 'ROUND_ROBIN'
+                      ? 'Todos contra todos dentro de cada grupo'
+                      : 'Emparejamiento dinámico por puntuación'}
+                  </small>
                 </div>
-              {:else}
-                <div class="form-group">
-                  <label for="numSwissRounds">Número de Rondas Suizas</label>
-                  <input
-                    id="numSwissRounds"
-                    type="number"
-                    bind:value={numSwissRounds}
-                    min="3"
-                    max="10"
-                    class="input-field"
-                  />
-                  <small class="help-text">Mínimo 3 rondas recomendado</small>
-                </div>
-              {/if}
 
-              <div class="form-group">
-                <label>Modo de Juego</label>
-                <div class="radio-group">
-                  <label class="radio-label">
-                    <input type="radio" bind:group={groupGameMode} value="points" />
-                    <span>Por Puntos</span>
-                  </label>
-                  <label class="radio-label">
-                    <input type="radio" bind:group={groupGameMode} value="rounds" />
-                    <span>Por Rondas</span>
-                  </label>
+                {#if groupStageType === 'ROUND_ROBIN'}
+                  <div class="form-group">
+                    <label for="numGroups">Número de Grupos</label>
+                    <input
+                      id="numGroups"
+                      type="number"
+                      bind:value={numGroups}
+                      min="1"
+                      max="8"
+                      class="input-field"
+                    />
+                    <small class="help-text">Los participantes se dividirán equitativamente</small>
+                  </div>
+                {:else}
+                  <div class="form-group">
+                    <label for="numSwissRounds">Número de Rondas</label>
+                    <input
+                      id="numSwissRounds"
+                      type="number"
+                      bind:value={numSwissRounds}
+                      min="3"
+                      max="10"
+                      class="input-field"
+                    />
+                    <small class="help-text">Mínimo 3 rondas recomendado</small>
+                  </div>
+                {/if}
+
+                <!-- Sistema de clasificación (aplica a ambos tipos) -->
+                <div class="form-group">
+                  <label>Sistema de Clasificación</label>
+                  <div class="radio-group vertical">
+                    <label class="radio-label">
+                      <input type="radio" bind:group={rankingSystem} value="WINS" />
+                      <span>Por Victorias</span>
+                      <small class="radio-description">
+                        {groupStageType === 'ROUND_ROBIN'
+                          ? '2 puntos victoria, 1 empate, 0 derrota'
+                          : '1 punto victoria, 0.5 empate, 0 derrota'}
+                      </small>
+                    </label>
+                    <label class="radio-label">
+                      <input type="radio" bind:group={rankingSystem} value="POINTS" />
+                      <span>Por Puntos Totales</span>
+                      <small class="radio-description">Suma de todos los puntos de cada ronda anotados</small>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Subsección: Configuración de partidos de grupos -->
+                <div class="match-config-box">
+                  <h4>⚙️ Configuración de Partidos</h4>
+
+                  <div class="form-group">
+                    <label>Modo de Juego</label>
+                    <div class="radio-group">
+                      <label class="radio-label">
+                        <input type="radio" bind:group={groupGameMode} value="points" />
+                        <span>Por Puntos</span>
+                      </label>
+                      <label class="radio-label">
+                        <input type="radio" bind:group={groupGameMode} value="rounds" />
+                        <span>Por Rondas</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {#if groupGameMode === 'points'}
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="groupPointsToWin">Puntos para Ganar</label>
+                        <input
+                          id="groupPointsToWin"
+                          type="number"
+                          bind:value={groupPointsToWin}
+                          min="1"
+                          max="50"
+                          class="input-field"
+                        />
+                      </div>
+                      <div class="form-group">
+                        <label for="groupMatchesToWin">Best of</label>
+                        <select id="groupMatchesToWin" bind:value={groupMatchesToWin} class="input-field">
+                          <option value={1}>1 partido</option>
+                          <option value={3}>3 partidos</option>
+                          <option value={5}>5 partidos</option>
+                          <option value={7}>7 partidos</option>
+                        </select>
+                      </div>
+                    </div>
+                  {:else}
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="groupRoundsToPlay">Rondas por Partido</label>
+                        <input
+                          id="groupRoundsToPlay"
+                          type="number"
+                          bind:value={groupRoundsToPlay}
+                          min="1"
+                          max="20"
+                          class="input-field"
+                        />
+                      </div>
+                      <div class="form-group">
+                        <label for="groupMatchesToWinRounds">Best of</label>
+                        <select id="groupMatchesToWinRounds" bind:value={groupMatchesToWin} class="input-field">
+                          <option value={1}>1 partido</option>
+                          <option value={3}>3 partidos</option>
+                          <option value={5}>5 partidos</option>
+                          <option value={7}>7 partidos</option>
+                        </select>
+                      </div>
+                    </div>
+                  {/if}
                 </div>
               </div>
-
-              {#if groupGameMode === 'points'}
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="groupPointsToWin">Puntos para Ganar</label>
-                    <input
-                      id="groupPointsToWin"
-                      type="number"
-                      bind:value={groupPointsToWin}
-                      min="1"
-                      max="50"
-                      class="input-field"
-                    />
-                  </div>
-
-                  <div class="form-group">
-                    <label for="groupMatchesToWin">Partidos a Ganar (Best of)</label>
-                    <select id="groupMatchesToWin" bind:value={groupMatchesToWin} class="input-field">
-                      <option value={1}>1 (sin revancha)</option>
-                      <option value={3}>3 (gana a 2)</option>
-                      <option value={5}>5 (gana a 3)</option>
-                      <option value={7}>7 (gana a 4)</option>
-                    </select>
-                  </div>
-                </div>
-              {:else}
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="groupRoundsToPlay">Número de Rondas por Partido</label>
-                    <input
-                      id="groupRoundsToPlay"
-                      type="number"
-                      bind:value={groupRoundsToPlay}
-                      min="1"
-                      max="20"
-                      class="input-field"
-                    />
-                  </div>
-                </div>
-              {/if}
             </div>
 
-            <!-- Final Stage Game Configuration -->
-            <div class="phase-config">
-              <h3>🏆 Configuración de Fase Final (Eliminación)</h3>
-              <small class="help-text" style="display: block; margin-bottom: 1rem;">La fase final siempre será por puntos</small>
+            <!-- FASE 2: ELIMINACIÓN -->
+            <div class="phase-section">
+              <div class="phase-header finals">
+                <span class="phase-icon">🏆</span>
+                <div class="phase-title">
+                  <h3>Fase 2: Eliminación</h3>
+                  <small>Configuración de la fase final</small>
+                </div>
+              </div>
 
-              <div class="form-row">
+              <div class="phase-content">
                 <div class="form-group">
-                  <label for="finalPointsToWin">Puntos para Ganar</label>
-                  <input
-                    id="finalPointsToWin"
-                    type="number"
-                    bind:value={finalPointsToWin}
-                    min="1"
-                    max="50"
-                    class="input-field"
-                  />
+                  <label>Estructura de Brackets</label>
+                  <div class="radio-group vertical">
+                    <label class="radio-label">
+                      <input type="radio" bind:group={finalStageMode} value="SINGLE_BRACKET" />
+                      <span>Bracket Único</span>
+                      <small class="radio-description">Todos los clasificados en un mismo bracket</small>
+                    </label>
+                    <label class="radio-label">
+                      <input type="radio" bind:group={finalStageMode} value="SPLIT_DIVISIONS" />
+                      <span>Divisiones Oro / Plata</span>
+                      <small class="radio-description">Dos brackets separados según clasificación</small>
+                    </label>
+                  </div>
                 </div>
 
-                <div class="form-group">
-                  <label for="finalMatchesToWin">Partidos a Ganar (Best of)</label>
-                  <select id="finalMatchesToWin" bind:value={finalMatchesToWin} class="input-field">
-                    <option value={1}>1 (sin revancha)</option>
-                    <option value={3}>3 (gana a 2)</option>
-                    <option value={5}>5 (gana a 3)</option>
-                    <option value={7}>7 (gana a 4)</option>
-                  </select>
+                <!-- Configuración de brackets -->
+                <div class="brackets-container" class:split={finalStageMode === 'SPLIT_DIVISIONS'}>
+                  <!-- Gold Bracket (o único) -->
+                  <div class="match-config-box" class:gold={finalStageMode === 'SPLIT_DIVISIONS'}>
+                    <h4>{finalStageMode === 'SPLIT_DIVISIONS' ? '🥇 Bracket Oro' : '⚙️ Configuración de Partidos'}</h4>
+
+                    <div class="form-group">
+                      <label>Modo de Juego</label>
+                      <div class="radio-group">
+                        <label class="radio-label">
+                          <input type="radio" bind:group={finalGameMode} value="points" />
+                          <span>Por Puntos</span>
+                        </label>
+                        <label class="radio-label">
+                          <input type="radio" bind:group={finalGameMode} value="rounds" />
+                          <span>Por Rondas</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {#if finalGameMode === 'points'}
+                      <div class="form-row">
+                        <div class="form-group">
+                          <label for="finalPointsToWin">Puntos para Ganar</label>
+                          <input
+                            id="finalPointsToWin"
+                            type="number"
+                            bind:value={finalPointsToWin}
+                            min="1"
+                            max="50"
+                            class="input-field"
+                          />
+                        </div>
+                        <div class="form-group">
+                          <label for="finalMatchesToWin">Best of</label>
+                          <select id="finalMatchesToWin" bind:value={finalMatchesToWin} class="input-field">
+                            <option value={1}>1 partido</option>
+                            <option value={3}>3 partidos</option>
+                            <option value={5}>5 partidos</option>
+                            <option value={7}>7 partidos</option>
+                          </select>
+                        </div>
+                      </div>
+                    {:else}
+                      <div class="form-row">
+                        <div class="form-group">
+                          <label for="finalRoundsToPlay">Rondas por Partido</label>
+                          <input
+                            id="finalRoundsToPlay"
+                            type="number"
+                            bind:value={finalRoundsToPlay}
+                            min="1"
+                            max="20"
+                            class="input-field"
+                          />
+                        </div>
+                        <div class="form-group">
+                          <label for="finalMatchesToWinRounds">Best of</label>
+                          <select id="finalMatchesToWinRounds" bind:value={finalMatchesToWin} class="input-field">
+                            <option value={1}>1 partido</option>
+                            <option value={3}>3 partidos</option>
+                            <option value={5}>5 partidos</option>
+                            <option value={7}>7 partidos</option>
+                          </select>
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+
+                  <!-- Silver Bracket (solo si hay divisiones) -->
+                  {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                    <div class="match-config-box silver">
+                      <h4>🥈 Bracket Plata</h4>
+
+                      <div class="form-group">
+                        <label>Modo de Juego</label>
+                        <div class="radio-group">
+                          <label class="radio-label">
+                            <input type="radio" bind:group={silverGameMode} value="points" />
+                            <span>Por Puntos</span>
+                          </label>
+                          <label class="radio-label">
+                            <input type="radio" bind:group={silverGameMode} value="rounds" />
+                            <span>Por Rondas</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {#if silverGameMode === 'points'}
+                        <div class="form-row">
+                          <div class="form-group">
+                            <label for="silverPointsToWin">Puntos para Ganar</label>
+                            <input
+                              id="silverPointsToWin"
+                              type="number"
+                              bind:value={silverPointsToWin}
+                              min="1"
+                              max="50"
+                              class="input-field"
+                            />
+                          </div>
+                          <div class="form-group">
+                            <label for="silverMatchesToWin">Best of</label>
+                            <select id="silverMatchesToWin" bind:value={silverMatchesToWin} class="input-field">
+                              <option value={1}>1 partido</option>
+                              <option value={3}>3 partidos</option>
+                              <option value={5}>5 partidos</option>
+                              <option value={7}>7 partidos</option>
+                            </select>
+                          </div>
+                        </div>
+                      {:else}
+                        <div class="form-row">
+                          <div class="form-group">
+                            <label for="silverRoundsToPlay">Rondas por Partido</label>
+                            <input
+                              id="silverRoundsToPlay"
+                              type="number"
+                              bind:value={silverRoundsToPlay}
+                              min="1"
+                              max="20"
+                              class="input-field"
+                            />
+                          </div>
+                          <div class="form-group">
+                            <label for="silverMatchesToWinRounds">Best of</label>
+                            <select id="silverMatchesToWinRounds" bind:value={silverMatchesToWin} class="input-field">
+                              <option value={1}>1 partido</option>
+                              <option value={3}>3 partidos</option>
+                              <option value={5}>5 partidos</option>
+                              <option value={7}>7 partidos</option>
+                            </select>
+                          </div>
+                        </div>
+                      {/if}
+                    </div>
+                  {/if}
                 </div>
               </div>
             </div>
@@ -1180,20 +1444,22 @@
           {/if}
 
           <!-- Common settings (20s and Hammer) -->
-          <div class="phase-config">
-            <h3>⚙️ Configuración General</h3>
-
-            <div class="form-group">
-              <label class="checkbox-label">
+          <div class="settings-section">
+            <h3>Opciones de Partido</h3>
+            <div class="settings-grid">
+              <label class="setting-item">
                 <input type="checkbox" bind:checked={show20s} />
-                <span>Contar 20s (centro del tablero)</span>
+                <div class="setting-info">
+                  <span class="setting-label">Contar 20s</span>
+                  <small>Registrar discos en el centro</small>
+                </div>
               </label>
-            </div>
-
-            <div class="form-group">
-              <label class="checkbox-label">
+              <label class="setting-item">
                 <input type="checkbox" bind:checked={showHammer} />
-                <span>Mostrar Hammer (primer turno)</span>
+                <div class="setting-info">
+                  <span class="setting-label">Mostrar Hammer</span>
+                  <small>Indicar quién tira último</small>
+                </div>
               </label>
             </div>
           </div>
@@ -1442,6 +1708,34 @@
                       : `Suizo (${numSwissRounds} rondas)`}
                   </span>
                 </div>
+                <div class="review-item">
+                  <span class="review-label">Clasificación:</span>
+                  <span class="review-value">
+                    {rankingSystem === 'WINS'
+                      ? (groupStageType === 'ROUND_ROBIN' ? 'Por Victorias (2/1/0)' : 'Por Victorias (1/0.5/0)')
+                      : 'Por Puntos Totales'}
+                  </span>
+                </div>
+                <div class="review-item">
+                  <span class="review-label">Fase Final:</span>
+                  <span class="review-value">
+                    {finalStageMode === 'SINGLE_BRACKET' ? 'Un solo bracket' : 'Divisiones (Oro / Plata)'}
+                  </span>
+                </div>
+                <div class="review-item">
+                  <span class="review-label">{finalStageMode === 'SPLIT_DIVISIONS' ? 'Bracket Oro:' : 'Config Final:'}</span>
+                  <span class="review-value">
+                    {finalGameMode === 'points' ? `${finalPointsToWin} puntos` : `${finalRoundsToPlay} rondas`}, Best of {finalMatchesToWin}
+                  </span>
+                </div>
+                {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                  <div class="review-item">
+                    <span class="review-label">Bracket Plata:</span>
+                    <span class="review-value">
+                      {silverGameMode === 'points' ? `${silverPointsToWin} puntos` : `${silverRoundsToPlay} rondas`}, Best of {silverMatchesToWin}
+                    </span>
+                  </div>
+                {/if}
               {/if}
             </div>
 
@@ -1839,6 +2133,10 @@
     gap: 0.75rem;
   }
 
+  .radio-group.vertical {
+    flex-direction: column;
+  }
+
   .radio-label {
     display: flex;
     align-items: center;
@@ -1850,6 +2148,23 @@
     border-radius: 6px;
     transition: all 0.2s;
     flex: 1;
+    flex-wrap: wrap;
+  }
+
+  .radio-group.vertical .radio-label {
+    justify-content: flex-start;
+  }
+
+  .radio-description {
+    width: 100%;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-left: 26px;
+    margin-top: 0.25rem;
+  }
+
+  .wizard-container[data-theme='dark'] .radio-description {
+    color: #8b9bb3;
   }
 
   .wizard-container[data-theme='dark'] .radio-label {
@@ -1917,6 +2232,229 @@
     margin: 0 0 1rem 0;
     color: #555;
     transition: color 0.3s;
+  }
+
+  /* Phase sections - Professional design */
+  .phase-section {
+    margin-top: 1.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    transition: all 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-section {
+    background: #1a2332;
+    border-color: #374151;
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
+    transition: all 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-header {
+    border-bottom-color: #374151;
+  }
+
+  .phase-header.groups {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  }
+
+  .wizard-container[data-theme='dark'] .phase-header.groups {
+    background: linear-gradient(135deg, #0c2d48 0%, #1e3a5f 100%);
+  }
+
+  .phase-header.finals {
+    background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+  }
+
+  .wizard-container[data-theme='dark'] .phase-header.finals {
+    background: linear-gradient(135deg, #422006 0%, #713f12 100%);
+  }
+
+  .phase-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  .phase-title h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: #1f2937;
+    transition: color 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-title h3 {
+    color: #f3f4f6;
+  }
+
+  .phase-title small {
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-weight: 400;
+    transition: color 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-title small {
+    color: #9ca3af;
+  }
+
+  .phase-content {
+    padding: 1.25rem;
+  }
+
+  /* Match config box - uniform design */
+  .match-config-box {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: all 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .match-config-box {
+    background: #111827;
+    border-color: #374151;
+  }
+
+  .match-config-box h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    color: #374151;
+    transition: color 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .match-config-box h4 {
+    color: #d1d5db;
+  }
+
+  .match-config-box.gold {
+    border-left: 3px solid #f59e0b;
+  }
+
+  .match-config-box.silver {
+    border-left: 3px solid #9ca3af;
+  }
+
+  /* Brackets container */
+  .brackets-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .brackets-container.split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 768px) {
+    .brackets-container.split {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Settings section */
+  .settings-section {
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    transition: all 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .settings-section {
+    background: #111827;
+    border-color: #374151;
+  }
+
+  .settings-section h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem 0;
+    color: #374151;
+    transition: color 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .settings-section h3 {
+    color: #d1d5db;
+  }
+
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .setting-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .wizard-container[data-theme='dark'] .setting-item {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .setting-item:hover {
+    border-color: #d1d5db;
+  }
+
+  .wizard-container[data-theme='dark'] .setting-item:hover {
+    border-color: #4b5563;
+  }
+
+  .setting-item input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    cursor: pointer;
+    accent-color: #fa709a;
+  }
+
+  .setting-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .setting-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #1f2937;
+    transition: color 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .setting-label {
+    color: #f3f4f6;
+  }
+
+  .setting-info small {
+    font-size: 0.75rem;
+    color: #6b7280;
+    transition: color 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .setting-info small {
+    color: #9ca3af;
   }
 
   .wizard-container[data-theme='dark'] .phase-config h3,

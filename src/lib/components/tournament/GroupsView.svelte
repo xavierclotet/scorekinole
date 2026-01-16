@@ -10,8 +10,10 @@
   export let tournament: Tournament;
   export let onMatchClick: ((match: GroupMatch) => void) | undefined = undefined;
   export let activeGroupId: string | null = null; // Track which group had recent activity
+  export let onGenerateNextRound: (() => Promise<void>) | undefined = undefined;
 
   let expandedGroups: Set<string> = new Set();
+  let generatingRound = false;
   let groupViews: Record<string, 'schedule' | 'standings'> = {};
   let groupExpandedRounds: Record<string, Set<number>> = {}; // Track expanded rounds per group
   let filterTable: number | null = null;
@@ -50,8 +52,15 @@
   })();
 
   $: currentRound = tournament.groupStage?.currentRound || 1;
-  $: totalRounds = tournament.groupStage?.totalRounds || 0;
   $: isSwiss = tournament.groupStage?.type === 'SWISS';
+  // Support both new rankingSystem and legacy swissRankingSystem
+  $: rankingSystem = tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS';
+  // @deprecated - keep for backwards compatibility
+  $: swissRankingSystem = rankingSystem;
+  // For Swiss system, prefer numSwissRounds; fallback to totalRounds for round-robin
+  $: totalRounds = isSwiss
+    ? (tournament.groupStage?.numSwissRounds || tournament.groupStage?.totalRounds || tournament.numSwissRounds || 0)
+    : (tournament.groupStage?.totalRounds || 0);
 
   // Auto-expand all groups initially (only once) and initialize round states
   $: if (groups.length > 0 && !groupsInitialized) {
@@ -121,7 +130,7 @@
     };
   }
 
-  // Calculate overall progress
+  // Calculate overall progress (matches)
   $: overallProgress = (() => {
     let totalMatches = 0;
     let completedMatches = 0;
@@ -136,6 +145,32 @@
       completed: completedMatches,
       total: totalMatches,
       percentage: totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0
+    };
+  })();
+
+  // Calculate rounds progress for Swiss system
+  $: roundsProgress = (() => {
+    if (!isSwiss || totalRounds === 0) return null;
+
+    // Count completed rounds (all matches in round are complete)
+    let completedRounds = 0;
+    groups.forEach((group: Group) => {
+      const rounds = getGroupRounds(group);
+      rounds.forEach((round: any) => {
+        const progress = getRoundProgress(round.matches);
+        if (progress.percentage === 100) {
+          completedRounds++;
+        }
+      });
+    });
+
+    // For single group Swiss, just count the rounds
+    const completed = groups.length === 1 ? completedRounds : Math.floor(completedRounds / groups.length);
+
+    return {
+      completed,
+      total: totalRounds,
+      percentage: totalRounds > 0 ? Math.round((completed / totalRounds) * 100) : 0
     };
   })();
 
@@ -208,6 +243,29 @@
     expandedGroups = new Set();
   }
 
+  // Expand all rounds in all groups
+  function expandAllRounds() {
+    groups.forEach((group: Group) => {
+      const rounds = getGroupRounds(group);
+      const allRoundNumbers = new Set(rounds.map((r: any) => r.roundNumber));
+      groupExpandedRounds[group.id] = allRoundNumbers;
+    });
+    groupExpandedRounds = groupExpandedRounds;
+  }
+
+  // Collapse all rounds in all groups
+  function collapseAllRounds() {
+    groups.forEach((group: Group) => {
+      groupExpandedRounds[group.id] = new Set();
+    });
+    groupExpandedRounds = groupExpandedRounds;
+  }
+
+  // Check if any round is expanded
+  $: anyRoundExpanded = Object.values(groupExpandedRounds).some(
+    (rounds: Set<number>) => rounds.size > 0
+  );
+
   // Wrapper to add groupId to match before calling onMatchClick
   function handleMatchClick(groupId: string, match: GroupMatch) {
     if (onMatchClick) {
@@ -215,26 +273,54 @@
       onMatchClick({ ...match, groupId });
     }
   }
+
+  // Check if we can generate the next Swiss round
+  $: canGenerateNextRound = isSwiss &&
+    roundsProgress &&
+    overallProgress.percentage === 100 &&
+    roundsProgress.completed < roundsProgress.total &&
+    onGenerateNextRound;
+
+  async function handleGenerateNextRound() {
+    if (!onGenerateNextRound || generatingRound) return;
+    generatingRound = true;
+    try {
+      await onGenerateNextRound();
+    } finally {
+      generatingRound = false;
+    }
+  }
 </script>
 
 <div class="groups-view">
-  <!-- Header with progress -->
-  <div class="view-header">
-    <div class="header-content">
-      <h2>
-        {isSwiss ? 'Sistema Suizo' : 'Fase de Grupos'}
-      </h2>
-      <div class="round-info">
-        <span class="round-label">{totalRounds} Rondas</span>
-        <div class="overall-progress">
-          <span class="progress-text">{overallProgress.completed}/{overallProgress.total}</span>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: {overallProgress.percentage}%"></div>
+  <!-- Header with progress (hidden for single-group Swiss as info moves to group header) -->
+  {#if !(isSwiss && groups.length === 1)}
+    <div class="view-header">
+      <div class="header-content">
+        <h2>
+          {isSwiss ? 'Sistema Suizo' : 'Fase de Grupos'}
+        </h2>
+        <div class="round-info">
+          {#if isSwiss && roundsProgress}
+            <div class="overall-progress">
+              <span class="progress-text">Ronda {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: {roundsProgress.percentage}%"></div>
+              </div>
+            </div>
+          {:else}
+            <span class="round-label">{totalRounds} Rondas</span>
+            <div class="overall-progress">
+              <span class="progress-text">{overallProgress.completed}/{overallProgress.total}</span>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {overallProgress.percentage}%"></div>
+            </div>
           </div>
-        </div>
+        {/if}
       </div>
     </div>
   </div>
+  {/if}
 
   <!-- Filters and controls -->
   <div class="filters-bar">
@@ -261,14 +347,34 @@
 
     {#if groups.length > 1}
       <div class="expand-controls">
-        <button class="expand-btn" on:click={expandAll} title="Expandir todos">
-          <span class="icon">+</span> Todos
+        <button class="expand-btn" on:click={expandAll} title="Expandir todos los grupos">
+          <span class="icon">+</span> Grupos
         </button>
-        <button class="expand-btn" on:click={collapseAll} title="Colapsar todos">
-          <span class="icon">−</span> Ninguno
+        <button class="expand-btn" on:click={collapseAll} title="Colapsar todos los grupos">
+          <span class="icon">−</span> Grupos
         </button>
       </div>
     {/if}
+
+    <div class="rounds-toggle">
+      <button
+        class="toggle-rounds-btn"
+        on:click={anyRoundExpanded ? collapseAllRounds : expandAllRounds}
+        title={anyRoundExpanded ? 'Colapsar todas las rondas' : 'Expandir todas las rondas'}
+      >
+        {#if anyRoundExpanded}
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
+          </svg>
+          Colapsar rondas
+        {:else}
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          </svg>
+          Expandir rondas
+        {/if}
+      </button>
+    </div>
   </div>
 
   <!-- Groups as accordions -->
@@ -301,21 +407,32 @@
                   <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
                 </svg>
               </span>
-              <span class="group-name">{group.name}</span>
+              <span class="group-name">{group.name === 'Swiss' ? 'Sistema Suizo' : group.name}</span>
               {#if progress.percentage === 100}
                 <span class="complete-badge">Completado</span>
               {/if}
             </div>
             <div class="header-right">
               <div class="progress-info">
-                <span class="progress-label">{progress.completed}/{progress.total}</span>
-                <div class="mini-progress-bar">
-                  <div
-                    class="mini-progress-fill"
-                    class:complete={progress.percentage === 100}
-                    style="width: {progress.percentage}%"
-                  ></div>
-                </div>
+                {#if isSwiss && groups.length === 1 && roundsProgress}
+                  <span class="progress-label">Ronda {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
+                  <div class="mini-progress-bar">
+                    <div
+                      class="mini-progress-fill"
+                      class:complete={roundsProgress.percentage === 100}
+                      style="width: {roundsProgress.percentage}%"
+                    ></div>
+                  </div>
+                {:else}
+                  <span class="progress-label">{progress.completed}/{progress.total}</span>
+                  <div class="mini-progress-bar">
+                    <div
+                      class="mini-progress-fill"
+                      class:complete={progress.percentage === 100}
+                      style="width: {progress.percentage}%"
+                    ></div>
+                  </div>
+                {/if}
               </div>
             </div>
           </button>
@@ -323,22 +440,39 @@
           <!-- Accordion Content -->
           {#if isExpanded}
             <div class="accordion-content">
-              <!-- View toggle for this group -->
-              <div class="group-view-toggle">
-                <button
-                  class="toggle-btn"
-                  class:active={(groupViews[group.id] || 'schedule') === 'schedule'}
-                  on:click|stopPropagation={() => setGroupView(group.id, 'schedule')}
-                >
-                  Partidos
-                </button>
-                <button
-                  class="toggle-btn"
-                  class:active={(groupViews[group.id] || 'schedule') === 'standings'}
-                  on:click|stopPropagation={() => setGroupView(group.id, 'standings')}
-                >
-                  Clasificación
-                </button>
+              <!-- View toggle and actions for this group -->
+              <div class="group-actions-row">
+                <div class="group-view-toggle">
+                  <button
+                    class="toggle-btn"
+                    class:active={(groupViews[group.id] || 'schedule') === 'schedule'}
+                    on:click|stopPropagation={() => setGroupView(group.id, 'schedule')}
+                  >
+                    Partidos
+                  </button>
+                  <button
+                    class="toggle-btn"
+                    class:active={(groupViews[group.id] || 'schedule') === 'standings'}
+                    on:click|stopPropagation={() => setGroupView(group.id, 'standings')}
+                  >
+                    Clasificación
+                  </button>
+                </div>
+
+                {#if canGenerateNextRound}
+                  <button
+                    class="generate-next-round-btn"
+                    on:click|stopPropagation={handleGenerateNextRound}
+                    disabled={generatingRound}
+                  >
+                    {#if generatingRound}
+                      <span class="spinner"></span>
+                      Generando...
+                    {:else}
+                      Generar Ronda {(roundsProgress?.completed || 0) + 1}
+                    {/if}
+                  </button>
+                {/if}
               </div>
 
               <!-- Group content -->
@@ -354,12 +488,15 @@
                     gameMode={tournament.groupStage?.gameMode || 'rounds'}
                     expandedRoundsState={groupExpandedRounds[group.id] || null}
                     onExpandedRoundsChange={(expanded) => setGroupExpandedRounds(group.id, expanded)}
+                    {totalRounds}
                   />
                 {:else}
                   <GroupStandings
                     standings={group.standings}
                     participants={tournament.participants}
                     showElo={tournament.eloConfig.enabled}
+                    {isSwiss}
+                    {rankingSystem}
                   />
                 {/if}
               </div>
@@ -474,11 +611,10 @@
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   }
 
-  /* Expand/Collapse controls */
+  /* Expand/Collapse controls for groups */
   .expand-controls {
     display: flex;
     gap: 0.5rem;
-    margin-left: auto;
   }
 
   .expand-btn {
@@ -505,6 +641,37 @@
     font-weight: 700;
     font-size: 1rem;
     line-height: 1;
+  }
+
+  /* Rounds toggle button */
+  .rounds-toggle {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+  }
+
+  .toggle-rounds-btn {
+    padding: 0.4rem 0.75rem;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    color: #6b7280;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .toggle-rounds-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+  }
+
+  .toggle-rounds-btn svg {
+    flex-shrink: 0;
   }
 
   /* Accordion styles */
@@ -643,14 +810,64 @@
     }
   }
 
+  .group-actions-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+
   .group-view-toggle {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 1rem;
     background: #f3f4f6;
     padding: 0.25rem;
     border-radius: 8px;
     width: fit-content;
+  }
+
+  .generate-next-round-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  }
+
+  .generate-next-round-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+
+  .generate-next-round-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .toggle-btn {
@@ -736,6 +953,17 @@
     color: #667eea;
   }
 
+  :global([data-theme='dark']) .toggle-rounds-btn {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #8b9bb3;
+  }
+
+  :global([data-theme='dark']) .toggle-rounds-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+  }
+
   :global([data-theme='dark']) .group-accordion {
     background: #1a2332;
     border-color: #2d3748;
@@ -794,8 +1022,23 @@
     color: #6b7280;
   }
 
+  :global([data-theme='dark']) .generate-next-round-btn {
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
+    .group-actions-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .generate-next-round-btn {
+      width: 100%;
+      justify-content: center;
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+    }
     .groups-view {
       gap: 1rem;
     }
@@ -853,12 +1096,19 @@
     }
 
     .expand-controls {
-      width: 100%;
-      justify-content: flex-end;
-      margin-left: 0;
+      justify-content: flex-start;
     }
 
     .expand-btn {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.75rem;
+    }
+
+    .rounds-toggle {
+      margin-left: auto;
+    }
+
+    .toggle-rounds-btn {
       padding: 0.35rem 0.6rem;
       font-size: 0.75rem;
     }

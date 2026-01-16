@@ -3,25 +3,40 @@
  * Resolves ties in group standings using multiple criteria
  */
 
-import type { GroupStanding, TournamentParticipant } from '$lib/types/tournament';
+import type { GroupStanding, TournamentParticipant, SwissRankingSystem } from '$lib/types/tournament';
 
 /**
  * Resolve tie-breakers in standings
  *
- * Criteria (in order):
- * 1. Points (3 per win, 1 per tie, 0 per loss)
+ * For Swiss system with WINS ranking:
+ * 1. Swiss Points (1 per win, 0.5 per tie, 0 per loss)
+ * 2. Head-to-head record
+ * 3. Total 20s scored
+ * 4. Initial ELO order
+ *
+ * For Swiss system with POINTS ranking:
+ * 1. Total points scored in matches
  * 2. Total 20s scored
- * 3. Total points scored in matches
- * 4. Head-to-head record (if tied between exactly 2 participants)
- * 5. Initial ELO order (if still tied)
+ * 3. Head-to-head record
+ * 4. Initial ELO order
+ *
+ * For Round Robin:
+ * 1. Total points scored in matches
+ * 2. Total 20s scored
+ * 3. Head-to-head record
+ * 4. Initial ELO order
  *
  * @param standings Current standings
  * @param participants Tournament participants (for ELO reference)
+ * @param isSwiss Whether this is a Swiss system tournament
+ * @param swissRankingSystem Swiss ranking system: 'WINS' or 'POINTS'
  * @returns Sorted standings with positions
  */
 export function resolveTiebreaker(
   standings: GroupStanding[],
-  participants: TournamentParticipant[]
+  participants: TournamentParticipant[],
+  isSwiss: boolean = false,
+  swissRankingSystem: SwissRankingSystem = 'WINS'
 ): GroupStanding[] {
   // Create participant map for quick ELO lookup
   const participantMap = new Map<string, TournamentParticipant>();
@@ -29,24 +44,49 @@ export function resolveTiebreaker(
 
   // Sort standings
   const sorted = [...standings].sort((a, b) => {
-    // 1. Total points scored (descending) - sum of all round points
-    if (a.totalPointsScored !== b.totalPointsScored) {
-      return b.totalPointsScored - a.totalPointsScored;
+    if (isSwiss && swissRankingSystem === 'WINS') {
+      // SWISS SYSTEM (WINS): swissPoints > head-to-head > 20s > ELO
+
+      // 1. Swiss Points (1/0.5/0) - PRIMARY
+      const aSwiss = a.swissPoints ?? (a.matchesWon + a.matchesTied * 0.5);
+      const bSwiss = b.swissPoints ?? (b.matchesWon + b.matchesTied * 0.5);
+      if (aSwiss !== bSwiss) {
+        return bSwiss - aSwiss;
+      }
+
+      // 2. Head-to-head
+      if (a.headToHeadRecord && b.headToHeadRecord) {
+        const aVsB = a.headToHeadRecord[b.participantId];
+        if (aVsB === 'WIN') return -1;
+        if (aVsB === 'LOSS') return 1;
+      }
+
+      // 3. Total 20s
+      if (a.total20s !== b.total20s) {
+        return b.total20s - a.total20s;
+      }
+    } else {
+      // ROUND ROBIN or SWISS with POINTS: totalPointsScored > 20s > head-to-head > ELO
+
+      // 1. Total points scored (descending)
+      if (a.totalPointsScored !== b.totalPointsScored) {
+        return b.totalPointsScored - a.totalPointsScored;
+      }
+
+      // 2. Total 20s (descending)
+      if (a.total20s !== b.total20s) {
+        return b.total20s - a.total20s;
+      }
+
+      // 3. Head-to-head
+      if (a.headToHeadRecord && b.headToHeadRecord) {
+        const aVsB = a.headToHeadRecord[b.participantId];
+        if (aVsB === 'WIN') return -1;
+        if (aVsB === 'LOSS') return 1;
+      }
     }
 
-    // 2. Total 20s (descending) - tiebreaker
-    if (a.total20s !== b.total20s) {
-      return b.total20s - a.total20s;
-    }
-
-    // 3. Head-to-head (only if exactly 2 participants tied)
-    if (a.headToHeadRecord && b.headToHeadRecord) {
-      const aVsB = a.headToHeadRecord[b.participantId];
-      if (aVsB === 'WIN') return -1;
-      if (aVsB === 'LOSS') return 1;
-    }
-
-    // 4. Initial ELO (descending)
+    // Fallback: Initial ELO (descending)
     const participantA = participantMap.get(a.participantId);
     const participantB = participantMap.get(b.participantId);
 
@@ -114,14 +154,14 @@ export function updateHeadToHeadRecord(
 }
 
 /**
- * Calculate match points (3 for win, 1 for tie, 0 for loss)
+ * Calculate match points (2 for win, 1 for tie, 0 for loss) - Used for Round Robin
  *
  * @param matchesWon Number of matches won
  * @param matchesTied Number of matches tied
  * @returns Total match points
  */
 export function calculateMatchPoints(matchesWon: number, matchesTied: number): number {
-  return matchesWon * 3 + matchesTied * 1;
+  return matchesWon * 2 + matchesTied * 1;
 }
 
 /**
