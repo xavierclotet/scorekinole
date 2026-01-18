@@ -99,6 +99,10 @@
     showDeleteConfirm = true;
   }
 
+  function duplicateTournament(tournament: Tournament) {
+    goto(`/admin/tournaments/create?duplicate=${tournament.id}`);
+  }
+
   function cancelDelete() {
     showDeleteConfirm = false;
     tournamentToDelete = null;
@@ -284,6 +288,13 @@
                   {formatDate(tournament.createdAt)}
                 </td>
                 <td class="actions-cell">
+                  <button
+                    class="action-btn duplicate-btn"
+                    on:click|stopPropagation={() => duplicateTournament(tournament)}
+                    title="Duplicar torneo"
+                  >
+                    📋
+                  </button>
                   <button
                     class="action-btn delete-btn"
                     on:click|stopPropagation={() => confirmDelete(tournament)}
@@ -945,6 +956,10 @@
 
   .delete-btn {
     color: #ef4444;
+  }
+
+  .duplicate-btn {
+    color: #3b82f6;
   }
 
   .mode-cell {

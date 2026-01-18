@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
@@ -7,7 +7,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
-  import { getTournament } from '$lib/firebase/tournaments';
+  import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
   import {
     updateBracketMatch,
     advanceWinner,
@@ -30,6 +30,7 @@
   let selectedIsThirdPlace: boolean = false;
   let isSuperAdminUser = false;
   let isAutoFilling = false;
+  let unsubscribe: (() => void) | null = null;
 
   // Current view for split divisions
   let activeTab: 'gold' | 'silver' = 'gold';
@@ -61,6 +62,48 @@
   onMount(async () => {
     await loadTournament();
     isSuperAdminUser = await isSuperAdmin();
+
+    // Subscribe to real-time updates from Firebase
+    if (tournamentId) {
+      unsubscribe = subscribeTournament(tournamentId, (updated) => {
+        if (updated) {
+          tournament = updated;
+
+          // Update selectedMatch if dialog is open to reflect real-time changes
+          if (selectedMatch && showMatchDialog) {
+            const selectedMatchId = selectedMatch.id;
+            const bracket = selectedBracketType === 'gold'
+              ? updated.finalStage?.bracket
+              : updated.finalStage?.silverBracket;
+
+            let foundMatch: BracketMatch | null = null;
+
+            // Search in rounds
+            for (const round of bracket?.rounds || []) {
+              const found = round.matches.find(m => m.id === selectedMatchId);
+              if (found) {
+                foundMatch = found;
+                break;
+              }
+            }
+            // Search in third place match
+            if (!foundMatch && bracket?.thirdPlaceMatch?.id === selectedMatchId) {
+              foundMatch = bracket.thirdPlaceMatch;
+            }
+
+            if (foundMatch) {
+              selectedMatch = foundMatch;
+            }
+          }
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
   });
 
   async function loadTournament() {
@@ -548,6 +591,15 @@
               <h2 class="round-name">{round.name}</h2>
               <div class="matches-column">
                 {#each round.matches as match (match.id)}
+                  {@const gamesCompleted = (match.gamesWonA || 0) + (match.gamesWonB || 0)}
+                  {@const expectedCurrentGame = gamesCompleted + 1}
+                  {@const maxRoundGameNumber = match.rounds?.length ? Math.max(...match.rounds.map(r => r.gameNumber || 1)) : 1}
+                  {@const currentGameNumber = Math.max(expectedCurrentGame, maxRoundGameNumber)}
+                  {@const currentGameRounds = match.rounds?.filter(r => (r.gameNumber || 1) === currentGameNumber) || []}
+                  {@const livePointsA = currentGameRounds.reduce((sum, r) => sum + (r.pointsA || 0), 0)}
+                  {@const livePointsB = currentGameRounds.reduce((sum, r) => sum + (r.pointsB || 0), 0)}
+                  {@const gamesLeaderA = match.status === 'IN_PROGRESS' && (match.gamesWonA || 0) > (match.gamesWonB || 0)}
+                  {@const gamesLeaderB = match.status === 'IN_PROGRESS' && (match.gamesWonB || 0) > (match.gamesWonA || 0)}
                   <div
                     class="bracket-match"
                     class:clickable={match.participantA && match.participantB}
@@ -556,10 +608,16 @@
                     role="button"
                     tabindex="0"
                   >
+                    <!-- Round count badge (top-left) - shows current round of CURRENT GAME (played + 1) -->
+                    {#if match.status === 'IN_PROGRESS' && (currentGameRounds.length > 0 || match.rounds?.length)}
+                      <div class="rounds-badge">R{currentGameRounds.length + 1}</div>
+                    {/if}
+
                     <div
                       class="match-participant"
                       class:winner={match.winner === match.participantA}
                       class:tbd={!match.participantA}
+                      class:games-leader={gamesLeaderA}
                     >
                       <span class="participant-name">{getParticipantName(match.participantA)}</span>
                       {#if match.seedA}
@@ -570,6 +628,9 @@
                         {#if tournament.show20s && match.total20sA !== undefined}
                           <span class="twenties">🎯{match.total20sA}</span>
                         {/if}
+                      {:else if match.status === 'IN_PROGRESS' && (match.gamesWonA !== undefined || match.rounds?.length)}
+                        <!-- Solo mostrar puntos del juego actual (las partidas ganadas se ven en el badge inferior) -->
+                        <span class="score in-progress">{livePointsA}</span>
                       {/if}
                     </div>
 
@@ -579,6 +640,7 @@
                       class="match-participant"
                       class:winner={match.winner === match.participantB}
                       class:tbd={!match.participantB}
+                      class:games-leader={gamesLeaderB}
                     >
                       <span class="participant-name">{getParticipantName(match.participantB)}</span>
                       {#if match.seedB}
@@ -589,6 +651,9 @@
                         {#if tournament.show20s && match.total20sB !== undefined}
                           <span class="twenties">🎯{match.total20sB}</span>
                         {/if}
+                      {:else if match.status === 'IN_PROGRESS' && (match.gamesWonB !== undefined || match.rounds?.length)}
+                        <!-- Solo mostrar puntos del juego actual (las partidas ganadas se ven en el badge inferior) -->
+                        <span class="score in-progress">{livePointsB}</span>
                       {/if}
                     </div>
 
@@ -598,6 +663,25 @@
                         {statusInfo.text}
                       </div>
                     {/if}
+
+                    <!-- Games won badge (bottom-left) - only for multi-game matches in progress -->
+                    {#if match.status === 'IN_PROGRESS' && showGamesWon && (match.gamesWonA !== undefined || match.gamesWonB !== undefined)}
+                      {@const gA = match.gamesWonA || 0}
+                      {@const gB = match.gamesWonB || 0}
+                      {@const hasLeader = gA !== gB}
+                      <div class="games-badge" class:has-leader={hasLeader} class:a-leads={gA > gB} class:b-leads={gB > gA}>
+                        <span class:leading={gA > gB}>{gA}</span>
+                        <span class="separator">-</span>
+                        <span class:leading={gB > gA}>{gB}</span>
+                      </div>
+                    {/if}
+
+                    <!-- 20s badge (bottom-right) - when in progress and show20s enabled, show current game 20s only -->
+                    {#if match.status === 'IN_PROGRESS' && tournament.show20s}
+                      {@const currentGame20sA = currentGameRounds.reduce((sum, r) => sum + (r.twentiesA || 0), 0)}
+                      {@const currentGame20sB = currentGameRounds.reduce((sum, r) => sum + (r.twentiesB || 0), 0)}
+                      <div class="twenties-badge">🎯 {currentGame20sA}-{currentGame20sB}</div>
+                    {/if}
                   </div>
                 {/each}
               </div>
@@ -606,6 +690,15 @@
 
           <!-- 3rd/4th Place Match -->
           {#if thirdPlaceMatch}
+            {@const thirdGamesCompleted = (thirdPlaceMatch.gamesWonA || 0) + (thirdPlaceMatch.gamesWonB || 0)}
+            {@const thirdExpectedCurrentGame = thirdGamesCompleted + 1}
+            {@const thirdMaxRoundGameNumber = thirdPlaceMatch.rounds?.length ? Math.max(...thirdPlaceMatch.rounds.map(r => r.gameNumber || 1)) : 1}
+            {@const thirdCurrentGameNumber = Math.max(thirdExpectedCurrentGame, thirdMaxRoundGameNumber)}
+            {@const thirdCurrentGameRounds = thirdPlaceMatch.rounds?.filter(r => (r.gameNumber || 1) === thirdCurrentGameNumber) || []}
+            {@const thirdLivePointsA = thirdCurrentGameRounds.reduce((sum, r) => sum + (r.pointsA || 0), 0)}
+            {@const thirdLivePointsB = thirdCurrentGameRounds.reduce((sum, r) => sum + (r.pointsB || 0), 0)}
+            {@const thirdGamesLeaderA = thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonA || 0) > (thirdPlaceMatch.gamesWonB || 0)}
+            {@const thirdGamesLeaderB = thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonB || 0) > (thirdPlaceMatch.gamesWonA || 0)}
             <div class="bracket-round third-place-round">
               <h2 class="round-name third-place">3º y 4º Puesto</h2>
               <div class="matches-column">
@@ -617,10 +710,16 @@
                   role="button"
                   tabindex="0"
                 >
+                  <!-- Round count badge (top-left) - shows current round of CURRENT GAME (played + 1) -->
+                  {#if thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdCurrentGameRounds.length > 0 || thirdPlaceMatch.rounds?.length)}
+                    <div class="rounds-badge">R{thirdCurrentGameRounds.length + 1}</div>
+                  {/if}
+
                   <div
                     class="match-participant"
                     class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
                     class:tbd={!thirdPlaceMatch.participantA}
+                    class:games-leader={thirdGamesLeaderA}
                   >
                     <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
@@ -628,6 +727,9 @@
                       {#if tournament.show20s && thirdPlaceMatch.total20sA !== undefined}
                         <span class="twenties">🎯{thirdPlaceMatch.total20sA}</span>
                       {/if}
+                    {:else if thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonA !== undefined || thirdPlaceMatch.rounds?.length)}
+                      <!-- Solo mostrar puntos del juego actual -->
+                      <span class="score in-progress">{thirdLivePointsA}</span>
                     {/if}
                   </div>
 
@@ -637,6 +739,7 @@
                     class="match-participant"
                     class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
                     class:tbd={!thirdPlaceMatch.participantB}
+                    class:games-leader={thirdGamesLeaderB}
                   >
                     <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
@@ -644,6 +747,9 @@
                       {#if tournament.show20s && thirdPlaceMatch.total20sB !== undefined}
                         <span class="twenties">🎯{thirdPlaceMatch.total20sB}</span>
                       {/if}
+                    {:else if thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonB !== undefined || thirdPlaceMatch.rounds?.length)}
+                      <!-- Solo mostrar puntos del juego actual -->
+                      <span class="score in-progress">{thirdLivePointsB}</span>
                     {/if}
                   </div>
 
@@ -652,6 +758,25 @@
                     <div class="status-badge" style="background: {statusInfo.color}">
                       {statusInfo.text}
                     </div>
+                  {/if}
+
+                  <!-- Games won badge (bottom-left) - only for multi-game matches in progress -->
+                  {#if thirdPlaceMatch.status === 'IN_PROGRESS' && showGamesWon && (thirdPlaceMatch.gamesWonA !== undefined || thirdPlaceMatch.gamesWonB !== undefined)}
+                    {@const tgA = thirdPlaceMatch.gamesWonA || 0}
+                    {@const tgB = thirdPlaceMatch.gamesWonB || 0}
+                    {@const tHasLeader = tgA !== tgB}
+                    <div class="games-badge" class:has-leader={tHasLeader} class:a-leads={tgA > tgB} class:b-leads={tgB > tgA}>
+                      <span class:leading={tgA > tgB}>{tgA}</span>
+                      <span class="separator">-</span>
+                      <span class:leading={tgB > tgA}>{tgB}</span>
+                    </div>
+                  {/if}
+
+                  <!-- 20s badge (bottom-right) - when in progress and show20s enabled, show current game 20s only -->
+                  {#if thirdPlaceMatch.status === 'IN_PROGRESS' && tournament.show20s}
+                    {@const thirdCurrentGame20sA = thirdCurrentGameRounds.reduce((sum, r) => sum + (r.twentiesA || 0), 0)}
+                    {@const thirdCurrentGame20sB = thirdCurrentGameRounds.reduce((sum, r) => sum + (r.twentiesB || 0), 0)}
+                    <div class="twenties-badge">🎯 {thirdCurrentGame20sA}-{thirdCurrentGame20sB}</div>
                   {/if}
                 </div>
               </div>
@@ -1105,6 +1230,31 @@
     color: #10b981;
   }
 
+  /* Líder en partidas ganadas (durante IN_PROGRESS) */
+  .match-participant.games-leader {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(109, 40, 217, 0.1) 100%);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.5);
+    animation: pulse-leader 2s ease-in-out infinite;
+  }
+
+  .match-participant.games-leader .participant-name {
+    font-weight: 700;
+    color: #7c3aed;
+  }
+
+  @keyframes pulse-leader {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.5); }
+    50% { box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.7), 0 0 12px rgba(139, 92, 246, 0.3); }
+  }
+
+  .bracket-page[data-theme='dark'] .match-participant.games-leader {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(109, 40, 217, 0.2) 100%);
+  }
+
+  .bracket-page[data-theme='dark'] .match-participant.games-leader .participant-name {
+    color: #a78bfa;
+  }
+
   .participant-name {
     flex: 1;
     font-size: 0.9rem;
@@ -1128,6 +1278,17 @@
     min-width: 1.5rem;
     text-align: center;
   }
+
+  .score.in-progress {
+    color: #f59e0b;
+    animation: pulse-score 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-score {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
 
   .twenties {
     font-size: 0.75rem;
@@ -1165,6 +1326,89 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+  }
+
+  .rounds-badge {
+    position: absolute;
+    top: -10px;
+    left: 10px;
+    padding: 0.25rem 0.5rem;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    animation: pulse-badge 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-badge {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.02); }
+  }
+
+  .bracket-page[data-theme='dark'] .rounds-badge {
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  }
+
+  .games-badge {
+    position: absolute;
+    bottom: -10px;
+    left: 10px;
+    padding: 0.25rem 0.5rem;
+    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+
+  .games-badge .separator {
+    opacity: 0.7;
+  }
+
+  .games-badge.has-leader {
+    animation: pulse-winner 1.5s ease-in-out infinite;
+  }
+
+  .games-badge .leading {
+    font-size: 0.85rem;
+    color: #fef08a;
+    text-shadow: 0 0 4px rgba(254, 240, 138, 0.5);
+  }
+
+  @keyframes pulse-winner {
+    0%, 100% { transform: scale(1); box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4); }
+    50% { transform: scale(1.05); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.6); }
+  }
+
+  .bracket-page[data-theme='dark'] .games-badge {
+    background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+  }
+
+  .bracket-page[data-theme='dark'] .games-badge .leading {
+    color: #fde047;
+  }
+
+  .twenties-badge {
+    position: absolute;
+    bottom: -10px;
+    right: 10px;
+    padding: 0.25rem 0.5rem;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+
+  .bracket-page[data-theme='dark'] .twenties-badge {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
   }
 
   /* 3rd/4th place match styles */

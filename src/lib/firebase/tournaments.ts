@@ -21,7 +21,8 @@ import {
   orderBy,
   limit,
   serverTimestamp,
-  Timestamp
+  Timestamp,
+  onSnapshot
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
@@ -439,18 +440,67 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
 }
 
 /**
+ * Get tournament by key (public access for players)
+ * This function does NOT require admin permissions
+ *
+ * @param key 6-character tournament key
+ * @returns Tournament or null
+ */
+export async function getTournamentByKey(key: string): Promise<Tournament | null> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return null;
+  }
+
+  if (!key || key.length !== 6) {
+    console.warn('Invalid tournament key:', key);
+    return null;
+  }
+
+  try {
+    const tournamentsRef = collection(db!, 'tournaments');
+    const q = query(tournamentsRef, where('key', '==', key.toUpperCase()), limit(1));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      console.warn('Tournament not found with key:', key);
+      return null;
+    }
+
+    const docSnap = snapshot.docs[0];
+    const data = docSnap.data();
+
+    // Convert Firestore timestamps to numbers
+    const tournament: Tournament = {
+      ...data,
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+      startedAt: data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
+      completedAt:
+        data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
+      updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
+    } as Tournament;
+
+    console.log('✅ Tournament found by key:', tournament.name);
+    return tournament;
+  } catch (error) {
+    console.error('❌ Error getting tournament by key:', error);
+    return null;
+  }
+}
+
+/**
  * Search users for participant selection
  *
  * @param query Search query (name or email)
  * @returns Array of user profiles
  */
-export async function searchUsers(query: string): Promise<UserProfile[]> {
+export async function searchUsers(searchQuery: string): Promise<UserProfile[]> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
     return [];
   }
 
-  if (!query || query.length < 2) {
+  if (!searchQuery || searchQuery.length < 2) {
     return [];
   }
 
@@ -459,7 +509,7 @@ export async function searchUsers(query: string): Promise<UserProfile[]> {
     const snapshot = await getDocs(usersRef);
 
     const users: UserProfile[] = [];
-    const queryLower = query.toLowerCase();
+    const queryLower = searchQuery.toLowerCase();
 
     snapshot.forEach(docSnap => {
       const data = docSnap.data() as UserProfile;
@@ -483,4 +533,50 @@ export async function searchUsers(query: string): Promise<UserProfile[]> {
     console.error('❌ Error searching users:', error);
     return [];
   }
+}
+
+/**
+ * Subscribe to real-time tournament updates
+ * Uses Firestore onSnapshot for live updates
+ *
+ * @param id Tournament ID
+ * @param callback Function called with updated tournament data
+ * @returns Unsubscribe function
+ */
+export function subscribeTournament(
+  id: string,
+  callback: (tournament: Tournament | null) => void
+): () => void {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return () => {};
+  }
+
+  const tournamentRef = doc(db!, 'tournaments', id);
+
+  const unsubscribe = onSnapshot(
+    tournamentRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const tournament: Tournament = {
+          ...data,
+          id: docSnap.id,
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+          startedAt: data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
+          completedAt: data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
+          updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
+        } as Tournament;
+        callback(tournament);
+      } else {
+        callback(null);
+      }
+    },
+    (error) => {
+      console.error('❌ Error in tournament subscription:', error);
+      callback(null);
+    }
+  );
+
+  return unsubscribe;
 }

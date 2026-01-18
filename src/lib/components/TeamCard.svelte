@@ -7,6 +7,7 @@
 	import { t } from '$lib/stores/language';
 	import { completeCurrentMatch, startCurrentMatch, currentMatch, addGameToCurrentMatch, clearCurrentMatchRounds } from '$lib/stores/history';
 	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames, currentMatchRounds } from '$lib/stores/matchState';
+	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { get } from 'svelte/store';
 	import type { Team } from '$lib/types/team';
 
@@ -15,6 +16,9 @@
 	export let currentGameNumber: number = 1;
 
 	const dispatch = createEventDispatcher();
+
+	// Tournament mode detection
+	$: inTournamentMode = !!$gameTournamentContext;
 
 	// Get the appropriate team store
 	$: team = teamNumber === 1 ? $team1 : $team2;
@@ -318,20 +322,29 @@
 		console.log('Game mode:', settings.gameMode);
 
 		// In rounds mode, match is complete after first game
-		// In points mode, need to reach matchesToWin
+		// In points mode, need to reach required wins (majority for best-of format)
+		// For "best of X", you need ceil(X/2) wins (e.g., best of 3 = need 2 wins)
+		const requiredWins = Math.ceil(settings.matchesToWin / 2);
 		const matchComplete = settings.gameMode === 'rounds'
 			? true
-			: (team1GamesWon >= settings.matchesToWin || team2GamesWon >= settings.matchesToWin);
+			: (team1GamesWon >= requiredWins || team2GamesWon >= requiredWins);
 
 		console.log('Match complete?', matchComplete);
 
 		if (matchComplete) {
 			console.log('✅ Match is complete! Saving to history...');
 			// Increment the matches counter for the match winner
-			if (team1GamesWon >= settings.matchesToWin) {
+			if (team1GamesWon >= requiredWins) {
 				updateTeam(1, { matches: t1.matches + 1 });
-			} else if (team2GamesWon >= settings.matchesToWin) {
+			} else if (team2GamesWon >= requiredWins) {
 				updateTeam(2, { matches: t2.matches + 1 });
+			}
+
+			// IMPORTANT: Dispatch tournament match complete event BEFORE saving to history
+			// This ensures the parent component can capture all data before currentMatch is cleared
+			if (inTournamentMode) {
+				console.log('🏆 Dispatching tournamentMatchComplete event');
+				dispatch('tournamentMatchComplete');
 			}
 
 			// Match is complete, save to history
@@ -407,6 +420,8 @@
 	}
 
 	function handleNameChange(e: Event) {
+		// Block name changes in tournament mode
+		if (inTournamentMode) return;
 		const input = e.target as HTMLInputElement;
 		updateTeam(teamNumber, { name: input.value });
 	}
@@ -443,10 +458,12 @@
 				<input
 					type="text"
 					class="team-name"
+					class:locked={inTournamentMode}
 					value={team.name}
 					on:input={handleNameChange}
 					placeholder={$t('teamName')}
 					aria-label="Team name"
+					readonly={inTournamentMode}
 				/>
 				{#if team.hasHammer}
 					<div class="hammer-indicator" title={$t('hammer')}>🔨</div>
@@ -584,6 +601,17 @@
 	.team-name::placeholder {
 		color: var(--text-color);
 		opacity: 0.6;
+	}
+
+	.team-name.locked {
+		cursor: default;
+		border-bottom-style: solid;
+		opacity: 0.9;
+	}
+
+	.team-name.locked:focus {
+		transform: none;
+		border-bottom-width: 2px;
 	}
 
 	.hammer-indicator {

@@ -5,11 +5,16 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { t } from '$lib/stores/language';
 	import { switchSides, switchColors } from '$lib/stores/teams';
+	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import type { Language } from '$lib/i18n/translations';
 	import type { GameSettings } from '$lib/types/settings';
 
 	export let isOpen: boolean = false;
 	export let onClose: () => void = () => {};
+
+	// Tournament mode detection
+	$: inTournamentMode = !!$gameTournamentContext;
+	$: tournamentName = $gameTournamentContext?.tournamentName || '';
 
 	// Auto-save: directly update the store on every change
 	function handleLanguageChange(lang: Language) {
@@ -49,23 +54,34 @@
 <Modal {isOpen} title={$t('settings')} onClose={onClose}>
 	<div class="settings-modal">
 		<div class="settings-content">
+
+		<!-- Tournament Mode Banner -->
+		{#if inTournamentMode}
+			<div class="tournament-banner">
+				<span class="lock-icon">🔒</span>
+				<span class="banner-text">{$t('lockedByTournament') || 'Bloqueado por torneo'}: {tournamentName}</span>
+			</div>
+		{/if}
+
 		<!-- Game Type Section (Individual/Parejas) -->
-		<section class="settings-section">
+		<section class="settings-section" class:disabled={inTournamentMode}>
 			<h3>{$t('gameType')}</h3>
 			<div class="button-group">
 				<button
 					class="mode-button"
 					class:active={$gameSettings.gameType === 'singles'}
-					on:click={() => handleGameTypeChange('singles')}
+					on:click={() => !inTournamentMode && handleGameTypeChange('singles')}
 					type="button"
+					disabled={inTournamentMode}
 				>
 					{$t('singles')}
 				</button>
 				<button
 					class="mode-button"
 					class:active={$gameSettings.gameType === 'doubles'}
-					on:click={() => handleGameTypeChange('doubles')}
+					on:click={() => !inTournamentMode && handleGameTypeChange('doubles')}
 					type="button"
+					disabled={inTournamentMode}
 				>
 					{$t('doubles')}
 				</button>
@@ -73,22 +89,24 @@
 		</section>
 
 		<!-- Game Mode Section -->
-		<section class="settings-section">
+		<section class="settings-section" class:disabled={inTournamentMode}>
 			<h3>{$t('gameMode')}</h3>
 			<div class="button-group">
 				<button
 					class="mode-button"
 					class:active={$gameSettings.gameMode === 'points'}
-					on:click={() => handleGameModeChange('points')}
+					on:click={() => !inTournamentMode && handleGameModeChange('points')}
 					type="button"
+					disabled={inTournamentMode}
 				>
 					{$t('modePoints')}
 				</button>
 				<button
 					class="mode-button"
 					class:active={$gameSettings.gameMode === 'rounds'}
-					on:click={() => handleGameModeChange('rounds')}
+					on:click={() => !inTournamentMode && handleGameModeChange('rounds')}
 					type="button"
+					disabled={inTournamentMode}
 				>
 					{$t('modeRounds')}
 				</button>
@@ -99,46 +117,49 @@
 				{#if $gameSettings.gameMode === 'points'}
 					<NumberControl
 						value={$gameSettings.pointsToWin}
-						on:change={(e) => handleNumberChange('pointsToWin', e.detail)}
+						on:change={(e) => !inTournamentMode && handleNumberChange('pointsToWin', e.detail)}
 						min={1}
 						max={200}
 						step={1}
 						label={$t('pointsToWin')}
+						disabled={inTournamentMode}
 					/>
 					<NumberControl
 						value={$gameSettings.matchesToWin}
-						on:change={(e) => handleNumberChange('matchesToWin', e.detail)}
+						on:change={(e) => !inTournamentMode && handleNumberChange('matchesToWin', e.detail)}
 						min={1}
 						max={10}
 						step={1}
 						label={$t('matchesToWin')}
+						disabled={inTournamentMode}
 					/>
 				{:else}
 					<NumberControl
 						value={$gameSettings.roundsToPlay}
-						on:change={(e) => handleNumberChange('roundsToPlay', e.detail)}
+						on:change={(e) => !inTournamentMode && handleNumberChange('roundsToPlay', e.detail)}
 						min={1}
 						max={20}
 						step={1}
 						label={$t('roundsToPlay')}
+						disabled={inTournamentMode}
 					/>
 				{/if}
 			</div>
 		</section>
 
 		<!-- Feature Toggles -->
-		<section class="settings-section">
+		<section class="settings-section" class:disabled={inTournamentMode}>
 			<h3>{$t('features')}</h3>
 			<div class="toggle-grid">
-				<label class="toggle-item" on:click|preventDefault={() => handleToggle('show20s')}>
+				<label class="toggle-item" class:disabled={inTournamentMode} on:click|preventDefault={() => !inTournamentMode && handleToggle('show20s')}>
 					<span class="toggle-label">{$t('track20s')}</span>
-					<input type="checkbox" checked={$gameSettings.show20s} readonly />
+					<input type="checkbox" checked={$gameSettings.show20s} readonly disabled={inTournamentMode} />
 					<span class="toggle-switch"></span>
 				</label>
 
-				<label class="toggle-item" on:click|preventDefault={() => handleToggle('showHammer')}>
+				<label class="toggle-item" class:disabled={inTournamentMode} on:click|preventDefault={() => !inTournamentMode && handleToggle('showHammer')}>
 					<span class="toggle-label">{$t('hammer')}</span>
-					<input type="checkbox" checked={$gameSettings.showHammer} readonly />
+					<input type="checkbox" checked={$gameSettings.showHammer} readonly disabled={inTournamentMode} />
 					<span class="toggle-switch"></span>
 				</label>
 
@@ -248,6 +269,44 @@
 		min-height: 0;
 		flex: 1;
 		padding-bottom: 1rem;
+	}
+
+	/* Tournament Mode Banner */
+	.tournament-banner {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 200, 100, 0.1));
+		border: 2px solid rgba(0, 255, 136, 0.4);
+		border-radius: 8px;
+		margin-bottom: 0.5rem;
+	}
+
+	.tournament-banner .lock-icon {
+		font-size: 1.2rem;
+	}
+
+	.tournament-banner .banner-text {
+		color: #00ff88;
+		font-weight: 600;
+		font-size: 0.9rem;
+	}
+
+	/* Disabled sections in tournament mode */
+	.settings-section.disabled {
+		opacity: 0.5;
+		pointer-events: none;
+	}
+
+	.settings-section.disabled h3 {
+		color: rgba(0, 255, 136, 0.5);
+	}
+
+	.toggle-item.disabled {
+		opacity: 0.5;
+		pointer-events: none;
+		cursor: not-allowed;
 	}
 
 	/* Scrollbar styling */

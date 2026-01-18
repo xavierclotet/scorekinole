@@ -1,12 +1,15 @@
 /**
  * Tournament match management
  * Update match results and handle no-shows
+ * Includes functions for /game page integration
  */
 
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from './config';
-import type { GroupMatch, GroupStanding } from '$lib/types/tournament';
+import { db, isFirebaseEnabled } from './config';
+import type { GroupMatch, GroupStanding, BracketMatch, Tournament } from '$lib/types/tournament';
+import type { TournamentGameConfig } from '$lib/stores/tournamentContext';
 import { getTournament } from './tournaments';
+import { browser } from '$app/environment';
 
 /**
  * Recursively remove undefined values from an object
@@ -452,4 +455,987 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
   await updateDoc(doc(db, 'tournaments', tournamentId), {
     groupStage: cleanedGroupStage
   });
+}
+
+// ============================================================================
+// /game Page Integration Functions
+// These functions support playing tournament matches from the /game page
+// ============================================================================
+
+/**
+ * Pending match info for display in match selection
+ */
+export interface PendingMatchInfo {
+  match: GroupMatch | BracketMatch;
+  phase: 'GROUP' | 'FINAL';
+  groupId?: string;
+  roundNumber?: number;
+  bracketRoundName?: string;
+  participantAName: string;
+  participantBName: string;
+  gameConfig: TournamentGameConfig;
+}
+
+/**
+ * Get game configuration for a specific match based on tournament settings
+ */
+function getGameConfigForMatch(
+  tournament: Tournament,
+  phase: 'GROUP' | 'FINAL',
+  bracketRoundName?: string,
+  isSilverBracket?: boolean
+): TournamentGameConfig {
+  if (phase === 'GROUP' && tournament.groupStage) {
+    return {
+      gameMode: tournament.groupStage.gameMode,
+      pointsToWin: tournament.groupStage.pointsToWin,
+      roundsToPlay: tournament.groupStage.roundsToPlay,
+      matchesToWin: tournament.groupStage.matchesToWin,
+      show20s: tournament.show20s,
+      showHammer: tournament.showHammer,
+      gameType: tournament.gameType
+    };
+  }
+
+  // Final stage - check for per-phase configuration
+  const fs = tournament.finalStage;
+  if (!fs) {
+    // Fallback defaults
+    return {
+      gameMode: 'points',
+      pointsToWin: 7,
+      matchesToWin: 1,
+      show20s: tournament.show20s,
+      showHammer: tournament.showHammer,
+      gameType: tournament.gameType
+    };
+  }
+
+  // Determine which config to use based on bracket round name and silver bracket
+  const prefix = isSilverBracket ? 'silver' : '';
+  const roundNameLower = bracketRoundName?.toLowerCase() || '';
+
+  // Check for per-phase config
+  if (roundNameLower.includes('final') && !roundNameLower.includes('semi')) {
+    // Final match
+    const gameMode = isSilverBracket
+      ? (fs.silverFinalGameMode || fs.silverGameMode || fs.gameMode)
+      : (fs.finalGameMode || fs.gameMode);
+    const pointsToWin = isSilverBracket
+      ? (fs.silverFinalPointsToWin || fs.silverPointsToWin || fs.pointsToWin)
+      : (fs.finalPointsToWin || fs.pointsToWin);
+    const roundsToPlay = isSilverBracket
+      ? (fs.silverFinalRoundsToPlay || fs.silverRoundsToPlay || fs.roundsToPlay)
+      : (fs.finalRoundsToPlay || fs.roundsToPlay);
+    const matchesToWin = isSilverBracket
+      ? (fs.silverFinalMatchesToWin || fs.silverMatchesToWin || fs.matchesToWin)
+      : (fs.finalMatchesToWin || fs.matchesToWin);
+
+    return {
+      gameMode,
+      pointsToWin,
+      roundsToPlay,
+      matchesToWin,
+      show20s: tournament.show20s,
+      showHammer: tournament.showHammer,
+      gameType: tournament.gameType
+    };
+  } else if (roundNameLower.includes('semi')) {
+    // Semifinal
+    const gameMode = isSilverBracket
+      ? (fs.silverSemifinalGameMode || fs.silverGameMode || fs.gameMode)
+      : (fs.semifinalGameMode || fs.gameMode);
+    const pointsToWin = isSilverBracket
+      ? (fs.silverSemifinalPointsToWin || fs.silverPointsToWin || fs.pointsToWin)
+      : (fs.semifinalPointsToWin || fs.pointsToWin);
+    const roundsToPlay = isSilverBracket
+      ? (fs.silverSemifinalRoundsToPlay || fs.silverRoundsToPlay || fs.roundsToPlay)
+      : (fs.semifinalRoundsToPlay || fs.roundsToPlay);
+    const matchesToWin = isSilverBracket
+      ? (fs.silverSemifinalMatchesToWin || fs.silverMatchesToWin || fs.matchesToWin)
+      : (fs.semifinalMatchesToWin || fs.matchesToWin);
+
+    return {
+      gameMode,
+      pointsToWin,
+      roundsToPlay,
+      matchesToWin,
+      show20s: tournament.show20s,
+      showHammer: tournament.showHammer,
+      gameType: tournament.gameType
+    };
+  } else {
+    // Early rounds (octavos, cuartos, etc.)
+    const gameMode = isSilverBracket
+      ? (fs.silverEarlyRoundsGameMode || fs.silverGameMode || fs.gameMode)
+      : (fs.earlyRoundsGameMode || fs.gameMode);
+    const pointsToWin = isSilverBracket
+      ? (fs.silverEarlyRoundsPointsToWin || fs.silverPointsToWin || fs.pointsToWin)
+      : (fs.earlyRoundsPointsToWin || fs.pointsToWin);
+    const roundsToPlay = isSilverBracket
+      ? (fs.silverEarlyRoundsToPlay || fs.silverRoundsToPlay || fs.roundsToPlay)
+      : (fs.earlyRoundsToPlay || fs.roundsToPlay);
+    const matchesToWin = isSilverBracket
+      ? (fs.silverMatchesToWin || fs.matchesToWin)
+      : fs.matchesToWin;
+
+    return {
+      gameMode,
+      pointsToWin,
+      roundsToPlay,
+      matchesToWin,
+      show20s: tournament.show20s,
+      showHammer: tournament.showHammer,
+      gameType: tournament.gameType
+    };
+  }
+}
+
+/**
+ * Get participant name by ID
+ */
+function getParticipantName(tournament: Tournament, participantId: string): string {
+  if (participantId === 'BYE') return 'BYE';
+  const participant = tournament.participants.find(p => p.id === participantId);
+  return participant?.name || 'Unknown';
+}
+
+/**
+ * Get pending matches for a specific user (by userId)
+ * Returns matches where the user is assigned as participant A or B
+ */
+export async function getPendingMatchesForUser(
+  tournament: Tournament,
+  userId: string
+): Promise<PendingMatchInfo[]> {
+  const pendingMatches: PendingMatchInfo[] = [];
+
+  // Find participant ID(s) for this user
+  const userParticipants = tournament.participants.filter(p => p.userId === userId);
+  if (userParticipants.length === 0) {
+    console.log('User not found as participant in tournament');
+    return [];
+  }
+
+  const userParticipantIds = new Set(userParticipants.map(p => p.id));
+
+  // Check group stage matches
+  if (tournament.groupStage && !tournament.groupStage.isComplete) {
+    for (const group of tournament.groupStage.groups) {
+      // Check Round Robin schedule
+      if (group.schedule) {
+        for (const round of group.schedule) {
+          for (const match of round.matches) {
+            if (match.status === 'PENDING' &&
+                (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
+              pendingMatches.push({
+                match,
+                phase: 'GROUP',
+                groupId: group.id,
+                roundNumber: round.roundNumber,
+                participantAName: getParticipantName(tournament, match.participantA),
+                participantBName: getParticipantName(tournament, match.participantB),
+                gameConfig: getGameConfigForMatch(tournament, 'GROUP')
+              });
+            }
+          }
+        }
+      }
+
+      // Check Swiss pairings
+      if (group.pairings) {
+        for (const pairing of group.pairings) {
+          for (const match of pairing.matches) {
+            if (match.status === 'PENDING' &&
+                (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
+              pendingMatches.push({
+                match,
+                phase: 'GROUP',
+                groupId: group.id,
+                roundNumber: pairing.roundNumber,
+                participantAName: getParticipantName(tournament, match.participantA),
+                participantBName: getParticipantName(tournament, match.participantB),
+                gameConfig: getGameConfigForMatch(tournament, 'GROUP')
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Check final stage bracket
+  if (tournament.finalStage && !tournament.finalStage.isComplete) {
+    // Gold bracket
+    for (const round of tournament.finalStage.bracket.rounds) {
+      for (const match of round.matches) {
+        if (match.status === 'PENDING' &&
+            match.participantA && match.participantB &&
+            (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
+          pendingMatches.push({
+            match,
+            phase: 'FINAL',
+            roundNumber: round.roundNumber,
+            bracketRoundName: round.name,
+            participantAName: getParticipantName(tournament, match.participantA),
+            participantBName: getParticipantName(tournament, match.participantB),
+            gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false)
+          });
+        }
+      }
+    }
+
+    // Silver bracket (if exists)
+    if (tournament.finalStage.silverBracket) {
+      for (const round of tournament.finalStage.silverBracket.rounds) {
+        for (const match of round.matches) {
+          if (match.status === 'PENDING' &&
+              match.participantA && match.participantB &&
+              (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
+            pendingMatches.push({
+              match,
+              phase: 'FINAL',
+              roundNumber: round.roundNumber,
+              bracketRoundName: `${round.name} (Silver)`,
+              participantAName: getParticipantName(tournament, match.participantA),
+              participantBName: getParticipantName(tournament, match.participantB),
+              gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, true)
+            });
+          }
+        }
+      }
+    }
+
+    // Third place match
+    if (tournament.finalStage.bracket.thirdPlaceMatch) {
+      const match = tournament.finalStage.bracket.thirdPlaceMatch;
+      if (match.status === 'PENDING' &&
+          match.participantA && match.participantB &&
+          (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
+        pendingMatches.push({
+          match,
+          phase: 'FINAL',
+          bracketRoundName: 'Tercer Puesto',
+          participantAName: getParticipantName(tournament, match.participantA),
+          participantBName: getParticipantName(tournament, match.participantB),
+          gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false)
+        });
+      }
+    }
+  }
+
+  return pendingMatches;
+}
+
+/**
+ * Get all pending matches in a tournament (for non-logged-in users)
+ */
+export async function getAllPendingMatches(tournament: Tournament): Promise<PendingMatchInfo[]> {
+  const pendingMatches: PendingMatchInfo[] = [];
+
+  // Check group stage matches
+  if (tournament.groupStage && !tournament.groupStage.isComplete) {
+    for (const group of tournament.groupStage.groups) {
+      // Check Round Robin schedule
+      if (group.schedule) {
+        for (const round of group.schedule) {
+          for (const match of round.matches) {
+            if (match.status === 'PENDING' && match.participantB !== 'BYE') {
+              pendingMatches.push({
+                match,
+                phase: 'GROUP',
+                groupId: group.id,
+                roundNumber: round.roundNumber,
+                participantAName: getParticipantName(tournament, match.participantA),
+                participantBName: getParticipantName(tournament, match.participantB),
+                gameConfig: getGameConfigForMatch(tournament, 'GROUP')
+              });
+            }
+          }
+        }
+      }
+
+      // Check Swiss pairings
+      if (group.pairings) {
+        for (const pairing of group.pairings) {
+          for (const match of pairing.matches) {
+            if (match.status === 'PENDING' && match.participantB !== 'BYE') {
+              pendingMatches.push({
+                match,
+                phase: 'GROUP',
+                groupId: group.id,
+                roundNumber: pairing.roundNumber,
+                participantAName: getParticipantName(tournament, match.participantA),
+                participantBName: getParticipantName(tournament, match.participantB),
+                gameConfig: getGameConfigForMatch(tournament, 'GROUP')
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Check final stage bracket
+  if (tournament.finalStage && !tournament.finalStage.isComplete) {
+    // Gold bracket
+    for (const round of tournament.finalStage.bracket.rounds) {
+      for (const match of round.matches) {
+        if (match.status === 'PENDING' && match.participantA && match.participantB) {
+          pendingMatches.push({
+            match,
+            phase: 'FINAL',
+            roundNumber: round.roundNumber,
+            bracketRoundName: round.name,
+            participantAName: getParticipantName(tournament, match.participantA),
+            participantBName: getParticipantName(tournament, match.participantB),
+            gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false)
+          });
+        }
+      }
+    }
+
+    // Silver bracket
+    if (tournament.finalStage.silverBracket) {
+      for (const round of tournament.finalStage.silverBracket.rounds) {
+        for (const match of round.matches) {
+          if (match.status === 'PENDING' && match.participantA && match.participantB) {
+            pendingMatches.push({
+              match,
+              phase: 'FINAL',
+              roundNumber: round.roundNumber,
+              bracketRoundName: `${round.name} (Silver)`,
+              participantAName: getParticipantName(tournament, match.participantA),
+              participantBName: getParticipantName(tournament, match.participantB),
+              gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, true)
+            });
+          }
+        }
+      }
+    }
+
+    // Third place match
+    if (tournament.finalStage.bracket.thirdPlaceMatch) {
+      const match = tournament.finalStage.bracket.thirdPlaceMatch;
+      if (match.status === 'PENDING' && match.participantA && match.participantB) {
+        pendingMatches.push({
+          match,
+          phase: 'FINAL',
+          bracketRoundName: 'Tercer Puesto',
+          participantAName: getParticipantName(tournament, match.participantA),
+          participantBName: getParticipantName(tournament, match.participantB),
+          gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false)
+        });
+      }
+    }
+  }
+
+  return pendingMatches;
+}
+
+/**
+ * Start a tournament match (change status from PENDING to IN_PROGRESS)
+ * Returns false if match is already IN_PROGRESS (concurrency check)
+ */
+export async function startTournamentMatch(
+  tournamentId: string,
+  matchId: string,
+  phase: 'GROUP' | 'FINAL',
+  groupId?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!browser || !isFirebaseEnabled()) {
+    return { success: false, error: 'Firebase disabled' };
+  }
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) {
+      return { success: false, error: 'Tournament not found' };
+    }
+
+    // Check tournament status
+    if (tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED') {
+      return { success: false, error: 'Tournament is no longer active' };
+    }
+
+    let matchFound = false;
+    let currentStatus: string | undefined;
+
+    if (phase === 'GROUP' && tournament.groupStage) {
+      // Find match in group stage
+      for (const group of tournament.groupStage.groups) {
+        if (groupId && group.id !== groupId) continue;
+
+        // Check schedule (Round Robin)
+        if (group.schedule) {
+          for (const round of group.schedule) {
+            const matchIndex = round.matches.findIndex(m => m.id === matchId);
+            if (matchIndex !== -1) {
+              currentStatus = round.matches[matchIndex].status;
+              if (currentStatus === 'IN_PROGRESS') {
+                return { success: false, error: 'Match is already in progress on another device' };
+              }
+              if (currentStatus === 'COMPLETED' || currentStatus === 'WALKOVER') {
+                return { success: false, error: 'Match has already been completed' };
+              }
+              round.matches[matchIndex].status = 'IN_PROGRESS';
+              round.matches[matchIndex].startedAt = Date.now();
+              matchFound = true;
+              break;
+            }
+          }
+        }
+
+        // Check pairings (Swiss)
+        if (!matchFound && group.pairings) {
+          for (const pairing of group.pairings) {
+            const matchIndex = pairing.matches.findIndex(m => m.id === matchId);
+            if (matchIndex !== -1) {
+              currentStatus = pairing.matches[matchIndex].status;
+              if (currentStatus === 'IN_PROGRESS') {
+                return { success: false, error: 'Match is already in progress on another device' };
+              }
+              if (currentStatus === 'COMPLETED' || currentStatus === 'WALKOVER') {
+                return { success: false, error: 'Match has already been completed' };
+              }
+              pairing.matches[matchIndex].status = 'IN_PROGRESS';
+              pairing.matches[matchIndex].startedAt = Date.now();
+              matchFound = true;
+              break;
+            }
+          }
+        }
+
+        if (matchFound) break;
+      }
+
+      if (matchFound) {
+        const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+        await updateDoc(doc(db!, 'tournaments', tournamentId), {
+          groupStage: cleanedGroupStage
+        });
+      }
+    } else if (phase === 'FINAL' && tournament.finalStage) {
+      // Find match in bracket
+      const findAndUpdateMatch = (bracket: any): boolean => {
+        // Check 3rd place match
+        if (bracket.thirdPlaceMatch?.id === matchId) {
+          currentStatus = bracket.thirdPlaceMatch.status;
+          if (currentStatus === 'IN_PROGRESS') return false;
+          if (currentStatus === 'COMPLETED' || currentStatus === 'WALKOVER') return false;
+          bracket.thirdPlaceMatch.status = 'IN_PROGRESS';
+          bracket.thirdPlaceMatch.startedAt = Date.now();
+          return true;
+        }
+
+        // Check rounds
+        for (const round of bracket.rounds) {
+          const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
+          if (matchIndex !== -1) {
+            currentStatus = round.matches[matchIndex].status;
+            if (currentStatus === 'IN_PROGRESS') return false;
+            if (currentStatus === 'COMPLETED' || currentStatus === 'WALKOVER') return false;
+            round.matches[matchIndex].status = 'IN_PROGRESS';
+            round.matches[matchIndex].startedAt = Date.now();
+            return true;
+          }
+        }
+        return false;
+      };
+
+      // Try gold bracket first
+      matchFound = findAndUpdateMatch(tournament.finalStage.bracket);
+
+      // Try silver bracket if not found
+      if (!matchFound && tournament.finalStage.silverBracket) {
+        matchFound = findAndUpdateMatch(tournament.finalStage.silverBracket);
+      }
+
+      if (!matchFound) {
+        if (currentStatus === 'IN_PROGRESS') {
+          return { success: false, error: 'Match is already in progress on another device' };
+        }
+        if (currentStatus === 'COMPLETED' || currentStatus === 'WALKOVER') {
+          return { success: false, error: 'Match has already been completed' };
+        }
+      }
+
+      if (matchFound) {
+        const cleanedFinalStage = cleanUndefined(tournament.finalStage);
+        await updateDoc(doc(db!, 'tournaments', tournamentId), {
+          finalStage: cleanedFinalStage
+        });
+      }
+    }
+
+    if (!matchFound) {
+      return { success: false, error: 'Match not found' };
+    }
+
+    console.log('✅ Tournament match started:', matchId);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error starting tournament match:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+/**
+ * Resume a tournament match that was paused (status is IN_PROGRESS)
+ * Returns the current match data including any saved rounds
+ */
+export async function resumeTournamentMatch(
+  tournamentId: string,
+  matchId: string,
+  phase: 'GROUP' | 'FINAL',
+  groupId?: string
+): Promise<{ success: boolean; match?: GroupMatch | BracketMatch; error?: string }> {
+  if (!browser || !isFirebaseEnabled()) {
+    return { success: false, error: 'Firebase disabled' };
+  }
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) {
+      return { success: false, error: 'Tournament not found' };
+    }
+
+    let foundMatch: GroupMatch | BracketMatch | undefined;
+
+    if (phase === 'GROUP' && tournament.groupStage) {
+      for (const group of tournament.groupStage.groups) {
+        if (groupId && group.id !== groupId) continue;
+
+        if (group.schedule) {
+          for (const round of group.schedule) {
+            const match = round.matches.find(m => m.id === matchId);
+            if (match) {
+              foundMatch = match;
+              break;
+            }
+          }
+        }
+
+        if (!foundMatch && group.pairings) {
+          for (const pairing of group.pairings) {
+            const match = pairing.matches.find(m => m.id === matchId);
+            if (match) {
+              foundMatch = match;
+              break;
+            }
+          }
+        }
+
+        if (foundMatch) break;
+      }
+    } else if (phase === 'FINAL' && tournament.finalStage) {
+      // Check gold bracket
+      for (const round of tournament.finalStage.bracket.rounds) {
+        const match = round.matches.find(m => m.id === matchId);
+        if (match) {
+          foundMatch = match;
+          break;
+        }
+      }
+
+      // Check 3rd place
+      if (!foundMatch && tournament.finalStage.bracket.thirdPlaceMatch?.id === matchId) {
+        foundMatch = tournament.finalStage.bracket.thirdPlaceMatch;
+      }
+
+      // Check silver bracket
+      if (!foundMatch && tournament.finalStage.silverBracket) {
+        for (const round of tournament.finalStage.silverBracket.rounds) {
+          const match = round.matches.find(m => m.id === matchId);
+          if (match) {
+            foundMatch = match;
+            break;
+          }
+        }
+
+        if (!foundMatch && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
+          foundMatch = tournament.finalStage.silverBracket.thirdPlaceMatch;
+        }
+      }
+    }
+
+    if (!foundMatch) {
+      return { success: false, error: 'Match not found' };
+    }
+
+    if (foundMatch.status !== 'IN_PROGRESS') {
+      return { success: false, error: 'Match is not in progress' };
+    }
+
+    return { success: true, match: foundMatch };
+  } catch (error) {
+    console.error('❌ Error resuming tournament match:', error);
+    return { success: false, error: 'Network error' };
+  }
+}
+
+/**
+ * Abandon a tournament match (revert from IN_PROGRESS to PENDING)
+ * Used when user exits tournament mode without completing the match
+ */
+export async function abandonTournamentMatch(
+  tournamentId: string,
+  matchId: string,
+  phase: 'GROUP' | 'FINAL',
+  groupId?: string
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    return false;
+  }
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) {
+      return false;
+    }
+
+    let matchFound = false;
+
+    if (phase === 'GROUP' && tournament.groupStage) {
+      for (const group of tournament.groupStage.groups) {
+        if (groupId && group.id !== groupId) continue;
+
+        if (group.schedule) {
+          for (const round of group.schedule) {
+            const matchIndex = round.matches.findIndex(m => m.id === matchId);
+            if (matchIndex !== -1) {
+              round.matches[matchIndex].status = 'PENDING';
+              round.matches[matchIndex].startedAt = undefined;
+              round.matches[matchIndex].rounds = undefined;
+              matchFound = true;
+              break;
+            }
+          }
+        }
+
+        if (!matchFound && group.pairings) {
+          for (const pairing of group.pairings) {
+            const matchIndex = pairing.matches.findIndex(m => m.id === matchId);
+            if (matchIndex !== -1) {
+              pairing.matches[matchIndex].status = 'PENDING';
+              pairing.matches[matchIndex].startedAt = undefined;
+              pairing.matches[matchIndex].rounds = undefined;
+              matchFound = true;
+              break;
+            }
+          }
+        }
+
+        if (matchFound) break;
+      }
+
+      if (matchFound) {
+        const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+        await updateDoc(doc(db!, 'tournaments', tournamentId), {
+          groupStage: cleanedGroupStage
+        });
+      }
+    } else if (phase === 'FINAL' && tournament.finalStage) {
+      const resetMatch = (match: any) => {
+        match.status = 'PENDING';
+        match.startedAt = undefined;
+        match.rounds = undefined;
+        match.gamesWonA = undefined;
+        match.gamesWonB = undefined;
+      };
+
+      // Check gold bracket
+      for (const round of tournament.finalStage.bracket.rounds) {
+        const matchIndex = round.matches.findIndex(m => m.id === matchId);
+        if (matchIndex !== -1) {
+          resetMatch(round.matches[matchIndex]);
+          matchFound = true;
+          break;
+        }
+      }
+
+      // Check 3rd place
+      if (!matchFound && tournament.finalStage.bracket.thirdPlaceMatch?.id === matchId) {
+        resetMatch(tournament.finalStage.bracket.thirdPlaceMatch);
+        matchFound = true;
+      }
+
+      // Check silver bracket
+      if (!matchFound && tournament.finalStage.silverBracket) {
+        for (const round of tournament.finalStage.silverBracket.rounds) {
+          const matchIndex = round.matches.findIndex(m => m.id === matchId);
+          if (matchIndex !== -1) {
+            resetMatch(round.matches[matchIndex]);
+            matchFound = true;
+            break;
+          }
+        }
+
+        if (!matchFound && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
+          resetMatch(tournament.finalStage.silverBracket.thirdPlaceMatch);
+          matchFound = true;
+        }
+      }
+
+      if (matchFound) {
+        const cleanedFinalStage = cleanUndefined(tournament.finalStage);
+        await updateDoc(doc(db!, 'tournaments', tournamentId), {
+          finalStage: cleanedFinalStage
+        });
+      }
+    }
+
+    if (matchFound) {
+      console.log('✅ Tournament match abandoned:', matchId);
+    }
+    return matchFound;
+  } catch (error) {
+    console.error('❌ Error abandoning tournament match:', error);
+    return false;
+  }
+}
+
+/**
+ * Update tournament match rounds in real-time (for sync mode: real_time)
+ */
+export async function updateTournamentMatchRounds(
+  tournamentId: string,
+  matchId: string,
+  phase: 'GROUP' | 'FINAL',
+  groupId: string | undefined,
+  rounds: Array<{
+    gameNumber: number;
+    roundInGame: number;
+    pointsA: number | null;
+    pointsB: number | null;
+    twentiesA: number;
+    twentiesB: number;
+  }>,
+  currentGameData?: { gamesWonA: number; gamesWonB: number }
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    return false;
+  }
+
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) {
+      return false;
+    }
+
+    let matchFound = false;
+
+    // Calculate total 20s from rounds
+    const total20sA = rounds.reduce((sum, r) => sum + (r.twentiesA || 0), 0);
+    const total20sB = rounds.reduce((sum, r) => sum + (r.twentiesB || 0), 0);
+
+    console.log('🔄 updateTournamentMatchRounds:', {
+      matchId,
+      phase,
+      roundsCount: rounds.length,
+      total20sA,
+      total20sB,
+      currentGameData
+    });
+
+    if (phase === 'GROUP' && tournament.groupStage) {
+      for (const group of tournament.groupStage.groups) {
+        if (groupId && group.id !== groupId) continue;
+
+        if (group.schedule) {
+          for (const round of group.schedule) {
+            const matchIndex = round.matches.findIndex(m => m.id === matchId);
+            if (matchIndex !== -1) {
+              round.matches[matchIndex].rounds = rounds;
+              round.matches[matchIndex].total20sA = total20sA;
+              round.matches[matchIndex].total20sB = total20sB;
+              if (currentGameData) {
+                round.matches[matchIndex].gamesWonA = currentGameData.gamesWonA;
+                round.matches[matchIndex].gamesWonB = currentGameData.gamesWonB;
+              }
+              matchFound = true;
+              break;
+            }
+          }
+        }
+
+        if (!matchFound && group.pairings) {
+          for (const pairing of group.pairings) {
+            const matchIndex = pairing.matches.findIndex(m => m.id === matchId);
+            if (matchIndex !== -1) {
+              pairing.matches[matchIndex].rounds = rounds;
+              pairing.matches[matchIndex].total20sA = total20sA;
+              pairing.matches[matchIndex].total20sB = total20sB;
+              if (currentGameData) {
+                pairing.matches[matchIndex].gamesWonA = currentGameData.gamesWonA;
+                pairing.matches[matchIndex].gamesWonB = currentGameData.gamesWonB;
+              }
+              matchFound = true;
+              break;
+            }
+          }
+        }
+
+        if (matchFound) break;
+      }
+
+      if (matchFound) {
+        const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+        await updateDoc(doc(db!, 'tournaments', tournamentId), {
+          groupStage: cleanedGroupStage
+        });
+      }
+    } else if (phase === 'FINAL' && tournament.finalStage) {
+      const updateMatchRounds = (match: any) => {
+        match.rounds = rounds;
+        match.total20sA = total20sA;
+        match.total20sB = total20sB;
+        if (currentGameData) {
+          match.gamesWonA = currentGameData.gamesWonA;
+          match.gamesWonB = currentGameData.gamesWonB;
+        }
+      };
+
+      // Check gold bracket
+      for (const round of tournament.finalStage.bracket.rounds) {
+        const matchIndex = round.matches.findIndex(m => m.id === matchId);
+        if (matchIndex !== -1) {
+          updateMatchRounds(round.matches[matchIndex]);
+          matchFound = true;
+          break;
+        }
+      }
+
+      // Check 3rd place
+      if (!matchFound && tournament.finalStage.bracket.thirdPlaceMatch?.id === matchId) {
+        updateMatchRounds(tournament.finalStage.bracket.thirdPlaceMatch);
+        matchFound = true;
+      }
+
+      // Check silver bracket
+      if (!matchFound && tournament.finalStage.silverBracket) {
+        for (const round of tournament.finalStage.silverBracket.rounds) {
+          const matchIndex = round.matches.findIndex(m => m.id === matchId);
+          if (matchIndex !== -1) {
+            updateMatchRounds(round.matches[matchIndex]);
+            matchFound = true;
+            break;
+          }
+        }
+
+        if (!matchFound && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
+          updateMatchRounds(tournament.finalStage.silverBracket.thirdPlaceMatch);
+          matchFound = true;
+        }
+      }
+
+      if (matchFound) {
+        const cleanedFinalStage = cleanUndefined(tournament.finalStage);
+        await updateDoc(doc(db!, 'tournaments', tournamentId), {
+          finalStage: cleanedFinalStage
+        });
+      }
+    }
+
+    return matchFound;
+  } catch (error) {
+    console.error('❌ Error updating tournament match rounds:', error);
+    return false;
+  }
+}
+
+/**
+ * Complete a tournament match from /game page
+ * This handles both group and bracket matches
+ */
+export async function completeTournamentMatch(
+  tournamentId: string,
+  matchId: string,
+  phase: 'GROUP' | 'FINAL',
+  groupId: string | undefined,
+  result: {
+    winner: string;
+    gamesWonA: number;
+    gamesWonB: number;
+    totalPointsA: number;
+    totalPointsB: number;
+    total20sA: number;
+    total20sB: number;
+    rounds: Array<{
+      gameNumber: number;
+      roundInGame: number;
+      pointsA: number | null;
+      pointsB: number | null;
+      twentiesA: number;
+      twentiesB: number;
+    }>;
+  }
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    return false;
+  }
+
+  try {
+    if (phase === 'GROUP') {
+      // Use existing updateMatchResult for group matches
+      const success = await updateMatchResult(tournamentId, matchId, {
+        gamesWonA: result.gamesWonA,
+        gamesWonB: result.gamesWonB,
+        totalPointsA: result.totalPointsA,
+        totalPointsB: result.totalPointsB,
+        total20sA: result.total20sA,
+        total20sB: result.total20sB,
+        rounds: result.rounds
+      });
+      return success;
+    } else {
+      // For bracket matches, use updateBracketMatch and advanceWinner
+      const { updateBracketMatch, advanceWinner, updateSilverBracketMatch, advanceSilverWinner } = await import('./tournamentBracket');
+
+      // First, determine if this is a silver bracket match
+      const tournament = await getTournament(tournamentId);
+      if (!tournament || !tournament.finalStage) {
+        return false;
+      }
+
+      let isSilverBracket = false;
+      if (tournament.finalStage.silverBracket) {
+        // Check if match is in silver bracket
+        for (const round of tournament.finalStage.silverBracket.rounds) {
+          if (round.matches.some(m => m.id === matchId)) {
+            isSilverBracket = true;
+            break;
+          }
+        }
+        if (!isSilverBracket && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
+          isSilverBracket = true;
+        }
+      }
+
+      // Update match result
+      const updateFn = isSilverBracket ? updateSilverBracketMatch : updateBracketMatch;
+      const updateSuccess = await updateFn(tournamentId, matchId, {
+        status: 'COMPLETED',
+        winner: result.winner,
+        gamesWonA: result.gamesWonA,
+        gamesWonB: result.gamesWonB,
+        totalPointsA: result.totalPointsA,
+        totalPointsB: result.totalPointsB,
+        total20sA: result.total20sA,
+        total20sB: result.total20sB,
+        rounds: result.rounds
+      });
+
+      if (!updateSuccess) {
+        return false;
+      }
+
+      // Advance winner to next match
+      const advanceFn = isSilverBracket ? advanceSilverWinner : advanceWinner;
+      return await advanceFn(tournamentId, matchId, result.winner);
+    }
+  } catch (error) {
+    console.error('❌ Error completing tournament match:', error);
+    return false;
+  }
 }

@@ -16,6 +16,10 @@
   let editMode = false;
   let editTournamentId: string | null = null;
 
+  // Duplicate mode
+  let duplicateMode = false;
+  let duplicateSourceId: string | null = null;
+
   // Wizard state
   let currentStep = 1;
   const totalSteps = 5;
@@ -137,14 +141,19 @@
   }
 
   onMount(async () => {
-    // Check if in edit mode
+    // Check if in edit or duplicate mode
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
+    const duplicateId = urlParams.get('duplicate');
 
     if (editId) {
       editMode = true;
       editTournamentId = editId;
       await loadTournamentForEdit(editId);
+    } else if (duplicateId) {
+      duplicateMode = true;
+      duplicateSourceId = duplicateId;
+      await loadTournamentForDuplication(duplicateId);
     } else {
       // Generate random key for new tournaments first
       key = generateRandomKey();
@@ -284,6 +293,130 @@
     }
   }
 
+  async function loadTournamentForDuplication(tournamentId: string) {
+    try {
+      const tournament = await getTournament(tournamentId);
+      if (!tournament) {
+        toastMessage = '❌ Error: Torneo no encontrado';
+        showToast = true;
+        setTimeout(() => goto('/admin/tournaments'), 2000);
+        return;
+      }
+
+      // Generate new key for the duplicate
+      key = generateRandomKey();
+
+      // Load all tournament data (same as edit, but increment edition)
+      // Step 1
+      name = tournament.name;  // Keep same name, user can modify
+      description = tournament.description || '';
+      edition = (tournament.edition || 1) + 1;  // Increment edition
+      country = tournament.country || '';
+      city = tournament.city || '';
+      // Set date to today for the new tournament
+      tournamentDate = new Date().toISOString().split('T')[0];
+      gameType = tournament.gameType;
+
+      // Step 2
+      numTables = tournament.numTables;
+      phaseType = tournament.phaseType;
+      show20s = tournament.show20s;
+      showHammer = tournament.showHammer;
+
+      // Load game config based on phase type (same logic as loadTournamentForEdit)
+      if (tournament.phaseType === 'TWO_PHASE') {
+        if (tournament.groupStage) {
+          groupStageType = tournament.groupStage.type || 'ROUND_ROBIN';
+          groupGameMode = tournament.groupStage.gameMode || 'rounds';
+          groupPointsToWin = tournament.groupStage.pointsToWin || 7;
+          groupRoundsToPlay = tournament.groupStage.roundsToPlay || 4;
+          groupMatchesToWin = tournament.groupStage.matchesToWin || 1;
+          numGroups = tournament.groupStage.numGroups || 2;
+          numSwissRounds = tournament.groupStage.numSwissRounds || 4;
+          rankingSystem = tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
+        } else {
+          groupStageType = tournament.groupStageType || 'ROUND_ROBIN';
+          groupGameMode = tournament.gameMode || 'rounds';
+          groupPointsToWin = tournament.pointsToWin || 7;
+          groupRoundsToPlay = tournament.roundsToPlay || 4;
+          groupMatchesToWin = tournament.matchesToWin || 1;
+          numGroups = tournament.numGroups || 2;
+          numSwissRounds = tournament.numSwissRounds || 4;
+        }
+
+        if (tournament.finalStageConfig) {
+          finalStageMode = tournament.finalStageConfig.mode || 'SINGLE_BRACKET';
+          finalGameMode = tournament.finalStageConfig.gameMode || 'points';
+          finalPointsToWin = tournament.finalStageConfig.pointsToWin || 7;
+          finalRoundsToPlay = tournament.finalStageConfig.roundsToPlay || 4;
+          finalMatchesToWin = tournament.finalStageConfig.matchesToWin || 1;
+          silverGameMode = tournament.finalStageConfig.silverGameMode || 'points';
+          silverPointsToWin = tournament.finalStageConfig.silverPointsToWin || 7;
+          silverRoundsToPlay = tournament.finalStageConfig.silverRoundsToPlay || 4;
+          silverMatchesToWin = tournament.finalStageConfig.silverMatchesToWin || 1;
+        } else if (tournament.finalStage) {
+          finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
+          finalGameMode = tournament.finalStage.gameMode || 'points';
+          finalPointsToWin = tournament.finalStage.pointsToWin || 7;
+          finalRoundsToPlay = tournament.finalStage.roundsToPlay || 4;
+          finalMatchesToWin = tournament.finalStage.matchesToWin || 1;
+          silverGameMode = tournament.finalStage.silverGameMode || 'points';
+          silverPointsToWin = tournament.finalStage.silverPointsToWin || 7;
+          silverRoundsToPlay = tournament.finalStage.silverRoundsToPlay || 4;
+          silverMatchesToWin = tournament.finalStage.silverMatchesToWin || 1;
+        } else {
+          finalStageMode = 'SINGLE_BRACKET';
+          finalGameMode = 'points';
+          finalPointsToWin = 7;
+          finalRoundsToPlay = 4;
+          finalMatchesToWin = 1;
+          silverGameMode = 'rounds';
+          silverPointsToWin = 7;
+          silverRoundsToPlay = 4;
+          silverMatchesToWin = 1;
+        }
+      } else {
+        if (tournament.finalStage) {
+          gameMode = tournament.finalStage.gameMode || 'points';
+          pointsToWin = tournament.finalStage.pointsToWin || 7;
+          roundsToPlay = tournament.finalStage.roundsToPlay || 4;
+          matchesToWin = tournament.finalStage.matchesToWin || 3;
+        } else {
+          gameMode = tournament.gameMode || 'points';
+          pointsToWin = tournament.pointsToWin || 7;
+          roundsToPlay = tournament.roundsToPlay || 4;
+          matchesToWin = tournament.matchesToWin || 3;
+        }
+      }
+
+      // Step 3
+      rankingEnabled = tournament.rankingConfig?.enabled ?? true;
+      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+
+      // Step 4 - Copy participants (without match data)
+      participants = tournament.participants.map(p => ({
+        type: p.type,
+        userId: p.userId,
+        name: p.name,
+        email: p.email,
+        partner: p.partner
+      }));
+
+      guestName = `Player${participants.length + 1}`;
+
+      // Go directly to step 5 (review) since all data is pre-filled
+      currentStep = 5;
+
+      toastMessage = `✅ Torneo cargado para duplicar (Edición #${edition})`;
+      showToast = true;
+      console.log('✅ Tournament loaded for duplication');
+    } catch (error) {
+      console.error('❌ Error loading tournament for duplication:', error);
+      toastMessage = '❌ Error al cargar el torneo';
+      showToast = true;
+    }
+  }
+
   function loadDraft() {
     if (typeof localStorage === 'undefined') return;
 
@@ -355,8 +488,8 @@
   }
 
   function saveDraft() {
-    // Don't save draft in edit mode
-    if (editMode) return;
+    // Don't save draft in edit or duplicate mode
+    if (editMode || duplicateMode) return;
     if (typeof localStorage === 'undefined') return;
 
     try {
@@ -917,9 +1050,9 @@
       </div>
 
       <div class="title-section">
-        <h1>{editMode ? '✏️ Editar Torneo' : '🏆 Crear Nuevo Torneo'}</h1>
-        <p class="subtitle">Configura tu torneo en {totalSteps} sencillos pasos</p>
-        {#if !editMode}
+        <h1>{editMode ? '✏️ Editar Torneo' : duplicateMode ? '📋 Duplicar Torneo' : '🏆 Crear Nuevo Torneo'}</h1>
+        <p class="subtitle">{duplicateMode ? `Creando edición #${edition} basada en torneo existente` : `Configura tu torneo en ${totalSteps} sencillos pasos`}</p>
+        {#if !editMode && !duplicateMode}
           <button class="clear-draft-btn" on:click={() => { clearDraft(); location.reload(); }} title="Empezar de nuevo">
             🔄 Limpiar borrador
           </button>
@@ -2201,7 +2334,7 @@
         </button>
       {:else}
         <button class="nav-button primary create" on:click={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
-          {creating ? (editMode ? 'Guardando...' : 'Creando...') : (editMode ? '💾 Guardar Cambios' : '🏆 Crear Torneo')}
+          {creating ? (editMode ? 'Guardando...' : 'Creando...') : (editMode ? '💾 Guardar Cambios' : duplicateMode ? '📋 Crear Copia' : '🏆 Crear Torneo')}
         </button>
       {/if}
     </div>

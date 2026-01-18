@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
+	import { get } from 'svelte/store';
 	import { goto } from '$app/navigation';
 	import { language, t } from '$lib/stores/language';
 	import { gameSettings } from '$lib/stores/gameSettings';
@@ -14,8 +15,17 @@
 	import ColorPickerModal from '$lib/components/ColorPickerModal.svelte';
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
+	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import { isColorDark } from '$lib/utils/colors';
+	import {
+		gameTournamentContext,
+		loadTournamentContext,
+		clearTournamentContext,
+		updateTournamentContext,
+		type TournamentMatchContext
+	} from '$lib/stores/tournamentContext';
+	import { abandonTournamentMatch, completeTournamentMatch, updateTournamentMatchRounds } from '$lib/firebase/tournamentMatches';
 
 	let showSettings = false;
 	let showHistory = false;
@@ -23,6 +33,13 @@
 	let colorPickerTeam: 1 | 2 = 1;
 	let showHammerDialog = false;
 	let showNewMatchConfirm = false;
+	let showTournamentModal = false;
+	let showTournamentExitConfirm = false;
+	let showTournamentResetConfirm = false;
+	let isResettingTournament = false;
+
+	// Tournament mode state
+	$: inTournamentMode = !!$gameTournamentContext;
 
 	// References to TeamCard components to call their methods
 	let teamCard1: any;
@@ -50,13 +67,30 @@
 
 	// Check if match is complete
 	// In rounds mode, match is complete after first game
-	// In points mode, match is complete when someone reaches matchesToWin
+	// In points mode, match is complete when someone reaches the required wins (majority)
+	// For "best of X", you need ceil(X/2) wins (e.g., best of 3 = need 2 wins)
+	$: requiredWinsToComplete = Math.ceil($gameSettings.matchesToWin / 2);
 	$: isMatchComplete = $gameSettings.gameMode === 'rounds'
 		? (team1GamesWon >= 1 || team2GamesWon >= 1)
-		: (team1GamesWon >= $gameSettings.matchesToWin || team2GamesWon >= $gameSettings.matchesToWin);
+		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete);
 
-	// Show "Next Game" button when someone won AND match is not complete AND matchesToWin > 1 AND there are completed games
-	$: showNextGameButton = ($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points' && $currentMatchGames.length > 0;
+	// Show "Next Game" button when someone won the current game AND match is not complete AND it's a multi-game match
+	// Note: We removed the "$currentMatchGames.length > 0" requirement because:
+	// 1. When the first game ends, saveGameAndCheckMatchComplete adds it to currentMatchGames
+	// 2. But on page reload, we don't restore the current completed game to currentMatchGames (to avoid double-counting)
+	// 3. The other conditions are sufficient: hasWon + !isMatchComplete + matchesToWin > 1 + points mode
+	$: showNextGameButton = ($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points';
+
+	// Track if tournament match completion has been sent
+	let tournamentMatchCompletedSent = false;
+
+	// Handler for tournament match complete event from TeamCard
+	// This is called BEFORE currentMatch is cleared, ensuring we have all data
+	function handleTournamentMatchCompleteFromEvent() {
+		if (!tournamentMatchCompletedSent) {
+			handleTournamentMatchComplete();
+		}
+	}
 
 	// Calculate points for current round in progress (subtract last round's ending points from current total)
 	$: team1CurrentRoundPoints = $team1.points - $lastRoundPoints.team1;
@@ -74,6 +108,12 @@
 		loadTeams();
 		loadMatchState();
 		loadHistory();
+
+		// Load tournament context if any
+		const savedContext = loadTournamentContext();
+		if (savedContext) {
+			applyTournamentConfig(savedContext);
+		}
 
 		// Start current match if not already started
 		if (!$currentMatch) {
@@ -93,6 +133,412 @@
 			unsubSettings();
 		};
 	});
+
+	/**
+	 * Apply tournament configuration to game settings and teams
+	 */
+	function applyTournamentConfig(context: TournamentMatchContext) {
+		const config = context.gameConfig;
+		const isUserSideA = context.currentUserSide === 'A';
+
+		console.log('🎯 applyTournamentConfig llamado:', {
+			existingRounds: context.existingRounds,
+			currentGameData: context.currentGameData,
+			isUserSideA,
+			gameConfig: config
+		});
+
+		// Apply game settings from tournament
+		gameSettings.update(s => ({
+			...s,
+			gameMode: config.gameMode,
+			pointsToWin: config.pointsToWin || 7,
+			roundsToPlay: config.roundsToPlay || 4,
+			matchesToWin: config.matchesToWin,
+			show20s: config.show20s,
+			showHammer: config.showHammer,
+			gameType: config.gameType,
+			eventTitle: context.tournamentName,
+			matchPhase: context.bracketRoundName || (context.phase === 'GROUP' ? 'Fase de Grupos' : 'Bracket')
+		}));
+
+		// PRIMERO: Reset match state (esto limpia todo)
+		resetMatchState();
+		startCurrentMatch();
+
+		// Calculate initial points from existing rounds if resuming
+		let initialPoints1 = 0;
+		let initialPoints2 = 0;
+		let initialRounds1 = 0;
+		let initialRounds2 = 0;
+		let initialMatches1 = 0;
+		let initialMatches2 = 0;
+
+		if (context.existingRounds && context.existingRounds.length > 0) {
+			// Get current game data
+			const currentGameData = context.currentGameData;
+			const currentGameNumber = currentGameData?.currentGameNumber || 1;
+
+			// Get rounds for current game only
+			const currentGameRoundsData = context.existingRounds.filter(r => r.gameNumber === currentGameNumber);
+
+			console.log('📊 Procesando rondas existentes:', {
+				totalRounds: context.existingRounds.length,
+				currentGameNumber,
+				roundsForCurrentGame: currentGameRoundsData.length,
+				rawRounds: currentGameRoundsData
+			});
+
+			currentGameRoundsData.forEach(r => {
+				const pointsA = r.pointsA || 0;
+				const pointsB = r.pointsB || 0;
+
+				// Map A/B to team1/team2 based on user side
+				if (isUserSideA) {
+					initialPoints1 += pointsA;
+					initialPoints2 += pointsB;
+					if (pointsA > pointsB) initialRounds1++;
+					else if (pointsB > pointsA) initialRounds2++;
+				} else {
+					initialPoints1 += pointsB;
+					initialPoints2 += pointsA;
+					if (pointsB > pointsA) initialRounds1++;
+					else if (pointsA > pointsB) initialRounds2++;
+				}
+			});
+
+			// Set games won (matches in team terminology)
+			if (currentGameData) {
+				if (isUserSideA) {
+					initialMatches1 = currentGameData.gamesWonA;
+					initialMatches2 = currentGameData.gamesWonB;
+				} else {
+					initialMatches1 = currentGameData.gamesWonB;
+					initialMatches2 = currentGameData.gamesWonA;
+				}
+			}
+
+			console.log('📥 Valores calculados para restaurar:', {
+				initialPoints1, initialPoints2,
+				initialRounds1, initialRounds2,
+				initialMatches1, initialMatches2
+			});
+		} else {
+			console.log('🆕 Partido nuevo - sin datos existentes');
+		}
+
+		// Set team names and initial state from tournament participants
+		// Note: team1 = user's perspective (A if userSideA, else B)
+		const team1Name = isUserSideA ? context.participantAName : context.participantBName;
+		const team2Name = isUserSideA ? context.participantBName : context.participantAName;
+
+		// Check if current game was already completed (to restore hasWon state)
+		// This happens when user reloads while waiting to click "Next Game"
+		let team1HasWon = false;
+		let team2HasWon = false;
+		if (config.gameMode === 'points' && context.currentGameData) {
+			const currentGameNumber = context.currentGameData.currentGameNumber || 1;
+			const currentGameRoundsData = context.existingRounds?.filter(r => r.gameNumber === currentGameNumber) || [];
+
+			// Check if current game reached winning score
+			const pointsToWin = config.pointsToWin || 7;
+			if (initialPoints1 >= pointsToWin && (initialPoints1 - initialPoints2 >= 2)) {
+				team1HasWon = true;
+			} else if (initialPoints2 >= pointsToWin && (initialPoints2 - initialPoints1 >= 2)) {
+				team2HasWon = true;
+			}
+		}
+
+		// DESPUÉS del reset: aplicar los valores iniciales
+		team1.update(t => ({
+			...t,
+			name: team1Name,
+			points: initialPoints1,
+			rounds: initialRounds1,
+			matches: initialMatches1,
+			twenty: 0,
+			hasWon: team1HasWon
+		}));
+
+		team2.update(t => ({
+			...t,
+			name: team2Name,
+			points: initialPoints2,
+			rounds: initialRounds2,
+			matches: initialMatches2,
+			twenty: 0,
+			hasWon: team2HasWon
+		}));
+
+		saveTeams();
+		gameSettings.save();
+
+		// IMPORTANTE: Actualizar lastRoundPoints para que checkRoundCompletion funcione correctamente
+		// Esto indica que los puntos actuales son el "final de la última ronda"
+		lastRoundPoints.set({ team1: initialPoints1, team2: initialPoints2 });
+
+		// IMPORTANTE: Restaurar las rondas existentes en currentGameRounds y roundsPlayed
+		// Esto es necesario para que saveTournamentProgressToLocalStorage tenga todas las rondas
+		if (context.existingRounds && context.existingRounds.length > 0) {
+			const currentGameData = context.currentGameData;
+			const currentGameNumber = currentGameData?.currentGameNumber || 1;
+			const currentGameRoundsData = context.existingRounds.filter(r => r.gameNumber === currentGameNumber);
+
+			// Convertir rondas del formato torneo al formato del store
+			const restoredRounds = currentGameRoundsData.map((r, index) => {
+				const pointsA = r.pointsA || 0;
+				const pointsB = r.pointsB || 0;
+				const twentiesA = r.twentiesA || 0;
+				const twentiesB = r.twentiesB || 0;
+
+				return {
+					roundNumber: index + 1,
+					team1Points: isUserSideA ? pointsA : pointsB,
+					team2Points: isUserSideA ? pointsB : pointsA,
+					team1Twenty: isUserSideA ? twentiesA : twentiesB,
+					team2Twenty: isUserSideA ? twentiesB : twentiesA,
+					hammerTeam: null as 1 | 2 | null,
+					timestamp: Date.now()
+				};
+			});
+
+			// Restaurar en los stores
+			currentGameRounds.set(restoredRounds);
+			roundsPlayed.set(restoredRounds.length);
+
+			// IMPORTANTE: Restaurar los juegos completados en currentMatchGames
+			// Esto es necesario para que showNextGameButton funcione correctamente
+			const completedGames: Array<{
+				gameNumber: number;
+				winner: 1 | 2;
+				team1Points: number;
+				team2Points: number;
+				timestamp: number;
+			}> = [];
+
+			// Reconstruct completed games from existingRounds (games before current)
+			for (let gameNum = 1; gameNum < currentGameNumber; gameNum++) {
+				const gameRounds = context.existingRounds.filter(r => r.gameNumber === gameNum);
+				if (gameRounds.length > 0) {
+					const gameTotalA = gameRounds.reduce((sum, r) => sum + (r.pointsA || 0), 0);
+					const gameTotalB = gameRounds.reduce((sum, r) => sum + (r.pointsB || 0), 0);
+					const team1Pts = isUserSideA ? gameTotalA : gameTotalB;
+					const team2Pts = isUserSideA ? gameTotalB : gameTotalA;
+
+					completedGames.push({
+						gameNumber: gameNum,
+						winner: team1Pts > team2Pts ? 1 : 2,
+						team1Points: team1Pts,
+						team2Points: team2Pts,
+						timestamp: Date.now()
+					});
+				}
+			}
+
+			// NOTA: NO añadimos el juego actual (aunque esté completo con hasWon=true) a completedGames.
+			// El juego actual se guarda en currentMatchGames cuando el usuario pulsa "Siguiente Partida".
+			// Si añadimos aquí, se contaría dos veces (una aquí, otra cuando pulse el botón).
+			// El botón "Siguiente Partida" aparecerá porque:
+			// - hasWon = true (detectado arriba)
+			// - completedGames.length > 0 (si hay juegos previos) O es el primer juego y lo guardamos abajo
+
+			// Si es el primer juego que termina y no hay juegos previos, necesitamos que
+			// currentMatchGames tenga al menos 1 elemento para que showNextGameButton funcione.
+			// Pero NO podemos añadirlo aquí porque entonces se duplicará cuando pulse "Siguiente Partida".
+			// La solución es modificar la condición de showNextGameButton para no requerir currentMatchGames.length > 0
+			// cuando hasWon es true en un match multijuego.
+
+			if (completedGames.length > 0) {
+				currentMatchGames.set(completedGames);
+				console.log('🎮 Juegos completados restaurados en currentMatchGames:', completedGames.length);
+			}
+
+			console.log('📋 Rondas restauradas en currentGameRounds:', restoredRounds.length);
+		}
+
+		console.log('✅ Estado final de equipos:', {
+			team1: { name: team1Name, points: initialPoints1, matches: initialMatches1 },
+			team2: { name: team2Name, points: initialPoints2, matches: initialMatches2 },
+			lastRoundPoints: { team1: initialPoints1, team2: initialPoints2 },
+			currentGameRoundsRestored: context.existingRounds?.filter(r => r.gameNumber === (context.currentGameData?.currentGameNumber || 1)).length || 0
+		});
+
+		// Reset timer
+		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
+		resetTimer(totalSeconds);
+	}
+
+	/**
+	 * Handle tournament match started from modal
+	 */
+	function handleTournamentMatchStarted(event: CustomEvent<TournamentMatchContext>) {
+		const context = event.detail;
+		applyTournamentConfig(context);
+
+		// Show hammer dialog if enabled
+		if (context.gameConfig.showHammer) {
+			setTimeout(() => {
+				showHammerDialog = true;
+			}, 100);
+		}
+	}
+
+	/**
+	 * Handle exit from tournament mode - show confirmation dialog
+	 */
+	function handleTournamentExit() {
+		showTournamentExitConfirm = true;
+	}
+
+	/**
+	 * Confirm abandoning the tournament match
+	 */
+	async function confirmTournamentExit() {
+		const context = $gameTournamentContext;
+		if (context) {
+			try {
+				// Abandon the match in Firebase (set back to PENDING)
+				await abandonTournamentMatch(
+					context.tournamentId,
+					context.matchId,
+					context.phase,
+					context.groupId
+				);
+			} catch (error) {
+				console.error('Error abandoning match:', error);
+			}
+		}
+
+		// Clear local context
+		clearTournamentContext();
+		showTournamentExitConfirm = false;
+
+		// Reset game state
+		resetTeams();
+		resetMatchState();
+	}
+
+	/**
+	 * Cancel tournament exit
+	 */
+	function cancelTournamentExit() {
+		showTournamentExitConfirm = false;
+	}
+
+	/**
+	 * Handle tournament match completion - send results to Firebase
+	 */
+	async function handleTournamentMatchComplete() {
+		const context = $gameTournamentContext;
+		if (!context || tournamentMatchCompletedSent) return;
+
+		tournamentMatchCompletedSent = true;
+		console.log('🏆 Tournament match complete, sending results...');
+
+		// IMPORTANT: First, save the current game data to ensure we have all rounds
+		// This must happen BEFORE currentMatch gets cleared by completeCurrentMatch
+		const savedData = saveTournamentProgressToLocalStorage();
+
+		// Determine winner
+		const winner = team1GamesWon > team2GamesWon
+			? context.participantAId
+			: context.participantBId;
+
+		const isUserSideA = context.currentUserSide === 'A';
+
+		// Use the rounds from the saved context (which includes all games)
+		// This is more reliable than reading from currentMatch which may be cleared
+		const contextRounds = savedData?.allRounds || context.existingRounds || [];
+
+		console.log('🔍 handleTournamentMatchComplete - using context rounds:', {
+			savedDataRounds: savedData?.allRounds?.length || 0,
+			contextExistingRounds: context.existingRounds?.length || 0,
+			totalRounds: contextRounds.length
+		});
+
+		// Calculate totals from context rounds
+		let totalPointsA = 0;
+		let totalPointsB = 0;
+		let total20sA = 0;
+		let total20sB = 0;
+
+		// Group rounds by game to calculate game-level points
+		const gamePointsMap = new Map<number, { pointsA: number; pointsB: number }>();
+
+		contextRounds.forEach((round: any) => {
+			const gameNum = round.gameNumber || 1;
+			if (!gamePointsMap.has(gameNum)) {
+				gamePointsMap.set(gameNum, { pointsA: 0, pointsB: 0 });
+			}
+			const game = gamePointsMap.get(gameNum)!;
+			game.pointsA += round.pointsA || 0;
+			game.pointsB += round.pointsB || 0;
+			total20sA += round.twentiesA || 0;
+			total20sB += round.twentiesB || 0;
+		});
+
+		// Sum up game points
+		gamePointsMap.forEach(game => {
+			totalPointsA += game.pointsA;
+			totalPointsB += game.pointsB;
+		});
+
+		// Use context rounds directly as allRounds (they already have correct structure)
+		const allRounds = contextRounds.map((r: any) => ({
+			gameNumber: r.gameNumber || 1,
+			roundInGame: r.roundInGame || 1,
+			pointsA: r.pointsA,
+			pointsB: r.pointsB,
+			twentiesA: r.twentiesA || 0,
+			twentiesB: r.twentiesB || 0
+		}));
+
+		// Determine games won for each side
+		const gamesWonA = isUserSideA ? team1GamesWon : team2GamesWon;
+		const gamesWonB = isUserSideA ? team2GamesWon : team1GamesWon;
+
+		console.log('📤 Sending to Firebase:', {
+			allRoundsCount: allRounds.length,
+			roundsByGame: allRounds.reduce((acc, r) => {
+				acc[r.gameNumber] = (acc[r.gameNumber] || 0) + 1;
+				return acc;
+			}, {} as Record<number, number>),
+			gamesWonA,
+			gamesWonB,
+			totalPointsA,
+			totalPointsB
+		});
+
+		try {
+			const success = await completeTournamentMatch(
+				context.tournamentId,
+				context.matchId,
+				context.phase,
+				context.groupId,
+				{
+					winner,
+					gamesWonA,
+					gamesWonB,
+					totalPointsA,
+					totalPointsB,
+					total20sA,
+					total20sB,
+					rounds: allRounds
+				}
+			);
+
+			if (success) {
+				console.log('✅ Tournament match results saved successfully');
+			} else {
+				console.error('❌ Failed to save tournament match results');
+			}
+		} catch (error) {
+			console.error('Error completing tournament match:', error);
+		}
+
+		// Clear tournament context after completion
+		clearTournamentContext();
+	}
 
 	onDestroy(() => {
 		cleanupTimer();
@@ -136,7 +582,66 @@
 		showNewMatchConfirm = false;
 	}
 
+	// Tournament reset functions
+	function handleTournamentResetClick() {
+		showTournamentResetConfirm = true;
+	}
 
+	function cancelTournamentReset() {
+		showTournamentResetConfirm = false;
+	}
+
+	async function confirmTournamentReset() {
+		const context = $gameTournamentContext;
+		if (!context) {
+			showTournamentResetConfirm = false;
+			return;
+		}
+
+		isResettingTournament = true;
+
+		try {
+			// Reset local state first
+			resetTeams();
+			resetMatchState();
+
+			// Restore team names from tournament context
+			const isUserSideA = context.currentUserSide === 'A';
+			const team1Name = isUserSideA ? context.participantAName : context.participantBName;
+			const team2Name = isUserSideA ? context.participantBName : context.participantAName;
+
+			team1.update(t => ({ ...t, name: team1Name, points: 0, rounds: 0, matches: 0, twenty: 0, hasWon: false }));
+			team2.update(t => ({ ...t, name: team2Name, points: 0, rounds: 0, matches: 0, twenty: 0, hasWon: false }));
+			saveTeams();
+
+			// Reset lastRoundPoints
+			lastRoundPoints.set({ team1: 0, team2: 0 });
+
+			// Reset timer
+			const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
+			resetTimer(totalSeconds);
+
+			// ALWAYS sync empty state to Firebase when resetting (regardless of syncMode)
+			// This ensures the bracket view shows the reset state
+			await syncTournamentRounds([], 0, 0);
+			console.log('📤 Reset: Synced empty rounds to Firebase');
+
+			// Clear existing rounds from context
+			updateTournamentContext({
+				existingRounds: undefined,
+				currentGameData: undefined
+			});
+
+			// Reset the match completion flag
+			tournamentMatchCompletedSent = false;
+
+		} catch (error) {
+			console.error('Error resetting tournament match:', error);
+		} finally {
+			isResettingTournament = false;
+			showTournamentResetConfirm = false;
+		}
+	}
 
 	function openColorPicker(team: 1 | 2) {
 		colorPickerTeam = team;
@@ -183,7 +688,7 @@
 		finalizeRoundWithData();
 	}
 
-	function finalizeRoundWithData() {
+	async function finalizeRoundWithData() {
 		if (!pendingRoundData) return;
 
 		const { winningTeam, team1Points, team2Points } = pendingRoundData;
@@ -196,9 +701,181 @@
 
 		// Clear pending data
 		pendingRoundData = null;
+
+		// En modo torneo, siempre guardar y sincronizar a Firebase
+		// Firebase es la fuente de verdad, otras páginas leen de ahí
+		if (inTournamentMode) {
+			await tick();
+			const savedData = saveTournamentProgressToLocalStorage();
+
+			// Siempre sincronizar a Firebase (es la fuente de verdad)
+			if (savedData) {
+				syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB);
+			}
+		}
 	}
 
-	function handleNextGame() {
+	/**
+	 * Guarda el progreso del torneo a localStorage para persistencia al recargar
+	 * Retorna los datos guardados para poder usarlos en el sync a Firebase
+	 */
+	function saveTournamentProgressToLocalStorage(): { allRounds: TournamentMatchContext['existingRounds']; gamesWonA: number; gamesWonB: number } | null {
+		const context = $gameTournamentContext;
+		if (!context) return null;
+
+		const isUserSideA = context.currentUserSide === 'A';
+		const allRounds: Array<{
+			gameNumber: number;
+			roundInGame: number;
+			pointsA: number | null;
+			pointsB: number | null;
+			twentiesA: number;
+			twentiesB: number;
+		}> = [];
+
+		// Use currentMatch which has games with rounds (currentMatchGames doesn't have rounds)
+		const current = get(currentMatch);
+		const currentRounds = get(currentGameRounds);
+
+		console.log('🔍 SYNC - current.games:', current?.games?.length || 0, 'currentRounds:', currentRounds.length);
+		if (current?.games?.length) {
+			console.log('🔍 SYNC - partidas guardadas:', current.games.map((g, i) => `P${i+1}: ${g.rounds?.length || 0} rondas`));
+		}
+
+		// Process completed games from currentMatch (which has rounds per game)
+		if (current?.games && Array.isArray(current.games)) {
+			current.games.forEach((game, gameIndex) => {
+				if (game?.rounds && Array.isArray(game.rounds)) {
+					game.rounds.forEach((round, roundIndex) => {
+						const pointsA = isUserSideA ? round.team1Points : round.team2Points;
+						const pointsB = isUserSideA ? round.team2Points : round.team1Points;
+						const twentiesA = isUserSideA ? (round.team1Twenty || 0) : (round.team2Twenty || 0);
+						const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
+
+						allRounds.push({
+							gameNumber: gameIndex + 1,
+							roundInGame: roundIndex + 1,
+							pointsA,
+							pointsB,
+							twentiesA,
+							twentiesB
+						});
+					});
+				}
+			});
+		}
+
+		// Add current game rounds (for the game in progress)
+		// BUT only if the current game hasn't already been saved to current.games
+		// (this happens when the game just completed but resetForNextGame hasn't been called yet)
+		const completedGamesCount = current?.games?.length || 0;
+		const lastCompletedGame = current?.games?.[completedGamesCount - 1];
+		const currentGameAlreadySaved = lastCompletedGame?.rounds?.length === currentRounds?.length &&
+			currentRounds?.length > 0 &&
+			lastCompletedGame?.rounds?.every((r: any, i: number) =>
+				r.team1Points === currentRounds[i]?.team1Points &&
+				r.team2Points === currentRounds[i]?.team2Points
+			);
+
+		if (currentRounds && Array.isArray(currentRounds) && !currentGameAlreadySaved) {
+			currentRounds.forEach((round, roundIndex) => {
+				const pointsA = isUserSideA ? round.team1Points : round.team2Points;
+				const pointsB = isUserSideA ? round.team2Points : round.team1Points;
+				const twentiesA = isUserSideA ? (round.team1Twenty || 0) : (round.team2Twenty || 0);
+				const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
+
+				allRounds.push({
+					gameNumber: completedGamesCount + 1,
+					roundInGame: roundIndex + 1,
+					pointsA,
+					pointsB,
+					twentiesA,
+					twentiesB
+				});
+			});
+		}
+
+		// Calculate current game data - use get() to ensure we have the latest values
+		// (reactive $: variables might not be updated inside setTimeout)
+		const matchGames = get(currentMatchGames);
+		const t1GamesWon = matchGames.filter(game => game.winner === 1).length;
+		const t2GamesWon = matchGames.filter(game => game.winner === 2).length;
+		const gamesWonA = isUserSideA ? t1GamesWon : t2GamesWon;
+		const gamesWonB = isUserSideA ? t2GamesWon : t1GamesWon;
+
+		console.log('💾 Guardando progreso torneo a localStorage:', {
+			allRounds: allRounds.length,
+			roundsDetail: allRounds.map(r => ({ gameNumber: r.gameNumber, roundInGame: r.roundInGame, pointsA: r.pointsA, pointsB: r.pointsB })),
+			gamesWonA,
+			gamesWonB,
+			matchGames: matchGames.length,
+			t1GamesWon,
+			t2GamesWon
+		});
+
+		updateTournamentContext({
+			existingRounds: allRounds,
+			currentGameData: {
+				gamesWonA,
+				gamesWonB,
+				currentGameNumber: completedGamesCount + 1
+			}
+		});
+
+		return { allRounds, gamesWonA, gamesWonB };
+	}
+
+	/**
+	 * Sync current rounds to Firebase for real-time updates
+	 */
+	async function syncTournamentRounds(
+		allRounds: TournamentMatchContext['existingRounds'],
+		gamesWonA: number,
+		gamesWonB: number
+	) {
+		const context = $gameTournamentContext;
+		if (!context || !allRounds) return;
+
+		console.log('📤 Syncing rounds to Firebase:', { roundsCount: allRounds.length, gamesWonA, gamesWonB });
+
+		try {
+			const success = await updateTournamentMatchRounds(
+				context.tournamentId,
+				context.matchId,
+				context.phase,
+				context.groupId,
+				allRounds,
+				{ gamesWonA, gamesWonB }
+			);
+
+			if (success) {
+				console.log('✅ Tournament rounds synced in real-time');
+			} else {
+				console.warn('⚠️ Failed to sync tournament rounds');
+			}
+		} catch (error) {
+			console.error('❌ Error syncing tournament rounds:', error);
+		}
+	}
+
+	async function handleNextGame() {
+		// En modo torneo, guardamos y sincronizamos ANTES del reset
+		// Esto es importante porque resetForNextGame() limpia currentGameRounds
+		if (inTournamentMode) {
+			const preResetData = saveTournamentProgressToLocalStorage();
+			if (preResetData) {
+				console.log('📦 Pre-reset tournament data:', {
+					rounds: preResetData.allRounds.length,
+					gamesWonA: preResetData.gamesWonA,
+					gamesWonB: preResetData.gamesWonB
+				});
+
+				// Sincronizar a Firebase ANTES del reset (sin timeout)
+				await syncTournamentRounds(preResetData.allRounds, preResetData.gamesWonA, preResetData.gamesWonB);
+				console.log('📤 Synced completed game to Firebase');
+			}
+		}
+
 		// Call resetForNextGame on one of the TeamCard components
 		if (teamCard1) {
 			teamCard1.resetForNextGame();
@@ -207,6 +884,24 @@
 		// Reset timer to default value for the new game
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
+
+		// Actualizar el contexto local con el nuevo número de juego
+		if (inTournamentMode) {
+			const current = get(currentMatch);
+			const completedGamesCount = current?.games?.length || 0;
+			const matchGames = get(currentMatchGames);
+			const isUserSideA = $gameTournamentContext?.currentUserSide === 'A';
+			const t1GamesWon = matchGames.filter(game => game.winner === 1).length;
+			const t2GamesWon = matchGames.filter(game => game.winner === 2).length;
+
+			updateTournamentContext({
+				currentGameData: {
+					gamesWonA: isUserSideA ? t1GamesWon : t2GamesWon,
+					gamesWonB: isUserSideA ? t2GamesWon : t1GamesWon,
+					currentGameNumber: completedGamesCount + 1
+				}
+			});
+		}
 	}
 
 	function handleTitleClick() {
@@ -262,66 +957,94 @@
 </script>
 
 <div class="game-page">
-	<header class="game-header">
+	<header class="game-header" class:tournament-mode={inTournamentMode}>
 		<div class="left-section">
-			<h1 on:click|stopPropagation={handleTitleClick} class="clickable-title">
-				Scorekinole
-				<span class="version-badge">v{$gameSettings.appVersion}</span>
-			</h1>
+			{#if inTournamentMode}
+				<div class="tournament-header-info">
+					<span class="tournament-icon">🏆</span>
+					<span class="tournament-name-header">{$gameTournamentContext?.tournamentName}</span>
+				</div>
+			{:else}
+				<h1 on:click|stopPropagation={handleTitleClick} class="clickable-title">
+					Scorekinole
+					<span class="version-badge">v{$gameSettings.appVersion}</span>
+				</h1>
+			{/if}
 		</div>
 
 		<div class="center-section">
-			<div class="event-info-header">
-				{#if editingEventTitle}
-					<input
-						bind:this={eventTitleInput}
-						bind:value={$gameSettings.eventTitle}
-						on:blur={saveEventTitle}
-						on:keydown={handleEventTitleKeydown}
-						class="event-title-input"
-						placeholder={$t('eventTitle')}
-					/>
-				{:else if $gameSettings.eventTitle}
-					<span class="event-title-header editable" on:click={startEditingEventTitle}>
-						{$gameSettings.eventTitle}
+			{#if inTournamentMode}
+				<!-- Tournament mode: show phase info -->
+				<div class="tournament-phase-info">
+					<span class="phase-badge-header">
+						{$gameTournamentContext?.phase === 'GROUP'
+							? ($t('groupStage') || 'Fase de Grupos')
+							: ($gameTournamentContext?.bracketRoundName || 'Bracket')}
 					</span>
-				{:else}
-					<span class="event-title-header editable placeholder" on:click={startEditingEventTitle}>
-						+ {$t('eventTitle')}
-					</span>
-				{/if}
+				</div>
+			{:else}
+				<!-- Normal mode: editable event info -->
+				<div class="event-info-header">
+					{#if editingEventTitle}
+						<input
+							bind:this={eventTitleInput}
+							bind:value={$gameSettings.eventTitle}
+							on:blur={saveEventTitle}
+							on:keydown={handleEventTitleKeydown}
+							class="event-title-input"
+							placeholder={$t('eventTitle')}
+						/>
+					{:else if $gameSettings.eventTitle}
+						<span class="event-title-header editable" on:click={startEditingEventTitle}>
+							{$gameSettings.eventTitle}
+						</span>
+					{:else}
+						<span class="event-title-header editable placeholder" on:click={startEditingEventTitle}>
+							+ {$t('eventTitle')}
+						</span>
+					{/if}
 
-				{#if editingMatchPhase}
-					<input
-						bind:this={matchPhaseInput}
-						bind:value={$gameSettings.matchPhase}
-						on:blur={saveMatchPhase}
-						on:keydown={handleMatchPhaseKeydown}
-						class="event-phase-input"
-						placeholder={$t('matchPhase')}
-					/>
-				{:else if $gameSettings.matchPhase}
-					<span class="event-phase-header editable" on:click={startEditingMatchPhase}>
-						{$gameSettings.matchPhase}
-					</span>
-				{:else}
-					<span class="event-phase-header editable placeholder" on:click={startEditingMatchPhase}>
-						+ {$t('matchPhase')}
-					</span>
-				{/if}
-			</div>
+					{#if editingMatchPhase}
+						<input
+							bind:this={matchPhaseInput}
+							bind:value={$gameSettings.matchPhase}
+							on:blur={saveMatchPhase}
+							on:keydown={handleMatchPhaseKeydown}
+							class="event-phase-input"
+							placeholder={$t('matchPhase')}
+						/>
+					{:else if $gameSettings.matchPhase}
+						<span class="event-phase-header editable" on:click={startEditingMatchPhase}>
+							{$gameSettings.matchPhase}
+						</span>
+					{:else}
+						<span class="event-phase-header editable placeholder" on:click={startEditingMatchPhase}>
+							+ {$t('matchPhase')}
+						</span>
+					{/if}
+				</div>
+			{/if}
 			{#if $gameSettings.showTimer}
 				<Timer size="small" />
 			{/if}
 		</div>
 
 		<div class="right-section">
+			<!-- History button always visible -->
 			<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
 				📜
 			</button>
-			<button class="icon-button" on:click={() => showSettings = true} aria-label="Settings">
-				⚙️
-			</button>
+			{#if inTournamentMode}
+				<!-- Tournament mode: exit button instead of settings -->
+				<button class="icon-button exit-tournament-button" on:click={handleTournamentExit} aria-label={$t('exitTournamentMode')} title={$t('exitTournamentMode')}>
+					✕
+				</button>
+			{:else}
+				<!-- Normal mode: settings button -->
+				<button class="icon-button" on:click={() => showSettings = true} aria-label="Settings">
+					⚙️
+				</button>
+			{/if}
 		</div>
 	</header>
 
@@ -422,6 +1145,7 @@
 			currentGameNumber={$currentMatchGames.length}
 			on:changeColor={() => openColorPicker(1)}
 			on:roundComplete={handleRoundComplete}
+			on:tournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 		/>
 		<TeamCard
 			bind:this={teamCard2}
@@ -430,6 +1154,7 @@
 			currentGameNumber={$currentMatchGames.length}
 			on:changeColor={() => openColorPicker(2)}
 			on:roundComplete={handleRoundComplete}
+			on:tournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 		/>
 	</div>
 
@@ -442,10 +1167,33 @@
 		</div>
 	{/if}
 
-	<!-- New Match Floating Button -->
-	<button class="floating-button new-match-button" on:click={handleNewMatchClick} aria-label={$t('newMatchButton')} title={$t('newMatchButton')}>
-		▶️
-	</button>
+	<!-- New Match Floating Button - hide in tournament mode -->
+	{#if !inTournamentMode}
+		<button class="floating-button new-match-button" on:click={handleNewMatchClick} aria-label={$t('newMatchButton')} title={$t('newMatchButton')}>
+			▶️
+		</button>
+
+		<!-- Tournament Mode Button -->
+		<button
+			class="floating-button tournament-button"
+			on:click={() => showTournamentModal = true}
+			aria-label={$t('playTournamentMatch') || 'Jugar partido de torneo'}
+			title={$t('playTournamentMatch') || 'Jugar partido de torneo'}
+		>
+			🏆
+		</button>
+	{:else}
+		<!-- Tournament Reset Button - only in tournament mode -->
+		<button
+			class="floating-button reset-tournament-button"
+			on:click={handleTournamentResetClick}
+			aria-label={$t('resetMatch') || 'Reiniciar partido'}
+			title={$t('resetMatch') || 'Reiniciar partido'}
+			disabled={isResettingTournament}
+		>
+			🔄
+		</button>
+	{/if}
 
 	<!-- New Match Confirmation Modal -->
 	{#if showNewMatchConfirm}
@@ -463,6 +1211,42 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- Tournament Exit Confirmation Modal -->
+	{#if showTournamentExitConfirm}
+		<div class="confirm-overlay" on:click={cancelTournamentExit}>
+			<div class="confirm-modal tournament-exit-modal" on:click|stopPropagation>
+				<h3>{$t('exitTournamentMessage') || '¿Qué quieres hacer con este partido?'}</h3>
+				<p class="exit-warning">{$t('abandonMatchDesc') || 'Se perderá el progreso y otro podrá jugarlo'}</p>
+				<div class="confirm-buttons">
+					<Button variant="secondary" on:click={cancelTournamentExit}>
+						{$t('cancel')}
+					</Button>
+					<Button variant="danger" on:click={confirmTournamentExit}>
+						{$t('abandonMatch') || 'Abandonar partido'}
+					</Button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Tournament Reset Confirmation Modal -->
+	{#if showTournamentResetConfirm}
+		<div class="confirm-overlay" on:click={cancelTournamentReset}>
+			<div class="confirm-modal tournament-reset-modal" on:click|stopPropagation>
+				<h3>{$t('confirmResetMatch') || '¿Reiniciar partido?'}</h3>
+				<p class="reset-warning">{$t('resetMatchDesc') || 'Se pondrán todos los puntos, rondas y 20s a 0'}</p>
+				<div class="confirm-buttons">
+					<Button variant="secondary" on:click={cancelTournamentReset} disabled={isResettingTournament}>
+						{$t('cancel')}
+					</Button>
+					<Button variant="danger" on:click={confirmTournamentReset} disabled={isResettingTournament}>
+						{isResettingTournament ? '...' : ($t('resetMatch') || 'Reiniciar')}
+					</Button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
@@ -472,6 +1256,13 @@
 <TwentyInputDialog
 	isOpen={showTwentyDialog}
 	on:close={handleTwentyInputClose}
+/>
+
+<!-- Tournament Match Modal -->
+<TournamentMatchModal
+	isOpen={showTournamentModal}
+	on:close={() => showTournamentModal = false}
+	on:matchStarted={handleTournamentMatchStarted}
 />
 
 
@@ -500,6 +1291,63 @@
 		background: rgba(255, 255, 255, 0.05);
 		border-radius: 12px;
 		margin-bottom: 0.5rem;
+		transition: all 0.3s ease;
+	}
+
+	/* Tournament mode header styling */
+	.game-header.tournament-mode {
+		background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 200, 100, 0.1));
+		border: 2px solid rgba(0, 255, 136, 0.3);
+	}
+
+	/* Tournament header info (left section) */
+	.tournament-header-info {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.tournament-icon {
+		font-size: 1.2rem;
+	}
+
+	.tournament-name-header {
+		font-size: 0.9rem;
+		font-weight: 700;
+		color: #00ff88;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 150px;
+	}
+
+	/* Tournament phase badge (center section) */
+	.tournament-phase-info {
+		display: flex;
+		align-items: center;
+	}
+
+	.phase-badge-header {
+		font-size: 0.8rem;
+		font-weight: 600;
+		padding: 0.25rem 0.75rem;
+		background: rgba(0, 255, 136, 0.2);
+		color: #00ff88;
+		border-radius: 12px;
+		border: 1px solid rgba(0, 255, 136, 0.3);
+	}
+
+	/* Exit tournament button */
+	.exit-tournament-button {
+		background: rgba(255, 68, 68, 0.2) !important;
+		border: 1px solid rgba(255, 68, 68, 0.4) !important;
+		color: #ff6666 !important;
+		font-size: 1.2rem !important;
+		font-weight: bold;
+	}
+
+	.exit-tournament-button:hover {
+		background: rgba(255, 68, 68, 0.3) !important;
 	}
 
 	.left-section {
@@ -1075,6 +1923,42 @@
 		line-height: 1;
 	}
 
+	/* Tournament Button - positioned to the right of new match button */
+	.tournament-button {
+		left: auto;
+		right: 2rem;
+		background: linear-gradient(135deg, #00ff88, #00d4ff);
+		box-shadow: 0 4px 12px rgba(0, 255, 136, 0.4);
+	}
+
+	.tournament-button:hover {
+		box-shadow: 0 6px 16px rgba(0, 255, 136, 0.6);
+	}
+
+	/* Reset Tournament Button - positioned bottom left */
+	.reset-tournament-button {
+		left: 2rem;
+		right: auto;
+		background: linear-gradient(135deg, #ff6b6b, #ff8e53);
+		box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+	}
+
+	.reset-tournament-button:hover {
+		box-shadow: 0 6px 16px rgba(255, 107, 107, 0.6);
+	}
+
+	.reset-tournament-button:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	/* Tournament Reset Modal */
+	.tournament-reset-modal .reset-warning {
+		color: #ff6b6b;
+		font-size: 0.9rem;
+		margin-bottom: 1.5rem;
+	}
+
 	/* Confirmation Modal */
 	.confirm-overlay {
 		position: fixed;
@@ -1120,6 +2004,18 @@
 		gap: 1rem;
 	}
 
+	/* Tournament exit modal */
+	.tournament-exit-modal {
+		border-color: rgba(255, 68, 68, 0.4);
+	}
+
+	.exit-warning {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.9rem;
+		text-align: center;
+		margin: 0 0 1.5rem 0;
+	}
+
 	/* Responsive for floating button */
 	@media (max-width: 768px) {
 		.floating-button {
@@ -1128,6 +2024,11 @@
 			width: 2.8rem;
 			height: 2.8rem;
 			font-size: 1.4rem;
+		}
+
+		.tournament-button {
+			left: auto;
+			right: 1.5rem;
 		}
 
 		.history-button {
@@ -1142,6 +2043,17 @@
 
 		.confirm-modal h3 {
 			font-size: 1rem;
+		}
+
+		/* Tournament header responsive */
+		.tournament-name-header {
+			max-width: 100px;
+			font-size: 0.8rem;
+		}
+
+		.phase-badge-header {
+			font-size: 0.7rem;
+			padding: 0.2rem 0.5rem;
 		}
 	}
 
@@ -1159,6 +2071,11 @@
 			width: 2.5rem;
 			height: 2.5rem;
 			font-size: 1.3rem;
+		}
+
+		.tournament-button {
+			left: auto;
+			right: 1rem;
 		}
 
 		.history-button {

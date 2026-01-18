@@ -89,6 +89,8 @@
   let gamesWonA: number = 0;
   let gamesWonB: number = 0;
   let currentGameComplete: boolean = false;
+  // Flag to prevent reactive block from double-counting gamesWon during initialization
+  let gamesWonInitialized: boolean = false;
 
   // Initialize rounds only once when dialog opens
   $: if (match && visible && !initialized) {
@@ -111,8 +113,31 @@
       if (isBracket && !isRoundsMode) {
         gamesWonA = match.gamesWonA || 0;
         gamesWonB = match.gamesWonB || 0;
-        currentGameNumber = 1;
-        currentGameComplete = match.status === 'COMPLETED' || match.status === 'WALKOVER';
+
+        // Determine current game number from rounds (highest game number found)
+        const maxGameNum = rounds.length > 0
+          ? Math.max(...rounds.map(r => r.gameNumber || 1))
+          : 1;
+        currentGameNumber = maxGameNum;
+
+        // Check if current game is already complete based on points
+        const currentRounds = rounds.filter(r => r.gameNumber === currentGameNumber);
+        const currentPtsA = currentRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0);
+        const currentPtsB = currentRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0);
+        const pointsToWin = gameConfig.pointsToWin || 7;
+        const aWon = currentPtsA >= pointsToWin && (currentPtsA - currentPtsB >= 2);
+        const bWon = currentPtsB >= pointsToWin && (currentPtsB - currentPtsA >= 2);
+
+        // Mark current game as complete if match is finished OR if current game has a winner
+        currentGameComplete = (match.status === 'COMPLETED' || match.status === 'WALKOVER') || aWon || bWon;
+
+        // Mark games won as properly initialized to prevent reactive double-counting
+        gamesWonInitialized = true;
+
+        console.log('📊 Restored bracket points mode state:', {
+          gamesWonA, gamesWonB, currentGameNumber, currentGameComplete,
+          currentPtsA, currentPtsB, pointsToWin
+        });
       }
 
       console.log('✅ Loaded rounds:', rounds);
@@ -152,10 +177,16 @@
   // Reset initialization flag and state when dialog closes
   $: if (!visible) {
     initialized = false;
+    gamesWonInitialized = false;
     currentGameNumber = 1;
     gamesWonA = 0;
     gamesWonB = 0;
     currentGameComplete = false;
+  }
+
+  // Reinicializar cuando match.rounds cambia (actualización de Firebase)
+  $: if (visible && match?.rounds && match.rounds.length > rounds.length) {
+    initialized = false;
   }
 
   // Computed values for current game (points mode brackets only)
@@ -172,13 +203,19 @@
       const gameJustCompleted = aWins || bWins;
 
       // If game just completed and wasn't complete before, update games won
-      if (gameJustCompleted && !currentGameComplete) {
+      // BUT only if we're not in the initial load where gamesWon is already set from match data
+      if (gameJustCompleted && !currentGameComplete && !gamesWonInitialized) {
         // Determine winner and update games won immediately
         if (aWins) {
           gamesWonA++;
         } else if (bWins) {
           gamesWonB++;
         }
+      }
+
+      // After first reactive run, reset the flag so future completions are counted
+      if (gamesWonInitialized && gameJustCompleted) {
+        gamesWonInitialized = false;
       }
 
       currentGameComplete = gameJustCompleted;
@@ -237,6 +274,10 @@
     map.get(round.gameNumber)!.push(round);
     return map;
   }, new Map<number, typeof rounds>());
+
+  $: if (visible && rounds.length > 0) {
+    console.log('📊 Dialog - partidas:', Array.from(gamesByNumber.keys()), 'total rondas:', rounds.length);
+  }
 
   let canSave = false;
 
@@ -550,123 +591,136 @@
 
           {:else}
             <!-- Editable view for pending matches -->
-            <div class="games-scoreboard">
-              <div class="game-header">
-                <span class="game-number">Partida {currentGameNumber} de {gameConfig.matchesToWin}</span>
-                <span class="games-won-display">
-                  {participantA?.name}: <strong>{gamesWonA}</strong> | {participantB?.name}: <strong>{gamesWonB}</strong>
-                </span>
-              </div>
 
-              <div class="current-game-score">
-                <div class="score-item">
-                  <span class="player-label">{participantA?.name}</span>
-                  <span class="points-display">{currentPointsA}</span>
+            <!-- Show completed games first (same format as completed match view) -->
+            {#each Array.from(gamesByNumber.entries()).filter(([num]) => num < currentGameNumber) as [gameNum, gameRounds]}
+              {@const gamePointsA = gameRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0)}
+              {@const gamePointsB = gameRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0)}
+              {@const game20sA = gameRounds.reduce((sum, r) => sum + r.twentiesA, 0)}
+              {@const game20sB = gameRounds.reduce((sum, r) => sum + r.twentiesB, 0)}
+
+              <div class="completed-game">
+                <div class="completed-game-header">
+                  <span class="game-title">✓ Partida {gameNum}</span>
+                  <span class="game-winner">
+                    Ganador: {gamePointsA > gamePointsB ? participantA?.name : participantB?.name} ({gamePointsA}-{gamePointsB})
+                  </span>
                 </div>
-                <div class="score-divider">-</div>
-                <div class="score-item">
-                  <span class="player-label">{participantB?.name}</span>
-                  <span class="points-display">{currentPointsB}</span>
+
+                <div class="rounds-table-container">
+                  <table class="rounds-table readonly">
+                    <thead>
+                      <tr class="header-main">
+                        <th class="player-col" rowspan="2">Jugador</th>
+                        {#each gameRounds as _, i}
+                          <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                        {/each}
+                        <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                      </tr>
+                      {#if tournament.show20s}
+                        <tr class="header-sub">
+                          {#each gameRounds as _}
+                            <th class="sub-col points-col">P</th>
+                            <th class="sub-col twenties-col">🎯</th>
+                          {/each}
+                          <th class="sub-col points-col">P</th>
+                          <th class="sub-col twenties-col">🎯</th>
+                        </tr>
+                      {/if}
+                    </thead>
+                    <tbody>
+                      <tr class="player-row">
+                        <td class="player-name">{participantA?.name}</td>
+                        {#each gameRounds as round}
+                          <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
+                          {#if tournament.show20s}
+                            <td class="round-cell twenties-cell readonly">{round.twentiesA || 0}</td>
+                          {/if}
+                        {/each}
+                        <td class="total-cell points-total readonly">{gamePointsA}</td>
+                        {#if tournament.show20s}
+                          <td class="total-cell twenties-total readonly">{game20sA}</td>
+                        {/if}
+                      </tr>
+                      <tr class="player-row">
+                        <td class="player-name">{participantB?.name}</td>
+                        {#each gameRounds as round}
+                          <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
+                          {#if tournament.show20s}
+                            <td class="round-cell twenties-cell readonly">{round.twentiesB || 0}</td>
+                          {/if}
+                        {/each}
+                        <td class="total-cell points-total readonly">{gamePointsB}</td>
+                        {#if tournament.show20s}
+                          <td class="total-cell twenties-total readonly">{game20sB}</td>
+                        {/if}
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              <div class="target-info">
-                Objetivo: {gameConfig.pointsToWin} puntos (diferencia mínima de 2)
-              </div>
+            {/each}
+
+            <!-- Current game -->
+            <div class="current-game-header">
+              <span class="game-title">▶ Partida {currentGameNumber}</span>
+              <span class="current-score">{currentPointsA} - {currentPointsB}</span>
+              <span class="games-score">({gamesWonA}-{gamesWonB})</span>
             </div>
           {/if}
 
           <!-- Rounds table for current game (only for pending matches) -->
           {#if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') && currentGameRounds.length > 0}
+            {@const current20sA = currentGameRounds.reduce((sum, r) => sum + r.twentiesA, 0)}
+            {@const current20sB = currentGameRounds.reduce((sum, r) => sum + r.twentiesB, 0)}
             <div class="rounds-table-container">
-              <table class="rounds-table compact">
+              <table class="rounds-table readonly">
                 <thead>
-                  <tr>
-                    <th class="round-num-col">Ronda</th>
-                    <th class="player-col-compact">{participantA?.name}</th>
-                    <th class="player-col-compact">{participantB?.name}</th>
+                  <tr class="header-main">
+                    <th class="player-col" rowspan="2">Jugador</th>
+                    {#each currentGameRounds as _, i}
+                      <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                    {/each}
+                    <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
                   </tr>
+                  {#if tournament.show20s}
+                    <tr class="header-sub">
+                      {#each currentGameRounds as _}
+                        <th class="sub-col points-col">P</th>
+                        <th class="sub-col twenties-col">🎯</th>
+                      {/each}
+                      <th class="sub-col points-col">P</th>
+                      <th class="sub-col twenties-col">🎯</th>
+                    </tr>
+                  {/if}
                 </thead>
                 <tbody>
-                  {#each currentGameRounds as round, index}
-                    {@const globalIndex = rounds.indexOf(round)}
-                    <tr>
-                      <td class="round-num">R{round.roundInGame}</td>
-                      <td class="round-cell points-cell">
-                        <div class="points-twenties-row">
-                          <div class="points-selector">
-                            <button
-                              type="button"
-                              class="point-btn"
-                              class:selected={round.pointsA === 2}
-                              on:click={() => handlePointsChange(globalIndex, 'A', 2)}
-                            >2</button>
-                            <button
-                              type="button"
-                              class="point-btn"
-                              class:selected={round.pointsA === 1}
-                              on:click={() => handlePointsChange(globalIndex, 'A', 1)}
-                            >1</button>
-                            <button
-                              type="button"
-                              class="point-btn"
-                              class:selected={round.pointsA === 0}
-                              on:click={() => handlePointsChange(globalIndex, 'A', 0)}
-                            >0</button>
-                          </div>
-                          {#if tournament.show20s}
-                            <div class="twenties-inline">
-                              <span class="twenties-label">🎯</span>
-                              <input
-                                type="number"
-                                min="0"
-                                max={tournament.gameType === 'singles' ? 8 : 12}
-                                value={round.twentiesA}
-                                on:input={(e) => handleTwentiesChange(globalIndex, 'A', parseInt(e.currentTarget.value) || 0)}
-                                class="twenties-input-inline"
-                              />
-                            </div>
-                          {/if}
-                        </div>
-                      </td>
-                      <td class="round-cell points-cell">
-                        <div class="points-twenties-row">
-                          <div class="points-selector">
-                            <button
-                              type="button"
-                              class="point-btn"
-                              class:selected={round.pointsB === 2}
-                              on:click={() => handlePointsChange(globalIndex, 'B', 2)}
-                            >2</button>
-                            <button
-                              type="button"
-                              class="point-btn"
-                              class:selected={round.pointsB === 1}
-                              on:click={() => handlePointsChange(globalIndex, 'B', 1)}
-                            >1</button>
-                            <button
-                              type="button"
-                              class="point-btn"
-                              class:selected={round.pointsB === 0}
-                              on:click={() => handlePointsChange(globalIndex, 'B', 0)}
-                            >0</button>
-                          </div>
-                          {#if tournament.show20s}
-                            <div class="twenties-inline">
-                              <span class="twenties-label">🎯</span>
-                              <input
-                                type="number"
-                                min="0"
-                                max={tournament.gameType === 'singles' ? 8 : 12}
-                                value={round.twentiesB}
-                                on:input={(e) => handleTwentiesChange(globalIndex, 'B', parseInt(e.currentTarget.value) || 0)}
-                                class="twenties-input-inline"
-                              />
-                            </div>
-                          {/if}
-                        </div>
-                      </td>
-                    </tr>
-                  {/each}
+                  <tr class="player-row">
+                    <td class="player-name">{participantA?.name}</td>
+                    {#each currentGameRounds as round}
+                      <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
+                      {#if tournament.show20s}
+                        <td class="round-cell twenties-cell readonly">{round.twentiesA || 0}</td>
+                      {/if}
+                    {/each}
+                    <td class="total-cell points-total readonly">{currentPointsA}</td>
+                    {#if tournament.show20s}
+                      <td class="total-cell twenties-total readonly">{current20sA}</td>
+                    {/if}
+                  </tr>
+                  <tr class="player-row">
+                    <td class="player-name">{participantB?.name}</td>
+                    {#each currentGameRounds as round}
+                      <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
+                      {#if tournament.show20s}
+                        <td class="round-cell twenties-cell readonly">{round.twentiesB || 0}</td>
+                      {/if}
+                    {/each}
+                    <td class="total-cell points-total readonly">{currentPointsB}</td>
+                    {#if tournament.show20s}
+                      <td class="total-cell twenties-total readonly">{current20sB}</td>
+                    {/if}
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -1332,6 +1386,107 @@
     background: rgba(255, 255, 255, 0.5);
     border-radius: 8px;
     border: 1px solid rgba(146, 64, 14, 0.2);
+  }
+
+  /* Completed game summary (in-progress matches) */
+  .completed-game-summary {
+    background: #d1fae5;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .completed-game-summary .game-header.completed {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .completed-game-summary .game-number {
+    font-weight: 600;
+    color: #065f46;
+  }
+
+  .completed-game-summary .game-result {
+    font-weight: 500;
+    color: #047857;
+  }
+
+  .completed-game-summary .winner-badge {
+    font-size: 0.85em;
+    opacity: 0.8;
+  }
+
+  .completed-game-summary .completed-rounds {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    width: 100%;
+  }
+
+  .completed-game-summary .completed-rounds th,
+  .completed-game-summary .completed-rounds td {
+    padding: 0.25rem 0.5rem;
+    text-align: center;
+  }
+
+  .completed-game-summary .completed-rounds th {
+    background: rgba(0, 0, 0, 0.1);
+    font-weight: 600;
+  }
+
+  .completed-game-summary .completed-rounds td {
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .game-header.current .game-number {
+    color: #2563eb;
+  }
+
+  .current-game-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: #dbeafe;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+  }
+
+  .current-game-header .game-title {
+    font-weight: 600;
+    color: #1d4ed8;
+  }
+
+  .current-game-header .current-score {
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+
+  .current-game-header .games-score {
+    color: #6b7280;
+    font-size: 0.9rem;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .current-game-header {
+    background: #1e3a5f;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .current-game-header .game-title {
+    color: #93c5fd;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .completed-game-summary {
+    background: #064e3b;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .completed-game-summary .game-number {
+    color: #6ee7b7;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .completed-game-summary .game-result {
+    color: #a7f3d0;
   }
 
   .completed-game-header {

@@ -6,10 +6,12 @@
 	export let max: number = 100;
 	export let step: number = 1;
 	export let label: string = '';
+	export let disabled: boolean = false;
 
 	const dispatch = createEventDispatcher<{ change: number }>();
 
 	function increment() {
+		if (disabled) return;
 		const newValue = Math.min(value + step, max);
 		if (newValue !== value) {
 			value = newValue;
@@ -18,6 +20,7 @@
 	}
 
 	function decrement() {
+		if (disabled) return;
 		const newValue = Math.max(value - step, min);
 		if (newValue !== value) {
 			value = newValue;
@@ -26,8 +29,8 @@
 	}
 
 	// Reactive statements for button states
-	$: canIncrement = value < max;
-	$: canDecrement = value > min;
+	$: canIncrement = value < max && !disabled;
+	$: canDecrement = value > min && !disabled;
 </script>
 
 <div class="number-control">
