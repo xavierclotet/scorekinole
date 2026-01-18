@@ -43,10 +43,17 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 - **Multi-Language**: Spanish, Catalan, and English
 
 ### 📊 **Match History & Cloud Sync**
-- **Automatic History**: All your matches are saved automatically
+- **Automatic History**: All your matches are saved automatically to local storage
 - **Detailed Statistics**: See round-by-round breakdown of every match
-- **Cloud Sync**: Sign in with Google to sync your matches across devices
+- **Cloud Sync with Google**: Sign in with Google to sync your matches across devices
+  - **Auto-sync on completion**: Matches sync automatically when completed (if signed in)
+  - **Manual sync**: "Sync All" button to upload pending matches
+  - **Smart team detection**: Automatically detects which team you played based on your profile name
+  - **Team selection**: When auto-detection fails, you can manually select which team you played
+  - **Sync status indicators**: Visual badges show synced/pending/error status for each match
 - **Profile Photos**: Your Google photo appears in the game when signed in
+- **Soft Delete & Restore**: Deleted matches go to trash and can be restored
+- **Cross-device Access**: View all your match history from any device when signed in
 
 ### 🎯 **Advanced Features**
 - **20s Tracking**: Quick calculator-style input for center shots
@@ -147,10 +154,11 @@ Complete tournament administration system for professional Crokinole events:
 6. Tap **Save** and start playing!
 
 ### Optional: Sign In with Google
-- Tap **≡ menu** → **Sign In**
-- Your matches will sync to the cloud
-- Access your history from any device
-- Your profile photo will appear in the game
+- Tap **≡ menu** → **Sign In with Google**
+- Your matches will sync automatically to the cloud when completed
+- Access your complete match history from any device
+- Your profile photo will appear in the game interface
+- **Tip**: Set your team name to match your Google profile name for automatic team detection when syncing
 
 ### Tips & Tricks
 - **Swipe Gestures**: Swipe up to add points, swipe down to remove points
