@@ -2,6 +2,7 @@
   import type { Tournament, GroupMatch, BracketMatch } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
+  import { BYE_PARTICIPANT, isBye } from '$lib/algorithms/bracket';
 
   export let tournament: Tournament;
 
@@ -29,7 +30,13 @@
   // Get participant name by ID
   function getParticipantName(participantId: string | undefined): string {
     if (!participantId) return 'TBD';
+    if (isBye(participantId)) return 'BYE';
     return tournament.participants.find(p => p.id === participantId)?.name || 'Unknown';
+  }
+
+  // Check if a match is a BYE match (one participant is BYE)
+  function isByeMatch(match: BracketMatch): boolean {
+    return isBye(match.participantA) || isBye(match.participantB);
   }
 
   // Get position medal/emoji
@@ -213,20 +220,22 @@
                 {#each round.matches as match (match.id)}
                   <button
                     class="bracket-match"
-                    class:clickable={match.participantA && match.participantB}
-                    on:click={() => match.participantA && match.participantB && handleMatchClick(match, true)}
-                    disabled={!match.participantA || !match.participantB}
+                    class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
+                    class:bye-match={isByeMatch(match)}
+                    on:click={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                    disabled={!match.participantA || !match.participantB || isByeMatch(match)}
                   >
                     <div
                       class="match-participant"
                       class:winner={match.winner === match.participantA}
                       class:tbd={!match.participantA}
+                      class:bye={isBye(match.participantA)}
                     >
                       <span class="participant-name">{getParticipantName(match.participantA)}</span>
                       {#if match.seedA}
                         <span class="seed">#{match.seedA}</span>
                       {/if}
-                      {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+                      {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
                         <span class="score">{showGoldGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
                       {/if}
                     </div>
@@ -237,12 +246,13 @@
                       class="match-participant"
                       class:winner={match.winner === match.participantB}
                       class:tbd={!match.participantB}
+                      class:bye={isBye(match.participantB)}
                     >
                       <span class="participant-name">{getParticipantName(match.participantB)}</span>
                       {#if match.seedB}
                         <span class="seed">#{match.seedB}</span>
                       {/if}
-                      {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+                      {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
                         <span class="score">{showGoldGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
                       {/if}
                     </div>
@@ -304,20 +314,22 @@
                   {#each round.matches as match (match.id)}
                     <button
                       class="bracket-match"
-                      class:clickable={match.participantA && match.participantB}
-                      on:click={() => match.participantA && match.participantB && handleMatchClick(match, true)}
-                      disabled={!match.participantA || !match.participantB}
+                      class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
+                      class:bye-match={isByeMatch(match)}
+                      on:click={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                      disabled={!match.participantA || !match.participantB || isByeMatch(match)}
                     >
                       <div
                         class="match-participant"
                         class:winner={match.winner === match.participantA}
                         class:tbd={!match.participantA}
+                        class:bye={isBye(match.participantA)}
                       >
                         <span class="participant-name">{getParticipantName(match.participantA)}</span>
                         {#if match.seedA}
                           <span class="seed">#{match.seedA}</span>
                         {/if}
-                        {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+                        {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
                           <span class="score">{showSilverGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
                         {/if}
                       </div>
@@ -328,12 +340,13 @@
                         class="match-participant"
                         class:winner={match.winner === match.participantB}
                         class:tbd={!match.participantB}
+                        class:bye={isBye(match.participantB)}
                       >
                         <span class="participant-name">{getParticipantName(match.participantB)}</span>
                         {#if match.seedB}
                           <span class="seed">#{match.seedB}</span>
                         {/if}
-                        {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+                        {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
                           <span class="score">{showSilverGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
                         {/if}
                       </div>
@@ -831,6 +844,22 @@
 
   .match-participant.tbd {
     opacity: 0.5;
+  }
+
+  .match-participant.bye {
+    opacity: 0.4;
+    font-style: italic;
+    color: #9ca3af;
+  }
+
+  .bracket-match.bye-match {
+    opacity: 0.6;
+    border-style: dashed;
+    cursor: default;
+  }
+
+  :global([data-theme='dark']) .match-participant.bye {
+    color: #6b7280;
   }
 
   .match-participant .participant-name {

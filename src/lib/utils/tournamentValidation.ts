@@ -140,10 +140,12 @@ export function validateParticipants(
     }
   }
 
-  // Validate for bracket
+  // Info for bracket (byes are now supported, so this is just informational)
   if (tournament.phaseType === 'ONE_PHASE') {
     if (!isPowerOfTwo(participants.length)) {
-      warnings.push(`El número de participantes (${participants.length}) no es potencia de 2. Se recomienda: ${getPowerOfTwoSuggestions(participants.length).join(', ')}`);
+      const nextPow2 = getPowerOfTwoSuggestions(participants.length)[0];
+      const numByes = nextPow2 - participants.length;
+      warnings.push(`El bracket tendrá ${numByes} bye${numByes > 1 ? 's' : ''} (los ${numByes} mejor clasificados pasan directamente a la siguiente ronda)`);
     }
   }
 

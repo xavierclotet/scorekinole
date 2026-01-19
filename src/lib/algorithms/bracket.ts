@@ -1,6 +1,7 @@
 /**
  * Single Elimination Bracket generation
  * Standard seeding pattern for fair brackets
+ * Supports BYEs for non-power-of-2 participant counts
  */
 
 import type {
@@ -12,50 +13,78 @@ import type {
 } from '$lib/types/tournament';
 
 /**
+ * Special constant for BYE participant
+ * When a participant faces a BYE, they automatically advance
+ */
+export const BYE_PARTICIPANT = 'BYE';
+
+/**
+ * Check if a participant ID represents a BYE
+ */
+export function isBye(participantId: string | undefined): boolean {
+  return participantId === BYE_PARTICIPANT;
+}
+
+/**
  * Generate single elimination bracket from qualified participants
+ * Supports any number of participants >= 2 using BYEs
+ *
+ * For non-power-of-2 participant counts:
+ * - Bracket size is rounded up to next power of 2
+ * - Top seeds receive BYEs (skip first round)
+ * - Number of BYEs = nextPowerOf2 - actualParticipants
+ *
+ * Example with 12 participants:
+ * - Bracket size: 16 (next power of 2)
+ * - BYEs: 4 (16 - 12)
+ * - Seeds 1-4 get BYEs, seeds 5-12 play first round
  *
  * @param participants Qualified participants sorted by ranking
- * @returns Complete bracket structure
+ * @returns Complete bracket structure with BYEs if needed
  */
 export function generateBracket(participants: TournamentParticipant[]): Bracket {
   const numParticipants = participants.length;
-
-  // Validate power of 2
-  if (!isPowerOfTwo(numParticipants)) {
-    throw new Error(`Bracket requires power of 2 participants (got ${numParticipants})`);
-  }
 
   if (numParticipants < 2) {
     throw new Error('Bracket requires at least 2 participants');
   }
 
-  const totalRounds = Math.log2(numParticipants);
-  const seeding = getBracketSeeding(numParticipants);
+  // Calculate bracket size (next power of 2)
+  const bracketSize = nextPowerOfTwo(numParticipants);
+  const numByes = bracketSize - numParticipants;
+  const totalRounds = Math.log2(bracketSize);
+  const seeding = getBracketSeeding(bracketSize);
   const rounds: BracketRound[] = [];
 
-  // Generate first round
+  // Generate first round with BYEs
   const firstRoundMatches: BracketMatch[] = [];
-  const matchesInFirstRound = numParticipants / 2;
+  const matchesInFirstRound = bracketSize / 2;
 
   for (let i = 0; i < matchesInFirstRound; i++) {
     const [seedA, seedB] = seeding[i];
-    const participantA = participants[seedA - 1]; // Seeds are 1-indexed
-    const participantB = participants[seedB - 1];
+
+    // Get participant or BYE for each seed
+    const participantA = seedA <= numParticipants ? participants[seedA - 1] : null;
+    const participantB = seedB <= numParticipants ? participants[seedB - 1] : null;
+
+    const isByeMatch = !participantA || !participantB;
 
     firstRoundMatches.push({
       id: `bracket-r1-m${i + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       position: i,
-      participantA: participantA.id,
-      participantB: participantB.id,
+      participantA: participantA?.id || BYE_PARTICIPANT,
+      participantB: participantB?.id || BYE_PARTICIPANT,
       seedA,
       seedB,
-      status: 'PENDING'
+      // BYE matches are pre-completed with the real participant as winner
+      status: isByeMatch ? 'COMPLETED' : 'PENDING',
+      winner: isByeMatch ? (participantA?.id || participantB?.id) : undefined
     });
   }
 
   rounds.push({
     roundNumber: 1,
-    name: getRoundName(1, totalRounds),
+    name: numByes > 0 ? 'Ronda Preliminar' : getRoundName(1, totalRounds),
     matches: firstRoundMatches
   });
 
@@ -67,13 +96,6 @@ export function generateBracket(participants: TournamentParticipant[]): Bracket 
     for (let i = 0; i < matchesInRound; i++) {
       const matchId = `bracket-r${round}-m${i + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      matches.push({
-        id: matchId,
-        position: i,
-        status: 'PENDING'
-        // participantA and participantB will be filled when previous round completes
-      });
-
       // Link previous round matches to this match
       const prevRound = rounds[round - 2];
       const prevMatch1 = prevRound.matches[i * 2];
@@ -81,16 +103,51 @@ export function generateBracket(participants: TournamentParticipant[]): Bracket 
 
       prevMatch1.nextMatchId = matchId;
       prevMatch2.nextMatchId = matchId;
+
+      // Pre-fill participants from BYE matches
+      let participantA: string | undefined;
+      let participantB: string | undefined;
+      let seedAValue: number | undefined;
+      let seedBValue: number | undefined;
+
+      // Check if prevMatch1 was a BYE match (already completed)
+      if (prevMatch1.status === 'COMPLETED' && prevMatch1.winner &&
+          (isBye(prevMatch1.participantA) || isBye(prevMatch1.participantB))) {
+        participantA = prevMatch1.winner;
+        seedAValue = isBye(prevMatch1.participantA) ? prevMatch1.seedB : prevMatch1.seedA;
+      }
+
+      // Check if prevMatch2 was a BYE match (already completed)
+      if (prevMatch2.status === 'COMPLETED' && prevMatch2.winner &&
+          (isBye(prevMatch2.participantA) || isBye(prevMatch2.participantB))) {
+        participantB = prevMatch2.winner;
+        seedBValue = isBye(prevMatch2.participantA) ? prevMatch2.seedB : prevMatch2.seedA;
+      }
+
+      matches.push({
+        id: matchId,
+        position: i,
+        status: 'PENDING',
+        participantA,
+        participantB,
+        seedA: seedAValue,
+        seedB: seedBValue
+      });
     }
+
+    // Adjust round name when we have byes
+    // If we have byes, the "real" rounds start from round 2
+    const effectiveRound = numByes > 0 ? round - 1 : round;
+    const effectiveTotalRounds = numByes > 0 ? totalRounds - 1 : totalRounds;
 
     rounds.push({
       roundNumber: round,
-      name: getRoundName(round, totalRounds),
+      name: numByes > 0 ? getRoundName(effectiveRound, effectiveTotalRounds) : getRoundName(round, totalRounds),
       matches
     });
   }
 
-  // Create 3rd/4th place match if there are semifinals (4+ participants)
+  // Create 3rd/4th place match if there are semifinals (4+ real participants)
   let thirdPlaceMatch: BracketMatch | undefined;
   if (numParticipants >= 4) {
     thirdPlaceMatch = {

@@ -352,12 +352,9 @@
     let goldList = applyCrossSeeding(qualifiedByPosition);
     let silverList = applyCrossSeeding(nonQualifiedByPosition);
 
-    const findValidSize = (list: string[]): number => {
-      return validSizes.filter(s => s <= list.length).pop() || 0;
-    };
-
-    goldParticipants = goldList.slice(0, findValidSize(goldList));
-    silverParticipants = silverList.slice(0, findValidSize(silverList));
+    // Use all participants - brackets now support BYEs for non-power-of-2 counts
+    goldParticipants = goldList;
+    silverParticipants = silverList;
   }
 
   // Get all participants from all groups with their info
@@ -551,17 +548,9 @@
     let goldList = applyCrossSeeding(qualifiedByPosition);
     let silverList = applyCrossSeeding(nonQualifiedByPosition);
 
-    // Adjust to valid bracket sizes (power of 2)
-    const findValidSize = (list: string[]): number => {
-      return validSizes.filter(s => s <= list.length).pop() || 0;
-    };
-
-    const goldValidSize = findValidSize(goldList);
-    const silverValidSize = findValidSize(silverList);
-
-    // Trim to valid sizes
-    goldParticipants = goldList.slice(0, goldValidSize);
-    silverParticipants = silverList.slice(0, silverValidSize);
+    // Use all participants - brackets now support BYEs for non-power-of-2 counts
+    goldParticipants = goldList;
+    silverParticipants = silverList;
     // Reset manual edit flag since we're using the automatic distribution
     userManuallyEdited = false;
   }

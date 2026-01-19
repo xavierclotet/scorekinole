@@ -19,6 +19,7 @@
   import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
+  import { isBye } from '$lib/algorithms/bracket';
 
   let tournament: Tournament | null = null;
   let loading = true;
@@ -141,8 +142,14 @@
 
   function getParticipantName(participantId: string | undefined): string {
     if (!participantId) return 'TBD';
+    if (isBye(participantId)) return 'BYE';
     if (!tournament) return 'Unknown';
     return tournament.participants.find(p => p.id === participantId)?.name || 'Unknown';
+  }
+
+  // Check if a match is a BYE match (one participant is BYE)
+  function isByeMatch(match: BracketMatch): boolean {
+    return isBye(match.participantA) || isBye(match.participantB);
   }
 
   function getStatusDisplay(status: string): { text: string; color: string } {
@@ -576,11 +583,11 @@
         {/if}
 
         <div class="bracket-container" class:silver-bracket={activeTab === 'silver'}>
-          {#each rounds as round (round.roundNumber)}
-            <div class="bracket-round">
+          {#each rounds as round, roundIndex (round.roundNumber)}
+            <div class="bracket-round" class:has-next-round={roundIndex < rounds.length - 1}>
               <h2 class="round-name">{round.name}</h2>
               <div class="matches-column">
-                {#each round.matches as match (match.id)}
+                {#each round.matches as match, matchIndex (match.id)}
                   {@const gamesCompleted = (match.gamesWonA || 0) + (match.gamesWonB || 0)}
                   {@const expectedCurrentGame = gamesCompleted + 1}
                   {@const maxRoundGameNumber = match.rounds?.length ? Math.max(...match.rounds.map(r => r.gameNumber || 1)) : 1}
@@ -592,11 +599,12 @@
                   {@const gamesLeaderB = match.status === 'IN_PROGRESS' && (match.gamesWonB || 0) > (match.gamesWonA || 0)}
                   <div
                     class="bracket-match"
-                    class:clickable={match.participantA && match.participantB}
-                    on:click={() => handleMatchClick(match, activeTab, round.roundNumber, false)}
-                    on:keydown={(e) => e.key === 'Enter' && handleMatchClick(match, activeTab, round.roundNumber, false)}
+                    class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
+                    class:bye-match={isByeMatch(match)}
+                    on:click={() => !isByeMatch(match) && handleMatchClick(match, activeTab, round.roundNumber, false)}
+                    on:keydown={(e) => e.key === 'Enter' && !isByeMatch(match) && handleMatchClick(match, activeTab, round.roundNumber, false)}
                     role="button"
-                    tabindex="0"
+                    tabindex={isByeMatch(match) ? -1 : 0}
                   >
                     <!-- Round count badge (top-left) - shows current round of CURRENT GAME (played + 1) -->
                     {#if match.status === 'IN_PROGRESS' && (currentGameRounds.length > 0 || match.rounds?.length)}
@@ -607,6 +615,7 @@
                       class="match-participant"
                       class:winner={match.winner === match.participantA}
                       class:tbd={!match.participantA}
+                      class:bye={isBye(match.participantA)}
                       class:games-leader={gamesLeaderA}
                     >
                       <span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -630,6 +639,7 @@
                       class="match-participant"
                       class:winner={match.winner === match.participantB}
                       class:tbd={!match.participantB}
+                      class:bye={isBye(match.participantB)}
                       class:games-leader={gamesLeaderB}
                     >
                       <span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -672,8 +682,15 @@
                       {@const currentGame20sB = currentGameRounds.reduce((sum, r) => sum + (r.twentiesB || 0), 0)}
                       <div class="twenties-badge">🎯 {currentGame20sA}-{currentGame20sB}</div>
                     {/if}
+
                   </div>
                 {/each}
+                <!-- Horizontal connectors between pairs - positioned at the vertical line junctions -->
+                {#if roundIndex < rounds.length - 1}
+                  {#each Array(Math.floor(round.matches.length / 2)) as _, pairIndex}
+                    <div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.length / 2)}; --total-matches: {round.matches.length}"></div>
+                  {/each}
+                {/if}
               </div>
             </div>
           {/each}
@@ -1094,6 +1111,7 @@
   }
 
   /* Connector lines between rounds */
+  /* Each match has a horizontal line going right (::after) */
   .bracket-match::after {
     content: '';
     position: absolute;
@@ -1153,32 +1171,28 @@
     display: none;
   }
 
-  /* For single match rounds (like finals), hide the before pseudo-element */
+  /* For single match rounds (like finals), hide the vertical line */
   .matches-column:has(> :only-child) .bracket-match::before {
     display: none;
   }
 
-  /* Add horizontal line from vertical connector midpoint to next match */
-  /* Apply to the second-to-last round (where pairs connect to next round) */
-  .bracket-round:not(:last-child):not(:only-child) .matches-column::after {
-    content: '';
+  /* Horizontal connector from the vertical line junction to next round */
+  /* Each connector is positioned at the midpoint between a pair of matches */
+  .pair-connector {
     position: absolute;
-    left: calc(100% + 3rem);
-    top: 50%;
     width: 3rem;
     height: 2px;
     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-    transform: translateY(-50%);
+    right: -6rem;
     z-index: 1;
+    /* Calculate vertical position: each pair spans 2 matches + 1 gap (2rem) */
+    /* For pair N: top = (2N + 1) / totalMatches * 100% approximately */
+    /* Using CSS calc with custom properties */
+    top: calc((var(--pair-index) * 2 + 1) / var(--total-matches) * 100%);
   }
 
-  .bracket-page[data-theme='dark'] .bracket-round:not(:last-child):not(:only-child) .matches-column::after {
+  .bracket-page[data-theme='dark'] .pair-connector {
     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  }
-
-  /* Hide connector from single-match columns (like when there's only 1 match in the round) */
-  .matches-column:has(> :only-child)::after {
-    display: none;
   }
 
   .bracket-page[data-theme='dark'] .bracket-match {
@@ -1194,6 +1208,33 @@
     border-color: #667eea;
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
     transform: translateY(-2px);
+  }
+
+  /* BYE match styling - dimmed appearance since no real match played */
+  .bracket-match.bye-match {
+    opacity: 0.6;
+    border-style: dashed;
+    cursor: default;
+  }
+
+  .bracket-page[data-theme='dark'] .bracket-match.bye-match {
+    opacity: 0.5;
+  }
+
+  /* BYE matches still need connector lines to show where winner goes */
+  /* Keep horizontal line but hide vertical connectors for bye matches */
+  .bracket-match.bye-match::before {
+    display: none;
+  }
+
+  .match-participant.bye {
+    opacity: 0.4;
+    font-style: italic;
+    color: #9ca3af;
+  }
+
+  .bracket-page[data-theme='dark'] .match-participant.bye {
+    color: #6b7280;
   }
 
   .match-participant {

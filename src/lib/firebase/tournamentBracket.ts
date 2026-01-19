@@ -43,15 +43,7 @@ export async function generateSplitBrackets(
   try {
     const { goldParticipantIds, silverParticipantIds, goldConfig, silverConfig } = options;
 
-    // Validate both have valid sizes (power of 2)
-    if ((goldParticipantIds.length & (goldParticipantIds.length - 1)) !== 0) {
-      console.error(`Gold bracket must have power of 2 participants (got ${goldParticipantIds.length})`);
-      return false;
-    }
-    if ((silverParticipantIds.length & (silverParticipantIds.length - 1)) !== 0) {
-      console.error(`Silver bracket must have power of 2 participants (got ${silverParticipantIds.length})`);
-      return false;
-    }
+    // Note: Power of 2 validation removed - brackets now support BYEs for any participant count >= 2
 
     // Get participant objects for gold bracket
     const goldParticipants = goldParticipantIds
@@ -182,11 +174,7 @@ export async function generateBracket(
         return false;
       }
 
-      // Validate power of 2
-      if ((qualifiedParticipantIds.length & (qualifiedParticipantIds.length - 1)) !== 0) {
-        console.error(`Number of qualified participants must be power of 2 (got ${qualifiedParticipantIds.length})`);
-        return false;
-      }
+      // Note: Power of 2 validation removed - brackets now support BYEs for any participant count >= 2
     } else {
       // ONE_PHASE: all participants go to bracket
       qualifiedParticipantIds = tournament.participants.map(p => p.id);

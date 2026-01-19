@@ -250,14 +250,13 @@ export function calculateSuggestedQualifiers(
 
 /**
  * Validate that number of qualifiers is valid for bracket
- * Must be power of 2 (2, 4, 8, 16, 32)
+ * Now supports any number >= 2 (uses BYEs for non-power-of-2 counts)
  *
  * @param numQualifiers Total number of qualifiers
- * @returns true if valid
+ * @returns true if valid (any number >= 2)
  */
 export function isValidBracketSize(numQualifiers: number): boolean {
-  if (numQualifiers < 2) return false;
-  return (numQualifiers & (numQualifiers - 1)) === 0; // Check if power of 2
+  return numQualifiers >= 2;
 }
 
 /**
