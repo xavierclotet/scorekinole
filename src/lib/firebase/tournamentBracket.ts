@@ -3,7 +3,7 @@
  * Single elimination bracket operations
  */
 
-import { getTournament, updateTournament } from './tournaments';
+import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
 import { generateBracket as generateBracketAlgorithm, advanceWinner as advanceWinnerAlgorithm } from '$lib/algorithms/bracket';
 import { calculateFinalPositions, applyRankingUpdates } from './tournamentRanking';
 import type { BracketMatch } from '$lib/types/tournament';
@@ -312,8 +312,8 @@ export async function updateBracketMatch(
       return false;
     }
 
-    // Update tournament
-    await updateTournament(tournamentId, {
+    // Update tournament (public - allows non-authenticated users with tournament key)
+    await updateTournamentPublic(tournamentId, {
       finalStage: {
         ...tournament.finalStage,
         bracket
@@ -410,7 +410,7 @@ export async function advanceWinner(
     // Check if tournament was already completed (to avoid double ranking application)
     const wasAlreadyCompleted = tournament.status === 'COMPLETED';
 
-    const success = await updateTournament(tournamentId, updateData);
+    const success = await updateTournamentPublic(tournamentId, updateData);
 
     // If tournament JUST completed (not already completed before), calculate positions and apply ranking updates
     if (success && isTournamentComplete && !wasAlreadyCompleted) {
@@ -489,8 +489,8 @@ export async function updateSilverBracketMatch(
       return false;
     }
 
-    // Update tournament
-    await updateTournament(tournamentId, {
+    // Update tournament (public - allows non-authenticated users with tournament key)
+    await updateTournamentPublic(tournamentId, {
       finalStage: {
         ...tournament.finalStage,
         silverBracket
@@ -567,7 +567,7 @@ export async function advanceSilverWinner(
     // Check if tournament was already completed (to avoid double ranking application)
     const wasAlreadyCompleted = tournament.status === 'COMPLETED';
 
-    const success = await updateTournament(tournamentId, updateData);
+    const success = await updateTournamentPublic(tournamentId, updateData);
 
     // If tournament JUST completed, calculate positions and apply ranking updates
     if (success && isTournamentComplete && !wasAlreadyCompleted) {
@@ -746,7 +746,7 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
   }
 
   // Mark final stage as complete and update tournament status
-  const success = await updateTournament(tournamentId, {
+  const success = await updateTournamentPublic(tournamentId, {
     status: 'COMPLETED',
     completedAt: Date.now(),
     finalStage: {

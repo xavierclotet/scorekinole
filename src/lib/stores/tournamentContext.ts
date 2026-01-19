@@ -60,12 +60,10 @@ export interface TournamentMatchContext {
   currentUserId?: string;
   currentUserParticipantId?: string;  // Which participant the current user is (A or B id)
   currentUserSide?: 'A' | 'B';        // Which side the current user plays
+  currentUserRanking?: number;        // User's ranking points (only for logged-in users)
 
   // Game configuration (locked by tournament)
   gameConfig: TournamentGameConfig;
-
-  // Sync configuration
-  syncMode: 'on_complete' | 'real_time';
 
   // Match state (for resuming)
   matchStartedAt?: number;

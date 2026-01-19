@@ -5,7 +5,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { t } from '$lib/stores/language';
 	import { switchSides, switchColors } from '$lib/stores/teams';
-	import { gameTournamentContext } from '$lib/stores/tournamentContext';
+	import { gameTournamentContext, updateTournamentContext } from '$lib/stores/tournamentContext';
 	import type { Language } from '$lib/i18n/translations';
 	import type { GameSettings } from '$lib/types/settings';
 
@@ -44,6 +44,11 @@
 
 	function handleSwitchSides() {
 		switchSides();
+		// En modo torneo, también actualizar el lado del usuario en el contexto
+		if ($gameTournamentContext) {
+			const newSide = $gameTournamentContext.currentUserSide === 'A' ? 'B' : 'A';
+			updateTournamentContext({ currentUserSide: newSide });
+		}
 	}
 
 	function handleSwitchColors() {

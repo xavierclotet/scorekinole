@@ -3,7 +3,7 @@
  * Round Robin and Swiss pairing operations
  */
 
-import { getTournament, updateTournament } from './tournaments';
+import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
 import { generateRoundRobinSchedule as generateRRScheduleAlgorithm, splitIntoGroups } from '$lib/algorithms/roundRobin';
 import { generateSwissPairings as generateSwissPairingsAlgorithm, assignTablesWithVariety } from '$lib/algorithms/swiss';
 import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from '$lib/algorithms/tiebreaker';
@@ -379,8 +379,8 @@ export async function recalculateStandings(
       group.standings = sortedStandings;
     }
 
-    // Update tournament
-    return await updateTournament(tournamentId, {
+    // Update tournament (public - allows non-authenticated users with tournament key)
+    return await updateTournamentPublic(tournamentId, {
       groupStage: tournament.groupStage
     });
   } catch (error) {
@@ -486,8 +486,8 @@ export async function completeGroupStage(tournamentId: string): Promise<boolean>
     }
   }
 
-  // Mark group stage as complete
-  return await updateTournament(tournamentId, {
+  // Mark group stage as complete (public - allows non-authenticated users)
+  return await updateTournamentPublic(tournamentId, {
     groupStage: {
       ...tournament.groupStage,
       isComplete: true

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
@@ -8,9 +8,10 @@
   import GroupsView from '$lib/components/tournament/GroupsView.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
-  import { getTournament } from '$lib/firebase/tournaments';
+  import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
-  import { updateMatchResult, markNoShow } from '$lib/firebase/tournamentMatches';
+  import { completeMatch, markNoShow } from '$lib/firebase/tournamentSync';
+  import { updateMatchResult } from '$lib/firebase/tournamentMatches'; // For autoFill (SuperAdmin only)
   import { generateSwissPairings } from '$lib/firebase/tournamentGroups';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
@@ -27,12 +28,63 @@
   let activeGroupId: string | null = null;
   let isSuperAdminUser = false;
   let isAutoFilling = false;
+  let unsubscribe: (() => void) | null = null;
 
   $: tournamentId = $page.params.id;
 
   onMount(async () => {
     await loadTournament();
     isSuperAdminUser = await isSuperAdmin();
+
+    // Subscribe to real-time updates from Firebase
+    if (tournamentId) {
+      unsubscribe = subscribeTournament(tournamentId, (updated) => {
+        if (updated) {
+          tournament = updated;
+
+          // Update selectedMatch if dialog is open to reflect real-time changes
+          if (selectedMatch && showMatchDialog && tournament?.groupStage?.groups) {
+            const selectedMatchId = selectedMatch.id;
+            let foundMatch: GroupMatch | null = null;
+
+            // Search in all groups
+            for (const group of tournament.groupStage.groups) {
+              // Check schedule (Round Robin)
+              if (group.schedule) {
+                for (const round of group.schedule) {
+                  const found = round.matches.find(m => m.id === selectedMatchId);
+                  if (found) {
+                    foundMatch = found;
+                    break;
+                  }
+                }
+              }
+              // Check pairings (Swiss)
+              if (!foundMatch && group.pairings) {
+                for (const pairing of group.pairings) {
+                  const found = pairing.matches.find(m => m.id === selectedMatchId);
+                  if (found) {
+                    foundMatch = found;
+                    break;
+                  }
+                }
+              }
+              if (foundMatch) break;
+            }
+
+            if (foundMatch) {
+              selectedMatch = foundMatch;
+            }
+          }
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsubscribe) {
+      unsubscribe();
+    }
   });
 
   async function loadTournament() {
@@ -101,14 +153,46 @@
     if (!selectedMatch || !tournamentId) return;
 
     const result = event.detail;
-    const success = await updateMatchResult(tournamentId, selectedMatch.id, result);
+
+    // Determine winner based on game mode
+    const gameMode = tournament?.groupStage?.gameMode || 'rounds';
+    let winner: string;
+
+    if (gameMode === 'rounds') {
+      // In rounds mode, compare total points
+      winner = (result.totalPointsA || 0) > (result.totalPointsB || 0)
+        ? selectedMatch.participantA
+        : selectedMatch.participantB;
+    } else {
+      // In points mode, compare games won
+      winner = result.gamesWonA > result.gamesWonB
+        ? selectedMatch.participantA
+        : selectedMatch.participantB;
+    }
+
+    const success = await completeMatch(
+      tournamentId,
+      selectedMatch.id,
+      'GROUP',
+      activeGroupId || undefined,
+      {
+        rounds: result.rounds || [],
+        winner,
+        gamesWonA: result.gamesWonA,
+        gamesWonB: result.gamesWonB,
+        totalPointsA: result.totalPointsA || 0,
+        totalPointsB: result.totalPointsB || 0,
+        total20sA: result.total20sA || 0,
+        total20sB: result.total20sB || 0
+      }
+    );
 
     if (success) {
       toastMessage = '✅ Resultado guardado correctamente';
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
-      await loadTournament(); // Reload to show updated standings
+      // No need to reload - real-time subscription will update
     } else {
       toastMessage = '❌ Error al guardar el resultado';
       showToast = true;
@@ -119,14 +203,20 @@
     if (!selectedMatch || !tournamentId) return;
 
     const noShowParticipantId = event.detail;
-    const success = await markNoShow(tournamentId, selectedMatch.id, noShowParticipantId);
+    const success = await markNoShow(
+      tournamentId,
+      selectedMatch.id,
+      'GROUP',
+      activeGroupId || undefined,
+      noShowParticipantId
+    );
 
     if (success) {
       toastMessage = '✅ No-show registrado correctamente';
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
-      await loadTournament(); // Reload to show updated standings
+      // No need to reload - real-time subscription will update
     } else {
       toastMessage = '❌ Error al registrar no-show';
       showToast = true;
@@ -584,6 +674,7 @@
       participants={tournament.participants}
       tournament={tournament}
       visible={showMatchDialog}
+      isAdmin={true}
       on:close={handleCloseDialog}
       on:save={handleSaveResult}
       on:noshow={handleNoShow}

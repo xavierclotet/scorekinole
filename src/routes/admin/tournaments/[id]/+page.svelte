@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import CompletedTournamentView from '$lib/components/tournament/CompletedTournamentView.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
@@ -263,9 +264,7 @@
             <div class="tournament-meta">
             
 
-               <span class="meta-item">
-                🔑 {tournament.key}
-              </span>
+               <TournamentKeyBadge tournamentKey={tournament.key} />
             </div>
           </div>
           <div class="header-right">
@@ -942,20 +941,6 @@
     margin-top: 1rem;
   }
 
-  .meta-item {
-    font-size: 0.9rem;
-    color: #666;
-    padding: 0.4rem 0.8rem;
-    background: #f3f4f6;
-    border-radius: 6px;
-    transition: all 0.3s;
-  }
-
-  .tournament-page[data-theme='dark'] .meta-item {
-    background: #0f1419;
-    color: #8b9bb3;
-  }
-
   .status-badge {
     padding: 0.6rem 1.2rem;
     border-radius: 8px;
@@ -1252,11 +1237,6 @@
     .tournament-meta {
       gap: 0.5rem;
       margin-top: 0.5rem;
-    }
-
-    .meta-item {
-      font-size: 0.75rem;
-      padding: 0.3rem 0.6rem;
     }
 
     .status-badge {

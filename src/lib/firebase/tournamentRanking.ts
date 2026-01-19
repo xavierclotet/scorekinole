@@ -3,7 +3,7 @@
  */
 
 import { isFirebaseEnabled } from './config';
-import { getTournament, updateTournament } from './tournaments';
+import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
 import { calculateRankingPoints } from '$lib/algorithms/ranking';
 import { browser } from '$app/environment';
 import { getOrCreateUserByName, getUserProfileById, removeTournamentRecord } from './userProfile';
@@ -265,7 +265,7 @@ export async function calculateFinalPositions(tournamentId: string): Promise<boo
       });
     }
 
-    return await updateTournament(tournamentId, {
+    return await updateTournamentPublic(tournamentId, {
       participants: updatedParticipants
     });
   } catch (error) {
@@ -347,7 +347,7 @@ export async function applyRankingUpdates(tournamentId: string): Promise<boolean
       return p;
     });
 
-    await updateTournament(tournamentId, {
+    await updateTournamentPublic(tournamentId, {
       participants: updatedParticipants
     });
 

@@ -345,10 +345,13 @@
 			if (inTournamentMode) {
 				console.log('🏆 Dispatching tournamentMatchComplete event');
 				dispatch('tournamentMatchComplete');
+				// En modo torneo, NO guardar en historial local (ya se sincroniza a Firebase)
+				// IMPORTANTE: NO llamar a resetMatchState() aquí - el handler en +page.svelte
+				// necesita capturar todos los datos primero y luego hará el reset
+			} else {
+				// Solo guardar en historial local si NO es partido de torneo
+				saveMatchToHistory();
 			}
-
-			// Match is complete, save to history
-			saveMatchToHistory();
 		} else {
 			console.log('❌ Match is NOT complete');
 		}
@@ -455,16 +458,23 @@
 		</button>
 		<div class="name-hammer-group">
 			<div class="name-row">
-				<input
-					type="text"
-					class="team-name"
-					class:locked={inTournamentMode}
-					value={team.name}
-					on:input={handleNameChange}
-					placeholder={$t('teamName')}
-					aria-label="Team name"
-					readonly={inTournamentMode}
-				/>
+				{#if inTournamentMode}
+					<div class="tournament-player-display">
+						<span class="player-name-badge">{team.name}</span>
+						{#if teamNumber === 1 && $gameTournamentContext?.currentUserRanking !== undefined}
+							<span class="ranking-badge">#{$gameTournamentContext.currentUserRanking}</span>
+						{/if}
+					</div>
+				{:else}
+					<input
+						type="text"
+						class="team-name"
+						value={team.name}
+						on:input={handleNameChange}
+						placeholder={$t('teamName')}
+						aria-label="Team name"
+					/>
+				{/if}
 				{#if team.hasHammer}
 					<div class="hammer-indicator" title={$t('hammer')}>🔨</div>
 				{/if}
@@ -609,6 +619,33 @@
 		opacity: 0.9;
 	}
 
+	/* Tournament player display */
+	.tournament-player-display {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.player-name-badge {
+		font-size: 2.4rem;
+		font-weight: 700;
+		color: var(--text-color);
+		text-align: center;
+		max-width: 350px;
+		line-height: 1.1;
+	}
+
+	.ranking-badge {
+		font-size: 0.85rem;
+		font-weight: 700;
+		padding: 0.15rem 0.5rem;
+		background: rgba(255, 215, 0, 0.25);
+		border: 1px solid rgba(255, 215, 0, 0.5);
+		border-radius: 0.5rem;
+		color: var(--text-color);
+	}
+
 	.team-name.locked:focus {
 		transform: none;
 		border-bottom-width: 2px;
@@ -682,7 +719,8 @@
 
 	/* Responsive adjustments */
 	@media (max-width: 768px) {
-		.team-name {
+		.team-name,
+		.player-name-badge {
 			font-size: 2.16rem;
 		}
 
@@ -694,6 +732,10 @@
 			font-size: 0.8rem;
 			padding: 0.35rem 0.85rem;
 		}
+
+		.ranking-badge {
+			font-size: 0.8rem;
+		}
 	}
 
 	@media (max-width: 480px) {
@@ -702,7 +744,8 @@
 			padding: 1rem;
 		}
 
-		.team-name {
+		.team-name,
+		.player-name-badge {
 			font-size: 1.8rem;
 		}
 
@@ -718,6 +761,11 @@
 		.hammer-indicator {
 			font-size: 1.2rem;
 		}
+
+		.ranking-badge {
+			font-size: 0.75rem;
+			padding: 0.1rem 0.4rem;
+		}
 	}
 
 	/* Portrait mobile - score grande aprovechando altura */
@@ -726,7 +774,8 @@
 			font-size: 9.6rem;
 		}
 
-		.team-name {
+		.team-name,
+		.player-name-badge {
 			font-size: 2.4rem;
 		}
 	}
@@ -736,7 +785,8 @@
 			font-size: 8rem;
 		}
 
-		.team-name {
+		.team-name,
+		.player-name-badge {
 			font-size: 2rem;
 		}
 	}
@@ -748,7 +798,8 @@
 			padding: 0.75rem;
 		}
 
-		.team-name {
+		.team-name,
+		.player-name-badge {
 			font-size: 1.6rem;
 		}
 
@@ -764,6 +815,10 @@
 
 		.hammer-indicator {
 			font-size: 1.4rem;
+		}
+
+		.ranking-badge {
+			font-size: 0.7rem;
 		}
 	}
 </style>

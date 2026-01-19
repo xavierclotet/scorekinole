@@ -15,6 +15,7 @@
   export let bracketTotalRounds: number = 1;
   export let bracketIsThirdPlace: boolean = false;
   export let bracketIsSilver: boolean = false;
+  export let isAdmin: boolean = false;  // Allow editing completed matches when true
 
   const dispatch = createEventDispatcher<{
     close: void;
@@ -60,6 +61,10 @@
       };
 
   $: isRoundsMode = gameConfig.gameMode === 'rounds';
+
+  // Can edit: pending matches OR admin editing completed matches
+  $: isMatchCompleted = match.status === 'COMPLETED' || match.status === 'WALKOVER';
+  $: canEdit = !isMatchCompleted || isAdmin;
 
   // Debug gameConfig
   $: if (visible && match) {
@@ -108,6 +113,22 @@
         twentiesA: r.twentiesA || 0,
         twentiesB: r.twentiesB || 0
       }));
+
+      // For rounds mode: ensure we have all required rounds (pad with empty if needed)
+      if (isRoundsMode && rounds.length < numRounds) {
+        const missingRounds = numRounds - rounds.length;
+        for (let i = 0; i < missingRounds; i++) {
+          rounds.push({
+            gameNumber: 1,
+            roundInGame: rounds.length + 1,
+            pointsA: null,
+            pointsB: null,
+            twentiesA: 0,
+            twentiesB: 0
+          });
+        }
+        console.log('📊 Padded rounds to match numRounds:', numRounds);
+      }
 
       // For bracket points mode, restore game tracking state
       if (isBracket && !isRoundsMode) {
@@ -453,6 +474,9 @@
     <div class="dialog" on:click|stopPropagation role="dialog" aria-modal="true">
       <div class="dialog-header">
         <h2>📝 {$t('matchResult')}</h2>
+        {#if isAdmin && isMatchCompleted}
+          <span class="admin-edit-badge">✏️ Editando</span>
+        {/if}
         <button class="close-btn" on:click={handleClose}>✕</button>
       </div>
 
@@ -482,8 +506,8 @@
           </div>
         {:else if isBracket && !isRoundsMode}
           <!-- Points Mode: Dynamic Rounds with Games -->
-          {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-            <!-- Read-only view for completed matches -->
+          {#if isMatchCompleted && !isAdmin}
+            <!-- Read-only view for completed matches (non-admin) -->
             {@const displayTotalA = rounds.length > 0 ? totalPointsA : (match.totalPointsA || 0)}
             {@const displayTotalB = rounds.length > 0 ? totalPointsB : (match.totalPointsB || 0)}
             {@const display20sA = rounds.length > 0 ? total20sA : (match.total20sA || 0)}
@@ -669,8 +693,8 @@
             </div>
           {/if}
 
-          <!-- Rounds table for current game (only for pending matches) -->
-          {#if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') && currentGameRounds.length > 0}
+          <!-- Rounds table for current game (for pending matches or admin editing) -->
+          {#if canEdit && currentGameRounds.length > 0}
             {@const current20sA = currentGameRounds.reduce((sum, r) => sum + r.twentiesA, 0)}
             {@const current20sB = currentGameRounds.reduce((sum, r) => sum + r.twentiesB, 0)}
             <div class="rounds-table-container">
@@ -726,8 +750,8 @@
             </div>
           {/if}
 
-          <!-- Add Round or Next Game buttons (only for pending matches) -->
-          {#if match.status !== 'COMPLETED' && match.status !== 'WALKOVER'}
+          <!-- Add Round or Next Game buttons (for pending matches or admin editing) -->
+          {#if canEdit}
             <div class="game-actions">
               {#if !currentGameComplete}
                 <button class="add-round-btn" on:click={addRound} type="button">
@@ -771,8 +795,8 @@
 
         {:else}
           <!-- Rounds Mode OR Group Stage -->
-          {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-            <!-- Read-only view for completed matches -->
+          {#if isMatchCompleted && !isAdmin}
+            <!-- Read-only view for completed matches (non-admin) -->
             {@const displayTotalA = rounds.length > 0 ? totalPointsA : (match.totalPointsA || 0)}
             {@const displayTotalB = rounds.length > 0 ? totalPointsB : (match.totalPointsB || 0)}
             {@const display20sA = rounds.length > 0 ? total20sA : (match.total20sA || 0)}
@@ -1033,16 +1057,22 @@
         {/if}
       </div>
 
-      {#if match.status !== 'COMPLETED' && match.status !== 'WALKOVER'}
+      {#if canEdit}
         <div class="dialog-footer">
           <button class="cancel-btn" on:click={handleClose}>
             {$t('cancel')}
           </button>
           {#if !isBye}
             <button class="save-btn" on:click={handleSave} disabled={!canSave}>
-              {$t('save')}
+              {isAdmin && isMatchCompleted ? ($t('updateResult') || 'Actualizar Resultado') : $t('save')}
             </button>
           {/if}
+        </div>
+      {:else}
+        <div class="dialog-footer">
+          <button class="cancel-btn" on:click={handleClose}>
+            {$t('close') || 'Cerrar'}
+          </button>
         </div>
       {/if}
     </div>
@@ -1084,6 +1114,17 @@
     margin: 0;
     font-size: 1.4rem;
     color: #1a1a1a;
+  }
+
+  .admin-edit-badge {
+    background: #f59e0b;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: auto;
+    margin-right: 1rem;
   }
 
   .close-btn {

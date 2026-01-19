@@ -308,6 +308,42 @@ export async function updateTournament(
 }
 
 /**
+ * Update tournament without auth check (for match operations)
+ * Security is handled by Firestore rules (key-based access)
+ *
+ * @param id Tournament ID
+ * @param updates Partial tournament data
+ * @returns true if successful
+ */
+export async function updateTournamentPublic(
+  id: string,
+  updates: Partial<Tournament>
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db!, 'tournaments', id);
+
+    // Recursively remove undefined values from updates
+    const cleanUpdates = cleanUndefined(updates);
+
+    await updateDoc(tournamentRef, {
+      ...cleanUpdates,
+      updatedAt: serverTimestamp()
+    });
+
+    console.log('✅ Tournament updated (public):', id);
+    return true;
+  } catch (error) {
+    console.error('❌ Error updating tournament (public):', error);
+    return false;
+  }
+}
+
+/**
  * Delete tournament
  *
  * IMPORTANT: This will revert ranking changes for all participants

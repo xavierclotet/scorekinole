@@ -4,16 +4,18 @@
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
+  import { completeMatch, markNoShow } from '$lib/firebase/tournamentSync';
   import {
     updateBracketMatch,
     advanceWinner,
     updateSilverBracketMatch,
     advanceSilverWinner
-  } from '$lib/firebase/tournamentBracket';
+  } from '$lib/firebase/tournamentBracket'; // For autoFill (SuperAdmin only)
   import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
@@ -174,42 +176,40 @@
 
     try {
       // Determine winner based on games won
-      let winner: string | undefined;
+      let winner: string;
       if (result.gamesWonA > result.gamesWonB) {
-        winner = selectedMatch.participantA;
-      } else if (result.gamesWonB > result.gamesWonA) {
-        winner = selectedMatch.participantB;
+        winner = selectedMatch.participantA!;
+      } else {
+        winner = selectedMatch.participantB!;
       }
 
-      // Use the correct functions based on bracket type
-      const updateMatch = selectedBracketType === 'silver' ? updateSilverBracketMatch : updateBracketMatch;
-      const advanceMatchWinner = selectedBracketType === 'silver' ? advanceSilverWinner : advanceWinner;
+      // Use centralized sync service (handles both gold and silver brackets)
+      const success = await completeMatch(
+        tournamentId,
+        selectedMatch.id,
+        'FINAL',
+        undefined,
+        {
+          rounds: result.rounds || [],
+          winner,
+          gamesWonA: result.gamesWonA,
+          gamesWonB: result.gamesWonB,
+          totalPointsA: result.totalPointsA || 0,
+          totalPointsB: result.totalPointsB || 0,
+          total20sA: result.total20sA || 0,
+          total20sB: result.total20sB || 0
+        }
+      );
 
-      // Update match
-      await updateMatch(tournamentId, selectedMatch.id, {
-        status: 'COMPLETED',
-        gamesWonA: result.gamesWonA,
-        gamesWonB: result.gamesWonB,
-        totalPointsA: result.totalPointsA,
-        totalPointsB: result.totalPointsB,
-        total20sA: result.total20sA,
-        total20sB: result.total20sB,
-        rounds: result.rounds,
-        winner
-      });
-
-      // Advance winner to next round
-      if (winner) {
-        await advanceMatchWinner(tournamentId, selectedMatch.id, winner);
+      if (success) {
+        toastMessage = '✅ Resultado guardado';
+        showMatchDialog = false;
+        selectedMatch = null;
+        // No need to reload - real-time subscription will update
+      } else {
+        toastMessage = '❌ Error al guardar resultado';
       }
-
-      toastMessage = '✅ Resultado guardado';
       showToast = true;
-      showMatchDialog = false;
-      selectedMatch = null;
-
-      // Reload tournament
-      await loadTournament();
     } catch (err) {
       console.error('Error saving match:', err);
       toastMessage = '❌ Error al guardar resultado';
@@ -223,35 +223,24 @@
     const noShowParticipantId = event.detail;
 
     try {
-      const winner = selectedMatch.participantA === noShowParticipantId
-        ? selectedMatch.participantB
-        : selectedMatch.participantA;
+      // Use centralized sync service (handles both gold and silver brackets)
+      const success = await markNoShow(
+        tournamentId,
+        selectedMatch.id,
+        'FINAL',
+        undefined,
+        noShowParticipantId
+      );
 
-      if (!winner) return;
-
-      // Use the correct functions based on bracket type
-      const updateMatch = selectedBracketType === 'silver' ? updateSilverBracketMatch : updateBracketMatch;
-      const advanceMatchWinner = selectedBracketType === 'silver' ? advanceSilverWinner : advanceWinner;
-
-      // Update match as walkover
-      await updateMatch(tournamentId, selectedMatch.id, {
-        status: 'WALKOVER',
-        winner,
-        gamesWonA: selectedMatch.participantA === winner ? 2 : 0,
-        gamesWonB: selectedMatch.participantB === winner ? 2 : 0,
-        noShowParticipant: noShowParticipantId
-      });
-
-      // Advance winner
-      await advanceMatchWinner(tournamentId, selectedMatch.id, winner);
-
-      toastMessage = '✅ Walkover registrado';
+      if (success) {
+        toastMessage = '✅ Walkover registrado';
+        showMatchDialog = false;
+        selectedMatch = null;
+        // No need to reload - real-time subscription will update
+      } else {
+        toastMessage = '❌ Error al registrar walkover';
+      }
       showToast = true;
-      showMatchDialog = false;
-      selectedMatch = null;
-
-      // Reload tournament
-      await loadTournament();
     } catch (err) {
       console.error('Error handling no-show:', err);
       toastMessage = '❌ Error al registrar walkover';
@@ -519,6 +508,7 @@
             <p class="subtitle">
               Fase Final - {isSplitDivisions ? 'Liga Oro / Liga Plata' : 'Bracket de Eliminación'}
             </p>
+            <TournamentKeyBadge tournamentKey={tournament.key} />
           </div>
           {#if isSuperAdminUser}
             <div class="header-actions">
@@ -799,6 +789,7 @@
     bracketTotalRounds={bracket?.totalRounds || 1}
     bracketIsThirdPlace={selectedIsThirdPlace}
     bracketIsSilver={selectedBracketType === 'silver'}
+    isAdmin={true}
     on:close={handleCloseDialog}
     on:save={handleSaveMatch}
     on:noshow={handleNoShow}

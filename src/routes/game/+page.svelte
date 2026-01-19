@@ -25,7 +25,11 @@
 		updateTournamentContext,
 		type TournamentMatchContext
 	} from '$lib/stores/tournamentContext';
-	import { abandonTournamentMatch, completeTournamentMatch, updateTournamentMatchRounds } from '$lib/firebase/tournamentMatches';
+	import {
+		syncMatchProgress,
+		completeMatch as completeTournamentMatchSync,
+		abandonMatch as abandonTournamentMatchSync
+	} from '$lib/firebase/tournamentSync';
 
 	let showSettings = false;
 	let showHistory = false;
@@ -375,11 +379,29 @@
 		const context = event.detail;
 		applyTournamentConfig(context);
 
-		// Show hammer dialog if enabled
-		if (context.gameConfig.showHammer) {
+		// Show hammer dialog only if enabled AND match is starting fresh (no existing rounds)
+		// Don't show when resuming a match that already has progress
+		const hasExistingProgress =
+			(context.existingRounds && context.existingRounds.length > 0) ||
+			(context.currentGameData && (context.currentGameData.gamesWonA > 0 || context.currentGameData.gamesWonB > 0));
+
+		if (context.gameConfig.showHammer && !hasExistingProgress) {
 			setTimeout(() => {
 				showHammerDialog = true;
 			}, 100);
+		}
+	}
+
+	/**
+	 * Handle switching sides in tournament mode
+	 * Also updates the tournament context to track which side the user is on
+	 */
+	function handleSwitchSides() {
+		switchSides();
+		// En modo torneo, también actualizar el lado del usuario en el contexto
+		if ($gameTournamentContext) {
+			const newSide = $gameTournamentContext.currentUserSide === 'A' ? 'B' : 'A';
+			updateTournamentContext({ currentUserSide: newSide });
 		}
 	}
 
@@ -391,19 +413,38 @@
 	}
 
 	/**
-	 * Confirm abandoning the tournament match
+	 * Pause the tournament match (keep progress, can resume later)
+	 */
+	function pauseTournamentMatch() {
+		// Don't call abandonTournamentMatch - the match stays IN_PROGRESS in Firebase
+		// The rounds are already synced, so another user (or this user) can resume later
+
+		// Clear local context only
+		clearTournamentContext();
+		showTournamentExitConfirm = false;
+
+		// Reset local game state
+		resetTeams();
+		resetMatchState();
+
+		console.log('⏸️ Tournament match paused - progress preserved in Firebase');
+	}
+
+	/**
+	 * Confirm abandoning the tournament match (resets to PENDING, loses progress)
 	 */
 	async function confirmTournamentExit() {
 		const context = $gameTournamentContext;
 		if (context) {
 			try {
-				// Abandon the match in Firebase (set back to PENDING)
-				await abandonTournamentMatch(
+				// Abandon the match in Firebase (set back to PENDING, clears progress)
+				await abandonTournamentMatchSync(
 					context.tournamentId,
 					context.matchId,
 					context.phase,
 					context.groupId
 				);
+				console.log('🗑️ Tournament match abandoned - progress cleared');
 			} catch (error) {
 				console.error('Error abandoning match:', error);
 			}
@@ -439,12 +480,16 @@
 		// This must happen BEFORE currentMatch gets cleared by completeCurrentMatch
 		const savedData = saveTournamentProgressToLocalStorage();
 
-		// Determine winner
-		const winner = team1GamesWon > team2GamesWon
+		const isUserSideA = context.currentUserSide === 'A';
+
+		// Use games won from savedData (calculated with get() for accuracy)
+		const finalGamesWonA = savedData?.gamesWonA ?? (isUserSideA ? team1GamesWon : team2GamesWon);
+		const finalGamesWonB = savedData?.gamesWonB ?? (isUserSideA ? team2GamesWon : team1GamesWon);
+
+		// Determine winner based on accurate game counts
+		const winner = finalGamesWonA > finalGamesWonB
 			? context.participantAId
 			: context.participantBId;
-
-		const isUserSideA = context.currentUserSide === 'A';
 
 		// Use the rounds from the saved context (which includes all games)
 		// This is more reliable than reading from currentMatch which may be cleared
@@ -493,32 +538,28 @@
 			twentiesB: r.twentiesB || 0
 		}));
 
-		// Determine games won for each side
-		const gamesWonA = isUserSideA ? team1GamesWon : team2GamesWon;
-		const gamesWonB = isUserSideA ? team2GamesWon : team1GamesWon;
-
 		console.log('📤 Sending to Firebase:', {
 			allRoundsCount: allRounds.length,
 			roundsByGame: allRounds.reduce((acc, r) => {
 				acc[r.gameNumber] = (acc[r.gameNumber] || 0) + 1;
 				return acc;
 			}, {} as Record<number, number>),
-			gamesWonA,
-			gamesWonB,
+			gamesWonA: finalGamesWonA,
+			gamesWonB: finalGamesWonB,
 			totalPointsA,
 			totalPointsB
 		});
 
 		try {
-			const success = await completeTournamentMatch(
+			const success = await completeTournamentMatchSync(
 				context.tournamentId,
 				context.matchId,
 				context.phase,
 				context.groupId,
 				{
 					winner,
-					gamesWonA,
-					gamesWonB,
+					gamesWonA: finalGamesWonA,
+					gamesWonB: finalGamesWonB,
 					totalPointsA,
 					totalPointsB,
 					total20sA,
@@ -535,6 +576,11 @@
 		} catch (error) {
 			console.error('Error completing tournament match:', error);
 		}
+
+		// IMPORTANTE: Limpiar el estado del partido DESPUÉS de enviar a Firebase
+		// Esto evita que resetMatchState() borre los datos antes de capturarlos
+		resetMatchState();
+		resetTeams();
 
 		// Clear tournament context after completion
 		clearTournamentContext();
@@ -621,7 +667,7 @@
 			const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 			resetTimer(totalSeconds);
 
-			// ALWAYS sync empty state to Firebase when resetting (regardless of syncMode)
+			// Sync empty state to Firebase when resetting
 			// This ensures the bracket view shows the reset state
 			await syncTournamentRounds([], 0, 0);
 			console.log('📤 Reset: Synced empty rounds to Firebase');
@@ -702,14 +748,15 @@
 		// Clear pending data
 		pendingRoundData = null;
 
-		// En modo torneo, siempre guardar y sincronizar a Firebase
-		// Firebase es la fuente de verdad, otras páginas leen de ahí
+		// En modo torneo, guardar a localStorage y sincronizar a Firebase (siempre real-time)
 		if (inTournamentMode) {
 			await tick();
 			const savedData = saveTournamentProgressToLocalStorage();
 
-			// Siempre sincronizar a Firebase (es la fuente de verdad)
-			if (savedData) {
+			// Sincronizar a Firebase SOLO si el match no ha sido completado
+			// Si tournamentMatchCompletedSent es true, completeMatch ya envió los datos finales
+			// y no debemos sobrescribirlos con syncMatchProgress (evita race condition)
+			if (savedData && !tournamentMatchCompletedSent) {
 				syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB);
 			}
 		}
@@ -839,13 +886,16 @@
 		console.log('📤 Syncing rounds to Firebase:', { roundsCount: allRounds.length, gamesWonA, gamesWonB });
 
 		try {
-			const success = await updateTournamentMatchRounds(
+			const success = await syncMatchProgress(
 				context.tournamentId,
 				context.matchId,
 				context.phase,
 				context.groupId,
-				allRounds,
-				{ gamesWonA, gamesWonB }
+				{
+					rounds: allRounds,
+					gamesWonA,
+					gamesWonB
+				}
 			);
 
 			if (success) {
@@ -859,7 +909,7 @@
 	}
 
 	async function handleNextGame() {
-		// En modo torneo, guardamos y sincronizamos ANTES del reset
+		// En modo torneo, guardamos a localStorage ANTES del reset
 		// Esto es importante porque resetForNextGame() limpia currentGameRounds
 		if (inTournamentMode) {
 			const preResetData = saveTournamentProgressToLocalStorage();
@@ -870,7 +920,7 @@
 					gamesWonB: preResetData.gamesWonB
 				});
 
-				// Sincronizar a Firebase ANTES del reset (sin timeout)
+				// Siempre sincronizar a Firebase (modo real-time único)
 				await syncTournamentRounds(preResetData.allRounds, preResetData.gamesWonA, preResetData.gamesWonB);
 				console.log('📤 Synced completed game to Firebase');
 			}
@@ -1035,7 +1085,10 @@
 				📜
 			</button>
 			{#if inTournamentMode}
-				<!-- Tournament mode: exit button instead of settings -->
+				<!-- Tournament mode: switch sides and exit buttons -->
+				<button class="icon-button switch-sides-button" on:click={handleSwitchSides} aria-label={$t('switchSides')} title={$t('switchSides')}>
+					⇄
+				</button>
 				<button class="icon-button exit-tournament-button" on:click={handleTournamentExit} aria-label={$t('exitTournamentMode')} title={$t('exitTournamentMode')}>
 					✕
 				</button>
@@ -1214,17 +1267,41 @@
 
 	<!-- Tournament Exit Confirmation Modal -->
 	{#if showTournamentExitConfirm}
+		{@const hasProgress = $roundsPlayed > 0 || $currentGameRounds.length > 0 || $currentMatchGames.length > 0}
 		<div class="confirm-overlay" on:click={cancelTournamentExit}>
 			<div class="confirm-modal tournament-exit-modal" on:click|stopPropagation>
 				<h3>{$t('exitTournamentMessage') || '¿Qué quieres hacer con este partido?'}</h3>
-				<p class="exit-warning">{$t('abandonMatchDesc') || 'Se perderá el progreso y otro podrá jugarlo'}</p>
-				<div class="confirm-buttons">
+
+				{#if hasProgress}
+					<div class="exit-options">
+						<div class="exit-option pause-option" on:click={pauseTournamentMatch}>
+							<span class="option-icon">⏸️</span>
+							<div class="option-text">
+								<span class="option-title">{$t('pauseMatch') || 'Pausar partido'}</span>
+								<span class="option-desc">{$t('pauseMatchDesc') || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
+							</div>
+						</div>
+						<div class="exit-option abandon-option" on:click={confirmTournamentExit}>
+							<span class="option-icon">🗑️</span>
+							<div class="option-text">
+								<span class="option-title">{$t('abandonMatch') || 'Abandonar partido'}</span>
+								<span class="option-desc">{$t('abandonMatchDesc') || 'Se perderá el progreso y otro podrá jugarlo desde cero.'}</span>
+							</div>
+						</div>
+					</div>
+				{:else}
+					<p class="exit-warning">{$t('noProgressWarning') || 'El partido no tiene progreso. ¿Quieres salir?'}</p>
+				{/if}
+
+				<div class="confirm-buttons single-button">
 					<Button variant="secondary" on:click={cancelTournamentExit}>
 						{$t('cancel')}
 					</Button>
-					<Button variant="danger" on:click={confirmTournamentExit}>
-						{$t('abandonMatch') || 'Abandonar partido'}
-					</Button>
+					{#if !hasProgress}
+						<Button variant="danger" on:click={confirmTournamentExit}>
+							{$t('exit') || 'Salir'}
+						</Button>
+					{/if}
 				</div>
 			</div>
 		</div>
@@ -1348,6 +1425,19 @@
 
 	.exit-tournament-button:hover {
 		background: rgba(255, 68, 68, 0.3) !important;
+	}
+
+	/* Switch sides button */
+	.switch-sides-button {
+		background: rgba(100, 149, 237, 0.2) !important;
+		border: 1px solid rgba(100, 149, 237, 0.4) !important;
+		color: #6495ed !important;
+		font-size: 1.2rem !important;
+		font-weight: bold;
+	}
+
+	.switch-sides-button:hover {
+		background: rgba(100, 149, 237, 0.3) !important;
 	}
 
 	.left-section {
@@ -2006,7 +2096,8 @@
 
 	/* Tournament exit modal */
 	.tournament-exit-modal {
-		border-color: rgba(255, 68, 68, 0.4);
+		border-color: rgba(255, 200, 68, 0.4);
+		width: 450px;
 	}
 
 	.exit-warning {
@@ -2014,6 +2105,79 @@
 		font-size: 0.9rem;
 		text-align: center;
 		margin: 0 0 1.5rem 0;
+	}
+
+	.exit-options {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.exit-option {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+		padding: 1rem;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.exit-option .option-icon {
+		font-size: 1.5rem;
+		flex-shrink: 0;
+	}
+
+	.exit-option .option-text {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.exit-option .option-title {
+		font-weight: 700;
+		font-size: 0.95rem;
+	}
+
+	.exit-option .option-desc {
+		font-size: 0.8rem;
+		opacity: 0.7;
+		line-height: 1.3;
+	}
+
+	.pause-option {
+		background: rgba(0, 200, 255, 0.1);
+		border: 2px solid rgba(0, 200, 255, 0.3);
+	}
+
+	.pause-option:hover {
+		background: rgba(0, 200, 255, 0.2);
+		border-color: rgba(0, 200, 255, 0.5);
+	}
+
+	.pause-option .option-title {
+		color: #00d4ff;
+	}
+
+	.abandon-option {
+		background: rgba(255, 68, 68, 0.1);
+		border: 2px solid rgba(255, 68, 68, 0.3);
+	}
+
+	.abandon-option:hover {
+		background: rgba(255, 68, 68, 0.2);
+		border-color: rgba(255, 68, 68, 0.5);
+	}
+
+	.abandon-option .option-title {
+		color: #ff6666;
+	}
+
+	.confirm-buttons.single-button {
+		display: flex;
+		justify-content: center;
+		gap: 1rem;
 	}
 
 	/* Responsive for floating button */
@@ -2062,6 +2226,11 @@
 			width: 350px;
 			max-width: 60%;
 		}
+
+		.tournament-exit-modal {
+			width: 450px;
+			max-width: 70%;
+		}
 	}
 
 	@media (orientation: landscape) and (max-height: 600px) {
@@ -2092,6 +2261,45 @@
 		.confirm-modal h3 {
 			font-size: 0.9rem;
 			margin-bottom: 1rem;
+		}
+
+		.tournament-exit-modal {
+			width: 400px;
+			max-width: 65%;
+		}
+
+		.exit-option {
+			padding: 0.75rem;
+		}
+
+		.exit-option .option-icon {
+			font-size: 1.2rem;
+		}
+
+		.exit-option .option-title {
+			font-size: 0.85rem;
+		}
+
+		.exit-option .option-desc {
+			font-size: 0.7rem;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.exit-option {
+			padding: 0.75rem;
+		}
+
+		.exit-option .option-icon {
+			font-size: 1.2rem;
+		}
+
+		.exit-option .option-title {
+			font-size: 0.85rem;
+		}
+
+		.exit-option .option-desc {
+			font-size: 0.75rem;
 		}
 	}
 </style>

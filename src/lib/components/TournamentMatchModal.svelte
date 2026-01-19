@@ -23,8 +23,10 @@
 
 	const dispatch = createEventDispatcher();
 
-	// State machine
-	type Step = 'key_input' | 'loading' | 'match_selection' | 'participant_selection' | 'sync_options' | 'confirmation' | 'error';
+	// State machine (simplified: removed sync_options step, always use real_time)
+	// For non-logged users: key_input → loading → player_selection → confirmation
+	// For logged users: key_input → loading → confirmation (auto-select)
+	type Step = 'key_input' | 'loading' | 'player_selection' | 'confirmation' | 'error';
 	let currentStep: Step = 'key_input';
 
 	// Form state
@@ -33,9 +35,28 @@
 	let pendingMatches: PendingMatchInfo[] = [];
 	let selectedMatch: PendingMatchInfo | null = null;
 	let selectedSide: 'A' | 'B' | null = null;
-	let syncMode: 'on_complete' | 'real_time' = 'on_complete';
 	let errorMessage = '';
 	let isStarting = false;
+
+	// Players with pending matches (for non-logged users)
+	interface PlayerWithMatch {
+		participantId: string;
+		name: string;
+		match: PendingMatchInfo;
+		side: 'A' | 'B';
+		isInProgress?: boolean;  // True if match is IN_PROGRESS
+	}
+	let playersWithPendingMatches: PlayerWithMatch[] = [];
+
+	// Separate lists for pending and in-progress matches
+	let pendingPlayers: PlayerWithMatch[] = [];
+	let inProgressPlayers: PlayerWithMatch[] = [];
+
+	// Show/hide tournament key
+	let showKey = false;
+
+	// Track if selected match is being resumed (IN_PROGRESS)
+	let isResumingMatch = false;
 
 	// Reactive: check if user is logged in
 	$: isLoggedIn = !!$currentUser;
@@ -59,11 +80,15 @@
 		tournamentKey = '';
 		tournament = null;
 		pendingMatches = [];
+		playersWithPendingMatches = [];
+		pendingPlayers = [];
+		inProgressPlayers = [];
 		selectedMatch = null;
 		selectedSide = null;
-		syncMode = 'on_complete';
 		errorMessage = '';
 		isStarting = false;
+		showKey = false;
+		isResumingMatch = false;
 	}
 
 	async function searchTournament() {
@@ -117,7 +142,8 @@
 					}
 				}
 
-				currentStep = 'sync_options';
+				// Go directly to confirmation (skip sync_options)
+				currentStep = 'confirmation';
 			} else {
 				pendingMatches = await getAllPendingMatches(result);
 
@@ -127,7 +153,50 @@
 					return;
 				}
 
-				currentStep = 'match_selection';
+				// Build list of unique players with pending matches
+				// Separate pending from in-progress
+				const pendingPlayerMap = new Map<string, PlayerWithMatch>();
+				const inProgressPlayerMap = new Map<string, PlayerWithMatch>();
+
+				for (const match of pendingMatches) {
+					const isInProgress = match.isInProgress || false;
+					const targetMap = isInProgress ? inProgressPlayerMap : pendingPlayerMap;
+
+					// Add participant A
+					const participantA = match.match.participantA;
+					if (participantA && !targetMap.has(participantA)) {
+						targetMap.set(participantA, {
+							participantId: participantA,
+							name: match.participantAName,
+							match,
+							side: 'A',
+							isInProgress
+						});
+					}
+					// Add participant B
+					const participantB = 'participantB' in match.match ? match.match.participantB : null;
+					if (participantB && !targetMap.has(participantB)) {
+						targetMap.set(participantB, {
+							participantId: participantB,
+							name: match.participantBName,
+							match,
+							side: 'B',
+							isInProgress
+						});
+					}
+				}
+
+				pendingPlayers = Array.from(pendingPlayerMap.values()).sort((a, b) =>
+					a.name.localeCompare(b.name)
+				);
+				inProgressPlayers = Array.from(inProgressPlayerMap.values()).sort((a, b) =>
+					a.name.localeCompare(b.name)
+				);
+
+				// Combined for backward compatibility
+				playersWithPendingMatches = [...pendingPlayers, ...inProgressPlayers];
+
+				currentStep = 'player_selection';
 			}
 		} catch (error) {
 			console.error('Error searching tournament:', error);
@@ -136,37 +205,35 @@
 		}
 	}
 
-	function selectMatch(match: PendingMatchInfo) {
-		selectedMatch = match;
-		currentStep = 'participant_selection';
-	}
-
-	function selectParticipant(side: 'A' | 'B') {
-		selectedSide = side;
-		currentStep = 'sync_options';
-	}
-
-	function goToConfirmation() {
+	function selectPlayer(player: PlayerWithMatch) {
+		selectedMatch = player.match;
+		selectedSide = player.side;
+		isResumingMatch = player.isInProgress || false;
 		currentStep = 'confirmation';
 	}
 
 	function goBack() {
-		if (currentStep === 'participant_selection') {
-			currentStep = 'match_selection';
-			selectedMatch = null;
-			selectedSide = null;
-		} else if (currentStep === 'sync_options') {
+		if (currentStep === 'confirmation') {
 			if (isLoggedIn) {
+				// Logged-in user: go back to key input
 				currentStep = 'key_input';
 				tournament = null;
 				pendingMatches = [];
+				playersWithPendingMatches = [];
 				selectedMatch = null;
+				selectedSide = null;
 			} else {
-				currentStep = 'participant_selection';
+				// Non-logged-in user: go back to player selection
+				currentStep = 'player_selection';
+				selectedMatch = null;
 				selectedSide = null;
 			}
-		} else if (currentStep === 'confirmation') {
-			currentStep = 'sync_options';
+		} else if (currentStep === 'player_selection') {
+			// Go back to key input
+			currentStep = 'key_input';
+			tournament = null;
+			pendingMatches = [];
+			playersWithPendingMatches = [];
 		} else if (currentStep === 'error') {
 			currentStep = 'key_input';
 			errorMessage = '';
@@ -183,7 +250,8 @@
 				tournament.id,
 				selectedMatch.match.id,
 				selectedMatch.phase,
-				selectedMatch.groupId
+				selectedMatch.groupId,
+				isResumingMatch  // forceResume: allow resuming IN_PROGRESS matches
 			);
 
 			if (!result.success) {
@@ -197,6 +265,15 @@
 			const participantId = selectedSide === 'A'
 				? selectedMatch.match.participantA
 				: ('participantB' in selectedMatch.match ? selectedMatch.match.participantB : '');
+
+			// Get current user's ranking (only for logged-in users)
+			let currentUserRanking: number | undefined;
+			if ($currentUser && participantId) {
+				const userParticipant = tournament.participants.find(p => p.id === participantId);
+				if (userParticipant) {
+					currentUserRanking = userParticipant.currentRanking;
+				}
+			}
 
 			// Get existing match data (rounds, gamesWon) for resuming
 			const match = selectedMatch.match as any;
@@ -227,15 +304,15 @@
 				roundNumber: selectedMatch.roundNumber,
 				groupId: selectedMatch.groupId,
 				bracketRoundName: selectedMatch.bracketRoundName,
-				participantAId: selectedMatch.match.participantA,
+				participantAId: selectedMatch.match.participantA || '',
 				participantBId: 'participantB' in selectedMatch.match ? selectedMatch.match.participantB || '' : '',
 				participantAName: selectedMatch.participantAName,
 				participantBName: selectedMatch.participantBName,
 				currentUserId: $currentUser?.id,
 				currentUserParticipantId: participantId,
 				currentUserSide: selectedSide,
+				currentUserRanking,
 				gameConfig: selectedMatch.gameConfig,
-				syncMode,
 				matchStartedAt: Date.now(),
 				existingRounds: existingRounds.length > 0 ? existingRounds : undefined,
 				currentGameData: (gamesWonA > 0 || gamesWonB > 0 || existingRounds.length > 0) ? {
@@ -297,12 +374,8 @@
 						{$t('playTournamentMatch') || 'Jugar Partido de Torneo'}
 					{:else if currentStep === 'loading'}
 						{$t('searching') || 'Buscando...'}
-					{:else if currentStep === 'match_selection'}
-						{$t('selectYourMatch') || 'Selecciona tu partido'}
-					{:else if currentStep === 'participant_selection'}
-						{$t('whichPlayerAreYou') || '¿Quien eres?'}
-					{:else if currentStep === 'sync_options'}
-						{$t('syncOptions') || 'Opciones de sincronizacion'}
+					{:else if currentStep === 'player_selection'}
+						{$t('whichPlayerAreYou') || '¿Quién eres?'}
 					{:else if currentStep === 'confirmation'}
 						{$t('confirmMatch') || 'Confirmar partido'}
 					{:else if currentStep === 'error'}
@@ -319,16 +392,27 @@
 						<p class="description">{$t('enterTournamentKey') || 'Introduce la clave del torneo (6 caracteres)'}</p>
 
 						<div class="key-input-container">
-							<input
-								type="text"
-								class="key-input"
-								bind:this={keyInputElement}
-								bind:value={tournamentKey}
-								placeholder="ABC123"
-								maxlength="6"
-								autocomplete="off"
-								autocapitalize="characters"
-							/>
+							<div class="key-input-wrapper">
+								<input
+									type="text"
+									class="key-input"
+									class:masked={!showKey}
+									bind:this={keyInputElement}
+									bind:value={tournamentKey}
+									placeholder="******"
+									maxlength="6"
+									autocomplete="off"
+									autocapitalize="characters"
+								/>
+								<button
+									type="button"
+									class="toggle-key-btn"
+									on:click={() => showKey = !showKey}
+									aria-label={showKey ? 'Ocultar clave' : 'Mostrar clave'}
+								>
+									{showKey ? '🙈' : '👁️'}
+								</button>
+							</div>
 						</div>
 
 						<Button
@@ -348,112 +432,47 @@
 						<p>{$t('searchingTournament') || 'Buscando torneo...'}</p>
 					</div>
 
-				<!-- Step: Match Selection (for non-logged-in users) -->
-				{:else if currentStep === 'match_selection'}
-					<div class="step-content">
-						<p class="tournament-name">{tournament?.name}</p>
-
-						<div class="matches-list">
-							{#each pendingMatches as match}
-								<button
-									class="match-item"
-									class:selected={selectedMatch?.match.id === match.match.id}
-									on:click={() => selectMatch(match)}
-								>
-									<div class="match-players">
-										<span class="player-name">{match.participantAName}</span>
-										<span class="vs">vs</span>
-										<span class="player-name">{match.participantBName}</span>
-									</div>
-									<div class="match-info">
-										{#if match.phase === 'GROUP'}
-											<span class="phase-badge group">{$t('groupStage') || 'Fase de Grupos'}</span>
-										{:else}
-											<span class="phase-badge final">{match.bracketRoundName || 'Bracket'}</span>
-										{/if}
-									</div>
-								</button>
-							{/each}
-						</div>
-					</div>
-
-				<!-- Step: Participant Selection -->
-				{:else if currentStep === 'participant_selection' && selectedMatch}
-					<div class="step-content">
-						<p class="description">{$t('selectWhichPlayerYouAre') || '¿Cual de estos jugadores eres tu?'}</p>
-
-						<div class="participant-options">
-							<button
-								class="participant-option"
-								class:selected={selectedSide === 'A'}
-								on:click={() => selectParticipant('A')}
-							>
-								<span class="participant-name">{selectedMatch.participantAName}</span>
-							</button>
-
-							<button
-								class="participant-option"
-								class:selected={selectedSide === 'B'}
-								on:click={() => selectParticipant('B')}
-							>
-								<span class="participant-name">{selectedMatch.participantBName}</span>
-							</button>
-						</div>
-
-						<Button variant="secondary" fullWidth on:click={goBack}>
-							{$t('back') || 'Volver'}
-						</Button>
-					</div>
-
-				<!-- Step: Sync Options -->
-				{:else if currentStep === 'sync_options' && selectedMatch}
-					<div class="step-content">
-						<div class="match-summary">
+				<!-- Step: Player Selection (for non-logged-in users) -->
+				{:else if currentStep === 'player_selection'}
+					<div class="step-content player-selection-content">
+						<div class="player-selection-header">
 							<p class="tournament-name">{tournament?.name}</p>
-							<p class="match-players-summary">
-								{selectedMatch.participantAName} vs {selectedMatch.participantBName}
-							</p>
-							<p class="game-config">{formatGameConfig(selectedMatch.gameConfig)}</p>
 						</div>
 
-						<div class="sync-options">
-							<p class="options-label">{$t('whenToSync') || '¿Cuando sincronizar?'}</p>
+						<!-- Pending matches (normal) -->
+						{#if pendingPlayers.length > 0}
+							<div class="players-grid">
+								{#each pendingPlayers as player}
+									<button
+										class="player-item"
+										on:click={() => selectPlayer(player)}
+									>
+										<span class="player-name">{player.name}</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
 
-							<label class="sync-option">
-								<input
-									type="radio"
-									name="syncMode"
-									value="on_complete"
-									bind:group={syncMode}
-								/>
-								<div class="option-content">
-									<span class="option-title">{$t('syncOnComplete') || 'Al finalizar'}</span>
-									<span class="option-desc">{$t('syncOnCompleteDesc') || 'Se guardara cuando termine el partido'}</span>
+						<!-- In-progress matches (emergency resume) -->
+						{#if inProgressPlayers.length > 0}
+							<div class="in-progress-section">
+								<div class="in-progress-warning">
+									<span class="warning-icon">⚠️</span>
+									<span class="warning-text">{$t('inProgressWarning') || 'Partidos en curso - solo usar en caso excepcional (ej: app cerrada por error)'}</span>
 								</div>
-							</label>
-
-							<label class="sync-option">
-								<input
-									type="radio"
-									name="syncMode"
-									value="real_time"
-									bind:group={syncMode}
-								/>
-								<div class="option-content">
-									<span class="option-title">{$t('syncRealTime') || 'Tiempo real'}</span>
-									<span class="option-desc">{$t('syncRealTimeDesc') || 'Cada ronda se sincroniza inmediatamente'}</span>
+								<div class="players-grid in-progress">
+									{#each inProgressPlayers as player}
+										<button
+											class="player-item in-progress"
+											on:click={() => selectPlayer(player)}
+										>
+											<span class="player-name">{player.name}</span>
+											<span class="in-progress-badge">{$t('inProgress') || 'En curso'}</span>
+										</button>
+									{/each}
 								</div>
-							</label>
-						</div>
-
-						<div class="button-row">
-							<Button variant="secondary" on:click={goBack}>
-								{$t('back') || 'Volver'}
-							</Button>
-							<Button variant="primary" on:click={goToConfirmation}>
-								{$t('continue') || 'Continuar'}
-							</Button>
-						</div>
+							</div>
+						{/if}
 					</div>
 
 				<!-- Step: Confirmation -->
@@ -483,10 +502,6 @@
 							<div class="detail-row">
 								<span class="detail-label">{$t('gameMode') || 'Modo'}:</span>
 								<span class="detail-value">{formatGameConfig(selectedMatch.gameConfig)}</span>
-							</div>
-							<div class="detail-row">
-								<span class="detail-label">{$t('sync') || 'Sincronizacion'}:</span>
-								<span class="detail-value">{syncMode === 'real_time' ? ($t('syncRealTime') || 'Tiempo real') : ($t('syncOnComplete') || 'Al finalizar')}</span>
 							</div>
 						</div>
 
@@ -602,11 +617,17 @@
 		justify-content: center;
 	}
 
+	.key-input-wrapper {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
 	.key-input {
 		background: rgba(0, 0, 0, 0.3);
 		border: 2px solid rgba(0, 255, 136, 0.3);
 		border-radius: 8px;
-		padding: 1rem 1.5rem;
+		padding: 1rem 3rem 1rem 1.5rem;
 		font-size: 1.75rem;
 		font-weight: 700;
 		text-align: center;
@@ -625,6 +646,29 @@
 	.key-input::placeholder {
 		color: rgba(255, 255, 255, 0.3);
 		letter-spacing: 0.3em;
+	}
+
+	.key-input.masked {
+		-webkit-text-security: disc;
+		text-security: disc;
+		font-family: 'Verdana', sans-serif;
+		letter-spacing: 0.25em;
+	}
+
+	.toggle-key-btn {
+		position: absolute;
+		right: 0.5rem;
+		background: none;
+		border: none;
+		font-size: 1.25rem;
+		cursor: pointer;
+		padding: 0.25rem;
+		opacity: 0.7;
+		transition: opacity 0.2s;
+	}
+
+	.toggle-key-btn:hover {
+		opacity: 1;
 	}
 
 	/* Loading */
@@ -722,6 +766,111 @@
 		color: var(--accent-green, #00ff88);
 	}
 
+	/* Player Selection */
+	.player-selection-content {
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.player-selection-header {
+		flex-shrink: 0;
+	}
+
+	.players-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.5rem;
+		overflow-y: auto;
+		flex: 1;
+		min-height: 0;
+	}
+
+	@media (max-width: 400px) {
+		.players-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.player-item {
+		background: rgba(0, 0, 0, 0.2);
+		border: 2px solid rgba(255, 255, 255, 0.1);
+		border-radius: 8px;
+		padding: 0.75rem;
+		cursor: pointer;
+		transition: all 0.2s;
+		text-align: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.player-item:hover {
+		border-color: rgba(0, 255, 136, 0.5);
+		background: rgba(0, 255, 136, 0.05);
+	}
+
+	.player-item .player-name {
+		color: #fff;
+		font-size: 0.95rem;
+		font-weight: 500;
+	}
+
+	/* In-progress matches section */
+	.in-progress-section {
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px dashed rgba(255, 193, 7, 0.3);
+	}
+
+	.in-progress-warning {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		background: rgba(255, 193, 7, 0.1);
+		border: 1px solid rgba(255, 193, 7, 0.3);
+		border-radius: 8px;
+		padding: 0.75rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.warning-icon {
+		font-size: 1.1rem;
+		flex-shrink: 0;
+	}
+
+	.warning-text {
+		color: #ffc107;
+		font-size: 0.85rem;
+		line-height: 1.4;
+	}
+
+	.players-grid.in-progress {
+		opacity: 0.85;
+	}
+
+	.player-item.in-progress {
+		border-color: rgba(255, 193, 7, 0.3);
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.player-item.in-progress:hover {
+		border-color: rgba(255, 193, 7, 0.6);
+		background: rgba(255, 193, 7, 0.1);
+	}
+
+	.in-progress-badge {
+		font-size: 0.7rem;
+		color: #ffc107;
+		background: rgba(255, 193, 7, 0.2);
+		padding: 0.15rem 0.4rem;
+		border-radius: 4px;
+		text-transform: uppercase;
+		font-weight: 600;
+		letter-spacing: 0.5px;
+	}
+
 	/* Participant Selection */
 	.participant-options {
 		display: flex;
@@ -752,82 +901,6 @@
 		color: #fff;
 		font-size: 1.1rem;
 		font-weight: 600;
-	}
-
-	/* Sync Options */
-	.match-summary {
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 8px;
-		padding: 1rem;
-		text-align: center;
-	}
-
-	.match-players-summary {
-		color: #fff;
-		font-size: 1rem;
-		margin: 0.5rem 0;
-	}
-
-	.game-config {
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.85rem;
-		margin: 0;
-	}
-
-	.sync-options {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.options-label {
-		color: rgba(255, 255, 255, 0.8);
-		font-size: 0.9rem;
-		margin: 0;
-	}
-
-	.sync-option {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.75rem;
-		background: rgba(0, 0, 0, 0.2);
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		padding: 1rem;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.sync-option:hover {
-		border-color: rgba(0, 255, 136, 0.5);
-	}
-
-	.sync-option:has(input:checked) {
-		border-color: var(--accent-green, #00ff88);
-		background: rgba(0, 255, 136, 0.05);
-	}
-
-	.sync-option input {
-		accent-color: var(--accent-green, #00ff88);
-		width: 18px;
-		height: 18px;
-		margin-top: 2px;
-	}
-
-	.option-content {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.option-title {
-		color: #fff;
-		font-weight: 500;
-	}
-
-	.option-desc {
-		color: rgba(255, 255, 255, 0.5);
-		font-size: 0.8rem;
 	}
 
 	/* Confirmation */
@@ -915,7 +988,8 @@
 			padding: 0.75rem 1rem;
 		}
 
-		.matches-list {
+		.matches-list,
+		.players-list {
 			max-height: 250px;
 		}
 	}

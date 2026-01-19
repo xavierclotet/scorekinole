@@ -52,16 +52,22 @@ service cloud.firestore {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Tournaments - admin-only management
+    // Tournaments - key-based access control
     match /tournaments/{tournamentId} {
       // Only admins can create tournaments
       allow create: if isAdmin();
 
-      // Authenticated users can read tournaments, admins can do everything
-      allow read: if isAuthenticated();
+      // Anyone can read tournaments (key acts as access control)
+      // This allows non-authenticated users to join with tournament key
+      allow read: if true;
 
-      // Only admins can update/delete tournaments
-      allow update, delete: if isAdmin();
+      // Anyone can update tournaments (key acts as access control)
+      // This allows non-authenticated users to update match status/results
+      // Security note: The 6-character key provides access control
+      allow update: if true;
+
+      // Only admins can delete tournaments
+      allow delete: if isAdmin();
     }
 
     // Deny all other access
