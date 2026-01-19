@@ -584,7 +584,7 @@
 
         <div class="bracket-container" class:silver-bracket={activeTab === 'silver'}>
           {#each rounds as round, roundIndex (round.roundNumber)}
-            <div class="bracket-round" class:has-next-round={roundIndex < rounds.length - 1}>
+            <div class="bracket-round" class:has-next-round={roundIndex < rounds.length - 1} style="--round-index: {roundIndex}">
               <h2 class="round-name">{round.name}</h2>
               <div class="matches-column">
                 {#each round.matches as match, matchIndex (match.id)}
@@ -1157,13 +1157,30 @@
   /* Top match in pair - vertical line goes down */
   .bracket-match:nth-child(odd)::before {
     top: 50%;
-    height: calc(100% + 2rem);
   }
 
   /* Bottom match in pair - vertical line goes up */
   .bracket-match:nth-child(even)::before {
     bottom: 50%;
-    height: calc(100% + 2rem);
+  }
+
+  /* Dynamic vertical line height based on round index */
+  /* Round 0 (first round): base height = 100% + 2rem (match height + gap) */
+  /* Each subsequent round doubles: 2^roundIndex * base */
+  .bracket-round[style*="--round-index: 0"] .bracket-match::before {
+    height: calc(100% + 2.4rem);  /* 1x */
+  }
+  .bracket-round[style*="--round-index: 1"] .bracket-match::before {
+    height: calc(200% + 4rem);  /* 2x */
+  }
+  .bracket-round[style*="--round-index: 2"] .bracket-match::before {
+    height: calc(400% + 8rem);  /* 4x */
+  }
+  .bracket-round[style*="--round-index: 3"] .bracket-match::before {
+    height: calc(800% + 16rem); /* 8x */
+  }
+  .bracket-round[style*="--round-index: 4"] .bracket-match::before {
+    height: calc(1600% + 32rem); /* 16x */
   }
 
   /* Remove vertical connectors from final round */
