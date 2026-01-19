@@ -154,6 +154,16 @@ export function startMatch(startedBy: string, hammerTeam: number) {
     saveMatchState();
 }
 
+// Update the current game start hammer (for multi-game matches)
+export function setCurrentGameStartHammer(hammerTeam: number) {
+    currentGameStartHammer.set(hammerTeam);
+    matchState.update(state => ({
+        ...state,
+        currentGameStartHammer: hammerTeam
+    }));
+    saveMatchState();
+}
+
 // Set the current 20s team
 export function setTwentyTeam(teamNumber: number) {
     currentTwentyTeam.set(teamNumber);

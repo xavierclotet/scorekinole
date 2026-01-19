@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { team1, team2 } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
+	import { setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { createEventDispatcher } from 'svelte';
 
 	export let isOpen: boolean = false;
@@ -37,6 +38,8 @@
 	function selectStartingTeam(teamNumber: 1 | 2) {
 		// The starting team does NOT have the hammer
 		// The other team gets the hammer
+		const hammerTeam = teamNumber === 1 ? 2 : 1;
+
 		if (teamNumber === 1) {
 			team1.update(t => ({ ...t, hasHammer: false }));
 			team2.update(t => ({ ...t, hasHammer: true }));
@@ -44,6 +47,10 @@
 			team1.update(t => ({ ...t, hasHammer: true }));
 			team2.update(t => ({ ...t, hasHammer: false }));
 		}
+
+		// Track who has hammer at the start of this game (for alternating in multi-game matches)
+		setCurrentGameStartHammer(hammerTeam);
+		console.log(`🔨 Game start: Team ${hammerTeam} has hammer, Team ${teamNumber} starts`);
 
 		close();
 	}

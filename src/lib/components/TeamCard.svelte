@@ -6,7 +6,7 @@
 	import { team1, team2, updateTeam, resetTeams } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
 	import { completeCurrentMatch, startCurrentMatch, currentMatch, addGameToCurrentMatch, clearCurrentMatchRounds } from '$lib/stores/history';
-	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames, currentMatchRounds } from '$lib/stores/matchState';
+	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames, currentMatchRounds, currentGameStartHammer, setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { get } from 'svelte/store';
 	import type { Team } from '$lib/types/team';
@@ -411,12 +411,28 @@
 	}
 
 	export function resetForNextGame() {
+		// Get who had the hammer at the START of the previous game
+		// This is the team that did NOT start (didn't throw first)
+		const previousGameStartHammer = get(currentGameStartHammer);
+
 		// Reset points and game state for next game
 		updateTeam(1, { points: 0, rounds: 0, twenty: 0, hasWon: false });
 		updateTeam(2, { points: 0, rounds: 0, twenty: 0, hasWon: false });
 
 		// Reset only current game rounds (keep match history)
 		resetGameOnly();
+
+		// Alternate the hammer for the next game
+		// If team 1 had hammer at start of previous game, team 2 gets it now (and vice versa)
+		// This means the team that STARTED the previous game will now have the hammer
+		if (previousGameStartHammer !== null) {
+			const newHammerTeam = previousGameStartHammer === 1 ? 2 : 1;
+			updateTeam(1, { hasHammer: newHammerTeam === 1 });
+			updateTeam(2, { hasHammer: newHammerTeam === 2 });
+			// Update the store to track who has hammer at start of this new game (persisted)
+			setCurrentGameStartHammer(newHammerTeam);
+			console.log(`🔨 Hammer alternated for new game: Team ${newHammerTeam} now has hammer (Team ${previousGameStartHammer === 1 ? 2 : 1} starts)`);
+		}
 
 		// Rounds are already cleared by addGameToCurrentMatch()
 		// No need to call startCurrentMatch() again - match continues
