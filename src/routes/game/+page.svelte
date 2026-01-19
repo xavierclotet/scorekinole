@@ -71,9 +71,9 @@
 
 	// Check if match is complete
 	// In rounds mode, match is complete after first game
-	// In points mode, match is complete when someone reaches the required wins (majority)
-	// For "best of X", you need ceil(X/2) wins (e.g., best of 3 = need 2 wins)
-	$: requiredWinsToComplete = Math.ceil($gameSettings.matchesToWin / 2);
+	// In points mode, match is complete when someone reaches the required wins
+	// matchesToWin = number of games needed to win the match (e.g., 2 = first to win 2 games)
+	$: requiredWinsToComplete = $gameSettings.matchesToWin;
 	$: isMatchComplete = $gameSettings.gameMode === 'rounds'
 		? (team1GamesWon >= 1 || team2GamesWon >= 1)
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete);
@@ -1329,7 +1329,7 @@
 <SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
 <HistoryModal isOpen={showHistory} onClose={() => showHistory = false} />
 <ColorPickerModal bind:isOpen={showColorPicker} teamNumber={colorPickerTeam} />
-<HammerDialog isOpen={showHammerDialog} onClose={handleHammerSelected} />
+<HammerDialog isOpen={showHammerDialog} on:close={handleHammerSelected} />
 <TwentyInputDialog
 	isOpen={showTwentyDialog}
 	on:close={handleTwentyInputClose}

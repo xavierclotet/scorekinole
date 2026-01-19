@@ -115,7 +115,7 @@
 				<span class="modal-title">{$t('twentyDialogTitle')}</span>
 			</div>
 			<div class="modal-content">
-				<!-- Team 1 Section -->
+				<!-- Team 1 Section (Left) -->
 				<div class="team-section">
 					<div class="team-header" style="color: {team1HeaderColor}">
 						{team1Name}
@@ -136,7 +136,7 @@
 					</div>
 				</div>
 
-				<!-- Team 2 Section -->
+				<!-- Team 2 Section (Right) -->
 				<div class="team-section">
 					<div class="team-header" style="color: {team2HeaderColor}">
 						{team2Name}
@@ -177,27 +177,28 @@
 
 	.modal {
 		background: #1a1f35;
-		padding: 2rem;
+		padding: 1.5rem;
 		border-radius: 12px;
-		max-width: 90%;
-		width: 50%;
+		max-width: 95%;
+		width: 700px;
 		max-height: 90vh;
 		overflow-y: auto;
 	}
 
 	.modal-header {
-		margin-bottom: 1.5rem;
+		margin-bottom: 1rem;
+		text-align: center;
 	}
 
 	.modal-title {
-		font-size: 1.5rem;
+		font-size: 1.25rem;
 		font-weight: 700;
 		color: #fff;
 	}
 
 	.modal-content {
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
 		gap: 1.5rem;
 	}
 
@@ -208,35 +209,26 @@
 	}
 
 	.team-header {
-		font-size: 1.25rem;
+		font-size: 1.1rem;
 		font-weight: 700;
 		text-align: center;
 		font-family: 'Orbitron', monospace;
-	}
-
-	.selected-value {
-		text-align: center;
-		font-size: 2rem;
-		font-weight: 700;
-		color: #00ff88;
-		font-family: 'Orbitron', monospace;
-		height: 2.5rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.calculator {
 		display: grid;
-		grid-template-columns: repeat(6, 1fr);
-		gap: 0.75rem;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.5rem;
 	}
 
 	.calc-btn {
-		padding: 1rem;
+		padding: 1rem 0.75rem;
 		border: 2px solid;
-		border-radius: 12px;
-		font-size: 1.25rem;
+		border-radius: 10px;
+		font-size: 1.5rem;
 		font-weight: 700;
 		cursor: pointer;
 		transition: all 0.2s;
@@ -257,35 +249,103 @@
 		transform: scale(1.1);
 	}
 
-	@media (max-width: 768px) {
-		.modal {
-			width: 90%;
-		}
-
-		.modal-title {
-			font-size: 1.25rem;
-		}
-
+	/* Larger screens */
+	@media (min-width: 600px) {
 		.calculator {
 			grid-template-columns: repeat(3, 1fr);
-			gap: 0.5rem;
+			gap: 0.6rem;
 		}
 
 		.calc-btn {
-			padding: 1.25rem;
-			font-size: 1.25rem;
+			padding: 1.1rem 0.8rem;
+			font-size: 1.6rem;
 		}
 	}
 
-	@media (max-width: 480px) {
+	/* Tablets */
+	@media (max-width: 768px) {
+		.modal {
+			width: 95%;
+			padding: 1rem;
+		}
+
+		.modal-title {
+			font-size: 1.1rem;
+		}
+
+		.team-header {
+			font-size: 1rem;
+		}
+
 		.calculator {
 			grid-template-columns: repeat(3, 1fr);
 			gap: 0.4rem;
 		}
 
 		.calc-btn {
-			padding: 1rem;
-			font-size: 1.1rem;
+			padding: 0.9rem 0.5rem;
+			font-size: 1.3rem;
+		}
+	}
+
+	/* Small phones */
+	@media (max-width: 480px) {
+		.modal {
+			padding: 0.75rem;
+		}
+
+		.modal-content {
+			gap: 1rem;
+		}
+
+		.team-header {
+			font-size: 0.9rem;
+		}
+
+		.calculator {
+			grid-template-columns: repeat(3, 1fr);
+			gap: 0.3rem;
+		}
+
+		.calc-btn {
+			padding: 0.75rem 0.4rem;
+			font-size: 1.15rem;
+			border-radius: 8px;
+		}
+	}
+
+	/* Landscape mode on phones */
+	@media (max-height: 500px) and (orientation: landscape) {
+		.modal {
+			padding: 0.75rem;
+			max-height: 95vh;
+		}
+
+		.modal-header {
+			margin-bottom: 0.5rem;
+		}
+
+		.modal-title {
+			font-size: 1rem;
+		}
+
+		.team-section {
+			gap: 0.4rem;
+		}
+
+		.team-header {
+			font-size: 0.9rem;
+		}
+
+		.calculator {
+			grid-template-columns: repeat(5, 1fr);
+			gap: 0.25rem;
+		}
+
+		.calc-btn {
+			padding: 0.5rem 0.3rem;
+			font-size: 1rem;
+			border-radius: 6px;
 		}
 	}
 </style>
