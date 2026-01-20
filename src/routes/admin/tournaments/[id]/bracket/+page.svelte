@@ -500,38 +500,35 @@
 <AdminGuard>
   <div class="bracket-page" data-theme={$adminTheme}>
     <header class="page-header">
-      <div class="header-top">
-        <button class="back-button" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>
-          ← {$t('backToTournament')}
-        </button>
-        <div class="theme-toggle-wrapper">
-          <ThemeToggle />
-        </div>
-      </div>
-
       {#if tournament}
-        <div class="tournament-header">
-          <div class="header-content">
-            <h1>{tournament.name}</h1>
-            <p class="subtitle">
-              {$t('finalStage')} - {isSplitDivisions ? `${$t('goldLeague')} / ${$t('silverLeague')}` : $t('eliminationBracket')}
-            </p>
-            {#if tournament.status !== 'COMPLETED'}
-              <TournamentKeyBadge tournamentKey={tournament.key} />
-            {/if}
+        <div class="header-row">
+          <button class="back-btn" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>←</button>
+          <div class="header-main">
+            <div class="title-section">
+              <h1>{tournament.name}</h1>
+              <div class="header-badges">
+                <span class="info-badge phase-badge">
+                  {isSplitDivisions ? `${$t('goldLeague')} / ${$t('silverLeague')}` : $t('eliminationBracket')}
+                </span>
+                {#if tournament.status !== 'COMPLETED'}
+                  <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
+                {/if}
+              </div>
+            </div>
           </div>
-          {#if isSuperAdminUser}
-            <div class="header-actions">
+          <div class="header-actions">
+            {#if isSuperAdminUser}
               <button
                 class="action-btn autofill"
                 on:click={autoFillAllMatches}
                 disabled={isAutoFilling}
                 title={$t('autoFillMatchesTitle') || 'Auto-fill matches with random results'}
               >
-                {isAutoFilling ? `⏳ ${$t('fillingMatches')}` : `🎲 ${$t('autoFillMatches')}`}
+                {isAutoFilling ? `⏳` : `🎲`}
               </button>
-            </div>
-          {/if}
+            {/if}
+            <ThemeToggle />
+          </div>
         </div>
 
         <!-- Tabs for SPLIT_DIVISIONS -->
@@ -832,7 +829,7 @@
   .page-header {
     background: white;
     border-bottom: 1px solid #e5e7eb;
-    padding: 1.5rem 2rem;
+    padding: 0.75rem 1.5rem;
     transition: background-color 0.3s, border-color 0.3s;
   }
 
@@ -841,51 +838,97 @@
     border-color: #2d3748;
   }
 
-  .header-top {
+  .header-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
+    gap: 1rem;
   }
 
-  .back-button {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
     background: white;
     color: #555;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    font-size: 1.1rem;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.2s;
+    flex-shrink: 0;
   }
 
-  .bracket-page[data-theme='dark'] .back-button {
+  .bracket-page[data-theme='dark'] .back-btn {
     background: #0f1419;
     color: #8b9bb3;
     border-color: #2d3748;
   }
 
-  .back-button:hover {
-    transform: translateX(-3px);
+  .back-btn:hover {
+    transform: translateX(-2px);
+    border-color: #667eea;
+    color: #667eea;
   }
 
-  .tournament-header {
+  .header-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title-section {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .title-section h1 {
+    font-size: 1.1rem;
+    margin: 0;
+    color: #1a1a1a;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+
+  .bracket-page[data-theme='dark'] .title-section h1 {
+    color: #e1e8ed;
+  }
+
+  .header-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .info-badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .info-badge.phase-badge {
+    background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+    color: white;
   }
 
   .header-actions {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
+    flex-shrink: 0;
   }
 
   .action-btn {
-    padding: 0.75rem 1.5rem;
+    padding: 0.5rem 0.75rem;
     border: none;
     border-radius: 8px;
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -907,32 +950,9 @@
     cursor: not-allowed;
   }
 
-  .header-content h1 {
-    font-size: 1.3rem;
-    margin: 0 0 0.3rem 0;
-    color: #1a1a1a;
-    font-weight: 700;
-    transition: color 0.3s;
-  }
-
-  .bracket-page[data-theme='dark'] .header-content h1 {
-    color: #e1e8ed;
-  }
-
-  .subtitle {
-    font-size: 0.85rem;
-    color: #666;
-    margin: 0;
-    transition: color 0.3s;
-  }
-
-  .bracket-page[data-theme='dark'] .subtitle {
-    color: #8b9bb3;
-  }
-
   .page-content {
     padding: 1.5rem;
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 60px);
     overflow-y: auto;
     overflow-x: auto;
   }
@@ -1583,41 +1603,39 @@
   /* Mobile optimizations for screens <= 640px */
   @media (max-width: 640px) {
     .page-header {
-      padding: 0.75rem 1rem;
+      padding: 0.5rem 0.75rem;
     }
 
-    .header-top {
-      margin-bottom: 0.5rem;
-    }
-
-    .back-button {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.8rem;
-    }
-
-    .tournament-header {
-      flex-direction: column;
-      align-items: flex-start;
+    .header-row {
       gap: 0.5rem;
     }
 
-    .header-content h1 {
-      font-size: 1.1rem;
-      margin-bottom: 0.15rem;
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      font-size: 1rem;
     }
 
-    .subtitle {
-      font-size: 0.75rem;
-      margin-bottom: 0.25rem;
+    .title-section {
+      gap: 0.5rem;
     }
 
-    .header-actions {
-      width: 100%;
+    .title-section h1 {
+      font-size: 0.95rem;
+    }
+
+    .header-badges {
+      gap: 0.35rem;
+    }
+
+    .info-badge {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
     }
 
     .action-btn {
-      padding: 0.5rem 1rem;
-      font-size: 0.8rem;
+      padding: 0.4rem 0.5rem;
+      font-size: 0.9rem;
     }
 
     .bracket-tabs {
@@ -1633,7 +1651,7 @@
 
     .page-content {
       padding: 0.75rem;
-      max-height: calc(100vh - 140px);
+      max-height: calc(100vh - 100px);
     }
 
     .bracket-title {
@@ -1648,45 +1666,9 @@
       padding: 0.5rem 0.75rem;
     }
 
-    .header-top {
-      margin-bottom: 0.4rem;
-    }
-
-    .back-button {
-      padding: 0.35rem 0.6rem;
-      font-size: 0.75rem;
-    }
-
-    .tournament-header {
-      gap: 0.4rem;
-    }
-
-    .header-content h1 {
-      font-size: 1rem;
-    }
-
-    .subtitle {
-      font-size: 0.7rem;
-    }
-
-    .action-btn {
-      padding: 0.4rem 0.75rem;
-      font-size: 0.75rem;
-    }
-
-    .bracket-tabs {
-      margin-top: 0.4rem;
-    }
-
-    .tab-btn {
-      padding: 0.4rem 0.6rem;
-      font-size: 0.8rem;
-      gap: 0.3rem;
-    }
-
     .page-content {
       padding: 0.5rem;
-      max-height: calc(100vh - 120px);
+      max-height: calc(100vh - 90px);
     }
 
     .bracket-container {
@@ -1726,6 +1708,16 @@
       font-size: 1rem;
       padding: 0.4rem;
     }
+
+    .bracket-tabs {
+      margin-top: 0.4rem;
+    }
+
+    .tab-btn {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.8rem;
+      gap: 0.3rem;
+    }
   }
 
   /* Extra small screens */
@@ -1734,21 +1726,18 @@
       padding: 0.4rem 0.5rem;
     }
 
-    .header-top {
-      margin-bottom: 0.3rem;
-    }
-
-    .back-button {
-      padding: 0.3rem 0.5rem;
-      font-size: 0.7rem;
-    }
-
-    .header-content h1 {
+    .back-btn {
+      width: 28px;
+      height: 28px;
       font-size: 0.9rem;
     }
 
-    .subtitle {
-      font-size: 0.65rem;
+    .title-section h1 {
+      font-size: 0.85rem;
+    }
+
+    .info-badge {
+      font-size: 0.6rem;
     }
 
     .tab-btn {
@@ -1757,7 +1746,7 @@
     }
 
     .page-content {
-      max-height: calc(100vh - 100px);
+      max-height: calc(100vh - 80px);
     }
   }
 </style>

@@ -107,16 +107,19 @@
 				tournamentKey = savedKey;
 				await searchTournament();
 			} else {
-				// Tournament not found or not active, show key input
-				isCheckingSavedKey = false;
+				// Tournament not found or not active, clear saved key and show key input
+				console.log('🔑 Saved tournament key no longer active, clearing...');
+				localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
 				currentStep = 'key_input';
+				// Keep isCheckingSavedKey = true to prevent reactive block from re-triggering
+				// It will be reset in resetState() when modal closes
 				tick().then(() => {
 					keyInputElement?.focus();
 				});
 			}
 		} catch (error) {
 			console.error('Error checking saved tournament key:', error);
-			isCheckingSavedKey = false;
+			localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
 			currentStep = 'key_input';
 			tick().then(() => {
 				keyInputElement?.focus();

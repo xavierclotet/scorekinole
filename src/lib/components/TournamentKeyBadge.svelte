@@ -2,6 +2,7 @@
 	import { t } from '$lib/stores/language';
 
 	export let tournamentKey: string;
+	export let compact: boolean = false;
 
 	let copied = false;
 
@@ -19,15 +20,17 @@
 
 <button
 	class="tournament-key-badge"
+	class:compact
 	on:click={copyKey}
 	title={$t('clickToCopyKey')}
 >
-	{copied ? `✓ ${$t('copied')}` : `🔑 ${tournamentKey}`}
+	{copied ? `✓` : tournamentKey}
 </button>
 
 <style>
 	.tournament-key-badge {
-		display: inline-block;
+		display: inline-flex;
+		align-items: center;
 		padding: 0.25rem 0.75rem;
 		background: rgba(59, 130, 246, 0.1);
 		border: 1px solid rgba(59, 130, 246, 0.3);
@@ -38,6 +41,13 @@
 		letter-spacing: 0.05em;
 		cursor: pointer;
 		transition: all 0.2s;
+		font-family: monospace;
+	}
+
+	.tournament-key-badge.compact {
+		padding: 0.2rem 0.5rem;
+		font-size: 0.7rem;
+		border-radius: 4px;
 	}
 
 	.tournament-key-badge:hover {

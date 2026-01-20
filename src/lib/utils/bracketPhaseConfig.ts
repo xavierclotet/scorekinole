@@ -66,11 +66,12 @@ function getGoldPhaseConfig(
   }
 
   // Early rounds configuration (octavos, cuartos, etc.)
+  // Falls back to general finalStage config, then to defaults
   return {
-    gameMode: finalStage.earlyRoundsGameMode || 'rounds',
-    pointsToWin: finalStage.earlyRoundsPointsToWin ?? 7,
-    roundsToPlay: finalStage.earlyRoundsToPlay ?? 4,
-    matchesToWin: 1  // Always best of 1 for early rounds
+    gameMode: finalStage.earlyRoundsGameMode || finalStage.gameMode || 'points',
+    pointsToWin: finalStage.earlyRoundsPointsToWin ?? finalStage.pointsToWin ?? 7,
+    roundsToPlay: finalStage.earlyRoundsToPlay ?? finalStage.roundsToPlay ?? 4,
+    matchesToWin: finalStage.earlyRoundsMatchesToWin ?? finalStage.matchesToWin ?? 1
   };
 }
 
@@ -100,11 +101,12 @@ function getSilverPhaseConfig(
   }
 
   // Early rounds configuration for silver bracket
+  // Falls back to silver bracket config, then general finalStage config, then defaults
   return {
-    gameMode: finalStage.silverEarlyRoundsGameMode || 'rounds',
-    pointsToWin: finalStage.silverEarlyRoundsPointsToWin ?? 7,
-    roundsToPlay: finalStage.silverEarlyRoundsToPlay ?? 4,
-    matchesToWin: 1  // Always best of 1 for early rounds
+    gameMode: finalStage.silverEarlyRoundsGameMode || finalStage.silverGameMode || finalStage.gameMode || 'points',
+    pointsToWin: finalStage.silverEarlyRoundsPointsToWin ?? finalStage.silverPointsToWin ?? finalStage.pointsToWin ?? 7,
+    roundsToPlay: finalStage.silverEarlyRoundsToPlay ?? finalStage.silverRoundsToPlay ?? finalStage.roundsToPlay ?? 4,
+    matchesToWin: finalStage.silverEarlyRoundsMatchesToWin ?? finalStage.silverMatchesToWin ?? finalStage.matchesToWin ?? 1
   };
 }
 

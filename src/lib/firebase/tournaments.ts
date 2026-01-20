@@ -624,6 +624,56 @@ export async function getTournamentByKey(key: string): Promise<Tournament | null
 }
 
 /**
+ * Check if a tournament key already exists
+ * Returns the tournament ID and name if it exists, null otherwise
+ *
+ * @param key Tournament key (6 alphanumeric characters)
+ * @param excludeTournamentId Optional tournament ID to exclude (for edit mode)
+ * @returns Object with exists flag, id and name, or null if key is invalid
+ */
+export async function checkTournamentKeyExists(
+  key: string,
+  excludeTournamentId?: string
+): Promise<{ exists: boolean; id?: string; name?: string } | null> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return null;
+  }
+
+  if (!key || key.length !== 6) {
+    return null;
+  }
+
+  try {
+    const tournamentsRef = collection(db!, 'tournaments');
+    const q = query(tournamentsRef, where('key', '==', key.toUpperCase()), limit(1));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return { exists: false };
+    }
+
+    const docSnap = snapshot.docs[0];
+    const tournamentId = docSnap.id;
+
+    // If we're excluding a tournament ID (edit mode), check if it's the same
+    if (excludeTournamentId && tournamentId === excludeTournamentId) {
+      return { exists: false };
+    }
+
+    const data = docSnap.data();
+    return {
+      exists: true,
+      id: tournamentId,
+      name: data.name || 'Unknown'
+    };
+  } catch (error) {
+    console.error('❌ Error checking tournament key:', error);
+    return null;
+  }
+}
+
+/**
  * Search users for participant selection
  *
  * @param query Search query (name or email)

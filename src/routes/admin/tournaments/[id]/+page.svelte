@@ -85,6 +85,11 @@
     return colorMap[status] || '#666';
   }
 
+  function getStatusTextColor(status: string): string {
+    const darkTextStatuses = ['TRANSITION', 'COMPLETED', 'FINAL_STAGE'];
+    return darkTextStatuses.includes(status) ? '#1f2937' : 'white';
+  }
+
   function confirmStart() {
     if (!tournament) return;
 
@@ -238,76 +243,75 @@
   <div class="tournament-page" data-theme={$adminTheme}>
     <!-- Header -->
     <header class="page-header">
-      <div class="header-top">
-        <button class="back-button" on:click={() => goto('/admin/tournaments')}>
-          ← {$t('backToTournaments')}
-        </button>
-        <div class="theme-toggle-wrapper">
-          <ThemeToggle />
-        </div>
-      </div>
-
       {#if tournament}
-        <div class="tournament-header">
-          <div class="header-content">
-            <div class="title-row">
-              <h1>{tournament.edition ? `#${tournament.edition} ` : ''}{tournament.name}</h1>
-              {#if tournament.tournamentDate}
-                <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-              {/if}
-            </div>
-            {#if tournament.city && tournament.country}
-              <p class="location">{tournament.city} ({tournament.country})</p>
-            {/if}
-            {#if tournament.description}
-              <p class="description">{tournament.description}</p>
-            {/if}
-            <div class="tournament-meta">
-            
+        <div class="header-row">
+          <button class="back-btn" on:click={() => goto('/admin/tournaments')}>
+            ←
+          </button>
 
-               {#if tournament.status !== 'COMPLETED' && tournament.status !== 'CANCELLED'}
-                 <TournamentKeyBadge tournamentKey={tournament.key} />
-               {/if}
+          <div class="header-main">
+            <div class="title-section">
+              <h1>{tournament.edition ? `#${tournament.edition} ` : ''}{tournament.name}</h1>
+              <div class="header-badges">
+                <span class="status-badge" style="background: {getStatusColor(tournament.status)}; color: {getStatusTextColor(tournament.status)}">
+                  {getStatusText(tournament.status)}
+                </span>
+                <span class="info-badge participants-badge">
+                  {tournament.participants.length} {$t('participants')}
+                </span>
+                {#if tournament.status !== 'COMPLETED' && tournament.status !== 'CANCELLED'}
+                  <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
+                {/if}
+              </div>
             </div>
           </div>
-          <div class="header-right">
-            <div class="status-badge" style="background: {getStatusColor(tournament.status)}">
-              {getStatusText(tournament.status)}
-            </div>
-            <div class="header-actions">
-              {#if tournament.status === 'DRAFT'}
-                <button class="header-action-btn start" on:click={confirmStart} disabled={isStarting}>
-                  {isStarting ? `⏳ ${$t('starting')}...` : `🚀 ${$t('start')}`}
-                </button>
-                <button class="header-action-btn edit" on:click={() => goto(`/admin/tournaments/create?edit=${tournamentId}`)}>
-                  ✏️ {$t('edit')}
-                </button>
-                <button class="header-action-btn danger" on:click={confirmCancel}>
-                  🗑️ {$t('cancel')}
-                </button>
-              {:else if tournament.status === 'GROUP_STAGE'}
-                <button class="header-action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/groups`)}>
-                  📊 {$t('viewGroupStage')}
-                </button>
-                <button class="header-action-btn edit" on:click={openQuickEdit}>
-                  ⚙️ {$t('settings')}
-                </button>
-              {:else if tournament.status === 'TRANSITION'}
-                <button class="header-action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/transition`)}>
-                  ⚡ {$t('selectQualified')}
-                </button>
-                <button class="header-action-btn edit" on:click={openQuickEdit}>
-                  ⚙️ {$t('settings')}
-                </button>
-              {:else if tournament.status === 'FINAL_STAGE'}
-                <button class="header-action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/bracket`)}>
-                  🏆 {$t('viewBracket')}
-                </button>
-                <button class="header-action-btn edit" on:click={openQuickEdit}>
-                  ⚙️ {$t('settings')}
-                </button>
-              {/if}
-            </div>
+
+          <div class="header-actions">
+            {#if tournament.status === 'DRAFT'}
+              <button class="action-btn primary" on:click={confirmStart} disabled={isStarting}>
+                {isStarting ? $t('starting') + '...' : $t('start')}
+              </button>
+              <button class="action-btn" on:click={() => goto(`/admin/tournaments/create?edit=${tournamentId}`)}>
+                {$t('edit')}
+              </button>
+              <button class="action-btn danger" on:click={confirmCancel}>
+                {$t('cancel')}
+              </button>
+            {:else if tournament.status === 'GROUP_STAGE'}
+              <button class="action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/groups`)}>
+                {$t('viewGroupStage')}
+              </button>
+              <button class="action-btn" on:click={openQuickEdit}>
+                {$t('edit')}
+              </button>
+            {:else if tournament.status === 'TRANSITION'}
+              <button class="action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/transition`)}>
+                {$t('selectQualified')}
+              </button>
+              <button class="action-btn" on:click={openQuickEdit}>
+                {$t('edit')}
+              </button>
+            {:else if tournament.status === 'FINAL_STAGE'}
+              <button class="action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/bracket`)}>
+                {$t('viewBracket')}
+              </button>
+              <button class="action-btn" on:click={openQuickEdit}>
+                {$t('edit')}
+              </button>
+            {/if}
+            <ThemeToggle />
+          </div>
+        </div>
+      {:else}
+        <div class="header-row">
+          <button class="back-btn" on:click={() => goto('/admin/tournaments')}>
+            ←
+          </button>
+          <div class="header-main">
+            <h1>{$t('loadingTournament')}...</h1>
+          </div>
+          <div class="header-actions">
+            <ThemeToggle />
           </div>
         </div>
       {/if}
@@ -344,6 +348,24 @@
           <section class="dashboard-card">
             <h2>{$t('generalConfiguration')}</h2>
             <div class="config-list">
+              {#if tournament.tournamentDate}
+                <div class="config-item">
+                  <span class="config-label">{$t('date')}:</span>
+                  <span class="config-value">
+                    {new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </span>
+                </div>
+              {/if}
+
+              {#if tournament.city || tournament.country}
+                <div class="config-item">
+                  <span class="config-label">{$t('location')}:</span>
+                  <span class="config-value">
+                    {tournament.city}{tournament.city && tournament.country ? ', ' : ''}{tournament.country || ''}
+                  </span>
+                </div>
+              {/if}
+
               <div class="config-item">
                 <span class="config-label">{$t('format')}:</span>
                 <span class="config-value">
@@ -352,36 +374,36 @@
               </div>
 
               <div class="config-item">
-                <span class="config-label">🎮 {$t('modality')}:</span>
+                <span class="config-label">{$t('modality')}:</span>
                 <span class="config-value">
                   {tournament.gameType === 'singles' ? $t('singles') : $t('doubles')}
                 </span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">🪑 {$t('availableTables')}:</span>
+                <span class="config-label">{$t('availableTables')}:</span>
                 <span class="config-value">{tournament.numTables}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">🎯 {$t('track20s')}:</span>
-                <span class="config-value">{tournament.show20s ? `✅ ${$t('yes')}` : `❌ ${$t('no')}`}</span>
+                <span class="config-label">{$t('track20s')}:</span>
+                <span class="config-value">{tournament.show20s ? $t('yes') : $t('no')}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">🔨 {$t('showHammer')}:</span>
-                <span class="config-value">{tournament.showHammer ? `✅ ${$t('yes')}` : `❌ ${$t('no')}`}</span>
+                <span class="config-label">{$t('showHammer')}:</span>
+                <span class="config-value">{tournament.showHammer ? $t('yes') : $t('no')}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">📊 {$t('rankingSystem')}:</span>
+                <span class="config-label">{$t('rankingSystem')}:</span>
                 <span class="config-value">
                   {#if tournament.rankingConfig?.enabled}
-                    ✅ {tournament.rankingConfig.tier === 'MAJOR' ? `${$t('tierMajor')} (Tier 1)` :
+                    {tournament.rankingConfig.tier === 'MAJOR' ? `${$t('tierMajor')} (Tier 1)` :
                         tournament.rankingConfig.tier === 'NATIONAL' ? `${$t('tierNational')} (Tier 2)` :
                         tournament.rankingConfig.tier === 'REGIONAL' ? `${$t('tierRegional')} (Tier 3)` : `${$t('tierClub')} (Tier 4)`}
                   {:else}
-                    ❌ {$t('disabled')}
+                    {$t('disabled')}
                   {/if}
                 </span>
               </div>
@@ -430,64 +452,41 @@
           {/if}
 
           <!-- Final Stage Configuration -->
-          <section class="dashboard-card final-stage-card">
+          <section class="dashboard-card">
             <h2>🏆 {$t('finalStage')}</h2>
 
             {#if tournament.phaseType === 'TWO_PHASE' && tournament.finalStageConfig}
               <!-- TWO_PHASE: Show finalStageConfig -->
               <div class="config-list">
-                <div class="config-item highlight">
+                <div class="config-item">
                   <span class="config-label">{$t('structure')}:</span>
                   <span class="config-value">
                     {tournament.finalStageConfig.mode === 'SPLIT_DIVISIONS'
-                      ? `🥇🥈 ${$t('goldSilverDivisions')}`
-                      : `🎯 ${$t('singleBracket')}`}
+                      ? $t('goldSilverDivisions')
+                      : $t('singleBracket')}
                   </span>
                 </div>
-              </div>
 
-              {#if tournament.finalStageConfig.mode === 'SPLIT_DIVISIONS'}
-                <!-- Split Divisions: Gold and Silver brackets -->
-                <div class="bracket-configs">
-                  <div class="bracket-config gold">
-                    <h3>🥇 {$t('goldBracket')}</h3>
-                    <div class="config-list">
-                      <div class="config-item">
-                        <span class="config-label">{$t('gameMode')}:</span>
-                        <span class="config-value">
-                          {tournament.finalStageConfig.gameMode === 'points'
-                            ? `${$t('byPoints')} (${tournament.finalStageConfig.pointsToWin})`
-                            : `${$t('byRounds')} (${tournament.finalStageConfig.roundsToPlay})`}
-                        </span>
-                      </div>
-                      <div class="config-item">
-                        <span class="config-label">{$t('matchesToWinLabel')}:</span>
-                        <span class="config-value">Best of {tournament.finalStageConfig.matchesToWin}</span>
-                      </div>
-                    </div>
+                {#if tournament.finalStageConfig.mode === 'SPLIT_DIVISIONS'}
+                  <div class="config-item">
+                    <span class="config-label">🥇 {$t('goldBracket')}:</span>
+                    <span class="config-value">
+                      {tournament.finalStageConfig.gameMode === 'points'
+                        ? `${$t('byPoints')} (${tournament.finalStageConfig.pointsToWin})`
+                        : `${$t('byRounds')} (${tournament.finalStageConfig.roundsToPlay})`}
+                      · Bo{tournament.finalStageConfig.matchesToWin}
+                    </span>
                   </div>
-
-                  <div class="bracket-config silver">
-                    <h3>🥈 {$t('silverBracket')}</h3>
-                    <div class="config-list">
-                      <div class="config-item">
-                        <span class="config-label">{$t('gameMode')}:</span>
-                        <span class="config-value">
-                          {tournament.finalStageConfig.silverGameMode === 'points'
-                            ? `${$t('byPoints')} (${tournament.finalStageConfig.silverPointsToWin})`
-                            : `${$t('byRounds')} (${tournament.finalStageConfig.silverRoundsToPlay})`}
-                        </span>
-                      </div>
-                      <div class="config-item">
-                        <span class="config-label">{$t('matchesToWinLabel')}:</span>
-                        <span class="config-value">Best of {tournament.finalStageConfig.silverMatchesToWin}</span>
-                      </div>
-                    </div>
+                  <div class="config-item">
+                    <span class="config-label">🥈 {$t('silverBracket')}:</span>
+                    <span class="config-value">
+                      {tournament.finalStageConfig.silverGameMode === 'points'
+                        ? `${$t('byPoints')} (${tournament.finalStageConfig.silverPointsToWin})`
+                        : `${$t('byRounds')} (${tournament.finalStageConfig.silverRoundsToPlay})`}
+                      · Bo{tournament.finalStageConfig.silverMatchesToWin}
+                    </span>
                   </div>
-                </div>
-              {:else}
-                <!-- Single Bracket -->
-                <div class="config-list">
+                {:else}
                   <div class="config-item">
                     <span class="config-label">{$t('gameMode')}:</span>
                     <span class="config-value">
@@ -500,64 +499,41 @@
                     <span class="config-label">{$t('matchesToWinLabel')}:</span>
                     <span class="config-value">Best of {tournament.finalStageConfig.matchesToWin}</span>
                   </div>
-                </div>
-              {/if}
+                {/if}
+              </div>
 
             {:else if tournament.finalStage}
               <!-- ONE_PHASE or active final stage: Show finalStage data -->
               <div class="config-list">
-                <div class="config-item highlight">
+                <div class="config-item">
                   <span class="config-label">{$t('structure')}:</span>
                   <span class="config-value">
                     {tournament.finalStage.mode === 'SPLIT_DIVISIONS'
-                      ? `🥇🥈 ${$t('goldSilverDivisions')}`
-                      : `🎯 ${$t('singleBracket')}`}
+                      ? $t('goldSilverDivisions')
+                      : $t('singleBracket')}
                   </span>
                 </div>
-              </div>
 
-              {#if tournament.finalStage.mode === 'SPLIT_DIVISIONS'}
-                <!-- Split Divisions: Gold and Silver brackets -->
-                <div class="bracket-configs">
-                  <div class="bracket-config gold">
-                    <h3>🥇 {$t('goldBracket')}</h3>
-                    <div class="config-list">
-                      <div class="config-item">
-                        <span class="config-label">{$t('gameMode')}:</span>
-                        <span class="config-value">
-                          {tournament.finalStage.gameMode === 'points'
-                            ? `${$t('byPoints')} (${tournament.finalStage.pointsToWin})`
-                            : `${$t('byRounds')} (${tournament.finalStage.roundsToPlay})`}
-                        </span>
-                      </div>
-                      <div class="config-item">
-                        <span class="config-label">{$t('matchesToWinLabel')}:</span>
-                        <span class="config-value">Best of {tournament.finalStage.matchesToWin}</span>
-                      </div>
-                    </div>
+                {#if tournament.finalStage.mode === 'SPLIT_DIVISIONS'}
+                  <div class="config-item">
+                    <span class="config-label">🥇 {$t('goldBracket')}:</span>
+                    <span class="config-value">
+                      {tournament.finalStage.gameMode === 'points'
+                        ? `${$t('byPoints')} (${tournament.finalStage.pointsToWin})`
+                        : `${$t('byRounds')} (${tournament.finalStage.roundsToPlay})`}
+                      · Bo{tournament.finalStage.matchesToWin}
+                    </span>
                   </div>
-
-                  <div class="bracket-config silver">
-                    <h3>🥈 {$t('silverBracket')}</h3>
-                    <div class="config-list">
-                      <div class="config-item">
-                        <span class="config-label">{$t('gameMode')}:</span>
-                        <span class="config-value">
-                          {tournament.finalStage.silverGameMode === 'points'
-                            ? `${$t('byPoints')} (${tournament.finalStage.silverPointsToWin})`
-                            : `${$t('byRounds')} (${tournament.finalStage.silverRoundsToPlay})`}
-                        </span>
-                      </div>
-                      <div class="config-item">
-                        <span class="config-label">{$t('matchesToWinLabel')}:</span>
-                        <span class="config-value">Best of {tournament.finalStage.silverMatchesToWin}</span>
-                      </div>
-                    </div>
+                  <div class="config-item">
+                    <span class="config-label">🥈 {$t('silverBracket')}:</span>
+                    <span class="config-value">
+                      {tournament.finalStage.silverGameMode === 'points'
+                        ? `${$t('byPoints')} (${tournament.finalStage.silverPointsToWin})`
+                        : `${$t('byRounds')} (${tournament.finalStage.silverRoundsToPlay})`}
+                      · Bo{tournament.finalStage.silverMatchesToWin}
+                    </span>
                   </div>
-                </div>
-              {:else}
-                <!-- Single Bracket -->
-                <div class="config-list">
+                {:else}
                   <div class="config-item">
                     <span class="config-label">{$t('gameMode')}:</span>
                     <span class="config-value">
@@ -570,8 +546,8 @@
                     <span class="config-label">{$t('matchesToWinLabel')}:</span>
                     <span class="config-value">Best of {tournament.finalStage.matchesToWin || 1}</span>
                   </div>
-                </div>
-              {/if}
+                {/if}
+              </div>
 
             {:else}
               <div class="config-list">
@@ -769,7 +745,7 @@
   .page-header {
     background: white;
     border-bottom: 1px solid #e5e7eb;
-    padding: 1.5rem 2rem;
+    padding: 0.75rem 1rem;
     transition: background-color 0.3s, border-color 0.3s;
     flex-shrink: 0;
   }
@@ -779,178 +755,169 @@
     border-color: #2d3748;
   }
 
-  .header-top {
+  .header-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
+    gap: 0.75rem;
   }
 
-  .back-button {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
-    background: white;
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
     color: #555;
-    border: 1px solid #ddd;
-    border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
+    flex-shrink: 0;
   }
 
-  .tournament-page[data-theme='dark'] .back-button {
+  .tournament-page[data-theme='dark'] .back-btn {
     background: #0f1419;
     color: #8b9bb3;
-    border-color: #2d3748;
   }
 
-  .back-button:hover {
-    transform: translateX(-3px);
-  }
-
-  .tournament-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 2rem;
-  }
-
-  .header-content {
-    flex: 1;
-  }
-
-  .header-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 1rem;
-  }
-
-  .header-actions {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .header-action-btn {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-
-  .header-action-btn.start,
-  .header-action-btn.primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-  }
-
-  .header-action-btn.start:hover:not(:disabled),
-  .header-action-btn.primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-  }
-
-  .header-action-btn.start:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .header-action-btn.edit {
-    background: #f3f4f6;
-    color: #1a1a1a;
-  }
-
-  .tournament-page[data-theme='dark'] .header-action-btn.edit {
-    background: #0f1419;
-    color: #e1e8ed;
-  }
-
-  .header-action-btn.edit:hover {
+  .back-btn:hover {
     background: #e5e7eb;
+    transform: translateX(-2px);
   }
 
-  .tournament-page[data-theme='dark'] .header-action-btn.edit:hover {
+  .tournament-page[data-theme='dark'] .back-btn:hover {
     background: #2d3748;
   }
 
-  .header-action-btn.danger {
-    background: #fee2e2;
-    color: #dc2626;
+  .header-main {
+    flex: 1;
+    min-width: 0;
   }
 
-  .header-action-btn.danger:hover {
-    background: #fecaca;
-  }
-
-  .title-row {
+  .title-section {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 0.75rem;
     flex-wrap: wrap;
   }
 
-  .header-content h1 {
-    font-size: 1.6rem;
+  .title-section h1 {
+    font-size: 1.1rem;
     margin: 0;
     color: #1a1a1a;
-    font-weight: 700;
+    font-weight: 600;
+    white-space: nowrap;
     transition: color 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .header-content h1 {
+  .tournament-page[data-theme='dark'] .title-section h1 {
     color: #e1e8ed;
   }
 
-  .tournament-date {
-    font-size: 0.9rem;
-    color: #999;
-    font-weight: 400;
-    transition: color 0.3s;
-  }
-
-  .tournament-page[data-theme='dark'] .tournament-date {
-    color: #6b7a94;
-  }
-
-  .location {
-    font-size: 0.95rem;
-    color: #888;
-    margin: 0.25rem 0 0.5rem 0;
-    transition: color 0.3s;
-  }
-
-  .tournament-page[data-theme='dark'] .location {
-    color: #6b7a94;
-  }
-
-  .description {
-    font-size: 1rem;
-    color: #666;
-    margin: 0 0 1rem 0;
-    transition: color 0.3s;
-  }
-
-  .tournament-page[data-theme='dark'] .description {
-    color: #8b9bb3;
-  }
-
-  .tournament-meta {
+  .header-badges {
     display: flex;
+    align-items: center;
+    gap: 0.4rem;
     flex-wrap: wrap;
-    gap: 1rem;
-    margin-top: 1rem;
   }
 
   .status-badge {
-    padding: 0.6rem 1.2rem;
-    border-radius: 8px;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
     color: white;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
     white-space: nowrap;
+  }
+
+  .info-badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    white-space: nowrap;
+    background: #f3f4f6;
+    color: #555;
+    transition: all 0.3s;
+  }
+
+  .tournament-page[data-theme='dark'] .info-badge {
+    background: #0f1419;
+    color: #8b9bb3;
+  }
+
+  .participants-badge {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .tournament-page[data-theme='dark'] .participants-badge {
+    background: #14532d;
+    color: #86efac;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .action-btn {
+    padding: 0.4rem 0.75rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    background: #f3f4f6;
+    color: #1a1a1a;
+  }
+
+  .tournament-page[data-theme='dark'] .action-btn {
+    background: #374151;
+    color: #e1e8ed;
+  }
+
+  .action-btn:hover {
+    background: #e5e7eb;
+  }
+
+  .tournament-page[data-theme='dark'] .action-btn:hover {
+    background: #4b5563;
+  }
+
+  .action-btn.primary,
+  .tournament-page[data-theme='dark'] .action-btn.primary {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+  }
+
+  .action-btn.primary:hover:not(:disabled),
+  .tournament-page[data-theme='dark'] .action-btn.primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .action-btn.primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .action-btn.danger {
+    background: #fee2e2;
+    color: #dc2626;
+  }
+
+  .action-btn.danger:hover {
+    background: #fecaca;
   }
 
   /* Content */
@@ -1029,8 +996,8 @@
   /* Dashboard Grid */
   .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
   }
 
   /* Make results card span full width */
@@ -1040,22 +1007,24 @@
 
   .dashboard-card {
     background: white;
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     transition: background-color 0.3s, box-shadow 0.3s;
   }
 
   .tournament-page[data-theme='dark'] .dashboard-card {
     background: #1a2332;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
   .dashboard-card h2 {
-    font-size: 1.3rem;
-    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
+    margin: 0 0 0.75rem 0;
     color: #1a1a1a;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
     transition: color 0.3s;
   }
 
@@ -1067,15 +1036,17 @@
   .config-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.4rem;
   }
 
   .config-item {
     display: flex;
     justify-content: space-between;
-    padding: 0.75rem;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
     background: #f9fafb;
-    border-radius: 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
     transition: background-color 0.3s;
   }
 
@@ -1096,6 +1067,7 @@
   .config-value {
     color: #1a1a1a;
     font-weight: 600;
+    text-align: right;
     transition: color 0.3s;
   }
 
@@ -1103,179 +1075,101 @@
     color: #e1e8ed;
   }
 
-  /* Final Stage Card */
-  .final-stage-card .config-item.highlight {
-    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
-    border: 1px solid #c7d2fe;
-  }
-
-  .tournament-page[data-theme='dark'] .final-stage-card .config-item.highlight {
-    background: linear-gradient(135deg, #1e293b 0%, #1a2744 100%);
-    border: 1px solid #3b4a6b;
-  }
-
-  .bracket-configs {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-
-  .bracket-config {
-    padding: 1rem;
-    border-radius: 10px;
-    border: 2px solid;
-  }
-
-  .bracket-config.gold {
-    background: linear-gradient(135deg, #fef9c3 0%, #fef3c7 100%);
-    border-color: #fbbf24;
-  }
-
-  .tournament-page[data-theme='dark'] .bracket-config.gold {
-    background: linear-gradient(135deg, #422006 0%, #451a03 100%);
-    border-color: #b45309;
-  }
-
-  .bracket-config.silver {
-    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-    border-color: #94a3b8;
-  }
-
-  .tournament-page[data-theme='dark'] .bracket-config.silver {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-    border-color: #64748b;
-  }
-
-  .bracket-config h3 {
-    font-size: 1rem;
-    margin: 0 0 0.75rem 0;
-    color: #1a1a1a;
-    font-weight: 600;
-    transition: color 0.3s;
-  }
-
-  .tournament-page[data-theme='dark'] .bracket-config h3 {
-    color: #e1e8ed;
-  }
-
-  .bracket-config .config-list {
-    gap: 0.5rem;
-  }
-
-  .bracket-config .config-item {
-    padding: 0.5rem 0.75rem;
-    background: rgba(255, 255, 255, 0.6);
-    font-size: 0.9rem;
-  }
-
-  .tournament-page[data-theme='dark'] .bracket-config .config-item {
-    background: rgba(0, 0, 0, 0.2);
-  }
-
-  .bracket-config .config-label,
-  .bracket-config .config-value {
-    font-size: 0.85rem;
-  }
-
   /* Responsive */
-  @media (max-width: 600px) {
+  @media (max-width: 1024px) {
     .dashboard-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, 1fr);
     }
+  }
 
-    .tournament-header {
-      flex-direction: column;
-    }
-
-    .header-right {
-      width: 100%;
-      align-items: flex-start;
-    }
-
-    .header-actions {
-      width: 100%;
+  @media (max-width: 768px) {
+    .header-row {
       flex-wrap: wrap;
     }
 
-    .header-action-btn {
-      flex: 1;
-      min-width: 100px;
+    .header-main {
+      order: 2;
+      width: 100%;
+      margin-top: 0.5rem;
     }
 
-    .status-badge {
-      align-self: flex-start;
+    .header-actions {
+      order: 1;
+      margin-left: auto;
     }
 
-    .bracket-configs {
+    .title-section {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .header-badges {
+      width: 100%;
+    }
+
+    .dashboard-grid {
       grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .header-actions {
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+
+    .action-btn {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.75rem;
     }
   }
 
   /* Mobile landscape optimizations */
   @media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
     .page-header {
-      padding: 0.75rem 1rem;
+      padding: 0.5rem 0.75rem;
     }
 
-    .header-top {
-      margin-bottom: 0.75rem;
+    .title-section h1 {
+      font-size: 1rem;
     }
 
-    .back-button {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.8rem;
+    .header-badges {
+      gap: 0.3rem;
     }
 
-    .header-content h1 {
-      font-size: 1.3rem;
-      margin-bottom: 0.25rem;
+    .status-badge,
+    .info-badge {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
     }
 
-    .description {
-      font-size: 0.85rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .tournament-meta {
-      gap: 0.5rem;
-      margin-top: 0.5rem;
-    }
-
-    .status-badge {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.75rem;
+    .action-btn {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.7rem;
     }
 
     .page-content {
-      padding: 1rem;
+      padding: 0.75rem;
     }
 
     .dashboard-grid {
-      grid-template-columns: 1fr;
-      gap: 1rem;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
     }
 
     .dashboard-card {
-      padding: 1rem;
+      padding: 0.75rem;
     }
 
     .dashboard-card h2 {
-      font-size: 1.1rem;
-      margin-bottom: 0.75rem;
+      font-size: 0.8rem;
+      margin-bottom: 0.5rem;
     }
 
     .config-item {
-      padding: 0.5rem;
-    }
-
-    .config-label,
-    .config-value {
-      font-size: 0.85rem;
-    }
-
-    .header-action-btn {
-      padding: 0.4rem 0.75rem;
+      padding: 0.3rem 0.5rem;
       font-size: 0.75rem;
     }
 
@@ -1303,29 +1197,6 @@
     .primary-button {
       padding: 0.6rem 1.5rem;
       font-size: 0.85rem;
-    }
-
-    .bracket-configs {
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-    }
-
-    .bracket-config {
-      padding: 0.75rem;
-    }
-
-    .bracket-config h3 {
-      font-size: 0.9rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .bracket-config .config-item {
-      padding: 0.4rem 0.5rem;
-    }
-
-    .bracket-config .config-label,
-    .bracket-config .config-value {
-      font-size: 0.75rem;
     }
   }
 

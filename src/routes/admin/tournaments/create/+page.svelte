@@ -5,7 +5,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { goto } from '$app/navigation';
-  import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, type TournamentNameInfo } from '$lib/firebase/tournaments';
+  import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, FinalStageMode, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
@@ -119,9 +119,24 @@
   let nameSearchLoading = false;
   let showNameDropdown = false;
 
+  // Tournament key validation
+  let keyCheckLoading = false;
+  let keyCheckResult: { exists: boolean; name?: string } | null = null;
+  let keyCheckTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Track touched fields for showing errors
+  let touchedFields: Set<string> = new Set();
+
   // Validation
   let validationErrors: string[] = [];
   let validationWarnings: string[] = [];
+
+  // Field-specific error checks
+  $: keyHasError = touchedFields.has('key') && (!/^[A-Z0-9]{6}$/.test(key) || keyCheckResult?.exists);
+  $: nameHasError = touchedFields.has('name') && !name.trim();
+  $: editionHasError = touchedFields.has('edition') && (!edition || edition < 1 || edition > 1000);
+  $: countryHasError = touchedFields.has('country') && !country;
+  $: cityHasError = touchedFields.has('city') && !city.trim();
 
   // Loading state
   let creating = false;
@@ -563,6 +578,45 @@
     searchLoading = false;
   }
 
+  // Check if tournament key already exists (with debounce)
+  async function checkKeyExists(keyValue: string) {
+    // Clear previous timeout
+    if (keyCheckTimeout) {
+      clearTimeout(keyCheckTimeout);
+    }
+
+    // Reset state if key is incomplete
+    if (!keyValue || keyValue.length !== 6) {
+      keyCheckResult = null;
+      keyCheckLoading = false;
+      return;
+    }
+
+    // Debounce the check
+    keyCheckTimeout = setTimeout(async () => {
+      keyCheckLoading = true;
+      const result = await checkTournamentKeyExists(
+        keyValue,
+        editMode ? editTournamentId || undefined : undefined
+      );
+      keyCheckResult = result;
+      keyCheckLoading = false;
+    }, 300);
+  }
+
+  // Handle key input change
+  function handleKeyInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const newKey = target.value.replace(/[^A-Z0-9]/g, '').toUpperCase().substring(0, 6);
+    key = newKey;
+    checkKeyExists(newKey);
+  }
+
+  // Mark a field as touched (for showing validation errors)
+  function markTouched(field: string) {
+    touchedFields = new Set([...touchedFields, field]);
+  }
+
   async function handleNameSearch() {
     if (name.length < 2) {
       tournamentNameResults = [];
@@ -689,6 +743,9 @@
     }
     if (!/^[A-Z0-9]{6}$/.test(key)) {
       errors.push('La clave debe ser exactamente 6 caracteres alfanuméricos (A-Z, 0-9)');
+    }
+    if (keyCheckResult?.exists) {
+      errors.push(`La clave "${key}" ya está en uso por otro torneo`);
     }
     if (!edition || edition < 1 || edition > 1000) {
       errors.push('La edición debe ser un número entre 1 y 1000');
@@ -1033,33 +1090,38 @@
   $: key, name, edition, country, city, gameType, gameMode, pointsToWin, roundsToPlay, matchesToWin,
      groupGameMode, groupPointsToWin, groupRoundsToPlay, groupMatchesToWin,
      finalPointsToWin, finalMatchesToWin, phaseType, numTables, numGroups,
-     numSwissRounds, participants.length, currentStep,
+     numSwissRounds, participants.length, currentStep, keyCheckResult,
      [validationErrors, validationWarnings] = getValidationForStep(currentStep);
 </script>
 
 <AdminGuard>
   <div class="wizard-container" data-theme={$adminTheme}>
-    <header class="wizard-header">
-      <div class="header-top">
-        <button class="back-button" on:click={() => goto(editMode && editTournamentId ? `/admin/tournaments/${editTournamentId}` : '/admin/tournaments')}>
-          ← Volver a Torneos
-        </button>
-        <div class="theme-toggle-wrapper">
+    <header class="page-header">
+      <div class="header-row">
+        <button class="back-btn" on:click={() => goto(editMode && editTournamentId ? `/admin/tournaments/${editTournamentId}` : '/admin/tournaments')}>←</button>
+        <div class="header-main">
+          <div class="title-section">
+            <h1>
+              {editMode ? 'Editar' : duplicateMode ? 'Duplicar' : 'Nuevo'}:
+              {#if edition && name}
+                #{edition} {name}
+              {:else if name}
+                {name}
+              {:else}
+                Torneo
+              {/if}
+            </h1>
+            <div class="header-badges">
+              <span class="info-badge step-badge">Paso {currentStep}/{totalSteps}</span>
+            </div>
+          </div>
+        </div>
+        <div class="header-actions">
           <ThemeToggle />
         </div>
       </div>
 
-      <div class="title-section">
-        <h1>{editMode ? '✏️ Editar Torneo' : duplicateMode ? '📋 Duplicar Torneo' : '🏆 Crear Nuevo Torneo'}</h1>
-        <p class="subtitle">{duplicateMode ? `Creando edición #${edition} basada en torneo existente` : `Configura tu torneo en ${totalSteps} sencillos pasos`}</p>
-        {#if !editMode && !duplicateMode}
-          <button class="clear-draft-btn" on:click={() => { clearDraft(); location.reload(); }} title="Empezar de nuevo">
-            🔄 Limpiar borrador
-          </button>
-        {/if}
-      </div>
-
-      <!-- Progress bar -->
+      <!-- Progress bar compacto -->
       <div class="progress-bar">
         {#each Array(totalSteps) as _, i}
           <button
@@ -1072,11 +1134,11 @@
           >
             <div class="step-number">{i + 1}</div>
             <div class="step-label">
-              {#if i === 0}Info Básica
+              {#if i === 0}Info
               {:else if i === 1}Formato
               {:else if i === 2}Ranking
-              {:else if i === 3}Participantes
-              {:else}Revisión
+              {:else if i === 3}Jugadores
+              {:else}Revisar
               {/if}
             </div>
           </button>
@@ -1087,135 +1149,178 @@
     <div class="wizard-content">
       <!-- Step 1: Basic Info -->
       {#if currentStep === 1}
-        <div class="step-container">
-          <h2>📝 Información Básica</h2>
+        <div class="step-container step-basic">
+          <h2>Información Básica</h2>
 
-          <div class="form-group">
-            <label for="key">Clave del Torneo *</label>
-            <input
-              id="key"
-              type="text"
-              bind:value={key}
-              placeholder="ABC123"
-              class="input-field"
-              maxlength="6"
-              on:input={(e) => key = e.target.value.replace(/[^A-Z0-9]/g, '').toUpperCase().substring(0, 6)}
-            />
-            <small class="help-text">6 caracteres alfanuméricos (A-Z, 0-9). Esta clave permitirá a los jugadores actualizar el marcador en tiempo real durante el torneo.</small>
-          </div>
-
-          <div class="form-row name-edition-row">
-            <div class="form-group edition-group">
-              <label for="edition">Edición *</label>
-              <input
-                id="edition"
-                type="number"
-                bind:value={edition}
-                placeholder="Nº"
-                class="input-field"
-                min="1"
-                max="1000"
-              />
-            </div>
-
-            <div class="form-group name-search-group">
-              <label for="name">Nombre del Torneo *</label>
-              <div class="name-search-wrapper">
-                <input
-                  id="name"
-                  type="text"
-                  bind:value={name}
-                  placeholder="Ej: Open de Catalunya"
-                  class="input-field"
-                  on:input={handleNameSearch}
-                  on:blur={handleNameInputBlur}
-                  on:focus={handleNameInputFocus}
-                  autocomplete="off"
-                />
-                {#if nameSearchLoading}
-                  <span class="name-search-loading">🔄</span>
-                {/if}
-                {#if showNameDropdown && tournamentNameResults.length > 0}
-                  <div class="name-dropdown">
-                    {#each tournamentNameResults as info}
-                      <button
-                        type="button"
-                        class="name-dropdown-item"
-                        on:click={() => selectTournamentName(info)}
-                      >
-                        <span class="name-dropdown-name">{info.name}</span>
-                        <span class="name-dropdown-edition">Ed. {info.maxEdition} → {info.maxEdition + 1}</span>
-                      </button>
-                    {/each}
-                  </div>
+          <!-- Identificación del Torneo -->
+          <div class="info-section">
+            <div class="info-section-header">Identificación</div>
+            <div class="info-grid id-grid">
+              <div class="info-field key-field">
+                <label for="key">Clave</label>
+                <div class="key-input-wrapper">
+                  <input
+                    id="key"
+                    type="text"
+                    bind:value={key}
+                    placeholder="ABC123"
+                    class="input-field key-input"
+                    class:input-error={keyHasError}
+                    class:input-valid={keyCheckResult && !keyCheckResult.exists && key.length === 6}
+                    maxlength="6"
+                    on:input={handleKeyInput}
+                    on:blur={() => markTouched('key')}
+                  />
+                  {#if keyCheckLoading}
+                    <span class="key-status loading">...</span>
+                  {:else if keyHasError}
+                    <span class="key-status error">✗</span>
+                  {:else if keyCheckResult && !keyCheckResult.exists && key.length === 6}
+                    <span class="key-status valid">✓</span>
+                  {/if}
+                </div>
+                {#if keyCheckResult?.exists}
+                  <small class="field-error">En uso</small>
+                {:else if touchedFields.has('key') && !/^[A-Z0-9]{6}$/.test(key)}
+                  <small class="field-error">6 chars A-Z 0-9</small>
+                {:else}
+                  <small class="field-hint">Código para acceso rápido</small>
                 {/if}
               </div>
-              <small class="help-text">Escribe para buscar nombres existentes o crea uno nuevo</small>
+
+              <div class="info-field edition-field">
+                <label for="edition">Edición</label>
+                <input
+                  id="edition"
+                  type="number"
+                  bind:value={edition}
+                  class="input-field"
+                  class:input-error={editionHasError}
+                  min="1"
+                  max="1000"
+                  on:blur={() => markTouched('edition')}
+                />
+              </div>
+
+              <div class="info-field name-field">
+                <label for="name">Nombre del Torneo</label>
+                <div class="name-search-wrapper">
+                  <input
+                    id="name"
+                    type="text"
+                    bind:value={name}
+                    placeholder="Ej: Open de Catalunya"
+                    class="input-field"
+                    class:input-error={nameHasError}
+                    on:input={handleNameSearch}
+                    on:blur={() => { handleNameInputBlur(); markTouched('name'); }}
+                    on:focus={handleNameInputFocus}
+                    autocomplete="off"
+                  />
+                  {#if nameSearchLoading}
+                    <span class="name-search-loading">...</span>
+                  {/if}
+                  {#if showNameDropdown && tournamentNameResults.length > 0}
+                    <div class="name-dropdown">
+                      {#each tournamentNameResults as info}
+                        <button
+                          type="button"
+                          class="name-dropdown-item"
+                          on:click={() => selectTournamentName(info)}
+                        >
+                          <span class="name-dropdown-name">{info.name}</span>
+                          <span class="name-dropdown-edition">#{info.maxEdition + 1}</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="description">Descripción (opcional)</label>
-            <textarea
-              id="description"
-              bind:value={description}
-              placeholder="Describe el torneo..."
-              rows="3"
-              class="input-field"
-            ></textarea>
-          </div>
+          <!-- Ubicación y Fecha -->
+          <div class="info-section">
+            <div class="info-section-header">Ubicación y Fecha</div>
+            <div class="info-grid location-grid">
+              <div class="info-field">
+                <label for="country">País</label>
+                <select
+                  id="country"
+                  bind:value={country}
+                  class="input-field"
+                  class:input-error={countryHasError}
+                  on:blur={() => markTouched('country')}
+                >
+                  <option value="">Seleccionar...</option>
+                  {#each DEVELOPED_COUNTRIES as countryOption}
+                    <option value={countryOption}>{countryOption}</option>
+                  {/each}
+                </select>
+              </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="country">País *</label>
-              <select
-                id="country"
-                bind:value={country}
-                class="input-field"
-              >
-                <option value="">Seleccionar país...</option>
-                {#each DEVELOPED_COUNTRIES as countryOption}
-                  <option value={countryOption}>{countryOption}</option>
-                {/each}
-              </select>
+              <div class="info-field">
+                <label for="city">Ciudad</label>
+                <input
+                  id="city"
+                  type="text"
+                  bind:value={city}
+                  placeholder="Barcelona"
+                  class="input-field"
+                  class:input-error={cityHasError}
+                  maxlength="50"
+                  on:blur={() => markTouched('city')}
+                />
+              </div>
+
+              <div class="info-field">
+                <label for="tournamentDate">Fecha</label>
+                <input
+                  id="tournamentDate"
+                  type="date"
+                  bind:value={tournamentDate}
+                  class="input-field"
+                />
+              </div>
             </div>
-
-            <div class="form-group">
-              <label for="city">Ciudad *</label>
-              <input
-                id="city"
-                type="text"
-                bind:value={city}
-                placeholder="Ej: Barcelona"
-                class="input-field"
-                maxlength="50"
-              />
-              <small class="help-text">Máximo 50 caracteres</small>
-            </div>
           </div>
 
-          <div class="form-group">
-            <label for="tournamentDate">Fecha del Torneo (opcional)</label>
-            <input
-              id="tournamentDate"
-              type="date"
-              bind:value={tournamentDate}
-              class="input-field"
-            />
-            <small class="help-text">Selecciona la fecha en que se jugará el torneo</small>
-          </div>
+          <!-- Configuración -->
+          <div class="info-section">
+            <div class="info-section-header">Configuración</div>
+            <div class="info-grid config-grid">
+              <div class="info-field type-field">
+                <label>Modalidad</label>
+                <div class="type-toggle">
+                  <button
+                    type="button"
+                    class="type-btn"
+                    class:active={gameType === 'singles'}
+                    on:click={() => gameType = 'singles'}
+                  >
+                    Singles
+                  </button>
+                  <button
+                    type="button"
+                    class="type-btn"
+                    class:active={gameType === 'doubles'}
+                    on:click={() => gameType = 'doubles'}
+                  >
+                    Doubles
+                  </button>
+                </div>
+              </div>
 
-          <div class="form-group">
-            <label>Tipo de Juego</label>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" bind:group={gameType} value="singles" />
-                <span>Singles (1v1)</span>
-              </label>
-              <label class="radio-label">
-                <input type="radio" bind:group={gameType} value="doubles" />
-                <span>Doubles (2v2)</span>
-              </label>
+              <div class="info-field desc-field">
+                <label for="description">Descripción (opcional)</label>
+                <input
+                  id="description"
+                  type="text"
+                  bind:value={description}
+                  placeholder="Breve descripción del torneo..."
+                  class="input-field"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -1223,350 +1328,365 @@
 
       <!-- Step 2: Tournament Format -->
       {#if currentStep === 2}
-        <div class="step-container">
-          <h2>🎯 Formato del Torneo</h2>
+        <div class="step-container step-format">
+          <h2>Formato del Torneo</h2>
 
-          <div class="form-group">
-            <label for="numTables">Número de Mesas Disponibles</label>
-            <input
-              id="numTables"
-              type="number"
-              bind:value={numTables}
-              min="1"
-              max="100"
-              class="input-field"
-            />
-            <small class="help-text">
-              Mesas físicas disponibles para jugar simultáneamente.
-              <strong>Máximo {maxPlayersForTables} jugadores</strong> ({gameType === 'singles' ? '2 por mesa' : '4 por mesa en dobles'})
-            </small>
-          </div>
-
-          <div class="form-group">
-            <label>Tipo de Fase</label>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input type="radio" bind:group={phaseType} value="ONE_PHASE" />
-                <span>1 Fase (Solo Eliminatoria Directa)</span>
-              </label>
-              <label class="radio-label">
-                <input type="radio" bind:group={phaseType} value="TWO_PHASE" />
-                <span>2 Fases (Grupos + Final)</span>
-              </label>
+          <!-- Configuración General -->
+          <div class="format-section">
+            <div class="section-header">
+              <span class="section-title">Configuración General</span>
+            </div>
+            <div class="section-body">
+              <div class="inline-config">
+                <div class="config-field">
+                  <label for="numTables">Mesas</label>
+                  <input
+                    id="numTables"
+                    type="number"
+                    bind:value={numTables}
+                    min="1"
+                    max="100"
+                    class="input-field compact"
+                  />
+                  <span class="field-hint">Máx. {maxPlayersForTables} jugadores</span>
+                </div>
+                <div class="config-field phase-selector">
+                  <label>Estructura</label>
+                  <div class="toggle-buttons">
+                    <button
+                      type="button"
+                      class="toggle-btn"
+                      class:active={phaseType === 'ONE_PHASE'}
+                      on:click={() => phaseType = 'ONE_PHASE'}
+                    >
+                      1 Fase
+                    </button>
+                    <button
+                      type="button"
+                      class="toggle-btn"
+                      class:active={phaseType === 'TWO_PHASE'}
+                      on:click={() => phaseType = 'TWO_PHASE'}
+                    >
+                      2 Fases
+                    </button>
+                  </div>
+                  <span class="field-hint">
+                    {phaseType === 'ONE_PHASE' ? 'Eliminación directa' : 'Grupos + Eliminación'}
+                  </span>
+                </div>
+                <div class="config-field options-field">
+                  <label>Opciones</label>
+                  <div class="options-inline">
+                    <label class="option-check">
+                      <input type="checkbox" bind:checked={show20s} />
+                      <span>20s</span>
+                    </label>
+                    <label class="option-check">
+                      <input type="checkbox" bind:checked={showHammer} />
+                      <span>Hammer</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {#if phaseType === 'TWO_PHASE'}
             <!-- FASE 1: GRUPOS -->
-            <div class="phase-section">
-              <div class="phase-header groups">
-                <span class="phase-icon">👥</span>
-                <div class="phase-title">
-                  <h3>Fase 1: Grupos</h3>
-                  <small>Configuración de la fase clasificatoria</small>
-                </div>
+            <div class="format-section groups-phase">
+              <div class="section-header groups">
+                <span class="section-number">1</span>
+                <span class="section-title">Fase de Grupos</span>
               </div>
-
-              <div class="phase-content">
-                <div class="form-group">
-                  <label>Sistema de Grupos</label>
-                  <div class="radio-group">
-                    <label class="radio-label">
-                      <input type="radio" bind:group={groupStageType} value="ROUND_ROBIN" />
-                      <span>Round Robin</span>
-                    </label>
-                    <label class="radio-label">
-                      <input type="radio" bind:group={groupStageType} value="SWISS" />
-                      <span>Sistema Suizo</span>
-                    </label>
-                  </div>
-                  <small class="help-text">
-                    {groupStageType === 'ROUND_ROBIN'
-                      ? 'Todos contra todos dentro de cada grupo'
-                      : 'Emparejamiento dinámico por puntuación'}
-                  </small>
-                </div>
-
-                {#if groupStageType === 'ROUND_ROBIN'}
-                  <div class="form-group">
-                    <label for="numGroups">Número de Grupos</label>
-                    <input
-                      id="numGroups"
-                      type="number"
-                      bind:value={numGroups}
-                      min="1"
-                      max="8"
-                      class="input-field"
-                    />
-                    <small class="help-text">Los participantes se dividirán equitativamente</small>
-                  </div>
-                {:else}
-                  <div class="form-group">
-                    <label for="numSwissRounds">Número de Rondas</label>
-                    <input
-                      id="numSwissRounds"
-                      type="number"
-                      bind:value={numSwissRounds}
-                      min="3"
-                      max="10"
-                      class="input-field"
-                    />
-                    <small class="help-text">Mínimo 3 rondas recomendado</small>
-                  </div>
-                {/if}
-
-                <!-- Sistema de clasificación (aplica a ambos tipos) -->
-                <div class="form-group">
-                  <label>Sistema de Clasificación</label>
-                  <div class="radio-group vertical">
-                    <label class="radio-label">
-                      <input type="radio" bind:group={rankingSystem} value="WINS" />
-                      <span>Por Victorias</span>
-                      <small class="radio-description">
-                        {groupStageType === 'ROUND_ROBIN'
-                          ? '2 puntos victoria, 1 empate, 0 derrota'
-                          : '1 punto victoria, 0.5 empate, 0 derrota'}
-                      </small>
-                    </label>
-                    <label class="radio-label">
-                      <input type="radio" bind:group={rankingSystem} value="POINTS" />
-                      <span>Por Puntos Totales</span>
-                      <small class="radio-description">Suma de todos los puntos de cada ronda anotados</small>
-                    </label>
-                  </div>
-                </div>
-
-                <!-- Subsección: Configuración de partidos de grupos -->
-                <div class="match-config-box">
-                  <h4>⚙️ Configuración de Partidos</h4>
-
-                  <div class="form-group">
-                    <label>Modo de Juego</label>
-                    <div class="radio-group">
-                      <label class="radio-label">
-                        <input type="radio" bind:group={groupGameMode} value="points" />
-                        <span>Por Puntos</span>
-                      </label>
-                      <label class="radio-label">
-                        <input type="radio" bind:group={groupGameMode} value="rounds" />
-                        <span>Por Rondas</span>
-                      </label>
+              <div class="section-body">
+                <!-- Sistema y configuración básica en línea -->
+                <div class="inline-config">
+                  <div class="config-field">
+                    <label>Sistema</label>
+                    <div class="toggle-buttons">
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={groupStageType === 'ROUND_ROBIN'}
+                        on:click={() => groupStageType = 'ROUND_ROBIN'}
+                      >
+                        Round Robin
+                      </button>
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={groupStageType === 'SWISS'}
+                        on:click={() => groupStageType = 'SWISS'}
+                      >
+                        Suizo
+                      </button>
                     </div>
                   </div>
+                  {#if groupStageType === 'ROUND_ROBIN'}
+                    <div class="config-field">
+                      <label for="numGroups">Grupos</label>
+                      <input
+                        id="numGroups"
+                        type="number"
+                        bind:value={numGroups}
+                        min="1"
+                        max="8"
+                        class="input-field compact"
+                      />
+                    </div>
+                  {:else}
+                    <div class="config-field">
+                      <label for="numSwissRounds">Rondas</label>
+                      <input
+                        id="numSwissRounds"
+                        type="number"
+                        bind:value={numSwissRounds}
+                        min="3"
+                        max="10"
+                        class="input-field compact"
+                      />
+                    </div>
+                  {/if}
+                  <div class="config-field">
+                    <label>Clasificación</label>
+                    <div class="toggle-buttons">
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={rankingSystem === 'WINS'}
+                        on:click={() => rankingSystem = 'WINS'}
+                        title={groupStageType === 'ROUND_ROBIN' ? '2 pts victoria, 1 empate' : '1 pt victoria, 0.5 empate'}
+                      >
+                        Victorias
+                      </button>
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={rankingSystem === 'POINTS'}
+                        on:click={() => rankingSystem = 'POINTS'}
+                        title="Suma de puntos anotados"
+                      >
+                        Puntos
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-                  {#if groupGameMode === 'points'}
-                    <div class="form-row">
-                      <div class="form-group">
-                        <label for="groupPointsToWin">Puntos para Ganar</label>
+                <!-- Configuración de partidos -->
+                <div class="match-settings">
+                  <span class="settings-label">Partidos:</span>
+                  <div class="settings-row">
+                    <div class="toggle-buttons small">
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={groupGameMode === 'points'}
+                        on:click={() => groupGameMode = 'points'}
+                      >
+                        Puntos
+                      </button>
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={groupGameMode === 'rounds'}
+                        on:click={() => groupGameMode = 'rounds'}
+                      >
+                        Rondas
+                      </button>
+                    </div>
+                    {#if groupGameMode === 'points'}
+                      <div class="inline-field">
+                        <span>a</span>
                         <input
-                          id="groupPointsToWin"
                           type="number"
                           bind:value={groupPointsToWin}
                           min="1"
                           max="50"
-                          class="input-field"
+                          class="input-field mini"
                         />
+                        <span>pts</span>
                       </div>
-                      <div class="form-group">
-                        <label for="groupMatchesToWin">Best of</label>
-                        <select id="groupMatchesToWin" bind:value={groupMatchesToWin} class="input-field">
-                          <option value={1}>1 partido</option>
-                          <option value={3}>3 partidos</option>
-                          <option value={5}>5 partidos</option>
-                          <option value={7}>7 partidos</option>
-                        </select>
-                      </div>
-                    </div>
-                  {:else}
-                    <div class="form-row">
-                      <div class="form-group">
-                        <label for="groupRoundsToPlay">Rondas por Partido</label>
+                    {:else}
+                      <div class="inline-field">
                         <input
-                          id="groupRoundsToPlay"
                           type="number"
                           bind:value={groupRoundsToPlay}
                           min="1"
                           max="20"
-                          class="input-field"
+                          class="input-field mini"
                         />
+                        <span>rondas</span>
                       </div>
-                      <div class="form-group">
-                        <label for="groupMatchesToWinRounds">Best of</label>
-                        <select id="groupMatchesToWinRounds" bind:value={groupMatchesToWin} class="input-field">
-                          <option value={1}>1 partido</option>
-                          <option value={3}>3 partidos</option>
-                          <option value={5}>5 partidos</option>
-                          <option value={7}>7 partidos</option>
-                        </select>
-                      </div>
+                    {/if}
+                    <div class="inline-field">
+                      <span>Mejor de</span>
+                      <select bind:value={groupMatchesToWin} class="input-field mini">
+                        <option value={1}>1</option>
+                        <option value={3}>3</option>
+                        <option value={5}>5</option>
+                        <option value={7}>7</option>
+                      </select>
                     </div>
-                  {/if}
+                  </div>
                 </div>
               </div>
             </div>
 
             <!-- FASE 2: ELIMINACIÓN -->
-            <div class="phase-section">
-              <div class="phase-header finals">
-                <span class="phase-icon">🏆</span>
-                <div class="phase-title">
-                  <h3>Fase 2: Eliminación</h3>
-                  <small>Configuración de la fase final</small>
-                </div>
+            <div class="format-section finals-phase">
+              <div class="section-header finals">
+                <span class="section-number">2</span>
+                <span class="section-title">Fase Final</span>
               </div>
-
-              <div class="phase-content">
-                <div class="form-group">
-                  <label>Estructura de Brackets</label>
-                  <div class="radio-group vertical">
-                    <label class="radio-label">
-                      <input type="radio" bind:group={finalStageMode} value="SINGLE_BRACKET" />
-                      <span>Bracket Único</span>
-                      <small class="radio-description">Todos los clasificados en un mismo bracket</small>
-                    </label>
-                    <label class="radio-label">
-                      <input type="radio" bind:group={finalStageMode} value="SPLIT_DIVISIONS" />
-                      <span>Divisiones Oro / Plata</span>
-                      <small class="radio-description">Dos brackets separados según clasificación</small>
-                    </label>
+              <div class="section-body">
+                <!-- Estructura de brackets -->
+                <div class="inline-config">
+                  <div class="config-field wide">
+                    <label>Estructura</label>
+                    <div class="toggle-buttons">
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={finalStageMode === 'SINGLE_BRACKET'}
+                        on:click={() => finalStageMode = 'SINGLE_BRACKET'}
+                      >
+                        Bracket Único
+                      </button>
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={finalStageMode === 'SPLIT_DIVISIONS'}
+                        on:click={() => finalStageMode = 'SPLIT_DIVISIONS'}
+                      >
+                        Oro / Plata
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <!-- Configuración de brackets -->
-                <div class="brackets-container" class:split={finalStageMode === 'SPLIT_DIVISIONS'}>
-                  <!-- Gold Bracket (o único) -->
-                  <div class="match-config-box" class:gold={finalStageMode === 'SPLIT_DIVISIONS'}>
-                    <h4>{finalStageMode === 'SPLIT_DIVISIONS' ? '🥇 Bracket Oro' : '⚙️ Configuración de Partidos'}</h4>
-
-                    <div class="form-group">
-                      <label>Modo de Juego</label>
-                      <div class="radio-group">
-                        <label class="radio-label">
-                          <input type="radio" bind:group={finalGameMode} value="points" />
-                          <span>Por Puntos</span>
-                        </label>
-                        <label class="radio-label">
-                          <input type="radio" bind:group={finalGameMode} value="rounds" />
-                          <span>Por Rondas</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {#if finalGameMode === 'points'}
-                      <div class="form-row">
-                        <div class="form-group">
-                          <label for="finalPointsToWin">Puntos para Ganar</label>
-                          <input
-                            id="finalPointsToWin"
-                            type="number"
-                            bind:value={finalPointsToWin}
-                            min="1"
-                            max="50"
-                            class="input-field"
-                          />
-                        </div>
-                        <div class="form-group">
-                          <label for="finalMatchesToWin">Best of</label>
-                          <select id="finalMatchesToWin" bind:value={finalMatchesToWin} class="input-field">
-                            <option value={1}>1 partido</option>
-                            <option value={3}>3 partidos</option>
-                            <option value={5}>5 partidos</option>
-                            <option value={7}>7 partidos</option>
-                          </select>
-                        </div>
-                      </div>
-                    {:else}
-                      <div class="form-row">
-                        <div class="form-group">
-                          <label for="finalRoundsToPlay">Rondas por Partido</label>
-                          <input
-                            id="finalRoundsToPlay"
-                            type="number"
-                            bind:value={finalRoundsToPlay}
-                            min="1"
-                            max="20"
-                            class="input-field"
-                          />
-                        </div>
-                        <div class="form-group">
-                          <label for="finalMatchesToWinRounds">Best of</label>
-                          <select id="finalMatchesToWinRounds" bind:value={finalMatchesToWin} class="input-field">
-                            <option value={1}>1 partido</option>
-                            <option value={3}>3 partidos</option>
-                            <option value={5}>5 partidos</option>
-                            <option value={7}>7 partidos</option>
-                          </select>
-                        </div>
-                      </div>
+                <!-- Brackets configuración -->
+                <div class="brackets-config" class:split={finalStageMode === 'SPLIT_DIVISIONS'}>
+                  <!-- Gold/Main Bracket -->
+                  <div class="bracket-box" class:gold={finalStageMode === 'SPLIT_DIVISIONS'}>
+                    {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                      <span class="bracket-label gold">Oro</span>
                     {/if}
-                  </div>
-
-                  <!-- Silver Bracket (solo si hay divisiones) -->
-                  {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                    <div class="match-config-box silver">
-                      <h4>🥈 Bracket Plata</h4>
-
-                      <div class="form-group">
-                        <label>Modo de Juego</label>
-                        <div class="radio-group">
-                          <label class="radio-label">
-                            <input type="radio" bind:group={silverGameMode} value="points" />
-                            <span>Por Puntos</span>
-                          </label>
-                          <label class="radio-label">
-                            <input type="radio" bind:group={silverGameMode} value="rounds" />
-                            <span>Por Rondas</span>
-                          </label>
+                    <div class="match-settings">
+                      <div class="settings-row">
+                        <div class="toggle-buttons small">
+                          <button
+                            type="button"
+                            class="toggle-btn"
+                            class:active={finalGameMode === 'points'}
+                            on:click={() => finalGameMode = 'points'}
+                          >
+                            Puntos
+                          </button>
+                          <button
+                            type="button"
+                            class="toggle-btn"
+                            class:active={finalGameMode === 'rounds'}
+                            on:click={() => finalGameMode = 'rounds'}
+                          >
+                            Rondas
+                          </button>
                         </div>
-                      </div>
-
-                      {#if silverGameMode === 'points'}
-                        <div class="form-row">
-                          <div class="form-group">
-                            <label for="silverPointsToWin">Puntos para Ganar</label>
+                        {#if finalGameMode === 'points'}
+                          <div class="inline-field">
+                            <span>a</span>
                             <input
-                              id="silverPointsToWin"
                               type="number"
-                              bind:value={silverPointsToWin}
+                              bind:value={finalPointsToWin}
                               min="1"
                               max="50"
-                              class="input-field"
+                              class="input-field mini"
                             />
+                            <span>pts</span>
                           </div>
-                          <div class="form-group">
-                            <label for="silverMatchesToWin">Best of</label>
-                            <select id="silverMatchesToWin" bind:value={silverMatchesToWin} class="input-field">
-                              <option value={1}>1 partido</option>
-                              <option value={3}>3 partidos</option>
-                              <option value={5}>5 partidos</option>
-                              <option value={7}>7 partidos</option>
-                            </select>
-                          </div>
-                        </div>
-                      {:else}
-                        <div class="form-row">
-                          <div class="form-group">
-                            <label for="silverRoundsToPlay">Rondas por Partido</label>
+                        {:else}
+                          <div class="inline-field">
                             <input
-                              id="silverRoundsToPlay"
                               type="number"
-                              bind:value={silverRoundsToPlay}
+                              bind:value={finalRoundsToPlay}
                               min="1"
                               max="20"
-                              class="input-field"
+                              class="input-field mini"
                             />
+                            <span>rondas</span>
                           </div>
-                          <div class="form-group">
-                            <label for="silverMatchesToWinRounds">Best of</label>
-                            <select id="silverMatchesToWinRounds" bind:value={silverMatchesToWin} class="input-field">
-                              <option value={1}>1 partido</option>
-                              <option value={3}>3 partidos</option>
-                              <option value={5}>5 partidos</option>
-                              <option value={7}>7 partidos</option>
+                        {/if}
+                        <div class="inline-field">
+                          <span>Md</span>
+                          <select bind:value={finalMatchesToWin} class="input-field mini">
+                            <option value={1}>1</option>
+                            <option value={3}>3</option>
+                            <option value={5}>5</option>
+                            <option value={7}>7</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Silver Bracket -->
+                  {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                    <div class="bracket-box silver">
+                      <span class="bracket-label silver">Plata</span>
+                      <div class="match-settings">
+                        <div class="settings-row">
+                          <div class="toggle-buttons small">
+                            <button
+                              type="button"
+                              class="toggle-btn"
+                              class:active={silverGameMode === 'points'}
+                              on:click={() => silverGameMode = 'points'}
+                            >
+                              Puntos
+                            </button>
+                            <button
+                              type="button"
+                              class="toggle-btn"
+                              class:active={silverGameMode === 'rounds'}
+                              on:click={() => silverGameMode = 'rounds'}
+                            >
+                              Rondas
+                            </button>
+                          </div>
+                          {#if silverGameMode === 'points'}
+                            <div class="inline-field">
+                              <span>a</span>
+                              <input
+                                type="number"
+                                bind:value={silverPointsToWin}
+                                min="1"
+                                max="50"
+                                class="input-field mini"
+                              />
+                              <span>pts</span>
+                            </div>
+                          {:else}
+                            <div class="inline-field">
+                              <input
+                                type="number"
+                                bind:value={silverRoundsToPlay}
+                                min="1"
+                                max="20"
+                                class="input-field mini"
+                              />
+                              <span>rondas</span>
+                            </div>
+                          {/if}
+                          <div class="inline-field">
+                            <span>Md</span>
+                            <select bind:value={silverMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                              <option value={7}>7</option>
                             </select>
                           </div>
                         </div>
-                      {/if}
+                      </div>
                     </div>
                   {/if}
                 </div>
@@ -1578,368 +1698,208 @@
                     class="advanced-toggle"
                     on:click={() => showAdvancedBracketConfig = !showAdvancedBracketConfig}
                   >
-                    {showAdvancedBracketConfig ? '▼' : '▶'} Configuración Avanzada por Fase
+                    {showAdvancedBracketConfig ? '−' : '+'} Configuración avanzada por fase
                   </button>
 
                   {#if showAdvancedBracketConfig}
-                    <div class="advanced-config-content">
-                      <p class="advanced-hint">
-                        Configura diferentes reglas para cada fase del bracket. Si no se configura, todas las fases usarán la configuración básica de arriba.
-                      </p>
+                    <div class="advanced-phases-grid" class:split={finalStageMode === 'SPLIT_DIVISIONS'}>
+                      <!-- Gold Advanced -->
+                      <div class="advanced-bracket" class:gold={finalStageMode === 'SPLIT_DIVISIONS'}>
+                        {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                          <span class="advanced-bracket-title gold">Oro - Por fase</span>
+                        {/if}
 
-                      <!-- Gold Bracket Advanced Config -->
-                      <div class="phase-configs-container" class:split={finalStageMode === 'SPLIT_DIVISIONS'}>
-                        <div class="phase-configs-group" class:gold={finalStageMode === 'SPLIT_DIVISIONS'}>
-                          {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                            <h5>🥇 Bracket Oro - Por Fase</h5>
-                          {/if}
-
-                          <!-- Early Rounds -->
-                          <div class="phase-config-box early">
-                            <h6>🏃 Fases Tempranas (Octavos, Cuartos)</h6>
-                            <div class="form-row compact">
-                              <div class="form-group">
-                                <label>Modo</label>
-                                <select bind:value={earlyRoundsGameMode} class="input-field small">
-                                  <option value="rounds">Rondas</option>
-                                  <option value="points">Puntos</option>
-                                </select>
-                              </div>
-                              <div class="form-group">
-                                {#if earlyRoundsGameMode === 'rounds'}
-                                  <label>Rondas</label>
-                                  <input
-                                    type="number"
-                                    bind:value={earlyRoundsToPlay}
-                                    min="1"
-                                    max="20"
-                                    class="input-field small"
-                                  />
-                                {:else}
-                                  <label>Puntos</label>
-                                  <input
-                                    type="number"
-                                    bind:value={earlyRoundsPointsToWin}
-                                    min="1"
-                                    max="20"
-                                    class="input-field small"
-                                  />
-                                {/if}
-                              </div>
-                            </div>
-                          </div>
-
-                          <!-- Semifinals -->
-                          <div class="phase-config-box semi">
-                            <h6>🔥 Semifinales</h6>
-                            <div class="form-row compact">
-                              <div class="form-group">
-                                <label>Modo</label>
-                                <select bind:value={semifinalGameMode} class="input-field small">
-                                  <option value="points">Puntos</option>
-                                  <option value="rounds">Rondas</option>
-                                </select>
-                              </div>
-                              <div class="form-group">
-                                {#if semifinalGameMode === 'rounds'}
-                                  <label>Rondas</label>
-                                  <input
-                                    type="number"
-                                    bind:value={semifinalRoundsToPlay}
-                                    min="1"
-                                    max="20"
-                                    class="input-field small"
-                                  />
-                                {:else}
-                                  <label>Puntos</label>
-                                  <input
-                                    type="number"
-                                    bind:value={semifinalPointsToWin}
-                                    min="1"
-                                    max="20"
-                                    class="input-field small"
-                                  />
-                                {/if}
-                              </div>
-                              <div class="form-group">
-                                <label>Best of</label>
-                                <select bind:value={semifinalMatchesToWin} class="input-field small">
-                                  <option value={1}>1</option>
-                                  <option value={3}>3</option>
-                                  <option value={5}>5</option>
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-
-                          <!-- Final -->
-                          <div class="phase-config-box final">
-                            <h6>🏆 Final</h6>
-                            <div class="form-row compact">
-                              <div class="form-group">
-                                <label>Modo</label>
-                                <select bind:value={bracketFinalGameMode} class="input-field small">
-                                  <option value="points">Puntos</option>
-                                  <option value="rounds">Rondas</option>
-                                </select>
-                              </div>
-                              <div class="form-group">
-                                {#if bracketFinalGameMode === 'rounds'}
-                                  <label>Rondas</label>
-                                  <input
-                                    type="number"
-                                    bind:value={bracketFinalRoundsToPlay}
-                                    min="1"
-                                    max="20"
-                                    class="input-field small"
-                                  />
-                                {:else}
-                                  <label>Puntos</label>
-                                  <input
-                                    type="number"
-                                    bind:value={bracketFinalPointsToWin}
-                                    min="1"
-                                    max="20"
-                                    class="input-field small"
-                                  />
-                                {/if}
-                              </div>
-                              <div class="form-group">
-                                <label>Best of</label>
-                                <select bind:value={bracketFinalMatchesToWin} class="input-field small">
-                                  <option value={1}>1</option>
-                                  <option value={3}>3</option>
-                                  <option value={5}>5</option>
-                                </select>
-                              </div>
-                            </div>
+                        <div class="phase-row">
+                          <span class="phase-name">Tempranas</span>
+                          <div class="phase-controls">
+                            <select bind:value={earlyRoundsGameMode} class="input-field mini">
+                              <option value="rounds">Rondas</option>
+                              <option value="points">Puntos</option>
+                            </select>
+                            {#if earlyRoundsGameMode === 'rounds'}
+                              <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
+                            {:else}
+                              <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
+                            {/if}
                           </div>
                         </div>
 
-                        <!-- Silver Bracket Advanced Config -->
-                        {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                          <div class="phase-configs-group silver">
-                            <h5>🥈 Bracket Plata - Por Fase</h5>
+                        <div class="phase-row">
+                          <span class="phase-name">Semifinal</span>
+                          <div class="phase-controls">
+                            <select bind:value={semifinalGameMode} class="input-field mini">
+                              <option value="points">Puntos</option>
+                              <option value="rounds">Rondas</option>
+                            </select>
+                            {#if semifinalGameMode === 'rounds'}
+                              <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                            {:else}
+                              <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
+                            {/if}
+                            <span class="bo-label">Md</span>
+                            <select bind:value={semifinalMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                            </select>
+                          </div>
+                        </div>
 
-                            <!-- Early Rounds Silver -->
-                            <div class="phase-config-box early">
-                              <h6>🏃 Fases Tempranas</h6>
-                              <div class="form-row compact">
-                                <div class="form-group">
-                                  <label>Modo</label>
-                                  <select bind:value={silverEarlyRoundsGameMode} class="input-field small">
-                                    <option value="rounds">Rondas</option>
-                                    <option value="points">Puntos</option>
-                                  </select>
-                                </div>
-                                <div class="form-group">
-                                  {#if silverEarlyRoundsGameMode === 'rounds'}
-                                    <label>Rondas</label>
-                                    <input
-                                      type="number"
-                                      bind:value={silverEarlyRoundsToPlay}
-                                      min="1"
-                                      max="20"
-                                      class="input-field small"
-                                    />
-                                  {:else}
-                                    <label>Puntos</label>
-                                    <input
-                                      type="number"
-                                      bind:value={silverEarlyRoundsPointsToWin}
-                                      min="1"
-                                      max="20"
-                                      class="input-field small"
-                                    />
-                                  {/if}
-                                </div>
-                              </div>
-                            </div>
+                        <div class="phase-row">
+                          <span class="phase-name">Final</span>
+                          <div class="phase-controls">
+                            <select bind:value={bracketFinalGameMode} class="input-field mini">
+                              <option value="points">Puntos</option>
+                              <option value="rounds">Rondas</option>
+                            </select>
+                            {#if bracketFinalGameMode === 'rounds'}
+                              <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                            {:else}
+                              <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
+                            {/if}
+                            <span class="bo-label">Md</span>
+                            <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
 
-                            <!-- Semifinals Silver -->
-                            <div class="phase-config-box semi">
-                              <h6>🔥 Semifinales</h6>
-                              <div class="form-row compact">
-                                <div class="form-group">
-                                  <label>Modo</label>
-                                  <select bind:value={silverSemifinalGameMode} class="input-field small">
-                                    <option value="points">Puntos</option>
-                                    <option value="rounds">Rondas</option>
-                                  </select>
-                                </div>
-                                <div class="form-group">
-                                  {#if silverSemifinalGameMode === 'rounds'}
-                                    <label>Rondas</label>
-                                    <input
-                                      type="number"
-                                      bind:value={silverSemifinalRoundsToPlay}
-                                      min="1"
-                                      max="20"
-                                      class="input-field small"
-                                    />
-                                  {:else}
-                                    <label>Puntos</label>
-                                    <input
-                                      type="number"
-                                      bind:value={silverSemifinalPointsToWin}
-                                      min="1"
-                                      max="20"
-                                      class="input-field small"
-                                    />
-                                  {/if}
-                                </div>
-                                <div class="form-group">
-                                  <label>Best of</label>
-                                  <select bind:value={silverSemifinalMatchesToWin} class="input-field small">
-                                    <option value={1}>1</option>
-                                    <option value={3}>3</option>
-                                    <option value={5}>5</option>
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
+                      <!-- Silver Advanced -->
+                      {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                        <div class="advanced-bracket silver">
+                          <span class="advanced-bracket-title silver">Plata - Por fase</span>
 
-                            <!-- Final Silver -->
-                            <div class="phase-config-box final">
-                              <h6>🏆 Final</h6>
-                              <div class="form-row compact">
-                                <div class="form-group">
-                                  <label>Modo</label>
-                                  <select bind:value={silverBracketFinalGameMode} class="input-field small">
-                                    <option value="points">Puntos</option>
-                                    <option value="rounds">Rondas</option>
-                                  </select>
-                                </div>
-                                <div class="form-group">
-                                  {#if silverBracketFinalGameMode === 'rounds'}
-                                    <label>Rondas</label>
-                                    <input
-                                      type="number"
-                                      bind:value={silverBracketFinalRoundsToPlay}
-                                      min="1"
-                                      max="20"
-                                      class="input-field small"
-                                    />
-                                  {:else}
-                                    <label>Puntos</label>
-                                    <input
-                                      type="number"
-                                      bind:value={silverBracketFinalPointsToWin}
-                                      min="1"
-                                      max="20"
-                                      class="input-field small"
-                                    />
-                                  {/if}
-                                </div>
-                                <div class="form-group">
-                                  <label>Best of</label>
-                                  <select bind:value={silverBracketFinalMatchesToWin} class="input-field small">
-                                    <option value={1}>1</option>
-                                    <option value={3}>3</option>
-                                    <option value={5}>5</option>
-                                  </select>
-                                </div>
-                              </div>
+                          <div class="phase-row">
+                            <span class="phase-name">Tempranas</span>
+                            <div class="phase-controls">
+                              <select bind:value={silverEarlyRoundsGameMode} class="input-field mini">
+                                <option value="rounds">Rondas</option>
+                                <option value="points">Puntos</option>
+                              </select>
+                              {#if silverEarlyRoundsGameMode === 'rounds'}
+                                <input type="number" bind:value={silverEarlyRoundsToPlay} min="1" max="20" class="input-field mini" />
+                              {:else}
+                                <input type="number" bind:value={silverEarlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
+                              {/if}
                             </div>
                           </div>
-                        {/if}
-                      </div>
+
+                          <div class="phase-row">
+                            <span class="phase-name">Semifinal</span>
+                            <div class="phase-controls">
+                              <select bind:value={silverSemifinalGameMode} class="input-field mini">
+                                <option value="points">Puntos</option>
+                                <option value="rounds">Rondas</option>
+                              </select>
+                              {#if silverSemifinalGameMode === 'rounds'}
+                                <input type="number" bind:value={silverSemifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                              {:else}
+                                <input type="number" bind:value={silverSemifinalPointsToWin} min="1" max="20" class="input-field mini" />
+                              {/if}
+                              <span class="bo-label">Md</span>
+                              <select bind:value={silverSemifinalMatchesToWin} class="input-field mini">
+                                <option value={1}>1</option>
+                                <option value={3}>3</option>
+                                <option value={5}>5</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div class="phase-row">
+                            <span class="phase-name">Final</span>
+                            <div class="phase-controls">
+                              <select bind:value={silverBracketFinalGameMode} class="input-field mini">
+                                <option value="points">Puntos</option>
+                                <option value="rounds">Rondas</option>
+                              </select>
+                              {#if silverBracketFinalGameMode === 'rounds'}
+                                <input type="number" bind:value={silverBracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                              {:else}
+                                <input type="number" bind:value={silverBracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
+                              {/if}
+                              <span class="bo-label">Md</span>
+                              <select bind:value={silverBracketFinalMatchesToWin} class="input-field mini">
+                                <option value={1}>1</option>
+                                <option value={3}>3</option>
+                                <option value={5}>5</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
                     </div>
                   {/if}
                 </div>
               </div>
             </div>
           {:else}
-            <!-- ONE_PHASE: Single configuration for bracket -->
-            <div class="phase-config">
-              <h3>⚙️ Configuración de Partidos</h3>
-
-              <div class="form-group">
-                <label>Modo de Juego</label>
-                <div class="radio-group">
-                  <label class="radio-label">
-                    <input type="radio" bind:group={gameMode} value="points" />
-                    <span>Por Puntos</span>
-                  </label>
-                  <label class="radio-label">
-                    <input type="radio" bind:group={gameMode} value="rounds" />
-                    <span>Por Rondas</span>
-                  </label>
+            <!-- ONE_PHASE: Eliminación directa -->
+            <div class="format-section one-phase">
+              <div class="section-header finals">
+                <span class="section-title">Configuración de Partidos</span>
+              </div>
+              <div class="section-body">
+                <div class="match-settings">
+                  <div class="settings-row">
+                    <div class="toggle-buttons small">
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={gameMode === 'points'}
+                        on:click={() => gameMode = 'points'}
+                      >
+                        Puntos
+                      </button>
+                      <button
+                        type="button"
+                        class="toggle-btn"
+                        class:active={gameMode === 'rounds'}
+                        on:click={() => gameMode = 'rounds'}
+                      >
+                        Rondas
+                      </button>
+                    </div>
+                    {#if gameMode === 'points'}
+                      <div class="inline-field">
+                        <span>a</span>
+                        <input
+                          type="number"
+                          bind:value={pointsToWin}
+                          min="1"
+                          max="50"
+                          class="input-field mini"
+                        />
+                        <span>pts</span>
+                      </div>
+                    {:else}
+                      <div class="inline-field">
+                        <input
+                          type="number"
+                          bind:value={roundsToPlay}
+                          min="1"
+                          max="20"
+                          class="input-field mini"
+                        />
+                        <span>rondas</span>
+                      </div>
+                    {/if}
+                    <div class="inline-field">
+                      <span>Md</span>
+                      <select bind:value={matchesToWin} class="input-field mini">
+                        <option value={1}>1</option>
+                        <option value={3}>3</option>
+                        <option value={5}>5</option>
+                        <option value={7}>7</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {#if gameMode === 'points'}
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="pointsToWin">Puntos para Ganar</label>
-                    <input
-                      id="pointsToWin"
-                      type="number"
-                      bind:value={pointsToWin}
-                      min="1"
-                      max="50"
-                      class="input-field"
-                    />
-                  </div>
-
-                  <div class="form-group">
-                    <label for="matchesToWin">Partidos a Ganar (Best of)</label>
-                    <select id="matchesToWin" bind:value={matchesToWin} class="input-field">
-                      <option value={1}>1 (sin revancha)</option>
-                      <option value={3}>3 (gana a 2)</option>
-                      <option value={5}>5 (gana a 3)</option>
-                      <option value={7}>7 (gana a 4)</option>
-                    </select>
-                  </div>
-                </div>
-              {:else}
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="roundsToPlay">Número de Rondas por Partido</label>
-                    <input
-                      id="roundsToPlay"
-                      type="number"
-                      bind:value={roundsToPlay}
-                      min="1"
-                      max="20"
-                      class="input-field"
-                    />
-                  </div>
-
-                  <div class="form-group">
-                    <label for="matchesToWinRounds">Partidos a Ganar (Best of)</label>
-                    <select id="matchesToWinRounds" bind:value={matchesToWin} class="input-field">
-                      <option value={1}>1 (sin revancha)</option>
-                      <option value={3}>3 (gana a 2)</option>
-                      <option value={5}>5 (gana a 3)</option>
-                      <option value={7}>7 (gana a 4)</option>
-                    </select>
-                  </div>
-                </div>
-              {/if}
             </div>
           {/if}
-
-          <!-- Common settings (20s and Hammer) -->
-          <div class="settings-section">
-            <h3>Opciones de Partido</h3>
-            <div class="settings-grid">
-              <label class="setting-item">
-                <input type="checkbox" bind:checked={show20s} />
-                <div class="setting-info">
-                  <span class="setting-label">Contar 20s</span>
-                  <small>Registrar discos en el centro</small>
-                </div>
-              </label>
-              <label class="setting-item">
-                <input type="checkbox" bind:checked={showHammer} />
-                <div class="setting-info">
-                  <span class="setting-label">Mostrar Hammer</span>
-                  <small>Indicar quién tira último</small>
-                </div>
-              </label>
-            </div>
-          </div>
         </div>
       {/if}
 
@@ -2043,123 +2003,104 @@
 
       <!-- Step 4: Participants -->
       {#if currentStep === 4}
-        <div class="step-container">
-          <h2>👥 Agregar Participantes</h2>
+        <div class="step-container step-participants">
+          <h2>👥 Participantes</h2>
 
-          {#if participants.length >= maxPlayersForTables}
-            <div class="max-participants-warning">
-              ⚠️ Has alcanzado el límite de <strong>{maxPlayersForTables} jugadores</strong> para {numTables} {numTables === 1 ? 'mesa' : 'mesas'}
-            </div>
-          {:else}
-            <div class="participants-limit-info">
-              📊 {participants.length} / {maxPlayersForTables} jugadores (máximo para {numTables} {numTables === 1 ? 'mesa' : 'mesas'})
-              {#if participants.length > 0 && extraTables > 0}
-                <span class="extra-tables-hint">
-                  — Usarás {tablesNeeded} de {numTables} {numTables === 1 ? 'mesa' : 'mesas'} ({extraTables} {extraTables === 1 ? 'sobrante' : 'sobrantes'})
-                </span>
-              {/if}
-            </div>
-          {/if}
+          <!-- Counter bar -->
+          <div class="participants-counter" class:warning={participants.length >= maxPlayersForTables}>
+            <span class="counter-text">
+              {participants.length} / {maxPlayersForTables}
+            </span>
+            <span class="counter-label">
+              {participants.length >= maxPlayersForTables ? 'Límite alcanzado' : `para ${numTables} ${numTables === 1 ? 'mesa' : 'mesas'}`}
+            </span>
+          </div>
 
-          <div class="participants-section">
-            <div class="add-participants">
-              <div class="search-section">
-                <h3>Buscar Jugadores Registrados</h3>
-                <div class="search-box">
-                  <input
-                    type="text"
-                    bind:value={searchQuery}
-                    placeholder="Buscar por nombre o email..."
-                    class="input-field"
-                  />
-                  {#if searchLoading}
-                    <span class="search-loading">🔄</span>
-                  {/if}
-                </div>
-
-                {#if searchResults.length > 0}
+          <!-- Add section -->
+          <div class="add-row">
+            <div class="add-field search-field">
+              <label>Buscar registrados</label>
+              <div class="search-box">
+                <input
+                  type="text"
+                  bind:value={searchQuery}
+                  placeholder="Nombre o email..."
+                  class="input-field"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  data-form-type="other"
+                />
+                {#if searchLoading}
+                  <span class="search-loading">⏳</span>
+                {/if}
+                {#if searchResults.length > 0 && participants.length < maxPlayersForTables}
                   <div class="search-results">
-                    {#each searchResults.slice(0, 10) as user}
+                    {#each searchResults.slice(0, 6) as user}
                       <button
                         class="search-result-item"
                         on:click={() => addRegisteredUser({ ...user, userId: user.userId || '' })}
-                        disabled={participants.length >= maxPlayersForTables}
                       >
-                        <div class="user-info">
-                          <div class="user-name-row">
-                            <strong>{user.playerName}</strong>
-                            <span class="user-ranking">{user.ranking || 0}</span>
-                          </div>
-                          {#if user.email}
-                            <span class="user-email">{user.email}</span>
-                          {/if}
-                        </div>
-                        <span class="add-icon">+</span>
+                        <span class="result-name">{user.playerName}</span>
+                        <span class="result-rank">{user.ranking || 0}</span>
+                        <span class="result-add">+</span>
                       </button>
                     {/each}
                   </div>
                 {/if}
               </div>
+            </div>
 
-              <div class="guest-section">
-                <h3>O Agregar Jugador Invitado</h3>
-                <div class="guest-input-group">
-                  <input
-                    type="text"
-                    bind:value={guestName}
-                    placeholder="Player1"
-                    class="input-field"
-                    on:keydown={(e) => {
-                      if (e.key === 'Enter' && guestName.trim().length >= 3) {
-                        addGuestPlayer();
-                      }
-                    }}
-                  />
-                  <button
-                    class="guest-button"
-                    on:click={addGuestPlayer}
-                    disabled={guestName.trim().length < 3 || participants.length >= maxPlayersForTables}
-                  >
-                    + Agregar
-                  </button>
-                </div>
-                <small class="help-text">
-                  Los invitados pueden participar pero no tendrán perfil ni ranking permanente (mínimo 3 caracteres)
-                </small>
+            <div class="add-field guest-field">
+              <label>Agregar invitado</label>
+              <div class="guest-input-group">
+                <input
+                  type="text"
+                  bind:value={guestName}
+                  placeholder="Nombre (mín. 3 chars)"
+                  class="input-field"
+                  on:keydown={(e) => {
+                    if (e.key === 'Enter' && guestName.trim().length >= 3) {
+                      addGuestPlayer();
+                    }
+                  }}
+                />
+                <button
+                  class="add-btn"
+                  on:click={addGuestPlayer}
+                  disabled={guestName.trim().length < 3 || participants.length >= maxPlayersForTables}
+                >
+                  +
+                </button>
               </div>
             </div>
+          </div>
 
-            <div class="participants-list">
-              <h3>Participantes Agregados ({participants.length})</h3>
-
-              {#if participants.length === 0}
-                <div class="empty-participants">
-                  <p>Aún no has agregado participantes</p>
-                  <small>Mínimo 2 participantes requeridos</small>
-                </div>
-              {:else}
-                <div class="participants-grid">
-                  {#each participants as participant, index}
-                    <div class="participant-card">
-                      <div class="participant-info">
-                        <div class="participant-name-row">
-                          <strong>{participant.name}</strong>
-                          {#if participant.type === 'REGISTERED' && participant.rankingSnapshot}
-                            <span class="participant-ranking">{participant.rankingSnapshot}</span>
-                          {/if}
-                        </div>
-                        <span class="participant-type">
-                          {participant.type === 'REGISTERED' ? '👤 Registrado' : '🎭 Invitado'}
-                        </span>
-                      </div>
-                      <button class="remove-button" on:click={() => removeParticipant(index)}>
-                        ✕
-                      </button>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
+          <!-- Participants list -->
+          <div class="participants-list-section">
+            <div class="list-header">
+              <span>Agregados</span>
+              <span class="list-count">{participants.length}</span>
             </div>
+
+            {#if participants.length === 0}
+              <div class="empty-list">
+                Sin participantes · Mínimo 2
+              </div>
+            {:else}
+              <div class="participants-grid-2col">
+                {#each participants as participant, index}
+                  <div class="participant-chip" class:registered={participant.type === 'REGISTERED'}>
+                    <span class="chip-name">{participant.name}</span>
+                    {#if participant.type === 'REGISTERED' && participant.rankingSnapshot}
+                      <span class="chip-rank">{participant.rankingSnapshot}</span>
+                    {/if}
+                    <button class="chip-remove" on:click={() => removeParticipant(index)}>×</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
@@ -2167,131 +2108,172 @@
       <!-- Step 5: Review -->
       {#if currentStep === 5}
         <div class="step-container">
-          <h2>✅ Revisión Final</h2>
+          <h2>Revisión Final</h2>
 
-          <div class="review-section">
-            <div class="review-group">
-              <h3>Información Básica</h3>
-              <div class="review-item">
-                <span class="review-label">Clave:</span>
-                <span class="review-value">{key.toUpperCase()}</span>
+          <div class="review-grid">
+            <!-- Left Column -->
+            <div class="review-column">
+              <div class="review-card">
+                <div class="review-card-header">
+                  <span class="review-icon">📋</span>
+                  <span>Información</span>
+                </div>
+                <div class="review-card-body">
+                  <div class="review-row">
+                    <span class="review-label">Clave</span>
+                    <span class="review-value highlight">{key.toUpperCase()}</span>
+                  </div>
+                  <div class="review-row">
+                    <span class="review-label">Nombre</span>
+                    <span class="review-value">{edition}º {name}</span>
+                  </div>
+                  {#if description}
+                    <div class="review-row">
+                      <span class="review-label">Descripción</span>
+                      <span class="review-value">{description}</span>
+                    </div>
+                  {/if}
+                  <div class="review-row">
+                    <span class="review-label">Ubicación</span>
+                    <span class="review-value">{city}, {country}</span>
+                  </div>
+                  {#if tournamentDate}
+                    <div class="review-row">
+                      <span class="review-label">Fecha</span>
+                      <span class="review-value">{new Date(tournamentDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                  {/if}
+                </div>
               </div>
-              <div class="review-item">
-                <span class="review-label">Nombre:</span>
-                <span class="review-value">{edition}º {name}</span>
+
+              <div class="review-card">
+                <div class="review-card-header">
+                  <span class="review-icon">🎮</span>
+                  <span>Configuración de Juego</span>
+                </div>
+                <div class="review-card-body">
+                  <div class="review-row">
+                    <span class="review-label">Tipo</span>
+                    <span class="review-value">{gameType === 'singles' ? 'Singles' : 'Doubles'}</span>
+                  </div>
+                  <div class="review-row">
+                    <span class="review-label">Modo</span>
+                    <span class="review-value">{gameMode === 'points' ? `${pointsToWin} pts` : `${roundsToPlay} rondas`}</span>
+                  </div>
+                  <div class="review-row">
+                    <span class="review-label">Mesas</span>
+                    <span class="review-value">{numTables}</span>
+                  </div>
+                </div>
               </div>
-              {#if description}
-                <div class="review-item">
-                  <span class="review-label">Descripción:</span>
-                  <span class="review-value">{description}</span>
+
+              {#if rankingEnabled}
+                <div class="review-card compact">
+                  <div class="review-card-header">
+                    <span class="review-icon">🏅</span>
+                    <span>Ranking</span>
+                  </div>
+                  <div class="review-card-body">
+                    <div class="review-row">
+                      <span class="review-label">Categoría</span>
+                      <span class="review-value">{getTierInfo(selectedTier).name}</span>
+                    </div>
+                    <div class="review-row">
+                      <span class="review-label">Puntos 1º</span>
+                      <span class="review-value highlight">{getTierInfo(selectedTier).basePoints}</span>
+                    </div>
+                  </div>
                 </div>
               {/if}
-              <div class="review-item">
-                <span class="review-label">Ubicación:</span>
-                <span class="review-value">{city}, {country}</span>
-              </div>
-              {#if tournamentDate}
-                <div class="review-item">
-                  <span class="review-label">Fecha:</span>
-                  <span class="review-value">{new Date(tournamentDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                </div>
-              {/if}
-              <div class="review-item">
-                <span class="review-label">Tipo:</span>
-                <span class="review-value">{gameType === 'singles' ? 'Singles' : 'Doubles'}</span>
-              </div>
-              <div class="review-item">
-                <span class="review-label">Modo:</span>
-                <span class="review-value">
-                  {gameMode === 'points' ? `${pointsToWin} puntos` : `${roundsToPlay} rondas`}
-                </span>
-              </div>
             </div>
 
-            <div class="review-group">
-              <h3>Formato del Torneo</h3>
-              <div class="review-item">
-                <span class="review-label">Mesas:</span>
-                <span class="review-value">{numTables}</span>
+            <!-- Right Column -->
+            <div class="review-column">
+              <div class="review-card">
+                <div class="review-card-header">
+                  <span class="review-icon">🏆</span>
+                  <span>Formato</span>
+                </div>
+                <div class="review-card-body">
+                  <div class="review-row">
+                    <span class="review-label">Fases</span>
+                    <span class="review-value">{phaseType === 'ONE_PHASE' ? 'Eliminatoria directa' : 'Grupos + Final'}</span>
+                  </div>
+                  {#if phaseType === 'TWO_PHASE'}
+                    <div class="review-row">
+                      <span class="review-label">Grupos</span>
+                      <span class="review-value">
+                        {groupStageType === 'ROUND_ROBIN' ? `Round Robin (${numGroups})` : `Suizo (${numSwissRounds}R)`}
+                      </span>
+                    </div>
+                    <div class="review-row">
+                      <span class="review-label">Clasificación</span>
+                      <span class="review-value">{rankingSystem === 'WINS' ? 'Por victorias' : 'Por puntos'}</span>
+                    </div>
+                    <div class="review-row">
+                      <span class="review-label">Fase Final</span>
+                      <span class="review-value">{finalStageMode === 'SINGLE_BRACKET' ? 'Bracket único' : 'Oro / Plata'}</span>
+                    </div>
+                  {/if}
+                </div>
               </div>
-              <div class="review-item">
-                <span class="review-label">Fases:</span>
-                <span class="review-value">
-                  {phaseType === 'ONE_PHASE' ? '1 Fase (Eliminatoria)' : '2 Fases (Grupos + Final)'}
-                </span>
-              </div>
+
               {#if phaseType === 'TWO_PHASE'}
-                <div class="review-item">
-                  <span class="review-label">Tipo de Grupos:</span>
-                  <span class="review-value">
-                    {groupStageType === 'ROUND_ROBIN'
-                      ? `Round Robin (${numGroups} grupos)`
-                      : `Suizo (${numSwissRounds} rondas)`}
-                  </span>
+                <div class="review-card">
+                  <div class="review-card-header">
+                    <span class="review-icon">{finalStageMode === 'SPLIT_DIVISIONS' ? '🥇' : '⚙️'}</span>
+                    <span>{finalStageMode === 'SPLIT_DIVISIONS' ? 'Bracket Oro' : 'Config. Final'}</span>
+                  </div>
+                  <div class="review-card-body">
+                    <div class="review-row">
+                      <span class="review-label">Modo</span>
+                      <span class="review-value">{finalGameMode === 'points' ? `${finalPointsToWin} pts` : `${finalRoundsToPlay} rondas`}</span>
+                    </div>
+                    <div class="review-row">
+                      <span class="review-label">Partidos</span>
+                      <span class="review-value">Bo{finalMatchesToWin}</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="review-item">
-                  <span class="review-label">Clasificación:</span>
-                  <span class="review-value">
-                    {rankingSystem === 'WINS'
-                      ? 'Por Victorias (2/1/0)'
-                      : 'Por Puntos Totales'}
-                  </span>
-                </div>
-                <div class="review-item">
-                  <span class="review-label">Fase Final:</span>
-                  <span class="review-value">
-                    {finalStageMode === 'SINGLE_BRACKET' ? 'Un solo bracket' : 'Divisiones (Oro / Plata)'}
-                  </span>
-                </div>
-                <div class="review-item">
-                  <span class="review-label">{finalStageMode === 'SPLIT_DIVISIONS' ? 'Bracket Oro:' : 'Config Final:'}</span>
-                  <span class="review-value">
-                    {finalGameMode === 'points' ? `${finalPointsToWin} puntos` : `${finalRoundsToPlay} rondas`}, Best of {finalMatchesToWin}
-                  </span>
-                </div>
+
                 {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                  <div class="review-item">
-                    <span class="review-label">Bracket Plata:</span>
-                    <span class="review-value">
-                      {silverGameMode === 'points' ? `${silverPointsToWin} puntos` : `${silverRoundsToPlay} rondas`}, Best of {silverMatchesToWin}
-                    </span>
+                  <div class="review-card">
+                    <div class="review-card-header">
+                      <span class="review-icon">🥈</span>
+                      <span>Bracket Plata</span>
+                    </div>
+                    <div class="review-card-body">
+                      <div class="review-row">
+                        <span class="review-label">Modo</span>
+                        <span class="review-value">{silverGameMode === 'points' ? `${silverPointsToWin} pts` : `${silverRoundsToPlay} rondas`}</span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">Partidos</span>
+                        <span class="review-value">Bo{silverMatchesToWin}</span>
+                      </div>
+                    </div>
                   </div>
                 {/if}
               {/if}
-            </div>
 
-            <div class="review-group">
-              <h3>Sistema de Ranking</h3>
-              <div class="review-item">
-                <span class="review-label">Estado:</span>
-                <span class="review-value">{rankingEnabled ? '✅ Habilitado' : '❌ Deshabilitado'}</span>
-              </div>
-              {#if rankingEnabled}
-                <div class="review-item">
-                  <span class="review-label">Categoría:</span>
-                  <span class="review-value">
-                    {getTierInfo(selectedTier).name} - {getTierInfo(selectedTier).basePoints} pts al 1º
-                  </span>
+              <div class="review-card participants-card">
+                <div class="review-card-header">
+                  <span class="review-icon">👥</span>
+                  <span>Participantes</span>
+                  <span class="participant-count">{participants.length}</span>
                 </div>
-              {/if}
-            </div>
-
-            <div class="review-group">
-              <h3>Participantes</h3>
-              <div class="review-item">
-                <span class="review-label">Total:</span>
-                <span class="review-value">{participants.length}</span>
-              </div>
-              <div class="participants-preview">
-                {#each participants.slice(0, 10) as participant}
-                  <span class="participant-chip">
-                    {participant.name}
-                    {participant.type === 'REGISTERED' ? '👤' : '🎭'}
-                  </span>
-                {/each}
-                {#if participants.length > 10}
-                  <span class="participant-chip">+{participants.length - 10} más...</span>
-                {/if}
+                <div class="review-card-body">
+                  <div class="review-participants-list">
+                    {#each participants.slice(0, 12) as participant}
+                      <span class="review-participant" class:registered={participant.type === 'REGISTERED'}>
+                        {participant.name}
+                      </span>
+                    {/each}
+                    {#if participants.length > 12}
+                      <span class="review-participant more">+{participants.length - 12}</span>
+                    {/if}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2353,12 +2335,12 @@
   .wizard-container {
     max-width: 900px;
     margin: 0 auto;
-    padding: 1rem 1.5rem 1rem;
+    padding: 0;
     min-height: 100vh;
     max-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: #fafafa;
+    background: #f5f5f5;
     transition: background-color 0.3s;
     overflow: hidden;
   }
@@ -2367,54 +2349,72 @@
     background: #0f1419;
   }
 
-  /* Header */
-  .wizard-header {
+  /* Header - Compact like other pages */
+  .page-header {
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.75rem 1.5rem;
+    transition: background-color 0.3s, border-color 0.3s;
     flex-shrink: 0;
   }
 
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-  }
-
-  .back-button {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
-    background: white;
-    color: #555;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-weight: 500;
-  }
-
-  .wizard-container[data-theme='dark'] .back-button {
+  .wizard-container[data-theme='dark'] .page-header {
     background: #1a2332;
-    color: #e1e8ed;
     border-color: #2d3748;
   }
 
-  .back-button:hover {
-    background: #f5f5f5;
-    transform: translateX(-3px);
+  .header-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
   }
 
-  .wizard-container[data-theme='dark'] .back-button:hover {
-    background: #2d3748;
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    color: #555;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .wizard-container[data-theme='dark'] .back-btn {
+    background: #0f1419;
+    color: #8b9bb3;
+    border-color: #2d3748;
+  }
+
+  .back-btn:hover {
+    transform: translateX(-2px);
+    border-color: #667eea;
+    color: #667eea;
+  }
+
+  .header-main {
+    flex: 1;
+    min-width: 0;
   }
 
   .title-section {
-    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
   }
 
   .title-section h1 {
-    font-size: 1.6rem;
-    margin: 0 0 0.3rem 0;
+    font-size: 1.1rem;
+    margin: 0;
     color: #1a1a1a;
     font-weight: 700;
+    white-space: nowrap;
     transition: color 0.3s;
   }
 
@@ -2422,83 +2422,53 @@
     color: #e1e8ed;
   }
 
-  .subtitle {
-    font-size: 0.85rem;
-    color: #666;
-    margin: 0 0 1rem 0;
-    transition: color 0.3s;
+  .header-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
-  .clear-draft-btn {
-    position: absolute;
-    right: 0;
-    top: 0;
-    background: transparent;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.75rem;
-    color: #666;
-    cursor: pointer;
-    transition: all 0.2s;
+  .info-badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
-  .clear-draft-btn:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
-    color: #333;
+  .info-badge.step-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
   }
 
-  .wizard-container[data-theme='dark'] .clear-draft-btn {
-    border-color: #444;
-    color: #8b9bb3;
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
-  .wizard-container[data-theme='dark'] .clear-draft-btn:hover {
-    background: #2d3748;
-    border-color: #555;
-    color: #e1e8ed;
-  }
-
-  .wizard-container[data-theme='dark'] .subtitle {
-    color: #8b9bb3;
-  }
-
-  /* Progress Bar */
+  /* Progress Bar - Compact */
   .progress-bar {
     display: flex;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
+    justify-content: center;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
     position: relative;
   }
 
-  .progress-bar::before {
-    content: '';
-    position: absolute;
-    top: 20px;
-    left: 10%;
-    right: 10%;
-    height: 2px;
-    background: #e0e0e0;
-    z-index: 0;
-  }
-
-  .wizard-container[data-theme='dark'] .progress-bar::before {
-    background: #2d3748;
-  }
-
   .progress-step {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
     position: relative;
     z-index: 1;
     background: none;
     border: none;
     cursor: pointer;
-    padding: 0.5rem;
+    padding: 0.25rem 0.5rem;
     transition: all 0.2s;
   }
 
@@ -2506,22 +2476,19 @@
     opacity: 0.8;
   }
 
-  .progress-step:hover .step-number {
-    transform: scale(1.1);
-  }
-
   .step-number {
-    width: 40px;
-    height: 40px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    background: white;
+    background: #f0f0f0;
     border: 2px solid #e0e0e0;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
+    font-size: 0.75rem;
     color: #999;
-    transition: all 0.3s;
+    transition: all 0.2s;
   }
 
   .wizard-container[data-theme='dark'] .step-number {
@@ -2530,18 +2497,23 @@
   }
 
   .progress-step.active .step-number {
-    border-color: #fa709a;
-    color: #fa709a;
+    border-color: #667eea;
+    color: #667eea;
+    background: white;
+  }
+
+  .wizard-container[data-theme='dark'] .progress-step.active .step-number {
+    background: #1a2332;
   }
 
   .progress-step.current .step-number {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    background: #667eea;
     color: white;
-    border-color: transparent;
+    border-color: #667eea;
   }
 
   .step-label {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: #999;
     text-align: center;
     transition: color 0.3s;
@@ -2562,10 +2534,10 @@
   /* Content */
   .wizard-content {
     background: white;
-    border-radius: 12px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    padding: 1.25rem 1.25rem 0 1.25rem;
+    margin-top: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     transition: background-color 0.3s, box-shadow 0.3s;
     flex: 1;
     overflow-y: auto;
@@ -2574,14 +2546,37 @@
 
   .wizard-container[data-theme='dark'] .wizard-content {
     background: #1a2332;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .wizard-content::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .wizard-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .wizard-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+  }
+
+  .wizard-container[data-theme='dark'] .wizard-content::-webkit-scrollbar-thumb {
+    background: #4a5568;
+  }
+
+  .step-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
   }
 
   .step-container h2 {
-    font-size: 1.3rem;
-    margin: 0 0 1.2rem 0;
+    font-size: 1rem;
+    margin: 0 0 1rem 0;
     color: #1a1a1a;
-    font-weight: 700;
+    font-weight: 600;
     transition: color 0.3s;
   }
 
@@ -2593,10 +2588,10 @@
   .participants-limit-info {
     background: #e8f4fd;
     border: 1px solid #b3d7f5;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
     color: #1a5a96;
   }
 
@@ -2618,10 +2613,10 @@
   .max-participants-warning {
     background: #fff3cd;
     border: 1px solid #ffc107;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
     color: #856404;
   }
 
@@ -2631,23 +2626,222 @@
     color: #ffd54f;
   }
 
-  /* Form Elements */
+  /* Step 1: Basic Info - Section Layout */
+  .step-basic {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .step-basic h2 {
+    margin-bottom: 0.25rem;
+  }
+
+  .info-section {
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    position: relative;
+  }
+
+  .wizard-container[data-theme='dark'] .info-section {
+    background: #161b22;
+    border-color: #2d3748;
+  }
+
+  .info-section-header {
+    background: #f0f0f0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    border-bottom: 1px solid #e8e8e8;
+    border-radius: 5px 5px 0 0;
+  }
+
+  .wizard-container[data-theme='dark'] .info-section-header {
+    background: #1e252d;
+    border-color: #2d3748;
+    color: #8b9bb3;
+  }
+
+  .info-grid {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .id-grid {
+    grid-template-columns: 200px 70px 1fr;
+  }
+
+  .location-grid {
+    grid-template-columns: 1fr 1fr 140px;
+  }
+
+  .config-grid {
+    grid-template-columns: 160px 1fr;
+  }
+
+  .info-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .info-field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .wizard-container[data-theme='dark'] .info-field label {
+    color: #8b9bb3;
+  }
+
+  .info-field .input-field {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .info-field .field-error {
+    font-size: 0.65rem;
+    color: #dc2626;
+    margin-top: 0.1rem;
+  }
+
+  .wizard-container[data-theme='dark'] .info-field .field-error {
+    color: #f87171;
+  }
+
+  .info-field .field-hint {
+    font-size: 0.65rem;
+    color: #6b7280;
+    margin-top: 0.1rem;
+  }
+
+  .wizard-container[data-theme='dark'] .info-field .field-hint {
+    color: #8b9bb3;
+  }
+
+  .info-field .key-input {
+    text-transform: uppercase;
+    font-family: monospace;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+
+  .edition-field .input-field {
+    text-align: center;
+  }
+
+  .type-field {
+    max-width: 160px;
+  }
+
+  .type-toggle {
+    display: flex;
+    gap: 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .wizard-container[data-theme='dark'] .type-toggle {
+    border-color: #2d3748;
+  }
+
+  .type-btn {
+    flex: 1;
+    padding: 0.4rem 0.6rem;
+    border: none;
+    background: white;
+    color: #64748b;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .wizard-container[data-theme='dark'] .type-btn {
+    background: #0f1419;
+    color: #8b9bb3;
+  }
+
+  .type-btn:not(:last-child) {
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .wizard-container[data-theme='dark'] .type-btn:not(:last-child) {
+    border-color: #2d3748;
+  }
+
+  .type-btn.active {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .wizard-container[data-theme='dark'] .type-btn.active {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .desc-field {
+    flex: 1;
+  }
+
+  @media (max-width: 600px) {
+    .id-grid {
+      grid-template-columns: 1fr 70px;
+    }
+
+    .id-grid .name-field {
+      grid-column: 1 / -1;
+    }
+
+    .id-grid .key-field {
+      grid-column: 1;
+    }
+
+    .location-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .location-grid .info-field:last-child {
+      grid-column: 1 / -1;
+    }
+
+    .config-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .type-field {
+      max-width: none;
+    }
+  }
+
+  /* Form Elements - Compact */
   .form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
   }
 
   .form-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
   }
 
   label {
     display: block;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
     font-weight: 600;
     color: #333;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     transition: color 0.3s;
   }
 
@@ -2657,10 +2851,10 @@
 
   .input-field {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.5rem 0.75rem;
     border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.95rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
     background: white;
     color: #333;
     transition: all 0.2s;
@@ -2674,8 +2868,8 @@
 
   .input-field:focus {
     outline: none;
-    border-color: #fa709a;
-    box-shadow: 0 0 0 3px rgba(250, 112, 154, 0.1);
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
   }
 
   textarea.input-field {
@@ -2683,10 +2877,97 @@
     font-family: inherit;
   }
 
+  /* Key input validation styles */
+  .key-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .key-input-wrapper .input-field {
+    padding-right: 2rem;
+  }
+
+  .key-status {
+    position: absolute;
+    right: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .key-status.loading {
+    animation: spin 1s linear infinite;
+  }
+
+  .key-status.error {
+    color: #dc2626;
+  }
+
+  .key-status.valid {
+    color: #16a34a;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .input-field.input-error {
+    border-color: #b91c1c;
+    background: #fef2f2;
+  }
+
+  .input-field.input-error:focus {
+    border-color: #b91c1c;
+    background: #fef2f2;
+    box-shadow: none;
+  }
+
+  .wizard-container[data-theme='dark'] .input-field.input-error {
+    border-color: #991b1b;
+    background: #1f1515;
+  }
+
+  .wizard-container[data-theme='dark'] .input-field.input-error:focus {
+    border-color: #991b1b;
+    background: #1f1515;
+  }
+
+  .input-field.input-valid {
+    border-color: #15803d;
+    background: #f0fdf4;
+  }
+
+  .input-field.input-valid:focus {
+    border-color: #15803d;
+    background: #f0fdf4;
+    box-shadow: none;
+  }
+
+  .wizard-container[data-theme='dark'] .input-field.input-valid {
+    border-color: #166534;
+    background: #14261a;
+  }
+
+  .wizard-container[data-theme='dark'] .input-field.input-valid:focus {
+    border-color: #166534;
+    background: #14261a;
+  }
+
+  .field-error-text {
+    display: block;
+    color: #b91c1c;
+    font-size: 0.75rem;
+    margin-top: 0.3rem;
+  }
+
+  .wizard-container[data-theme='dark'] .field-error-text {
+    color: #fca5a5;
+  }
+
   .radio-group {
     display: flex;
     flex-direction: row;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .radio-group.vertical {
@@ -2697,14 +2978,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     cursor: pointer;
-    padding: 0.75rem;
+    padding: 0.5rem 0.75rem;
     border: 1px solid #e0e0e0;
-    border-radius: 6px;
+    border-radius: 4px;
     transition: all 0.2s;
     flex: 1;
     flex-wrap: wrap;
+    font-size: 0.85rem;
   }
 
   .radio-group.vertical .radio-label {
@@ -2713,10 +2995,10 @@
 
   .radio-description {
     width: 100%;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: #6b7280;
-    margin-left: 26px;
-    margin-top: 0.25rem;
+    margin-left: 22px;
+    margin-top: 0.2rem;
   }
 
   .wizard-container[data-theme='dark'] .radio-description {
@@ -2729,7 +3011,7 @@
 
   .radio-label:hover {
     background: #f8f8f8;
-    border-color: #fa709a;
+    border-color: #667eea;
   }
 
   .wizard-container[data-theme='dark'] .radio-label:hover {
@@ -2737,29 +3019,30 @@
   }
 
   .radio-label input[type='radio'] {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     cursor: pointer;
   }
 
   .checkbox-label {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     cursor: pointer;
     font-weight: normal;
+    font-size: 0.85rem;
   }
 
   .checkbox-label input[type='checkbox'] {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     cursor: pointer;
   }
 
   .help-text {
     display: block;
-    margin-top: 0.25rem;
-    font-size: 0.8rem;
+    margin-top: 0.2rem;
+    font-size: 0.7rem;
     color: #999;
     transition: color 0.3s;
   }
@@ -2770,10 +3053,9 @@
 
   .phase-config,
   .ranking-config {
-    margin-top: 1.5rem;
-    padding: 1.5rem;
+    padding: 1rem;
     background: #f8f8f8;
-    border-radius: 8px;
+    border-radius: 6px;
     transition: background-color 0.3s;
   }
 
@@ -2784,15 +3066,15 @@
 
   .phase-config h3,
   .ranking-config h3 {
-    font-size: 1.1rem;
-    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
+    margin: 0 0 0.75rem 0;
     color: #555;
     transition: color 0.3s;
   }
 
   .ranking-config h4 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1rem;
+    margin: 0 0 0.4rem 0;
+    font-size: 0.9rem;
     color: #1976d2;
   }
 
@@ -2801,21 +3083,24 @@
   }
 
   .tier-description {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: #666;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
   }
 
   .wizard-container[data-theme='dark'] .tier-description {
     color: #8b9bb3;
   }
 
-  /* Tier Selection Cards */
+  /* Tier Selection Cards - 2 Columns */
   .tier-selection {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .tier-option {
@@ -2827,9 +3112,9 @@
   }
 
   .tier-card {
-    padding: 1rem;
+    padding: 0.75rem;
     border: 2px solid #e0e0e0;
-    border-radius: 8px;
+    border-radius: 6px;
     background: #fff;
     transition: all 0.2s ease;
   }
@@ -2841,13 +3126,11 @@
 
   .tier-option:hover .tier-card {
     border-color: #90caf9;
-    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
   }
 
   .tier-option.selected .tier-card {
     border-color: #1976d2;
     background: #e3f2fd;
-    box-shadow: 0 2px 12px rgba(33, 150, 243, 0.25);
   }
 
   .wizard-container[data-theme='dark'] .tier-option.selected .tier-card {
@@ -2858,14 +3141,14 @@
   .tier-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
   }
 
   .tier-badge {
-    padding: 0.15rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.65rem;
     font-weight: 700;
     color: #fff;
   }
@@ -2877,6 +3160,7 @@
 
   .tier-name {
     font-weight: 600;
+    font-size: 0.85rem;
     color: #333;
   }
 
@@ -2885,9 +3169,9 @@
   }
 
   .tier-desc {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: #666;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
   }
 
   .wizard-container[data-theme='dark'] .tier-desc {
@@ -2895,7 +3179,7 @@
   }
 
   .tier-points {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: #2e7d32;
   }
@@ -2904,13 +3188,13 @@
     color: #66bb6a;
   }
 
-  /* Points Distribution Table */
+  /* Points Distribution Table - Compact */
   .points-distribution {
-    margin-top: 1rem;
-    padding: 1rem;
+    margin-top: 0.75rem;
+    padding: 0.75rem;
     background: #e8f4fd;
-    border-radius: 8px;
-    border-left: 4px solid #2196f3;
+    border-radius: 6px;
+    border-left: 3px solid #2196f3;
   }
 
   .wizard-container[data-theme='dark'] .points-distribution {
@@ -2919,8 +3203,8 @@
   }
 
   .points-distribution h4 {
-    margin: 0 0 0.75rem 0;
-    font-size: 0.95rem;
+    margin: 0 0 0.5rem 0;
+    font-size: 0.85rem;
     color: #1976d2;
   }
 
@@ -2931,13 +3215,13 @@
   .points-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
-    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    margin-bottom: 0.35rem;
   }
 
   .points-table th,
   .points-table td {
-    padding: 0.4rem 0.5rem;
+    padding: 0.3rem 0.4rem;
     text-align: center;
     border: 1px solid #c5dff5;
   }
@@ -2967,11 +3251,553 @@
     color: #66bb6a;
   }
 
-  /* Phase sections - Professional design */
-  .phase-section {
-    margin-top: 1.5rem;
+  /* ============================================
+     STEP 2: FORMAT SECTION STYLES
+     ============================================ */
+
+  .step-format h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    color: #1a1a1a;
+  }
+
+  .wizard-container[data-theme='dark'] .step-format h2 {
+    color: #f3f4f6;
+  }
+
+  .format-section {
+    background: #fff;
     border: 1px solid #e5e7eb;
-    border-radius: 12px;
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+
+  .wizard-container[data-theme='dark'] .format-section {
+    background: #1a2332;
+    border-color: #374151;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .wizard-container[data-theme='dark'] .section-header {
+    background: #111827;
+    border-bottom-color: #374151;
+  }
+
+  .section-header.groups {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  }
+
+  .wizard-container[data-theme='dark'] .section-header.groups {
+    background: linear-gradient(135deg, #1e3a5f 0%, #1e40af20 100%);
+  }
+
+  .section-header.finals {
+    background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+  }
+
+  .wizard-container[data-theme='dark'] .section-header.finals {
+    background: linear-gradient(135deg, #422006 0%, #78350f20 100%);
+  }
+
+  .section-number {
+    width: 20px;
+    height: 20px;
+    background: #667eea;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .section-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .wizard-container[data-theme='dark'] .section-title {
+    color: #e5e7eb;
+  }
+
+  .section-body {
+    padding: 0.75rem;
+  }
+
+  /* Inline config layout */
+  .inline-config {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .config-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .config-field.wide {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .config-field.phase-selector {
+    flex: 1;
+    min-width: 150px;
+  }
+
+  .config-field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .wizard-container[data-theme='dark'] .config-field label {
+    color: #9ca3af;
+  }
+
+  .field-hint {
+    font-size: 0.65rem;
+    color: #9ca3af;
+  }
+
+  .wizard-container[data-theme='dark'] .field-hint {
+    color: #6b7280;
+  }
+
+  /* Toggle buttons */
+  .toggle-buttons {
+    display: flex;
+    background: #f3f4f6;
+    border-radius: 4px;
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .wizard-container[data-theme='dark'] .toggle-buttons {
+    background: #374151;
+  }
+
+  .toggle-buttons.small {
+    padding: 1px;
+  }
+
+  .toggle-btn {
+    padding: 0.35rem 0.6rem;
+    border: none;
+    background: transparent;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .toggle-buttons.small .toggle-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+  }
+
+  .toggle-btn:hover {
+    color: #374151;
+  }
+
+  .toggle-btn.active {
+    background: white;
+    color: #1a1a1a;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+
+  .wizard-container[data-theme='dark'] .toggle-btn {
+    color: #9ca3af;
+  }
+
+  .wizard-container[data-theme='dark'] .toggle-btn:hover {
+    color: #e5e7eb;
+  }
+
+  .wizard-container[data-theme='dark'] .toggle-btn.active {
+    background: #1f2937;
+    color: #f3f4f6;
+  }
+
+  /* Input compact styles */
+  .input-field.compact {
+    width: 70px;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .input-field.mini {
+    width: 55px;
+    padding: 0.3rem 0.4rem;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+
+  /* Match settings row */
+  .match-settings {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #e5e7eb;
+  }
+
+  .wizard-container[data-theme='dark'] .match-settings {
+    border-top-color: #374151;
+  }
+
+  .settings-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 0.35rem;
+    display: block;
+  }
+
+  .settings-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .inline-field {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .inline-field span {
+    font-size: 0.7rem;
+    color: #6b7280;
+  }
+
+  .wizard-container[data-theme='dark'] .inline-field span {
+    color: #9ca3af;
+  }
+
+  /* Brackets config */
+  .brackets-config {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .brackets-config.split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 600px) {
+    .brackets-config.split {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .bracket-box {
+    padding: 0.5rem;
+    background: #f9fafb;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .wizard-container[data-theme='dark'] .bracket-box {
+    background: #111827;
+    border-color: #374151;
+  }
+
+  .bracket-box.gold {
+    border-left: 3px solid #f59e0b;
+  }
+
+  .bracket-box.silver {
+    border-left: 3px solid #9ca3af;
+  }
+
+  .bracket-label {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.35rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+  }
+
+  .bracket-label.gold {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
+  .bracket-label.silver {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+
+  .wizard-container[data-theme='dark'] .bracket-label.gold {
+    background: #78350f;
+    color: #fcd34d;
+  }
+
+  .wizard-container[data-theme='dark'] .bracket-label.silver {
+    background: #374151;
+    color: #d1d5db;
+  }
+
+  /* Advanced config */
+  .advanced-config-section {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #e5e7eb;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-config-section {
+    border-top-color: #374151;
+  }
+
+  .advanced-toggle {
+    background: none;
+    border: none;
+    padding: 0.25rem 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6366f1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .advanced-toggle:hover {
+    color: #4f46e5;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-toggle {
+    color: #818cf8;
+  }
+
+  .advanced-phases-grid {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .advanced-phases-grid.split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 600px) {
+    .advanced-phases-grid.split {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .advanced-bracket {
+    padding: 0.5rem;
+    background: #fafafa;
+    border-radius: 4px;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-bracket {
+    background: #111827;
+  }
+
+  .advanced-bracket.gold {
+    border-left: 2px solid #f59e0b;
+  }
+
+  .advanced-bracket.silver {
+    border-left: 2px solid #9ca3af;
+  }
+
+  .advanced-bracket-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .advanced-bracket-title.gold {
+    color: #b45309;
+  }
+
+  .advanced-bracket-title.silver {
+    color: #6b7280;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-bracket-title.gold {
+    color: #fcd34d;
+  }
+
+  .wizard-container[data-theme='dark'] .advanced-bracket-title.silver {
+    color: #d1d5db;
+  }
+
+  .phase-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .phase-row:last-child {
+    border-bottom: none;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-row {
+    border-bottom-color: #374151;
+  }
+
+  .phase-name {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #4b5563;
+    min-width: 60px;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-name {
+    color: #9ca3af;
+  }
+
+  .phase-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .phase-controls select.input-field.mini {
+    width: 70px;
+  }
+
+  .bo-label {
+    font-size: 0.65rem;
+    color: #9ca3af;
+    margin-left: 0.25rem;
+  }
+
+  /* Options section */
+  .options-section .section-body {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .options-row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .option-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+  }
+
+  .option-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .option-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #374151;
+  }
+
+  .wizard-container[data-theme='dark'] .option-label {
+    color: #e5e7eb;
+  }
+
+  /* Options inline in config general */
+  .options-inline {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .option-check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: #374151;
+  }
+
+  .wizard-container[data-theme='dark'] .option-check {
+    color: #d1d5db;
+  }
+
+  .option-check input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: #667eea;
+  }
+
+  .option-check span {
+    font-weight: 500;
+  }
+
+  /* Responsive for step-format */
+  @media (max-width: 600px) {
+    .inline-config {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .config-field,
+    .config-field.wide,
+    .config-field.phase-selector {
+      width: 100%;
+    }
+
+    .settings-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .bracket-box .match-settings {
+      border-top: none;
+      margin-top: 0;
+      padding-top: 0;
+    }
+  }
+
+  /* Phase sections - Compact Professional design */
+  .phase-section {
+    margin-top: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
     overflow: hidden;
     background: #fff;
     transition: all 0.3s;
@@ -2985,8 +3811,8 @@
   .phase-header {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid #e5e7eb;
     transition: all 0.3s;
   }
@@ -3012,12 +3838,12 @@
   }
 
   .phase-icon {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     line-height: 1;
   }
 
   .phase-title h3 {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 600;
     margin: 0;
     color: #1f2937;
@@ -3029,7 +3855,7 @@
   }
 
   .phase-title small {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: #6b7280;
     font-weight: 400;
     transition: color 0.3s;
@@ -3040,16 +3866,16 @@
   }
 
   .phase-content {
-    padding: 1.25rem;
+    padding: 1rem;
   }
 
-  /* Match config box - uniform design */
+  /* Match config box - Compact uniform design */
   .match-config-box {
-    margin-top: 1rem;
-    padding: 1rem;
+    margin-top: 0.75rem;
+    padding: 0.75rem;
     background: #f9fafb;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border-radius: 6px;
     transition: all 0.3s;
   }
 
@@ -3059,9 +3885,9 @@
   }
 
   .match-config-box h4 {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    margin: 0 0 1rem 0;
+    margin: 0 0 0.75rem 0;
     color: #374151;
     transition: color 0.3s;
   }
@@ -3078,11 +3904,11 @@
     border-left: 3px solid #9ca3af;
   }
 
-  /* Advanced bracket config */
+  /* Advanced bracket config - Compact */
   .advanced-config-section {
-    margin-top: 1.5rem;
+    margin-top: 1rem;
     border-top: 1px dashed #e5e7eb;
-    padding-top: 1rem;
+    padding-top: 0.75rem;
   }
 
   .wizard-container[data-theme='dark'] .advanced-config-section {
@@ -3092,14 +3918,14 @@
   .advanced-toggle {
     background: none;
     border: none;
-    padding: 0.5rem 0;
-    font-size: 0.9rem;
+    padding: 0.35rem 0;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #667eea;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     transition: color 0.2s;
   }
 
@@ -3112,10 +3938,10 @@
   }
 
   .advanced-config-content {
-    margin-top: 1rem;
-    padding: 1rem;
+    margin-top: 0.75rem;
+    padding: 0.75rem;
     background: #f8fafc;
-    border-radius: 8px;
+    border-radius: 6px;
     border: 1px solid #e2e8f0;
   }
 
@@ -3125,12 +3951,12 @@
   }
 
   .advanced-hint {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: #64748b;
-    margin: 0 0 1rem 0;
-    padding: 0.5rem;
+    margin: 0 0 0.75rem 0;
+    padding: 0.4rem 0.6rem;
     background: #e0f2fe;
-    border-radius: 6px;
+    border-radius: 4px;
   }
 
   .wizard-container[data-theme='dark'] .advanced-hint {
@@ -3258,13 +4084,13 @@
     }
   }
 
-  /* Settings section */
+  /* Settings section - Compact */
   .settings-section {
-    margin-top: 1.5rem;
-    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
     background: #f9fafb;
     border: 1px solid #e5e7eb;
-    border-radius: 10px;
+    border-radius: 6px;
     transition: all 0.3s;
   }
 
@@ -3274,9 +4100,9 @@
   }
 
   .settings-section h3 {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    margin: 0 0 0.75rem 0;
+    margin: 0 0 0.6rem 0;
     color: #374151;
     transition: color 0.3s;
   }
@@ -3287,18 +4113,18 @@
 
   .settings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.5rem;
   }
 
   .setting-item {
     display: flex;
     align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.75rem;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
     background: #fff;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -3317,21 +4143,21 @@
   }
 
   .setting-item input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    margin-top: 2px;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
     cursor: pointer;
-    accent-color: #fa709a;
+    accent-color: #667eea;
   }
 
   .setting-info {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.1rem;
   }
 
   .setting-label {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 500;
     color: #1f2937;
     transition: color 0.3s;
@@ -3342,7 +4168,7 @@
   }
 
   .setting-info small {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: #6b7280;
     transition: color 0.3s;
   }
@@ -3483,24 +4309,24 @@
     background: #2d3748;
   }
 
-  /* Participants */
+  /* Participants - Compact */
   .participants-section {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 2rem;
+    gap: 1.5rem;
   }
 
   .add-participants {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.25rem;
   }
 
   .search-section h3,
   .guest-section h3,
   .participants-list h3 {
-    font-size: 1.1rem;
-    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
+    margin: 0 0 0.75rem 0;
     color: #555;
     transition: color 0.3s;
   }
@@ -3533,11 +4359,11 @@
   }
 
   .search-results {
-    margin-top: 0.5rem;
-    max-height: 300px;
+    margin-top: 0.4rem;
+    max-height: 200px;
     overflow-y: auto;
     border: 1px solid #e0e0e0;
-    border-radius: 6px;
+    border-radius: 4px;
     transition: border-color 0.3s;
   }
 
@@ -3549,7 +4375,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     border: none;
     background: white;
     color: #333;
@@ -3558,6 +4384,7 @@
     cursor: pointer;
     border-bottom: 1px solid #f0f0f0;
     transition: background-color 0.2s, color 0.3s;
+    font-size: 0.85rem;
   }
 
   .wizard-container[data-theme='dark'] .search-result-item {
@@ -3577,17 +4404,18 @@
   .user-info {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.15rem;
   }
 
   .user-name-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .user-info strong {
     color: #333;
+    font-size: 0.85rem;
     transition: color 0.3s;
   }
 
@@ -3596,12 +4424,12 @@
   }
 
   .user-ranking {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 500;
     color: #666;
     background: #e8e8e8;
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
   }
 
   .wizard-container[data-theme='dark'] .user-ranking {
@@ -3610,7 +4438,7 @@
   }
 
   .user-email {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: #999;
     transition: color 0.3s;
   }
@@ -3620,14 +4448,14 @@
   }
 
   .add-icon {
-    font-size: 1.5rem;
-    color: #fa709a;
+    font-size: 1.2rem;
+    color: #667eea;
   }
 
   .guest-input-group {
     display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
   }
 
   .guest-input-group .input-field {
@@ -3635,11 +4463,11 @@
   }
 
   .guest-button {
-    padding: 0.75rem 1.5rem;
+    padding: 0.5rem 1rem;
     background: white;
-    border: 2px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.95rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.8rem;
     color: #666;
     cursor: pointer;
     transition: all 0.2s;
@@ -3654,9 +4482,9 @@
   }
 
   .guest-button:hover:not(:disabled) {
-    border-color: #fa709a;
-    background: #fef5f7;
-    color: #fa709a;
+    border-color: #667eea;
+    background: #f0f4ff;
+    color: #667eea;
   }
 
   .wizard-container[data-theme='dark'] .guest-button:hover:not(:disabled) {
@@ -3670,8 +4498,9 @@
 
   .empty-participants {
     text-align: center;
-    padding: 2rem;
+    padding: 1.5rem;
     color: #999;
+    font-size: 0.85rem;
     transition: color 0.3s;
   }
 
@@ -3682,16 +4511,16 @@
   .participants-grid {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .participant-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.6rem;
     background: #f8f8f8;
-    border-radius: 6px;
+    border-radius: 4px;
     transition: background-color 0.3s;
   }
 
@@ -3702,22 +4531,23 @@
   .participant-info {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.15rem;
   }
 
   .participant-name-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
+    font-size: 0.85rem;
   }
 
   .participant-ranking {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     font-weight: 500;
     color: #666;
     background: #e8e8e8;
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
   }
 
   .wizard-container[data-theme='dark'] .participant-ranking {
@@ -3726,7 +4556,7 @@
   }
 
   .participant-type {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: #999;
     transition: color 0.3s;
   }
@@ -3739,65 +4569,90 @@
     background: none;
     border: none;
     color: #ff4444;
-    font-size: 1.25rem;
+    font-size: 1rem;
     cursor: pointer;
-    padding: 0.25rem 0.5rem;
+    padding: 0.2rem 0.4rem;
     transition: transform 0.2s;
   }
 
   .remove-button:hover {
-    transform: scale(1.2);
+    transform: scale(1.1);
   }
 
-  /* Review */
-  .review-section {
+  /* Review - Two Column Grid */
+  .review-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  .review-column {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0.75rem;
   }
 
-  .review-group {
-    padding: 1.5rem;
-    background: #f8f8f8;
-    border-radius: 8px;
-    transition: background-color 0.3s;
+  .review-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    transition: all 0.2s;
   }
 
-  .wizard-container[data-theme='dark'] .review-group {
+  .wizard-container[data-theme='dark'] .review-card {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .review-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.75rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .wizard-container[data-theme='dark'] .review-card-header {
     background: #0f1419;
-  }
-
-  .review-group h3 {
-    font-size: 1.1rem;
-    margin: 0 0 1rem 0;
-    color: #555;
-    transition: color 0.3s;
-  }
-
-  .wizard-container[data-theme='dark'] .review-group h3 {
+    border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  .review-item {
+  .review-icon {
+    font-size: 0.85rem;
+  }
+
+  .review-card-body {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .review-row {
     display: flex;
     justify-content: space-between;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #e0e0e0;
-    transition: border-color 0.3s;
+    align-items: center;
+    padding: 0.3rem 0;
+    font-size: 0.8rem;
   }
 
-  .wizard-container[data-theme='dark'] .review-item {
-    border-bottom-color: #2d3748;
+  .review-row:not(:last-child) {
+    border-bottom: 1px solid #f1f5f9;
   }
 
-  .review-item:last-child {
-    border-bottom: none;
+  .wizard-container[data-theme='dark'] .review-row:not(:last-child) {
+    border-bottom-color: #1e293b;
   }
 
   .review-label {
-    font-weight: 600;
-    color: #666;
-    transition: color 0.3s;
+    color: #64748b;
+    font-weight: 500;
   }
 
   .wizard-container[data-theme='dark'] .review-label {
@@ -3805,30 +4660,91 @@
   }
 
   .review-value {
-    color: #333;
-    transition: color 0.3s;
+    color: #1e293b;
+    font-weight: 600;
+    text-align: right;
   }
 
   .wizard-container[data-theme='dark'] .review-value {
-    color: #c5d0de;
+    color: #e1e8ed;
   }
 
-  .participants-preview {
+  .review-value.highlight {
+    color: #3b82f6;
+    font-family: monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .wizard-container[data-theme='dark'] .review-value.highlight {
+    color: #60a5fa;
+  }
+
+  .participant-count {
+    margin-left: auto;
+    background: #3b82f6;
+    color: white;
+    padding: 0.15rem 0.4rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .review-participants-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
+    gap: 0.3rem;
+  }
+
+  .review-participant {
+    padding: 0.2rem 0.45rem;
+    background: #f1f5f9;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    color: #475569;
+    white-space: nowrap;
+  }
+
+  .wizard-container[data-theme='dark'] .review-participant {
+    background: #0f1419;
+    color: #8b9bb3;
+  }
+
+  .review-participant.registered {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+
+  .wizard-container[data-theme='dark'] .review-participant.registered {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+  }
+
+  .review-participant.more {
+    background: #e2e8f0;
+    color: #64748b;
+    font-weight: 600;
+  }
+
+  .wizard-container[data-theme='dark'] .review-participant.more {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  @media (max-width: 600px) {
+    .review-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   .participant-chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.35rem 0.75rem;
+    gap: 0.2rem;
+    padding: 0.25rem 0.5rem;
     background: white;
     border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    font-size: 0.85rem;
+    border-radius: 10px;
+    font-size: 0.75rem;
     transition: all 0.3s;
   }
 
@@ -3837,12 +4753,375 @@
     border-color: #2d3748;
   }
 
-  /* Validation */
-  .validation-messages {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    border-radius: 8px;
+  /* Step 4: Participants - Compact Professional Design */
+  .step-participants h2 {
+    margin-bottom: 0.75rem;
+  }
+
+  .participants-counter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #f0f4f8;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    transition: all 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .participants-counter {
+    background: #1e2a3a;
+  }
+
+  .participants-counter.warning {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+  }
+
+  .wizard-container[data-theme='dark'] .participants-counter.warning {
+    background: #3d3520;
+    border-color: #b45309;
+  }
+
+  .counter-text {
+    font-weight: 700;
     font-size: 0.9rem;
+    color: #1a1a1a;
+  }
+
+  .wizard-container[data-theme='dark'] .counter-text {
+    color: #e1e8ed;
+  }
+
+  .participants-counter.warning .counter-text {
+    color: #b45309;
+  }
+
+  .counter-label {
+    color: #666;
+    font-size: 0.75rem;
+  }
+
+  .wizard-container[data-theme='dark'] .counter-label {
+    color: #8b9bb3;
+  }
+
+  .add-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .add-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .add-field.search-field {
+    min-width: 0;
+  }
+
+  .add-field label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #555;
+  }
+
+  .wizard-container[data-theme='dark'] .add-field label {
+    color: #8b9bb3;
+  }
+
+  .search-box {
+    position: relative;
+  }
+
+  .search-box .input-field {
+    padding-right: 2rem;
+    width: 100%;
+  }
+
+  .search-loading {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8rem;
+  }
+
+  .search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 20;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .wizard-container[data-theme='dark'] .search-results {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+  }
+
+  .wizard-container[data-theme='dark'] .search-result-item {
+    border-color: #2d3748;
+  }
+
+  .search-result-item:last-child {
+    border-bottom: none;
+  }
+
+  .search-result-item:hover:not(:disabled) {
+    background: #f5f7fa;
+  }
+
+  .wizard-container[data-theme='dark'] .search-result-item:hover:not(:disabled) {
+    background: #2d3748;
+  }
+
+  .search-result-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .result-name {
+    flex: 1;
+    font-size: 0.8rem;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .wizard-container[data-theme='dark'] .result-name {
+    color: #c5d0de;
+  }
+
+  .result-rank {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #667eea;
+    background: #f0f4ff;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+  }
+
+  .wizard-container[data-theme='dark'] .result-rank {
+    background: #2a3548;
+    color: #a0b4ff;
+  }
+
+  .result-add {
+    font-size: 1rem;
+    color: #10b981;
+    font-weight: 700;
+  }
+
+  .guest-input-group {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .guest-input-group .input-field {
+    flex: 1;
+  }
+
+  .add-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .add-btn:hover:not(:disabled) {
+    background: #059669;
+  }
+
+  .add-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  .wizard-container[data-theme='dark'] .add-btn:disabled {
+    background: #4a5568;
+  }
+
+  .participants-list-section {
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 0.75rem;
+    transition: all 0.3s;
+  }
+
+  .wizard-container[data-theme='dark'] .participants-list-section {
+    background: #151e2c;
+    border-color: #2d3748;
+  }
+
+  .list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #666;
+  }
+
+  .wizard-container[data-theme='dark'] .list-header {
+    color: #8b9bb3;
+  }
+
+  .list-count {
+    background: #e5e7eb;
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+  }
+
+  .wizard-container[data-theme='dark'] .list-count {
+    background: #2d3748;
+    color: #c5d0de;
+  }
+
+  .empty-list {
+    text-align: center;
+    color: #999;
+    font-size: 0.8rem;
+    padding: 1rem;
+  }
+
+  .wizard-container[data-theme='dark'] .empty-list {
+    color: #6b7a94;
+  }
+
+  .participants-grid-2col {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.35rem;
+  }
+
+  /* Override participant-chip styles for Step 4 grid */
+  .participants-grid-2col .participant-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding: 0.35rem 0.5rem;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    font-size: 0.75rem;
+  }
+
+  .wizard-container[data-theme='dark'] .participants-grid-2col .participant-chip {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .participants-grid-2col .participant-chip.registered {
+    border-color: #667eea;
+    background: #f8f9ff;
+  }
+
+  .wizard-container[data-theme='dark'] .participants-grid-2col .participant-chip.registered {
+    background: #1e2540;
+    border-color: #4a5ecc;
+  }
+
+  .chip-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #333;
+    font-weight: 500;
+  }
+
+  .wizard-container[data-theme='dark'] .chip-name {
+    color: #c5d0de;
+  }
+
+  .chip-rank {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #667eea;
+    background: #eef1ff;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+  }
+
+  .wizard-container[data-theme='dark'] .chip-rank {
+    background: #2a3548;
+    color: #a0b4ff;
+  }
+
+  .chip-remove {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 50%;
+    color: #666;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .chip-remove:hover {
+    background: #ef4444;
+    color: white;
+  }
+
+  .wizard-container[data-theme='dark'] .chip-remove {
+    background: #2d3748;
+    color: #8b9bb3;
+  }
+
+  .wizard-container[data-theme='dark'] .chip-remove:hover {
+    background: #ef4444;
+    color: white;
+  }
+
+  /* Validation - Compact */
+  .validation-messages {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
   }
 
   .validation-messages.errors {
@@ -3870,28 +5149,29 @@
   }
 
   .validation-messages ul {
-    margin: 0.5rem 0 0 0;
-    padding-left: 1.5rem;
+    margin: 0.35rem 0 0 0;
+    padding-left: 1.25rem;
   }
 
   .validation-messages li {
-    margin: 0.25rem 0;
+    margin: 0.2rem 0;
   }
 
-  /* Navigation */
+  /* Navigation - Compact */
   .wizard-navigation {
     display: flex;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.75rem;
+    padding: 0.75rem;
     flex-shrink: 0;
   }
 
   .nav-button {
-    padding: 0.75rem 2rem;
+    padding: 0.4rem 1rem;
     border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
   }
@@ -3918,13 +5198,21 @@
   }
 
   .nav-button.primary {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-    color: white;
+    background: #1a1a1a;
+    color: #f5f5f5;
+  }
+
+  .wizard-container[data-theme='dark'] .nav-button.primary {
+    background: #e5e7eb;
+    color: #1a1a1a;
   }
 
   .nav-button.primary:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(250, 112, 154, 0.4);
+    background: #2a2a2a;
+  }
+
+  .wizard-container[data-theme='dark'] .nav-button.primary:hover:not(:disabled) {
+    background: #f3f4f6;
   }
 
   .nav-button:disabled {
@@ -3934,17 +5222,46 @@
 
   /* Responsive */
   @media (max-width: 768px) {
-    .wizard-container {
-      padding: 1rem;
+    .page-header {
+      padding: 0.5rem 1rem;
+    }
+
+    .header-row {
+      gap: 0.75rem;
+    }
+
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      font-size: 1rem;
+    }
+
+    .title-section h1 {
+      font-size: 1rem;
     }
 
     .progress-bar {
-      flex-wrap: wrap;
-      gap: 1rem;
+      gap: 0.15rem;
+      margin-top: 0.5rem;
+    }
+
+    .progress-step {
+      padding: 0.2rem 0.35rem;
+    }
+
+    .step-number {
+      width: 24px;
+      height: 24px;
+      font-size: 0.7rem;
     }
 
     .step-label {
-      display: none;
+      font-size: 0.6rem;
+    }
+
+    .wizard-content {
+      margin: 0.75rem;
+      padding: 1rem;
     }
 
     .form-row {
@@ -3955,8 +5272,18 @@
       grid-template-columns: 1fr;
     }
 
+    .add-row {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .participants-grid-2col {
+      grid-template-columns: 1fr;
+    }
+
     .wizard-navigation {
       flex-direction: column-reverse;
+      padding: 0 0.75rem 0.75rem;
     }
 
     .nav-button {
@@ -3964,99 +5291,98 @@
     }
   }
 
-  /* Mobile landscape optimizations */
-  @media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
-    .wizard-container {
-      padding: 0.5rem 1rem;
-      max-height: 100vh;
+  /* Extra small screens */
+  @media (max-width: 480px) {
+    .page-header {
+      padding: 0.4rem 0.75rem;
     }
 
-    .wizard-header {
-      margin-bottom: 0.5rem;
-    }
-
-    .header-top {
-      margin-bottom: 0.5rem;
-    }
-
-    .back-button {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.8rem;
+    .back-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 0.9rem;
     }
 
     .title-section h1 {
-      font-size: 1.2rem;
-      margin-bottom: 0.2rem;
+      font-size: 0.9rem;
     }
 
-    .subtitle {
-      font-size: 0.75rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .progress-bar {
-      margin-bottom: 0.75rem;
+    .info-badge {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
     }
 
     .step-number {
-      width: 30px;
-      height: 30px;
-      font-size: 0.85rem;
-    }
-
-    .step-label {
+      width: 22px;
+      height: 22px;
       font-size: 0.65rem;
     }
 
+    .step-label {
+      display: none;
+    }
+
     .wizard-content {
-      padding: 1rem;
-      margin-bottom: 0.75rem;
+      margin: 0.5rem;
+      padding: 0.75rem;
+    }
+  }
+
+  /* Mobile landscape optimizations */
+  @media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+    .page-header {
+      padding: 0.4rem 0.75rem;
     }
 
-    .step-container h2 {
-      font-size: 1.1rem;
-      margin-bottom: 0.75rem;
+    .progress-bar {
+      margin-top: 0.4rem;
     }
 
-    .step-container h3 {
-      font-size: 1rem;
-      margin-bottom: 0.5rem;
+    .step-number {
+      width: 22px;
+      height: 22px;
+      font-size: 0.65rem;
     }
 
-    .form-group {
-      margin-bottom: 0.75rem;
+    .step-label {
+      font-size: 0.55rem;
     }
 
-    .form-group label {
-      margin-bottom: 0.3rem;
-      font-size: 0.85rem;
-    }
-
-    .input-field {
-      padding: 0.5rem;
-      font-size: 0.85rem;
-    }
-
-    .help-text {
-      font-size: 0.7rem;
-    }
-
-    .radio-label {
-      padding: 0.5rem;
-      font-size: 0.85rem;
-    }
-
-    .phase-config {
+    .wizard-content {
+      margin: 0.5rem;
       padding: 0.75rem;
     }
 
+    .step-container h2 {
+      font-size: 0.9rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .form-group {
+      margin-bottom: 0.6rem;
+    }
+
+    .input-field {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.8rem;
+    }
+
+    .radio-label {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.8rem;
+    }
+
+    .phase-config {
+      padding: 0.6rem;
+    }
+
     .wizard-navigation {
-      margin-top: 0.5rem;
+      padding: 0 0.5rem 0.5rem;
     }
 
     .nav-button {
-      padding: 0.5rem 1.5rem;
-      font-size: 0.9rem;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.7rem;
     }
   }
 </style>

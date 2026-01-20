@@ -69,14 +69,16 @@
 	$: team2Wins = $currentGameRounds.filter(round => round.team2Points > round.team1Points).length;
 
 	// Calculate games won in the match (for multi-game matches)
+	// Note: currentMatchGames is updated immediately when a game ends (in saveGameAndCheckMatchComplete)
+	// so team1GamesWon/team2GamesWon already include the just-finished game
 	$: team1GamesWon = $currentMatchGames.filter(game => game.winner === 1).length;
 	$: team2GamesWon = $currentMatchGames.filter(game => game.winner === 2).length;
 
 	// Check if match is complete
 	// In rounds mode, match is complete after first game
 	// In points mode, match is complete when someone reaches the required wins
-	// matchesToWin = number of games needed to win the match (e.g., 2 = first to win 2 games)
-	$: requiredWinsToComplete = $gameSettings.matchesToWin;
+	// matchesToWin = "best of X" format (e.g., 3 = best of 3, need 2 wins)
+	$: requiredWinsToComplete = Math.ceil($gameSettings.matchesToWin / 2);
 	$: isMatchComplete = $gameSettings.gameMode === 'rounds'
 		? (team1GamesWon >= 1 || team2GamesWon >= 1)
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete);
@@ -99,13 +101,6 @@
 	// Calculate points for current round in progress (subtract last round's ending points from current total)
 	$: team1CurrentRoundPoints = $team1.points - $lastRoundPoints.team1;
 	$: team2CurrentRoundPoints = $team2.points - $lastRoundPoints.team2;
-
-	// Debug logs for game-info visibility
-	$: console.log('🔍 game-info debug:', {
-		roundsPlayed: $roundsPlayed,
-		currentGameRoundsLength: $currentGameRounds.length,
-		shouldShow: $roundsPlayed > 0 || $currentGameRounds.length > 0
-	});
 
 	onMount(() => {
 		gameSettings.load();
@@ -1172,10 +1167,12 @@
 		</div>
 
 		<div class="right-section">
-			<!-- History button always visible -->
-			<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
-				📜
-			</button>
+			{#if !inTournamentMode}
+				<!-- History button only in friendly mode -->
+				<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
+					📜
+				</button>
+			{/if}
 			{#if inTournamentMode}
 				<!-- Tournament mode: switch sides and exit buttons -->
 				<button class="icon-button switch-sides-button" on:click={handleSwitchSides} aria-label={$t('switchSides')} title={$t('switchSides')}>

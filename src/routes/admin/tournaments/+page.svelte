@@ -136,6 +136,12 @@
     return colorMap[status] || '#666';
   }
 
+  function getStatusTextColor(status: string): string {
+    // Light backgrounds need dark text for contrast
+    const darkTextStatuses = ['TRANSITION', 'COMPLETED', 'FINAL_STAGE'];
+    return darkTextStatuses.includes(status) ? '#1f2937' : 'white';
+  }
+
   function confirmDelete(tournament: Tournament) {
     tournamentToDelete = tournament;
     showDeleteConfirm = true;
@@ -173,25 +179,21 @@
 
 <AdminGuard>
   <div class="tournaments-container" data-theme={$adminTheme}>
-    <header class="tournaments-header">
-      <div class="header-top">
-        <button class="back-button" on:click={() => goto('/admin')}>
-          ← {$t('backToAdmin')}
-        </button>
-        <div class="theme-toggle-wrapper">
+    <header class="page-header">
+      <div class="header-row">
+        <button class="back-btn" on:click={() => goto('/admin')}>←</button>
+        <div class="header-main">
+          <div class="title-section">
+            <h1>{$t('tournamentManagement')}</h1>
+            <span class="count-badge">{totalCount}</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="create-btn" on:click={createTournament}>
+            + {$t('createTournament')}
+          </button>
           <ThemeToggle />
         </div>
-      </div>
-
-      <div class="header-content">
-        <div class="title-section">
-          <h1>🏆 {$t('tournamentManagement')}</h1>
-          <p class="subtitle">{$t('manageTournamentsDesc')}</p>
-        </div>
-
-        <button class="create-button" on:click={createTournament}>
-          + {$t('createTournament')}
-        </button>
       </div>
     </header>
 
@@ -304,7 +306,7 @@
                 <td class="status-cell">
                   <span
                     class="status-badge"
-                    style="background: {getStatusColor(tournament.status)}; color: white;"
+                    style="background: {getStatusColor(tournament.status)}; color: {getStatusTextColor(tournament.status)};"
                   >
                     {getStatusText(tournament.status)}
                   </span>
@@ -407,58 +409,70 @@
   }
 
   /* Header */
-  .tournaments-header {
-    margin-bottom: 2rem;
-  }
-
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
-  }
-
-  .back-button {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
+  .page-header {
     background: white;
-    color: #555;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-weight: 500;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.75rem 1.5rem;
+    margin: -1.5rem -2rem 1.5rem -2rem;
+    transition: background-color 0.3s, border-color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .back-button {
+  .tournaments-container[data-theme='dark'] .page-header {
     background: #1a2332;
-    color: #e1e8ed;
     border-color: #2d3748;
   }
 
-  .back-button:hover {
-    background: #f5f5f5;
-    border-color: #999;
-    transform: translateX(-3px);
-  }
-
-  .tournaments-container[data-theme='dark'] .back-button:hover {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-
-  .header-content {
+  .header-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 2rem;
+    gap: 1rem;
+  }
+
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    color: #555;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .tournaments-container[data-theme='dark'] .back-btn {
+    background: #0f1419;
+    color: #8b9bb3;
+    border-color: #2d3748;
+  }
+
+  .back-btn:hover {
+    transform: translateX(-2px);
+    border-color: #667eea;
+    color: #667eea;
+  }
+
+  .header-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
   }
 
   .title-section h1 {
-    font-size: 2rem;
-    margin: 0 0 0.25rem 0;
+    font-size: 1.1rem;
+    margin: 0;
     color: #1a1a1a;
     font-weight: 700;
+    white-space: nowrap;
     transition: color 0.3s;
   }
 
@@ -466,63 +480,88 @@
     color: #e1e8ed;
   }
 
-  .subtitle {
-    font-size: 0.95rem;
-    color: #666;
-    margin: 0;
-    transition: color 0.3s;
+  .count-badge {
+    padding: 0.2rem 0.6rem;
+    background: #f3f4f6;
+    color: #555;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .subtitle {
+  .tournaments-container[data-theme='dark'] .count-badge {
+    background: #0f1419;
     color: #8b9bb3;
   }
 
-  .create-button {
-    padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
-  .create-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(250, 112, 154, 0.4);
+  .create-btn {
+    padding: 0.35rem 0.65rem;
+    background: #1a1a1a;
+    color: #f5f5f5;
+    border: 1px solid #333;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
+  .create-btn:hover {
+    background: #2a2a2a;
+    border-color: #444;
+  }
+
+  .tournaments-container[data-theme='dark'] .create-btn {
+    background: #e5e7eb;
+    color: #1a1a1a;
+    border-color: #d1d5db;
+  }
+
+  .tournaments-container[data-theme='dark'] .create-btn:hover {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
   }
 
   /* Controls */
   .controls-section {
     display: flex;
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    gap: 1rem;
+    margin-bottom: 1rem;
     flex-wrap: wrap;
+    align-items: center;
   }
 
   .search-box {
     flex: 1;
-    min-width: 250px;
+    min-width: 200px;
+    max-width: 300px;
     position: relative;
   }
 
   .search-icon {
     position: absolute;
-    left: 1rem;
+    left: 0.75rem;
     top: 50%;
     transform: translateY(-50%);
-    font-size: 1.2rem;
+    font-size: 1rem;
   }
 
   .search-input {
     width: 100%;
-    padding: 0.75rem 1rem 0.75rem 3rem;
+    padding: 0.5rem 0.75rem 0.5rem 2.5rem;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.95rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
     background: white;
     transition: all 0.2s;
   }
@@ -536,21 +575,21 @@
   .search-input:focus {
     outline: none;
     border-color: #fa709a;
-    box-shadow: 0 0 0 3px rgba(250, 112, 154, 0.1);
+    box-shadow: 0 0 0 2px rgba(250, 112, 154, 0.1);
   }
 
   .filter-tabs {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.25rem;
     flex-wrap: wrap;
   }
 
   .filter-tab {
-    padding: 0.6rem 1rem;
+    padding: 0.4rem 0.75rem;
     background: white;
     border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.9rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
     cursor: pointer;
     transition: all 0.2s;
     color: #555;
@@ -580,14 +619,14 @@
 
   /* Results info */
   .results-info {
-    font-size: 0.9rem;
-    color: #666;
-    margin-bottom: 1rem;
+    font-size: 0.75rem;
+    color: #999;
+    margin-bottom: 0.5rem;
     transition: color 0.3s;
   }
 
   .tournaments-container[data-theme='dark'] .results-info {
-    color: #8b9bb3;
+    color: #6b7a94;
   }
 
   /* Tournament Grid */
@@ -887,10 +926,10 @@
   .table-container {
     overflow-x: auto;
     overflow-y: auto;
-    max-height: calc(100vh - 320px);
+    max-height: calc(100vh - 180px);
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     transition: all 0.3s;
   }
 
@@ -901,12 +940,15 @@
   .tournaments-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 
   .tournaments-table thead {
     background: #f9fafb;
-    border-bottom: 2px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+    z-index: 1;
     transition: all 0.3s;
   }
 
@@ -916,11 +958,11 @@
   }
 
   .tournaments-table th {
-    padding: 1rem;
+    padding: 0.6rem 0.75rem;
     text-align: left;
     font-weight: 600;
     color: #666;
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     transition: color 0.3s;
@@ -931,9 +973,9 @@
   }
 
   .tournament-row {
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid #f0f0f0;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .tournaments-container[data-theme='dark'] .tournament-row {
@@ -949,7 +991,7 @@
   }
 
   .tournaments-table td {
-    padding: 1rem;
+    padding: 0.6rem 0.75rem;
     color: #1a1a1a;
     transition: color 0.3s;
   }
@@ -1027,11 +1069,13 @@
   }
 
   .status-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
-    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
     font-weight: 600;
     display: inline-block;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
 
   .actions-cell {
@@ -1253,14 +1297,33 @@
       padding: 1rem;
     }
 
-    .header-content {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 1rem;
+    .page-header {
+      padding: 0.5rem 0.75rem;
+      margin: -1rem -1rem 1rem -1rem;
     }
 
-    .create-button {
-      width: 100%;
+    .header-row {
+      gap: 0.5rem;
+    }
+
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      font-size: 1rem;
+    }
+
+    .title-section h1 {
+      font-size: 0.95rem;
+    }
+
+    .count-badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+    }
+
+    .create-btn {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8rem;
     }
 
     .tournaments-grid {
@@ -1269,49 +1332,26 @@
 
     .controls-section {
       flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .search-box {
+      max-width: none;
     }
 
     .filter-tabs {
       width: 100%;
       overflow-x: auto;
-      padding-bottom: 0.5rem;
+      padding-bottom: 0.25rem;
+    }
+
+    .filter-tab {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.75rem;
     }
 
     .hide-mobile {
       display: none;
-    }
-
-    .tournaments-table {
-      font-size: 0.85rem;
-    }
-
-    .tournaments-table td,
-    .tournaments-table th {
-      padding: 0.75rem 0.5rem;
-    }
-
-    .name-cell {
-      max-width: 150px;
-    }
-
-    .status-badge {
-      font-size: 0.7rem;
-      padding: 0.2rem 0.6rem;
-    }
-
-    .participants-cell {
-      font-size: 0.85rem;
-    }
-
-    .action-btn {
-      font-size: 1rem;
-      padding: 0.4rem;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .name-cell {
-      max-width: 120px;
     }
 
     .tournaments-table {
@@ -1320,7 +1360,69 @@
 
     .tournaments-table td,
     .tournaments-table th {
-      padding: 0.5rem 0.25rem;
+      padding: 0.5rem 0.4rem;
+    }
+
+    .name-cell {
+      max-width: 150px;
+    }
+
+    .status-badge {
+      font-size: 0.6rem;
+      padding: 0.1rem 0.4rem;
+    }
+
+    .participants-cell {
+      font-size: 0.8rem;
+    }
+
+    .action-btn {
+      font-size: 0.9rem;
+      padding: 0.35rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .page-header {
+      padding: 0.4rem 0.5rem;
+      margin: -1rem -1rem 0.75rem -1rem;
+    }
+
+    .back-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 0.9rem;
+    }
+
+    .title-section h1 {
+      font-size: 0.85rem;
+    }
+
+    .count-badge {
+      font-size: 0.65rem;
+    }
+
+    .create-btn {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.75rem;
+    }
+
+    .name-cell {
+      max-width: 100px;
+    }
+
+    .tournaments-table {
+      font-size: 0.75rem;
+    }
+
+    .tournaments-table td,
+    .tournaments-table th {
+      padding: 0.4rem 0.25rem;
+    }
+
+    .filter-tab {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.7rem;
     }
   }
 
@@ -1335,50 +1437,45 @@
       overflow: hidden;
     }
 
-    .tournaments-header {
-      margin-bottom: 0.75rem;
+    .page-header {
+      padding: 0.4rem 0.75rem;
+      margin: -0.5rem -1rem 0.5rem -1rem;
       flex-shrink: 0;
     }
 
-    .header-top {
-      margin-bottom: 0.5rem;
-    }
-
-    .back-button {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.8rem;
-    }
-
-    .header-content {
-      gap: 1rem;
+    .back-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 0.9rem;
     }
 
     .title-section h1 {
-      font-size: 1.3rem;
-      margin-bottom: 0.15rem;
+      font-size: 0.9rem;
     }
 
-    .subtitle {
+    .count-badge {
+      font-size: 0.65rem;
+    }
+
+    .create-btn {
+      padding: 0.35rem 0.6rem;
       font-size: 0.75rem;
     }
 
-    .create-button {
-      padding: 0.5rem 1rem;
-      font-size: 0.85rem;
-    }
-
     .controls-section {
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.5rem;
       flex-shrink: 0;
-    }
-
-    .search-box {
-      padding: 0.5rem;
+      gap: 0.5rem;
     }
 
     .search-input {
-      padding: 0.5rem 0.5rem 0.5rem 2.5rem;
-      font-size: 0.85rem;
+      padding: 0.4rem 0.5rem 0.4rem 2rem;
+      font-size: 0.8rem;
+    }
+
+    .filter-tab {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.7rem;
     }
 
     .loading-state,

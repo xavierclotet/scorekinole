@@ -559,36 +559,24 @@
   <div class="groups-page" data-theme={$adminTheme}>
     <!-- Header -->
     <header class="page-header">
-      <div class="header-top">
-        <button class="back-button" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>
-          ← {$t('backToTournament')}
-        </button>
-        <div class="theme-toggle-wrapper">
-          <ThemeToggle />
-        </div>
-      </div>
-
       {#if tournament}
-        <div class="tournament-header">
-          <div class="header-content">
-            <div class="title-row">
+        <div class="header-row">
+          <button class="back-btn" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>←</button>
+          <div class="header-main">
+            <div class="title-section">
               <h1>{tournament.edition ? `#${tournament.edition} ` : ''}{tournament.name}</h1>
-              {#if tournament.tournamentDate}
-                <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-              {/if}
+              <div class="header-badges">
+                <span class="info-badge phase-badge">
+                  {tournament.groupStage?.type === 'ROUND_ROBIN' ? $t('roundRobin') : $t('swissSystem')}
+                  {#if tournament.groupStage?.numGroups && tournament.groupStage.numGroups > 1}
+                    · {tournament.groupStage.numGroups} {$t('groups')}
+                  {/if}
+                </span>
+                {#if tournament.status !== 'COMPLETED'}
+                  <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
+                {/if}
+              </div>
             </div>
-            {#if tournament.city && tournament.country}
-              <p class="location">{tournament.city} ({tournament.country})</p>
-            {/if}
-            <p class="subtitle">
-              {$t('groupStage')} - {tournament.groupStage?.type === 'ROUND_ROBIN' ? $t('roundRobin') : $t('swissSystem')}
-              {#if tournament.groupStage?.numGroups && tournament.groupStage.numGroups > 1}
-                - {$t('nGroups').replace('{n}', String(tournament.groupStage.numGroups))}
-              {/if}
-            </p>
-            {#if tournament.status !== 'COMPLETED'}
-              <TournamentKeyBadge tournamentKey={tournament.key} />
-            {/if}
           </div>
           <div class="header-actions">
             {#if tournament.groupStage}
@@ -614,11 +602,9 @@
                     : $t('autoFillMatchesTitle')}
                 >
                   {#if isAutoFilling}
-                    ⏳ {$t('fillingRound')}
-                  {:else if isSwiss}
-                    🎲 {$t('autoFillRound').replace('{n}', String(currentRound))}
+                    ⏳
                   {:else}
-                    🎲 {$t('autoFill')}
+                    🎲
                   {/if}
                 </button>
               {/if}
@@ -628,10 +614,11 @@
                   on:click={confirmCompleteGroups}
                   disabled={isTransitioning}
                 >
-                  {isTransitioning ? `⏳ ${$t('completingGroupStage')}` : `✅ ${$t('completeGroupStageBtn')}`}
+                  {isTransitioning ? `⏳` : `✅`}
                 </button>
               {/if}
             {/if}
+            <ThemeToggle />
           </div>
         </div>
       {/if}
@@ -727,7 +714,7 @@
   .page-header {
     background: white;
     border-bottom: 1px solid #e5e7eb;
-    padding: 1.5rem 2rem;
+    padding: 0.75rem 1.5rem;
     transition: background-color 0.3s, border-color 0.3s;
     flex-shrink: 0;
   }
@@ -737,107 +724,97 @@
     border-color: #2d3748;
   }
 
-  .header-top {
+  .header-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
+    gap: 1rem;
   }
 
-  .back-button {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
     background: white;
     color: #555;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    font-size: 1.1rem;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.2s;
+    flex-shrink: 0;
   }
 
-  .groups-page[data-theme='dark'] .back-button {
+  .groups-page[data-theme='dark'] .back-btn {
     background: #0f1419;
     color: #8b9bb3;
     border-color: #2d3748;
   }
 
-  .back-button:hover {
-    transform: translateX(-3px);
+  .back-btn:hover {
+    transform: translateX(-2px);
+    border-color: #667eea;
+    color: #667eea;
   }
 
-  .tournament-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 2rem;
-  }
-
-  .header-content {
+  .header-main {
     flex: 1;
+    min-width: 0;
   }
 
-  .title-row {
+  .title-section {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 1rem;
     flex-wrap: wrap;
   }
 
-  .header-content h1 {
-    font-size: 1.6rem;
+  .title-section h1 {
+    font-size: 1.1rem;
     margin: 0;
     color: #1a1a1a;
     font-weight: 700;
+    white-space: nowrap;
     transition: color 0.3s;
   }
 
-  .groups-page[data-theme='dark'] .header-content h1 {
+  .groups-page[data-theme='dark'] .title-section h1 {
     color: #e1e8ed;
   }
 
-  .tournament-date {
-    font-size: 0.9rem;
-    color: #999;
-    font-weight: 400;
-    transition: color 0.3s;
+  .header-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
-  .groups-page[data-theme='dark'] .tournament-date {
-    color: #6b7a94;
+  .info-badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
-  .location {
-    font-size: 0.95rem;
-    color: #888;
-    margin: 0.25rem 0 0.5rem 0;
-    transition: color 0.3s;
-  }
-
-  .groups-page[data-theme='dark'] .location {
-    color: #6b7a94;
-  }
-
-  .subtitle {
-    font-size: 1rem;
-    color: #666;
-    margin: 0;
-    transition: color 0.3s;
-  }
-
-  .groups-page[data-theme='dark'] .subtitle {
-    color: #8b9bb3;
+  .info-badge.phase-badge {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    color: #78350f;
   }
 
   .header-actions {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
+    flex-shrink: 0;
   }
 
   .action-btn {
-    padding: 0.75rem 1.5rem;
+    padding: 0.5rem 0.75rem;
     border: none;
     border-radius: 8px;
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -1086,17 +1063,40 @@
 
   /* Responsive */
   @media (max-width: 768px) {
-    .tournament-header {
-      flex-direction: column;
-      align-items: flex-start;
+    .page-header {
+      padding: 0.5rem 0.75rem;
     }
 
-    .header-actions {
-      width: 100%;
+    .header-row {
+      gap: 0.5rem;
+    }
+
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      font-size: 1rem;
+    }
+
+    .title-section {
+      gap: 0.5rem;
+    }
+
+    .title-section h1 {
+      font-size: 0.95rem;
+    }
+
+    .header-badges {
+      gap: 0.35rem;
+    }
+
+    .info-badge {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
     }
 
     .action-btn {
-      flex: 1;
+      padding: 0.4rem 0.5rem;
+      font-size: 0.9rem;
     }
 
     .page-content {
@@ -1104,37 +1104,24 @@
     }
   }
 
-  /* Mobile landscape optimizations */
-  @media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+  /* Extra small screens */
+  @media (max-width: 480px) {
     .page-header {
-      padding: 0.75rem 1rem;
+      padding: 0.4rem 0.5rem;
     }
 
-    .header-top {
-      margin-bottom: 0.75rem;
+    .back-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 0.9rem;
     }
 
-    .back-button {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.8rem;
-    }
-
-    .header-content h1 {
-      font-size: 1.3rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .subtitle {
+    .title-section h1 {
       font-size: 0.85rem;
     }
 
-    .action-btn {
-      padding: 0.5rem 1rem;
-      font-size: 0.8rem;
-    }
-
-    .page-content {
-      padding: 1rem;
+    .info-badge {
+      font-size: 0.6rem;
     }
   }
 </style>
