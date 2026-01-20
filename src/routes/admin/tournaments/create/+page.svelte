@@ -3150,7 +3150,7 @@
     gap: 1.5rem;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 640px) {
     .phase-configs-container.split {
       grid-template-columns: 1fr;
     }

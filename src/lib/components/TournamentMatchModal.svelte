@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { createEventDispatcher, tick } from 'svelte';
+	import { createEventDispatcher, tick, onMount } from 'svelte';
 	import { t } from '$lib/stores/language';
 	import { currentUser } from '$lib/firebase/auth';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
@@ -17,6 +17,9 @@
 	import Button from './Button.svelte';
 
 	export let isOpen: boolean = false;
+
+	// LocalStorage key for saved tournament key
+	const TOURNAMENT_KEY_STORAGE = 'tournamentKey';
 
 	// Reference to key input for autofocus
 	let keyInputElement: HTMLInputElement;
@@ -62,12 +65,63 @@
 	// Reactive: check if user is logged in
 	$: isLoggedIn = !!$currentUser;
 
-	// Autofocus key input when modal opens
-	$: if (isOpen && currentStep === 'key_input') {
+	// Track if we're checking a saved key
+	let isCheckingSavedKey = false;
+
+	// When modal opens, check for saved tournament key
+	$: if (isOpen && currentStep === 'key_input' && !isCheckingSavedKey) {
+		checkSavedTournamentKey();
+	}
+
+	// Autofocus key input when modal opens (only if not checking saved key)
+	$: if (isOpen && currentStep === 'key_input' && !isCheckingSavedKey) {
 		// Use tick to wait for DOM update, then focus
 		tick().then(() => {
 			keyInputElement?.focus();
 		});
+	}
+
+	function getSavedTournamentKey(): string | null {
+		if (typeof window === 'undefined') return null;
+		return localStorage.getItem(TOURNAMENT_KEY_STORAGE);
+	}
+
+	function saveTournamentKey(key: string): void {
+		if (typeof window === 'undefined') return;
+		localStorage.setItem(TOURNAMENT_KEY_STORAGE, key.toUpperCase());
+	}
+
+	async function checkSavedTournamentKey() {
+		const savedKey = getSavedTournamentKey();
+		if (!savedKey) return;
+
+		isCheckingSavedKey = true;
+		currentStep = 'loading';
+
+		try {
+			const result = await getTournamentByKey(savedKey);
+
+			// Check if tournament exists and is active (IN_PROGRESS or GROUP_STAGE or FINAL_STAGE)
+			if (result && result.status !== 'COMPLETED' && result.status !== 'CANCELLED' && result.status !== 'DRAFT') {
+				// Tournament is active, use the saved key
+				tournamentKey = savedKey;
+				await searchTournament();
+			} else {
+				// Tournament not found or not active, show key input
+				isCheckingSavedKey = false;
+				currentStep = 'key_input';
+				tick().then(() => {
+					keyInputElement?.focus();
+				});
+			}
+		} catch (error) {
+			console.error('Error checking saved tournament key:', error);
+			isCheckingSavedKey = false;
+			currentStep = 'key_input';
+			tick().then(() => {
+				keyInputElement?.focus();
+			});
+		}
 	}
 
 	function close() {
@@ -92,6 +146,7 @@
 		showInProgressMatches = false;
 		rrCurrentRound = 0;
 		rrTotalRounds = 0;
+		isCheckingSavedKey = false;
 	}
 
 	async function searchTournament() {
@@ -119,6 +174,10 @@
 				currentStep = 'error';
 				return;
 			}
+
+			// Save the tournament key for future use
+			saveTournamentKey(tournamentKey);
+			isCheckingSavedKey = false;
 
 			tournament = result;
 
@@ -302,6 +361,21 @@
 			currentStep = 'key_input';
 			errorMessage = '';
 		}
+	}
+
+	function changeTournament() {
+		// Reset to key input and clear the saved key field (but keep in localStorage until new one is saved)
+		tournamentKey = '';
+		tournament = null;
+		pendingMatches = [];
+		pendingMatchesList = [];
+		inProgressMatchesList = [];
+		selectedMatch = null;
+		selectedSide = null;
+		currentStep = 'key_input';
+		tick().then(() => {
+			keyInputElement?.focus();
+		});
 	}
 
 	async function startMatch() {
@@ -531,6 +605,13 @@
 										</span>
 									{/if}
 								</p>
+								<button
+									class="change-tournament-btn"
+									on:click={changeTournament}
+									title={$t('changeTournament')}
+								>
+									↻
+								</button>
 							</div>
 
 							<!-- Game Config + System Type Row -->
@@ -811,8 +892,9 @@
 	/* Tournament Title Row */
 	.tournament-title-row {
 		display: flex;
-		flex-direction: column;
+		flex-direction: row;
 		align-items: center;
+		justify-content: center;
 		gap: 0.5rem;
 	}
 
@@ -832,6 +914,28 @@
 	.edition-number {
 		color: rgba(255, 255, 255, 0.5);
 		font-weight: 500;
+	}
+
+	.change-tournament-btn {
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 50%;
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 1rem;
+		transition: all 0.2s;
+		flex-shrink: 0;
+	}
+
+	.change-tournament-btn:hover {
+		background: rgba(255, 255, 255, 0.2);
+		color: #fff;
+		border-color: rgba(255, 255, 255, 0.4);
 	}
 
 	.phase-badge {

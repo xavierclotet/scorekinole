@@ -47,9 +47,37 @@
 
   $: displayTotal = isSearching || isFiltering ? filteredUsers.length : totalCount;
 
-  onMount(async () => {
-    await loadInitialUsers();
+  let isMobile = false;
+
+  onMount(() => {
+    // Check if mobile
+    isMobile = window.innerWidth <= 768;
+
+    const handleResize = () => {
+      isMobile = window.innerWidth <= 768;
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleWindowScroll);
+
+    loadInitialUsers();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleWindowScroll);
+    };
   });
+
+  function handleWindowScroll() {
+    if (!isMobile) return;
+
+    const scrollBottom = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
+
+    // Load more when 150px from bottom
+    if (scrollBottom < 150 && hasMore && !isLoadingMore && !isSearching) {
+      loadMore();
+    }
+  }
 
   async function loadInitialUsers() {
     isLoading = true;
@@ -320,6 +348,8 @@
     min-height: 100vh;
     background: #fafafa;
     transition: background-color 0.3s;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .users-container[data-theme='dark'] {
@@ -880,7 +910,7 @@
     }
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 640px) {
     .hide-small {
       display: none !important;
     }
@@ -894,6 +924,7 @@
     .users-container {
       padding: 1rem;
       width: 98%;
+      padding-bottom: 2rem;
     }
 
     .users-header {
@@ -913,8 +944,9 @@
     }
 
     .table-container {
-      max-height: calc(100vh - 280px);
+      max-height: none;
       overflow-x: auto;
+      overflow-y: visible;
     }
 
     .users-table th,

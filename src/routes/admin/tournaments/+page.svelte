@@ -1242,7 +1242,7 @@
     background: #dc2626;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 640px) {
     .hide-small {
       display: none !important;
     }

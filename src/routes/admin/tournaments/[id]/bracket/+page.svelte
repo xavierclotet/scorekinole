@@ -1580,8 +1580,8 @@
     color: #e5e7eb;
   }
 
-  /* Mobile optimizations for screens <= 900px */
-  @media (max-width: 900px) {
+  /* Mobile optimizations for screens <= 640px */
+  @media (max-width: 640px) {
     .page-header {
       padding: 0.75rem 1rem;
     }
