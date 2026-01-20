@@ -698,7 +698,7 @@
             {@const current20sA = currentGameRounds.reduce((sum, r) => sum + r.twentiesA, 0)}
             {@const current20sB = currentGameRounds.reduce((sum, r) => sum + r.twentiesB, 0)}
             <div class="rounds-table-container">
-              <table class="rounds-table readonly">
+              <table class="rounds-table">
                 <thead>
                   <tr class="header-main">
                     <th class="player-col" rowspan="2">{$t('playerColumn')}</th>
@@ -722,27 +722,109 @@
                   <tr class="player-row">
                     <td class="player-name">{participantA?.name}</td>
                     {#each currentGameRounds as round}
-                      <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
+                      {@const roundIndex = rounds.findIndex(r => r === round)}
+                      <td class="round-cell points-cell">
+                        <div class="points-selector">
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsA === 2}
+                            on:click={() => handlePointsChange(roundIndex, 'A', 2)}
+                          >
+                            2
+                          </button>
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsA === 1}
+                            on:click={() => handlePointsChange(roundIndex, 'A', 1)}
+                          >
+                            1
+                          </button>
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsA === 0}
+                            on:click={() => handlePointsChange(roundIndex, 'A', 0)}
+                          >
+                            0
+                          </button>
+                        </div>
+                      </td>
                       {#if tournament.show20s}
-                        <td class="round-cell twenties-cell readonly">{round.twentiesA || 0}</td>
+                        <td class="round-cell twenties-cell">
+                          <input
+                            type="number"
+                            min="0"
+                            max={tournament.gameType === 'singles' ? 8 : 12}
+                            value={round.twentiesA}
+                            on:input={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
+                            class="twenties-input"
+                          />
+                        </td>
                       {/if}
                     {/each}
-                    <td class="total-cell points-total readonly">{currentPointsA}</td>
+                    <td class="total-cell points-cell">
+                      <span class="total-value">{currentPointsA}</span>
+                    </td>
                     {#if tournament.show20s}
-                      <td class="total-cell twenties-total readonly">{current20sA}</td>
+                      <td class="total-cell twenties-cell">
+                        <span class="total-value total-twenties">{current20sA}</span>
+                      </td>
                     {/if}
                   </tr>
                   <tr class="player-row">
                     <td class="player-name">{participantB?.name}</td>
                     {#each currentGameRounds as round}
-                      <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
+                      {@const roundIndex = rounds.findIndex(r => r === round)}
+                      <td class="round-cell points-cell">
+                        <div class="points-selector">
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsB === 2}
+                            on:click={() => handlePointsChange(roundIndex, 'B', 2)}
+                          >
+                            2
+                          </button>
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsB === 1}
+                            on:click={() => handlePointsChange(roundIndex, 'B', 1)}
+                          >
+                            1
+                          </button>
+                          <button
+                            type="button"
+                            class="point-btn"
+                            class:selected={round.pointsB === 0}
+                            on:click={() => handlePointsChange(roundIndex, 'B', 0)}
+                          >
+                            0
+                          </button>
+                        </div>
+                      </td>
                       {#if tournament.show20s}
-                        <td class="round-cell twenties-cell readonly">{round.twentiesB || 0}</td>
+                        <td class="round-cell twenties-cell">
+                          <input
+                            type="number"
+                            min="0"
+                            max={tournament.gameType === 'singles' ? 8 : 12}
+                            value={round.twentiesB}
+                            on:input={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
+                            class="twenties-input"
+                          />
+                        </td>
                       {/if}
                     {/each}
-                    <td class="total-cell points-total readonly">{currentPointsB}</td>
+                    <td class="total-cell points-cell">
+                      <span class="total-value">{currentPointsB}</span>
+                    </td>
                     {#if tournament.show20s}
-                      <td class="total-cell twenties-total readonly">{current20sB}</td>
+                      <td class="total-cell twenties-cell">
+                        <span class="total-value total-twenties">{current20sB}</span>
+                      </td>
                     {/if}
                   </tr>
                 </tbody>
