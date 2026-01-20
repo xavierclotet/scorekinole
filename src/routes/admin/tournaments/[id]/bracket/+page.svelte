@@ -20,6 +20,7 @@
   import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
   import { isBye } from '$lib/algorithms/bracket';
+  import { t } from '$lib/stores/language';
 
   let tournament: Tournament | null = null;
   let loading = true;
@@ -124,11 +125,11 @@
       if (!tournament) {
         error = true;
       } else if (tournament.status !== 'FINAL_STAGE') {
-        toastMessage = '⚠️ El torneo no está en fase final';
+        toastMessage = `⚠️ ${$t('tournamentNotInFinalStage')}`;
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       } else if (!tournament.finalStage?.bracket) {
-        toastMessage = '⚠️ El bracket no ha sido generado';
+        toastMessage = `⚠️ ${$t('bracketNotGenerated')}`;
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       }
@@ -141,10 +142,10 @@
   }
 
   function getParticipantName(participantId: string | undefined): string {
-    if (!participantId) return 'TBD';
+    if (!participantId) return $t('tbd');
     if (isBye(participantId)) return 'BYE';
-    if (!tournament) return 'Unknown';
-    return tournament.participants.find(p => p.id === participantId)?.name || 'Unknown';
+    if (!tournament) return $t('unknown');
+    return tournament.participants.find(p => p.id === participantId)?.name || $t('unknown');
   }
 
   // Check if a match is a BYE match (one participant is BYE)
@@ -154,9 +155,9 @@
 
   function getStatusDisplay(status: string): { text: string; color: string } {
     const statusMap: Record<string, { text: string; color: string }> = {
-      PENDING: { text: 'Pendiente', color: '#6b7280' },
-      IN_PROGRESS: { text: 'En curso', color: '#f59e0b' },
-      COMPLETED: { text: 'Finalizado', color: '#10b981' },
+      PENDING: { text: $t('pending'), color: '#6b7280' },
+      IN_PROGRESS: { text: $t('inProgress'), color: '#f59e0b' },
+      COMPLETED: { text: $t('completed'), color: '#10b981' },
       WALKOVER: { text: 'Walkover', color: '#8b5cf6' }
     };
     return statusMap[status] || { text: status, color: '#6b7280' };
@@ -209,17 +210,17 @@
       );
 
       if (success) {
-        toastMessage = '✅ Resultado guardado';
+        toastMessage = `✅ ${$t('resultSaved')}`;
         showMatchDialog = false;
         selectedMatch = null;
         // No need to reload - real-time subscription will update
       } else {
-        toastMessage = '❌ Error al guardar resultado';
+        toastMessage = `❌ ${$t('errorSavingResult')}`;
       }
       showToast = true;
     } catch (err) {
       console.error('Error saving match:', err);
-      toastMessage = '❌ Error al guardar resultado';
+      toastMessage = `❌ ${$t('errorSavingResult')}`;
       showToast = true;
     }
   }
@@ -240,17 +241,17 @@
       );
 
       if (success) {
-        toastMessage = '✅ Walkover registrado';
+        toastMessage = `✅ ${$t('walkoverRegistered')}`;
         showMatchDialog = false;
         selectedMatch = null;
         // No need to reload - real-time subscription will update
       } else {
-        toastMessage = '❌ Error al registrar walkover';
+        toastMessage = `❌ ${$t('errorRegisteringWalkover')}`;
       }
       showToast = true;
     } catch (err) {
       console.error('Error handling no-show:', err);
-      toastMessage = '❌ Error al registrar walkover';
+      toastMessage = `❌ ${$t('errorRegisteringWalkover')}`;
       showToast = true;
     }
   }
@@ -465,12 +466,12 @@
         filledCount += await processBracket('silver');
       }
 
-      toastMessage = `✅ ${filledCount} partidos rellenados automáticamente`;
+      toastMessage = `✅ ${filledCount} ${$t('matchesFilledAutomatically')}`;
       showToast = true;
       await loadTournament(); // Final reload
     } catch (err) {
       console.error('Error auto-filling bracket matches:', err);
-      toastMessage = '❌ Error al rellenar partidos';
+      toastMessage = `❌ ${$t('errorFillingMatches')}`;
       showToast = true;
     } finally {
       isAutoFilling = false;
@@ -501,7 +502,7 @@
     <header class="page-header">
       <div class="header-top">
         <button class="back-button" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>
-          ← Volver al Torneo
+          ← {$t('backToTournament')}
         </button>
         <div class="theme-toggle-wrapper">
           <ThemeToggle />
@@ -513,9 +514,11 @@
           <div class="header-content">
             <h1>{tournament.name}</h1>
             <p class="subtitle">
-              Fase Final - {isSplitDivisions ? 'Liga Oro / Liga Plata' : 'Bracket de Eliminación'}
+              {$t('finalStage')} - {isSplitDivisions ? `${$t('goldLeague')} / ${$t('silverLeague')}` : $t('eliminationBracket')}
             </p>
-            <TournamentKeyBadge tournamentKey={tournament.key} />
+            {#if tournament.status !== 'COMPLETED'}
+              <TournamentKeyBadge tournamentKey={tournament.key} />
+            {/if}
           </div>
           {#if isSuperAdminUser}
             <div class="header-actions">
@@ -523,9 +526,9 @@
                 class="action-btn autofill"
                 on:click={autoFillAllMatches}
                 disabled={isAutoFilling}
-                title="Solo visible para SuperAdmin - Rellenar partidos con resultados aleatorios"
+                title={$t('autoFillMatchesTitle') || 'Auto-fill matches with random results'}
               >
-                {isAutoFilling ? '⏳ Rellenando...' : '🎲 Auto-rellenar'}
+                {isAutoFilling ? `⏳ ${$t('fillingMatches')}` : `🎲 ${$t('autoFillMatches')}`}
               </button>
             </div>
           {/if}
@@ -539,7 +542,7 @@
               class:active={activeTab === 'gold'}
               on:click={() => activeTab = 'gold'}
             >
-              🥇 Liga Oro
+              🥇 {$t('goldLeague')}
               {#if goldBracket?.thirdPlaceMatch?.winner || goldRounds[goldRounds.length - 1]?.matches[0]?.winner}
                 <span class="tab-complete">✓</span>
               {/if}
@@ -549,7 +552,7 @@
               class:active={activeTab === 'silver'}
               on:click={() => activeTab = 'silver'}
             >
-              🥈 Liga Plata
+              🥈 {$t('silverLeague')}
               {#if silverBracket?.thirdPlaceMatch?.winner || silverRounds[silverRounds.length - 1]?.matches[0]?.winner}
                 <span class="tab-complete">✓</span>
               {/if}
@@ -563,22 +566,22 @@
       {#if loading}
         <div class="loading-state">
           <div class="spinner"></div>
-          <p>Cargando bracket...</p>
+          <p>{$t('loadingBracket')}</p>
         </div>
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
-          <h3>Error al cargar</h3>
-          <p>No se pudo cargar el bracket del torneo.</p>
+          <h3>{$t('errorLoading')}</h3>
+          <p>{$t('errorLoadingBracket')}</p>
           <button class="primary-button" on:click={() => goto('/admin/tournaments')}>
-            Volver a Torneos
+            {$t('backToTournaments')}
           </button>
         </div>
       {:else if bracket}
         <!-- Bracket title for split divisions -->
         {#if isSplitDivisions}
           <div class="bracket-title" class:gold={activeTab === 'gold'} class:silver={activeTab === 'silver'}>
-            {activeTab === 'gold' ? '🥇 Liga Oro' : '🥈 Liga Plata'}
+            {activeTab === 'gold' ? `🥇 ${$t('goldLeague')}` : `🥈 ${$t('silverLeague')}`}
           </div>
         {/if}
 
@@ -707,7 +710,7 @@
             {@const thirdGamesLeaderA = thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonA || 0) > (thirdPlaceMatch.gamesWonB || 0)}
             {@const thirdGamesLeaderB = thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonB || 0) > (thirdPlaceMatch.gamesWonA || 0)}
             <div class="bracket-round third-place-round">
-              <h2 class="round-name third-place">3º y 4º Puesto</h2>
+              <h2 class="round-name third-place">{$t('thirdFourthPlace')}</h2>
               <div class="matches-column">
                 <div
                   class="bracket-match third-place-match"
@@ -1577,9 +1580,113 @@
     color: #e5e7eb;
   }
 
-  @media (max-width: 768px) {
+  /* Mobile optimizations for screens <= 900px */
+  @media (max-width: 900px) {
+    .page-header {
+      padding: 0.75rem 1rem;
+    }
+
+    .header-top {
+      margin-bottom: 0.5rem;
+    }
+
+    .back-button {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+    }
+
+    .tournament-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .header-content h1 {
+      font-size: 1.1rem;
+      margin-bottom: 0.15rem;
+    }
+
+    .subtitle {
+      font-size: 0.75rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .header-actions {
+      width: 100%;
+    }
+
+    .action-btn {
+      padding: 0.5rem 1rem;
+      font-size: 0.8rem;
+    }
+
+    .bracket-tabs {
+      margin-top: 0.5rem;
+      padding: 0.3rem;
+      gap: 0.25rem;
+    }
+
+    .tab-btn {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+    }
+
     .page-content {
-      padding: 1rem;
+      padding: 0.75rem;
+      max-height: calc(100vh - 140px);
+    }
+
+    .bracket-title {
+      font-size: 1.1rem;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .page-header {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .header-top {
+      margin-bottom: 0.4rem;
+    }
+
+    .back-button {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.75rem;
+    }
+
+    .tournament-header {
+      gap: 0.4rem;
+    }
+
+    .header-content h1 {
+      font-size: 1rem;
+    }
+
+    .subtitle {
+      font-size: 0.7rem;
+    }
+
+    .action-btn {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.75rem;
+    }
+
+    .bracket-tabs {
+      margin-top: 0.4rem;
+    }
+
+    .tab-btn {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.8rem;
+      gap: 0.3rem;
+    }
+
+    .page-content {
+      padding: 0.5rem;
+      max-height: calc(100vh - 120px);
     }
 
     .bracket-container {
@@ -1613,6 +1720,44 @@
 
     .bracket-round:nth-last-child(2):not(.third-place-round) .bracket-match::after {
       width: 4rem;
+    }
+
+    .bracket-title {
+      font-size: 1rem;
+      padding: 0.4rem;
+    }
+  }
+
+  /* Extra small screens */
+  @media (max-width: 480px) {
+    .page-header {
+      padding: 0.4rem 0.5rem;
+    }
+
+    .header-top {
+      margin-bottom: 0.3rem;
+    }
+
+    .back-button {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.7rem;
+    }
+
+    .header-content h1 {
+      font-size: 0.9rem;
+    }
+
+    .subtitle {
+      font-size: 0.65rem;
+    }
+
+    .tab-btn {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.75rem;
+    }
+
+    .page-content {
+      max-height: calc(100vh - 100px);
     }
   }
 </style>

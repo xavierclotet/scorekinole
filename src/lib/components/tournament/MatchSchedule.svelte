@@ -6,6 +6,7 @@
     SwissPairing
   } from '$lib/types/tournament';
   import MatchCard from './MatchCard.svelte';
+  import { t } from '$lib/stores/language';
 
   export let rounds: RoundRobinRound[] | SwissPairing[] = [];
   export let participants: TournamentParticipant[];
@@ -101,9 +102,9 @@
   {#if filteredRounds.length === 0}
     <div class="empty-state">
       <div class="empty-icon">📅</div>
-      <p>No hay partidos que mostrar</p>
+      <p>{$t('noMatchesToShow')}</p>
       {#if filterTable !== null || filterStatus !== null}
-        <p class="hint">Prueba a cambiar los filtros</p>
+        <p class="hint">{$t('tryChangingFilters')}</p>
       {/if}
     </div>
   {:else}
@@ -132,11 +133,11 @@
               </svg>
             </span>
             <div class="round-title">
-              <span class="round-number">Ronda {round.roundNumber}</span>
+              <span class="round-number">{$t('round')} {round.roundNumber}</span>
               {#if isComplete}
-                <span class="complete-badge">Completada</span>
+                <span class="complete-badge">{$t('completed')}</span>
               {:else if isLastRound}
-                <span class="last-round-badge">Última ronda</span>
+                <span class="last-round-badge">{$t('lastRound')}</span>
               {/if}
             </div>
           </div>

@@ -101,6 +101,13 @@ export function generateRoundRobinSchedule(participants: string[]): RoundRobinRo
 }
 
 /**
+ * Group name identifiers for i18n
+ * UI layer should translate these using translateGroupName()
+ */
+export const GROUP_NAME_SINGLE = 'SINGLE_GROUP';
+export const GROUP_NAME_PREFIX = 'GROUP_'; // GROUP_A, GROUP_B, etc.
+
+/**
  * Split participants into balanced groups using snake draft
  *
  * Algorithm:
@@ -124,10 +131,10 @@ export function splitIntoGroups(
   }
 
   if (numGroups === 1) {
-    // Single group
+    // Single group - use identifier for i18n
     return [{
       id: `group-a-${Date.now()}`,
-      name: 'Grupo Único',
+      name: GROUP_NAME_SINGLE,
       participants: participants.map(p => p.id),
       standings: []
     }];
@@ -138,12 +145,12 @@ export function splitIntoGroups(
 
   // Initialize groups
   const groups: Group[] = [];
-  const groupNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const groupLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
   for (let i = 0; i < numGroups; i++) {
     groups.push({
-      id: `group-${groupNames[i].toLowerCase()}-${Date.now()}`,
-      name: `Grupo ${groupNames[i]}`,
+      id: `group-${groupLetters[i].toLowerCase()}-${Date.now()}`,
+      name: `${GROUP_NAME_PREFIX}${groupLetters[i]}`, // e.g., GROUP_A
       participants: [],
       standings: []
     });

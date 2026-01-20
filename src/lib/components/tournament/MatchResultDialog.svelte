@@ -475,7 +475,7 @@
       <div class="dialog-header">
         <h2>📝 {$t('matchResult')}</h2>
         {#if isAdmin && isMatchCompleted}
-          <span class="admin-edit-badge">✏️ Editando</span>
+          <span class="admin-edit-badge">✏️ {$t('adminEditing')}</span>
         {/if}
         <button class="close-btn" on:click={handleClose}>✕</button>
       </div>
@@ -489,20 +489,20 @@
             <span class="participant-name">{isBye ? 'BYE' : participantB?.name || 'Unknown'}</span>
           </div>
           {#if match.tableNumber}
-            <div class="table-info">Mesa {match.tableNumber}</div>
+            <div class="table-info">{$t('table')} {match.tableNumber}</div>
           {/if}
           <div class="mode-info">
             {#if isRoundsMode}
-              {numRounds} Rondas
+              {$t('nRounds').replace('{n}', String(numRounds))}
             {:else}
-              Best of {gameConfig.matchesToWin}
+              {$t('bestOf').replace('{games}', String(gameConfig.matchesToWin))}
             {/if}
           </div>
         </div>
 
         {#if isBye}
           <div class="bye-notice">
-            Este partido es un BYE automático. No se requiere resultado.
+            {$t('byeMatchNotice')}
           </div>
         {:else if isBracket && !isRoundsMode}
           <!-- Points Mode: Dynamic Rounds with Games -->
@@ -515,10 +515,10 @@
 
             <div class="match-complete-notice">
               <div class="match-winner">
-                🏆 Partido Finalizado - Ganador: {gamesWonA > gamesWonB ? participantA?.name : participantB?.name}
+                🏆 {$t('matchCompletedWinner').replace('{name}', gamesWonA > gamesWonB ? participantA?.name || '' : participantB?.name || '')}
               </div>
               <div class="match-score-summary">
-                {participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name} (partidas)
+                {participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name} ({$t('gamesLabel')})
               </div>
             </div>
 
@@ -532,9 +532,9 @@
 
                 <div class="completed-game">
                   <div class="completed-game-header">
-                    <span class="game-title">Partida {gameNum}</span>
+                    <span class="game-title">{$t('gameN').replace('{n}', String(gameNum))}</span>
                     <span class="game-winner">
-                      Ganador: {gamePointsA > gamePointsB ? participantA?.name : participantB?.name} ({gamePointsA}-{gamePointsB})
+                      {$t('winnerLabel').replace('{name}', gamePointsA > gamePointsB ? participantA?.name || '' : participantB?.name || '')} ({gamePointsA}-{gamePointsB})
                     </span>
                   </div>
 
@@ -542,11 +542,11 @@
                     <table class="rounds-table readonly">
                       <thead>
                         <tr class="header-main">
-                          <th class="player-col" rowspan="2">Jugador</th>
+                          <th class="player-col" rowspan="2">{$t('playerColumn')}</th>
                           {#each gameRounds as _, i}
                             <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
                           {/each}
-                          <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                          <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{$t('total')}</th>
                         </tr>
                         {#if tournament.show20s}
                           <tr class="header-sub">
@@ -597,15 +597,15 @@
             {:else}
               <!-- No round details available, show summary only -->
               <div class="summary-only-notice">
-                <p>No hay detalle de rondas disponible para este partido.</p>
+                <p>{$t('noRoundDetailsAvailable')}</p>
                 <div class="summary-stats">
                   <div class="stat-row">
-                    <span class="stat-label">Puntos totales:</span>
+                    <span class="stat-label">{$t('totalPointsLabel')}</span>
                     <span class="stat-value">{participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}</span>
                   </div>
                   {#if tournament.show20s}
                     <div class="stat-row">
-                      <span class="stat-label">20s totales:</span>
+                      <span class="stat-label">{$t('totalTwentiesLabel')}</span>
                       <span class="stat-value">{participantA?.name} {display20sA} - {display20sB} {participantB?.name}</span>
                     </div>
                   {/if}
@@ -625,9 +625,9 @@
 
               <div class="completed-game">
                 <div class="completed-game-header">
-                  <span class="game-title">✓ Partida {gameNum}</span>
+                  <span class="game-title">✓ {$t('gameN').replace('{n}', String(gameNum))}</span>
                   <span class="game-winner">
-                    Ganador: {gamePointsA > gamePointsB ? participantA?.name : participantB?.name} ({gamePointsA}-{gamePointsB})
+                    {$t('winnerLabel').replace('{name}', gamePointsA > gamePointsB ? participantA?.name || '' : participantB?.name || '')} ({gamePointsA}-{gamePointsB})
                   </span>
                 </div>
 
@@ -635,11 +635,11 @@
                   <table class="rounds-table readonly">
                     <thead>
                       <tr class="header-main">
-                        <th class="player-col" rowspan="2">Jugador</th>
+                        <th class="player-col" rowspan="2">{$t('playerColumn')}</th>
                         {#each gameRounds as _, i}
                           <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
                         {/each}
-                        <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                        <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{$t('total')}</th>
                       </tr>
                       {#if tournament.show20s}
                         <tr class="header-sub">
@@ -687,7 +687,7 @@
 
             <!-- Current game -->
             <div class="current-game-header">
-              <span class="game-title">▶ Partida {currentGameNumber}</span>
+              <span class="game-title">▶ {$t('gameN').replace('{n}', String(currentGameNumber))}</span>
               <span class="current-score">{currentPointsA} - {currentPointsB}</span>
               <span class="games-score">({gamesWonA}-{gamesWonB})</span>
             </div>
@@ -701,11 +701,11 @@
               <table class="rounds-table readonly">
                 <thead>
                   <tr class="header-main">
-                    <th class="player-col" rowspan="2">Jugador</th>
+                    <th class="player-col" rowspan="2">{$t('playerColumn')}</th>
                     {#each currentGameRounds as _, i}
                       <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
                     {/each}
-                    <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                    <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{$t('total')}</th>
                   </tr>
                   {#if tournament.show20s}
                     <tr class="header-sub">
@@ -755,34 +755,34 @@
             <div class="game-actions">
               {#if !currentGameComplete}
                 <button class="add-round-btn" on:click={addRound} type="button">
-                  + Añadir Ronda
+                  + {$t('addRound')}
                 </button>
               {:else}
                 <div class="game-complete-notice">
-                  ✅ Partida {currentGameNumber} Completada!
+                  ✅ {$t('gameCompletedNotice').replace('{n}', String(currentGameNumber))}
                   <div class="game-result">
-                    {currentPointsA > currentPointsB ? participantA?.name : participantB?.name} gana {Math.max(currentPointsA, currentPointsB)}-{Math.min(currentPointsA, currentPointsB)}
+                    {currentPointsA > currentPointsB ? participantA?.name : participantB?.name} {$t('wins')} {Math.max(currentPointsA, currentPointsB)}-{Math.min(currentPointsA, currentPointsB)}
                   </div>
                 </div>
 
                 {@const requiredWins = Math.ceil(gameConfig.matchesToWin / 2)}
                 {#if gamesWonA < requiredWins && gamesWonB < requiredWins}
                   <button class="next-game-btn" on:click={startNextGame} type="button">
-                    Iniciar Partida {currentGameNumber + 1}
+                    {$t('startGameN').replace('{n}', String(currentGameNumber + 1))}
                   </button>
                 {:else}
                   <div class="match-complete-notice">
                     <div class="match-winner">
-                      🏆 ¡Partido Completo! Ganador: {gamesWonA > gamesWonB ? participantA?.name : participantB?.name}
+                      🏆 {$t('matchCompleteWinner').replace('{name}', gamesWonA > gamesWonB ? participantA?.name || '' : participantB?.name || '')}
                     </div>
                     <div class="match-stats">
                       <div class="stat-row">
-                        <span class="stat-label">Puntos totales:</span>
+                        <span class="stat-label">{$t('totalPointsLabel')}</span>
                         <span class="stat-value">{participantA?.name} {totalPointsA} - {totalPointsB} {participantB?.name}</span>
                       </div>
                       {#if tournament.show20s}
                         <div class="stat-row">
-                          <span class="stat-label">20s totales:</span>
+                          <span class="stat-label">{$t('totalTwentiesLabel')}</span>
                           <span class="stat-value">{participantA?.name} {total20sA} 🎯 - 🎯 {total20sB} {participantB?.name}</span>
                         </div>
                       {/if}
@@ -804,7 +804,7 @@
 
             <div class="match-complete-notice">
               <div class="match-winner">
-                🏆 Partido Finalizado - Ganador: {match.winner === match.participantA ? participantA?.name : participantB?.name}
+                🏆 {$t('matchCompletedWinner').replace('{name}', match.winner === match.participantA ? participantA?.name || '' : participantB?.name || '')}
               </div>
               <div class="match-score-summary">
                 {participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}
@@ -817,11 +817,11 @@
                 <table class="rounds-table readonly">
                   <thead>
                     <tr class="header-main">
-                      <th class="player-col" rowspan="2">Jugador</th>
+                      <th class="player-col" rowspan="2">{$t('playerColumn')}</th>
                       {#each rounds as _, i}
                         <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
                       {/each}
-                      <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                      <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{$t('total')}</th>
                     </tr>
                     {#if tournament.show20s}
                       <tr class="header-sub">
@@ -870,15 +870,15 @@
             {:else}
               <!-- No round details available, show summary only -->
               <div class="summary-only-notice">
-                <p>No hay detalle de rondas disponible para este partido.</p>
+                <p>{$t('noRoundDetailsAvailable')}</p>
                 <div class="summary-stats">
                   <div class="stat-row">
-                    <span class="stat-label">Puntos totales:</span>
+                    <span class="stat-label">{$t('totalPointsLabel')}</span>
                     <span class="stat-value">{participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}</span>
                   </div>
                   {#if tournament.show20s}
                     <div class="stat-row">
-                      <span class="stat-label">20s totales:</span>
+                      <span class="stat-label">{$t('totalTwentiesLabel')}</span>
                       <span class="stat-value">{participantA?.name} {display20sA} - {display20sB} {participantB?.name}</span>
                     </div>
                   {/if}
@@ -891,11 +891,11 @@
               <table class="rounds-table">
                 <thead>
                   <tr class="header-main">
-                    <th class="player-col" rowspan="2">Jugador</th>
+                    <th class="player-col" rowspan="2">{$t('playerColumn')}</th>
                     {#each Array(numRounds) as _, i}
                       <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
                     {/each}
-                    <th class="total-col" colspan={tournament.show20s ? 2 : 1}>Total</th>
+                    <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{$t('total')}</th>
                   </tr>
                   {#if tournament.show20s}
                     <tr class="header-sub">
@@ -1032,9 +1032,9 @@
             {#if isRoundsMode && !canSave && (totalPointsA > 0 || totalPointsB > 0)}
               <div class="validation-error">
                 {#if isBracket && gamesWonA === gamesWonB}
-                  ⚠️ No se permiten empates en la fase de eliminación. Debe haber un ganador.
+                  ⚠️ {$t('tiesNotAllowedInElimination')}
                 {:else}
-                  ⚠️ Debes completar todas las rondas
+                  ⚠️ {$t('mustCompleteAllRounds')}
                 {/if}
               </div>
             {/if}
@@ -1042,13 +1042,13 @@
             <!-- No-show section (only show if no results have been entered) -->
             {#if !hasAnyResult}
               <div class="noshow-section">
-                <h3>⚠️ No-show</h3>
+                <h3>⚠️ {$t('noShowLabel')}</h3>
                 <div class="noshow-buttons">
                   <button class="noshow-btn" on:click={() => handleNoShow(match.participantA)}>
-                    {participantA?.name} no se presentó
+                    {$t('didNotShowUp').replace('{name}', participantA?.name || '')}
                   </button>
                   <button class="noshow-btn" on:click={() => handleNoShow(match.participantB)}>
-                    {participantB?.name} no se presentó
+                    {$t('didNotShowUp').replace('{name}', participantB?.name || '')}
                   </button>
                 </div>
               </div>

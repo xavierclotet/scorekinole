@@ -1,12 +1,17 @@
 import { writable, derived } from 'svelte/store';
 import { currentUser } from '$lib/firebase/auth';
-import { isAdmin as checkIsAdmin } from '$lib/firebase/admin';
+import { isAdmin as checkIsAdmin, isSuperAdmin as checkIsSuperAdmin } from '$lib/firebase/admin';
 import { browser } from '$app/environment';
 
 /**
  * Admin status store
  */
 export const isAdminUser = writable<boolean>(false);
+
+/**
+ * Super Admin status store
+ */
+export const isSuperAdminUser = writable<boolean>(false);
 
 /**
  * Loading state for admin check
@@ -21,10 +26,15 @@ if (browser) {
     adminCheckLoading.set(true);
 
     if (user) {
-      const adminStatus = await checkIsAdmin();
+      const [adminStatus, superAdminStatus] = await Promise.all([
+        checkIsAdmin(),
+        checkIsSuperAdmin()
+      ]);
       isAdminUser.set(adminStatus);
+      isSuperAdminUser.set(superAdminStatus);
     } else {
       isAdminUser.set(false);
+      isSuperAdminUser.set(false);
     }
 
     adminCheckLoading.set(false);
@@ -38,5 +48,15 @@ export const canAccessAdmin = derived(
   [currentUser, isAdminUser],
   ([$currentUser, $isAdminUser]) => {
     return $currentUser !== null && $isAdminUser === true;
+  }
+);
+
+/**
+ * Derived store: Can access super admin features (users/matches management)
+ */
+export const canAccessSuperAdmin = derived(
+  [currentUser, isSuperAdminUser],
+  ([$currentUser, $isSuperAdminUser]) => {
+    return $currentUser !== null && $isSuperAdminUser === true;
   }
 );

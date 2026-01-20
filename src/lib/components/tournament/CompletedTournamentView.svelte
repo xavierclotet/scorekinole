@@ -3,8 +3,28 @@
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
   import { BYE_PARTICIPANT, isBye } from '$lib/algorithms/bracket';
+  import { t } from '$lib/stores/language';
 
   export let tournament: Tournament;
+
+  // Translate group name based on language
+  // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
+  function translateGroupName(name: string): string {
+    if (name === 'Swiss') return $t('swissSystem');
+    // New identifier format
+    if (name === 'SINGLE_GROUP') return $t('singleGroup');
+    const idMatch = name.match(/^GROUP_([A-H])$/);
+    if (idMatch) {
+      return `${$t('group')} ${idMatch[1]}`;
+    }
+    // Legacy Spanish format (for existing tournaments)
+    if (name === 'Grupo Único') return $t('singleGroup');
+    const legacyMatch = name.match(/^Grupo ([A-H])$/);
+    if (legacyMatch) {
+      return `${$t('group')} ${legacyMatch[1]}`;
+    }
+    return name;
+  }
 
   let activeTab: 'groups' | 'bracket' = tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket';
   let showMatchDialog = false;
@@ -164,7 +184,7 @@
       <div class="groups-section">
         {#each tournament.groupStage.groups as group (group.id)}
           <div class="group-card">
-            <h3 class="group-title">{group.name}</h3>
+            <h3 class="group-title">{translateGroupName(group.name)}</h3>
 
             <!-- Standings Table -->
             <div class="standings-section">

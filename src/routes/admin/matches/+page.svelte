@@ -1,22 +1,33 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import AdminGuard from '$lib/components/AdminGuard.svelte';
+  import SuperAdminGuard from '$lib/components/SuperAdminGuard.svelte';
   import MatchEditModal from '$lib/components/MatchEditModal.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import { t } from '$lib/stores/language';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/adminTheme';
-  import { getAllMatches, adminDeleteMatch } from '$lib/firebase/admin';
+  import { getMatchesPaginated, adminDeleteMatch } from '$lib/firebase/admin';
   import type { MatchHistory } from '$lib/types/history';
+  import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
   let matches: MatchHistory[] = [];
   let isLoading = true;
+  let isLoadingMore = false;
   let errorMessage = '';
   let selectedMatch: MatchHistory | null = null;
   let searchQuery = '';
   let filterStatus: 'all' | 'active' | 'deleted' = 'all';
   let showDeleteConfirm = false;
   let matchToDelete: MatchHistory | null = null;
+  const pageSize = 15;
+
+  // Infinite scroll state
+  let totalCount = 0;
+  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+  let hasMore = true;
+
+  // For search: filter locally from loaded matches
+  $: isSearching = searchQuery.trim().length > 0;
 
   // Filtered matches
   $: filteredMatches = matches.filter((match) => {
@@ -36,21 +47,55 @@
     return matchesSearch && matchesStatus;
   });
 
+  $: displayTotal = isSearching ? filteredMatches.length : totalCount;
+
   onMount(async () => {
-    await loadMatches();
+    await loadInitialMatches();
   });
 
-  async function loadMatches() {
+  async function loadInitialMatches() {
     isLoading = true;
     errorMessage = '';
+    matches = [];
+    lastDoc = null;
 
     try {
-      matches = await getAllMatches(200);
+      const result = await getMatchesPaginated(pageSize, null);
+      totalCount = result.totalCount;
+      hasMore = result.hasMore;
+      lastDoc = result.lastDoc;
+      matches = result.matches;
     } catch (error) {
       console.error('Error loading matches:', error);
       errorMessage = 'Failed to load matches';
     } finally {
       isLoading = false;
+    }
+  }
+
+  async function loadMore() {
+    if (isLoadingMore || !hasMore || isSearching) return;
+
+    isLoadingMore = true;
+    try {
+      const result = await getMatchesPaginated(pageSize, lastDoc);
+      hasMore = result.hasMore;
+      lastDoc = result.lastDoc;
+      matches = [...matches, ...result.matches];
+    } catch (error) {
+      console.error('Error loading more matches:', error);
+    } finally {
+      isLoadingMore = false;
+    }
+  }
+
+  function handleScroll(e: Event) {
+    const target = e.target as HTMLElement;
+    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+
+    // Load more when 100px from bottom
+    if (scrollBottom < 100 && hasMore && !isLoadingMore && !isSearching) {
+      loadMore();
     }
   }
 
@@ -64,7 +109,7 @@
 
   async function handleMatchUpdated() {
     closeEditModal();
-    await loadMatches();
+    await loadInitialMatches();
   }
 
   function confirmDelete(match: MatchHistory) {
@@ -77,7 +122,8 @@
 
     const success = await adminDeleteMatch(matchToDelete.id);
     if (success) {
-      await loadMatches();
+      matches = matches.filter((m) => m.id !== matchToDelete!.id);
+      totalCount = Math.max(0, totalCount - 1);
     }
 
     showDeleteConfirm = false;
@@ -131,7 +177,7 @@
   }
 </script>
 
-<AdminGuard>
+<SuperAdminGuard>
   <div class="matches-container" data-theme={$adminTheme}>
     <header class="matches-header">
       <button class="back-button" on:click={() => goto('/admin')}>
@@ -152,7 +198,7 @@
         />
       </div>
       <span class="match-count">
-        {filteredMatches.length} {$t('matches')}
+        {filteredMatches.length} de {displayTotal} {$t('matches')}
       </span>
     </div>
 
@@ -164,14 +210,14 @@
     {:else if errorMessage}
       <div class="error-box">
         <p>{errorMessage}</p>
-        <button on:click={loadMatches}>{$t('retry')}</button>
+        <button on:click={loadInitialMatches}>{$t('retry')}</button>
       </div>
     {:else if filteredMatches.length === 0}
       <div class="empty-state">
         <p>{$t('noMatchesFound')}</p>
       </div>
     {:else}
-      <div class="table-container">
+      <div class="table-container" on:scroll={handleScroll}>
         <table class="matches-table">
           <thead>
             <tr>
@@ -272,6 +318,21 @@
             {/each}
           </tbody>
         </table>
+
+        {#if isLoadingMore}
+          <div class="loading-more">
+            <div class="spinner small"></div>
+            <span>Cargando más...</span>
+          </div>
+        {:else if hasMore && !isSearching}
+          <div class="load-more-hint">
+            Scroll para cargar más partidas
+          </div>
+        {:else if !hasMore && !isSearching}
+          <div class="end-of-list">
+            Fin de la lista
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -307,7 +368,7 @@
       </div>
     </div>
   {/if}
-</AdminGuard>
+</SuperAdminGuard>
 
 <style>
   .matches-container {
@@ -473,10 +534,53 @@
     margin-bottom: 1rem;
   }
 
+  .spinner.small {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+    margin-bottom: 0;
+  }
+
   @keyframes spin {
     to {
       transform: rotate(360deg);
     }
+  }
+
+  /* Infinite scroll indicators */
+  .loading-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .matches-container[data-theme='dark'] .loading-more {
+    color: #8b9bb3;
+  }
+
+  .load-more-hint,
+  .end-of-list {
+    text-align: center;
+    padding: 1rem;
+    color: #999;
+    font-size: 0.85rem;
+  }
+
+  .matches-container[data-theme='dark'] .load-more-hint,
+  .matches-container[data-theme='dark'] .end-of-list {
+    color: #6b7a94;
+  }
+
+  .end-of-list {
+    border-top: 1px dashed #ddd;
+  }
+
+  .matches-container[data-theme='dark'] .end-of-list {
+    border-top-color: #2d3748;
   }
 
   .error-box {

@@ -4,10 +4,12 @@
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import GroupsView from '$lib/components/tournament/GroupsView.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
+  import { t } from '$lib/stores/language';
   import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import { completeMatch, markNoShow } from '$lib/firebase/tournamentSync';
@@ -31,6 +33,25 @@
   let unsubscribe: (() => void) | null = null;
 
   $: tournamentId = $page.params.id;
+
+  // Translate group name based on language
+  // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
+  function translateGroupName(name: string): string {
+    if (name === 'Swiss') return $t('swissSystem');
+    // New identifier format
+    if (name === 'SINGLE_GROUP') return $t('singleGroup');
+    const idMatch = name.match(/^GROUP_([A-H])$/);
+    if (idMatch) {
+      return `${$t('group')} ${idMatch[1]}`;
+    }
+    // Legacy Spanish format (for existing tournaments)
+    if (name === 'Grupo Único') return $t('singleGroup');
+    const legacyMatch = name.match(/^Grupo ([A-H])$/);
+    if (legacyMatch) {
+      return `${$t('group')} ${legacyMatch[1]}`;
+    }
+    return name;
+  }
 
   onMount(async () => {
     await loadTournament();
@@ -103,7 +124,7 @@
         error = true;
       } else if (tournament.status !== 'GROUP_STAGE') {
         // Redirect if not in group stage
-        toastMessage = '⚠️ El torneo no está en fase de grupos';
+        toastMessage = `⚠️ ${$t('tournamentNotInGroupStage')}`;
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       }
@@ -118,7 +139,7 @@
   function handleMatchClick(match: GroupMatch) {
     // Allow editing both pending and completed matches
     if (match.participantB === 'BYE') {
-      toastMessage = '⚠️ No se puede editar un partido BYE';
+      toastMessage = `⚠️ ${$t('cannotEditByeMatch')}`;
       showToast = true;
       return;
     }
@@ -140,11 +161,11 @@
     const success = await generateSwissPairings(tournamentId, nextRound);
 
     if (success) {
-      toastMessage = `✅ Ronda ${nextRound} generada correctamente`;
+      toastMessage = `✅ ${$t('swissRoundGeneratedSuccess').replace('{n}', String(nextRound))}`;
       showToast = true;
       await loadTournament();
     } else {
-      toastMessage = '❌ Error al generar la siguiente ronda';
+      toastMessage = `❌ ${$t('errorGeneratingSwissRound')}`;
       showToast = true;
     }
   }
@@ -188,13 +209,13 @@
     );
 
     if (success) {
-      toastMessage = '✅ Resultado guardado correctamente';
+      toastMessage = `✅ ${$t('resultSavedSuccessfully')}`;
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
       // No need to reload - real-time subscription will update
     } else {
-      toastMessage = '❌ Error al guardar el resultado';
+      toastMessage = `❌ ${$t('errorSavingResult')}`;
       showToast = true;
     }
   }
@@ -212,13 +233,13 @@
     );
 
     if (success) {
-      toastMessage = '✅ No-show registrado correctamente';
+      toastMessage = `✅ ${$t('noShowRegisteredSuccessfully')}`;
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
       // No need to reload - real-time subscription will update
     } else {
-      toastMessage = '❌ Error al registrar no-show';
+      toastMessage = `❌ ${$t('errorRegisteringNoShow')}`;
       showToast = true;
     }
   }
@@ -461,13 +482,13 @@
       }
 
       toastMessage = isSwiss
-        ? `✅ ${filledCount} partidos de Ronda ${currentRound} rellenados`
-        : `✅ ${filledCount} partidos rellenados automáticamente`;
+        ? `✅ ${$t('matchesFilledForRound').replace('{n}', String(filledCount)).replace('{round}', String(currentRound))}`
+        : `✅ ${$t('matchesFilledAuto').replace('{n}', String(filledCount))}`;
       showToast = true;
       await loadTournament(); // Reload to show updated results
     } catch (err) {
       console.error('Error auto-filling matches:', err);
-      toastMessage = '❌ Error al rellenar partidos';
+      toastMessage = `❌ ${$t('errorFillingMatchesGeneric')}`;
       showToast = true;
     } finally {
       isAutoFilling = false;
@@ -492,7 +513,7 @@
 
       if (incompleteMatches.length > 0) {
         allComplete = false;
-        toastMessage = `❌ ${group.name} tiene ${incompleteMatches.length} partidos pendientes`;
+        toastMessage = `❌ ${$t('groupHasPendingMatches').replace('{group}', translateGroupName(group.name)).replace('{n}', String(incompleteMatches.length))}`;
         showToast = true;
         return;
       }
@@ -517,16 +538,16 @@
       const success = await transitionTournament(tournamentId, 'TRANSITION');
 
       if (success) {
-        toastMessage = '✅ Fase de grupos completada. Pasando a transición...';
+        toastMessage = `✅ ${$t('groupStageCompletedTransition')}`;
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}/transition`), 1500);
       } else {
-        toastMessage = '❌ Error al completar la fase de grupos';
+        toastMessage = `❌ ${$t('errorCompletingGroupStage')}`;
         showToast = true;
       }
     } catch (err) {
       console.error('Error completing group stage:', err);
-      toastMessage = '❌ Error al completar la fase de grupos';
+      toastMessage = `❌ ${$t('errorCompletingGroupStage')}`;
       showToast = true;
     } finally {
       isTransitioning = false;
@@ -540,7 +561,7 @@
     <header class="page-header">
       <div class="header-top">
         <button class="back-button" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>
-          ← Volver al Torneo
+          ← {$t('backToTournament')}
         </button>
         <div class="theme-toggle-wrapper">
           <ThemeToggle />
@@ -560,11 +581,14 @@
               <p class="location">{tournament.city} ({tournament.country})</p>
             {/if}
             <p class="subtitle">
-              Fase de grupos - {tournament.groupStage?.type === 'ROUND_ROBIN' ? 'Round Robin' : 'Sistema Suizo'}
+              {$t('groupStage')} - {tournament.groupStage?.type === 'ROUND_ROBIN' ? $t('roundRobin') : $t('swissSystem')}
               {#if tournament.groupStage?.numGroups && tournament.groupStage.numGroups > 1}
-                - {tournament.groupStage.numGroups} Grupos
+                - {$t('nGroups').replace('{n}', String(tournament.groupStage.numGroups))}
               {/if}
             </p>
+            {#if tournament.status !== 'COMPLETED'}
+              <TournamentKeyBadge tournamentKey={tournament.key} />
+            {/if}
           </div>
           <div class="header-actions">
             {#if tournament.groupStage}
@@ -586,15 +610,15 @@
                   on:click={autoFillAllMatches}
                   disabled={isAutoFilling}
                   title={isSwiss
-                    ? `Solo visible para SuperAdmin - Rellenar partidos de Ronda ${currentRound}`
-                    : 'Solo visible para SuperAdmin - Rellenar partidos con resultados aleatorios'}
+                    ? `${$t('autoFillMatchesTitle')} - ${$t('round')} ${currentRound}`
+                    : $t('autoFillMatchesTitle')}
                 >
                   {#if isAutoFilling}
-                    ⏳ Rellenando...
+                    ⏳ {$t('fillingRound')}
                   {:else if isSwiss}
-                    🎲 Auto-rellenar Ronda {currentRound}
+                    🎲 {$t('autoFillRound').replace('{n}', String(currentRound))}
                   {:else}
-                    🎲 Auto-rellenar
+                    🎲 {$t('autoFill')}
                   {/if}
                 </button>
               {/if}
@@ -604,7 +628,7 @@
                   on:click={confirmCompleteGroups}
                   disabled={isTransitioning}
                 >
-                  {isTransitioning ? '⏳ Completando...' : '✅ Completar Fase de Grupos'}
+                  {isTransitioning ? `⏳ ${$t('completingGroupStage')}` : `✅ ${$t('completeGroupStageBtn')}`}
                 </button>
               {/if}
             {/if}
@@ -618,15 +642,15 @@
       {#if loading}
         <div class="loading-state">
           <div class="spinner"></div>
-          <p>Cargando fase de grupos...</p>
+          <p>{$t('loadingGroupStage')}</p>
         </div>
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
-          <h3>Error al cargar</h3>
-          <p>No se pudo cargar la fase de grupos del torneo.</p>
+          <h3>{$t('errorLoading')}</h3>
+          <p>{$t('couldNotLoadGroupStage')}</p>
           <button class="primary-button" on:click={() => goto('/admin/tournaments')}>
-            Volver a Torneos
+            {$t('backToTournaments')}
           </button>
         </div>
       {:else}
@@ -645,23 +669,23 @@
       role="presentation"
     >
       <div class="confirm-modal" on:click|stopPropagation role="dialog" aria-modal="true">
-        <h2>✅ Completar Fase de Grupos</h2>
-        <p>¿Estás listo para finalizar la fase de grupos?</p>
+        <h2>✅ {$t('completeGroupStage')}</h2>
+        <p>{$t('readyToCompleteGroups')}</p>
         <div class="tournament-info">
           <strong>{tournament.name}</strong>
           <br />
-          <span>Se calcularán las clasificaciones finales</span>
+          <span>{$t('finalStandingsWillBeCalculated')}</span>
         </div>
         <p class="info-text">
           {#if tournament.phaseType === 'TWO_PHASE'}
-            Después de completar, podrás seleccionar los clasificados para la fase final.
+            {$t('selectQualifiersAfter')}
           {:else}
-            El torneo pasará directamente a la fase final.
+            {$t('tournamentWillAdvanceDirectly')}
           {/if}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={closeCompleteModal}>Cancelar</button>
-          <button class="confirm-btn" on:click={completeGroupStage}>Completar</button>
+          <button class="cancel-btn" on:click={closeCompleteModal}>{$t('cancel')}</button>
+          <button class="confirm-btn" on:click={completeGroupStage}>{$t('complete')}</button>
         </div>
       </div>
     </div>

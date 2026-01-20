@@ -23,10 +23,10 @@
 
 	const dispatch = createEventDispatcher();
 
-	// State machine (simplified: removed sync_options step, always use real_time)
-	// For non-logged users: key_input → loading → player_selection → confirmation
-	// For logged users: key_input → loading → confirmation (auto-select)
-	type Step = 'key_input' | 'loading' | 'player_selection' | 'confirmation' | 'error';
+	// State machine (simplified: removed confirmation step)
+	// For non-logged users: key_input → loading → player_selection (with inline confirmation)
+	// For logged users: key_input → loading → player_selection (auto-select match, choose side)
+	type Step = 'key_input' | 'loading' | 'player_selection' | 'error';
 	let currentStep: Step = 'key_input';
 
 	// Form state
@@ -38,25 +38,26 @@
 	let errorMessage = '';
 	let isStarting = false;
 
-	// Players with pending matches (for non-logged users)
-	interface PlayerWithMatch {
-		participantId: string;
-		name: string;
+	// Matches grouped by status (for non-logged users)
+	interface MatchDisplay {
 		match: PendingMatchInfo;
-		side: 'A' | 'B';
-		isInProgress?: boolean;  // True if match is IN_PROGRESS
+		isInProgress: boolean;
 	}
-	let playersWithPendingMatches: PlayerWithMatch[] = [];
-
-	// Separate lists for pending and in-progress matches
-	let pendingPlayers: PlayerWithMatch[] = [];
-	let inProgressPlayers: PlayerWithMatch[] = [];
+	let pendingMatchesList: MatchDisplay[] = [];
+	let inProgressMatchesList: MatchDisplay[] = [];
 
 	// Show/hide tournament key
 	let showKey = false;
 
 	// Track if selected match is being resumed (IN_PROGRESS)
 	let isResumingMatch = false;
+
+	// Accordion state for in-progress matches
+	let showInProgressMatches = false;
+
+	// Round Robin current round info
+	let rrCurrentRound = 0;
+	let rrTotalRounds = 0;
 
 	// Reactive: check if user is logged in
 	$: isLoggedIn = !!$currentUser;
@@ -80,20 +81,22 @@
 		tournamentKey = '';
 		tournament = null;
 		pendingMatches = [];
-		playersWithPendingMatches = [];
-		pendingPlayers = [];
-		inProgressPlayers = [];
+		pendingMatchesList = [];
+		inProgressMatchesList = [];
 		selectedMatch = null;
 		selectedSide = null;
 		errorMessage = '';
 		isStarting = false;
 		showKey = false;
 		isResumingMatch = false;
+		showInProgressMatches = false;
+		rrCurrentRound = 0;
+		rrTotalRounds = 0;
 	}
 
 	async function searchTournament() {
 		if (tournamentKey.length !== 6) {
-			errorMessage = $t('invalidTournamentKey') || 'La clave debe tener 6 caracteres';
+			errorMessage = $t('invalidTournamentKey');
 			currentStep = 'error';
 			return;
 		}
@@ -105,14 +108,14 @@
 			const result = await getTournamentByKey(tournamentKey.toUpperCase());
 
 			if (!result) {
-				errorMessage = $t('tournamentNotFound') || 'Torneo no encontrado';
+				errorMessage = $t('tournamentNotFound');
 				currentStep = 'error';
 				return;
 			}
 
 			// Check tournament status
 			if (result.status === 'COMPLETED' || result.status === 'CANCELLED') {
-				errorMessage = $t('tournamentNotActive') || 'Este torneo ya no esta activo';
+				errorMessage = $t('tournamentNotActive');
 				currentStep = 'error';
 				return;
 			}
@@ -124,116 +127,177 @@
 				pendingMatches = await getPendingMatchesForUser(result, $currentUser.id);
 
 				if (pendingMatches.length === 0) {
-					errorMessage = $t('noPendingMatches') || 'No tienes partidos pendientes en este torneo';
+					errorMessage = $t('noPendingMatchesInTournament');
 					currentStep = 'error';
 					return;
 				}
 
-				// Auto-select first match for logged-in user
-				selectedMatch = pendingMatches[0];
+				// Build lists for player_selection view
+				pendingMatchesList = [];
+				inProgressMatchesList = [];
 
-				// Determine which side the user is on
-				const userParticipant = result.participants.find(p => p.userId === $currentUser?.id);
-				if (userParticipant) {
-					if (selectedMatch.match.participantA === userParticipant.id) {
-						selectedSide = 'A';
-					} else if ('participantB' in selectedMatch.match && selectedMatch.match.participantB === userParticipant.id) {
-						selectedSide = 'B';
+				// For Round Robin, calculate current round and filter
+				const isRoundRobin = result.status === 'GROUP_STAGE' && result.groupStage?.type === 'ROUND_ROBIN';
+
+				if (isRoundRobin && result.groupStage?.groups?.[0]?.schedule) {
+					// Calculate total rounds from schedule
+					const schedule = result.groupStage.groups[0].schedule;
+					rrTotalRounds = schedule.length;
+
+					// Find the first round with pending matches (current round)
+					rrCurrentRound = 0;
+					for (const round of schedule) {
+						const hasPending = round.matches.some(m => m.status === 'PENDING' || m.status === 'IN_PROGRESS');
+						if (hasPending) {
+							rrCurrentRound = round.roundNumber;
+							break;
+						}
+					}
+
+					// Filter matches to only include current round
+					for (const match of pendingMatches) {
+						// Only include matches from the current round
+						if (match.roundNumber !== rrCurrentRound) continue;
+
+						const isInProgress = match.isInProgress || false;
+						const matchDisplay: MatchDisplay = { match, isInProgress };
+
+						if (isInProgress) {
+							inProgressMatchesList.push(matchDisplay);
+						} else {
+							pendingMatchesList.push(matchDisplay);
+						}
+					}
+				} else {
+					// Non-RR: include all matches
+					for (const match of pendingMatches) {
+						const isInProgress = match.isInProgress || false;
+						const matchDisplay: MatchDisplay = { match, isInProgress };
+
+						if (isInProgress) {
+							inProgressMatchesList.push(matchDisplay);
+						} else {
+							pendingMatchesList.push(matchDisplay);
+						}
 					}
 				}
 
-				// Go directly to confirmation (skip sync_options)
-				currentStep = 'confirmation';
+				// Go to player_selection (NO auto-select - user picks the match)
+				currentStep = 'player_selection';
 			} else {
 				pendingMatches = await getAllPendingMatches(result);
 
 				if (pendingMatches.length === 0) {
-					errorMessage = $t('noPendingMatches') || 'No hay partidos pendientes en este torneo';
+					errorMessage = $t('noPendingMatchesGeneral');
 					currentStep = 'error';
 					return;
 				}
 
-				// Build list of unique players with pending matches
+				// Build list of matches (not players)
 				// Separate pending from in-progress
-				const pendingPlayerMap = new Map<string, PlayerWithMatch>();
-				const inProgressPlayerMap = new Map<string, PlayerWithMatch>();
+				pendingMatchesList = [];
+				inProgressMatchesList = [];
 
-				for (const match of pendingMatches) {
-					const isInProgress = match.isInProgress || false;
-					const targetMap = isInProgress ? inProgressPlayerMap : pendingPlayerMap;
+				// For Round Robin, calculate current round and filter
+				const isRoundRobin = result.status === 'GROUP_STAGE' && result.groupStage?.type === 'ROUND_ROBIN';
 
-					// Add participant A
-					const participantA = match.match.participantA;
-					if (participantA && !targetMap.has(participantA)) {
-						targetMap.set(participantA, {
-							participantId: participantA,
-							name: match.participantAName,
-							match,
-							side: 'A',
-							isInProgress
-						});
+				if (isRoundRobin && result.groupStage?.groups?.[0]?.schedule) {
+					// Calculate total rounds from schedule
+					const schedule = result.groupStage.groups[0].schedule;
+					rrTotalRounds = schedule.length;
+
+					// Find the first round with pending matches (current round)
+					rrCurrentRound = 0;
+					for (const round of schedule) {
+						const hasPending = round.matches.some(m => m.status === 'PENDING' || m.status === 'IN_PROGRESS');
+						if (hasPending) {
+							rrCurrentRound = round.roundNumber;
+							break;
+						}
 					}
-					// Add participant B
-					const participantB = 'participantB' in match.match ? match.match.participantB : null;
-					if (participantB && !targetMap.has(participantB)) {
-						targetMap.set(participantB, {
-							participantId: participantB,
-							name: match.participantBName,
-							match,
-							side: 'B',
-							isInProgress
-						});
+
+					// Filter matches to only include current round
+					for (const match of pendingMatches) {
+						// Only include matches from the current round
+						if (match.roundNumber !== rrCurrentRound) continue;
+
+						const isInProgress = match.isInProgress || false;
+						const matchDisplay: MatchDisplay = { match, isInProgress };
+
+						if (isInProgress) {
+							inProgressMatchesList.push(matchDisplay);
+						} else {
+							pendingMatchesList.push(matchDisplay);
+						}
+					}
+				} else {
+					// Non-RR: include all matches
+					for (const match of pendingMatches) {
+						const isInProgress = match.isInProgress || false;
+						const matchDisplay: MatchDisplay = { match, isInProgress };
+
+						if (isInProgress) {
+							inProgressMatchesList.push(matchDisplay);
+						} else {
+							pendingMatchesList.push(matchDisplay);
+						}
 					}
 				}
 
-				pendingPlayers = Array.from(pendingPlayerMap.values()).sort((a, b) =>
-					a.name.localeCompare(b.name)
-				);
-				inProgressPlayers = Array.from(inProgressPlayerMap.values()).sort((a, b) =>
-					a.name.localeCompare(b.name)
-				);
+				// Sort by participant names
+				const sortByNames = (a: MatchDisplay, b: MatchDisplay) =>
+					a.match.participantAName.localeCompare(b.match.participantAName);
 
-				// Combined for backward compatibility
-				playersWithPendingMatches = [...pendingPlayers, ...inProgressPlayers];
+				pendingMatchesList.sort(sortByNames);
+				inProgressMatchesList.sort(sortByNames);
 
 				currentStep = 'player_selection';
 			}
 		} catch (error) {
 			console.error('Error searching tournament:', error);
-			errorMessage = $t('networkError') || 'Error de conexion';
+			errorMessage = $t('connectionError');
 			currentStep = 'error';
 		}
 	}
 
-	function selectPlayer(player: PlayerWithMatch) {
-		selectedMatch = player.match;
-		selectedSide = player.side;
-		isResumingMatch = player.isInProgress || false;
-		currentStep = 'confirmation';
+	async function selectMatchAndStart(matchDisplay: MatchDisplay) {
+		selectedMatch = matchDisplay.match;
+		isResumingMatch = matchDisplay.isInProgress;
+
+		// For logged-in users, auto-detect their side
+		if (isLoggedIn && $currentUser && tournament) {
+			const userParticipant = tournament.participants.find(p => p.userId === $currentUser?.id);
+			if (userParticipant) {
+				if (selectedMatch.match.participantA === userParticipant.id) {
+					selectedSide = 'A';
+				} else if ('participantB' in selectedMatch.match && selectedMatch.match.participantB === userParticipant.id) {
+					selectedSide = 'B';
+				} else {
+					// User is not in this match - default to A
+					selectedSide = 'A';
+				}
+			} else {
+				selectedSide = 'A';
+			}
+		} else {
+			// Non-logged user - default to A (doesn't matter who they are)
+			selectedSide = 'A';
+		}
+
+		// Start match immediately
+		await startMatch();
 	}
 
 	function goBack() {
-		if (currentStep === 'confirmation') {
-			if (isLoggedIn) {
-				// Logged-in user: go back to key input
-				currentStep = 'key_input';
-				tournament = null;
-				pendingMatches = [];
-				playersWithPendingMatches = [];
-				selectedMatch = null;
-				selectedSide = null;
-			} else {
-				// Non-logged-in user: go back to player selection
-				currentStep = 'player_selection';
-				selectedMatch = null;
-				selectedSide = null;
-			}
-		} else if (currentStep === 'player_selection') {
+		if (currentStep === 'player_selection') {
 			// Go back to key input
 			currentStep = 'key_input';
 			tournament = null;
 			pendingMatches = [];
-			playersWithPendingMatches = [];
+			pendingMatchesList = [];
+			inProgressMatchesList = [];
+			selectedMatch = null;
+			selectedSide = null;
 		} else if (currentStep === 'error') {
 			currentStep = 'key_input';
 			errorMessage = '';
@@ -255,7 +319,7 @@
 			);
 
 			if (!result.success) {
-				errorMessage = result.error || 'Error al iniciar el partido';
+				errorMessage = result.error || $t('errorStartingMatch');
 				currentStep = 'error';
 				isStarting = false;
 				return;
@@ -334,7 +398,7 @@
 			close();
 		} catch (error) {
 			console.error('Error starting match:', error);
-			errorMessage = $t('networkError') || 'Error de conexion';
+			errorMessage = $t('connectionError');
 			currentStep = 'error';
 		} finally {
 			isStarting = false;
@@ -361,6 +425,26 @@
 			return `${config.roundsToPlay} ${rounds}, ${bestOf.replace('{games}', config.matchesToWin.toString())}`;
 		}
 	}
+
+	// Get current phase game configuration
+	function getCurrentPhaseConfig(t: Tournament): { gameMode: 'points' | 'rounds'; pointsToWin?: number; roundsToPlay?: number; matchesToWin: number } | null {
+		if (t.status === 'GROUP_STAGE' && t.groupStage) {
+			return {
+				gameMode: t.groupStage.gameMode,
+				pointsToWin: t.groupStage.pointsToWin,
+				roundsToPlay: t.groupStage.roundsToPlay,
+				matchesToWin: t.groupStage.matchesToWin
+			};
+		} else if ((t.status === 'FINAL_STAGE' || t.phaseType === 'ONE_PHASE') && t.finalStage) {
+			return {
+				gameMode: t.finalStage.gameMode,
+				pointsToWin: t.finalStage.pointsToWin,
+				roundsToPlay: t.finalStage.roundsToPlay,
+				matchesToWin: t.finalStage.matchesToWin
+			};
+		}
+		return null;
+	}
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -371,15 +455,13 @@
 			<div class="modal-header">
 				<span class="modal-title">
 					{#if currentStep === 'key_input'}
-						{$t('playTournamentMatch') || 'Jugar Partido de Torneo'}
+						{$t('playTournamentMatch')}
 					{:else if currentStep === 'loading'}
-						{$t('searching') || 'Buscando...'}
+						{$t('searching')}
 					{:else if currentStep === 'player_selection'}
-						{$t('whichPlayerAreYou') || '¿Quién eres?'}
-					{:else if currentStep === 'confirmation'}
-						{$t('confirmMatch') || 'Confirmar partido'}
+						{$t('selectYourMatchTitle')}
 					{:else if currentStep === 'error'}
-						{$t('error') || 'Error'}
+						{$t('error')}
 					{/if}
 				</span>
 				<button class="close-btn" on:click={close} aria-label="Close">x</button>
@@ -389,7 +471,7 @@
 				<!-- Step: Key Input -->
 				{#if currentStep === 'key_input'}
 					<div class="step-content">
-						<p class="description">{$t('enterTournamentKey') || 'Introduce la clave del torneo (6 caracteres)'}</p>
+						<p class="description">{$t('enterTournamentKey')}</p>
 
 						<div class="key-input-container">
 							<div class="key-input-wrapper">
@@ -408,7 +490,7 @@
 									type="button"
 									class="toggle-key-btn"
 									on:click={() => showKey = !showKey}
-									aria-label={showKey ? 'Ocultar clave' : 'Mostrar clave'}
+									aria-label={showKey ? $t('hideKey') : $t('showKey')}
 								>
 									{showKey ? '🙈' : '👁️'}
 								</button>
@@ -421,7 +503,7 @@
 							disabled={tournamentKey.length !== 6}
 							on:click={searchTournament}
 						>
-							{$t('searchTournament') || 'Buscar Torneo'}
+							{$t('searchTournament')}
 						</Button>
 					</div>
 
@@ -429,94 +511,129 @@
 				{:else if currentStep === 'loading'}
 					<div class="step-content loading">
 						<div class="spinner"></div>
-						<p>{$t('searchingTournament') || 'Buscando torneo...'}</p>
+						<p>{$t('searchingTournament')}</p>
 					</div>
 
-				<!-- Step: Player Selection (for non-logged-in users) -->
-				{:else if currentStep === 'player_selection'}
-					<div class="step-content player-selection-content">
-						<div class="player-selection-header">
-							<p class="tournament-name">{tournament?.name}</p>
+				<!-- Step: Match Selection -->
+				{:else if currentStep === 'player_selection' && tournament}
+					<div class="step-content match-selection-content">
+						<div class="match-selection-header">
+							<!-- Tournament Title with Phase -->
+							<div class="tournament-title-row">
+								<p class="tournament-name">
+									{#if tournament.edition}
+										<span class="edition-number">#{tournament.edition}</span>
+									{/if}
+									{tournament.name}
+									{#if tournament.status === 'GROUP_STAGE'}
+										<span class="phase-badge group-stage">
+											{$t('groupStage')}
+										</span>
+									{/if}
+								</p>
+							</div>
+
+							<!-- Game Config + System Type Row -->
+							<div class="config-row">
+								{#if tournament.status === 'GROUP_STAGE' && tournament.groupStage?.type === 'SWISS'}
+									<!-- Swiss: solo mostrar SS y ronda actual -->
+									<span class="config-box">
+										SS · {$t('round')} {tournament.groupStage.currentRound}/{tournament.groupStage.totalRounds}
+									</span>
+								{:else if tournament.status === 'GROUP_STAGE' && tournament.groupStage?.type === 'ROUND_ROBIN' && rrCurrentRound > 0}
+									<!-- Round Robin: mostrar ronda actual -->
+									<span class="config-box round-highlight">
+										{$t('round')} {rrCurrentRound}/{rrTotalRounds}
+									</span>
+								{:else}
+									<!-- Fase Final: mostrar config del juego -->
+									{#if getCurrentPhaseConfig(tournament)}
+										{@const phaseConfig = getCurrentPhaseConfig(tournament)}
+										<span class="config-box">
+											{#if phaseConfig?.gameMode === 'points'}
+												{phaseConfig.pointsToWin} {$t('points')}
+											{:else}
+												{phaseConfig?.roundsToPlay} {$t('rounds')}
+											{/if}
+											·
+											{#if phaseConfig?.matchesToWin === 1}
+												1 {$t('game')}
+											{:else}
+												{$t('bestOf').replace('{games}', String(phaseConfig?.matchesToWin))}
+											{/if}
+										</span>
+									{/if}
+								{/if}
+							</div>
 						</div>
 
+						<!-- Show list of matches - click to start immediately -->
 						<!-- Pending matches (normal) -->
-						{#if pendingPlayers.length > 0}
-							<div class="players-grid">
-								{#each pendingPlayers as player}
+						{#if pendingMatchesList.length > 0}
+							<div class="matches-list-container">
+								{#each pendingMatchesList as matchDisplay}
 									<button
-										class="player-item"
-										on:click={() => selectPlayer(player)}
+										class="match-item-btn"
+										disabled={isStarting}
+										on:click={() => selectMatchAndStart(matchDisplay)}
 									>
-										<span class="player-name">{player.name}</span>
+										{#if matchDisplay.match.bracketRoundName}
+											<span class="match-round-name">{matchDisplay.match.bracketRoundName}</span>
+										{/if}
+										<span class="match-player">{matchDisplay.match.participantAName}</span>
+										<span class="match-vs">vs</span>
+										<span class="match-player">{matchDisplay.match.participantBName}</span>
 									</button>
 								{/each}
 							</div>
 						{/if}
 
-						<!-- In-progress matches (emergency resume) -->
-						{#if inProgressPlayers.length > 0}
+						<!-- In-progress matches (accordion) -->
+						{#if inProgressMatchesList.length > 0}
 							<div class="in-progress-section">
-								<div class="in-progress-warning">
-									<span class="warning-icon">⚠️</span>
-									<span class="warning-text">{$t('inProgressWarning') || 'Partidos en curso - solo usar en caso excepcional (ej: app cerrada por error)'}</span>
-								</div>
-								<div class="players-grid in-progress">
-									{#each inProgressPlayers as player}
-										<button
-											class="player-item in-progress"
-											on:click={() => selectPlayer(player)}
-										>
-											<span class="player-name">{player.name}</span>
-											<span class="in-progress-badge">{$t('inProgress') || 'En curso'}</span>
-										</button>
-									{/each}
-								</div>
+								<button
+									class="in-progress-accordion"
+									class:expanded={showInProgressMatches}
+									on:click={() => showInProgressMatches = !showInProgressMatches}
+								>
+									<span class="accordion-icon">{showInProgressMatches ? '▼' : '▶'}</span>
+									<span class="accordion-title">
+										{$t('matchesInProgress')} ({inProgressMatchesList.length})
+									</span>
+									<span class="accordion-warning">⚠️</span>
+								</button>
+
+								{#if showInProgressMatches}
+									<div class="in-progress-content">
+										<p class="in-progress-hint">{$t('inProgressWarning')}</p>
+										<div class="matches-list-container in-progress">
+											{#each inProgressMatchesList as matchDisplay}
+												<button
+													class="match-item-btn in-progress"
+													disabled={isStarting}
+													on:click={() => selectMatchAndStart(matchDisplay)}
+												>
+													{#if matchDisplay.match.bracketRoundName}
+														<span class="match-round-name">{matchDisplay.match.bracketRoundName}</span>
+													{/if}
+													<span class="match-player">{matchDisplay.match.participantAName}</span>
+													<span class="match-vs">vs</span>
+													<span class="match-player">{matchDisplay.match.participantBName}</span>
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/if}
 							</div>
 						{/if}
-					</div>
 
-				<!-- Step: Confirmation -->
-				{:else if currentStep === 'confirmation' && selectedMatch && tournament}
-					<div class="step-content">
-						<div class="confirmation-details">
-							<div class="detail-row">
-								<span class="detail-label">{$t('tournament') || 'Torneo'}:</span>
-								<span class="detail-value">{tournament.name}</span>
+						<!-- Loading indicator when starting -->
+						{#if isStarting}
+							<div class="starting-indicator">
+								<div class="spinner small"></div>
+								<span>{$t('starting')}</span>
 							</div>
-							<div class="detail-row">
-								<span class="detail-label">{$t('phase') || 'Fase'}:</span>
-								<span class="detail-value">
-									{selectedMatch.phase === 'GROUP' ? ($t('groupStage') || 'Fase de Grupos') : selectedMatch.bracketRoundName}
-								</span>
-							</div>
-							<div class="detail-row">
-								<span class="detail-label">{$t('match') || 'Partido'}:</span>
-								<span class="detail-value">{selectedMatch.participantAName} vs {selectedMatch.participantBName}</span>
-							</div>
-							<div class="detail-row">
-								<span class="detail-label">{$t('youPlay') || 'Tu juegas como'}:</span>
-								<span class="detail-value highlight">
-									{selectedSide === 'A' ? selectedMatch.participantAName : selectedMatch.participantBName}
-								</span>
-							</div>
-							<div class="detail-row">
-								<span class="detail-label">{$t('gameMode') || 'Modo'}:</span>
-								<span class="detail-value">{formatGameConfig(selectedMatch.gameConfig)}</span>
-							</div>
-						</div>
-
-						<div class="button-row">
-							<Button variant="secondary" on:click={goBack} disabled={isStarting}>
-								{$t('back') || 'Volver'}
-							</Button>
-							<Button variant="primary" on:click={startMatch} disabled={isStarting}>
-								{#if isStarting}
-									{$t('starting') || 'Iniciando...'}
-								{:else}
-									{$t('startMatch') || 'Iniciar Partido'}
-								{/if}
-							</Button>
-						</div>
+						{/if}
 					</div>
 
 				<!-- Step: Error -->
@@ -526,7 +643,7 @@
 						<p class="error-message">{errorMessage}</p>
 
 						<Button variant="secondary" fullWidth on:click={goBack}>
-							{$t('tryAgain') || 'Intentar de nuevo'}
+							{$t('tryAgain')}
 						</Button>
 					</div>
 				{/if}
@@ -554,7 +671,7 @@
 		padding: 1.5rem;
 		border-radius: 12px;
 		max-width: 90%;
-		width: 450px;
+		width: 550px;
 		max-height: 85vh;
 		overflow-y: auto;
 		position: relative;
@@ -621,6 +738,7 @@
 		position: relative;
 		display: flex;
 		align-items: center;
+		width: 100%;
 	}
 
 	.key-input {
@@ -634,7 +752,7 @@
 		color: #fff;
 		letter-spacing: 0.4em;
 		text-transform: uppercase;
-		width: 280px;
+		width: 100%;
 		transition: border-color 0.2s;
 	}
 
@@ -690,249 +808,287 @@
 		to { transform: rotate(360deg); }
 	}
 
-	/* Match Selection */
+	/* Tournament Title Row */
+	.tournament-title-row {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
 	.tournament-name {
 		color: var(--accent-green, #00ff88);
-		font-size: 1.1rem;
+		font-size: 1.15rem;
 		font-weight: 600;
 		text-align: center;
 		margin: 0;
-	}
-
-	.matches-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		max-height: 300px;
-		overflow-y: auto;
-	}
-
-	.match-item {
-		background: rgba(0, 0, 0, 0.2);
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		padding: 1rem;
-		cursor: pointer;
-		transition: all 0.2s;
-		text-align: left;
-	}
-
-	.match-item:hover {
-		border-color: rgba(0, 255, 136, 0.5);
-		background: rgba(0, 255, 136, 0.05);
-	}
-
-	.match-item.selected {
-		border-color: var(--accent-green, #00ff88);
-		background: rgba(0, 255, 136, 0.1);
-	}
-
-	.match-players {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		margin-bottom: 0.5rem;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+		justify-content: center;
 	}
 
-	.player-name {
-		color: #fff;
-		font-weight: 500;
-	}
-
-	.vs {
+	.edition-number {
 		color: rgba(255, 255, 255, 0.5);
-		font-size: 0.85rem;
-	}
-
-	.match-info {
-		display: flex;
-		gap: 0.5rem;
+		font-weight: 500;
 	}
 
 	.phase-badge {
-		font-size: 0.75rem;
-		padding: 0.25rem 0.5rem;
+		display: inline-flex;
+		align-items: center;
+		padding: 0.2rem 0.5rem;
 		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		background: rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.8);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+	}
+
+	.phase-badge.group-stage {
+		background: rgba(33, 150, 243, 0.15);
+		color: #90caf9;
+		border: 1px solid rgba(33, 150, 243, 0.3);
+	}
+
+	.phase-badge.final-stage {
+		background: rgba(255, 152, 0, 0.15);
+		color: #ffcc80;
+		border: 1px solid rgba(255, 152, 0, 0.3);
+	}
+
+	/* Config Row (game config + system type) */
+	.config-row {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.config-box {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.35rem 0.65rem;
+		background: rgba(0, 0, 0, 0.25);
+		border-radius: 6px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.75);
+		font-size: 0.8rem;
 		font-weight: 500;
 	}
 
-	.phase-badge.group {
-		background: rgba(255, 193, 7, 0.2);
-		color: #ffc107;
+	.config-box.round-highlight {
+		background: rgba(0, 188, 212, 0.2);
+		border: 1px solid rgba(0, 188, 212, 0.4);
+		color: #80deea;
+		font-weight: 600;
+		font-size: 0.9rem;
 	}
 
-	.phase-badge.final {
-		background: rgba(0, 255, 136, 0.2);
-		color: var(--accent-green, #00ff88);
+	.system-box {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.35rem 0.65rem;
+		border-radius: 6px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		background: rgba(156, 39, 176, 0.15);
+		color: #ce93d8;
+		border: 1px solid rgba(156, 39, 176, 0.3);
 	}
 
-	/* Player Selection */
-	.player-selection-content {
+	.system-box.swiss {
+		background: rgba(156, 39, 176, 0.15);
+		color: #ce93d8;
+		border: 1px solid rgba(156, 39, 176, 0.3);
+	}
+
+	.system-box.round-robin {
+		background: rgba(0, 188, 212, 0.15);
+		color: #80deea;
+		border: 1px solid rgba(0, 188, 212, 0.3);
+	}
+
+	/* Match Selection */
+	.match-selection-content {
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
 	}
 
-	.player-selection-header {
+	.match-selection-header {
 		flex-shrink: 0;
+		margin-bottom: 0.5rem;
 	}
 
-	.players-grid {
+	.matches-list-container {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
 		gap: 0.5rem;
 		overflow-y: auto;
-		flex: 1;
-		min-height: 0;
+		max-height: 300px;
 	}
 
-	@media (max-width: 400px) {
-		.players-grid {
+	@media (max-width: 500px) {
+		.matches-list-container {
 			grid-template-columns: 1fr;
 		}
 	}
 
-	.player-item {
+	.match-item-btn {
 		background: rgba(0, 0, 0, 0.2);
 		border: 2px solid rgba(255, 255, 255, 0.1);
 		border-radius: 8px;
-		padding: 0.75rem;
+		padding: 0.75rem 0.5rem;
 		cursor: pointer;
 		transition: all 0.2s;
-		text-align: center;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+		gap: 0.25rem;
+		text-align: center;
 	}
 
-	.player-item:hover {
+	.match-item-btn:hover {
 		border-color: rgba(0, 255, 136, 0.5);
 		background: rgba(0, 255, 136, 0.05);
 	}
 
-	.player-item .player-name {
+	.match-player {
 		color: #fff;
 		font-size: 0.95rem;
 		font-weight: 500;
 	}
 
-	/* In-progress matches section */
-	.in-progress-section {
-		margin-top: 1rem;
-		padding-top: 1rem;
-		border-top: 1px dashed rgba(255, 193, 7, 0.3);
+	.match-vs {
+		color: rgba(255, 255, 255, 0.4);
+		font-size: 0.8rem;
+		font-weight: 400;
 	}
 
-	.in-progress-warning {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.5rem;
-		background: rgba(255, 193, 7, 0.1);
-		border: 1px solid rgba(255, 193, 7, 0.3);
-		border-radius: 8px;
-		padding: 0.75rem;
-		margin-bottom: 0.75rem;
+	.match-round-name {
+		color: #ffcc80;
+		font-size: 0.7rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		padding: 0.15rem 0.4rem;
+		background: rgba(255, 152, 0, 0.15);
+		border-radius: 3px;
+		margin-bottom: 0.15rem;
 	}
 
-	.warning-icon {
-		font-size: 1.1rem;
-		flex-shrink: 0;
-	}
-
-	.warning-text {
-		color: #ffc107;
-		font-size: 0.85rem;
-		line-height: 1.4;
-	}
-
-	.players-grid.in-progress {
-		opacity: 0.85;
-	}
-
-	.player-item.in-progress {
+	.match-item-btn.in-progress {
 		border-color: rgba(255, 193, 7, 0.3);
-		flex-direction: column;
-		gap: 0.25rem;
 	}
 
-	.player-item.in-progress:hover {
+	.match-item-btn.in-progress:hover {
 		border-color: rgba(255, 193, 7, 0.6);
 		background: rgba(255, 193, 7, 0.1);
 	}
 
-	.in-progress-badge {
-		font-size: 0.7rem;
-		color: #ffc107;
-		background: rgba(255, 193, 7, 0.2);
-		padding: 0.15rem 0.4rem;
-		border-radius: 4px;
-		text-transform: uppercase;
-		font-weight: 600;
-		letter-spacing: 0.5px;
+	/* In-progress matches section (accordion) */
+	.in-progress-section {
+		margin-top: 1rem;
 	}
 
-	/* Participant Selection */
-	.participant-options {
+	.in-progress-accordion {
+		width: 100%;
 		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.participant-option {
-		background: rgba(0, 0, 0, 0.2);
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		padding: 1.25rem;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.6rem 0.75rem;
+		background: rgba(255, 193, 7, 0.08);
+		border: 1px solid rgba(255, 193, 7, 0.25);
+		border-radius: 6px;
 		cursor: pointer;
 		transition: all 0.2s;
-		text-align: center;
+		color: rgba(255, 193, 7, 0.9);
 	}
 
-	.participant-option:hover {
-		border-color: rgba(0, 255, 136, 0.5);
+	.in-progress-accordion:hover {
+		background: rgba(255, 193, 7, 0.12);
+		border-color: rgba(255, 193, 7, 0.4);
 	}
 
-	.participant-option.selected {
-		border-color: var(--accent-green, #00ff88);
-		background: rgba(0, 255, 136, 0.1);
+	.in-progress-accordion.expanded {
+		border-radius: 6px 6px 0 0;
+		border-bottom-color: transparent;
 	}
 
-	.participant-name {
-		color: #fff;
-		font-size: 1.1rem;
-		font-weight: 600;
+	.accordion-icon {
+		font-size: 0.7rem;
+		transition: transform 0.2s;
 	}
 
-	/* Confirmation */
-	.confirmation-details {
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 8px;
-		padding: 1rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
+	.accordion-title {
+		flex: 1;
+		text-align: left;
+		font-size: 0.85rem;
+		font-weight: 500;
 	}
 
-	.detail-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 1rem;
-	}
-
-	.detail-label {
-		color: rgba(255, 255, 255, 0.6);
+	.accordion-warning {
 		font-size: 0.9rem;
 	}
 
-	.detail-value {
-		color: #fff;
-		font-weight: 500;
-		text-align: right;
+	.in-progress-content {
+		background: rgba(255, 193, 7, 0.05);
+		border: 1px solid rgba(255, 193, 7, 0.25);
+		border-top: none;
+		border-radius: 0 0 6px 6px;
+		padding: 0.75rem;
+		animation: slideDown 0.2s ease-out;
 	}
 
-	.detail-value.highlight {
+	@keyframes slideDown {
+		from {
+			opacity: 0;
+			transform: translateY(-5px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.in-progress-hint {
+		color: rgba(255, 193, 7, 0.8);
+		font-size: 0.75rem;
+		text-align: center;
+		margin: 0 0 0.75rem 0;
+		line-height: 1.4;
+	}
+
+	.matches-list-container.in-progress {
+		opacity: 0.9;
+	}
+
+	/* Starting indicator */
+	.starting-indicator {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
+		padding: 1rem;
 		color: var(--accent-green, #00ff88);
+		font-size: 0.95rem;
+	}
+
+	.spinner.small {
+		width: 24px;
+		height: 24px;
+		border-width: 3px;
+	}
+
+	.match-item-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	/* Error */
@@ -984,12 +1140,11 @@
 
 		.key-input {
 			font-size: 1.5rem;
-			width: 250px;
-			padding: 0.75rem 1rem;
+			width: 100%;
+			padding: 0.75rem 2.5rem 0.75rem 1rem;
 		}
 
-		.matches-list,
-		.players-list {
+		.matches-list-container {
 			max-height: 250px;
 		}
 	}

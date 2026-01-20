@@ -78,78 +78,78 @@
     <div class="modal-body">
       <!-- Basic Information Section -->
       <div class="section">
-        <h3>ℹ️ Información básica</h3>
+        <h3>ℹ️ {$t('basicInformation')}</h3>
 
         <div class="info-grid">
           <div class="info-item">
-            <span class="label">Fecha:</span>
+            <span class="label">{$t('dateLabel')}</span>
             <span class="value">{formatDate(match.startTime)}</span>
           </div>
           <div class="info-item">
-            <span class="label">Modo:</span>
-            <span class="value">{match.gameMode === 'points' ? `A ${match.pointsToWin} puntos` : `${match.roundsToPlay} rondas`}</span>
+            <span class="label">{$t('modeLabel')}</span>
+            <span class="value">{match.gameMode === 'points' ? $t('toNPoints').replace('{n}', String(match.pointsToWin)) : $t('nRoundsMode').replace('{n}', String(match.roundsToPlay))}</span>
           </div>
           <div class="info-item">
-            <span class="label">Tipo:</span>
-            <span class="value">{match.gameType === 'singles' ? 'Individual' : 'Dobles'}</span>
+            <span class="label">{$t('typeLabel')}</span>
+            <span class="value">{match.gameType === 'singles' ? $t('singles') : $t('doubles')}</span>
           </div>
         </div>
       </div>
 
       <!-- Team Names & Match Info -->
       <div class="section">
-        <h3>👥 Equipos y evento</h3>
+        <h3>👥 {$t('teamsAndEvent')}</h3>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="team1Name">Equipo 1</label>
+            <label for="team1Name">{$t('team1')}</label>
             <input
               id="team1Name"
               type="text"
               bind:value={team1Name}
-              placeholder="Nombre equipo 1"
+              placeholder={$t('team1Placeholder')}
             />
           </div>
 
           <div class="form-group">
-            <label for="team2Name">Equipo 2</label>
+            <label for="team2Name">{$t('team2')}</label>
             <input
               id="team2Name"
               type="text"
               bind:value={team2Name}
-              placeholder="Nombre equipo 2"
+              placeholder={$t('team2Placeholder')}
             />
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="gameType">Tipo de partida</label>
+            <label for="gameType">{$t('matchType')}</label>
             <select id="gameType" bind:value={gameType}>
-              <option value="singles">Individual</option>
-              <option value="doubles">Dobles</option>
+              <option value="singles">{$t('singles')}</option>
+              <option value="doubles">{$t('doubles')}</option>
             </select>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="eventTitle">Título evento</label>
+            <label for="eventTitle">{$t('eventTitleLabel')}</label>
             <input
               id="eventTitle"
               type="text"
               bind:value={eventTitle}
-              placeholder="Ej: Campeonato Regional"
+              placeholder={$t('eventTitleExample')}
             />
           </div>
 
           <div class="form-group">
-            <label for="matchPhase">Fase</label>
+            <label for="matchPhase">{$t('phaseLabel')}</label>
             <input
               id="matchPhase"
               type="text"
               bind:value={matchPhase}
-              placeholder="Ej: Semifinal"
+              placeholder={$t('phaseExample')}
             />
           </div>
         </div>
@@ -157,7 +157,7 @@
 
       <!-- Games/Rounds Section -->
       <div class="section">
-        <h3>🎯 Partidas y rondas</h3>
+        <h3>🎯 {$t('gamesAndRounds')}</h3>
 
         <!-- Game Tabs (if multiple games) -->
         {#if editableGames.length > 1}
@@ -168,7 +168,7 @@
                 class:active={selectedGameIndex === index}
                 on:click={() => selectedGameIndex = index}
               >
-                Partida {index + 1}
+                {$t('game')} {index + 1}
                 {#if game.winner}
                   <span class="winner-indicator" style="color: {game.winner === 1 ? match.team1Color : match.team2Color}">
                     👑
@@ -183,7 +183,7 @@
         {#if editableGames[selectedGameIndex]}
           <div class="rounds-container">
             <div class="rounds-header">
-              <span>Ronda</span>
+              <span>{$t('round')}</span>
               <span style="color: {match.team1Color}">{team1Name}</span>
               <span style="color: {match.team2Color}">{team2Name}</span>
               {#if match.show20s}
@@ -235,7 +235,7 @@
             {/each}
 
             <div class="game-totals">
-              <span>Total:</span>
+              <span>{$t('total')}:</span>
               <span style="color: {match.team1Color}; font-weight: 700;">
                 {editableGames[selectedGameIndex].rounds.reduce((sum, r) => sum + r.team1Points, 0)} pts
               </span>
@@ -254,10 +254,10 @@
 
     <div class="modal-footer">
       <button class="cancel-button" on:click={onClose} disabled={isSaving}>
-        Cancelar
+        {$t('cancel')}
       </button>
       <button class="save-button" on:click={saveChanges} disabled={isSaving}>
-        {isSaving ? 'Guardando...' : '💾 Guardar cambios'}
+        {isSaving ? $t('savingChanges') : '💾 ' + $t('saveChangesBtn')}
       </button>
     </div>
   </div>

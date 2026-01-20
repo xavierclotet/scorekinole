@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { GroupStanding, TournamentParticipant, GroupRankingSystem } from '$lib/types/tournament';
+  import { t } from '$lib/stores/language';
 
   export let standings: GroupStanding[];
   export let participants: TournamentParticipant[];
@@ -74,16 +75,16 @@
     <thead>
       <tr>
         <th class="pos-col">#</th>
-        <th class="name-col">Participante</th>
-        <th class="matches-col">PJ</th>
-        <th class="wins-col">G</th>
-        <th class="losses-col">P</th>
-        <th class="ties-col">E</th>
+        <th class="name-col">{$t('participant')}</th>
+        <th class="matches-col">{$t('matchesPlayed')}</th>
+        <th class="wins-col">{$t('matchesWon')}</th>
+        <th class="losses-col">{$t('matchesLost')}</th>
+        <th class="ties-col">{$t('matchesTied')}</th>
         {#if showPtsColumn}
-          <th class="points-col" title="Puntos (2/1/0)">Pts</th>
+          <th class="points-col" title={$t('pointsStandard')}>{$t('pointsShort')}</th>
         {/if}
-        <th class="total-points-col" title="Puntos totales de Crokinole">Puntos</th>
-        <th class="twenties-col">20s</th>
+        <th class="total-points-col" title={$t('totalCrokinolePoints')}>{$t('totalPointsScored')}</th>
+        <th class="twenties-col">{$t('twentiesShort')}</th>
       </tr>
     </thead>
     <tbody>

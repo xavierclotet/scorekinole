@@ -13,8 +13,6 @@
 
 	let showProfile = false;
 	let showLogin = false;
-
-	// Reference to QuickMenu to call toggleMenu
 	let quickMenuComponent: any;
 
 	onMount(() => {
@@ -22,14 +20,15 @@
 		const unsubSettings = gameSettings.subscribe($settings => {
 			language.set($settings.language);
 		});
-
-		return () => {
-			unsubSettings();
-		};
+		return () => unsubSettings();
 	});
 
 	function startScoring() {
 		goto('/game');
+	}
+
+	function goToRankings() {
+		goto('/rankings');
 	}
 
 	function changeLanguage(lang: 'es' | 'ca' | 'en') {
@@ -53,12 +52,10 @@
 		try {
 			const result = await saveUserProfile(event.detail.playerName);
 			if (result) {
-				console.log('✅ Profile updated successfully:', event.detail.playerName);
-				// Update currentUser store with new name
 				currentUser.update(u => u ? { ...u, name: event.detail.playerName } : null);
 			}
 		} catch (error) {
-			console.error('❌ Error updating profile:', error);
+			console.error('Error updating profile:', error);
 		}
 		showProfile = false;
 	}
@@ -70,66 +67,78 @@
 </svelte:head>
 
 <main class="landing">
-	<div class="top-right-container">
-		<div class="language-selector">
-			<button class:active={$gameSettings.language === 'es'} on:click={() => changeLanguage('es')}>ES</button>
-			<button class:active={$gameSettings.language === 'ca'} on:click={() => changeLanguage('ca')}>CA</button>
-			<button class:active={$gameSettings.language === 'en'} on:click={() => changeLanguage('en')}>EN</button>
+	<!-- Top bar -->
+	<div class="top-bar">
+		<div class="top-left">
+			{#if $canAccessAdmin}
+				<button class="admin-btn" on:click={goToAdmin} title={$t('adminPanel')}>
+					<span>Admin</span>
+				</button>
+			{/if}
 		</div>
-
-		<div class="profile-container">
-			<QuickMenu
-				bind:this={quickMenuComponent}
-				on:login={handleLogin}
-				on:profile={handleProfileOpen}
-			/>
-			<button class="icon-button user-button" on:click={() => quickMenuComponent?.toggleMenu()} aria-label="User Profile" title="Profile">
-				👤
-			</button>
+		<div class="top-right">
+			<div class="lang-btns">
+				<button class:active={$gameSettings.language === 'es'} on:click={() => changeLanguage('es')}>ES</button>
+				<button class:active={$gameSettings.language === 'ca'} on:click={() => changeLanguage('ca')}>CA</button>
+				<button class:active={$gameSettings.language === 'en'} on:click={() => changeLanguage('en')}>EN</button>
+			</div>
+			<div class="profile-wrap">
+				<QuickMenu bind:this={quickMenuComponent} on:login={handleLogin} on:profile={handleProfileOpen} />
+				<button class="profile-btn" on:click={() => quickMenuComponent?.toggleMenu()} aria-label="Profile">
+					<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+						<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+					</svg>
+				</button>
+			</div>
 		</div>
 	</div>
 
-	{#if $canAccessAdmin}
-		<button class="admin-link" on:click={goToAdmin} title={$t('adminPanel')}>
-			🛡️
-		</button>
-	{/if}
+	<!-- Main content -->
+	<div class="content">
+		<div class="brand">
+			<img src="/icon.png" alt="Scorekinole" class="logo" />
+			<div class="brand-text">
+				<h1>Scorekinole</h1>
+				<p>{$t('appTitle')}</p>
+			</div>
+		</div>
 
-	<div class="hero">
-		<img src="/icon.png" alt="Scorekinole" class="logo" />
+		<div class="actions">
+			<button class="btn-primary" on:click={startScoring}>
+				{$t('newGame')}
+			</button>
 
-		<h1 class="title">Scorekinole</h1>
-		<p class="subtitle">{$t('appTitle')}</p>
-
-		<button class="cta-button" on:click={startScoring}>
-			{$t('newGame')}
-		</button>
+			<div class="nav-links">
+				<button class="nav-link" on:click={goToRankings}>
+					<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+						<path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z"/>
+					</svg>
+					<span>{$t('viewRankings')}</span>
+				</button>
+				<button class="nav-link disabled" disabled title={$t('comingSoon')}>
+					<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+						<path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+					</svg>
+					<span>{$t('viewTournaments')}</span>
+				</button>
+			</div>
+		</div>
 
 		<div class="features">
-			<span class="feature">⏱️ {$t('timer')}</span>
-			<span class="feature">📊 {$t('rounds')}</span>
-			<span class="feature">🏆 {$t('matchHistory')}</span>
-			<span class="feature">🔨 {$t('hammer')}</span>
-			<span class="feature">⭐ {$t('twenties')}</span>
-			<span class="feature">☁️ {$t('syncAll')}</span>
+			<span>⏱️ {$t('timer')}</span>
+			<span>📊 {$t('rounds')}</span>
+			<span>🏆 {$t('matchHistory')}</span>
+			<span>🔨 {$t('hammer')}</span>
+			<span>⭐ {$t('twenties')}</span>
+			<span>☁️ {$t('syncAll')}</span>
 		</div>
 	</div>
 
-	<footer class="footer">
-		<p>v{APP_VERSION}</p>
-	</footer>
+	<footer>v{APP_VERSION}</footer>
 </main>
 
-<ProfileModal
-	isOpen={showProfile}
-	user={$currentUser}
-	on:close={() => showProfile = false}
-	on:update={handleProfileUpdate}
-/>
-<LoginModal
-	isOpen={showLogin}
-	on:close={() => showLogin = false}
-/>
+<ProfileModal isOpen={showProfile} user={$currentUser} on:close={() => showProfile = false} on:update={handleProfileUpdate} />
+<LoginModal isOpen={showLogin} on:close={() => showLogin = false} />
 
 <style>
 	:global(body) {
@@ -137,344 +146,321 @@
 		font-family: 'Lexend', system-ui, -apple-system, sans-serif;
 		background: #0a0e1a;
 		color: #fff;
-		overflow-x: hidden;
 	}
 
 	.landing {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
+		min-height: 100vh;
+		min-height: 100dvh;
+		display: flex;
+		flex-direction: column;
+		background: #0a0e1a;
+		padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+	}
+
+	/* Top bar */
+	.top-bar {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 1rem 1.25rem;
+	}
+
+	.top-left, .top-right {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.admin-btn {
+		padding: 0.4rem 0.8rem;
+		background: rgba(0, 255, 136, 0.1);
+		border: 1px solid rgba(0, 255, 136, 0.3);
+		border-radius: 6px;
+		color: #00ff88;
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.admin-btn:hover {
+		background: rgba(0, 255, 136, 0.2);
+	}
+
+	.lang-btns {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.lang-btns button {
+		padding: 0.4rem 0.7rem;
+		background: transparent;
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 4px;
+		color: rgba(255, 255, 255, 0.5);
+		font-size: 0.75rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.lang-btns button:hover {
+		border-color: rgba(255, 255, 255, 0.3);
+		color: #fff;
+	}
+
+	.lang-btns button.active {
+		background: #00ff88;
+		border-color: #00ff88;
+		color: #0a0e1a;
+	}
+
+	.profile-wrap {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.profile-btn {
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 50%;
+		color: rgba(255, 255, 255, 0.7);
+		cursor: pointer;
+		transition: all 0.2s;
+		padding: 0;
+	}
+
+	.profile-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
+	}
+
+	/* Content */
+	.content {
+		flex: 1;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		background: #0a0e1a;
-		overflow-y: auto;
-		padding-top: env(safe-area-inset-top, 0);
-		padding-bottom: env(safe-area-inset-bottom, 0);
+		padding: 2rem 1.5rem;
+		gap: 2rem;
 	}
 
-	.top-right-container {
-		position: absolute;
-		top: max(1rem, env(safe-area-inset-top, 1rem));
-		right: max(1rem, env(safe-area-inset-right, 1rem));
+	.brand {
 		display: flex;
-		gap: 0.5rem;
+		flex-direction: column;
 		align-items: center;
-		z-index: 10;
-	}
-
-	.language-selector {
-		display: flex;
-		gap: 0.5rem;
-	}
-
-	.profile-container {
-		display: flex;
-		align-items: center;
-	}
-
-	.language-selector button {
-		padding: 0.5rem 1rem;
-		background: rgba(255, 255, 255, 0.05);
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		color: rgba(255, 255, 255, 0.6);
-		cursor: pointer;
-		transition: all 0.3s;
-		font-weight: 600;
-		font-size: 0.85rem;
-		backdrop-filter: blur(10px);
-	}
-
-	.language-selector button:hover {
-		background: rgba(255, 255, 255, 0.1);
-		border-color: rgba(0, 255, 136, 0.3);
-		color: #fff;
-	}
-
-	.language-selector button.active {
-		background: linear-gradient(135deg, #00ff88, #00d4ff);
-		border-color: #00ff88;
-		color: #000;
-		font-weight: 700;
-	}
-
-	.icon-button {
-		font-size: 1rem;
-		padding: 0.5rem;
-		background: rgba(255, 255, 255, 0.1);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		border-radius: 6px;
-		color: #fff;
-		cursor: pointer;
-		transition: all 0.2s;
-		width: auto;
-		height: auto;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.icon-button:hover {
-		background: rgba(255, 255, 255, 0.2);
-		transform: scale(1.1);
-	}
-
-	.user-button {
-		background: transparent !important;
-		color: #00d4ff !important;
-		border: 2px solid #00d4ff !important;
-		box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2);
-		transition: all 0.2s;
-	}
-
-	.user-button:hover {
-		transform: scale(1.05);
-		background: rgba(0, 212, 255, 0.1) !important;
-		box-shadow: 0 3px 12px rgba(0, 212, 255, 0.4);
-	}
-
-	.admin-link {
-		position: absolute;
-		top: max(1rem, env(safe-area-inset-top, 1rem));
-		left: max(1rem, env(safe-area-inset-left, 1rem));
-		width: 50px;
-		height: 50px;
-		background: rgba(255, 255, 255, 0.05);
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-radius: 50%;
-		color: #00ff88;
-		font-size: 1.5rem;
-		cursor: pointer;
-		transition: all 0.3s;
-		backdrop-filter: blur(10px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 10;
-	}
-
-	.admin-link:hover {
-		background: rgba(0, 255, 136, 0.2);
-		border-color: #00ff88;
-		transform: scale(1.1);
-	}
-
-	.hero {
-		position: relative;
-		text-align: center;
-		padding: 2rem;
-		max-width: 600px;
-		z-index: 1;
+		gap: 1rem;
 	}
 
 	.logo {
-		width: 120px;
-		height: 120px;
-		margin-bottom: 1.5rem;
-		border-radius: 12px;
-		filter: drop-shadow(0 4px 12px rgba(0, 255, 136, 0.3));
+		width: 90px;
+		height: 90px;
+		border-radius: 16px;
+		box-shadow: 0 8px 32px rgba(0, 255, 136, 0.2);
 	}
 
-	.title {
-		font-size: 3rem;
+	.brand-text {
+		text-align: center;
+	}
+
+	.brand-text h1 {
+		margin: 0;
+		font-size: 2.5rem;
 		font-weight: 700;
-		margin: 0 0 0.5rem 0;
 		color: #00ff88;
 		font-family: 'Orbitron', monospace;
 		letter-spacing: 0.02em;
 	}
 
-	.subtitle {
-		font-size: 1.1rem;
-		color: rgba(255, 255, 255, 0.6);
-		margin: 0 0 2.5rem 0;
-		font-weight: 400;
+	.brand-text p {
+		margin: 0.25rem 0 0 0;
+		font-size: 0.95rem;
+		color: rgba(255, 255, 255, 0.5);
 	}
 
-	.cta-button {
-		padding: 1rem 3rem;
+	/* Actions */
+	.actions {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1.25rem;
+		width: 100%;
+		max-width: 320px;
+	}
+
+	.btn-primary {
+		width: 100%;
+		padding: 1rem 2rem;
 		background: #00ff88;
 		border: none;
-		border-radius: 8px;
+		border-radius: 10px;
 		color: #0a0e1a;
-		font-size: 1.3rem;
+		font-size: 1.2rem;
 		font-weight: 700;
+		font-family: 'Orbitron', monospace;
 		cursor: pointer;
 		transition: all 0.2s;
-		box-shadow: 0 4px 16px rgba(0, 255, 136, 0.3);
-		font-family: 'Orbitron', monospace;
-		margin-bottom: 2.5rem;
+		box-shadow: 0 4px 20px rgba(0, 255, 136, 0.25);
 	}
 
-	.cta-button:hover {
-		background: #00d46a;
+	.btn-primary:hover {
 		transform: translateY(-2px);
-		box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+		box-shadow: 0 6px 24px rgba(0, 255, 136, 0.35);
 	}
 
-	.cta-button:active {
+	.btn-primary:active {
 		transform: translateY(0);
 	}
 
+	.nav-links {
+		display: flex;
+		gap: 0.75rem;
+		width: 100%;
+	}
+
+	.nav-link {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 8px;
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.85rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.nav-link:hover:not(.disabled) {
+		background: rgba(255, 255, 255, 0.06);
+		border-color: rgba(255, 255, 255, 0.2);
+		color: #fff;
+	}
+
+	.nav-link.disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.nav-link svg {
+		flex-shrink: 0;
+	}
+
+	/* Features */
 	.features {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 1rem;
 		justify-content: center;
+		gap: 0.5rem;
 	}
 
-	.feature {
-		padding: 0.6rem 1rem;
-		background: rgba(255, 255, 255, 0.05);
-		border-radius: 6px;
-		font-size: 0.9rem;
-		color: rgba(255, 255, 255, 0.7);
-		font-weight: 500;
+	.features span {
+		padding: 0.4rem 0.75rem;
+		background: rgba(255, 255, 255, 0.03);
+		border-radius: 4px;
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.5);
 	}
 
-	.footer {
-		position: absolute;
-		bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+	/* Footer */
+	footer {
+		padding: 1rem;
 		text-align: center;
-		color: rgba(255, 255, 255, 0.4);
-		font-size: 0.85rem;
-		z-index: 1;
+		color: rgba(255, 255, 255, 0.3);
+		font-size: 0.8rem;
 	}
 
-	.footer p {
-		margin: 0.25rem 0;
-	}
-
-	/* Responsive */
-
-	/* Landscape: layout horizontal para aprovechar el ancho */
-	@media (orientation: landscape) {
-		.landing {
-			padding: 1rem 2rem;
-			overflow-y: hidden;
+	/* Tablet+ */
+	@media (min-width: 600px) {
+		.content {
+			gap: 2.5rem;
 		}
 
-		.hero {
-			display: grid;
-			grid-template-columns: auto 1fr;
-			grid-template-rows: auto auto auto;
-			gap: 0.5rem 1.5rem;
-			align-items: center;
-			text-align: left;
-			max-width: 100%;
-			padding: 1rem;
+		.brand {
+			flex-direction: row;
+			gap: 1.5rem;
 		}
 
 		.logo {
-			grid-row: 1 / 4;
-			grid-column: 1;
 			width: 100px;
 			height: 100px;
-			margin-bottom: 0;
 		}
 
-		.title {
-			grid-row: 1;
-			grid-column: 2;
-			font-size: 2rem;
-			margin: 0;
+		.brand-text {
+			text-align: left;
 		}
 
-		.subtitle {
-			grid-row: 2;
-			grid-column: 2;
-			font-size: 0.9rem;
-			margin: 0;
+		.brand-text h1 {
+			font-size: 3rem;
 		}
 
-		.cta-button {
-			grid-row: 3;
-			grid-column: 2;
-			justify-self: start;
-			padding: 0.7rem 2rem;
-			font-size: 1rem;
-			margin-bottom: 0;
-		}
-
-		.features {
-			grid-row: 1 / 4;
-			grid-column: 3;
-			flex-direction: column;
-			gap: 0.5rem;
-			margin-left: 1rem;
-		}
-
-		.feature {
-			font-size: 0.8rem;
-			padding: 0.5rem 0.8rem;
-			white-space: nowrap;
-		}
-
-		.footer {
-			bottom: max(0.5rem, env(safe-area-inset-bottom, 0.5rem));
-		}
-
-		.language-selector {
-			top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+		.actions {
+			max-width: 400px;
 		}
 	}
 
-	/* Landscape con altura muy pequeña */
+	/* Landscape phones */
 	@media (orientation: landscape) and (max-height: 500px) {
+		.content {
+			flex-direction: row;
+			justify-content: space-around;
+			padding: 1rem 2rem;
+			gap: 2rem;
+		}
+
+		.brand {
+			flex-direction: row;
+			gap: 1rem;
+		}
+
 		.logo {
 			width: 70px;
 			height: 70px;
 		}
 
-		.title {
-			font-size: 1.5rem;
+		.brand-text h1 {
+			font-size: 1.8rem;
 		}
 
-		.subtitle {
-			font-size: 0.8rem;
+		.brand-text p {
+			font-size: 0.85rem;
 		}
 
-		.cta-button {
-			padding: 0.5rem 1.5rem;
-			font-size: 0.9rem;
+		.actions {
+			max-width: 280px;
 		}
 
-		.feature {
-			font-size: 0.7rem;
-			padding: 0.4rem 0.6rem;
-		}
-
-		.language-selector button {
-			padding: 0.3rem 0.6rem;
-			font-size: 0.7rem;
-		}
-	}
-
-	@media (max-width: 600px) {
-		.logo {
-			width: 100px;
-			height: 100px;
-		}
-
-		.title {
-			font-size: 2.2rem;
-		}
-
-		.subtitle {
+		.btn-primary {
+			padding: 0.75rem 1.5rem;
 			font-size: 1rem;
 		}
 
-		.cta-button {
-			padding: 0.9rem 2.5rem;
-			font-size: 1.1rem;
+		.nav-link {
+			padding: 0.6rem 0.75rem;
+			font-size: 0.8rem;
 		}
 
-		.feature {
-			font-size: 0.85rem;
+		.features {
+			display: none;
+		}
+
+		footer {
+			position: absolute;
+			bottom: 0;
+			left: 0;
+			right: 0;
 		}
 	}
 </style>

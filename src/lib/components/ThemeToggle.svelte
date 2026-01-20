@@ -1,12 +1,13 @@
 <script lang="ts">
   import { adminTheme } from '$lib/stores/adminTheme';
+  import { t } from '$lib/stores/language';
 
   function toggleTheme() {
     adminTheme.toggle();
   }
 </script>
 
-<button class="theme-toggle" on:click={toggleTheme} title={$adminTheme === 'light' ? 'Modo oscuro' : 'Modo claro'}>
+<button class="theme-toggle" on:click={toggleTheme} title={$adminTheme === 'light' ? $t('darkMode') : $t('lightMode')}>
   {#if $adminTheme === 'light'}
     🌙
   {:else}

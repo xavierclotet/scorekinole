@@ -45,6 +45,9 @@
 	// Tournament mode state
 	$: inTournamentMode = !!$gameTournamentContext;
 
+	// Track if tournament match completion has been sent
+	let tournamentMatchCompletedSent = false;
+
 	// References to TeamCard components to call their methods
 	let teamCard1: any;
 	let teamCard2: any;
@@ -84,9 +87,6 @@
 	// 2. But on page reload, we don't restore the current completed game to currentMatchGames (to avoid double-counting)
 	// 3. The other conditions are sufficient: hasWon + !isMatchComplete + matchesToWin > 1 + points mode
 	$: showNextGameButton = ($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points';
-
-	// Track if tournament match completion has been sent
-	let tournamentMatchCompletedSent = false;
 
 	// Handler for tournament match complete event from TeamCard
 	// This is called BEFORE currentMatch is cleared, ensuring we have all data
@@ -144,6 +144,10 @@
 	function applyTournamentConfig(context: TournamentMatchContext) {
 		const config = context.gameConfig;
 		const isUserSideA = context.currentUserSide === 'A';
+
+		// Reset completion flag when starting/resuming a tournament match
+		tournamentMatchCompletedSent = false;
+		console.log('🔄 tournamentMatchCompletedSent reset to false');
 
 		console.log('🎯 applyTournamentConfig llamado:', {
 			existingRounds: context.existingRounds,
@@ -577,12 +581,9 @@
 			console.error('Error completing tournament match:', error);
 		}
 
-		// IMPORTANTE: Limpiar el estado del partido DESPUÉS de enviar a Firebase
-		// Esto evita que resetMatchState() borre los datos antes de capturarlos
-		resetMatchState();
-		resetTeams();
-
-		// Clear tournament context after completion
+		// NO reseteamos el estado aquí - dejamos que el usuario vea el resultado final
+		// El reset se hará cuando se inicie un nuevo partido de torneo
+		// Solo limpiamos el contexto del torneo para que no se vuelva a enviar
 		clearTournamentContext();
 	}
 
@@ -753,11 +754,17 @@
 			await tick();
 			const savedData = saveTournamentProgressToLocalStorage();
 
+			console.log('🔄 Post-round sync check:', {
+				hasSavedData: !!savedData,
+				tournamentMatchCompletedSent,
+				allRoundsLength: savedData?.allRounds?.length
+			});
+
 			// Sincronizar a Firebase SOLO si el match no ha sido completado
 			// Si tournamentMatchCompletedSent es true, completeMatch ya envió los datos finales
 			// y no debemos sobrescribirlos con syncMatchProgress (evita race condition)
 			if (savedData && !tournamentMatchCompletedSent) {
-				syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB);
+				await syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB);
 			}
 		}
 	}
@@ -783,46 +790,65 @@
 		// Use currentMatch which has games with rounds (currentMatchGames doesn't have rounds)
 		const current = get(currentMatch);
 		const currentRounds = get(currentGameRounds);
+		const currentGameNumber = context.currentGameData?.currentGameNumber || 1;
 
-		console.log('🔍 SYNC - current.games:', current?.games?.length || 0, 'currentRounds:', currentRounds.length);
+		console.log('🔍 SYNC - current.games:', current?.games?.length || 0, 'currentRounds:', currentRounds.length, 'contextExistingRounds:', context.existingRounds?.length || 0);
 		if (current?.games?.length) {
 			console.log('🔍 SYNC - partidas guardadas:', current.games.map((g, i) => `P${i+1}: ${g.rounds?.length || 0} rondas`));
 		}
 
-		// Process completed games from currentMatch (which has rounds per game)
-		if (current?.games && Array.isArray(current.games)) {
-			current.games.forEach((game, gameIndex) => {
-				if (game?.rounds && Array.isArray(game.rounds)) {
-					game.rounds.forEach((round, roundIndex) => {
-						const pointsA = isUserSideA ? round.team1Points : round.team2Points;
-						const pointsB = isUserSideA ? round.team2Points : round.team1Points;
-						const twentiesA = isUserSideA ? (round.team1Twenty || 0) : (round.team2Twenty || 0);
-						const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
+		// IMPORTANT: Check if we have previous rounds from context.existingRounds (from Firebase resume)
+		// that might not be in current.games (which only tracks local game state)
+		const existingPreviousRounds = context.existingRounds?.filter(r => r.gameNumber < currentGameNumber) || [];
+		const hasExistingPreviousRounds = existingPreviousRounds.length > 0;
+		const hasCurrentGamesWithRounds = current?.games?.some(g => g?.rounds?.length > 0);
 
-						allRounds.push({
-							gameNumber: gameIndex + 1,
-							roundInGame: roundIndex + 1,
-							pointsA,
-							pointsB,
-							twentiesA,
-							twentiesB
-						});
-					});
-				}
+		// If we have previous rounds from context but not in current.games, use context as source
+		if (hasExistingPreviousRounds && !hasCurrentGamesWithRounds) {
+			console.log('📋 Using context.existingRounds for previous games (resumed match)');
+			existingPreviousRounds.forEach(round => {
+				allRounds.push({
+					gameNumber: round.gameNumber,
+					roundInGame: round.roundInGame,
+					pointsA: round.pointsA,
+					pointsB: round.pointsB,
+					twentiesA: round.twentiesA,
+					twentiesB: round.twentiesB
+				});
 			});
+		} else {
+			// Process completed games from currentMatch (which has rounds per game)
+			if (current?.games && Array.isArray(current.games)) {
+				current.games.forEach((game, gameIndex) => {
+					if (game?.rounds && Array.isArray(game.rounds)) {
+						game.rounds.forEach((round, roundIndex) => {
+							const pointsA = isUserSideA ? round.team1Points : round.team2Points;
+							const pointsB = isUserSideA ? round.team2Points : round.team1Points;
+							const twentiesA = isUserSideA ? (round.team1Twenty || 0) : (round.team2Twenty || 0);
+							const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
+
+							allRounds.push({
+								gameNumber: gameIndex + 1,
+								roundInGame: roundIndex + 1,
+								pointsA,
+								pointsB,
+								twentiesA,
+								twentiesB
+							});
+						});
+					}
+				});
+			}
 		}
 
 		// Add current game rounds (for the game in progress)
-		// BUT only if the current game hasn't already been saved to current.games
-		// (this happens when the game just completed but resetForNextGame hasn't been called yet)
-		const completedGamesCount = current?.games?.length || 0;
-		const lastCompletedGame = current?.games?.[completedGamesCount - 1];
-		const currentGameAlreadySaved = lastCompletedGame?.rounds?.length === currentRounds?.length &&
-			currentRounds?.length > 0 &&
-			lastCompletedGame?.rounds?.every((r: any, i: number) =>
-				r.team1Points === currentRounds[i]?.team1Points &&
-				r.team2Points === currentRounds[i]?.team2Points
-			);
+		// BUT only if the current game hasn't already been saved
+		const completedGamesCount = allRounds.length > 0
+			? Math.max(...allRounds.map(r => r.gameNumber))
+			: 0;
+		const currentGameRoundsInAll = allRounds.filter(r => r.gameNumber === currentGameNumber);
+		const currentGameAlreadySaved = currentGameRoundsInAll.length === currentRounds?.length &&
+			currentRounds?.length > 0;
 
 		if (currentRounds && Array.isArray(currentRounds) && !currentGameAlreadySaved) {
 			currentRounds.forEach((round, roundIndex) => {
@@ -832,7 +858,7 @@
 				const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
 
 				allRounds.push({
-					gameNumber: completedGamesCount + 1,
+					gameNumber: currentGameNumber,
 					roundInGame: roundIndex + 1,
 					pointsA,
 					pointsB,
@@ -842,30 +868,96 @@
 			});
 		}
 
-		// Calculate current game data - use get() to ensure we have the latest values
-		// (reactive $: variables might not be updated inside setTimeout)
+		// Calculate games won directly from allRounds (more reliable than currentMatchGames)
+		// This ensures correct sync even after resume when stores might not be fully restored
+		const gamePointsMap = new Map<number, { pointsA: number; pointsB: number }>();
+		allRounds.forEach(round => {
+			const gameNum = round.gameNumber;
+			if (!gamePointsMap.has(gameNum)) {
+				gamePointsMap.set(gameNum, { pointsA: 0, pointsB: 0 });
+			}
+			const game = gamePointsMap.get(gameNum)!;
+			game.pointsA += round.pointsA || 0;
+			game.pointsB += round.pointsB || 0;
+		});
+
+		// Determine winner for each completed game
+		const pointsToWin = context.gameConfig?.pointsToWin || $gameSettings.pointsToWin || 7;
+		const gameMode = context.gameConfig?.gameMode || $gameSettings.gameMode;
+		const roundsToPlay = context.gameConfig?.roundsToPlay || $gameSettings.roundsToPlay || 4;
+		let gamesWonA = 0;
+		let gamesWonB = 0;
+
+		console.log('🎮 Calculating gamesWon:', { gameMode, roundsToPlay, pointsToWin, allRoundsCount: allRounds.length, gamePointsMapSize: gamePointsMap.size });
+
+		gamePointsMap.forEach(({ pointsA, pointsB }, gameNumber) => {
+			const gameRounds = allRounds.filter(r => r.gameNumber === gameNumber);
+			console.log(`🎮 Game ${gameNumber}: rounds=${gameRounds.length}, pointsA=${pointsA}, pointsB=${pointsB}`);
+			let gameComplete = false;
+			let winnerA = false;
+
+			if (gameMode === 'rounds') {
+				// In rounds mode, game is complete when all rounds are played
+				const gameRounds = allRounds.filter(r => r.gameNumber === gameNumber);
+				gameComplete = gameRounds.length >= roundsToPlay;
+				if (gameComplete) {
+					winnerA = pointsA > pointsB;
+				}
+			} else {
+				// In points mode, game is complete when someone reaches pointsToWin with 2+ lead
+				if (pointsA >= pointsToWin && (pointsA - pointsB >= 2)) {
+					gameComplete = true;
+					winnerA = true;
+				} else if (pointsB >= pointsToWin && (pointsB - pointsA >= 2)) {
+					gameComplete = true;
+					winnerA = false;
+				}
+			}
+
+			if (gameComplete) {
+				if (winnerA) {
+					gamesWonA++;
+				} else {
+					gamesWonB++;
+				}
+			}
+		});
+
+		// Fallback: also check currentMatchGames in case games were recorded there
+		// but not yet reflected in allRounds (edge case)
 		const matchGames = get(currentMatchGames);
 		const t1GamesWon = matchGames.filter(game => game.winner === 1).length;
 		const t2GamesWon = matchGames.filter(game => game.winner === 2).length;
-		const gamesWonA = isUserSideA ? t1GamesWon : t2GamesWon;
-		const gamesWonB = isUserSideA ? t2GamesWon : t1GamesWon;
+		const storeGamesWonA = isUserSideA ? t1GamesWon : t2GamesWon;
+		const storeGamesWonB = isUserSideA ? t2GamesWon : t1GamesWon;
+
+		// Use the higher value (in case one source has more complete data)
+		if (storeGamesWonA > gamesWonA || storeGamesWonB > gamesWonB) {
+			gamesWonA = Math.max(gamesWonA, storeGamesWonA);
+			gamesWonB = Math.max(gamesWonB, storeGamesWonB);
+		}
 
 		console.log('💾 Guardando progreso torneo a localStorage:', {
 			allRounds: allRounds.length,
 			roundsDetail: allRounds.map(r => ({ gameNumber: r.gameNumber, roundInGame: r.roundInGame, pointsA: r.pointsA, pointsB: r.pointsB })),
 			gamesWonA,
 			gamesWonB,
-			matchGames: matchGames.length,
-			t1GamesWon,
-			t2GamesWon
+			storeGamesWonA,
+			storeGamesWonB,
+			gameMode,
+			pointsToWin,
+			gamePointsPerGame: Array.from(gamePointsMap.entries()).map(([gn, pts]) => ({ game: gn, ...pts }))
 		});
+
+		// Calculate the actual current game number based on completed games
+		const actualCurrentGameNumber = gamesWonA + gamesWonB + 1;
 
 		updateTournamentContext({
 			existingRounds: allRounds,
 			currentGameData: {
 				gamesWonA,
 				gamesWonB,
-				currentGameNumber: completedGamesCount + 1
+				currentGameNumber: actualCurrentGameNumber
 			}
 		});
 

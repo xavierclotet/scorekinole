@@ -6,6 +6,7 @@
   } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchSchedule from './MatchSchedule.svelte';
+  import { t } from '$lib/stores/language';
 
   export let tournament: Tournament;
   export let onMatchClick: ((match: GroupMatch) => void) | undefined = undefined;
@@ -40,6 +41,25 @@
       total,
       percentage: total > 0 ? Math.round((completed / total) * 100) : 0
     };
+  }
+
+  // Translate group name based on language
+  // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
+  function translateGroupName(name: string): string {
+    if (name === 'Swiss') return $t('swissSystem');
+    // New identifier format
+    if (name === 'SINGLE_GROUP') return $t('singleGroup');
+    const idMatch = name.match(/^GROUP_([A-H])$/);
+    if (idMatch) {
+      return `${$t('group')} ${idMatch[1]}`;
+    }
+    // Legacy Spanish format (for existing tournaments)
+    if (name === 'Grupo Único') return $t('singleGroup');
+    const legacyMatch = name.match(/^Grupo ([A-H])$/);
+    if (legacyMatch) {
+      return `${$t('group')} ${legacyMatch[1]}`;
+    }
+    return name;
   }
 
   // Ensure groups is always an array (Firestore may return object with numeric keys)
@@ -298,18 +318,18 @@
     <div class="view-header">
       <div class="header-content">
         <h2>
-          {isSwiss ? 'Sistema Suizo' : 'Fase de Grupos'}
+          {isSwiss ? $t('swissSystem') : $t('groupStage')}
         </h2>
         <div class="round-info">
           {#if isSwiss && roundsProgress}
             <div class="overall-progress">
-              <span class="progress-text">Ronda {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
+              <span class="progress-text">{$t('round')} {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
               <div class="progress-bar">
                 <div class="progress-fill" style="width: {roundsProgress.percentage}%"></div>
               </div>
             </div>
           {:else}
-            <span class="round-label">{totalRounds} Rondas</span>
+            <span class="round-label">{$t('nRounds').replace('{n}', String(totalRounds))}</span>
             <div class="overall-progress">
               <span class="progress-text">{overallProgress.completed}/{overallProgress.total}</span>
             <div class="progress-bar">
@@ -325,33 +345,33 @@
   <!-- Filters and controls -->
   <div class="filters-bar">
     <div class="filter-group">
-      <label for="table-filter">Mesa:</label>
+      <label for="table-filter">{$t('tableLabel')}</label>
       <select id="table-filter" bind:value={filterTable}>
-        <option value={null}>Todas</option>
+        <option value={null}>{$t('all')}</option>
         {#each availableTables as table}
-          <option value={table}>Mesa {table}</option>
+          <option value={table}>{$t('tableN').replace('{n}', String(table))}</option>
         {/each}
       </select>
     </div>
 
     <div class="filter-group">
-      <label for="status-filter">Estado:</label>
+      <label for="status-filter">{$t('statusLabel')}</label>
       <select id="status-filter" bind:value={filterStatus}>
-        <option value={null}>Todos</option>
-        <option value="PENDING">Pendiente</option>
-        <option value="IN_PROGRESS">En curso</option>
-        <option value="COMPLETED">Finalizado</option>
-        <option value="WALKOVER">Walkover</option>
+        <option value={null}>{$t('all')}</option>
+        <option value="PENDING">{$t('statusPending')}</option>
+        <option value="IN_PROGRESS">{$t('statusInProgress')}</option>
+        <option value="COMPLETED">{$t('statusCompleted')}</option>
+        <option value="WALKOVER">{$t('statusWalkover')}</option>
       </select>
     </div>
 
     {#if groups.length > 1}
       <div class="expand-controls">
-        <button class="expand-btn" on:click={expandAll} title="Expandir todos los grupos">
-          <span class="icon">+</span> Grupos
+        <button class="expand-btn" on:click={expandAll} title="{$t('expandAllGroups')}">
+          <span class="icon">+</span> {$t('groups')}
         </button>
-        <button class="expand-btn" on:click={collapseAll} title="Colapsar todos los grupos">
-          <span class="icon">−</span> Grupos
+        <button class="expand-btn" on:click={collapseAll} title="{$t('collapseAllGroups')}">
+          <span class="icon">−</span> {$t('groups')}
         </button>
       </div>
     {/if}
@@ -360,18 +380,18 @@
       <button
         class="toggle-rounds-btn"
         on:click={anyRoundExpanded ? collapseAllRounds : expandAllRounds}
-        title={anyRoundExpanded ? 'Colapsar todas las rondas' : 'Expandir todas las rondas'}
+        title={anyRoundExpanded ? $t('collapseAllRoundsTooltip') : $t('expandAllRounds')}
       >
         {#if anyRoundExpanded}
           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
           </svg>
-          Colapsar rondas
+          {$t('collapseAllRounds')}
         {:else}
           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
           </svg>
-          Expandir rondas
+          {$t('expandAllRounds')}
         {/if}
       </button>
     </div>
@@ -380,7 +400,7 @@
   <!-- Groups as accordions -->
   {#if groups.length === 0}
     <div class="no-group-state">
-      <p>No hay grupos configurados</p>
+      <p>{$t('noGroupsConfigured')}</p>
     </div>
   {:else}
     <div class="groups-accordions">
@@ -407,15 +427,15 @@
                   <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
                 </svg>
               </span>
-              <span class="group-name">{group.name === 'Swiss' ? 'Sistema Suizo' : group.name}</span>
+              <span class="group-name">{translateGroupName(group.name)}</span>
               {#if progress.percentage === 100}
-                <span class="complete-badge">Completado</span>
+                <span class="complete-badge">{$t('completed')}</span>
               {/if}
             </div>
             <div class="header-right">
               <div class="progress-info">
                 {#if isSwiss && groups.length === 1 && roundsProgress}
-                  <span class="progress-label">Ronda {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
+                  <span class="progress-label">{$t('round')} {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
                   <div class="mini-progress-bar">
                     <div
                       class="mini-progress-fill"
@@ -448,14 +468,14 @@
                     class:active={(groupViews[group.id] || 'schedule') === 'schedule'}
                     on:click|stopPropagation={() => setGroupView(group.id, 'schedule')}
                   >
-                    Partidos
+                    {$t('schedule')}
                   </button>
                   <button
                     class="toggle-btn"
                     class:active={(groupViews[group.id] || 'schedule') === 'standings'}
                     on:click|stopPropagation={() => setGroupView(group.id, 'standings')}
                   >
-                    Clasificación
+                    {$t('standings')}
                   </button>
                 </div>
 
@@ -467,9 +487,9 @@
                   >
                     {#if generatingRound}
                       <span class="spinner"></span>
-                      Generando...
+                      {$t('generatingRound')}
                     {:else}
-                      Generar Ronda {(roundsProgress?.completed || 0) + 1}
+                      {$t('generateRound').replace('{n}', String((roundsProgress?.completed || 0) + 1))}
                     {/if}
                   </button>
                 {/if}

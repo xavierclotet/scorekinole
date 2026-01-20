@@ -6,28 +6,68 @@
   import { t } from '$lib/stores/language';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { goto } from '$app/navigation';
-  import { getAllTournaments, deleteTournament as deleteTournamentFirebase } from '$lib/firebase/tournaments';
+  import { getTournamentsPaginated, deleteTournament as deleteTournamentFirebase } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';
+  import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
   let tournaments: Tournament[] = [];
   let filteredTournaments: Tournament[] = [];
   let searchQuery = '';
   let statusFilter: 'all' | 'DRAFT' | 'GROUP_STAGE' | 'FINAL_STAGE' | 'COMPLETED' | 'CANCELLED' = 'all';
   let loading = true;
+  let loadingMore = false;
   let showDeleteConfirm = false;
   let tournamentToDelete: Tournament | null = null;
   let showToast = false;
   let toastMessage = '';
+  const pageSize = 15;
+
+  // Infinite scroll state
+  let totalCount = 0;
+  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+  let hasMore = true;
+
+  $: isSearching = searchQuery.trim().length > 0;
+  $: isFiltering = statusFilter !== 'all';
 
   onMount(async () => {
-    await loadTournaments();
+    await loadInitialTournaments();
   });
 
-  async function loadTournaments() {
+  async function loadInitialTournaments() {
     loading = true;
-    tournaments = await getAllTournaments(100);
+    tournaments = [];
+    lastDoc = null;
+
+    const result = await getTournamentsPaginated(pageSize, null);
+    totalCount = result.totalCount;
+    hasMore = result.hasMore;
+    lastDoc = result.lastDoc;
+    tournaments = result.tournaments;
+
     filterTournaments();
     loading = false;
+  }
+
+  async function loadMore() {
+    if (loadingMore || !hasMore || isSearching) return;
+
+    loadingMore = true;
+    const result = await getTournamentsPaginated(pageSize, lastDoc);
+    hasMore = result.hasMore;
+    lastDoc = result.lastDoc;
+    tournaments = [...tournaments, ...result.tournaments];
+    filterTournaments();
+    loadingMore = false;
+  }
+
+  function handleScroll(e: Event) {
+    const target = e.target as HTMLElement;
+    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+
+    if (scrollBottom < 100 && hasMore && !loadingMore && !isSearching) {
+      loadMore();
+    }
   }
 
   function filterTournaments() {
@@ -49,18 +89,20 @@
     filterTournaments();
   }
 
+  $: displayTotal = isSearching || isFiltering ? filteredTournaments.length : totalCount;
+
   function getStatusText(status: string): string {
     switch (status) {
       case 'DRAFT':
-        return 'Borrador';
+        return $t('draft');
       case 'GROUP_STAGE':
-        return 'Fase de Grupos';
+        return $t('groupStage');
       case 'FINAL_STAGE':
-        return 'Fase Final';
+        return $t('finalStage');
       case 'COMPLETED':
-        return 'Completado';
+        return $t('completed');
       case 'CANCELLED':
-        return 'Cancelado';
+        return $t('cancelled');
       default:
         return status;
     }
@@ -114,11 +156,13 @@
     const success = await deleteTournamentFirebase(tournamentToDelete.id);
 
     if (success) {
-      toastMessage = '✅ Torneo eliminado correctamente';
+      toastMessage = '✅ ' + $t('tournamentDeletedSuccess');
       showToast = true;
-      await loadTournaments();
+      tournaments = tournaments.filter(t => t.id !== tournamentToDelete!.id);
+      totalCount = Math.max(0, totalCount - 1);
+      filterTournaments();
     } else {
-      toastMessage = '❌ Error al eliminar el torneo';
+      toastMessage = '❌ ' + $t('tournamentDeleteError');
       showToast = true;
     }
 
@@ -146,7 +190,7 @@
         </div>
 
         <button class="create-button" on:click={createTournament}>
-          + Crear Torneo
+          + {$t('createTournament')}
         </button>
       </div>
     </header>
@@ -157,7 +201,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="Buscar torneos..."
+          placeholder={$t('searchTournaments')}
           class="search-input"
         />
       </div>
@@ -168,35 +212,35 @@
           class:active={statusFilter === 'all'}
           on:click={() => (statusFilter = 'all')}
         >
-          Todos ({tournaments.length})
+          {$t('all')} ({tournaments.length})
         </button>
         <button
           class="filter-tab"
           class:active={statusFilter === 'DRAFT'}
           on:click={() => (statusFilter = 'DRAFT')}
         >
-          Borradores
+          {$t('drafts')}
         </button>
         <button
           class="filter-tab"
           class:active={statusFilter === 'GROUP_STAGE'}
           on:click={() => (statusFilter = 'GROUP_STAGE')}
         >
-          En Grupos
+          {$t('inGroups')}
         </button>
         <button
           class="filter-tab"
           class:active={statusFilter === 'FINAL_STAGE'}
           on:click={() => (statusFilter = 'FINAL_STAGE')}
         >
-          En Final
+          {$t('inFinal')}
         </button>
         <button
           class="filter-tab"
           class:active={statusFilter === 'COMPLETED'}
           on:click={() => (statusFilter = 'COMPLETED')}
         >
-          Completados
+          {$t('completedPlural')}
         </button>
       </div>
     </div>
@@ -209,29 +253,29 @@
     {:else if filteredTournaments.length === 0}
       <div class="empty-state">
         <div class="empty-icon">🏆</div>
-        <h3>No hay torneos</h3>
+        <h3>{$t('noTournaments')}</h3>
         <p>
           {searchQuery || statusFilter !== 'all'
-            ? 'No se encontraron torneos con los filtros aplicados'
-            : 'Usa el botón "Crear Torneo" para empezar'}
+            ? $t('noTournamentsFiltered')
+            : $t('useCreateButton')}
         </p>
       </div>
     {:else}
       <div class="results-info">
-        Mostrando {filteredTournaments.length} de {tournaments.length} torneos
+        {$t('showingOf').replace('{showing}', String(filteredTournaments.length)).replace('{total}', String(displayTotal))}
       </div>
 
-      <div class="table-container">
+      <div class="table-container" on:scroll={handleScroll}>
         <table class="tournaments-table">
           <thead>
             <tr>
-              <th class="name-col">Nombre</th>
-              <th class="city-col hide-mobile">Ciudad</th>
-              <th class="status-col">Estado</th>
-              <th class="type-col hide-mobile">Tipo</th>
-              <th class="mode-col hide-mobile">Modo</th>
+              <th class="name-col">{$t('name')}</th>
+              <th class="city-col hide-small hide-mobile">{$t('city')}</th>
+              <th class="status-col">{$t('status')}</th>
+              <th class="type-col hide-mobile">{$t('type')}</th>
+              <th class="mode-col hide-mobile">{$t('mode')}</th>
               <th class="participants-col">Players</th>
-              <th class="created-col hide-mobile">Creado</th>
+              <th class="created-col hide-small hide-mobile">{$t('created')}</th>
               <th class="actions-col"></th>
             </tr>
           </thead>
@@ -254,7 +298,7 @@
                     {/if}
                   </div>
                 </td>
-                <td class="city-cell hide-mobile">
+                <td class="city-cell hide-small hide-mobile">
                   {tournament.city || '-'}
                 </td>
                 <td class="status-cell">
@@ -271,12 +315,12 @@
                 <td class="mode-cell hide-mobile">
                   {#if tournament.groupStage?.type}
                     <span class="mode-group">
-                      {tournament.groupStage.type === 'SWISS' ? 'Suizo' : 'RR'}
+                      {tournament.groupStage.type === 'SWISS' ? $t('swiss') : 'RR'}
                     </span>
                     <span class="mode-separator">+</span>
                   {/if}
                   {#if tournament.finalStage?.mode === 'SPLIT_DIVISIONS' || tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS'}
-                    <span class="mode-final split">Oro/Plata</span>
+                    <span class="mode-final split">{$t('goldSilver')}</span>
                   {:else}
                     <span class="mode-final">1F</span>
                   {/if}
@@ -284,21 +328,21 @@
                 <td class="participants-cell">
                   👥 {tournament.participants.length}
                 </td>
-                <td class="created-cell hide-mobile">
+                <td class="created-cell hide-small hide-mobile">
                   {formatDate(tournament.createdAt)}
                 </td>
                 <td class="actions-cell">
                   <button
                     class="action-btn duplicate-btn"
                     on:click|stopPropagation={() => duplicateTournament(tournament)}
-                    title="Duplicar torneo"
+                    title={$t('duplicateTournament')}
                   >
                     📋
                   </button>
                   <button
                     class="action-btn delete-btn"
                     on:click|stopPropagation={() => confirmDelete(tournament)}
-                    title="Eliminar"
+                    title={$t('delete')}
                   >
                     🗑️
                   </button>
@@ -307,6 +351,21 @@
             {/each}
           </tbody>
         </table>
+
+        {#if loadingMore}
+          <div class="loading-more">
+            <div class="spinner small"></div>
+            <span>{$t('loadingMore')}</span>
+          </div>
+        {:else if hasMore && !isSearching && !isFiltering}
+          <div class="load-more-hint">
+            {$t('scrollToLoadMore')}
+          </div>
+        {:else if !hasMore && !isSearching && !isFiltering}
+          <div class="end-of-list">
+            {$t('endOfList')}
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -315,18 +374,18 @@
   {#if showDeleteConfirm && tournamentToDelete}
     <div class="modal-backdrop" on:click={cancelDelete}>
       <div class="confirm-modal" on:click|stopPropagation>
-        <h2>Confirmar Eliminación</h2>
-        <p>¿Estás seguro de que deseas eliminar este torneo?</p>
+        <h2>{$t('confirmDelete')}</h2>
+        <p>{$t('confirmCancelTournament')}</p>
         <div class="tournament-info">
           <strong>{tournamentToDelete.name}</strong>
           <br />
-          <span>{tournamentToDelete.participants.length} participantes</span>
+          <span>{tournamentToDelete.participants.length} {$t('participants')}</span>
           <br />
-          <span>Creado: {formatDate(tournamentToDelete.createdAt)}</span>
+          <span>{$t('createdAt')}: {formatDate(tournamentToDelete.createdAt)}</span>
         </div>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={cancelDelete}>Cancelar</button>
-          <button class="delete-btn-confirm" on:click={deleteTournament}>Eliminar</button>
+          <button class="cancel-btn" on:click={cancelDelete}>{$t('cancel')}</button>
+          <button class="delete-btn-confirm" on:click={deleteTournament}>{$t('delete')}</button>
         </div>
       </div>
     </div>
@@ -712,6 +771,13 @@
     animation: spin 1s linear infinite;
   }
 
+  .spinner.small {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+    margin: 0;
+  }
+
   @keyframes spin {
     0% {
       transform: rotate(0deg);
@@ -728,6 +794,42 @@
 
   .tournaments-container[data-theme='dark'] .loading-state p {
     color: #8b9bb3;
+  }
+
+  /* Infinite scroll indicators */
+  .loading-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .tournaments-container[data-theme='dark'] .loading-more {
+    color: #8b9bb3;
+  }
+
+  .load-more-hint,
+  .end-of-list {
+    text-align: center;
+    padding: 1rem;
+    color: #999;
+    font-size: 0.85rem;
+  }
+
+  .tournaments-container[data-theme='dark'] .load-more-hint,
+  .tournaments-container[data-theme='dark'] .end-of-list {
+    color: #6b7a94;
+  }
+
+  .end-of-list {
+    border-top: 1px dashed #ddd;
+  }
+
+  .tournaments-container[data-theme='dark'] .end-of-list {
+    border-top-color: #2d3748;
   }
 
   /* Empty state */
@@ -784,6 +886,8 @@
   /* Table Styles */
   .table-container {
     overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 320px);
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -1136,6 +1240,12 @@
 
   .delete-btn-confirm:hover {
     background: #dc2626;
+  }
+
+  @media (max-width: 900px) {
+    .hide-small {
+      display: none !important;
+    }
   }
 
   @media (max-width: 768px) {

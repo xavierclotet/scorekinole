@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Tournament } from '$lib/types/tournament';
+  import { t } from '$lib/stores/language';
 
   export let tournament: Tournament;
   export let groupIndex: number;
@@ -40,36 +41,42 @@
 
   $: participantMap = new Map(tournament.participants.map(p => [p.id, p]));
 
-  // Local state for selection (make it reactive to standings changes)
-  // If no qualifiers set yet, auto-select based on topN
-  $: selectedParticipants = (() => {
+  // Local state for selection - NOT reactive to avoid overwriting manual changes
+  let selectedParticipants = new Set<string>();
+  let initialized = false;
+
+  // Initialize selection only once when standings become available
+  $: if (standings.length > 0 && !initialized) {
+    initialized = true;
     const currentQualified = standings.filter((s: any) => s.qualifiedForFinal).map((s: any) => s.participantId);
 
-    // If no qualifiers selected yet, auto-select topN participants
+    // If no qualifiers set yet, auto-select topN participants
     if (currentQualified.length === 0 && standings.length >= topN) {
       const topNList = standings
         .sort((a: any, b: any) => a.position - b.position)
         .slice(0, topN)
         .map((s: any) => s.participantId);
 
+      selectedParticipants = new Set<string>(topNList);
+
       // Dispatch the auto-selection
       if (topNList.length > 0) {
         setTimeout(() => dispatch('update', topNList), 0);
       }
-
-      return new Set<string>(topNList);
+    } else {
+      selectedParticipants = new Set<string>(currentQualified);
     }
-
-    return new Set<string>(currentQualified);
-  })();
+  }
 
   function toggleParticipant(participantId: string) {
-    if (selectedParticipants.has(participantId)) {
-      selectedParticipants.delete(participantId);
+    // Create a new Set to ensure Svelte reactivity
+    const newSet = new Set(selectedParticipants);
+    if (newSet.has(participantId)) {
+      newSet.delete(participantId);
     } else {
-      selectedParticipants.add(participantId);
+      newSet.add(participantId);
     }
-    selectedParticipants = selectedParticipants; // Trigger reactivity
+    selectedParticipants = newSet; // Assign new Set to trigger reactivity
     dispatch('update', Array.from(selectedParticipants));
   }
 
@@ -102,16 +109,16 @@
         <tr>
           <th class="checkbox-col"></th>
           <th class="pos-col">#</th>
-          <th class="name-col">Participante</th>
-          <th class="matches-col">PJ</th>
-          <th class="wins-col">G</th>
-          <th class="losses-col">P</th>
-          <th class="ties-col">E</th>
+          <th class="name-col">{$t('participant')}</th>
+          <th class="matches-col">{$t('matchesPlayed')}</th>
+          <th class="wins-col">{$t('matchesWon')}</th>
+          <th class="losses-col">{$t('matchesLost')}</th>
+          <th class="ties-col">{$t('matchesTied')}</th>
           {#if rankingSystem === 'WINS'}
-            <th class="points-col primary-col" title="Puntos (2/1/0)">Pts</th>
+            <th class="points-col primary-col" title={$t('pointsStandard')}>{$t('pointsShort')}</th>
           {/if}
-          <th class="twenties-col">20s</th>
-          <th class="scored-col" class:primary-col={rankingSystem === 'POINTS'} title="Puntos totales de Crokinole">PT</th>
+          <th class="twenties-col">{$t('twentiesShort')}</th>
+          <th class="scored-col" class:primary-col={rankingSystem === 'POINTS'} title={$t('totalCrokinolePoints')}>PT</th>
         </tr>
       </thead>
       <tbody>

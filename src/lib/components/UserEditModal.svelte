@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { t } from '$lib/stores/language';
+  import { adminTheme } from '$lib/stores/adminTheme';
   import type { AdminUserInfo } from '$lib/firebase/admin';
   import { updateUserProfile, toggleAdminStatus } from '$lib/firebase/admin';
 
@@ -10,6 +11,7 @@
   const dispatch = createEventDispatcher();
 
   let playerName = user.playerName;
+  let ranking = user.ranking ?? 0;
   let isAdmin = user.isAdmin || false;
   let isSaving = false;
   let errorMessage = '';
@@ -24,11 +26,22 @@
     errorMessage = '';
 
     try {
-      // Update player name
+      // Build updates object
+      const updates: { playerName?: string; ranking?: number } = {};
+
       if (playerName !== user.playerName) {
-        const success = await updateUserProfile(user.userId, { playerName });
+        updates.playerName = playerName;
+      }
+
+      if (ranking !== (user.ranking ?? 0)) {
+        updates.ranking = ranking;
+      }
+
+      // Update profile fields if any changed
+      if (Object.keys(updates).length > 0) {
+        const success = await updateUserProfile(user.userId, updates);
         if (!success) {
-          throw new Error('Failed to update player name');
+          throw new Error('Failed to update profile');
         }
       }
 
@@ -51,7 +64,7 @@
   }
 </script>
 
-<div class="modal-backdrop" on:click={onClose}>
+<div class="modal-backdrop" data-theme={$adminTheme} on:click={onClose}>
   <div class="modal-content" on:click|stopPropagation>
     <div class="modal-header">
       <h2>{$t('editUser')}</h2>
@@ -80,6 +93,17 @@
           type="text"
           bind:value={playerName}
           placeholder={$t('playerName')}
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="ranking">{$t('ranking')}</label>
+        <input
+          id="ranking"
+          type="number"
+          bind:value={ranking}
+          min="0"
+          step="1"
         />
       </div>
 
@@ -131,12 +155,21 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   }
 
+  .modal-backdrop[data-theme='dark'] .modal-content {
+    background: #1a2332;
+    color: #e1e8ed;
+  }
+
   .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1.5rem;
     border-bottom: 1px solid #e0e0e0;
+  }
+
+  .modal-backdrop[data-theme='dark'] .modal-header {
+    border-bottom-color: #2d3748;
   }
 
   .modal-header h2 {
@@ -165,6 +198,15 @@
     color: #333;
   }
 
+  .modal-backdrop[data-theme='dark'] .close-button {
+    color: #8b9bb3;
+  }
+
+  .modal-backdrop[data-theme='dark'] .close-button:hover {
+    background: #2d3748;
+    color: #e1e8ed;
+  }
+
   .modal-body {
     padding: 1.5rem;
   }
@@ -177,6 +219,10 @@
     padding: 1rem;
     background: #f8f9fa;
     border-radius: 12px;
+  }
+
+  .modal-backdrop[data-theme='dark'] .user-info {
+    background: #0d1520;
   }
 
   .user-photo {
@@ -214,6 +260,14 @@
     font-family: monospace;
   }
 
+  .modal-backdrop[data-theme='dark'] .user-email {
+    color: #e1e8ed;
+  }
+
+  .modal-backdrop[data-theme='dark'] .user-id {
+    color: #8b9bb3;
+  }
+
   .form-group {
     margin-bottom: 1.5rem;
   }
@@ -225,18 +279,38 @@
     color: #333;
   }
 
-  .form-group input[type="text"] {
+  .modal-backdrop[data-theme='dark'] .form-group label {
+    color: #e1e8ed;
+  }
+
+  .form-group input[type="text"],
+  .form-group input[type="number"] {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid #ddd;
     border-radius: 8px;
     font-size: 1rem;
     transition: border-color 0.2s;
+    background: white;
+    color: #333;
   }
 
-  .form-group input[type="text"]:focus {
+  .form-group input[type="text"]:focus,
+  .form-group input[type="number"]:focus {
     outline: none;
     border-color: #007bff;
+  }
+
+  .modal-backdrop[data-theme='dark'] .form-group input[type="text"],
+  .modal-backdrop[data-theme='dark'] .form-group input[type="number"] {
+    background: #0d1520;
+    border-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .modal-backdrop[data-theme='dark'] .form-group input[type="text"]:focus,
+  .modal-backdrop[data-theme='dark'] .form-group input[type="number"]:focus {
+    border-color: #667eea;
   }
 
   .checkbox-group label {
@@ -267,6 +341,10 @@
     border-top: 1px solid #e0e0e0;
   }
 
+  .modal-backdrop[data-theme='dark'] .modal-footer {
+    border-top-color: #2d3748;
+  }
+
   .modal-footer button {
     flex: 1;
     padding: 0.75rem;
@@ -291,13 +369,22 @@
     background: #5a6268;
   }
 
+  .modal-backdrop[data-theme='dark'] .cancel-button {
+    background: #2d3748;
+  }
+
+  .modal-backdrop[data-theme='dark'] .cancel-button:hover:not(:disabled) {
+    background: #4a5568;
+  }
+
   .save-button {
-    background: #007bff;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
   }
 
   .save-button:hover:not(:disabled) {
-    background: #0056b3;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
   }
 
   /* Responsive */

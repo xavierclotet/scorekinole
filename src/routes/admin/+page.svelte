@@ -4,22 +4,34 @@
   import { t } from '$lib/stores/language';
   import { currentUser } from '$lib/firebase/auth';
   import { adminTheme } from '$lib/stores/adminTheme';
+  import { isSuperAdminUser } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
 
-  const adminSections = [
+  interface AdminSection {
+    title: string;
+    description: string;
+    icon: string;
+    path: string;
+    gradient: string;
+    superAdminOnly?: boolean;
+  }
+
+  const allAdminSections: AdminSection[] = [
     {
       title: 'userManagement',
       description: 'manageUsersDesc',
       icon: '👥',
       path: '/admin/users',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      superAdminOnly: true
     },
     {
       title: 'matchManagement',
       description: 'manageMatchesDesc',
       icon: '🎯',
       path: '/admin/matches',
-      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      superAdminOnly: true
     },
     {
       title: 'tournamentManagement',
@@ -29,6 +41,11 @@
       gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
     }
   ];
+
+  // Filter sections based on superAdmin status
+  $: adminSections = allAdminSections.filter(
+    section => !section.superAdminOnly || $isSuperAdminUser
+  );
 
   function navigateTo(path: string) {
     goto(path);

@@ -35,7 +35,7 @@
 	// Click outside to close
 	function handleClickOutside(event: MouseEvent) {
 		const target = event.target as HTMLElement;
-		if (isOpen && !target.closest('.quick-menu-container') && !target.closest('.user-button')) {
+		if (isOpen && !target.closest('.quick-menu-container') && !target.closest('.user-button') && !target.closest('.profile-btn')) {
 			closeMenu();
 		}
 	}

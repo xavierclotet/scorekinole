@@ -82,7 +82,7 @@
             <span class="total-points">({match.totalPointsA}pts)</span>
           {/if}
         {/if}
-        {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.total20sA !== undefined && match.total20sA > 0}
+        {#if match.total20sA !== undefined && match.total20sA > 0}
           <span class="twenties">🎯 {match.total20sA}</span>
         {/if}
       </div>
@@ -99,7 +99,7 @@
               <span class="total-points">({match.totalPointsB}pts)</span>
             {/if}
           {/if}
-          {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.total20sB !== undefined && match.total20sB > 0}
+          {#if match.total20sB !== undefined && match.total20sB > 0}
             <span class="twenties">🎯 {match.total20sB}</span>
           {/if}
         {:else}

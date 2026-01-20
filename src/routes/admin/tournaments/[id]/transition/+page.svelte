@@ -7,6 +7,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import QualifierSelection from '$lib/components/tournament/QualifierSelection.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
+  import { t } from '$lib/stores/language';
   import { getTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import {
@@ -102,7 +103,7 @@
         error = true;
       } else if (tournament.status !== 'TRANSITION') {
         // Redirect if not in transition
-        toastMessage = '⚠️ El torneo no está en fase de transición';
+        toastMessage = `⚠️ ${$t('tournamentNotInTransition')}`;
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       } else {
@@ -207,7 +208,7 @@
         const bracketSuccess = await generateBracket(tournamentId, bracketConfig);
 
         if (!bracketSuccess) {
-          toastMessage = '❌ Error al generar bracket';
+          toastMessage = `❌ ${$t('errorGeneratingBracket')}`;
           showToast = true;
           return;
         }
@@ -240,7 +241,7 @@
         });
 
         if (!bracketSuccess) {
-          toastMessage = '❌ Error al generar brackets Oro/Plata';
+          toastMessage = `❌ ${$t('errorGeneratingGoldSilverBrackets')}`;
           showToast = true;
           return;
         }
@@ -253,17 +254,17 @@
 
       if (success) {
         toastMessage = isSplitDivisions
-          ? '✅ Brackets Oro y Plata generados. Avanzando a fase final...'
-          : '✅ Bracket generado. Avanzando a fase final...';
+          ? `✅ ${$t('goldSilverBracketsGenerated')}`
+          : `✅ ${$t('bracketGeneratedAdvancing')}`;
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}/bracket`), 1500);
       } else {
-        toastMessage = '❌ Error al avanzar a fase final';
+        toastMessage = `❌ ${$t('errorAdvancingToFinalStage')}`;
         showToast = true;
       }
     } catch (err) {
       console.error('Error generating bracket:', err);
-      toastMessage = '❌ Error al generar bracket';
+      toastMessage = `❌ ${$t('errorGeneratingBracket')}`;
       showToast = true;
     } finally {
       isProcessing = false;
@@ -562,7 +563,7 @@
     <header class="page-header">
       <div class="header-top">
         <button class="back-button" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>
-          ← Volver al Torneo
+          ← {$t('backToTournament')}
         </button>
         <div class="theme-toggle-wrapper">
           <ThemeToggle />
@@ -573,7 +574,7 @@
         <div class="tournament-header">
           <div class="header-content">
             <h1>{tournament.name}</h1>
-            <p class="subtitle">Selección de Clasificados para Fase Final</p>
+            <p class="subtitle">{$t('qualifierSelectionTitle')}</p>
           </div>
         </div>
       {/if}
@@ -584,15 +585,15 @@
       {#if loading}
         <div class="loading-state">
           <div class="spinner"></div>
-          <p>Cargando fase de transición...</p>
+          <p>{$t('loadingTransition')}</p>
         </div>
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
-          <h3>Error al cargar</h3>
-          <p>No se pudo cargar la fase de transición del torneo.</p>
+          <h3>{$t('errorLoading')}</h3>
+          <p>{$t('couldNotLoadTransition')}</p>
           <button class="primary-button" on:click={() => goto('/admin/tournaments')}>
-            Volver a Torneos
+            {$t('backToTournaments')}
           </button>
         </div>
       {:else}
@@ -602,12 +603,12 @@
             <div class="step-header">
               <span class="step-number">1</span>
               <div>
-                <h2>Seleccionar Clasificados por Grupo</h2>
-                <p class="help-text">Total clasificados: <strong>{totalQualifiers}</strong> ({topNPerGroup} por grupo × {numGroups} grupos)</p>
+                <h2>{$t('selectQualifiersPerGroup')}</h2>
+                <p class="help-text">{$t('totalQualifiersCount')}: <strong>{totalQualifiers}</strong> ({topNPerGroup} {$t('perGroupLabel')} × {numGroups} {$t('groups')})</p>
               </div>
               <div class="top-n-control">
                 <label class="top-n-label">
-                  <span>Top</span>
+                  <span>{$t('topNLabel')}</span>
                   <input
                     type="number"
                     class="top-n-input"
@@ -615,7 +616,7 @@
                     min="1"
                     max="10"
                   />
-                  <span class="top-n-hint">por grupo</span>
+                  <span class="top-n-hint">{$t('perGroupLabel')}</span>
                 </label>
               </div>
             </div>
@@ -642,14 +643,14 @@
               <div class="step-header">
                 <span class="step-number">2</span>
                 <div>
-                  <h2>🥇🥈 Distribución Liga Oro / Liga Plata</h2>
+                  <h2>🥇🥈 {$t('goldSilverDistribution')}</h2>
                   <p class="help-text">
-                    Clasificados a Oro, resto a Plata. Cada liga debe tener potencia de 2 (2, 4, 8...).
+                    {$t('qualifiersToGoldRestToSilver')}
                   </p>
                 </div>
                 {#if userManuallyEdited}
-                  <button class="auto-distribute-btn" on:click={autoDistributeParticipants} title="Restaurar distribución automática con seeding cruzado">
-                    🔀 Restaurar auto
+                  <button class="auto-distribute-btn" on:click={autoDistributeParticipants} title="{$t('restoreAuto')}">
+                    🔀 {$t('restoreAuto')}
                   </button>
                 {/if}
               </div>
@@ -660,7 +661,7 @@
               <!-- Gold bracket participants -->
               <div class="bracket-card gold">
                 <div class="bracket-header">
-                  <h4>🥇 Liga Oro ({goldCount})</h4>
+                  <h4>🥇 {$t('goldLeague')} ({goldCount})</h4>
                   <span class="validity-badge" class:valid={isValidGoldSize} class:invalid={!isValidGoldSize && goldCount > 0}>
                     {#if isValidGoldSize && goldCount > 0}✅{:else if goldCount > 0}❌{/if}
                   </span>
@@ -673,11 +674,11 @@
                     {@const p = getAllParticipantsFromGroups().find(x => x.id === participantId)}
                     <div class="participant-row gold">
                       <span class="seed-badge">{index + 1}</span>
-                      <span class="name">{p?.name || 'Desconocido'}</span>
+                      <span class="name">{p?.name || $t('unknown')}</span>
                       <span class="position-tag">{p?.position || '?'}{p?.groupName?.charAt(p.groupName.length - 1) || '?'}</span>
                     </div>
                   {:else}
-                    <p class="empty-message">Sin participantes</p>
+                    <p class="empty-message">{$t('noParticipants')}</p>
                   {/each}
                 </div>
               </div>
@@ -685,7 +686,7 @@
               <!-- Silver bracket participants -->
               <div class="bracket-card silver">
                 <div class="bracket-header">
-                  <h4>🥈 Liga Plata ({silverCount})</h4>
+                  <h4>🥈 {$t('silverLeague')} ({silverCount})</h4>
                   <span class="validity-badge" class:valid={isValidSilverSize} class:invalid={!isValidSilverSize && silverCount > 0}>
                     {#if isValidSilverSize && silverCount > 0}✅{:else if silverCount > 0}❌{/if}
                   </span>
@@ -698,11 +699,11 @@
                     {@const p = getAllParticipantsFromGroups().find(x => x.id === participantId)}
                     <div class="participant-row silver">
                       <span class="seed-badge">{index + 1} </span>
-                      <span class="name">{p?.name || 'Desconocido'}</span>
+                      <span class="name">{p?.name || $t('unknown')}</span>
                       <span class="position-tag">{p?.position || '?'}{p?.groupName?.charAt(p.groupName.length - 1) || '?'}</span>
                     </div>
                   {:else}
-                    <p class="empty-message">Sin participantes</p>
+                    <p class="empty-message">{$t('noParticipants')}</p>
                   {/each}
                 </div>
               </div>
@@ -712,12 +713,12 @@
             <!-- Validation messages -->
             {#if !isValidGoldSize && goldCount > 0}
               <div class="validation-error">
-                ⚠️ Liga Oro: El número de participantes ({goldCount}) debe ser potencia de 2 (2, 4, 8, 16).
+                ⚠️ {$t('goldLeagueMustBePowerOf2').replace('{n}', String(goldCount))}
               </div>
             {/if}
             {#if !isValidSilverSize && silverCount > 0}
               <div class="validation-error">
-                ⚠️ Liga Plata: El número de participantes ({silverCount}) debe ser potencia de 2 (2, 4, 8, 16).
+                ⚠️ {$t('silverLeagueMustBePowerOf2').replace('{n}', String(silverCount))}
               </div>
             {/if}
           </div>
@@ -730,40 +731,40 @@
           <div class="step-header">
             <span class="step-number">3</span>
             <div>
-              <h2>Configuración de Partidos</h2>
-              <p class="help-text">Configura el formato de los partidos para cada liga.</p>
+              <h2>{$t('matchConfiguration')}</h2>
+              <p class="help-text">{$t('configureMatchFormat')}</p>
             </div>
           </div>
 
           <div class="dual-config-section">
             <!-- Gold bracket config -->
             <div class="bracket-config gold">
-              <h3>🥇 Liga Oro</h3>
+              <h3>🥇 {$t('goldLeague')}</h3>
               <div class="config-grid">
                 <div class="config-field">
-                  <label for="goldGameMode">Modo de juego:</label>
+                  <label for="goldGameMode">{$t('gameModeLabel')}</label>
                   <select id="goldGameMode" bind:value={finalGameMode} class="select-input">
-                    <option value="points">Por puntos</option>
-                    <option value="rounds">Por rondas</option>
+                    <option value="points">{$t('byPointsOption')}</option>
+                    <option value="rounds">{$t('byRoundsOption')}</option>
                   </select>
                 </div>
                 {#if finalGameMode === 'points'}
                   <div class="config-field">
-                    <label for="goldPointsToWin">Puntos para ganar:</label>
+                    <label for="goldPointsToWin">{$t('pointsToWinLabel')}</label>
                     <input id="goldPointsToWin" type="number" bind:value={finalPointsToWin} min="1" max="15" class="number-input" />
                   </div>
                 {:else}
                   <div class="config-field">
-                    <label for="goldRoundsToPlay">Rondas a jugar:</label>
+                    <label for="goldRoundsToPlay">{$t('roundsToPlayLabel')}</label>
                     <input id="goldRoundsToPlay" type="number" bind:value={finalRoundsToPlay} min="1" max="12" class="number-input" />
                   </div>
                 {/if}
                 <div class="config-field">
-                  <label for="goldMatchesToWin">Best of:</label>
+                  <label for="goldMatchesToWin">{$t('bestOfLabel')}</label>
                   <select id="goldMatchesToWin" bind:value={finalMatchesToWin} class="select-input">
-                    <option value={1}>1 (sin revancha)</option>
-                    <option value={3}>3 (gana a 2)</option>
-                    <option value={5}>5 (gana a 3)</option>
+                    <option value={1}>1 ({$t('noRematch')})</option>
+                    <option value={3}>3 ({$t('winsToN')} 2)</option>
+                    <option value={5}>5 ({$t('winsToN')} 3)</option>
                   </select>
                 </div>
               </div>
@@ -771,32 +772,32 @@
 
             <!-- Silver bracket config -->
             <div class="bracket-config silver">
-              <h3>🥈 Liga Plata</h3>
+              <h3>🥈 {$t('silverLeague')}</h3>
               <div class="config-grid">
                 <div class="config-field">
-                  <label for="silverGameMode">Modo de juego:</label>
+                  <label for="silverGameMode">{$t('gameModeLabel')}</label>
                   <select id="silverGameMode" bind:value={silverGameMode} class="select-input">
-                    <option value="points">Por puntos</option>
-                    <option value="rounds">Por rondas</option>
+                    <option value="points">{$t('byPointsOption')}</option>
+                    <option value="rounds">{$t('byRoundsOption')}</option>
                   </select>
                 </div>
                 {#if silverGameMode === 'points'}
                   <div class="config-field">
-                    <label for="silverPointsToWin">Puntos para ganar:</label>
+                    <label for="silverPointsToWin">{$t('pointsToWinLabel')}</label>
                     <input id="silverPointsToWin" type="number" bind:value={silverPointsToWin} min="1" max="15" class="number-input" />
                   </div>
                 {:else}
                   <div class="config-field">
-                    <label for="silverRoundsToPlay">Rondas a jugar:</label>
+                    <label for="silverRoundsToPlay">{$t('roundsToPlayLabel')}</label>
                     <input id="silverRoundsToPlay" type="number" bind:value={silverRoundsToPlay} min="1" max="12" class="number-input" />
                   </div>
                 {/if}
                 <div class="config-field">
-                  <label for="silverMatchesToWin">Best of:</label>
+                  <label for="silverMatchesToWin">{$t('bestOfLabel')}</label>
                   <select id="silverMatchesToWin" bind:value={silverMatchesToWin} class="select-input">
-                    <option value={1}>1 (sin revancha)</option>
-                    <option value={3}>3 (gana a 2)</option>
-                    <option value={5}>5 (gana a 3)</option>
+                    <option value={1}>1 ({$t('noRematch')})</option>
+                    <option value={3}>3 ({$t('winsToN')} 2)</option>
+                    <option value={5}>5 ({$t('winsToN')} 3)</option>
                   </select>
                 </div>
               </div>
@@ -811,24 +812,24 @@
           <!-- Final stage configuration -->
           <div class="config-section">
             <div class="config-card">
-              <h3>🏆 Configuración de Fase Final (Eliminación)</h3>
+              <h3>🏆 {$t('finalStageConfigTitle')}</h3>
               <p class="help-text" style="margin-bottom: 1.5rem; color: #6b7280;">
-                Configura los valores por defecto (podrás ajustarlos más adelante según la ronda: semifinales, final, etc).
+                {$t('defaultConfigHint')}
               </p>
               <div class="config-grid">
                 <!-- Game mode -->
                 <div class="config-field">
-                  <label for="gameMode">Modo de juego:</label>
+                  <label for="gameMode">{$t('gameModeLabel')}</label>
                   <select id="gameMode" bind:value={finalGameMode} class="select-input">
-                    <option value="points">Por puntos</option>
-                    <option value="rounds">Por rondas</option>
+                    <option value="points">{$t('byPointsOption')}</option>
+                    <option value="rounds">{$t('byRoundsOption')}</option>
                   </select>
                 </div>
 
                 <!-- Points to win / Rounds to play -->
                 {#if finalGameMode === 'points'}
                   <div class="config-field">
-                    <label for="pointsToWin">Puntos para ganar:</label>
+                    <label for="pointsToWin">{$t('pointsToWinLabel')}</label>
                     <input
                       id="pointsToWin"
                       type="number"
@@ -840,7 +841,7 @@
                   </div>
                 {:else}
                   <div class="config-field">
-                    <label for="roundsToPlay">Rondas a jugar:</label>
+                    <label for="roundsToPlay">{$t('roundsToPlayLabel')}</label>
                     <input
                       id="roundsToPlay"
                       type="number"
@@ -854,12 +855,12 @@
 
                 <!-- Matches to win -->
                 <div class="config-field">
-                  <label for="matchesToWin">Best of:</label>
+                  <label for="matchesToWin">{$t('bestOfLabel')}</label>
                   <select id="matchesToWin" bind:value={finalMatchesToWin} class="select-input">
-                    <option value={1}>1 (sin revancha)</option>
-                    <option value={3}>3 (gana a 2)</option>
-                    <option value={5}>5 (gana a 3)</option>
-                    <option value={7}>7 (gana a 4)</option>
+                    <option value={1}>1 ({$t('noRematch')})</option>
+                    <option value={3}>3 ({$t('winsToN')} 2)</option>
+                    <option value={5}>5 ({$t('winsToN')} 3)</option>
+                    <option value={7}>7 ({$t('winsToN')} 4)</option>
                   </select>
                 </div>
               </div>
@@ -869,10 +870,10 @@
           <!-- Qualifier selections per group -->
           <div class="groups-section">
             <div class="groups-header">
-              <h2>Seleccionar Clasificados por Grupo</h2>
+              <h2>{$t('selectQualifiersPerGroup')}</h2>
               <div class="top-n-control">
                 <label class="top-n-label">
-                  <span>Top</span>
+                  <span>{$t('topNLabel')}</span>
                   <input
                     type="number"
                     class="top-n-input"
@@ -880,7 +881,7 @@
                     min="1"
                     max="10"
                   />
-                  <span class="top-n-hint">por grupo</span>
+                  <span class="top-n-hint">{$t('perGroupLabel')}</span>
                 </label>
               </div>
             </div>
@@ -901,20 +902,20 @@
           <!-- Summary and validation -->
           <div class="summary-section">
             <div class="summary-card">
-              <h3>Resumen</h3>
+              <h3>{$t('summaryTitle')}</h3>
               <div class="summary-stats">
                 <div class="stat-item">
-                  <span class="stat-label">Total participantes:</span>
+                  <span class="stat-label">{$t('totalParticipantsLabel')}</span>
                   <span class="stat-value">{tournament.participants.length}</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-label">Sugerido para bracket:</span>
+                  <span class="stat-label">{$t('suggestedForBracket')}</span>
                   <span class="stat-value suggestion">
-                    {suggestedQualifiers.total} clasificados ({suggestedQualifiers.perGroup} por grupo)
+                    {suggestedQualifiers.total} {$t('qualifiersWithPerGroup').replace('{perGroup}', String(suggestedQualifiers.perGroup))}
                   </span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-label">Total clasificados:</span>
+                  <span class="stat-label">{$t('totalQualifiersLabel')}</span>
                   <span class="stat-value" class:valid={isValidSize} class:invalid={!isValidSize && totalQualifiers > 0}>
                     {totalQualifiers}
                     {#if isValidSize}
@@ -925,20 +926,20 @@
                   </span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-label">Tamaño del bracket:</span>
+                  <span class="stat-label">{$t('bracketSizeLabel')}</span>
                   <span class="stat-value" class:valid={isValidSize} class:invalid={!isValidSize && totalQualifiers > 0}>
                     {#if isValidSize}
-                      ✅ {totalQualifiers} participantes
+                      ✅ {totalQualifiers} {$t('participants')}
                     {:else if totalQualifiers > 0}
-                      ❌ Debe ser potencia de 2 (2, 4, 8, 16, 32)
+                      ❌ {$t('mustBePowerOf2Full')}
                     {:else}
-                      Selecciona clasificados
+                      {$t('selectQualifiersHint')}
                     {/if}
                   </span>
                 </div>
                 {#if isValidSize && totalQualifiers > 0}
                   <div class="stat-item">
-                    <span class="stat-label">Rondas del bracket:</span>
+                    <span class="stat-label">{$t('bracketRoundsLabel')}</span>
                     <span class="stat-value">{bracketRoundNames.join(' → ')}</span>
                   </div>
                 {/if}
@@ -946,9 +947,9 @@
 
               {#if !isValidSize && totalQualifiers > 0}
                 <div class="validation-error">
-                  ⚠️ El número de clasificados debe ser una potencia de 2 para generar el bracket.
+                  ⚠️ {$t('qualifiersMustBePowerOf2')}
                   <br />
-                  Selecciona 2, 4, 8, 16 o 32 participantes.
+                  {$t('mustBePowerOf2Full')}
                 </div>
               {/if}
             </div>
@@ -963,11 +964,11 @@
             disabled={isProcessing || !canProceed}
           >
             {#if isProcessing}
-              ⏳ Generando bracket...
+              ⏳ {$t('generatingBracket')}
             {:else if isSplitDivisions}
-              🏆 Generar Brackets Oro/Plata y Avanzar
+              🏆 {$t('generateGoldSilverBrackets')}
             {:else}
-              🏆 Generar Bracket y Avanzar
+              🏆 {$t('generateBracketAndAdvance')}
             {/if}
           </button>
         </div>

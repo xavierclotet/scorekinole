@@ -11,6 +11,7 @@
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import type { Tournament } from '$lib/types/tournament';
   import Toast from '$lib/components/Toast.svelte';
+  import { t } from '$lib/stores/language';
 
   let tournament: Tournament | null = null;
   let loading = true;
@@ -62,12 +63,12 @@
 
   function getStatusText(status: string): string {
     const statusMap: Record<string, string> = {
-      DRAFT: 'Borrador',
-      GROUP_STAGE: 'Fase de Grupos',
-      TRANSITION: 'Transición',
-      FINAL_STAGE: 'Fase Final',
-      COMPLETED: 'Completado',
-      CANCELLED: 'Cancelado'
+      DRAFT: $t('draft'),
+      GROUP_STAGE: $t('groupStage'),
+      TRANSITION: $t('transition'),
+      FINAL_STAGE: $t('finalStage'),
+      COMPLETED: $t('completed'),
+      CANCELLED: $t('cancelled')
     };
     return statusMap[status] || status;
   }
@@ -89,7 +90,7 @@
 
     // Validation: minimum 2 participants
     if (tournament.participants.length < 2) {
-      toastMessage = '❌ Se requieren al menos 2 participantes para iniciar el torneo';
+      toastMessage = `❌ ${$t('minParticipantsRequired')}`;
       showToast = true;
       return;
     }
@@ -114,16 +115,16 @@
       const success = await transitionTournament(tournamentId, nextStatus);
 
       if (success) {
-        toastMessage = '✅ Torneo iniciado correctamente';
+        toastMessage = `✅ ${$t('tournamentStarted')}`;
         showToast = true;
         await loadTournament();
       } else {
-        toastMessage = '❌ Error al iniciar el torneo. Verifica la configuración.';
+        toastMessage = `❌ ${$t('errorStartingTournament')}`;
         showToast = true;
       }
     } catch (err) {
       console.error('Error starting tournament:', err);
-      toastMessage = '❌ Error al iniciar el torneo';
+      toastMessage = `❌ ${$t('errorStartingTournament')}`;
       showToast = true;
     } finally {
       isStarting = false;
@@ -144,11 +145,11 @@
     const success = await cancelTournamentFirebase(tournamentId);
 
     if (success) {
-      toastMessage = '✅ Torneo cancelado correctamente';
+      toastMessage = `✅ ${$t('tournamentCancelled')}`;
       showToast = true;
       await loadTournament();
     } else {
-      toastMessage = '❌ Error al cancelar el torneo';
+      toastMessage = `❌ ${$t('errorCancellingTournament')}`;
       showToast = true;
     }
 
@@ -189,7 +190,7 @@
     // Validate minimum tables
     const minTables = getMinTables();
     if (editNumTables < minTables) {
-      toastMessage = `❌ Se necesitan mínimo ${minTables} mesas para ${tournament.participants.length} participantes`;
+      toastMessage = `❌ ${$t('minTablesRequired').replace('{min}', String(minTables)).replace('{participants}', String(tournament.participants.length))}`;
       showToast = true;
       return;
     }
@@ -212,17 +213,17 @@
       const success = await updateTournament(tournamentId, updates);
 
       if (success) {
-        toastMessage = '✅ Configuración actualizada';
+        toastMessage = `✅ ${$t('configurationUpdated')}`;
         showToast = true;
         closeQuickEdit();
         await loadTournament();
       } else {
-        toastMessage = '❌ Error al guardar los cambios';
+        toastMessage = `❌ ${$t('errorSavingChanges')}`;
         showToast = true;
       }
     } catch (err) {
       console.error('Error saving quick edit:', err);
-      toastMessage = '❌ Error al guardar los cambios';
+      toastMessage = `❌ ${$t('errorSavingChanges')}`;
       showToast = true;
     } finally {
       isSavingQuickEdit = false;
@@ -239,7 +240,7 @@
     <header class="page-header">
       <div class="header-top">
         <button class="back-button" on:click={() => goto('/admin/tournaments')}>
-          ← Volver a Torneos
+          ← {$t('backToTournaments')}
         </button>
         <div class="theme-toggle-wrapper">
           <ThemeToggle />
@@ -264,7 +265,9 @@
             <div class="tournament-meta">
             
 
-               <TournamentKeyBadge tournamentKey={tournament.key} />
+               {#if tournament.status !== 'COMPLETED' && tournament.status !== 'CANCELLED'}
+                 <TournamentKeyBadge tournamentKey={tournament.key} />
+               {/if}
             </div>
           </div>
           <div class="header-right">
@@ -274,34 +277,34 @@
             <div class="header-actions">
               {#if tournament.status === 'DRAFT'}
                 <button class="header-action-btn start" on:click={confirmStart} disabled={isStarting}>
-                  {isStarting ? '⏳ Iniciando...' : '🚀 Iniciar'}
+                  {isStarting ? `⏳ ${$t('starting')}...` : `🚀 ${$t('start')}`}
                 </button>
                 <button class="header-action-btn edit" on:click={() => goto(`/admin/tournaments/create?edit=${tournamentId}`)}>
-                  ✏️ Editar
+                  ✏️ {$t('edit')}
                 </button>
                 <button class="header-action-btn danger" on:click={confirmCancel}>
-                  🗑️ Cancelar
+                  🗑️ {$t('cancel')}
                 </button>
               {:else if tournament.status === 'GROUP_STAGE'}
                 <button class="header-action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/groups`)}>
-                  📊 Ver Fase de Grupos
+                  📊 {$t('viewGroupStage')}
                 </button>
                 <button class="header-action-btn edit" on:click={openQuickEdit}>
-                  ⚙️ Ajustes
+                  ⚙️ {$t('settings')}
                 </button>
               {:else if tournament.status === 'TRANSITION'}
                 <button class="header-action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/transition`)}>
-                  ⚡ Seleccionar Clasificados
+                  ⚡ {$t('selectQualified')}
                 </button>
                 <button class="header-action-btn edit" on:click={openQuickEdit}>
-                  ⚙️ Ajustes
+                  ⚙️ {$t('settings')}
                 </button>
               {:else if tournament.status === 'FINAL_STAGE'}
                 <button class="header-action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/bracket`)}>
-                  🏆 Ver Bracket
+                  🏆 {$t('viewBracket')}
                 </button>
                 <button class="header-action-btn edit" on:click={openQuickEdit}>
-                  ⚙️ Ajustes
+                  ⚙️ {$t('settings')}
                 </button>
               {/if}
             </div>
@@ -315,15 +318,15 @@
       {#if loading}
         <div class="loading-state">
           <div class="spinner"></div>
-          <p>Cargando torneo...</p>
+          <p>{$t('loadingTournament')}</p>
         </div>
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
-          <h3>Torneo no encontrado</h3>
-          <p>No se pudo cargar el torneo. Es posible que no exista o no tengas permisos.</p>
+          <h3>{$t('tournamentNotFound')}</h3>
+          <p>{$t('couldNotLoadTournament')}</p>
           <button class="primary-button" on:click={() => goto('/admin/tournaments')}>
-            Volver a Torneos
+            {$t('backToTournaments')}
           </button>
         </div>
       {:else}
@@ -332,53 +335,53 @@
           <!-- Completed Tournament Results Section (at the top) -->
           {#if tournament.status === 'COMPLETED'}
             <section class="dashboard-card results-card">
-              <h2>📋 Resultados del Torneo</h2>
+              <h2>📋 {$t('tournamentResults')}</h2>
               <CompletedTournamentView {tournament} />
             </section>
           {/if}
 
           <!-- General Configuration Section -->
           <section class="dashboard-card">
-            <h2>Configuración General</h2>
+            <h2>{$t('generalConfiguration')}</h2>
             <div class="config-list">
               <div class="config-item">
-                <span class="config-label">Formato:</span>
+                <span class="config-label">{$t('format')}:</span>
                 <span class="config-value">
-                  {tournament.phaseType === 'ONE_PHASE' ? '1 Fase (Fase Final)' : '2 Fases (Grupos + Final)'}
+                  {tournament.phaseType === 'ONE_PHASE' ? $t('onePhaseFormat') : $t('twoPhaseFormat')}
                 </span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">🎮 Modalidad:</span>
+                <span class="config-label">🎮 {$t('modality')}:</span>
                 <span class="config-value">
-                  {tournament.gameType === 'singles' ? 'Singles' : 'Dobles'}
+                  {tournament.gameType === 'singles' ? $t('singles') : $t('doubles')}
                 </span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">🪑 Mesas Disponibles:</span>
+                <span class="config-label">🪑 {$t('availableTables')}:</span>
                 <span class="config-value">{tournament.numTables}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">🎯 Contar 20s:</span>
-                <span class="config-value">{tournament.show20s ? '✅ Sí' : '❌ No'}</span>
+                <span class="config-label">🎯 {$t('track20s')}:</span>
+                <span class="config-value">{tournament.show20s ? `✅ ${$t('yes')}` : `❌ ${$t('no')}`}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">🔨 Mostrar Hammer:</span>
-                <span class="config-value">{tournament.showHammer ? '✅ Sí' : '❌ No'}</span>
+                <span class="config-label">🔨 {$t('showHammer')}:</span>
+                <span class="config-value">{tournament.showHammer ? `✅ ${$t('yes')}` : `❌ ${$t('no')}`}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">📊 Sistema Ranking:</span>
+                <span class="config-label">📊 {$t('rankingSystem')}:</span>
                 <span class="config-value">
                   {#if tournament.rankingConfig?.enabled}
-                    ✅ {tournament.rankingConfig.tier === 'MAJOR' ? 'Major (Tier 1)' :
-                        tournament.rankingConfig.tier === 'NATIONAL' ? 'Nacional (Tier 2)' :
-                        tournament.rankingConfig.tier === 'REGIONAL' ? 'Regional (Tier 3)' : 'Club (Tier 4)'}
+                    ✅ {tournament.rankingConfig.tier === 'MAJOR' ? `${$t('tierMajor')} (Tier 1)` :
+                        tournament.rankingConfig.tier === 'NATIONAL' ? `${$t('tierNational')} (Tier 2)` :
+                        tournament.rankingConfig.tier === 'REGIONAL' ? `${$t('tierRegional')} (Tier 3)` : `${$t('tierClub')} (Tier 4)`}
                   {:else}
-                    ❌ Desactivado
+                    ❌ {$t('disabled')}
                   {/if}
                 </span>
               </div>
@@ -388,38 +391,38 @@
           <!-- Group Stage Configuration (only for TWO_PHASE) -->
           {#if tournament.phaseType === 'TWO_PHASE' && tournament.groupStage}
             <section class="dashboard-card">
-              <h2>⚔️ Fase de Grupos</h2>
+              <h2>⚔️ {$t('groupStage')}</h2>
               <div class="config-list">
                 <div class="config-item">
-                  <span class="config-label">Sistema:</span>
+                  <span class="config-label">{$t('system')}:</span>
                   <span class="config-value">
-                    {tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : 'Sistema Suizo'}
+                    {tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : $t('swissSystem')}
                   </span>
                 </div>
 
                 {#if tournament.groupStage.type === 'ROUND_ROBIN' && tournament.groupStage.numGroups}
                   <div class="config-item">
-                    <span class="config-label">Número de Grupos:</span>
+                    <span class="config-label">{$t('numberOfGroups')}:</span>
                     <span class="config-value">{tournament.groupStage.numGroups}</span>
                   </div>
                 {:else if tournament.groupStage.type === 'SWISS' && tournament.groupStage.numSwissRounds}
                   <div class="config-item">
-                    <span class="config-label">Rondas Suizas:</span>
+                    <span class="config-label">{$t('swissRounds')}:</span>
                     <span class="config-value">{tournament.groupStage.numSwissRounds}</span>
                   </div>
                 {/if}
 
                 <div class="config-item">
-                  <span class="config-label">Modo de Juego:</span>
+                  <span class="config-label">{$t('gameMode')}:</span>
                   <span class="config-value">
                     {tournament.groupStage.gameMode === 'points'
-                      ? `Por Puntos (${tournament.groupStage.pointsToWin})`
-                      : `Por Rondas (${tournament.groupStage.roundsToPlay})`}
+                      ? `${$t('byPoints')} (${tournament.groupStage.pointsToWin})`
+                      : `${$t('byRounds')} (${tournament.groupStage.roundsToPlay})`}
                   </span>
                 </div>
 
                 <div class="config-item">
-                  <span class="config-label">Partidos a Ganar:</span>
+                  <span class="config-label">{$t('matchesToWinLabel')}:</span>
                   <span class="config-value">Best of {tournament.groupStage.matchesToWin}</span>
                 </div>
               </div>
@@ -428,17 +431,17 @@
 
           <!-- Final Stage Configuration -->
           <section class="dashboard-card final-stage-card">
-            <h2>🏆 Fase Final</h2>
+            <h2>🏆 {$t('finalStage')}</h2>
 
             {#if tournament.phaseType === 'TWO_PHASE' && tournament.finalStageConfig}
               <!-- TWO_PHASE: Show finalStageConfig -->
               <div class="config-list">
                 <div class="config-item highlight">
-                  <span class="config-label">Estructura:</span>
+                  <span class="config-label">{$t('structure')}:</span>
                   <span class="config-value">
                     {tournament.finalStageConfig.mode === 'SPLIT_DIVISIONS'
-                      ? '🥇🥈 Divisiones Oro / Plata'
-                      : '🎯 Bracket Único'}
+                      ? `🥇🥈 ${$t('goldSilverDivisions')}`
+                      : `🎯 ${$t('singleBracket')}`}
                   </span>
                 </div>
               </div>
@@ -447,36 +450,36 @@
                 <!-- Split Divisions: Gold and Silver brackets -->
                 <div class="bracket-configs">
                   <div class="bracket-config gold">
-                    <h3>🥇 Bracket Oro</h3>
+                    <h3>🥇 {$t('goldBracket')}</h3>
                     <div class="config-list">
                       <div class="config-item">
-                        <span class="config-label">Modo de Juego:</span>
+                        <span class="config-label">{$t('gameMode')}:</span>
                         <span class="config-value">
                           {tournament.finalStageConfig.gameMode === 'points'
-                            ? `Por Puntos (${tournament.finalStageConfig.pointsToWin})`
-                            : `Por Rondas (${tournament.finalStageConfig.roundsToPlay})`}
+                            ? `${$t('byPoints')} (${tournament.finalStageConfig.pointsToWin})`
+                            : `${$t('byRounds')} (${tournament.finalStageConfig.roundsToPlay})`}
                         </span>
                       </div>
                       <div class="config-item">
-                        <span class="config-label">Partidos a Ganar:</span>
+                        <span class="config-label">{$t('matchesToWinLabel')}:</span>
                         <span class="config-value">Best of {tournament.finalStageConfig.matchesToWin}</span>
                       </div>
                     </div>
                   </div>
 
                   <div class="bracket-config silver">
-                    <h3>🥈 Bracket Plata</h3>
+                    <h3>🥈 {$t('silverBracket')}</h3>
                     <div class="config-list">
                       <div class="config-item">
-                        <span class="config-label">Modo de Juego:</span>
+                        <span class="config-label">{$t('gameMode')}:</span>
                         <span class="config-value">
                           {tournament.finalStageConfig.silverGameMode === 'points'
-                            ? `Por Puntos (${tournament.finalStageConfig.silverPointsToWin})`
-                            : `Por Rondas (${tournament.finalStageConfig.silverRoundsToPlay})`}
+                            ? `${$t('byPoints')} (${tournament.finalStageConfig.silverPointsToWin})`
+                            : `${$t('byRounds')} (${tournament.finalStageConfig.silverRoundsToPlay})`}
                         </span>
                       </div>
                       <div class="config-item">
-                        <span class="config-label">Partidos a Ganar:</span>
+                        <span class="config-label">{$t('matchesToWinLabel')}:</span>
                         <span class="config-value">Best of {tournament.finalStageConfig.silverMatchesToWin}</span>
                       </div>
                     </div>
@@ -486,15 +489,15 @@
                 <!-- Single Bracket -->
                 <div class="config-list">
                   <div class="config-item">
-                    <span class="config-label">Modo de Juego:</span>
+                    <span class="config-label">{$t('gameMode')}:</span>
                     <span class="config-value">
                       {tournament.finalStageConfig.gameMode === 'points'
-                        ? `Por Puntos (${tournament.finalStageConfig.pointsToWin})`
-                        : `Por Rondas (${tournament.finalStageConfig.roundsToPlay})`}
+                        ? `${$t('byPoints')} (${tournament.finalStageConfig.pointsToWin})`
+                        : `${$t('byRounds')} (${tournament.finalStageConfig.roundsToPlay})`}
                     </span>
                   </div>
                   <div class="config-item">
-                    <span class="config-label">Partidos a Ganar:</span>
+                    <span class="config-label">{$t('matchesToWinLabel')}:</span>
                     <span class="config-value">Best of {tournament.finalStageConfig.matchesToWin}</span>
                   </div>
                 </div>
@@ -504,11 +507,11 @@
               <!-- ONE_PHASE or active final stage: Show finalStage data -->
               <div class="config-list">
                 <div class="config-item highlight">
-                  <span class="config-label">Estructura:</span>
+                  <span class="config-label">{$t('structure')}:</span>
                   <span class="config-value">
                     {tournament.finalStage.mode === 'SPLIT_DIVISIONS'
-                      ? '🥇🥈 Divisiones Oro / Plata'
-                      : '🎯 Bracket Único'}
+                      ? `🥇🥈 ${$t('goldSilverDivisions')}`
+                      : `🎯 ${$t('singleBracket')}`}
                   </span>
                 </div>
               </div>
@@ -517,36 +520,36 @@
                 <!-- Split Divisions: Gold and Silver brackets -->
                 <div class="bracket-configs">
                   <div class="bracket-config gold">
-                    <h3>🥇 Bracket Oro</h3>
+                    <h3>🥇 {$t('goldBracket')}</h3>
                     <div class="config-list">
                       <div class="config-item">
-                        <span class="config-label">Modo de Juego:</span>
+                        <span class="config-label">{$t('gameMode')}:</span>
                         <span class="config-value">
                           {tournament.finalStage.gameMode === 'points'
-                            ? `Por Puntos (${tournament.finalStage.pointsToWin})`
-                            : `Por Rondas (${tournament.finalStage.roundsToPlay})`}
+                            ? `${$t('byPoints')} (${tournament.finalStage.pointsToWin})`
+                            : `${$t('byRounds')} (${tournament.finalStage.roundsToPlay})`}
                         </span>
                       </div>
                       <div class="config-item">
-                        <span class="config-label">Partidos a Ganar:</span>
+                        <span class="config-label">{$t('matchesToWinLabel')}:</span>
                         <span class="config-value">Best of {tournament.finalStage.matchesToWin}</span>
                       </div>
                     </div>
                   </div>
 
                   <div class="bracket-config silver">
-                    <h3>🥈 Bracket Plata</h3>
+                    <h3>🥈 {$t('silverBracket')}</h3>
                     <div class="config-list">
                       <div class="config-item">
-                        <span class="config-label">Modo de Juego:</span>
+                        <span class="config-label">{$t('gameMode')}:</span>
                         <span class="config-value">
                           {tournament.finalStage.silverGameMode === 'points'
-                            ? `Por Puntos (${tournament.finalStage.silverPointsToWin})`
-                            : `Por Rondas (${tournament.finalStage.silverRoundsToPlay})`}
+                            ? `${$t('byPoints')} (${tournament.finalStage.silverPointsToWin})`
+                            : `${$t('byRounds')} (${tournament.finalStage.silverRoundsToPlay})`}
                         </span>
                       </div>
                       <div class="config-item">
-                        <span class="config-label">Partidos a Ganar:</span>
+                        <span class="config-label">{$t('matchesToWinLabel')}:</span>
                         <span class="config-value">Best of {tournament.finalStage.silverMatchesToWin}</span>
                       </div>
                     </div>
@@ -556,15 +559,15 @@
                 <!-- Single Bracket -->
                 <div class="config-list">
                   <div class="config-item">
-                    <span class="config-label">Modo de Juego:</span>
+                    <span class="config-label">{$t('gameMode')}:</span>
                     <span class="config-value">
                       {tournament.finalStage.gameMode === 'points'
-                        ? `Por Puntos (${tournament.finalStage.pointsToWin || 7})`
-                        : `Por Rondas (${tournament.finalStage.roundsToPlay || 4})`}
+                        ? `${$t('byPoints')} (${tournament.finalStage.pointsToWin || 7})`
+                        : `${$t('byRounds')} (${tournament.finalStage.roundsToPlay || 4})`}
                     </span>
                   </div>
                   <div class="config-item">
-                    <span class="config-label">Partidos a Ganar:</span>
+                    <span class="config-label">{$t('matchesToWinLabel')}:</span>
                     <span class="config-value">Best of {tournament.finalStage.matchesToWin || 1}</span>
                   </div>
                 </div>
@@ -573,8 +576,8 @@
             {:else}
               <div class="config-list">
                 <div class="config-item">
-                  <span class="config-label">Estado:</span>
-                  <span class="config-value">Pendiente de configurar</span>
+                  <span class="config-label">{$t('status')}:</span>
+                  <span class="config-value">{$t('pendingConfiguration')}</span>
                 </div>
               </div>
             {/if}
@@ -589,27 +592,27 @@
   {#if showStartConfirm && tournament}
     <div class="modal-backdrop" data-theme={$adminTheme} on:click={closeStartModal} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeStartModal()}>
       <div class="confirm-modal" on:click|stopPropagation role="dialog" aria-modal="true">
-        <h2>🚀 Iniciar Torneo</h2>
-        <p>¿Estás listo para iniciar el torneo?</p>
+        <h2>🚀 {$t('startTournament')}</h2>
+        <p>{$t('readyToStartTournament')}</p>
         <div class="tournament-info">
           <strong>{tournament.edition ? `${tournament.edition}º ` : ''}{tournament.name}</strong>
           <br />
-          <span>{tournament.participants.length} participantes</span>
+          <span>{tournament.participants.length} {$t('participants')}</span>
           <br />
           <span>
             {tournament.phaseType === 'TWO_PHASE' && tournament.groupStage
-              ? `Fase de Grupos: ${tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : 'Suizo'}`
-              : 'Eliminación Directa'}
+              ? `${$t('groupStage')}: ${tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : $t('swissSystem')}`
+              : $t('directElimination')}
           </span>
         </div>
         <p class="info-text">
           {tournament.phaseType === 'TWO_PHASE'
-            ? 'Se generará el calendario de la fase de grupos.'
-            : 'Se generará el bracket de eliminación directa con los participantes registrados.'}
+            ? $t('groupStageScheduleWillBeGenerated')
+            : $t('bracketWillBeGenerated')}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={closeStartModal}>Cancelar</button>
-          <button class="confirm-btn" on:click={startTournament}>Iniciar Torneo</button>
+          <button class="cancel-btn" on:click={closeStartModal}>{$t('cancel')}</button>
+          <button class="confirm-btn" on:click={startTournament}>{$t('startTournament')}</button>
         </div>
       </div>
     </div>
@@ -619,19 +622,19 @@
   {#if showCancelConfirm && tournament}
     <div class="modal-backdrop" data-theme={$adminTheme} on:click={closeCancelModal} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeCancelModal()}>
       <div class="confirm-modal" on:click|stopPropagation role="dialog" aria-modal="true">
-        <h2>Confirmar Cancelación</h2>
-        <p>¿Estás seguro de que deseas cancelar este torneo?</p>
+        <h2>{$t('confirmCancellation')}</h2>
+        <p>{$t('confirmCancelTournament')}</p>
         <div class="tournament-info">
           <strong>{tournament.edition ? `${tournament.edition}º ` : ''}{tournament.name}</strong>
           <br />
-          <span>{tournament.participants.length} participantes</span>
+          <span>{tournament.participants.length} {$t('participants')}</span>
         </div>
         <p class="warning-text">
-          El torneo quedará marcado como cancelado y no se podrá reactivar.
+          {$t('tournamentWillBeCancelled')}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={closeCancelModal}>Volver</button>
-          <button class="delete-btn-confirm" on:click={cancelTournament}>Cancelar Torneo</button>
+          <button class="cancel-btn" on:click={closeCancelModal}>{$t('back')}</button>
+          <button class="delete-btn-confirm" on:click={cancelTournament}>{$t('cancelTournament')}</button>
         </div>
       </div>
     </div>
@@ -642,29 +645,29 @@
     <div class="modal-backdrop" data-theme={$adminTheme} on:click={closeQuickEdit} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeQuickEdit()}>
       <div class="quick-edit-modal" on:click|stopPropagation role="dialog" aria-modal="true">
         <div class="quick-edit-header">
-          <h2>⚙️ Ajustes del Torneo</h2>
+          <h2>⚙️ {$t('tournamentSettings')}</h2>
           <button class="close-btn" on:click={closeQuickEdit}>×</button>
         </div>
 
-        <p class="quick-edit-subtitle">Configuración modificable durante el torneo</p>
+        <p class="quick-edit-subtitle">{$t('modifiableConfiguration')}</p>
 
         <div class="quick-edit-form">
           <!-- Basic Info Section -->
           <div class="form-section">
-            <h3>📋 Información Básica</h3>
+            <h3>📋 {$t('basicInfo')}</h3>
 
             <div class="form-group">
-              <label for="edit-name">Nombre del Torneo</label>
+              <label for="edit-name">{$t('tournamentName')}</label>
               <input
                 type="text"
                 id="edit-name"
                 bind:value={editName}
-                placeholder="Nombre del torneo"
+                placeholder={$t('tournamentName')}
               />
             </div>
 
             <div class="form-group">
-              <label for="edit-date">Fecha</label>
+              <label for="edit-date">{$t('date')}</label>
               <input
                 type="date"
                 id="edit-date"
@@ -673,7 +676,7 @@
             </div>
 
             <div class="form-group">
-              <label for="edit-tables">Mesas Disponibles</label>
+              <label for="edit-tables">{$t('availableTables')}</label>
               <div class="input-with-hint">
                 <input
                   type="number"
@@ -682,21 +685,21 @@
                   min={getMinTables()}
                   max="50"
                 />
-                <span class="hint">Mínimo: {getMinTables()} ({tournament.participants.length} participantes)</span>
+                <span class="hint">{$t('minimum')}: {getMinTables()} ({tournament.participants.length} {$t('participants')})</span>
               </div>
             </div>
           </div>
 
           <!-- Game Options Section -->
           <div class="form-section">
-            <h3>🎮 Opciones de Partida</h3>
+            <h3>🎮 {$t('gameOptions')}</h3>
 
             <div class="toggle-group">
               <label class="toggle-item">
                 <input type="checkbox" bind:checked={editShow20s} />
                 <span class="toggle-label">
                   <span class="toggle-icon">🎯</span>
-                  Contar 20s
+                  {$t('track20s')}
                 </span>
               </label>
 
@@ -704,7 +707,7 @@
                 <input type="checkbox" bind:checked={editShowHammer} />
                 <span class="toggle-label">
                   <span class="toggle-icon">🔨</span>
-                  Mostrar Hammer
+                  {$t('showHammer')}
                 </span>
               </label>
             </div>
@@ -712,32 +715,32 @@
 
           <!-- Ranking Section -->
           <div class="form-section">
-            <h3>📊 Sistema de Ranking</h3>
+            <h3>📊 {$t('rankingSystem')}</h3>
 
             <label class="toggle-item ranking-toggle">
               <input type="checkbox" bind:checked={editRankingEnabled} />
               <span class="toggle-label">
                 <span class="toggle-icon">📈</span>
-                Sistema de Ranking Activado
+                {$t('rankingSystemEnabled')}
               </span>
             </label>
 
             {#if editRankingEnabled && tournament.rankingConfig?.tier}
               <p class="ranking-info">
-                Categoría: <strong>{tournament.rankingConfig.tier}</strong>
+                {$t('category')}: <strong>{tournament.rankingConfig.tier}</strong>
               </p>
             {/if}
           </div>
         </div>
 
         <div class="quick-edit-actions">
-          <button class="cancel-btn" on:click={closeQuickEdit}>Cancelar</button>
+          <button class="cancel-btn" on:click={closeQuickEdit}>{$t('cancel')}</button>
           <button
             class="confirm-btn"
             on:click={saveQuickEdit}
             disabled={isSavingQuickEdit || !editName.trim()}
           >
-            {isSavingQuickEdit ? '⏳ Guardando...' : '💾 Guardar Cambios'}
+            {isSavingQuickEdit ? `⏳ ${$t('saving')}...` : `💾 ${$t('saveChanges')}`}
           </button>
         </div>
       </div>

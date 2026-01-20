@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { t } from '$lib/stores/language';
+
 	export let tournamentKey: string;
 
 	let copied = false;
@@ -18,9 +20,9 @@
 <button
 	class="tournament-key-badge"
 	on:click={copyKey}
-	title="Clic para copiar la clave"
+	title={$t('clickToCopyKey')}
 >
-	{copied ? '✓ Copiado!' : `🔑 ${tournamentKey}`}
+	{copied ? `✓ ${$t('copied')}` : `🔑 ${tournamentKey}`}
 </button>
 
 <style>

@@ -1297,9 +1297,12 @@ export async function updateTournamentMatchRounds(
 
     let matchFound = false;
 
-    // Calculate total 20s from rounds
+    // Calculate totals from rounds
     const total20sA = rounds.reduce((sum, r) => sum + (r.twentiesA || 0), 0);
     const total20sB = rounds.reduce((sum, r) => sum + (r.twentiesB || 0), 0);
+    // Calculate total points from rounds (for rounds mode display)
+    const totalPointsA = rounds.reduce((sum, r) => sum + (r.pointsA || 0), 0);
+    const totalPointsB = rounds.reduce((sum, r) => sum + (r.pointsB || 0), 0);
 
     console.log('🔄 updateTournamentMatchRounds:', {
       matchId,
@@ -1308,6 +1311,8 @@ export async function updateTournamentMatchRounds(
       roundsCount: rounds.length,
       total20sA,
       total20sB,
+      totalPointsA,
+      totalPointsB,
       currentGameData,
       hasSilverBracket: !!tournament.finalStage?.silverBracket
     });
@@ -1323,6 +1328,8 @@ export async function updateTournamentMatchRounds(
               round.matches[matchIndex].rounds = rounds;
               round.matches[matchIndex].total20sA = total20sA;
               round.matches[matchIndex].total20sB = total20sB;
+              round.matches[matchIndex].totalPointsA = totalPointsA;
+              round.matches[matchIndex].totalPointsB = totalPointsB;
               if (currentGameData) {
                 round.matches[matchIndex].gamesWonA = currentGameData.gamesWonA;
                 round.matches[matchIndex].gamesWonB = currentGameData.gamesWonB;
@@ -1340,6 +1347,8 @@ export async function updateTournamentMatchRounds(
               pairing.matches[matchIndex].rounds = rounds;
               pairing.matches[matchIndex].total20sA = total20sA;
               pairing.matches[matchIndex].total20sB = total20sB;
+              pairing.matches[matchIndex].totalPointsA = totalPointsA;
+              pairing.matches[matchIndex].totalPointsB = totalPointsB;
               if (currentGameData) {
                 pairing.matches[matchIndex].gamesWonA = currentGameData.gamesWonA;
                 pairing.matches[matchIndex].gamesWonB = currentGameData.gamesWonB;
@@ -1364,6 +1373,8 @@ export async function updateTournamentMatchRounds(
         match.rounds = rounds;
         match.total20sA = total20sA;
         match.total20sB = total20sB;
+        match.totalPointsA = totalPointsA;
+        match.totalPointsB = totalPointsB;
         if (currentGameData) {
           match.gamesWonA = currentGameData.gamesWonA;
           match.gamesWonB = currentGameData.gamesWonB;

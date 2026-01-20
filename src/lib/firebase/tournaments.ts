@@ -13,6 +13,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getCountFromServer,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -20,9 +21,12 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   serverTimestamp,
   Timestamp,
-  onSnapshot
+  onSnapshot,
+  type QueryDocumentSnapshot,
+  type DocumentData
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
@@ -256,6 +260,101 @@ export async function getAllTournaments(
   } catch (error) {
     console.error('❌ Error getting all tournaments:', error);
     return [];
+  }
+}
+
+/**
+ * Paginated result for tournaments
+ */
+export interface PaginatedTournamentsResult {
+  tournaments: Tournament[];
+  totalCount: number;
+  lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
+}
+
+/**
+ * Get tournaments with pagination (admin only)
+ */
+export async function getTournamentsPaginated(
+  pageSize: number = 15,
+  lastDocument: QueryDocumentSnapshot<DocumentData> | null = null
+): Promise<PaginatedTournamentsResult> {
+  const emptyResult: PaginatedTournamentsResult = {
+    tournaments: [],
+    totalCount: 0,
+    lastDoc: null,
+    hasMore: false
+  };
+
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return emptyResult;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return emptyResult;
+  }
+
+  // Check admin permission
+  const adminStatus = await isAdmin();
+  if (!adminStatus) {
+    console.error('Unauthorized: User is not admin');
+    return emptyResult;
+  }
+
+  try {
+    const tournamentsRef = collection(db!, 'tournaments');
+
+    // Get total count
+    const countSnapshot = await getCountFromServer(tournamentsRef);
+    const totalCount = countSnapshot.data().count;
+
+    // Build paginated query
+    let q;
+    if (lastDocument) {
+      q = query(
+        tournamentsRef,
+        orderBy('createdAt', 'desc'),
+        startAfter(lastDocument),
+        limit(pageSize)
+      );
+    } else {
+      q = query(tournamentsRef, orderBy('createdAt', 'desc'), limit(pageSize));
+    }
+
+    const snapshot = await getDocs(q);
+
+    const tournaments: Tournament[] = [];
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      tournaments.push({
+        ...data,
+        createdAt:
+          data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+        startedAt:
+          data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
+        completedAt:
+          data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
+      } as Tournament);
+    });
+
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+    const hasMore = snapshot.docs.length === pageSize;
+
+    console.log(`✅ Retrieved ${tournaments.length} tournaments (page), total: ${totalCount}`);
+    return {
+      tournaments,
+      totalCount,
+      lastDoc,
+      hasMore
+    };
+  } catch (error) {
+    console.error('❌ Error getting tournaments:', error);
+    return emptyResult;
   }
 }
 
