@@ -818,21 +818,6 @@ export function calculateTimeBreakdown(
     breakdown.transitionMinutes +
     (breakdown.finalStage?.totalMinutes || 0);
 
-  // DEBUG LOG: All time estimation data
-  console.log('[TIME_ESTIMATION]', {
-    tournament: tournament.name,
-    phaseType: tournament.phaseType,
-    totalParticipants: numParticipants,
-    numTables,
-    groupStage: tournament.groupStage,
-    finalConfigMode: finalConfig?.mode,
-    isSplitDivisions,
-    qualifiedForGold: qualifiedCount,
-    qualifiedForSilver: numParticipants - qualifiedCount,
-    finalConfig,
-    breakdown
-  });
-
   return breakdown;
 }
 
