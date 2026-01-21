@@ -195,7 +195,8 @@
         class:active={activeTab === 'groups'}
         on:click={() => activeTab = 'groups'}
       >
-        📊 Fase de Grupos
+        <span class="tab-indicator"></span>
+        <span class="tab-label">Fase de Grupos</span>
       </button>
     {/if}
     <button
@@ -203,7 +204,8 @@
       class:active={activeTab === 'bracket'}
       on:click={() => activeTab = 'bracket'}
     >
-      🏆 Fase Final
+      <span class="tab-indicator"></span>
+      <span class="tab-label">Fase Final</span>
     </button>
   </div>
 
@@ -302,10 +304,14 @@
       <!-- Bracket View -->
       <div class="bracket-section">
         <!-- Gold Bracket (or single bracket) -->
-        {#if isSplitDivisions}
-          <h3 class="bracket-division-title gold">🥇 Liga Oro</h3>
-        {/if}
-        <div class="bracket-container">
+        <div class="bracket-wrapper" class:gold={isSplitDivisions}>
+          {#if isSplitDivisions}
+            <div class="bracket-division-header gold">
+              <span class="division-icon"></span>
+              <span class="division-label">Liga Oro</span>
+            </div>
+          {/if}
+          <div class="bracket-container">
           {#each tournament.finalStage.bracket.rounds as round (round.roundNumber)}
             <div class="bracket-round">
               <h3 class="round-name">{round.name}</h3>
@@ -394,12 +400,17 @@
               </div>
             </div>
           {/if}
+          </div>
         </div>
 
         <!-- Silver Bracket (only for SPLIT_DIVISIONS) -->
         {#if isSplitDivisions && silverBracket}
-          <h3 class="bracket-division-title silver">🥈 Liga Plata</h3>
-          <div class="bracket-container">
+          <div class="bracket-wrapper silver">
+            <div class="bracket-division-header silver">
+              <span class="division-icon"></span>
+              <span class="division-label">Liga Plata</span>
+            </div>
+            <div class="bracket-container">
             {#each silverBracket.rounds as round (round.roundNumber)}
               <div class="bracket-round">
                 <h3 class="round-name silver">{round.name}</h3>
@@ -488,6 +499,7 @@
                 </div>
               </div>
             {/if}
+            </div>
           </div>
         {/if}
       </div>
@@ -645,53 +657,94 @@
     color: #ef4444;
   }
 
-  /* Tab Navigation */
+  /* Tab Navigation - Professional minimal style */
   .tab-navigation {
     display: flex;
-    gap: 0;
-    border-bottom: 2px solid #e5e7eb;
-    margin-bottom: 1.5rem;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    padding: 0.2rem;
+    background: #f3f4f6;
+    border-radius: 6px;
+    width: fit-content;
   }
 
   .tab-button {
-    flex: 1;
-    padding: 1rem 1.5rem;
-    background: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
     border: none;
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: 0.8rem;
+    font-weight: 500;
     color: #6b7280;
     cursor: pointer;
-    transition: all 0.2s;
-    border-bottom: 3px solid transparent;
-    margin-bottom: -2px;
+    transition: all 0.15s;
+    border-radius: 4px;
+  }
+
+  .tab-button .tab-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #d1d5db;
+    transition: all 0.15s;
+  }
+
+  .tab-button .tab-label {
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.72rem;
   }
 
   .tab-button:hover {
     color: #374151;
-    background: #f9fafb;
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .tab-button:hover .tab-indicator {
+    background: #9ca3af;
   }
 
   .tab-button.active {
-    color: #667eea;
-    border-bottom-color: #667eea;
+    color: #1f2937;
+    background: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .tab-button.active .tab-indicator {
+    background: #4f46e5;
   }
 
   :global([data-theme='dark']) .tab-navigation {
-    border-bottom-color: #2d3748;
+    background: #1a2332;
   }
 
   :global([data-theme='dark']) .tab-button {
     color: #8b9bb3;
   }
 
+  :global([data-theme='dark']) .tab-button .tab-indicator {
+    background: #4a5568;
+  }
+
   :global([data-theme='dark']) .tab-button:hover {
     color: #e1e8ed;
-    background: #0f1419;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  :global([data-theme='dark']) .tab-button:hover .tab-indicator {
+    background: #6b7280;
   }
 
   :global([data-theme='dark']) .tab-button.active {
-    color: #667eea;
+    color: #f3f4f6;
+    background: #2d3748;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  :global([data-theme='dark']) .tab-button.active .tab-indicator {
+    background: #818cf8;
   }
 
   /* Groups Section */
@@ -1042,7 +1095,7 @@
   .bracket-section {
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 1rem 0;
+    padding: 0;
     width: 100%;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
@@ -1069,31 +1122,38 @@
 
   .bracket-container {
     display: inline-flex;
-    gap: 2rem;
+    gap: 1.25rem;
     min-width: max-content;
-    padding: 0 1rem 1rem 1rem;
+    padding: 0.25rem 0;
+    align-items: flex-start;
   }
 
   .bracket-round {
-    min-width: 220px;
+    min-width: 180px;
   }
 
   .round-name {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #374151;
-    margin: 0 0 1rem 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4b5563;
+    margin: 0 0 0.6rem 0;
     text-align: center;
-    padding: 0.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 8px;
+    padding: 0.35rem 0.5rem;
+    background: #f3f4f6;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  :global([data-theme='dark']) .round-name {
+    background: #2d3748;
+    color: #9ca3af;
   }
 
   .matches-column {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0.6rem;
     justify-content: space-around;
     min-height: 100%;
   }
@@ -1101,16 +1161,16 @@
   .bracket-match {
     background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 0;
     overflow: hidden;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
     width: 100%;
   }
 
   .bracket-match:hover:not(:disabled) {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     border-color: #667eea;
   }
 
@@ -1140,13 +1200,13 @@
   .match-participant {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    transition: background-color 0.2s;
+    gap: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    transition: background-color 0.15s;
   }
 
   .match-participant.winner {
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(16, 185, 129, 0.08);
   }
 
   .match-participant.tbd {
@@ -1160,7 +1220,7 @@
   }
 
   .bracket-match.bye-match {
-    opacity: 0.6;
+    opacity: 0.5;
     border-style: dashed;
     cursor: default;
   }
@@ -1171,32 +1231,43 @@
 
   .match-participant .participant-name {
     flex: 1;
-    font-size: 0.9rem;
+    font-size: 0.78rem;
     color: #374151;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .match-participant.winner .participant-name {
-    font-weight: 700;
-    color: #10b981;
+    font-weight: 600;
+    color: #059669;
   }
 
   :global([data-theme='dark']) .match-participant .participant-name {
     color: #e1e8ed;
   }
 
+  :global([data-theme='dark']) .match-participant.winner .participant-name {
+    color: #10b981;
+  }
+
   .match-participant .seed {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: #9ca3af;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   .match-participant .score {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 700;
-    color: #667eea;
-    min-width: 24px;
+    color: #4f46e5;
+    min-width: 20px;
     text-align: right;
+  }
+
+  :global([data-theme='dark']) .match-participant .score {
+    color: #818cf8;
   }
 
   .vs-divider {
@@ -1205,76 +1276,168 @@
   }
 
   :global([data-theme='dark']) .vs-divider {
-    background: #2d3748;
+    background: #374151;
   }
 
   /* 3rd/4th place match styles */
   .third-place-round {
-    margin-left: 2rem;
-    border-left: 3px dashed #d97706;
-    padding-left: 2rem;
+    margin-left: 1rem;
+    border-left: 2px solid #d4a574;
+    padding-left: 1rem;
   }
 
   .round-name.third-place {
-    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    background: #fef3c7;
+    color: #92400e;
+    border-left: 2px solid #d97706;
+  }
+
+  :global([data-theme='dark']) .round-name.third-place {
+    background: rgba(217, 119, 6, 0.15);
+    color: #fbbf24;
   }
 
   .third-place-match {
-    border-color: #d97706;
+    border-color: #d4a574;
   }
 
   .third-place-match:hover:not(:disabled) {
     border-color: #b45309;
-    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2);
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.15);
   }
 
   :global([data-theme='dark']) .third-place-match {
-    border-color: #d97706;
+    border-color: #92400e;
   }
 
   :global([data-theme='dark']) .third-place-match:hover:not(:disabled) {
-    border-color: #f59e0b;
-    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+    border-color: #d97706;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.2);
   }
 
-  /* Division titles for Gold/Silver brackets */
-  .bracket-division-title {
-    font-size: 1.3rem;
-    font-weight: 700;
-    text-align: center;
-    padding: 1rem;
-    margin: 1.5rem 0 1rem 0;
-    border-radius: 12px;
+  /* Bracket wrapper - Contains division header + bracket */
+  .bracket-wrapper {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
   }
 
-  .bracket-division-title.gold {
-    background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%);
+  .bracket-wrapper.gold {
+    background: linear-gradient(180deg, rgba(254, 243, 199, 0.4) 0%, #f9fafb 100%);
+    border-color: #fcd34d;
+  }
+
+  .bracket-wrapper.silver {
+    background: linear-gradient(180deg, rgba(229, 231, 235, 0.5) 0%, #f9fafb 100%);
+    border-color: #d1d5db;
+  }
+
+  :global([data-theme='dark']) .bracket-wrapper {
+    background: #0f1419;
+    border-color: #2d3748;
+  }
+
+  :global([data-theme='dark']) .bracket-wrapper.gold {
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, #0f1419 100%);
+    border-color: #92400e;
+  }
+
+  :global([data-theme='dark']) .bracket-wrapper.silver {
+    background: linear-gradient(180deg, rgba(107, 114, 128, 0.1) 0%, #0f1419 100%);
+    border-color: #4b5563;
+  }
+
+  /* Division headers for Gold/Silver brackets - Professional compact style */
+  .bracket-division-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0 0 0.5rem 0;
+    margin: 0;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 0.5rem;
+  }
+
+  .bracket-division-header .division-icon {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .bracket-division-header .division-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .bracket-division-header.gold {
+    border-bottom-color: #fcd34d;
+  }
+
+  .bracket-division-header.gold .division-icon {
+    background: #f59e0b;
+  }
+
+  .bracket-division-header.gold .division-label {
     color: #92400e;
   }
 
-  .bracket-division-title.silver {
-    background: linear-gradient(135deg, #e5e7eb 0%, #9ca3af 100%);
-    color: #374151;
-    margin-top: 2.5rem;
+  .bracket-division-header.silver {
+    border-bottom-color: #d1d5db;
   }
 
-  :global([data-theme='dark']) .bracket-division-title.gold {
-    background: linear-gradient(135deg, #78350f 0%, #b45309 100%);
+  .bracket-division-header.silver .division-icon {
+    background: #6b7280;
+  }
+
+  .bracket-division-header.silver .division-label {
+    color: #4b5563;
+  }
+
+  :global([data-theme='dark']) .bracket-division-header {
+    border-bottom-color: #374151;
+  }
+
+  :global([data-theme='dark']) .bracket-division-header.gold {
+    border-bottom-color: #92400e;
+  }
+
+  :global([data-theme='dark']) .bracket-division-header.gold .division-label {
     color: #fbbf24;
   }
 
-  :global([data-theme='dark']) .bracket-division-title.silver {
-    background: linear-gradient(135deg, #374151 0%, #6b7280 100%);
-    color: #e5e7eb;
+  :global([data-theme='dark']) .bracket-division-header.silver {
+    border-bottom-color: #4b5563;
+  }
+
+  :global([data-theme='dark']) .bracket-division-header.silver .division-label {
+    color: #9ca3af;
   }
 
   /* Silver bracket round names */
   .round-name.silver {
-    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+    background: #e5e7eb;
+    color: #4b5563;
+    border-left: 2px solid #6b7280;
+  }
+
+  :global([data-theme='dark']) .round-name.silver {
+    background: rgba(107, 114, 128, 0.2);
+    color: #9ca3af;
   }
 
   .round-name.third-place.silver {
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    background: #f3f4f6;
+    color: #6b7280;
+    border-left: 2px solid #9ca3af;
+  }
+
+  :global([data-theme='dark']) .round-name.third-place.silver {
+    background: rgba(75, 85, 99, 0.2);
+    color: #9ca3af;
   }
 
   /* Responsive */
@@ -1285,25 +1448,87 @@
   }
 
   @media (max-width: 768px) {
+    .tab-navigation {
+      padding: 0.15rem;
+    }
+
     .tab-button {
-      padding: 0.75rem 1rem;
-      font-size: 0.9rem;
+      padding: 0.4rem 0.75rem;
+      gap: 0.3rem;
+    }
+
+    .tab-button .tab-label {
+      font-size: 0.68rem;
+    }
+
+    .tab-button .tab-indicator {
+      width: 5px;
+      height: 5px;
     }
 
     .group-card {
-      padding: 1rem;
+      padding: 0.75rem;
+    }
+
+    .bracket-container {
+      gap: 0.75rem;
+      padding: 0.15rem 0;
     }
 
     .bracket-round {
-      min-width: 180px;
+      min-width: 150px;
+    }
+
+    .round-name {
+      font-size: 0.65rem;
+      padding: 0.25rem 0.4rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .matches-column {
+      gap: 0.4rem;
     }
 
     .match-participant {
-      padding: 0.5rem 0.75rem;
+      padding: 0.3rem 0.5rem;
+      gap: 0.3rem;
     }
 
     .match-participant .participant-name {
-      font-size: 0.85rem;
+      font-size: 0.72rem;
+    }
+
+    .match-participant .score {
+      font-size: 0.72rem;
+      min-width: 16px;
+    }
+
+    .match-participant .seed {
+      font-size: 0.6rem;
+    }
+
+    .bracket-wrapper {
+      padding: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .bracket-division-header {
+      padding: 0 0 0.4rem 0;
+      margin-bottom: 0.4rem;
+    }
+
+    .bracket-division-header .division-label {
+      font-size: 0.65rem;
+    }
+
+    .bracket-division-header .division-icon {
+      width: 6px;
+      height: 6px;
+    }
+
+    .third-place-round {
+      margin-left: 0.5rem;
+      padding-left: 0.5rem;
     }
 
     /* Switch to 1 column on narrow screens */
