@@ -1003,10 +1003,18 @@ export function calculateRemainingTime(tournament: Tournament): {
       }
       // Swiss pairings
       if (group.pairings) {
+        // For Swiss, use the total rounds defined, not just generated rounds
+        const numSwissRounds = tournament.groupStage?.numSwissRounds || tournament.groupStage?.totalRounds || group.pairings.length;
+        const participantsInGroup = group.participants?.length || 0;
+        const matchesPerRound = Math.floor(participantsInGroup / 2);
+
+        // Total matches = rounds × matches per round
+        groupTotalMatches += numSwissRounds * matchesPerRound;
+
+        // Count completed matches from generated pairings
         for (const pairing of group.pairings) {
           for (const match of pairing.matches) {
             if (match.participantB === 'BYE') continue;
-            groupTotalMatches++;
             if (match.status === 'COMPLETED' || match.status === 'WALKOVER') {
               groupCompletedMatches++;
             }
