@@ -10,7 +10,10 @@
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { t } from '$lib/stores/language';
-  import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
+  import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
+  import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
+  import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
+  import { getTournament, subscribeTournament, updateTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import { completeMatch, markNoShow } from '$lib/firebase/tournamentSync';
   import { updateMatchResult } from '$lib/firebase/tournamentMatches'; // For autoFill (SuperAdmin only)
@@ -31,8 +34,11 @@
   let isSuperAdminUser = false;
   let isAutoFilling = false;
   let unsubscribe: (() => void) | null = null;
+  let showTimeBreakdown = false;
+  let timeBreakdown: TimeBreakdown | null = null;
 
   $: tournamentId = $page.params.id;
+  $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
 
   // Translate group name based on language
   // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
@@ -51,6 +57,22 @@
       return `${$t('group')} ${legacyMatch[1]}`;
     }
     return name;
+  }
+
+  function openTimeBreakdown() {
+    if (!tournament) return;
+    timeBreakdown = calculateTimeBreakdown(tournament);
+    showTimeBreakdown = true;
+  }
+
+  async function recalculateTime() {
+    if (!tournament || !tournamentId) return;
+    const timeEstimate = calculateTournamentTimeEstimate(tournament);
+    tournament.timeEstimate = timeEstimate;
+    timeBreakdown = calculateTimeBreakdown(tournament);
+    await updateTournament(tournamentId, { timeEstimate });
+    toastMessage = $t('timeRecalculated');
+    showToast = true;
   }
 
   onMount(async () => {
@@ -576,6 +598,18 @@
                   <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
                 {/if}
               </div>
+              {#if timeRemaining && tournament.status !== 'COMPLETED'}
+                <div class="header-progress">
+                  <TimeProgressBar
+                    percentComplete={timeRemaining.percentComplete}
+                    remainingMinutes={timeRemaining.remainingMinutes}
+                    showEstimatedEnd={true}
+                    compact={true}
+                    clickable={true}
+                    on:click={openTimeBreakdown}
+                  />
+                </div>
+              {/if}
             </div>
           </div>
           <div class="header-actions">
@@ -613,8 +647,9 @@
                   class="action-btn complete"
                   on:click={confirmCompleteGroups}
                   disabled={isTransitioning}
+                  title={$t('completeGroupStage')}
                 >
-                  {isTransitioning ? `⏳` : `✅`}
+                  {isTransitioning ? `⏳` : `✅`} {$t('toFinalStage')}
                 </button>
               {/if}
             {/if}
@@ -694,6 +729,13 @@
 </AdminGuard>
 
 <Toast bind:visible={showToast} message={toastMessage} />
+
+<TimeBreakdownModal
+  bind:visible={showTimeBreakdown}
+  breakdown={timeBreakdown}
+  showRecalculate={true}
+  on:recalculate={recalculateTime}
+/>
 
 <style>
   .groups-page {
@@ -788,6 +830,10 @@
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+  }
+
+  .header-progress {
+    margin-left: 0.5rem;
   }
 
   .info-badge {

@@ -1,95 +1,236 @@
 /**
  * Tie-breaker resolution algorithm
  * Resolves ties in group standings using multiple criteria
+ *
+ * TIEBREAKER LOGIC:
+ *
+ * For WINS ranking (2/1/0 system):
+ * 1. Swiss/Match Points (2 per win, 1 per tie, 0 per loss)
+ * 2. If tied: Head-to-head result
+ * 3. If head-to-head is also tied (4-4): Total 20s scored
+ * 4. If still tied: Mark as unresolved for admin decision
+ *
+ * For POINTS ranking (total crokinole points):
+ * 1. Total points scored in matches
+ * 2. If tied: Total 20s scored
+ * 3. If still tied: Head-to-head result
+ * 4. If still tied: Mark as unresolved for admin decision
  */
 
 import type { GroupStanding, TournamentParticipant, SwissRankingSystem } from '$lib/types/tournament';
 
 /**
- * Resolve tie-breakers in standings
- *
- * For Swiss system with WINS ranking:
- * 1. Swiss Points (2 per win, 1 per tie, 0 per loss)
- * 2. Head-to-head record
- * 3. Total 20s scored
- * 4. Initial ranking order
- *
- * For Swiss system with POINTS ranking:
- * 1. Total points scored in matches
- * 2. Total 20s scored
- * 3. Head-to-head record
- * 4. Initial ranking order
- *
- * For Round Robin:
- * 1. Total points scored in matches
- * 2. Total 20s scored
- * 3. Head-to-head record
- * 4. Initial ranking order
- *
- * @param standings Current standings
- * @param participants Tournament participants (for ranking reference)
- * @param isSwiss Whether this is a Swiss system tournament
- * @param swissRankingSystem Swiss ranking system: 'WINS' or 'POINTS'
- * @returns Sorted standings with positions
+ * Get the primary ranking value for a standing based on ranking system
  */
-export function resolveTiebreaker(
-  standings: GroupStanding[],
-  participants: TournamentParticipant[],
-  isSwiss: boolean = false,
-  swissRankingSystem: SwissRankingSystem = 'WINS'
+function getPrimaryValue(standing: GroupStanding, isSwiss: boolean, rankingSystem: SwissRankingSystem): number {
+  if (isSwiss && rankingSystem === 'WINS') {
+    return standing.swissPoints ?? (standing.matchesWon * 2 + standing.matchesTied);
+  } else if (rankingSystem === 'POINTS') {
+    return standing.totalPointsScored;
+  } else {
+    // Round Robin with WINS
+    return standing.points;
+  }
+}
+
+/**
+ * Get head-to-head result between two participants
+ * Returns: 1 if A wins, -1 if B wins, 0 if tied or no record
+ */
+function getHeadToHeadResult(standingA: GroupStanding, standingB: GroupStanding): number {
+  if (standingA.headToHeadRecord) {
+    const result = standingA.headToHeadRecord[standingB.participantId];
+    console.log(`[TIEBREAKER] H2H lookup: ${standingA.participantId} vs ${standingB.participantId} = ${result || 'NO_RECORD'}`);
+    if (result === 'WIN') return 1;
+    if (result === 'LOSS') return -1;
+    // TIE or undefined = 0
+  } else {
+    console.log(`[TIEBREAKER] H2H lookup: ${standingA.participantId} has NO headToHeadRecord`);
+  }
+  return 0;
+}
+
+/**
+ * Resolve a tie between exactly 2 participants
+ * Returns sorted array and marks unresolved ties
+ */
+function resolveTwoPlayerTie(
+  tiedGroup: GroupStanding[],
+  rankingSystem: SwissRankingSystem,
+  participantMap: Map<string, TournamentParticipant>
 ): GroupStanding[] {
-  // Create participant map for quick ranking lookup
-  const participantMap = new Map<string, TournamentParticipant>();
-  participants.forEach(p => participantMap.set(p.id, p));
+  const [a, b] = tiedGroup;
 
-  // Sort standings
-  const sorted = [...standings].sort((a, b) => {
-    if (isSwiss && swissRankingSystem === 'WINS') {
-      // SWISS SYSTEM (WINS): swissPoints > head-to-head > 20s > ranking
+  console.log(`[TIEBREAKER] Resolving 2-player tie (${rankingSystem}):`);
+  console.log(`  Player A: ${a.participantId}, 20s=${a.total20s}, h2hRecord=`, a.headToHeadRecord);
+  console.log(`  Player B: ${b.participantId}, 20s=${b.total20s}, h2hRecord=`, b.headToHeadRecord);
 
-      // 1. Swiss Points (2/1/0) - PRIMARY
-      const aSwiss = a.swissPoints ?? (a.matchesWon * 2 + a.matchesTied);
-      const bSwiss = b.swissPoints ?? (b.matchesWon * 2 + b.matchesTied);
-      if (aSwiss !== bSwiss) {
-        return bSwiss - aSwiss;
+  if (rankingSystem === 'WINS') {
+    // WINS: head-to-head > 20s > unresolved
+
+    // 1. Head-to-head
+    const h2h = getHeadToHeadResult(a, b);
+    console.log(`[TIEBREAKER] WINS mode - H2H result: ${h2h}`);
+    if (h2h !== 0) {
+      // Clear any previous tie markers
+      a.tiedWith = undefined;
+      a.tieReason = undefined;
+      b.tiedWith = undefined;
+      b.tieReason = undefined;
+      console.log(`[TIEBREAKER] Resolved by H2H: winner=${h2h === 1 ? a.participantId : b.participantId}`);
+      return h2h === 1 ? [a, b] : [b, a];
+    }
+
+    // Head-to-head was a tie (4-4), use 20s
+    // 2. Total 20s
+    console.log(`[TIEBREAKER] H2H tied, checking 20s: A=${a.total20s}, B=${b.total20s}`);
+    if (a.total20s !== b.total20s) {
+      a.tiedWith = undefined;
+      a.tieReason = undefined;
+      b.tiedWith = undefined;
+      b.tieReason = undefined;
+      console.log(`[TIEBREAKER] Resolved by 20s: winner=${a.total20s > b.total20s ? a.participantId : b.participantId}`);
+      return a.total20s > b.total20s ? [a, b] : [b, a];
+    }
+
+    // 3. Unresolved - mark for admin
+    console.log(`[TIEBREAKER] UNRESOLVED TIE between ${a.participantId} and ${b.participantId}`);
+    a.tiedWith = [b.participantId];
+    a.tieReason = 'unresolved';
+    b.tiedWith = [a.participantId];
+    b.tieReason = 'unresolved';
+
+  } else {
+    // POINTS: 20s > head-to-head > unresolved
+    console.log(`[TIEBREAKER] POINTS mode - checking 20s first: A=${a.total20s}, B=${b.total20s}`);
+
+    // 1. Total 20s
+    if (a.total20s !== b.total20s) {
+      a.tiedWith = undefined;
+      a.tieReason = undefined;
+      b.tiedWith = undefined;
+      b.tieReason = undefined;
+      console.log(`[TIEBREAKER] Resolved by 20s: winner=${a.total20s > b.total20s ? a.participantId : b.participantId}`);
+      return a.total20s > b.total20s ? [a, b] : [b, a];
+    }
+
+    // 2. Head-to-head
+    const h2h = getHeadToHeadResult(a, b);
+    console.log(`[TIEBREAKER] 20s tied, checking H2H: result=${h2h}`);
+    if (h2h !== 0) {
+      a.tiedWith = undefined;
+      a.tieReason = undefined;
+      b.tiedWith = undefined;
+      b.tieReason = undefined;
+      console.log(`[TIEBREAKER] Resolved by H2H: winner=${h2h === 1 ? a.participantId : b.participantId}`);
+      return h2h === 1 ? [a, b] : [b, a];
+    }
+
+    // 3. Unresolved - mark for admin
+    console.log(`[TIEBREAKER] UNRESOLVED TIE between ${a.participantId} and ${b.participantId}`);
+    a.tiedWith = [b.participantId];
+    a.tieReason = 'unresolved';
+    b.tiedWith = [a.participantId];
+    b.tieReason = 'unresolved';
+  }
+
+  // Fallback: use initial ranking
+  const participantA = participantMap.get(a.participantId);
+  const participantB = participantMap.get(b.participantId);
+  if (participantA && participantB) {
+    return participantA.rankingSnapshot > participantB.rankingSnapshot ? [a, b] : [b, a];
+  }
+
+  return [a, b];
+}
+
+/**
+ * Resolve a tie between 3+ participants
+ *
+ * For WINS ranking: count head-to-head wins among tied players > 20s > unresolved
+ * For POINTS ranking: 20s > count head-to-head wins > unresolved
+ *
+ * Returns sorted array and marks unresolved ties
+ */
+function resolveMultiPlayerTie(
+  tiedGroup: GroupStanding[],
+  rankingSystem: SwissRankingSystem,
+  participantMap: Map<string, TournamentParticipant>
+): GroupStanding[] {
+  console.log(`[TIEBREAKER] Resolving ${tiedGroup.length}-player tie (${rankingSystem}):`);
+  for (const s of tiedGroup) {
+    const name = participantMap.get(s.participantId)?.name || s.participantId;
+    console.log(`  - ${name}: 20s=${s.total20s}, h2hRecord=`, s.headToHeadRecord);
+  }
+
+  // Count head-to-head wins among the tied players
+  const h2hWins = new Map<string, number>();
+
+  // Initialize win counts
+  for (const standing of tiedGroup) {
+    h2hWins.set(standing.participantId, 0);
+  }
+
+  // Count head-to-head wins within the tied group
+  console.log(`[TIEBREAKER] Counting H2H wins among tied players:`);
+  for (let i = 0; i < tiedGroup.length; i++) {
+    for (let j = i + 1; j < tiedGroup.length; j++) {
+      const a = tiedGroup[i];
+      const b = tiedGroup[j];
+      const h2h = getHeadToHeadResult(a, b);
+
+      if (h2h === 1) {
+        h2hWins.set(a.participantId, h2hWins.get(a.participantId)! + 1);
+        console.log(`    ${participantMap.get(a.participantId)?.name} beat ${participantMap.get(b.participantId)?.name}`);
+      } else if (h2h === -1) {
+        h2hWins.set(b.participantId, h2hWins.get(b.participantId)! + 1);
+        console.log(`    ${participantMap.get(b.participantId)?.name} beat ${participantMap.get(a.participantId)?.name}`);
+      } else {
+        console.log(`    ${participantMap.get(a.participantId)?.name} vs ${participantMap.get(b.participantId)?.name} = TIE/NO_RECORD`);
+      }
+      // If h2h === 0 (tie 4-4), neither gets a win
+    }
+  }
+
+  console.log(`[TIEBREAKER] H2H wins count:`);
+  for (const [id, wins] of h2hWins.entries()) {
+    console.log(`    ${participantMap.get(id)?.name}: ${wins} wins`);
+  }
+
+  // Sort based on ranking system
+  const sorted = [...tiedGroup].sort((a, b) => {
+    const winsA = h2hWins.get(a.participantId)!;
+    const winsB = h2hWins.get(b.participantId)!;
+
+    if (rankingSystem === 'WINS') {
+      // WINS: head-to-head wins > 20s > ranking
+
+      // 1. Head-to-head wins among tied players
+      if (winsA !== winsB) {
+        return winsB - winsA;
       }
 
-      // 2. Head-to-head
-      if (a.headToHeadRecord && b.headToHeadRecord) {
-        const aVsB = a.headToHeadRecord[b.participantId];
-        if (aVsB === 'WIN') return -1;
-        if (aVsB === 'LOSS') return 1;
-      }
-
-      // 3. Total 20s
+      // 2. Total 20s
       if (a.total20s !== b.total20s) {
         return b.total20s - a.total20s;
       }
     } else {
-      // ROUND ROBIN or SWISS with POINTS: totalPointsScored > 20s > head-to-head > ranking
+      // POINTS: 20s > head-to-head wins > ranking
 
-      // 1. Total points scored (descending)
-      if (a.totalPointsScored !== b.totalPointsScored) {
-        return b.totalPointsScored - a.totalPointsScored;
-      }
-
-      // 2. Total 20s (descending)
+      // 1. Total 20s
       if (a.total20s !== b.total20s) {
         return b.total20s - a.total20s;
       }
 
-      // 3. Head-to-head
-      if (a.headToHeadRecord && b.headToHeadRecord) {
-        const aVsB = a.headToHeadRecord[b.participantId];
-        if (aVsB === 'WIN') return -1;
-        if (aVsB === 'LOSS') return 1;
+      // 2. Head-to-head wins among tied players
+      if (winsA !== winsB) {
+        return winsB - winsA;
       }
     }
 
-    // Fallback: Initial ranking (descending)
+    // Fallback to initial ranking
     const participantA = participantMap.get(a.participantId);
     const participantB = participantMap.get(b.participantId);
-
     if (participantA && participantB) {
       return participantB.rankingSnapshot - participantA.rankingSnapshot;
     }
@@ -97,12 +238,143 @@ export function resolveTiebreaker(
     return 0;
   });
 
-  // Assign positions
+  // Check for unresolved ties (players with same h2h wins and 20s)
   for (let i = 0; i < sorted.length; i++) {
-    sorted[i].position = i + 1;
+    const current = sorted[i];
+    const currentWins = h2hWins.get(current.participantId)!;
+
+    const tiedWithIds: string[] = [];
+
+    for (let j = 0; j < sorted.length; j++) {
+      if (i === j) continue;
+
+      const other = sorted[j];
+      const otherWins = h2hWins.get(other.participantId)!;
+
+      if (currentWins === otherWins && current.total20s === other.total20s) {
+        tiedWithIds.push(other.participantId);
+      }
+    }
+
+    if (tiedWithIds.length > 0) {
+      current.tiedWith = tiedWithIds;
+      current.tieReason = 'unresolved';
+    } else {
+      current.tiedWith = undefined;
+      current.tieReason = undefined;
+    }
   }
 
   return sorted;
+}
+
+/**
+ * Resolve a group of tied participants
+ */
+function resolveTiedGroup(
+  tiedGroup: GroupStanding[],
+  rankingSystem: SwissRankingSystem,
+  participantMap: Map<string, TournamentParticipant>
+): GroupStanding[] {
+  if (tiedGroup.length === 1) {
+    // No tie to resolve
+    tiedGroup[0].tiedWith = undefined;
+    tiedGroup[0].tieReason = undefined;
+    return tiedGroup;
+  }
+
+  if (tiedGroup.length === 2) {
+    return resolveTwoPlayerTie(tiedGroup, rankingSystem, participantMap);
+  }
+
+  return resolveMultiPlayerTie(tiedGroup, rankingSystem, participantMap);
+}
+
+/**
+ * Resolve tie-breakers in standings
+ *
+ * @param standings Current standings
+ * @param participants Tournament participants (for ranking reference)
+ * @param isSwiss Whether this is a Swiss system tournament
+ * @param swissRankingSystem Swiss ranking system: 'WINS' or 'POINTS'
+ * @returns Sorted standings with positions and tie markers
+ */
+export function resolveTiebreaker(
+  standings: GroupStanding[],
+  participants: TournamentParticipant[],
+  isSwiss: boolean = false,
+  swissRankingSystem: SwissRankingSystem = 'WINS'
+): GroupStanding[] {
+  console.log('========================================');
+  console.log('[TIEBREAKER] Starting tiebreaker resolution');
+  console.log(`[TIEBREAKER] isSwiss=${isSwiss}, rankingSystem=${swissRankingSystem}`);
+  console.log(`[TIEBREAKER] Input standings (${standings.length} players):`);
+
+  // Log all standings with full details
+  for (const s of standings) {
+    const participant = participants.find(p => p.id === s.participantId);
+    console.log(`  - ${participant?.name || s.participantId}:`);
+    console.log(`      position=${s.position}, points=${s.points}, swissPoints=${s.swissPoints}`);
+    console.log(`      matchesWon=${s.matchesWon}, matchesTied=${s.matchesTied}, matchesLost=${s.matchesLost}`);
+    console.log(`      total20s=${s.total20s}, totalPointsScored=${s.totalPointsScored}`);
+    console.log(`      headToHeadRecord=`, s.headToHeadRecord);
+    console.log(`      tiedWith=${JSON.stringify(s.tiedWith)}, tieReason=${s.tieReason}`);
+  }
+
+  // Create participant map for quick ranking lookup
+  const participantMap = new Map<string, TournamentParticipant>();
+  participants.forEach(p => participantMap.set(p.id, p));
+
+  // Create a copy of standings to avoid mutating originals
+  const standingsCopy = standings.map(s => ({ ...s }));
+
+  // Group standings by primary value
+  const groups = new Map<number, GroupStanding[]>();
+
+  for (const standing of standingsCopy) {
+    const primaryValue = getPrimaryValue(standing, isSwiss, swissRankingSystem);
+
+    if (!groups.has(primaryValue)) {
+      groups.set(primaryValue, []);
+    }
+    groups.get(primaryValue)!.push(standing);
+  }
+
+  // Sort groups by primary value (descending)
+  const sortedPrimaryValues = [...groups.keys()].sort((a, b) => b - a);
+
+  console.log(`[TIEBREAKER] Grouped by primary value:`);
+  for (const pv of sortedPrimaryValues) {
+    const group = groups.get(pv)!;
+    const names = group.map(s => participantMap.get(s.participantId)?.name || s.participantId);
+    console.log(`  Value ${pv}: [${names.join(', ')}] (${group.length} players)`);
+  }
+
+  // Resolve ties within each group and build final sorted list
+  const result: GroupStanding[] = [];
+
+  for (const primaryValue of sortedPrimaryValues) {
+    const tiedGroup = groups.get(primaryValue)!;
+    if (tiedGroup.length > 1) {
+      console.log(`[TIEBREAKER] Processing tie at value ${primaryValue} with ${tiedGroup.length} players...`);
+    }
+    const resolvedGroup = resolveTiedGroup(tiedGroup, swissRankingSystem, participantMap);
+    result.push(...resolvedGroup);
+  }
+
+  // Assign positions
+  for (let i = 0; i < result.length; i++) {
+    result[i].position = i + 1;
+  }
+
+  console.log(`[TIEBREAKER] Final result:`);
+  for (const s of result) {
+    const participant = participantMap.get(s.participantId);
+    console.log(`  #${s.position}: ${participant?.name || s.participantId} - tiedWith=${JSON.stringify(s.tiedWith)}, tieReason=${s.tieReason}`);
+  }
+  console.log('========================================');
+
+  return result;
 }
 
 /**

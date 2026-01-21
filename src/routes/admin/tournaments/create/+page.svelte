@@ -11,6 +11,10 @@
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import { DEVELOPED_COUNTRIES } from '$lib/constants';
+  import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
+  import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
+  import type { TournamentTimeConfig } from '$lib/types/tournament';
+  import { t } from '$lib/stores/language';
 
   // Edit mode
   let editMode = false;
@@ -22,7 +26,7 @@
 
   // Wizard state
   let currentStep = 1;
-  const totalSteps = 5;
+  const totalSteps = 6;
 
   // Toast state
   let showToast = false;
@@ -140,6 +144,34 @@
 
   // Loading state
   let creating = false;
+
+  // Step 5: Time Configuration (per-tournament settings)
+  let tcMinutesPer4RoundsSingles = DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
+  let tcMinutesPer4RoundsDoubles = DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles;
+  let tcAvgRounds5pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5] || 4;
+  let tcAvgRounds7pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[7] || 6;
+  let tcAvgRounds9pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[9] || 8;
+  let tcAvgRounds11pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[11] || 10;
+  let tcBreakBetweenMatches = DEFAULT_TIME_CONFIG.breakBetweenMatches;
+  let tcBreakBetweenPhases = DEFAULT_TIME_CONFIG.breakBetweenPhases;
+  let tcParallelSemifinals = DEFAULT_TIME_CONFIG.parallelSemifinals;
+  let tcParallelFinals = DEFAULT_TIME_CONFIG.parallelFinals;
+
+  // Computed timeConfig from local variables
+  $: timeConfig = {
+    minutesPer4RoundsSingles: tcMinutesPer4RoundsSingles,
+    minutesPer4RoundsDoubles: tcMinutesPer4RoundsDoubles,
+    avgRoundsForPointsMode: {
+      5: tcAvgRounds5pts,
+      7: tcAvgRounds7pts,
+      9: tcAvgRounds9pts,
+      11: tcAvgRounds11pts
+    },
+    breakBetweenMatches: tcBreakBetweenMatches,
+    breakBetweenPhases: tcBreakBetweenPhases,
+    parallelSemifinals: tcParallelSemifinals,
+    parallelFinals: tcParallelFinals
+  } as TournamentTimeConfig;
 
   // LocalStorage key
   const STORAGE_KEY = 'tournamentWizardDraft';
@@ -300,6 +332,20 @@
 
       guestName = `Player${participants.length + 1}`;
 
+      // Step 5 - Load time configuration
+      if (tournament.timeConfig) {
+        tcMinutesPer4RoundsSingles = tournament.timeConfig.minutesPer4RoundsSingles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
+        tcMinutesPer4RoundsDoubles = tournament.timeConfig.minutesPer4RoundsDoubles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles;
+        tcAvgRounds5pts = tournament.timeConfig.avgRoundsForPointsMode?.[5] ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5];
+        tcAvgRounds7pts = tournament.timeConfig.avgRoundsForPointsMode?.[7] ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[7];
+        tcAvgRounds9pts = tournament.timeConfig.avgRoundsForPointsMode?.[9] ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[9];
+        tcAvgRounds11pts = tournament.timeConfig.avgRoundsForPointsMode?.[11] ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[11];
+        tcBreakBetweenMatches = tournament.timeConfig.breakBetweenMatches ?? DEFAULT_TIME_CONFIG.breakBetweenMatches;
+        tcBreakBetweenPhases = tournament.timeConfig.breakBetweenPhases ?? DEFAULT_TIME_CONFIG.breakBetweenPhases;
+        tcParallelSemifinals = tournament.timeConfig.parallelSemifinals ?? DEFAULT_TIME_CONFIG.parallelSemifinals;
+        tcParallelFinals = tournament.timeConfig.parallelFinals ?? DEFAULT_TIME_CONFIG.parallelFinals;
+      }
+
       console.log('✅ Tournament loaded for editing');
     } catch (error) {
       console.error('❌ Error loading tournament for edit:', error);
@@ -419,8 +465,22 @@
 
       guestName = `Player${participants.length + 1}`;
 
-      // Go directly to step 5 (review) since all data is pre-filled
-      currentStep = 5;
+      // Step 5 - Copy time configuration
+      if (tournament.timeConfig) {
+        tcMinutesPer4RoundsSingles = tournament.timeConfig.minutesPer4RoundsSingles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
+        tcMinutesPer4RoundsDoubles = tournament.timeConfig.minutesPer4RoundsDoubles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles;
+        tcAvgRounds5pts = tournament.timeConfig.avgRoundsForPointsMode?.[5] ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5];
+        tcAvgRounds7pts = tournament.timeConfig.avgRoundsForPointsMode?.[7] ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[7];
+        tcAvgRounds9pts = tournament.timeConfig.avgRoundsForPointsMode?.[9] ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[9];
+        tcAvgRounds11pts = tournament.timeConfig.avgRoundsForPointsMode?.[11] ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[11];
+        tcBreakBetweenMatches = tournament.timeConfig.breakBetweenMatches ?? DEFAULT_TIME_CONFIG.breakBetweenMatches;
+        tcBreakBetweenPhases = tournament.timeConfig.breakBetweenPhases ?? DEFAULT_TIME_CONFIG.breakBetweenPhases;
+        tcParallelSemifinals = tournament.timeConfig.parallelSemifinals ?? DEFAULT_TIME_CONFIG.parallelSemifinals;
+        tcParallelFinals = tournament.timeConfig.parallelFinals ?? DEFAULT_TIME_CONFIG.parallelFinals;
+      }
+
+      // Go directly to step 6 (review) since all data is pre-filled
+      currentStep = 6;
 
       toastMessage = `✅ Torneo cargado para duplicar (Edición #${edition})`;
       showToast = true;
@@ -496,6 +556,18 @@
       // Update guest name to next player number
       guestName = `Player${participants.length + 1}`;
 
+      // Step 5 - Time configuration
+      tcMinutesPer4RoundsSingles = data.tcMinutesPer4RoundsSingles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
+      tcMinutesPer4RoundsDoubles = data.tcMinutesPer4RoundsDoubles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles;
+      tcAvgRounds5pts = data.tcAvgRounds5pts ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5];
+      tcAvgRounds7pts = data.tcAvgRounds7pts ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[7];
+      tcAvgRounds9pts = data.tcAvgRounds9pts ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[9];
+      tcAvgRounds11pts = data.tcAvgRounds11pts ?? DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[11];
+      tcBreakBetweenMatches = data.tcBreakBetweenMatches ?? DEFAULT_TIME_CONFIG.breakBetweenMatches;
+      tcBreakBetweenPhases = data.tcBreakBetweenPhases ?? DEFAULT_TIME_CONFIG.breakBetweenPhases;
+      tcParallelSemifinals = data.tcParallelSemifinals ?? DEFAULT_TIME_CONFIG.parallelSemifinals;
+      tcParallelFinals = data.tcParallelFinals ?? DEFAULT_TIME_CONFIG.parallelFinals;
+
       console.log('✅ Tournament draft loaded from localStorage');
     } catch (error) {
       console.error('❌ Error loading tournament draft:', error);
@@ -547,7 +619,18 @@
         showHammer,
         rankingEnabled,
         selectedTier,
-        participants
+        participants,
+        // Time configuration
+        tcMinutesPer4RoundsSingles,
+        tcMinutesPer4RoundsDoubles,
+        tcAvgRounds5pts,
+        tcAvgRounds7pts,
+        tcAvgRounds9pts,
+        tcAvgRounds11pts,
+        tcBreakBetweenMatches,
+        tcBreakBetweenPhases,
+        tcParallelSemifinals,
+        tcParallelFinals
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -904,7 +987,8 @@
         showHammer,
         numTables,
         phaseType,
-        rankingConfig
+        rankingConfig,
+        timeConfig
       };
 
       // Set phase configuration based on phase type
@@ -1008,6 +1092,11 @@
       // Only include participants in CREATE mode, not in UPDATE mode
       if (!editMode) {
         tournamentData.participants = participants;
+      }
+
+      // Calculate time estimation if config is available
+      if (timeConfig) {
+        tournamentData.timeEstimate = calculateTournamentTimeEstimate(tournamentData as any, timeConfig);
       }
 
       // Clean undefined values before sending to Firebase
@@ -1138,6 +1227,7 @@
               {:else if i === 1}Formato
               {:else if i === 2}Ranking
               {:else if i === 3}Jugadores
+              {:else if i === 4}Tiempos
               {:else}Revisar
               {/if}
             </div>
@@ -2105,8 +2195,205 @@
         </div>
       {/if}
 
-      <!-- Step 5: Review -->
+      <!-- Step 5: Time Configuration -->
       {#if currentStep === 5}
+        <div class="step-container step-time-config">
+          <div class="step-header-modern">
+            <div class="step-icon-circle">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+            <div class="step-header-text">
+              <h2>{$t('timeConfigTitle')}</h2>
+              <p>{$t('timeConfigDesc')}</p>
+            </div>
+          </div>
+
+          <div class="time-config-grid-modern">
+            <!-- Row 1: Match Duration & Breaks -->
+            <div class="tc-card">
+              <div class="tc-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <div class="tc-card-content">
+                <h3>{$t('matchDuration')}</h3>
+                <p class="tc-card-desc">{$t('matchDurationDesc')}</p>
+                <div class="tc-fields">
+                  <div class="tc-field">
+                    <span class="tc-field-label">{$t('singles')}</span>
+                    <div class="tc-field-input">
+                      <input type="number" bind:value={tcMinutesPer4RoundsSingles} min="5" max="30" />
+                      <span class="tc-unit">min</span>
+                    </div>
+                  </div>
+                  <div class="tc-field">
+                    <span class="tc-field-label">{$t('doubles')}</span>
+                    <div class="tc-field-input">
+                      <input type="number" bind:value={tcMinutesPer4RoundsDoubles} min="5" max="30" />
+                      <span class="tc-unit">min</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tc-card">
+              <div class="tc-card-icon pause">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="6" y="4" width="4" height="16"/>
+                  <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+              </div>
+              <div class="tc-card-content">
+                <h3>{$t('breaks')}</h3>
+                <p class="tc-card-desc">{$t('breaksDesc')}</p>
+                <div class="tc-fields">
+                  <div class="tc-field">
+                    <span class="tc-field-label">{$t('betweenMatches')}</span>
+                    <div class="tc-field-input">
+                      <input type="number" bind:value={tcBreakBetweenMatches} min="0" max="30" />
+                      <span class="tc-unit">min</span>
+                    </div>
+                  </div>
+                  <div class="tc-field">
+                    <span class="tc-field-label">{$t('betweenPhases')}</span>
+                    <div class="tc-field-input">
+                      <input type="number" bind:value={tcBreakBetweenPhases} min="0" max="60" />
+                      <span class="tc-unit">min</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: Points Mode & Options -->
+            <div class="tc-card">
+              <div class="tc-card-icon points">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                </svg>
+              </div>
+              <div class="tc-card-content">
+                <h3>{$t('avgRoundsTitle')}</h3>
+                <p class="tc-card-desc">{$t('avgRoundsDesc')}</p>
+                <div class="tc-points-grid">
+                  <div class="tc-point-item">
+                    <span class="tc-point-badge">5</span>
+                    <input type="number" bind:value={tcAvgRounds5pts} min="2" max="12" />
+                    <span class="tc-point-suffix">rds</span>
+                  </div>
+                  <div class="tc-point-item">
+                    <span class="tc-point-badge">7</span>
+                    <input type="number" bind:value={tcAvgRounds7pts} min="3" max="15" />
+                    <span class="tc-point-suffix">rds</span>
+                  </div>
+                  <div class="tc-point-item">
+                    <span class="tc-point-badge">9</span>
+                    <input type="number" bind:value={tcAvgRounds9pts} min="4" max="20" />
+                    <span class="tc-point-suffix">rds</span>
+                  </div>
+                  <div class="tc-point-item">
+                    <span class="tc-point-badge">11</span>
+                    <input type="number" bind:value={tcAvgRounds11pts} min="5" max="25" />
+                    <span class="tc-point-suffix">rds</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tc-card">
+              <div class="tc-card-icon options">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+              </div>
+              <div class="tc-card-content">
+                <h3>{$t('advancedOptions')}</h3>
+                <p class="tc-card-desc">{$t('advancedOptionsDesc')}</p>
+                <div class="tc-toggle-field">
+                  <div class="tc-toggle-info">
+                    <span class="tc-toggle-label">{$t('parallelSemifinals')}</span>
+                    <span class="tc-toggle-desc">{$t('parallelSemifinalsDesc')}</span>
+                  </div>
+                  <div class="tc-toggle-wrapper">
+                    <button
+                      type="button"
+                      class="tc-toggle"
+                      class:active={tcParallelSemifinals}
+                      on:click={() => tcParallelSemifinals = !tcParallelSemifinals}
+                      aria-pressed={tcParallelSemifinals}
+                    >
+                      <span class="tc-toggle-track">
+                        <span class="tc-toggle-thumb"></span>
+                      </span>
+                    </button>
+                    <span class="tc-toggle-status" class:active={tcParallelSemifinals}>
+                      {tcParallelSemifinals ? $t('yes') : $t('no')}
+                    </span>
+                  </div>
+                </div>
+                <div class="tc-toggle-field">
+                  <div class="tc-toggle-info">
+                    <span class="tc-toggle-label">{$t('parallelFinals')}</span>
+                    <span class="tc-toggle-desc">{$t('parallelFinalsDesc')}</span>
+                  </div>
+                  <div class="tc-toggle-wrapper">
+                    <button
+                      type="button"
+                      class="tc-toggle"
+                      class:active={tcParallelFinals}
+                      on:click={() => tcParallelFinals = !tcParallelFinals}
+                      aria-pressed={tcParallelFinals}
+                    >
+                      <span class="tc-toggle-track">
+                        <span class="tc-toggle-thumb"></span>
+                      </span>
+                    </button>
+                    <span class="tc-toggle-status" class:active={tcParallelFinals}>
+                      {tcParallelFinals ? $t('yes') : $t('no')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reset Button -->
+          <div class="tc-actions">
+            <button
+              type="button"
+              class="tc-btn-reset"
+              on:click={() => {
+                tcMinutesPer4RoundsSingles = DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
+                tcMinutesPer4RoundsDoubles = DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles;
+                tcAvgRounds5pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5];
+                tcAvgRounds7pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[7];
+                tcAvgRounds9pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[9];
+                tcAvgRounds11pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[11];
+                tcBreakBetweenMatches = DEFAULT_TIME_CONFIG.breakBetweenMatches;
+                tcBreakBetweenPhases = DEFAULT_TIME_CONFIG.breakBetweenPhases;
+                tcParallelSemifinals = DEFAULT_TIME_CONFIG.parallelSemifinals;
+                tcParallelFinals = DEFAULT_TIME_CONFIG.parallelFinals;
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+              {$t('resetToDefaults')}
+            </button>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Step 6: Review -->
+      {#if currentStep === 6}
         <div class="step-container">
           <h2>Revisión Final</h2>
 
@@ -5383,6 +5670,455 @@
     .nav-button {
       padding: 0.35rem 0.75rem;
       font-size: 0.7rem;
+    }
+  }
+
+  /* Step 5: Time Configuration - Modern */
+  .step-time-config {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .step-header-modern {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .wizard-container[data-theme='dark'] .step-header-modern {
+    border-bottom-color: #334155;
+  }
+
+  .step-icon-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    border-radius: 12px;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .step-header-text h2 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .wizard-container[data-theme='dark'] .step-header-text h2 {
+    color: #f1f5f9;
+  }
+
+  .step-header-text p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #64748b;
+  }
+
+  .wizard-container[data-theme='dark'] .step-header-text p {
+    color: #94a3b8;
+  }
+
+  .time-config-grid-modern {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .tc-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    gap: 1rem;
+    transition: all 0.2s ease;
+  }
+
+  .tc-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .wizard-container[data-theme='dark'] .tc-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-card:hover {
+    border-color: #475569;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .tc-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: #eff6ff;
+    border-radius: 10px;
+    color: #3b82f6;
+    flex-shrink: 0;
+  }
+
+  .tc-card-icon.pause {
+    background: #fef3c7;
+    color: #d97706;
+  }
+
+  .tc-card-icon.points {
+    background: #f0fdf4;
+    color: #16a34a;
+  }
+
+  .tc-card-icon.options {
+    background: #faf5ff;
+    color: #9333ea;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-card-icon {
+    background: rgba(59, 130, 246, 0.15);
+  }
+
+  .wizard-container[data-theme='dark'] .tc-card-icon.pause {
+    background: rgba(217, 119, 6, 0.15);
+  }
+
+  .wizard-container[data-theme='dark'] .tc-card-icon.points {
+    background: rgba(22, 163, 74, 0.15);
+  }
+
+  .wizard-container[data-theme='dark'] .tc-card-icon.options {
+    background: rgba(147, 51, 234, 0.15);
+  }
+
+  .tc-card-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tc-card-content h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-card-content h3 {
+    color: #f1f5f9;
+  }
+
+  .tc-card-desc {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.3;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-card-desc {
+    color: #94a3b8;
+  }
+
+  .tc-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .tc-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .tc-field-label {
+    font-size: 0.8rem;
+    color: #475569;
+    font-weight: 500;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-field-label {
+    color: #cbd5e1;
+  }
+
+  .tc-field-input {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .tc-field-input input {
+    width: 56px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    text-align: center;
+    background: #f8fafc;
+    color: #1e293b;
+    transition: all 0.15s;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-field-input input {
+    background: #0f172a;
+    border-color: #334155;
+    color: #f1f5f9;
+  }
+
+  .tc-field-input input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  }
+
+  .tc-unit {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-weight: 500;
+    min-width: 20px;
+  }
+
+  /* Points Grid */
+  .tc-points-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+
+  .tc-point-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.5rem;
+    background: #f8fafc;
+    border-radius: 6px;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-point-item {
+    background: #0f172a;
+  }
+
+  .tc-point-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    background: #16a34a;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 4px;
+  }
+
+  .tc-point-item input {
+    width: 40px;
+    padding: 0.3rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-align: center;
+    background: white;
+    color: #1e293b;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-point-item input {
+    background: #1e293b;
+    border-color: #334155;
+    color: #f1f5f9;
+  }
+
+  .tc-point-item input:focus {
+    outline: none;
+    border-color: #16a34a;
+  }
+
+  .tc-point-suffix {
+    font-size: 0.65rem;
+    color: #94a3b8;
+  }
+
+  /* Toggle */
+  .tc-toggle-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .tc-toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .tc-toggle-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #334155;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-toggle-label {
+    color: #e2e8f0;
+  }
+
+  .tc-toggle-desc {
+    font-size: 0.7rem;
+    color: #94a3b8;
+  }
+
+  .tc-toggle-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .tc-toggle-status {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #94a3b8;
+    min-width: 20px;
+    transition: color 0.2s;
+  }
+
+  .tc-toggle-status.active {
+    color: #3b82f6;
+  }
+
+  .tc-toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .tc-toggle-track {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #cbd5e1;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-toggle-track {
+    background: #475569;
+  }
+
+  .tc-toggle.active .tc-toggle-track {
+    background: #3b82f6;
+  }
+
+  .tc-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+  }
+
+  .tc-toggle.active .tc-toggle-thumb {
+    left: 22px;
+  }
+
+  /* Actions */
+  .tc-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.25rem;
+  }
+
+  .tc-btn-reset {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.25rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    color: #64748b;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-btn-reset {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+
+  .tc-btn-reset:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #475569;
+  }
+
+  .wizard-container[data-theme='dark'] .tc-btn-reset:hover {
+    background: #334155;
+    color: #e2e8f0;
+  }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .time-config-grid-modern {
+      grid-template-columns: 1fr;
+    }
+
+    .tc-card {
+      padding: 1rem;
+    }
+
+    .tc-points-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .tc-point-item {
+      flex-direction: column;
+      padding: 0.5rem 0.25rem;
+      gap: 0.25rem;
+    }
+
+    .tc-point-item input {
+      width: 100%;
+    }
+
+    .tc-point-suffix {
+      display: none;
+    }
+  }
+
+  @media (max-width: 400px) {
+    .step-header-modern {
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .tc-points-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .tc-toggle-field {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
     }
   }
 </style>

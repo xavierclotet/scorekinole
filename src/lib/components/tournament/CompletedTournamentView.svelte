@@ -1,9 +1,16 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import type { Tournament, GroupMatch, BracketMatch } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
   import { BYE_PARTICIPANT, isBye } from '$lib/algorithms/bracket';
+  import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { t } from '$lib/stores/language';
+
+  const dispatch = createEventDispatcher<{ updated: void }>();
+
+  // Track which groups are recalculating
+  let recalculatingGroups = new Set<string>();
 
   export let tournament: Tournament;
 
@@ -28,7 +35,19 @@
 
   let activeTab: 'groups' | 'bracket' = tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket';
   let showMatchDialog = false;
+  let expandedResults: Set<string> = new Set(); // Track which group results are expanded
   let selectedMatch: GroupMatch | BracketMatch | null = null;
+
+  // Toggle results accordion for a group
+  function toggleResults(groupId: string) {
+    const newExpanded = new Set(expandedResults);
+    if (newExpanded.has(groupId)) {
+      newExpanded.delete(groupId);
+    } else {
+      newExpanded.add(groupId);
+    }
+    expandedResults = newExpanded;
+  }
   let isBracketMatch = false;
 
   // Check if this is a split divisions tournament
@@ -84,6 +103,27 @@
     selectedMatch = null;
   }
 
+  // Recalculate standings for a group
+  async function handleRecalculateStandings(groupId: string) {
+    if (recalculatingGroups.has(groupId)) return;
+
+    recalculatingGroups.add(groupId);
+    recalculatingGroups = recalculatingGroups; // Trigger reactivity
+
+    try {
+      const success = await recalculateStandings(tournament.id, groupId);
+      if (success) {
+        // Dispatch event to parent to reload tournament data
+        dispatch('updated');
+      }
+    } catch (err) {
+      console.error('Error recalculating standings:', err);
+    } finally {
+      recalculatingGroups.delete(groupId);
+      recalculatingGroups = recalculatingGroups;
+    }
+  }
+
   // Get all matches from group schedule or pairings
   function getGroupMatches(group: any): GroupMatch[] {
     const schedule = group.schedule || group.pairings;
@@ -93,6 +133,18 @@
       const matches = round.matches;
       return Array.isArray(matches) ? matches : Object.values(matches || {});
     });
+  }
+
+  // Get rounds with their matches for grouped display
+  function getGroupRounds(group: any): Array<{ roundNumber: number; matches: GroupMatch[] }> {
+    const schedule = group.schedule || group.pairings;
+    if (!schedule) return [];
+    const scheduleArray = Array.isArray(schedule) ? schedule : Object.values(schedule);
+    return scheduleArray.map((round: any) => ({
+      roundNumber: round.roundNumber,
+      matches: (Array.isArray(round.matches) ? round.matches : Object.values(round.matches || {}))
+        .filter((m: GroupMatch) => m.participantB !== 'BYE')
+    })).filter(r => r.matches.length > 0);
   }
 
   // Convert BracketMatch to GroupMatch for dialog
@@ -115,45 +167,23 @@
 </script>
 
 <div class="completed-view">
-  <!-- Final Standings with Ranking -->
+  <!-- Final Standings with Ranking - Compact Grid Layout -->
   <div class="final-standings-section">
-    <h3 class="section-title">🏆 Clasificación Final</h3>
-    <div class="standings-table-container">
-      <table class="final-standings-table">
-        <thead>
-          <tr>
-            <th class="pos-col">#</th>
-            <th class="name-col">Participante</th>
-            {#if tournament.rankingConfig?.enabled}
-              <th class="ranking-col">Ranking</th>
-              <th class="delta-col">+/-</th>
-            {/if}
-          </tr>
-        </thead>
-        <tbody>
-          {#each sortedParticipants as participant (participant.id)}
-            {@const delta = getRankingDelta(participant)}
-            <tr class:top-3={participant.finalPosition && participant.finalPosition <= 3}>
-              <td class="pos-col">
-                <span class="position-display" class:medal={participant.finalPosition && participant.finalPosition <= 3}>
-                  {getPositionDisplay(participant.finalPosition || 0)}
-                </span>
-              </td>
-              <td class="name-col">{participant.name}</td>
-              {#if tournament.rankingConfig?.enabled}
-                <td class="ranking-col">
-                  <span class="ranking-value">{participant.currentRanking}</span>
-                </td>
-                <td class="delta-col">
-                  <span class="ranking-delta" class:positive={delta > 0} class:negative={delta < 0}>
-                    {delta > 0 ? '+' : ''}{delta}
-                  </span>
-                </td>
-              {/if}
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    <div class="standings-grid" class:with-ranking={tournament.rankingConfig?.enabled}>
+      {#each sortedParticipants as participant (participant.id)}
+        {@const delta = getRankingDelta(participant)}
+        {@const pos = participant.finalPosition || 0}
+        <div class="standing-row" class:top-3={pos <= 3} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3}>
+          <span class="pos">{getPositionDisplay(pos)}</span>
+          <span class="name">{participant.name}</span>
+          {#if tournament.rankingConfig?.enabled}
+            <span class="ranking">{participant.currentRanking}</span>
+            <span class="delta" class:positive={delta > 0} class:negative={delta < 0}>
+              {delta > 0 ? '+' : ''}{delta}
+            </span>
+          {/if}
+        </div>
+      {/each}
     </div>
   </div>
 
@@ -183,12 +213,30 @@
       <!-- Groups View -->
       <div class="groups-section">
         {#each tournament.groupStage.groups as group (group.id)}
+          {@const rankSystem = tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
           <div class="group-card">
             <h3 class="group-title">{translateGroupName(group.name)}</h3>
 
             <!-- Standings Table -->
             <div class="standings-section">
-              <h4>Clasificación</h4>
+              <div class="standings-header">
+                <h4>
+                  {$t('standings')}
+                  <span class="ranking-system-badge">{rankSystem === 'POINTS' ? $t('byPoints') : $t('byWins')}</span>
+                </h4>
+                <button
+                  class="recalc-btn"
+                  on:click={() => handleRecalculateStandings(group.id)}
+                  disabled={recalculatingGroups.has(group.id)}
+                  title={$t('recalculateStandings')}
+                >
+                  {#if recalculatingGroups.has(group.id)}
+                    <span class="spinner-small"></span>
+                  {:else}
+                    🔄
+                  {/if}
+                </button>
+              </div>
               <GroupStandings
                 standings={group.standings}
                 participants={tournament.participants}
@@ -198,29 +246,54 @@
               />
             </div>
 
-            <!-- Match Results -->
+            <!-- Match Results by Round - Collapsible -->
             <div class="matches-section">
-              <h4>Resultados</h4>
-              <div class="matches-list">
-                {#each getGroupMatches(group) as match (match.id)}
-                  {#if match.participantB !== 'BYE'}
-                    <button
-                      class="match-row"
-                      on:click={() => handleMatchClick(match, false)}
-                    >
-                      <span class="participant" class:winner={match.winner === match.participantA}>
-                        {getParticipantName(match.participantA)}
-                      </span>
-                      <span class="score">
-                        {match.totalPointsA ?? '-'} - {match.totalPointsB ?? '-'}
-                      </span>
-                      <span class="participant" class:winner={match.winner === match.participantB}>
-                        {getParticipantName(match.participantB)}
-                      </span>
-                    </button>
-                  {/if}
-                {/each}
-              </div>
+              <button
+                class="results-accordion-header"
+                on:click={() => toggleResults(group.id)}
+                aria-expanded={expandedResults.has(group.id)}
+              >
+                <span class="accordion-icon" class:expanded={expandedResults.has(group.id)}>
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                  </svg>
+                </span>
+                <span class="accordion-title">{$t('results')}</span>
+                <span class="matches-count">{getGroupMatches(group).length}</span>
+              </button>
+
+              {#if expandedResults.has(group.id)}
+                <div class="results-content">
+                  {#each getGroupRounds(group) as round (round.roundNumber)}
+                    <div class="round-group">
+                      <div class="round-divider">
+                        <span class="round-label">{$t('round')} {round.roundNumber}</span>
+                      </div>
+                      <div class="matches-list">
+                        {#each round.matches as match (match.id)}
+                          <button
+                            class="match-row"
+                            on:click={() => handleMatchClick(match, false)}
+                          >
+                            {#if match.tableNumber}
+                              <span class="table-badge">M{match.tableNumber}</span>
+                            {/if}
+                            <span class="participant" class:winner={match.winner === match.participantA}>
+                              {getParticipantName(match.participantA)}
+                            </span>
+                            <span class="score">
+                              {match.totalPointsA ?? '-'} - {match.totalPointsB ?? '-'}
+                            </span>
+                            <span class="participant" class:winner={match.winner === match.participantB}>
+                              {getParticipantName(match.participantB)}
+                            </span>
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
             </div>
           </div>
         {/each}
@@ -440,141 +513,134 @@
     overflow: hidden;
   }
 
-  /* Final Standings Section */
+  /* Final Standings Section - Compact Grid */
   .final-standings-section {
-    margin-bottom: 2rem;
-    background: #f9fafb;
-    border-radius: 12px;
-    padding: 1.5rem;
+    margin-bottom: 1.5rem;
   }
 
-  :global([data-theme='dark']) .final-standings-section {
-    background: #0f1419;
+  .standings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.35rem;
   }
 
-  .section-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #1f2937;
-    margin: 0 0 1rem 0;
+  .standings-grid.with-ranking {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   }
 
-  :global([data-theme='dark']) .section-title {
-    color: #e1e8ed;
-  }
-
-  .standings-table-container {
-    overflow-x: auto;
-  }
-
-  .final-standings-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.95rem;
-  }
-
-  .final-standings-table thead {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  }
-
-  .final-standings-table th {
-    padding: 0.75rem 1rem;
-    text-align: left;
-    color: white;
-    font-weight: 600;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-
-  .final-standings-table th.pos-col {
-    width: 60px;
-    text-align: center;
-  }
-
-  .final-standings-table th.ranking-col,
-  .final-standings-table th.delta-col {
-    width: 80px;
-    text-align: center;
-  }
-
-  .final-standings-table tbody tr {
-    border-bottom: 1px solid #e5e7eb;
-    transition: background-color 0.2s;
-  }
-
-  :global([data-theme='dark']) .final-standings-table tbody tr {
-    border-bottom-color: #2d3748;
-  }
-
-  .final-standings-table tbody tr:hover {
-    background: rgba(102, 126, 234, 0.05);
-  }
-
-  .final-standings-table tbody tr.top-3 {
-    background: rgba(16, 185, 129, 0.05);
-  }
-
-  :global([data-theme='dark']) .final-standings-table tbody tr.top-3 {
-    background: rgba(16, 185, 129, 0.1);
-  }
-
-  .final-standings-table td {
-    padding: 0.75rem 1rem;
-    color: #374151;
-  }
-
-  :global([data-theme='dark']) .final-standings-table td {
-    color: #e1e8ed;
-  }
-
-  .final-standings-table td.pos-col {
-    text-align: center;
-  }
-
-  .position-display {
-    display: inline-flex;
+  .standing-row {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    min-width: 2rem;
-    height: 2rem;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: #f9fafb;
+    border-radius: 6px;
+    transition: all 0.15s;
+    border-left: 3px solid transparent;
+  }
+
+  :global([data-theme='dark']) .standing-row {
+    background: #1a2332;
+  }
+
+  .standing-row:hover {
+    background: #f3f4f6;
+  }
+
+  :global([data-theme='dark']) .standing-row:hover {
+    background: #243447;
+  }
+
+  .standing-row.top-3 {
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.08) 0%, transparent 100%);
+  }
+
+  .standing-row.first {
+    border-left-color: #fbbf24;
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.12) 0%, transparent 100%);
+  }
+
+  .standing-row.second {
+    border-left-color: #9ca3af;
+    background: linear-gradient(90deg, rgba(156, 163, 175, 0.1) 0%, transparent 100%);
+  }
+
+  .standing-row.third {
+    border-left-color: #d97706;
+    background: linear-gradient(90deg, rgba(217, 119, 6, 0.08) 0%, transparent 100%);
+  }
+
+  :global([data-theme='dark']) .standing-row.top-3 {
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.1) 0%, transparent 100%);
+  }
+
+  :global([data-theme='dark']) .standing-row.first {
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.15) 0%, transparent 100%);
+  }
+
+  :global([data-theme='dark']) .standing-row.second {
+    background: linear-gradient(90deg, rgba(156, 163, 175, 0.12) 0%, transparent 100%);
+  }
+
+  :global([data-theme='dark']) .standing-row.third {
+    background: linear-gradient(90deg, rgba(217, 119, 6, 0.1) 0%, transparent 100%);
+  }
+
+  .standing-row .pos {
+    min-width: 1.5rem;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: #6b7280;
-  }
-
-  .position-display.medal {
-    font-size: 1.3rem;
-  }
-
-  .final-standings-table td.name-col {
-    font-weight: 600;
-  }
-
-  .final-standings-table td.ranking-col,
-  .final-standings-table td.delta-col {
     text-align: center;
   }
 
-  .ranking-value {
+  .standing-row.first .pos,
+  .standing-row.second .pos,
+  .standing-row.third .pos {
+    font-size: 1rem;
+  }
+
+  :global([data-theme='dark']) .standing-row .pos {
+    color: #8b9bb3;
+  }
+
+  .standing-row .name {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1f2937;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  :global([data-theme='dark']) .standing-row .name {
+    color: #e1e8ed;
+  }
+
+  .standing-row .ranking {
+    font-size: 0.75rem;
     font-weight: 600;
     color: #667eea;
+    min-width: 2.5rem;
+    text-align: right;
   }
 
-  .ranking-delta {
-    display: inline-block;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
+  .standing-row .delta {
+    font-size: 0.7rem;
     font-weight: 700;
-    font-size: 0.85rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    min-width: 2rem;
+    text-align: center;
   }
 
-  .ranking-delta.positive {
+  .standing-row .delta.positive {
     background: rgba(16, 185, 129, 0.15);
     color: #10b981;
   }
 
-  .ranking-delta.negative {
+  .standing-row .delta.negative {
     background: rgba(239, 68, 68, 0.15);
     color: #ef4444;
   }
@@ -638,8 +704,8 @@
 
   .group-card {
     background: #f9fafb;
-    border-radius: 12px;
-    padding: 1.5rem;
+    border-radius: 8px;
+    padding: 1rem;
   }
 
   :global([data-theme='dark']) .group-card {
@@ -647,27 +713,7 @@
   }
 
   .group-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #1f2937;
-    margin: 0 0 1.5rem 0;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid #e5e7eb;
-  }
-
-  :global([data-theme='dark']) .group-title {
-    color: #e1e8ed;
-    border-bottom-color: #2d3748;
-  }
-
-  .standings-section,
-  .matches-section {
-    margin-bottom: 1.5rem;
-  }
-
-  .standings-section h4,
-  .matches-section h4 {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #6b7280;
     margin: 0 0 0.75rem 0;
@@ -675,34 +721,261 @@
     letter-spacing: 0.05em;
   }
 
-  :global([data-theme='dark']) .standings-section h4,
-  :global([data-theme='dark']) .matches-section h4 {
+  :global([data-theme='dark']) .group-title {
     color: #8b9bb3;
   }
 
-  /* Matches List - 2 columns on wide screens */
+  .standings-section,
+  .matches-section {
+    margin-bottom: 1rem;
+  }
+
+  .standings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+
+  .standings-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .recalc-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+  }
+
+  .recalc-btn:hover:not(:disabled) {
+    background: #e5e7eb;
+    border-color: #667eea;
+  }
+
+  .recalc-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .spinner-small {
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid #d1d5db;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  :global([data-theme='dark']) .recalc-btn {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+
+  :global([data-theme='dark']) .recalc-btn:hover:not(:disabled) {
+    background: #4a5568;
+    border-color: #667eea;
+  }
+
+  :global([data-theme='dark']) .spinner-small {
+    border-color: #4a5568;
+    border-top-color: #667eea;
+  }
+
+  .ranking-system-badge {
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 0.1rem 0.35rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 3px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  :global([data-theme='dark']) .standings-section h4 {
+    color: #8b9bb3;
+  }
+
+  /* Results accordion */
+  .results-accordion-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+
+  .results-accordion-header:hover {
+    background: #f9fafb;
+    border-color: #667eea;
+  }
+
+  .accordion-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    transition: transform 0.15s;
+  }
+
+  .accordion-icon.expanded {
+    transform: rotate(90deg);
+  }
+
+  .accordion-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .matches-count {
+    margin-left: auto;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    background: #f3f4f6;
+    color: #6b7280;
+    border-radius: 10px;
+  }
+
+  .results-content {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    animation: slideDown 0.15s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  :global([data-theme='dark']) .results-accordion-header {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  :global([data-theme='dark']) .results-accordion-header:hover {
+    background: #243447;
+    border-color: #667eea;
+  }
+
+  :global([data-theme='dark']) .accordion-icon {
+    color: #8b9bb3;
+  }
+
+  :global([data-theme='dark']) .accordion-title {
+    color: #e1e8ed;
+  }
+
+  :global([data-theme='dark']) .matches-count {
+    background: #2d3748;
+    color: #8b9bb3;
+  }
+
+  :global([data-theme='dark']) .results-content {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  /* Round groups */
+  .round-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .round-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .round-divider::before,
+  .round-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #e5e7eb 20%, #e5e7eb 80%, transparent);
+  }
+
+  .round-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  :global([data-theme='dark']) .round-divider::before,
+  :global([data-theme='dark']) .round-divider::after {
+    background: linear-gradient(90deg, transparent, #2d3748 20%, #2d3748 80%, transparent);
+  }
+
+  :global([data-theme='dark']) .round-label {
+    color: #8b9bb3;
+  }
+
+  /* Matches List */
   .matches-list {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.25rem;
   }
 
   .match-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
+    gap: 0.4rem;
+    padding: 0.35rem 0.5rem;
     background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border-radius: 5px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
     width: 100%;
     text-align: left;
   }
 
   .match-row:hover {
-    background: #f3f4f6;
+    background: #f9fafb;
     border-color: #667eea;
   }
 
@@ -716,10 +989,23 @@
     border-color: #667eea;
   }
 
+  .match-row .table-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 0.1rem 0.25rem;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
   .match-row .participant {
     flex: 1;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: #374151;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .match-row .participant:last-child {
@@ -736,14 +1022,15 @@
   }
 
   .match-row .score {
-    padding: 0.25rem 0.75rem;
-    background: #e5e7eb;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.85rem;
+    padding: 0.15rem 0.4rem;
+    background: #f3f4f6;
+    border-radius: 3px;
+    font-weight: 700;
+    font-size: 0.75rem;
     color: #374151;
-    min-width: 60px;
+    min-width: 50px;
     text-align: center;
+    flex-shrink: 0;
   }
 
   :global([data-theme='dark']) .match-row .score {

@@ -70,6 +70,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Settings collection - for global app configuration
+    match /settings/{settingId} {
+      // Anyone authenticated can read settings
+      allow read: if isAuthenticated();
+
+      // Only super admins can write settings
+      allow write: if isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true;
+    }
+
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

@@ -271,17 +271,17 @@ export function getBracketRoundNames(numParticipants: number): string[] {
 
   while (currentSize >= 2) {
     if (currentSize === 2) {
-      rounds.push('Final');
+      rounds.push('finals');
     } else if (currentSize === 4) {
-      rounds.push('Semifinales');
+      rounds.push('semifinals');
     } else if (currentSize === 8) {
-      rounds.push('Cuartos de Final');
+      rounds.push('quarterfinals');
     } else if (currentSize === 16) {
-      rounds.push('Octavos de Final');
+      rounds.push('round16');
     } else if (currentSize === 32) {
-      rounds.push('Dieciseisavos de Final');
+      rounds.push('round32');
     } else {
-      rounds.push(`Ronda de ${currentSize}`);
+      rounds.push(`round${currentSize}`);
     }
     currentSize = currentSize / 2;
   }

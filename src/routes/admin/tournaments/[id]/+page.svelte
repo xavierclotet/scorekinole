@@ -12,6 +12,9 @@
   import type { Tournament } from '$lib/types/tournament';
   import Toast from '$lib/components/Toast.svelte';
   import { t } from '$lib/stores/language';
+  import { formatDuration, calculateRemainingTime, calculateTournamentTimeEstimate, calculateTimeBreakdown, type TimeBreakdown } from '$lib/utils/tournamentTime';
+  import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
+  import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
 
   let tournament: Tournament | null = null;
   let loading = true;
@@ -19,6 +22,8 @@
   let showCancelConfirm = false;
   let showStartConfirm = false;
   let showQuickEdit = false;
+  let showTimeBreakdown = false;
+  let timeBreakdown: TimeBreakdown | null = null;
   let showToast = false;
   let toastMessage = '';
   let isStarting = false;
@@ -52,6 +57,13 @@
 
       if (!tournament) {
         error = true;
+      } else if (!tournament.timeEstimate) {
+        // Calculate time estimate for existing tournaments that don't have it
+        // Uses tournament.timeConfig if available, otherwise defaults
+        const timeEstimate = calculateTournamentTimeEstimate(tournament);
+        tournament.timeEstimate = timeEstimate;
+        // Save the calculated estimate to Firebase
+        await updateTournament(tournamentId, { timeEstimate });
       }
     } catch (err) {
       console.error('Error loading tournament:', err);
@@ -182,6 +194,23 @@
     showQuickEdit = false;
   }
 
+  function openTimeBreakdown() {
+    if (!tournament) return;
+    timeBreakdown = calculateTimeBreakdown(tournament);
+    showTimeBreakdown = true;
+  }
+
+  async function recalculateTime() {
+    if (!tournament || !tournamentId) return;
+    const timeEstimate = calculateTournamentTimeEstimate(tournament);
+    tournament.timeEstimate = timeEstimate;
+    // Also update the breakdown if modal is open
+    timeBreakdown = calculateTimeBreakdown(tournament);
+    await updateTournament(tournamentId, { timeEstimate });
+    toastMessage = $t('timeRecalculated');
+    showToast = true;
+  }
+
   function getMinTables(): number {
     if (!tournament) return 1;
     // Calculate minimum tables needed based on participants
@@ -237,6 +266,9 @@
 
   // Check if tournament can be quick-edited (active states only)
   $: canQuickEdit = tournament && ['GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'].includes(tournament.status);
+
+  // Calculate remaining time reactively
+  $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
 </script>
 
 <AdminGuard>
@@ -263,6 +295,18 @@
                   <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
                 {/if}
               </div>
+              {#if timeRemaining && ['GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'].includes(tournament.status)}
+                <div class="header-progress">
+                  <TimeProgressBar
+                    percentComplete={timeRemaining.percentComplete}
+                    remainingMinutes={timeRemaining.remainingMinutes}
+                    showEstimatedEnd={true}
+                    compact={true}
+                    clickable={true}
+                    on:click={openTimeBreakdown}
+                  />
+                </div>
+              {/if}
             </div>
           </div>
 
@@ -340,7 +384,7 @@
           {#if tournament.status === 'COMPLETED'}
             <section class="dashboard-card results-card">
               <h2>📋 {$t('tournamentResults')}</h2>
-              <CompletedTournamentView {tournament} />
+              <CompletedTournamentView {tournament} on:updated={loadTournament} />
             </section>
           {/if}
 
@@ -407,6 +451,15 @@
                   {/if}
                 </span>
               </div>
+
+              {#if tournament.timeEstimate?.totalMinutes}
+                <div class="config-item">
+                  <span class="config-label">{$t('estimatedDuration')}:</span>
+                  <span class="config-value duration-value">
+                    ~{formatDuration(tournament.timeEstimate.totalMinutes)}
+                  </span>
+                </div>
+              {/if}
             </div>
           </section>
 
@@ -559,6 +612,7 @@
             {/if}
           </section>
 
+          
         </div>
       {/if}
     </div>
@@ -726,6 +780,13 @@
 
 <Toast bind:visible={showToast} message={toastMessage} />
 
+<TimeBreakdownModal
+  bind:visible={showTimeBreakdown}
+  breakdown={timeBreakdown}
+  showRecalculate={true}
+  on:recalculate={recalculateTime}
+/>
+
 <style>
   .tournament-page {
     min-height: 100vh;
@@ -821,6 +882,10 @@
     align-items: center;
     gap: 0.4rem;
     flex-wrap: wrap;
+  }
+
+  .header-progress {
+    margin-left: 0.5rem;
   }
 
   .status-badge {
@@ -1073,6 +1138,18 @@
 
   .tournament-page[data-theme='dark'] .config-value {
     color: #e1e8ed;
+  }
+
+  .config-value.duration-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
   }
 
   /* Responsive */
@@ -1645,4 +1722,53 @@
       border-radius: 0;
     }
   }
-</style>
+
+  /* Time estimation card */
+  .time-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  .time-header h2 {
+    margin: 0;
+  }
+
+  .time-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .details-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: #f1f5f9;
+    color: #64748b;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .details-btn:hover {
+    background: #e2e8f0;
+    color: #334155;
+  }
+
+  .tournament-page[data-theme='dark'] .details-btn {
+    background: #334155;
+    color: #94a3b8;
+  }
+
+  .tournament-page[data-theme='dark'] .details-btn:hover {
+    background: #475569;
+    color: #e2e8f0;
+  }
+
+  </style>

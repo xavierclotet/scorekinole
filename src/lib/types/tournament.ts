@@ -110,6 +110,12 @@ export interface Tournament {
     silverFinalMatchesToWin?: number;
   };
 
+  // Time configuration (per-tournament settings for time estimation)
+  timeConfig?: TournamentTimeConfig;
+
+  // Time estimation
+  timeEstimate?: TournamentTimeEstimate;
+
   // Timestamps
   createdAt: number;
   createdBy: {
@@ -289,6 +295,10 @@ export interface GroupStanding {
 
   // Qualification
   qualifiedForFinal: boolean;
+
+  // Tie resolution
+  tiedWith?: string[];           // IDs of participants tied with this one (unresolved)
+  tieReason?: 'head-to-head' | 'twenties' | 'unresolved';  // Why the tie exists
 }
 
 /**
@@ -468,4 +478,29 @@ export interface TournamentRecord {
   rankingBefore: number;
   rankingAfter: number;
   rankingDelta: number;
+}
+
+/**
+ * Tournament time configuration
+ * Global settings stored in Firebase, only modifiable by SuperAdmins
+ */
+export interface TournamentTimeConfig {
+  minutesPer4RoundsSingles: number;     // default: 10
+  minutesPer4RoundsDoubles: number;     // default: 15
+  avgRoundsForPointsMode: Record<number, number>;  // e.g., {5: 4, 7: 6, 9: 8, 11: 10}
+  breakBetweenMatches: number;          // default: 5 minutes
+  breakBetweenPhases: number;           // default: 10 minutes
+  parallelSemifinals: boolean;          // default: true - if semifinals are played in parallel
+  parallelFinals: boolean;              // default: true - if final and 3rd place match are played in parallel
+}
+
+/**
+ * Tournament time estimate
+ * Stored on tournament object after creation
+ */
+export interface TournamentTimeEstimate {
+  totalMinutes: number;
+  groupStageMinutes?: number;
+  finalStageMinutes?: number;
+  calculatedAt: number;
 }

@@ -21,6 +21,10 @@
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
   import { isBye } from '$lib/algorithms/bracket';
   import { t } from '$lib/stores/language';
+  import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
+  import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
+  import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
+  import { updateTournament } from '$lib/firebase/tournaments';
 
   let tournament: Tournament | null = null;
   let loading = true;
@@ -35,11 +39,14 @@
   let isSuperAdminUser = false;
   let isAutoFilling = false;
   let unsubscribe: (() => void) | null = null;
+  let showTimeBreakdown = false;
+  let timeBreakdown: TimeBreakdown | null = null;
 
   // Current view for split divisions
   let activeTab: 'gold' | 'silver' = 'gold';
 
   $: tournamentId = $page.params.id;
+  $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
   $: isSplitDivisions = tournament?.finalStage?.mode === 'SPLIT_DIVISIONS';
 
   // Gold bracket
@@ -109,6 +116,34 @@
       unsubscribe();
     }
   });
+
+  // Helper to translate internal round names to display names
+  function translateRoundName(name: string): string {
+    const key = name.toLowerCase();
+    // Check if translation key exists
+    const translated = $t(key);
+    // If translation returns the key itself, it doesn't exist - return capitalized version
+    if (translated === key) {
+      return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+    return translated;
+  }
+
+  function openTimeBreakdown() {
+    if (!tournament) return;
+    timeBreakdown = calculateTimeBreakdown(tournament);
+    showTimeBreakdown = true;
+  }
+
+  async function recalculateTime() {
+    if (!tournament || !tournamentId) return;
+    const timeEstimate = calculateTournamentTimeEstimate(tournament);
+    tournament.timeEstimate = timeEstimate;
+    timeBreakdown = calculateTimeBreakdown(tournament);
+    await updateTournament(tournamentId, { timeEstimate });
+    toastMessage = $t('timeRecalculated');
+    showToast = true;
+  }
 
   async function loadTournament() {
     loading = true;
@@ -514,6 +549,18 @@
                   <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
                 {/if}
               </div>
+              {#if timeRemaining && tournament.status !== 'COMPLETED'}
+                <div class="header-progress">
+                  <TimeProgressBar
+                    percentComplete={timeRemaining.percentComplete}
+                    remainingMinutes={timeRemaining.remainingMinutes}
+                    showEstimatedEnd={true}
+                    compact={true}
+                    clickable={true}
+                    on:click={openTimeBreakdown}
+                  />
+                </div>
+              {/if}
             </div>
           </div>
           <div class="header-actions">
@@ -585,7 +632,7 @@
         <div class="bracket-container" class:silver-bracket={activeTab === 'silver'}>
           {#each rounds as round, roundIndex (round.roundNumber)}
             <div class="bracket-round" class:has-next-round={roundIndex < rounds.length - 1} style="--round-index: {roundIndex}">
-              <h2 class="round-name">{round.name}</h2>
+              <h2 class="round-name">{translateRoundName(round.name)}</h2>
               <div class="matches-column">
                 {#each round.matches as match, matchIndex (match.id)}
                   {@const gamesCompleted = (match.gamesWonA || 0) + (match.gamesWonB || 0)}
@@ -815,6 +862,13 @@
 
 <Toast bind:visible={showToast} message={toastMessage} />
 
+<TimeBreakdownModal
+  bind:visible={showTimeBreakdown}
+  breakdown={timeBreakdown}
+  showRecalculate={true}
+  on:recalculate={recalculateTime}
+/>
+
 <style>
   .bracket-page {
     min-height: 100vh;
@@ -902,6 +956,10 @@
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+  }
+
+  .header-progress {
+    margin-left: 0.5rem;
   }
 
   .info-badge {
@@ -1048,8 +1106,8 @@
 
   .bracket-container {
     display: flex;
-    gap: 6rem;
-    padding: 1rem;
+    gap: 4rem;
+    padding: 0.75rem;
     min-width: max-content;
     align-items: stretch;
   }
@@ -1057,28 +1115,28 @@
   .bracket-round {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    min-width: 250px;
+    gap: 0.5rem;
+    min-width: 200px;
     position: relative;
   }
 
   .round-name {
-    font-size: 1.1rem;
+    font-size: 0.85rem;
     font-weight: 700;
     color: #1a1a1a;
     text-align: center;
-    margin: 0 0 1rem 0;
-    padding: 0.75rem;
+    margin: 0 0 0.5rem 0;
+    padding: 0.4rem 0.6rem;
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: all 0.2s;
   }
 
   .bracket-page[data-theme='dark'] .round-name {
     background: #1a2332;
     color: #e1e8ed;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
   /* Final round styling - gold/prominent (default) */
@@ -1112,7 +1170,7 @@
   .matches-column {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.5rem;
     justify-content: space-around;
     position: relative;
     flex: 1;
@@ -1126,11 +1184,11 @@
 
   .bracket-match {
     background: white;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 0.4rem 0.5rem;
     position: relative;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   /* Connector lines between rounds */
@@ -1281,9 +1339,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.6rem;
-    border-radius: 6px;
-    transition: all 0.2s;
+    padding: 0.3rem 0.4rem;
+    border-radius: 4px;
+    transition: all 0.15s;
   }
 
   .match-participant.tbd {
@@ -1294,7 +1352,7 @@
   .match-participant.winner {
     background: #f0fdf4;
     font-weight: 700;
-    box-shadow: 0 0 0 2px #10b981;
+    box-shadow: 0 0 0 1px #10b981;
   }
 
   .bracket-page[data-theme='dark'] .match-participant.winner {
@@ -1329,8 +1387,11 @@
 
   .participant-name {
     flex: 1;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     color: #1a1a1a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .bracket-page[data-theme='dark'] .participant-name {
@@ -1338,16 +1399,16 @@
   }
 
   .seed {
-    font-size: 0.75rem;
+    font-size: 0.6rem;
     color: #6b7280;
-    margin: 0 0.5rem;
+    margin: 0 0.3rem;
   }
 
   .score {
-    font-size: 1rem;
+    font-size: 0.85rem;
     font-weight: 700;
     color: #667eea;
-    min-width: 1.5rem;
+    min-width: 1rem;
     text-align: center;
   }
 
@@ -1361,21 +1422,20 @@
     50% { opacity: 0.6; }
   }
 
-
   .twenties {
-    font-size: 0.75rem;
+    font-size: 0.6rem;
     font-weight: 600;
     color: #fbbf24;
     background: rgba(251, 191, 36, 0.1);
-    padding: 0.15rem 0.35rem;
-    border-radius: 4px;
-    margin-left: 0.25rem;
+    padding: 0.1rem 0.2rem;
+    border-radius: 3px;
+    margin-left: 0.15rem;
   }
 
   .vs-divider {
     height: 1px;
     background: #e5e7eb;
-    margin: 0.5rem 0;
+    margin: 0.25rem 0;
   }
 
   .bracket-page[data-theme='dark'] .vs-divider {
@@ -1389,34 +1449,34 @@
 
   .status-badge {
     position: absolute;
-    top: -10px;
-    right: 10px;
-    padding: 0.25rem 0.6rem;
+    top: -8px;
+    right: 6px;
+    padding: 0.15rem 0.4rem;
     color: white;
-    border-radius: 4px;
-    font-size: 0.7rem;
+    border-radius: 3px;
+    font-size: 0.55rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
   }
 
   .rounds-badge {
     position: absolute;
-    top: -10px;
-    left: 10px;
-    padding: 0.25rem 0.5rem;
+    top: -8px;
+    left: 6px;
+    padding: 0.15rem 0.35rem;
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
     color: white;
-    border-radius: 4px;
-    font-size: 0.7rem;
+    border-radius: 3px;
+    font-size: 0.55rem;
     font-weight: 700;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
     animation: pulse-badge 2s ease-in-out infinite;
   }
 
   @keyframes pulse-badge {
     0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.85; transform: scale(1.02); }
+    50% { opacity: 0.9; transform: scale(1.01); }
   }
 
   .bracket-page[data-theme='dark'] .rounds-badge {

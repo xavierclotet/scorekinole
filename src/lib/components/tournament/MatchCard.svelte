@@ -41,77 +41,55 @@
   class:compact
   class:clickable={isClickable}
   class:bye={isBye}
+  class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+  class:in-progress={match.status === 'IN_PROGRESS'}
   on:click={() => isClickable && onMatchClick && onMatchClick(match)}
   on:keydown={(e) => isClickable && e.key === 'Enter' && onMatchClick && onMatchClick(match)}
   role={isClickable ? 'button' : 'article'}
   tabindex={isClickable ? 0 : -1}
 >
-  <div class="match-header">
-    <div class="header-left">
-       <span class="table-badge">Mesa {match.tableNumber}</span>
-    </div>
-    {#if match.tableNumber}
-     <span class="status-badge" style="background: {statusInfo.color}">
-        {statusInfo.text}
-      </span>
-    {/if}
-  </div>
+  <!-- Compact single-row layout -->
+  <div class="match-row">
+    <span class="table-num">M{match.tableNumber}</span>
 
-  <div class="matchup">
-    <!-- Players row -->
-    <div class="players-row">
-      <div class="player-name" class:winner={match.winner === match.participantA} class:tie={isTie}>
-        {getParticipantName(match.participantA)}
-      </div>
-      <div class="vs-separator">VS</div>
-      <div class="player-name" class:winner={match.winner === match.participantB} class:tie={isTie} class:bye={isBye}>
-        {getParticipantName(match.participantB)}
-      </div>
+    <div class="participant left" class:winner={match.winner === match.participantA} class:tie={isTie}>
+      <span class="name">{getParticipantName(match.participantA)}</span>
+      {#if match.total20sA !== undefined && match.total20sA > 0}
+        <span class="t20">🎯{match.total20sA}</span>
+      {/if}
     </div>
 
-    <!-- Scores row -->
-    <div class="scores-row">
-      <div class="player-score" class:winner={match.winner === match.participantA} class:tie={isTie}>
+    <div class="score-center">
+      {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
         {#if gameMode === 'rounds'}
-          <!-- In rounds mode, show total points as main score -->
-          <span class="games-won">{match.totalPointsA || 0}</span>
+          <span class="score" class:winner-a={match.winner === match.participantA}>{match.totalPointsA || 0}</span>
+          <span class="sep">-</span>
+          <span class="score" class:winner-b={match.winner === match.participantB}>{isBye ? '-' : (match.totalPointsB || 0)}</span>
         {:else}
-          <!-- In points mode, show games won -->
-          <span class="games-won">{match.gamesWonA || 0}</span>
-          {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.totalPointsA !== undefined}
-            <span class="total-points">({match.totalPointsA}pts)</span>
-          {/if}
+          <span class="score" class:winner-a={match.winner === match.participantA}>{match.gamesWonA || 0}</span>
+          <span class="sep">-</span>
+          <span class="score" class:winner-b={match.winner === match.participantB}>{isBye ? '-' : (match.gamesWonB || 0)}</span>
         {/if}
-        {#if match.total20sA !== undefined && match.total20sA > 0}
-          <span class="twenties">🎯 {match.total20sA}</span>
-        {/if}
-      </div>
-      <div class="score-divider">-</div>
-      <div class="player-score" class:winner={match.winner === match.participantB} class:tie={isTie}>
-        {#if !isBye}
-          {#if gameMode === 'rounds'}
-            <!-- In rounds mode, show total points as main score -->
-            <span class="games-won">{match.totalPointsB || 0}</span>
-          {:else}
-            <!-- In points mode, show games won -->
-            <span class="games-won">{match.gamesWonB || 0}</span>
-            {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.totalPointsB !== undefined}
-              <span class="total-points">({match.totalPointsB}pts)</span>
-            {/if}
-          {/if}
-          {#if match.total20sB !== undefined && match.total20sB > 0}
-            <span class="twenties">🎯 {match.total20sB}</span>
-          {/if}
-        {:else}
-          <span class="bye-text">-</span>
-        {/if}
-      </div>
+      {:else if match.status === 'IN_PROGRESS'}
+        <span class="live-indicator"></span>
+      {:else}
+        <span class="pending">vs</span>
+      {/if}
     </div>
+
+    <div class="participant right" class:winner={match.winner === match.participantB} class:tie={isTie} class:bye-participant={isBye}>
+      {#if match.total20sB !== undefined && match.total20sB > 0 && !isBye}
+        <span class="t20">🎯{match.total20sB}</span>
+      {/if}
+      <span class="name">{getParticipantName(match.participantB)}</span>
+    </div>
+
+    <span class="status-dot" style="background: {statusInfo.color}" title={statusInfo.text}></span>
   </div>
 
   {#if match.noShowParticipant}
     <div class="no-show-warning">
-      ⚠️ No-show: {getParticipantName(match.noShowParticipant)}
+      ⚠️ {getParticipantName(match.noShowParticipant)}
     </div>
   {/if}
 </div>
@@ -120,13 +98,13 @@
   .match-card {
     background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1rem;
-    transition: all 0.2s;
+    border-radius: 6px;
+    padding: 0.5rem 0.6rem;
+    transition: all 0.15s;
   }
 
   .match-card.compact {
-    padding: 0.75rem;
+    padding: 0.4rem 0.5rem;
   }
 
   .match-card.clickable {
@@ -135,200 +113,153 @@
 
   .match-card.clickable:hover {
     border-color: #667eea;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
-    transform: translateY(-1px);
+    background: #fafbff;
+  }
+
+  .match-card.completed {
+    border-left: 3px solid #10b981;
+  }
+
+  .match-card.in-progress {
+    border-left: 3px solid #f59e0b;
+    background: #fffbeb;
   }
 
   .match-card.bye {
-    opacity: 0.7;
+    opacity: 0.6;
     background: #f9fafb;
   }
 
-  .match-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-    gap: 0.5rem;
-  }
-
-  .header-left {
+  /* Single row layout */
+  .match-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
   }
 
-  .round-label {
-    font-size: 0.75rem;
+  .table-num {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 0.15rem 0.35rem;
+    border-radius: 3px;
+    min-width: 1.6rem;
+    text-align: center;
+  }
+
+  .participant {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .participant.left {
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .participant.right {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .participant .name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .participant.winner .name {
+    color: #059669;
+    font-weight: 700;
+  }
+
+  .participant.tie .name {
     color: #6b7280;
+  }
+
+  .participant.bye-participant .name {
+    font-style: italic;
+    opacity: 0.6;
+  }
+
+  .participant .t20 {
+    font-size: 0.65rem;
+    color: #f59e0b;
+    flex-shrink: 0;
+  }
+
+  .score-center {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.15rem 0.4rem;
+    background: #f3f4f6;
+    border-radius: 4px;
+    min-width: 3rem;
+    justify-content: center;
+  }
+
+  .score-center .score {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #374151;
+    min-width: 0.8rem;
+    text-align: center;
+  }
+
+  .score-center .score.winner-a,
+  .score-center .score.winner-b {
+    color: #059669;
+  }
+
+  .score-center .sep {
+    font-size: 0.75rem;
+    color: #9ca3af;
     font-weight: 600;
   }
 
-  .table-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.35rem 0.75rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
-  }
-
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.25rem 0.6rem;
-    color: white;
-    border-radius: 4px;
+  .score-center .pending {
     font-size: 0.7rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-
-  .matchup {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  /* Players row */
-  .players-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .player-name {
-    flex: 1;
-    font-weight: 600;
-    color: #1f2937;
-    font-size: 1.05rem;
-    text-align: center;
-    padding: 0.5rem;
-    border-radius: 6px;
-    transition: all 0.2s;
-  }
-
-  .player-name.winner {
-    background: #f0fdf4;
-    color: #059669;
-    font-weight: 700;
-    font-size: 1.1rem;
-    box-shadow: 0 0 0 2px #10b981;
-  }
-
-  .player-name.tie {
-    background: #f3f4f6;
-    color: #6b7280;
-    font-weight: 700;
-    font-size: 1.1rem;
-    box-shadow: 0 0 0 2px #9ca3af;
-  }
-
-  .player-name.bye {
-    opacity: 0.5;
-    font-style: italic;
-  }
-
-  .vs-separator {
-    font-size: 0.75rem;
-    font-weight: 800;
     color: #9ca3af;
-    letter-spacing: 0.1em;
-    padding: 0.25rem 0.5rem;
-    background: #f3f4f6;
-    border-radius: 4px;
+    text-transform: uppercase;
   }
 
-  /* Scores row */
-  .scores-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid #e5e7eb;
+  .score-center .live-indicator {
+    width: 6px;
+    height: 6px;
+    background: #f59e0b;
+    border-radius: 50%;
+    animation: pulse-live 1.5s ease-in-out infinite;
   }
 
-  .player-score {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    border-radius: 6px;
-    transition: all 0.2s;
+  @keyframes pulse-live {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
   }
 
-  .player-score.winner {
-    background: #f0fdf4;
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
   }
-
-  .player-score.tie {
-    background: #f3f4f6;
-  }
-
-  .score-divider {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #d1d5db;
-  }
-
-  .games-won {
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: #1f2937;
-  }
-
-  .player-score.winner .games-won {
-    color: #059669;
-  }
-
-  .total-points {
-    font-size: 0.85rem;
-    color: #6b7280;
-    font-weight: 500;
-  }
-
-  .twenties {
-    font-size: 0.85rem;
-    color: #f59e0b;
-    font-weight: 600;
-  }
-
-  .bye-text {
-    font-size: 1.2rem;
-    color: #d1d5db;
-    font-weight: 600;
-  }
-
 
   .no-show-warning {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
+    margin-top: 0.3rem;
+    padding: 0.2rem 0.4rem;
     background: #fef3c7;
     color: #92400e;
-    border-radius: 4px;
-    font-size: 0.85rem;
+    border-radius: 3px;
+    font-size: 0.65rem;
     text-align: center;
-  }
-
-  .match-footer {
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid #e5e7eb;
-    text-align: center;
-  }
-
-  .completion-time {
-    font-size: 0.75rem;
-    color: #9ca3af;
   }
 
   /* Dark mode support */
@@ -339,222 +270,116 @@
 
   :global([data-theme='dark']) .match-card.clickable:hover {
     border-color: #667eea;
+    background: #1e2a3d;
+  }
+
+  :global([data-theme='dark']) .match-card.in-progress {
+    background: rgba(245, 158, 11, 0.1);
   }
 
   :global([data-theme='dark']) .match-card.bye {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) .round-label {
-    color: #8b9bb3;
-  }
-
-  :global([data-theme='dark']) .table-badge {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-  }
-
-  :global([data-theme='dark']) .player-name {
+  :global([data-theme='dark']) .participant .name {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .player-name.winner {
-    background: rgba(16, 185, 129, 0.2);
+  :global([data-theme='dark']) .participant.winner .name {
     color: #10b981;
-    box-shadow: 0 0 0 2px #10b981;
   }
 
-  :global([data-theme='dark']) .player-name.tie {
-    background: #2d3748;
+  :global([data-theme='dark']) .participant.tie .name {
     color: #8b9bb3;
-    box-shadow: 0 0 0 2px #4b5563;
   }
 
-  :global([data-theme='dark']) .vs-separator {
-    background: #2d3748;
-    color: #6b7280;
-  }
-
-  :global([data-theme='dark']) .scores-row {
-    border-top-color: #2d3748;
-  }
-
-  :global([data-theme='dark']) .player-score.winner {
-    background: rgba(16, 185, 129, 0.15);
-  }
-
-  :global([data-theme='dark']) .player-score.tie {
+  :global([data-theme='dark']) .score-center {
     background: #2d3748;
   }
 
-  :global([data-theme='dark']) .score-divider {
-    color: #4b5563;
-  }
-
-  :global([data-theme='dark']) .games-won {
+  :global([data-theme='dark']) .score-center .score {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .player-score.winner .games-won {
+  :global([data-theme='dark']) .score-center .score.winner-a,
+  :global([data-theme='dark']) .score-center .score.winner-b {
     color: #10b981;
   }
 
-  :global([data-theme='dark']) .total-points {
-    color: #8b9bb3;
-  }
-
-  :global([data-theme='dark']) .bye-text {
-    color: #4b5563;
-  }
-
-  :global([data-theme='dark']) .match-footer {
-    border-top-color: #2d3748;
-  }
-
-  :global([data-theme='dark']) .completion-time {
+  :global([data-theme='dark']) .score-center .pending {
     color: #6b7280;
+  }
+
+  :global([data-theme='dark']) .no-show-warning {
+    background: rgba(254, 243, 199, 0.15);
+    color: #fbbf24;
   }
 
   /* Responsive */
   @media (max-width: 768px) {
     .match-card {
-      padding: 0.75rem;
+      padding: 0.4rem 0.5rem;
     }
 
-    .match-card.compact {
-      padding: 0.5rem;
-    }
-
-    .match-header {
-      gap: 0.375rem;
-      margin-bottom: 0.75rem;
-    }
-
-    .round-label {
-      font-size: 0.7rem;
-    }
-
-    .table-badge {
-      font-size: 0.75rem;
-      padding: 0.3rem 0.6rem;
-    }
-
-    .status-badge {
-      font-size: 0.65rem;
-      padding: 0.2rem 0.5rem;
-    }
-
-    .matchup {
-      gap: 0.6rem;
-    }
-
-    .players-row {
-      gap: 0.75rem;
-    }
-
-    .player-name {
-      font-size: 0.95rem;
-      padding: 0.4rem;
-    }
-
-    .player-name.winner {
-      font-size: 1rem;
-    }
-
-    .vs-separator {
-      font-size: 0.7rem;
-      padding: 0.2rem 0.4rem;
-    }
-
-    .scores-row {
-      gap: 0.75rem;
-      padding-top: 0.4rem;
-    }
-
-    .player-score {
+    .match-row {
       gap: 0.4rem;
-      padding: 0.4rem;
     }
 
-    .games-won {
-      font-size: 1.3rem;
+    .table-num {
+      font-size: 0.6rem;
+      padding: 0.1rem 0.25rem;
+      min-width: 1.4rem;
     }
 
-    .total-points,
-    .twenties {
+    .participant .name {
       font-size: 0.75rem;
     }
 
-    .score-divider {
-      font-size: 0.9rem;
+    .participant .t20 {
+      font-size: 0.6rem;
     }
 
-    .bye-text {
-      font-size: 1.1rem;
+    .score-center {
+      padding: 0.1rem 0.3rem;
+      min-width: 2.5rem;
+    }
+
+    .score-center .score {
+      font-size: 0.8rem;
+    }
+
+    .status-dot {
+      width: 5px;
+      height: 5px;
     }
 
     .no-show-warning {
-      font-size: 0.75rem;
-      padding: 0.375rem;
-    }
-
-    .completion-time {
-      font-size: 0.7rem;
+      font-size: 0.6rem;
+      padding: 0.15rem 0.3rem;
     }
   }
 
   /* Mobile landscape optimizations */
   @media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
     .match-card {
-      padding: 0.5rem;
+      padding: 0.35rem 0.4rem;
     }
 
-    .match-header {
-      margin-bottom: 0.5rem;
-    }
-
-    .table-badge {
-      font-size: 0.7rem;
-      padding: 0.25rem 0.5rem;
-    }
-
-    .matchup {
-      gap: 0.5rem;
-    }
-
-    .players-row {
-      gap: 0.6rem;
-    }
-
-    .player-name {
-      font-size: 0.9rem;
-      padding: 0.35rem;
-    }
-
-    .player-name.winner {
-      font-size: 0.95rem;
-    }
-
-    .vs-separator {
-      font-size: 0.65rem;
-      padding: 0.15rem 0.35rem;
-    }
-
-    .scores-row {
-      gap: 0.6rem;
-      padding-top: 0.35rem;
-    }
-
-    .player-score {
+    .match-row {
       gap: 0.35rem;
-      padding: 0.35rem;
     }
 
-    .games-won {
-      font-size: 1.2rem;
+    .table-num {
+      font-size: 0.55rem;
+      min-width: 1.2rem;
     }
 
-    .bye-text {
-      font-size: 1rem;
+    .participant .name {
+      font-size: 0.7rem;
+    }
+
+    .score-center .score {
+      font-size: 0.75rem;
     }
   }
 </style>

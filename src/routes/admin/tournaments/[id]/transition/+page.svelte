@@ -8,6 +8,9 @@
   import QualifierSelection from '$lib/components/tournament/QualifierSelection.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { t } from '$lib/stores/language';
+  import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
+  import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
+  import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
   import { getTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import {
@@ -29,6 +32,8 @@
   let toastMessage = '';
   let isProcessing = false;
   let showBracketPreview = false;
+  let showTimeBreakdown = false;
+  let timeBreakdown: TimeBreakdown | null = null;
 
   // Qualifier selections per group
   let groupQualifiers: Map<number, string[]> = new Map();
@@ -37,9 +42,20 @@
   let goldParticipants: string[] = [];
   let silverParticipants: string[] = [];
 
-  // Final stage configuration
+  // Final stage configuration - Early rounds (octavos, cuartos) - default: 4 rounds
+  let earlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
+  let earlyRoundsPointsToWin: number = 7;
+  let earlyRoundsToPlay: number = 4;
+
+  // Final stage configuration - Semifinals
+  let semifinalGameMode: 'points' | 'rounds' = 'points';
+  let semifinalPointsToWin: number = 7;
+  let semifinalRoundsToPlay: number = 4;
+  let semifinalMatchesToWin: number = 1;
+
+  // Final stage configuration - Final - default: 9 points
   let finalGameMode: 'points' | 'rounds' = 'points';
-  let finalPointsToWin: number = 7;
+  let finalPointsToWin: number = 9;
   let finalRoundsToPlay: number = 4;
   let finalMatchesToWin: number = 1;
 
@@ -53,6 +69,7 @@
   let topNPerGroup: number = 2;
 
   $: tournamentId = $page.params.id;
+  $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
   $: isSplitDivisions = tournament?.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
 
   // For single bracket mode
@@ -76,11 +93,52 @@
   $: numGroups = tournament?.groupStage?.groups?.length || 1;
   $: suggestedQualifiers = tournament ? calculateSuggestedQualifiers(tournament.participants.length, numGroups) : { total: 4, perGroup: 2 };
 
-  // Initialize topNPerGroup when suggested qualifiers are calculated
+  // Initialize topNPerGroup based on mode
   let topNInitialized = false;
-  $: if (!topNInitialized && suggestedQualifiers.perGroup > 0) {
-    topNPerGroup = suggestedQualifiers.perGroup;
+  $: if (!topNInitialized && tournament && suggestedQualifiers.perGroup > 0) {
+    const isSingleBracketSingleGroup = tournament.finalStageConfig?.mode !== 'SPLIT_DIVISIONS' && numGroups === 1;
+    const isSplitDiv = tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
+
+    if (isSingleBracketSingleGroup) {
+      // SINGLE_BRACKET with single group: all participants
+      topNPerGroup = tournament.participants?.length || suggestedQualifiers.perGroup;
+    } else if (isSplitDiv) {
+      // SPLIT_DIVISIONS: half participants per group
+      const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
+      topNPerGroup = Math.ceil(participantsPerGroup / 2);
+    } else {
+      // Multiple groups: use suggested
+      topNPerGroup = suggestedQualifiers.perGroup;
+    }
     topNInitialized = true;
+  }
+
+  // Helper to translate internal round names to display names
+  function translateRoundName(name: string): string {
+    const key = name.toLowerCase();
+    // Check if translation key exists
+    const translated = $t(key);
+    // If translation returns the key itself, it doesn't exist - return capitalized version
+    if (translated === key) {
+      return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+    return translated;
+  }
+
+  function openTimeBreakdown() {
+    if (!tournament) return;
+    timeBreakdown = calculateTimeBreakdown(tournament);
+    showTimeBreakdown = true;
+  }
+
+  async function recalculateTime() {
+    if (!tournament || !tournamentId) return;
+    const timeEstimate = calculateTournamentTimeEstimate(tournament);
+    tournament.timeEstimate = timeEstimate;
+    timeBreakdown = calculateTimeBreakdown(tournament);
+    await updateTournament(tournamentId, { timeEstimate });
+    toastMessage = $t('timeRecalculated');
+    showToast = true;
   }
 
   onMount(async () => {
@@ -113,17 +171,33 @@
           ? tournament.groupStage.groups
           : Object.values(tournament.groupStage?.groups || {});
 
+        // Determine default selection based on mode
+        const isSingleBracketSingleGroup = tournament.finalStageConfig?.mode !== 'SPLIT_DIVISIONS' && groups.length === 1;
+        const isSplitDiv = tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
+
         groups.forEach((group: any, index: number) => {
           const standings = Array.isArray(group.standings) ? group.standings : Object.values(group.standings || {});
           const qualified = standings
             .filter((s: any) => s.qualifiedForFinal)
             .map((s: any) => s.participantId);
 
-          // If no qualifiers saved, auto-select top N
+          // If no qualifiers saved, auto-select based on mode
           if (qualified.length === 0 && standings.length > 0) {
             const sortedStandings = [...standings].sort((a: any, b: any) => a.position - b.position);
-            const topN = sortedStandings.slice(0, topNPerGroup).map((s: any) => s.participantId);
-            groupQualifiers.set(index, topN);
+
+            let defaultSelection: string[];
+            if (isSingleBracketSingleGroup) {
+              // SINGLE_BRACKET with single group: select ALL participants
+              defaultSelection = sortedStandings.map((s: any) => s.participantId);
+            } else if (isSplitDiv) {
+              // SPLIT_DIVISIONS: select top half (they go to Gold bracket)
+              const halfCount = Math.ceil(standings.length / 2);
+              defaultSelection = sortedStandings.slice(0, halfCount).map((s: any) => s.participantId);
+            } else {
+              // Multiple groups: use topNPerGroup
+              defaultSelection = sortedStandings.slice(0, topNPerGroup).map((s: any) => s.participantId);
+            }
+            groupQualifiers.set(index, defaultSelection);
           } else {
             groupQualifiers.set(index, qualified);
           }
@@ -132,24 +206,45 @@
 
         // Load final stage config from tournament if it exists
         if (tournament.finalStageConfig) {
-          // Gold bracket config
-          finalGameMode = tournament.finalStageConfig.gameMode || 'points';
-          finalPointsToWin = tournament.finalStageConfig.pointsToWin || 7;
-          finalRoundsToPlay = tournament.finalStageConfig.roundsToPlay || 4;
-          finalMatchesToWin = tournament.finalStageConfig.matchesToWin || 1;
+          const cfg = tournament.finalStageConfig;
+
+          // Early rounds config (octavos, cuartos) - default: 4 rounds
+          // Only use specific config if it was explicitly set, otherwise use defaults
+          earlyRoundsGameMode = cfg.earlyRoundsGameMode || 'rounds';
+          earlyRoundsPointsToWin = cfg.earlyRoundsPointsToWin || 7;
+          earlyRoundsToPlay = cfg.earlyRoundsToPlay || 4;
+
+          // Semifinals config - default: same as final (7 points)
+          semifinalGameMode = cfg.semifinalGameMode || cfg.gameMode || 'points';
+          semifinalPointsToWin = cfg.semifinalPointsToWin || cfg.pointsToWin || 7;
+          semifinalRoundsToPlay = cfg.semifinalRoundsToPlay || cfg.roundsToPlay || 4;
+          semifinalMatchesToWin = cfg.semifinalMatchesToWin || cfg.matchesToWin || 1;
+
+          // Final config - use tournament config, fallback to 9 points
+          finalGameMode = cfg.finalGameMode || cfg.gameMode || 'points';
+          finalPointsToWin = cfg.finalPointsToWin || cfg.pointsToWin || 9;
+          finalRoundsToPlay = cfg.finalRoundsToPlay || cfg.roundsToPlay || 4;
+          finalMatchesToWin = cfg.finalMatchesToWin || cfg.matchesToWin || 1;
 
           // Silver bracket config (for SPLIT_DIVISIONS)
-          if (tournament.finalStageConfig.mode === 'SPLIT_DIVISIONS') {
-            silverGameMode = tournament.finalStageConfig.silverGameMode || 'points';
-            silverPointsToWin = tournament.finalStageConfig.silverPointsToWin || 7;
-            silverRoundsToPlay = tournament.finalStageConfig.silverRoundsToPlay || 4;
-            silverMatchesToWin = tournament.finalStageConfig.silverMatchesToWin || 1;
+          if (cfg.mode === 'SPLIT_DIVISIONS') {
+            silverGameMode = cfg.silverGameMode || 'points';
+            silverPointsToWin = cfg.silverPointsToWin || 7;
+            silverRoundsToPlay = cfg.silverRoundsToPlay || 4;
+            silverMatchesToWin = cfg.silverMatchesToWin || 1;
           }
 
         } else {
-          // Default values
+          // Default values - early rounds: 4 rounds, semis: 7 points, final: 9 points
+          earlyRoundsGameMode = 'rounds';
+          earlyRoundsPointsToWin = 7;
+          earlyRoundsToPlay = 4;
+          semifinalGameMode = 'points';
+          semifinalPointsToWin = 7;
+          semifinalRoundsToPlay = 4;
+          semifinalMatchesToWin = 1;
           finalGameMode = 'points';
-          finalPointsToWin = 7;
+          finalPointsToWin = 9;
           finalRoundsToPlay = 4;
           finalMatchesToWin = 1;
         }
@@ -184,26 +279,46 @@
           await updateQualifiers(tournamentId, groupIndex, qualifiedIds);
         }
 
+        // Save updated final stage config to tournament
+        const updatedFinalStageConfig = {
+          ...tournament.finalStageConfig,
+          // Early rounds
+          earlyRoundsGameMode,
+          earlyRoundsPointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
+          earlyRoundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
+          // Semifinals
+          semifinalGameMode,
+          semifinalPointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
+          semifinalRoundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
+          semifinalMatchesToWin,
+          // Final
+          finalGameMode,
+          finalPointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
+          finalRoundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
+          finalMatchesToWin
+        };
+
+        // Update tournament with new config
+        await updateTournament(tournamentId, { finalStageConfig: updatedFinalStageConfig });
+
         // Generate single bracket - pass all config including per-phase settings
         const bracketConfig = {
           gameMode: finalGameMode,
           pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
           roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
           matchesToWin: finalMatchesToWin,
-          // Pass per-phase configuration from finalStageConfig if available
-          ...(tournament.finalStageConfig ? {
-            earlyRoundsGameMode: tournament.finalStageConfig.earlyRoundsGameMode,
-            earlyRoundsPointsToWin: tournament.finalStageConfig.earlyRoundsPointsToWin,
-            earlyRoundsToPlay: tournament.finalStageConfig.earlyRoundsToPlay,
-            semifinalGameMode: tournament.finalStageConfig.semifinalGameMode,
-            semifinalPointsToWin: tournament.finalStageConfig.semifinalPointsToWin,
-            semifinalRoundsToPlay: tournament.finalStageConfig.semifinalRoundsToPlay,
-            semifinalMatchesToWin: tournament.finalStageConfig.semifinalMatchesToWin,
-            finalGameMode: tournament.finalStageConfig.finalGameMode,
-            finalPointsToWin: tournament.finalStageConfig.finalPointsToWin,
-            finalRoundsToPlay: tournament.finalStageConfig.finalRoundsToPlay,
-            finalMatchesToWin: tournament.finalStageConfig.finalMatchesToWin
-          } : {})
+          // Pass per-phase configuration
+          earlyRoundsGameMode,
+          earlyRoundsPointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
+          earlyRoundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
+          semifinalGameMode,
+          semifinalPointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
+          semifinalRoundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
+          semifinalMatchesToWin,
+          finalGameMode,
+          finalPointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
+          finalRoundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
+          finalMatchesToWin
         };
         const bracketSuccess = await generateBracket(tournamentId, bracketConfig);
 
@@ -572,6 +687,18 @@
                   {$t('qualifierSelectionTitle')}
                 </span>
               </div>
+              {#if timeRemaining}
+                <div class="header-progress">
+                  <TimeProgressBar
+                    percentComplete={timeRemaining.percentComplete}
+                    remainingMinutes={timeRemaining.remainingMinutes}
+                    showEstimatedEnd={true}
+                    compact={true}
+                    clickable={true}
+                    on:click={openTimeBreakdown}
+                  />
+                </div>
+              {/if}
             </div>
           </div>
           <div class="header-actions">
@@ -668,7 +795,7 @@
                   </span>
                 </div>
                 {#if goldBracketRoundNames.length > 0 && isValidGoldSize}
-                  <p class="rounds-preview">{goldBracketRoundNames.join(' → ')}</p>
+                  <p class="rounds-preview">{goldBracketRoundNames.map(translateRoundName).join(' → ')}</p>
                 {/if}
                 <div class="participant-list">
                   {#each goldParticipants as participantId, index}
@@ -693,7 +820,7 @@
                   </span>
                 </div>
                 {#if silverBracketRoundNames.length > 0 && isValidSilverSize}
-                  <p class="rounds-preview">{silverBracketRoundNames.join(' → ')}</p>
+                  <p class="rounds-preview">{silverBracketRoundNames.map(translateRoundName).join(' → ')}</p>
                 {/if}
                 <div class="participant-list">
                   {#each silverParticipants as participantId, index}
@@ -810,59 +937,109 @@
 
       {:else}
         <!-- SINGLE_BRACKET: Original flow -->
-          <!-- Final stage configuration -->
+          <!-- Final stage configuration - 3 phases -->
           <div class="config-section">
-            <div class="config-card">
-              <h3>🏆 {$t('finalStageConfigTitle')}</h3>
-              <p class="help-text" style="margin-bottom: 1.5rem; color: #6b7280;">
-                {$t('defaultConfigHint')}
-              </p>
-              <div class="config-grid">
-                <!-- Game mode -->
-                <div class="config-field">
-                  <label for="gameMode">{$t('gameModeLabel')}</label>
-                  <select id="gameMode" bind:value={finalGameMode} class="select-input">
-                    <option value="points">{$t('byPointsOption')}</option>
-                    <option value="rounds">{$t('byRoundsOption')}</option>
-                  </select>
+            <h3 class="config-section-title">🏆 {$t('finalStageConfigTitle')}</h3>
+
+            <div class="phases-config-grid">
+              <!-- Early Rounds (Octavos, Cuartos) -->
+              <div class="phase-config-card">
+                <div class="phase-config-header early">
+                  <span class="phase-icon">🎯</span>
+                  <span class="phase-title">{$t('earlyRounds')}</span>
+                  <span class="phase-hint">{$t('earlyRoundsHint')}</span>
                 </div>
-
-                <!-- Points to win / Rounds to play -->
-                {#if finalGameMode === 'points'}
+                <div class="phase-config-body">
                   <div class="config-field">
-                    <label for="pointsToWin">{$t('pointsToWinLabel')}</label>
-                    <input
-                      id="pointsToWin"
-                      type="number"
-                      bind:value={finalPointsToWin}
-                      min="1"
-                      max="15"
-                      class="number-input"
-                    />
+                    <label>{$t('gameModeLabel')}</label>
+                    <select bind:value={earlyRoundsGameMode} class="select-input">
+                      <option value="points">{$t('byPointsOption')}</option>
+                      <option value="rounds">{$t('byRoundsOption')}</option>
+                    </select>
                   </div>
-                {:else}
-                  <div class="config-field">
-                    <label for="roundsToPlay">{$t('roundsToPlayLabel')}</label>
-                    <input
-                      id="roundsToPlay"
-                      type="number"
-                      bind:value={finalRoundsToPlay}
-                      min="1"
-                      max="12"
-                      class="number-input"
-                    />
-                  </div>
-                {/if}
+                  {#if earlyRoundsGameMode === 'points'}
+                    <div class="config-field">
+                      <label>{$t('pointsToWinLabel')}</label>
+                      <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="15" class="number-input" />
+                    </div>
+                  {:else}
+                    <div class="config-field">
+                      <label>{$t('roundsToPlayLabel')}</label>
+                      <input type="number" bind:value={earlyRoundsToPlay} min="1" max="12" class="number-input" />
+                    </div>
+                  {/if}
+                </div>
+              </div>
 
-                <!-- Matches to win -->
-                <div class="config-field">
-                  <label for="matchesToWin">{$t('bestOfLabel')}</label>
-                  <select id="matchesToWin" bind:value={finalMatchesToWin} class="select-input">
-                    <option value={1}>1 ({$t('noRematch')})</option>
-                    <option value={3}>3 ({$t('winsToN')} 2)</option>
-                    <option value={5}>5 ({$t('winsToN')} 3)</option>
-                    <option value={7}>7 ({$t('winsToN')} 4)</option>
-                  </select>
+              <!-- Semifinals (and 3rd/4th place match) -->
+              <div class="phase-config-card">
+                <div class="phase-config-header semi">
+                  <span class="phase-icon">⚔️</span>
+                  <span class="phase-title">{$t('semifinals')}</span>
+                  <span class="phase-hint">{$t('finalAndThird')}</span>
+                </div>
+                <div class="phase-config-body">
+                  <div class="config-field">
+                    <label>{$t('gameModeLabel')}</label>
+                    <select bind:value={semifinalGameMode} class="select-input">
+                      <option value="points">{$t('byPointsOption')}</option>
+                      <option value="rounds">{$t('byRoundsOption')}</option>
+                    </select>
+                  </div>
+                  {#if semifinalGameMode === 'points'}
+                    <div class="config-field">
+                      <label>{$t('pointsToWinLabel')}</label>
+                      <input type="number" bind:value={semifinalPointsToWin} min="1" max="15" class="number-input" />
+                    </div>
+                  {:else}
+                    <div class="config-field">
+                      <label>{$t('roundsToPlayLabel')}</label>
+                      <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="12" class="number-input" />
+                    </div>
+                  {/if}
+                  <div class="config-field">
+                    <label>{$t('bestOfLabel')}</label>
+                    <select bind:value={semifinalMatchesToWin} class="select-input">
+                      <option value={1}>1</option>
+                      <option value={3}>3</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Final -->
+              <div class="phase-config-card">
+                <div class="phase-config-header final">
+                  <span class="phase-icon">🏆</span>
+                  <span class="phase-title">{$t('final')}</span>
+                </div>
+                <div class="phase-config-body">
+                  <div class="config-field">
+                    <label>{$t('gameModeLabel')}</label>
+                    <select bind:value={finalGameMode} class="select-input">
+                      <option value="points">{$t('byPointsOption')}</option>
+                      <option value="rounds">{$t('byRoundsOption')}</option>
+                    </select>
+                  </div>
+                  {#if finalGameMode === 'points'}
+                    <div class="config-field">
+                      <label>{$t('pointsToWinLabel')}</label>
+                      <input type="number" bind:value={finalPointsToWin} min="1" max="15" class="number-input" />
+                    </div>
+                  {:else}
+                    <div class="config-field">
+                      <label>{$t('roundsToPlayLabel')}</label>
+                      <input type="number" bind:value={finalRoundsToPlay} min="1" max="12" class="number-input" />
+                    </div>
+                  {/if}
+                  <div class="config-field">
+                    <label>{$t('bestOfLabel')}</label>
+                    <select bind:value={finalMatchesToWin} class="select-input">
+                      <option value={1}>1</option>
+                      <option value={3}>3</option>
+                      <option value={5}>5</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -941,7 +1118,7 @@
                 {#if isValidSize && totalQualifiers > 0}
                   <div class="stat-item">
                     <span class="stat-label">{$t('bracketRoundsLabel')}</span>
-                    <span class="stat-value">{bracketRoundNames.join(' → ')}</span>
+                    <span class="stat-value">{bracketRoundNames.map(translateRoundName).join(' → ')}</span>
                   </div>
                 {/if}
               </div>
@@ -979,6 +1156,13 @@
 </AdminGuard>
 
 <Toast bind:visible={showToast} message={toastMessage} />
+
+<TimeBreakdownModal
+  bind:visible={showTimeBreakdown}
+  breakdown={timeBreakdown}
+  showRecalculate={true}
+  on:recalculate={recalculateTime}
+/>
 
 <style>
   .transition-page {
@@ -1068,6 +1252,10 @@
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+  }
+
+  .header-progress {
+    margin-left: 0.5rem;
   }
 
   .info-badge {
@@ -1189,6 +1377,132 @@
   .summary-section,
   .actions-section {
     margin-bottom: 1rem;
+  }
+
+  .config-section {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.3s;
+  }
+
+  .transition-page[data-theme='dark'] .config-section {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .config-section-title {
+    margin: 0 0 0.25rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .transition-page[data-theme='dark'] .config-section-title {
+    color: #e1e8ed;
+  }
+
+  /* Phases config grid - 3 columns */
+  .phases-config-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+
+  .phase-config-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    background: white;
+    transition: all 0.2s;
+  }
+
+  .transition-page[data-theme='dark'] .phase-config-card {
+    background: #0f1419;
+    border-color: #2d3748;
+  }
+
+  .phase-config-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.6rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+
+  .phase-config-header.early {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+  }
+
+  .phase-config-header.semi {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+    color: white;
+  }
+
+  .phase-config-header.final {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+  }
+
+  .phase-icon {
+    font-size: 0.85rem;
+  }
+
+  .phase-title {
+    flex: 1;
+  }
+
+  .phase-hint {
+    font-size: 0.65rem;
+    font-weight: 400;
+    opacity: 0.85;
+  }
+
+  .phase-config-body {
+    padding: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .phase-config-body .config-field {
+    gap: 0.15rem;
+  }
+
+  .phase-config-body .config-field label {
+    font-size: 0.7rem;
+  }
+
+  .phase-config-body .select-input,
+  .phase-config-body .number-input {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.75rem;
+  }
+
+  /* Responsive: stack on mobile */
+  @media (max-width: 768px) {
+    .phases-config-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 900px) and (min-width: 769px) {
+    .phases-config-grid {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+    }
+
+    .phase-config-header {
+      padding: 0.4rem 0.5rem;
+      font-size: 0.7rem;
+    }
+
+    .phase-config-body {
+      padding: 0.5rem;
+    }
   }
 
   .config-card {

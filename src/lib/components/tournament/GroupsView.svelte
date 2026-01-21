@@ -532,19 +532,19 @@
   .groups-view {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0.75rem;
   }
 
   .view-header {
     background: white;
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   }
 
   .header-content h2 {
-    margin: 0 0 1rem 0;
-    font-size: 1.5rem;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
     font-weight: 700;
     color: #1f2937;
   }
@@ -552,73 +552,74 @@
   .round-info {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
   .round-label {
-    font-size: 0.95rem;
+    font-size: 0.8rem;
     color: #6b7280;
     font-weight: 600;
-    min-width: 120px;
+    min-width: 80px;
   }
 
   .overall-progress {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.6rem;
     flex: 1;
   }
 
   .progress-text {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     color: #374151;
     font-weight: 600;
-    min-width: 80px;
+    min-width: 50px;
   }
 
   .progress-bar {
     flex: 1;
-    height: 10px;
+    height: 6px;
     background: #e5e7eb;
-    border-radius: 5px;
+    border-radius: 3px;
     overflow: hidden;
-    max-width: 300px;
+    max-width: 200px;
   }
 
   .progress-fill {
     height: 100%;
     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
     transition: width 0.3s ease;
-    border-radius: 5px;
+    border-radius: 3px;
   }
 
   .filters-bar {
     display: flex;
-    gap: 1rem;
+    gap: 0.6rem;
     flex-wrap: wrap;
+    align-items: center;
   }
 
   .filter-group {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.3rem;
   }
 
   .filter-group label {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     color: #6b7280;
     font-weight: 500;
   }
 
   .filter-group select {
-    padding: 0.5rem 0.75rem;
+    padding: 0.3rem 0.5rem;
     border: 1px solid #d1d5db;
-    border-radius: 6px;
+    border-radius: 4px;
     background: white;
     color: #1f2937;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .filter-group select:hover {
@@ -628,28 +629,28 @@
   .filter-group select:focus {
     outline: none;
     border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
   }
 
   /* Expand/Collapse controls for groups */
   .expand-controls {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.3rem;
   }
 
   .expand-btn {
-    padding: 0.4rem 0.75rem;
+    padding: 0.25rem 0.5rem;
     background: white;
     border: 1px solid #d1d5db;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #6b7280;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.15rem;
   }
 
   .expand-btn:hover {
@@ -659,7 +660,7 @@
 
   .expand-btn .icon {
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 0.85rem;
     line-height: 1;
   }
 
@@ -671,18 +672,18 @@
   }
 
   .toggle-rounds-btn {
-    padding: 0.4rem 0.75rem;
+    padding: 0.25rem 0.5rem;
     background: white;
     border: 1px solid #d1d5db;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #6b7280;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.25rem;
   }
 
   .toggle-rounds-btn:hover {
@@ -692,27 +693,29 @@
 
   .toggle-rounds-btn svg {
     flex-shrink: 0;
+    width: 12px;
+    height: 12px;
   }
 
   /* Accordion styles */
   .groups-accordions {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 0.6rem;
     align-items: start;
   }
 
   .group-accordion {
     background: white;
-    border: 2px solid #e5e7eb;
-    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
     overflow: hidden;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .group-accordion.expanded {
     border-color: #667eea;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
   }
 
   .group-accordion.complete {
@@ -721,20 +724,20 @@
 
   .group-accordion.active {
     border-color: #f59e0b;
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
   }
 
   .accordion-header {
     width: 100%;
-    padding: 1rem 1.25rem;
+    padding: 0.5rem 0.75rem;
     background: transparent;
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    transition: background-color 0.2s;
+    gap: 0.5rem;
+    transition: background-color 0.15s;
   }
 
   .accordion-header:hover {
@@ -744,7 +747,7 @@
   .header-left {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.4rem;
   }
 
   .expand-icon {
@@ -752,25 +755,30 @@
     align-items: center;
     justify-content: center;
     color: #6b7280;
-    transition: transform 0.2s;
+    transition: transform 0.15s;
   }
 
   .expand-icon.rotated {
     transform: rotate(90deg);
   }
 
+  .expand-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .group-name {
-    font-size: 1.1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     color: #1f2937;
   }
 
   .complete-badge {
-    padding: 0.2rem 0.6rem;
+    padding: 0.1rem 0.4rem;
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
-    border-radius: 12px;
-    font-size: 0.7rem;
+    border-radius: 3px;
+    font-size: 0.6rem;
     font-weight: 600;
     text-transform: uppercase;
   }
@@ -783,22 +791,22 @@
   .progress-info {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .progress-label {
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: #6b7280;
-    min-width: 45px;
+    min-width: 35px;
     text-align: right;
   }
 
   .mini-progress-bar {
-    width: 80px;
-    height: 6px;
+    width: 50px;
+    height: 4px;
     background: #e5e7eb;
-    border-radius: 3px;
+    border-radius: 2px;
     overflow: hidden;
   }
 
@@ -806,7 +814,7 @@
     height: 100%;
     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
     transition: width 0.3s ease;
-    border-radius: 3px;
+    border-radius: 2px;
   }
 
   .mini-progress-fill.complete {
@@ -815,14 +823,14 @@
 
   .accordion-content {
     border-top: 1px solid #e5e7eb;
-    padding: 1rem 1.25rem;
-    animation: slideDown 0.2s ease-out;
+    padding: 0.5rem 0.75rem;
+    animation: slideDown 0.15s ease-out;
   }
 
   @keyframes slideDown {
     from {
       opacity: 0;
-      transform: translateY(-10px);
+      transform: translateY(-6px);
     }
     to {
       opacity: 1;
@@ -834,51 +842,49 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
     flex-wrap: wrap;
   }
 
   .group-view-toggle {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.25rem;
     background: #f3f4f6;
-    padding: 0.25rem;
-    border-radius: 8px;
+    padding: 0.15rem;
+    border-radius: 4px;
     width: fit-content;
   }
 
   .generate-next-round-btn {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 4px;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    transition: all 0.15s;
+    box-shadow: 0 1px 4px rgba(102, 126, 234, 0.25);
   }
 
   .generate-next-round-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.35);
   }
 
   .generate-next-round-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
-    transform: none;
   }
 
   .spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
     border-top-color: white;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
@@ -891,15 +897,15 @@
   }
 
   .toggle-btn {
-    padding: 0.5rem 1rem;
+    padding: 0.3rem 0.6rem;
     background: transparent;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #6b7280;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .toggle-btn:hover {
@@ -909,21 +915,21 @@
   .toggle-btn.active {
     background: white;
     color: #667eea;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   }
 
   .group-content {
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
   }
 
   .no-group-state {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 200px;
+    min-height: 120px;
     text-align: center;
     color: #9ca3af;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
   }
 
   /* Dark mode support */
@@ -1048,169 +1054,160 @@
 
   /* Responsive */
   @media (max-width: 768px) {
-    .group-actions-row {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .generate-next-round-btn {
-      width: 100%;
-      justify-content: center;
-      padding: 0.6rem 1rem;
-      font-size: 0.85rem;
-    }
     .groups-view {
-      gap: 1rem;
+      gap: 0.5rem;
     }
 
     .view-header {
-      padding: 1rem;
+      padding: 0.5rem 0.75rem;
     }
 
     .header-content h2 {
-      font-size: 1.3rem;
-      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+      margin-bottom: 0.35rem;
     }
 
     .round-info {
-      flex-direction: column;
-      align-items: flex-start;
       gap: 0.5rem;
     }
 
     .round-label {
-      font-size: 0.85rem;
-      min-width: auto;
+      font-size: 0.7rem;
+      min-width: 60px;
     }
 
     .overall-progress {
-      width: 100%;
-      gap: 0.75rem;
+      gap: 0.4rem;
     }
 
     .progress-text {
-      font-size: 0.85rem;
-      min-width: 70px;
+      font-size: 0.65rem;
+      min-width: 40px;
     }
 
     .progress-bar {
-      max-width: none;
+      max-width: 120px;
+      height: 4px;
     }
 
     .filters-bar {
-      gap: 0.5rem;
-      flex-wrap: wrap;
+      gap: 0.4rem;
     }
 
     .filter-group {
-      gap: 0.375rem;
+      gap: 0.2rem;
     }
 
     .filter-group label {
-      font-size: 0.85rem;
+      font-size: 0.65rem;
     }
 
     .filter-group select {
-      padding: 0.4rem 0.6rem;
-      font-size: 0.85rem;
-    }
-
-    .expand-controls {
-      justify-content: flex-start;
+      padding: 0.2rem 0.35rem;
+      font-size: 0.65rem;
     }
 
     .expand-btn {
-      padding: 0.35rem 0.6rem;
-      font-size: 0.75rem;
-    }
-
-    .rounds-toggle {
-      margin-left: auto;
+      padding: 0.2rem 0.4rem;
+      font-size: 0.6rem;
     }
 
     .toggle-rounds-btn {
-      padding: 0.35rem 0.6rem;
-      font-size: 0.75rem;
+      padding: 0.2rem 0.4rem;
+      font-size: 0.6rem;
     }
 
     .groups-accordions {
       grid-template-columns: 1fr;
+      gap: 0.4rem;
     }
 
     .accordion-header {
-      padding: 0.875rem 1rem;
+      padding: 0.4rem 0.5rem;
     }
 
     .group-name {
-      font-size: 1rem;
+      font-size: 0.8rem;
+    }
+
+    .complete-badge {
+      font-size: 0.5rem;
+      padding: 0.06rem 0.3rem;
     }
 
     .progress-label {
-      font-size: 0.8rem;
-      min-width: 40px;
+      font-size: 0.6rem;
+      min-width: 28px;
     }
 
     .mini-progress-bar {
-      width: 60px;
+      width: 40px;
+      height: 3px;
     }
 
     .accordion-content {
-      padding: 0.875rem 1rem;
+      padding: 0.4rem 0.5rem;
+    }
+
+    .group-actions-row {
+      gap: 0.35rem;
+      margin-bottom: 0.35rem;
     }
 
     .toggle-btn {
-      padding: 0.4rem 0.75rem;
-      font-size: 0.8rem;
+      padding: 0.2rem 0.4rem;
+      font-size: 0.6rem;
+    }
+
+    .generate-next-round-btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.65rem;
     }
 
     .no-group-state {
-      min-height: 150px;
-      font-size: 1rem;
+      min-height: 80px;
+      font-size: 0.8rem;
     }
   }
 
   /* Mobile landscape optimizations */
   @media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
     .groups-view {
-      gap: 0.75rem;
+      gap: 0.4rem;
     }
 
     .view-header {
-      padding: 0.75rem;
+      padding: 0.4rem 0.5rem;
     }
 
     .header-content h2 {
-      font-size: 1.2rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .round-label {
-      font-size: 0.8rem;
+      font-size: 0.85rem;
+      margin-bottom: 0.25rem;
     }
 
     .progress-bar {
-      height: 8px;
+      height: 3px;
     }
 
     .accordion-header {
-      padding: 0.6rem 0.875rem;
+      padding: 0.3rem 0.4rem;
     }
 
     .group-name {
-      font-size: 0.95rem;
-    }
-
-    .accordion-content {
-      padding: 0.75rem 0.875rem;
-    }
-
-    .toggle-btn {
-      padding: 0.35rem 0.6rem;
       font-size: 0.75rem;
     }
 
+    .accordion-content {
+      padding: 0.35rem 0.4rem;
+    }
+
+    .toggle-btn {
+      padding: 0.15rem 0.3rem;
+      font-size: 0.55rem;
+    }
+
     .no-group-state {
-      min-height: 100px;
+      min-height: 60px;
     }
   }
 </style>

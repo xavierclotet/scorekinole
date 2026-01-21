@@ -82,9 +82,10 @@ export function generateBracket(participants: TournamentParticipant[]): Bracket 
     });
   }
 
+  // Always use getRoundName for consistency - it returns roundX based on bracket size
   rounds.push({
     roundNumber: 1,
-    name: numByes > 0 ? 'Ronda Preliminar' : getRoundName(1, totalRounds),
+    name: getRoundName(1, totalRounds),
     matches: firstRoundMatches
   });
 
@@ -212,32 +213,33 @@ export function getBracketSeeding(numParticipants: number): [number, number][] {
 
 /**
  * Get round name based on round number and total rounds
+ * Uses English names internally for consistency with time calculations
  *
  * @param roundNumber Current round number (1-indexed)
  * @param totalRounds Total number of rounds
- * @returns Localized round name
+ * @returns Round name in English (for internal use)
  */
 export function getRoundName(roundNumber: number, totalRounds: number): string {
   const matchesInRound = Math.pow(2, totalRounds - roundNumber);
 
   if (roundNumber === totalRounds) {
-    return 'Final';
+    return 'finals';
   }
 
   if (roundNumber === totalRounds - 1) {
-    return 'Semifinales';
+    return 'semifinals';
   }
 
   if (roundNumber === totalRounds - 2) {
-    return 'Cuartos de Final';
+    return 'quarterfinals';
   }
 
   if (roundNumber === totalRounds - 3) {
-    return 'Octavos de Final';
+    return 'round16';
   }
 
   // For larger brackets
-  return `Ronda de ${matchesInRound * 2}`;
+  return `round${matchesInRound * 2}`;
 }
 
 /**

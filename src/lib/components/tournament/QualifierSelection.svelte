@@ -94,6 +94,11 @@
     return participantMap.get(participantId)?.name || 'Unknown';
   }
 
+  function getTiedWithNames(tiedWith: string[] | undefined): string {
+    if (!tiedWith || tiedWith.length === 0) return '';
+    return tiedWith.map(id => getParticipantName(id)).join(', ');
+  }
+
   $: selectedCount = selectedParticipants.size;
 </script>
 
@@ -125,8 +130,11 @@
         {#each standings as standing}
           {@const isSelected = selectedParticipants.has(standing.participantId)}
           {@const swissPoints = standing.swissPoints ?? (standing.matchesWon * 2 + standing.matchesTied)}
+          {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
+          {@const tiedNames = getTiedWithNames(standing.tiedWith)}
           <tr
             class:selected={isSelected}
+            class:has-tie={hasTie}
             on:click={() => toggleParticipant(standing.participantId)}
             role="button"
             tabindex="0"
@@ -140,11 +148,16 @@
               />
             </td>
             <td class="pos-col">
-              <span class="position-badge" class:selected={isSelected}>
+              <span class="position-badge" class:selected={isSelected} class:tied={hasTie}>
                 {standing.position}
               </span>
             </td>
-            <td class="name-col">{getParticipantName(standing.participantId)}</td>
+            <td class="name-col">
+              {getParticipantName(standing.participantId)}
+              {#if hasTie}
+                <span class="tie-indicator" title="{$t('tiedWith')}: {tiedNames}">⚠️</span>
+              {/if}
+            </td>
             <td class="matches-col">{standing.matchesPlayed}</td>
             <td class="wins-col">{standing.matchesWon}</td>
             <td class="losses-col">{standing.matchesLost}</td>
@@ -337,6 +350,29 @@
     color: #6b7280;
   }
 
+  /* Tie indicator */
+  .tie-indicator {
+    margin-left: 0.3rem;
+    cursor: help;
+    font-size: 0.85rem;
+  }
+
+  tr.has-tie {
+    background: rgba(245, 158, 11, 0.08);
+  }
+
+  tr.has-tie:hover {
+    background: rgba(245, 158, 11, 0.15);
+  }
+
+  tr.has-tie.selected {
+    background: rgba(245, 158, 11, 0.2);
+  }
+
+  .position-badge.tied {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  }
+
   /* Primary column (used for ranking) */
   .primary-col {
     background: rgba(102, 126, 234, 0.08);
@@ -403,6 +439,19 @@
 
   :global([data-theme='dark']) .scored-col {
     color: #8b9bb3;
+  }
+
+  /* Dark mode tie styles */
+  :global([data-theme='dark']) tr.has-tie {
+    background: rgba(245, 158, 11, 0.15);
+  }
+
+  :global([data-theme='dark']) tr.has-tie:hover {
+    background: rgba(245, 158, 11, 0.25);
+  }
+
+  :global([data-theme='dark']) tr.has-tie.selected {
+    background: rgba(245, 158, 11, 0.3);
   }
 
   /* Responsive */
