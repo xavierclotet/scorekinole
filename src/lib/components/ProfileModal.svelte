@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
 	import { createEventDispatcher, onMount } from 'svelte';
-	import Button from './Button.svelte';
+	import { goto } from '$app/navigation';
 	import { getUserProfile } from '$lib/firebase/userProfile';
 
 	export let isOpen: boolean = false;
@@ -10,21 +10,24 @@
 	const dispatch = createEventDispatcher();
 
 	let playerNameInput = '';
+	let rankingPoints = 0;
 	let isLoading = false;
 
-	// Load player name from Firestore when modal opens
+	// Load player data from Firestore when modal opens
 	$: if (isOpen && user) {
-		loadPlayerName();
+		loadPlayerData();
 	}
 
-	async function loadPlayerName() {
+	async function loadPlayerData() {
 		isLoading = true;
 		try {
 			const profile = await getUserProfile();
 			playerNameInput = profile?.playerName || user.name || user.displayName || '';
+			rankingPoints = profile?.ranking || 0;
 		} catch (error) {
-			console.error('Error loading player name:', error);
+			console.error('Error loading player data:', error);
 			playerNameInput = user.name || user.displayName || '';
+			rankingPoints = 0;
 		} finally {
 			isLoading = false;
 		}
@@ -40,70 +43,93 @@
 			dispatch('update', { playerName: playerNameInput.trim() });
 		}
 	}
+
+	function goToRankings() {
+		close();
+		goto('/rankings');
+	}
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			close();
+		} else if (event.key === 'Enter' && playerNameInput.trim()) {
+			updateProfile();
+		}
+	}
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 {#if isOpen}
 	<div class="modal-overlay" on:click={close} role="button" tabindex="-1">
 		<div class="modal" on:click|stopPropagation role="dialog">
-			<div class="modal-header">
-				<span class="modal-title">{$t('myProfile')}</span>
-				<button class="close-btn" on:click={close} aria-label="Close">×</button>
-			</div>
-			<div class="modal-content">
-				{#if user}
-					<!-- Profile Photo -->
-					<div class="photo-section">
+			<!-- Close button -->
+			<button class="close-btn" on:click={close} aria-label="Close">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<line x1="18" y1="6" x2="6" y2="18"/>
+					<line x1="6" y1="6" x2="18" y2="18"/>
+				</svg>
+			</button>
+
+			{#if user}
+				<!-- Profile header with photo -->
+				<div class="profile-header">
+					<div class="photo-wrapper">
 						{#if user.photo || user.photoURL}
-							<img src={user.photo || user.photoURL} alt="Profile" class="photo" />
+							<img src={user.photo || user.photoURL} alt="" class="photo" />
 						{:else}
 							<div class="photo-placeholder">
 								{user.email?.charAt(0).toUpperCase() || '?'}
 							</div>
 						{/if}
 					</div>
+					<h2 class="profile-title">{$t('myProfile')}</h2>
+				</div>
 
-					<!-- Profile Info - Read Only -->
-					<div class="info-section">
-						<label class="label">{$t('email')}</label>
-						<div class="readonly">{user.email || '-'}</div>
+				<!-- Info grid -->
+				<div class="info-grid">
+					<div class="info-item">
+						<span class="info-label">{$t('email')}</span>
+						<span class="info-value">{user.email || '-'}</span>
 					</div>
+					<button class="info-item ranking-link" on:click={goToRankings}>
+						<span class="info-label">{$t('rankingPoints2026')}</span>
+						<span class="info-value ranking">
+							<span class="ranking-badge">{rankingPoints}</span>
+							<span class="ranking-unit">pts</span>
+							<svg class="ranking-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="9 18 15 12 9 6"/>
+							</svg>
+						</span>
+					</button>
+				</div>
 
-					<div class="info-section">
-						<label class="label">{$t('userId')}</label>
-						<div class="readonly uid">{user.id || user.uid || '-'}</div>
-					</div>
-
-					<div class="info-section">
-						<label class="label">{$t('ranking')}</label>
-						<div class="readonly">{$t('comingSoon')}</div>
-					</div>
-
-					<!-- Divider -->
-					<div class="divider"></div>
-
-					<!-- Editable Player Name -->
-					<div class="info-section">
-						<label for="profilePlayerNameInput" class="label editable">
-							{$t('playerName')}
-						</label>
+				<!-- Editable section -->
+				<div class="edit-section">
+					<label for="profilePlayerNameInput" class="edit-label">
+						{$t('playerName')}
+					</label>
+					<div class="input-wrapper">
 						<input
 							id="profilePlayerNameInput"
 							type="text"
 							class="input"
 							bind:value={playerNameInput}
 							placeholder={$t('enterPlayerName')}
-							maxlength="30"
+							maxlength="20"
 						/>
 					</div>
+					<p class="input-hint">{$t('playerNameDescription')}</p>
+				</div>
 
-					<!-- Update Button -->
-					<div class="actions">
-						<Button variant="primary" on:click={updateProfile}>
-							{$t('updateProfile')}
-						</Button>
-					</div>
-				{/if}
-			</div>
+				<!-- Actions -->
+				<div class="actions">
+					<button class="btn-cancel" on:click={close}>{$t('cancel')}</button>
+					<button class="btn-save" on:click={updateProfile} disabled={!playerNameInput.trim()}>
+						{$t('save')}
+					</button>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -115,170 +141,315 @@
 		left: 0;
 		width: 100%;
 		height: 100%;
-		background: rgba(0, 0, 0, 0.7);
+		background: rgba(0, 0, 0, 0.75);
+		backdrop-filter: blur(4px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
+		padding: 1rem;
+		animation: fadeIn 0.15s ease-out;
+	}
+
+	@keyframes fadeIn {
+		from { opacity: 0; }
+		to { opacity: 1; }
 	}
 
 	.modal {
-		background: #1a1f35;
-		padding: 2rem;
-		border-radius: 12px;
-		max-width: 90%;
-		width: 500px;
-		max-height: 90vh;
-		overflow-y: auto;
+		background: #0f1218;
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		border-radius: 16px;
+		max-width: 360px;
+		width: 100%;
 		position: relative;
+		animation: modalSlide 0.2s ease-out;
+		overflow: hidden;
 	}
 
-	.modal-header {
-		margin-bottom: 1.5rem;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.modal-title {
-		font-size: 1.5rem;
-		font-weight: 700;
-		color: #fff;
+	@keyframes modalSlide {
+		from {
+			opacity: 0;
+			transform: translateY(-16px) scale(0.96);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
 	}
 
 	.close-btn {
-		background: none;
-		border: none;
-		font-size: 2rem;
-		cursor: pointer;
-		color: #fff;
-		line-height: 1;
-		padding: 0;
-		width: 32px;
-		height: 32px;
+		position: absolute;
+		top: 0.75rem;
+		right: 0.75rem;
+		width: 28px;
+		height: 28px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: all 0.2s;
+		background: rgba(255, 255, 255, 0.05);
+		border: none;
+		border-radius: 6px;
+		color: rgba(255, 255, 255, 0.5);
+		cursor: pointer;
+		transition: all 0.15s;
+		z-index: 10;
+	}
+
+	.close-btn svg {
+		width: 14px;
+		height: 14px;
 	}
 
 	.close-btn:hover {
-		transform: scale(1.1);
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
 	}
 
-	.modal-content {
+	/* Profile header */
+	.profile-header {
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
+		align-items: center;
+		padding: 1.5rem 1.5rem 1rem;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
 	}
 
-	.photo-section {
-		display: flex;
-		justify-content: center;
-		margin-bottom: 1rem;
+	.photo-wrapper {
+		margin-bottom: 0.75rem;
 	}
 
 	.photo {
-		width: 100px;
-		height: 100px;
+		width: 64px;
+		height: 64px;
 		border-radius: 50%;
 		object-fit: cover;
-		border: 3px solid #00ff88;
+		border: 2px solid rgba(255, 255, 255, 0.1);
 	}
 
 	.photo-placeholder {
-		width: 100px;
-		height: 100px;
+		width: 64px;
+		height: 64px;
 		border-radius: 50%;
-		background: rgba(0, 255, 136, 0.2);
-		border: 3px solid #00ff88;
+		background: linear-gradient(135deg, #1e3a5f 0%, #0d2137 100%);
+		border: 2px solid rgba(255, 255, 255, 0.1);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 3rem;
-		font-weight: 700;
-		color: #00ff88;
+		font-size: 1.5rem;
+		font-weight: 600;
+		color: #64b5f6;
 	}
 
-	.info-section {
+	.profile-title {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #fff;
+		margin: 0;
+	}
+
+	/* Info grid */
+	.info-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1px;
+		background: rgba(255, 255, 255, 0.04);
+		border-top: 1px solid rgba(255, 255, 255, 0.04);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+	}
+
+	.info-item {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.label {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 0.9rem;
-		font-weight: 600;
-	}
-
-	.label.editable {
-		color: #00ff88;
-	}
-
-	.readonly {
-		color: #fff;
+		gap: 0.2rem;
 		padding: 0.75rem 1rem;
-		background: rgba(255, 255, 255, 0.05);
-		border-radius: 8px;
+		background: #0f1218;
+	}
+
+	.info-label {
+		font-size: 0.65rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.4);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.info-value {
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.85);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.info-value.mono {
+		font-family: 'SF Mono', Monaco, monospace;
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	.info-value.ranking {
+		display: flex;
+		align-items: baseline;
+		gap: 0.25rem;
+	}
+
+	.ranking-badge {
 		font-size: 1rem;
+		font-weight: 700;
+		color: #fbbf24;
 	}
 
-	.readonly.uid {
-		font-family: monospace;
-		font-size: 0.85rem;
-		word-break: break-all;
+	.ranking-unit {
+		font-size: 0.65rem;
+		font-weight: 500;
+		color: rgba(251, 191, 36, 0.7);
 	}
 
-	.divider {
-		height: 1px;
-		background: rgba(255, 255, 255, 0.2);
-		margin: 0.5rem 0;
+	.ranking-arrow {
+		width: 14px;
+		height: 14px;
+		stroke: rgba(251, 191, 36, 0.5);
+		margin-left: auto;
+		transition: all 0.15s;
+	}
+
+	.ranking-link {
+		cursor: pointer;
+		border: none;
+		text-align: left;
+		transition: background 0.15s;
+	}
+
+	.ranking-link:hover {
+		background: rgba(251, 191, 36, 0.08);
+	}
+
+	.ranking-link:hover .ranking-arrow {
+		stroke: #fbbf24;
+		transform: translateX(2px);
+	}
+
+	/* Edit section */
+	.edit-section {
+		padding: 1rem 1.25rem;
+	}
+
+	.edit-label {
+		display: block;
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.7);
+		margin-bottom: 0.5rem;
+	}
+
+	.input-wrapper {
+		position: relative;
 	}
 
 	.input {
 		width: 100%;
-		padding: 1rem;
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid rgba(255, 255, 255, 0.2);
+		padding: 0.625rem 0.875rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 8px;
 		color: #fff;
-		font-size: 1rem;
-		transition: all 0.2s;
+		font-size: 0.875rem;
+		transition: all 0.15s;
 	}
 
 	.input:focus {
 		outline: none;
-		border-color: #00ff88;
-		background: rgba(255, 255, 255, 0.15);
+		border-color: rgba(59, 130, 246, 0.5);
+		background: rgba(255, 255, 255, 0.06);
+		box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 	}
 
 	.input::placeholder {
-		color: rgba(255, 255, 255, 0.4);
+		color: rgba(255, 255, 255, 0.3);
 	}
 
+	.input-hint {
+		margin: 0.375rem 0 0;
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.35);
+	}
+
+	/* Actions */
 	.actions {
 		display: flex;
+		gap: 0.5rem;
+		padding: 0.75rem 1.25rem 1.25rem;
 		justify-content: flex-end;
 	}
 
-	@media (max-width: 768px) {
+	.btn-cancel,
+	.btn-save {
+		padding: 0.5rem 1rem;
+		font-size: 0.8rem;
+		font-weight: 500;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.btn-cancel {
+		background: transparent;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.btn-cancel:hover {
+		background: rgba(255, 255, 255, 0.05);
+		border-color: rgba(255, 255, 255, 0.15);
+		color: #fff;
+	}
+
+	.btn-save {
+		background: #3b82f6;
+		border: none;
+		color: #fff;
+	}
+
+	.btn-save:hover:not(:disabled) {
+		background: #2563eb;
+	}
+
+	.btn-save:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	/* Responsive */
+	@media (max-width: 400px) {
 		.modal {
-			width: 90%;
+			max-width: 100%;
 		}
 
-		.modal-title {
-			font-size: 1.25rem;
+		.profile-header {
+			padding: 1.25rem 1rem 0.875rem;
 		}
 
 		.photo,
 		.photo-placeholder {
-			width: 80px;
-			height: 80px;
+			width: 56px;
+			height: 56px;
 		}
 
 		.photo-placeholder {
-			font-size: 2.5rem;
+			font-size: 1.25rem;
+		}
+
+		.info-item {
+			padding: 0.625rem 0.875rem;
+		}
+
+		.edit-section {
+			padding: 0.875rem 1rem;
+		}
+
+		.actions {
+			padding: 0.625rem 1rem 1rem;
 		}
 	}
 </style>

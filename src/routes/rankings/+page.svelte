@@ -13,7 +13,6 @@
 		type RankedPlayer,
 		type RankingFilters
 	} from '$lib/firebase/rankings';
-	import type { TournamentTier } from '$lib/types/tournament';
 	import RankingDetailModal from '$lib/components/RankingDetailModal.svelte';
 
 	// Data state
@@ -26,8 +25,7 @@
 	let selectedYear = new Date().getFullYear();
 	let availableYears: number[] = [];
 	const bestOfN = 2; // Hardcoded to 2 for now
-	let filterType: 'all' | 'tier' | 'country' = 'all';
-	let selectedTier: TournamentTier = 'REGIONAL';
+	let filterType: 'all' | 'country' = 'all';
 	let selectedCountry = '';
 	let availableCountries: string[] = [];
 
@@ -36,12 +34,10 @@
 	let showDetailModal = false;
 
 	// Infinite scroll state
-	const ITEMS_PER_PAGE = 10;
+	const ITEMS_PER_PAGE = 15;
 	let visibleCount = ITEMS_PER_PAGE;
 	$: visiblePlayers = rankedPlayers.slice(0, visibleCount);
 	$: hasMore = visibleCount < rankedPlayers.length;
-
-	const TIER_OPTIONS: TournamentTier[] = ['CLUB', 'REGIONAL', 'NATIONAL', 'MAJOR'];
 
 	onMount(async () => {
 		await loadData();
@@ -86,7 +82,6 @@
 		const filters: RankingFilters = {
 			year: selectedYear,
 			filterType,
-			tierValue: filterType === 'tier' ? selectedTier : undefined,
 			countryValue: filterType === 'country' ? selectedCountry : undefined,
 			bestOfN
 		};
@@ -110,7 +105,7 @@
 	}
 
 	// Reactive recalculation when filters change
-	$: if (!isLoading && (selectedYear || filterType || selectedTier || selectedCountry || bestOfN)) {
+	$: if (!isLoading && (selectedYear || filterType || selectedCountry || bestOfN)) {
 		recalculateRankings();
 	}
 
@@ -127,23 +122,6 @@
 	function goBack() {
 		goto('/');
 	}
-
-	function getTierLabel(tier: TournamentTier): string {
-		const labels: Record<TournamentTier, string> = {
-			CLUB: $t('tierClub'),
-			REGIONAL: $t('tierRegional'),
-			NATIONAL: $t('tierNational'),
-			MAJOR: $t('tierMajor')
-		};
-		return labels[tier];
-	}
-
-	function getPositionEmoji(position: number): string {
-		if (position === 1) return '';
-		if (position === 2) return '';
-		if (position === 3) return '';
-		return '';
-	}
 </script>
 
 <svelte:head>
@@ -151,134 +129,141 @@
 	<meta name="description" content="Crokinole Rankings - Best-of-N tournament results" />
 </svelte:head>
 
-<main class="rankings-page">
+<div class="rankings-container">
 	<header class="page-header">
-		<button class="back-button" on:click={goBack}>
-			<span class="back-icon">&larr;</span>
-			{$t('backToHome')}
-		</button>
-		<h1 class="page-title">{$t('publicRankings')}</h1>
+		<div class="header-row">
+			<button class="back-btn" on:click={goBack}>
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M19 12H5M12 19l-7-7 7-7"/>
+				</svg>
+			</button>
+			<div class="header-main">
+				<div class="title-section">
+					<h1>{$t('publicRankings')}</h1>
+					<span class="count-badge">{rankedPlayers.length}</span>
+				</div>
+			</div>
+			<div class="year-select-wrapper">
+				<select class="year-select" bind:value={selectedYear}>
+					{#each availableYears as year}
+						<option value={year}>{year}</option>
+					{/each}
+					{#if availableYears.length === 0}
+						<option value={selectedYear}>{selectedYear}</option>
+					{/if}
+				</select>
+			</div>
+		</div>
 	</header>
 
-	<div class="filters-bar">
-		<div class="filters-left">
-			<select class="filter-select" bind:value={selectedYear} title={$t('year')}>
-				{#each availableYears as year}
-					<option value={year}>{year}</option>
+	<div class="controls-section">
+		<div class="filter-tabs">
+			<button
+				class="filter-tab"
+				class:active={filterType === 'all'}
+				on:click={() => (filterType = 'all')}
+			>
+				{$t('allTournaments')}
+			</button>
+			<button
+				class="filter-tab"
+				class:active={filterType === 'country'}
+				on:click={() => (filterType = 'country')}
+			>
+				{$t('byCountry')}
+			</button>
+		</div>
+
+		{#if filterType === 'country'}
+			<select class="filter-select" bind:value={selectedCountry}>
+				{#each availableCountries as country}
+					<option value={country}>{country}</option>
 				{/each}
-				{#if availableYears.length === 0}
-					<option value={selectedYear}>{selectedYear}</option>
-				{/if}
 			</select>
-			<span class="bestof-label">{$t('bestOfN')} 2</span>
-		</div>
+		{/if}
 
-		<div class="filters-right">
-			<div class="filter-type-toggle">
-				<button
-					class="type-btn"
-					class:active={filterType === 'all'}
-					on:click={() => (filterType = 'all')}
-				>
-					{$t('allTournaments')}
-				</button>
-				<button
-					class="type-btn"
-					class:active={filterType === 'tier'}
-					on:click={() => (filterType = 'tier')}
-				>
-					{$t('byTier')}
-				</button>
-				<button
-					class="type-btn"
-					class:active={filterType === 'country'}
-					on:click={() => (filterType = 'country')}
-				>
-					{$t('byCountry')}
-				</button>
-			</div>
-
-			{#if filterType === 'tier'}
-				<select class="filter-select secondary" bind:value={selectedTier}>
-					{#each TIER_OPTIONS as tier}
-						<option value={tier}>{getTierLabel(tier)}</option>
-					{/each}
-				</select>
-			{/if}
-
-			{#if filterType === 'country'}
-				<select class="filter-select secondary" bind:value={selectedCountry}>
-					{#each availableCountries as country}
-						<option value={country}>{country}</option>
-					{/each}
-				</select>
-			{/if}
-		</div>
+		<span class="bestof-badge">{$t('bestOfN')} {bestOfN}</span>
 	</div>
 
-	<div class="rankings-content" on:scroll={handleScroll}>
-		{#if isLoading}
-			<div class="loading-state">
-				<div class="spinner"></div>
-				<p>{$t('loading')}...</p>
+	{#if isLoading}
+		<div class="loading-state">
+			<div class="spinner"></div>
+			<p>{$t('loading')}...</p>
+		</div>
+	{:else if rankedPlayers.length === 0}
+		<div class="empty-state">
+			<div class="empty-icon">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+					<path d="M12 15l-2-5-2 5h4zm6-5l-2-5-2 5h4zm-12 0l-2-5-2 5h4z"/>
+					<path d="M4 15h16v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z"/>
+				</svg>
 			</div>
-		{:else if rankedPlayers.length === 0}
-			<div class="empty-state">
-				<p>{$t('noRankingsFound')}</p>
-			</div>
-		{:else}
-			<div class="rankings-table">
-				<div class="table-header">
-					<span class="col-position">#</span>
-					<span class="col-player">{$t('player')}</span>
-					<span class="col-points">{$t('points')}</span>
-					<span class="col-tournaments">{$t('tournamentsCount')}</span>
-				</div>
+			<h3>{$t('noRankingsFound')}</h3>
+		</div>
+	{:else}
+		<div class="results-info">
+			{$t('showingOf').replace('{showing}', String(visiblePlayers.length)).replace('{total}', String(rankedPlayers.length))}
+		</div>
 
-				<div class="table-body">
-					{#each visiblePlayers as player, index}
-						<button
-							class="table-row"
-							class:top-3={index < 3}
+		<div class="table-container" on:scroll={handleScroll}>
+			<table class="rankings-table">
+				<thead>
+					<tr>
+						<th class="pos-col">#</th>
+						<th class="player-col">{$t('player')}</th>
+						<th class="points-col">{$t('points')}</th>
+						<th class="tournaments-col hide-mobile">{$t('tournamentsCount')}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each visiblePlayers as player, index (player.odId)}
+						<tr
+							class="player-row"
+							class:top-1={index === 0}
+							class:top-2={index === 1}
+							class:top-3={index === 2}
 							on:click={() => handlePlayerClick(player)}
 						>
-							<span class="col-position">
-								<span class="position-number">{index + 1}</span>
-								<span class="position-emoji">{getPositionEmoji(index + 1)}</span>
-							</span>
-
-							<span class="col-player">
-								{#if player.photoURL}
-									<img src={player.photoURL} alt="" class="player-photo" />
-								{:else}
-									<div class="player-avatar">
-										{player.playerName.charAt(0).toUpperCase()}
-									</div>
-								{/if}
-								<span class="player-name">{player.playerName}</span>
-							</span>
-
-							<span class="col-points">
-								<span class="points-value">{player.totalPoints}</span>
-								<span class="points-label">{$t('pointsShort')}</span>
-							</span>
-
-							<span class="col-tournaments">
+							<td class="pos-cell">
+								<span class="position" class:gold={index === 0} class:silver={index === 1} class:bronze={index === 2}>
+									{index + 1}
+								</span>
+							</td>
+							<td class="player-cell">
+								<div class="player-info">
+									{#if player.photoURL}
+										<img src={player.photoURL} alt="" class="player-avatar" />
+									{:else}
+										<div class="player-avatar-placeholder">
+											{player.playerName.charAt(0).toUpperCase()}
+										</div>
+									{/if}
+									<span class="player-name">{player.playerName}</span>
+								</div>
+							</td>
+							<td class="points-cell">
+								<span class="points-value">{player.totalPoints}</span><span class="points-unit">pts</span>
+							</td>
+							<td class="tournaments-cell hide-mobile">
 								{player.tournamentsCount}/{bestOfN}
-							</span>
-						</button>
+							</td>
+						</tr>
 					{/each}
-				</div>
+				</tbody>
+			</table>
 
-				{#if !hasMore && rankedPlayers.length > 0}
-					<div class="end-of-list">
-						{$t('endOfList')}
-					</div>
-				{/if}
-			</div>
-		{/if}
-	</div>
-</main>
+			{#if hasMore}
+				<div class="load-more-hint">
+					{$t('scrollToLoadMore')}
+				</div>
+			{:else if rankedPlayers.length > 0}
+				<div class="end-of-list">
+					{$t('endOfList')}
+				</div>
+			{/if}
+		</div>
+	{/if}
+</div>
 
 <RankingDetailModal isOpen={showDetailModal} player={selectedPlayer} bestOfN={bestOfN} onClose={closeModal} />
 
@@ -286,285 +271,361 @@
 	:global(body) {
 		margin: 0;
 		font-family: 'Lexend', system-ui, -apple-system, sans-serif;
-		background: #0a0e1a;
-		color: #fff;
 	}
 
-	.rankings-page {
-		height: 100vh;
-		background: #0a0e1a;
-		padding: 1rem;
-		padding-top: max(1rem, env(safe-area-inset-top, 1rem));
-		padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
+	.rankings-container {
+		min-height: 100vh;
+		background: #0f1419;
+		padding: 1.5rem 2rem;
+		padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem));
+		padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem));
 	}
 
+	/* Header */
 	.page-header {
+		background: #1a2332;
+		border-bottom: 1px solid #2d3748;
+		padding: 0.75rem 1.5rem;
+		margin: -1.5rem -2rem 1.5rem -2rem;
+	}
+
+	.header-row {
 		display: flex;
 		align-items: center;
 		gap: 1rem;
-		margin-bottom: 1.5rem;
-		flex-shrink: 0;
 	}
 
-	.back-button {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.1);
+	.back-btn {
+		width: 36px;
+		height: 36px;
 		border-radius: 8px;
-		color: rgba(255, 255, 255, 0.7);
+		border: 1px solid #2d3748;
+		background: #0f1419;
+		color: #8b9bb3;
 		cursor: pointer;
-		transition: all 0.2s;
-		font-size: 0.9rem;
-	}
-
-	.back-button:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
-	}
-
-	.back-icon {
-		font-size: 1.2rem;
-	}
-
-	.page-title {
-		font-size: 1.5rem;
-		font-weight: 700;
-		color: var(--accent-green, #00ff88);
-		margin: 0;
-		flex: 1;
-	}
-
-	.filters-bar {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.6rem 1rem;
-		background: rgba(255, 255, 255, 0.03);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 8px;
-		margin-bottom: 1rem;
-		flex-wrap: wrap;
+		justify-content: center;
+		transition: all 0.2s;
 		flex-shrink: 0;
 	}
 
-	.filters-left,
-	.filters-right {
+	.back-btn svg {
+		width: 18px;
+		height: 18px;
+	}
+
+	.back-btn:hover {
+		transform: translateX(-2px);
+		border-color: #667eea;
+		color: #667eea;
+	}
+
+	.header-main {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.title-section {
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		flex-wrap: wrap;
 	}
 
-	.filter-select {
-		padding: 0.4rem 1.75rem 0.4rem 0.6rem;
-		background-color: rgba(255, 255, 255, 0.08);
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+	.title-section h1 {
+		font-size: 1.1rem;
+		margin: 0;
+		color: #e1e8ed;
+		font-weight: 700;
+		white-space: nowrap;
+	}
+
+	.count-badge {
+		padding: 0.2rem 0.6rem;
+		background: #0f1419;
+		color: #8b9bb3;
+		border-radius: 12px;
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+
+	.year-select-wrapper {
+		flex-shrink: 0;
+	}
+
+	.year-select {
+		padding: 0.4rem 2rem 0.4rem 0.75rem;
+		background-color: #0f1419;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
 		background-repeat: no-repeat;
 		background-position: right 0.5rem center;
-		border: 1px solid rgba(255, 255, 255, 0.15);
-		border-radius: 4px;
-		color: #fff;
+		border: 1px solid #2d3748;
+		border-radius: 6px;
+		color: #e1e8ed;
 		font-size: 0.85rem;
 		font-weight: 600;
 		cursor: pointer;
 		appearance: none;
 		-webkit-appearance: none;
 		-moz-appearance: none;
-		min-width: 70px;
 	}
 
-	.filter-select.secondary {
-		background-color: rgba(0, 255, 136, 0.1);
-		border-color: rgba(0, 255, 136, 0.3);
+	.year-select:focus {
+		outline: none;
+		border-color: #667eea;
 	}
 
-	.filter-select option {
-		background-color: #1a1f35;
-		color: #fff;
+	.year-select option {
+		background: #1a2332;
+		color: #e1e8ed;
+	}
+
+	/* Controls */
+	.controls-section {
+		display: flex;
+		gap: 0.75rem;
+		margin-bottom: 1rem;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.filter-tabs {
+		display: flex;
+		gap: 0.25rem;
+		flex-wrap: wrap;
+	}
+
+	.filter-tab {
+		padding: 0.4rem 0.75rem;
+		background: #1a2332;
+		border: 1px solid #2d3748;
+		border-radius: 4px;
+		font-size: 0.8rem;
+		cursor: pointer;
+		transition: all 0.2s;
+		color: #8b9bb3;
+	}
+
+	.filter-tab:hover {
+		background: #2d3748;
+		border-color: #667eea;
+	}
+
+	.filter-tab.active {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		border-color: transparent;
+		font-weight: 600;
+	}
+
+	.filter-select {
+		padding: 0.4rem 2rem 0.4rem 0.75rem;
+		background-color: #1a2332;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 0.5rem center;
+		border: 1px solid #2d3748;
+		border-radius: 4px;
+		color: #e1e8ed;
+		font-size: 0.8rem;
+		cursor: pointer;
+		appearance: none;
+		-webkit-appearance: none;
+		-moz-appearance: none;
 	}
 
 	.filter-select:focus {
 		outline: none;
-		border-color: var(--accent-green, #00ff88);
+		border-color: #667eea;
 	}
 
-	.filter-select:hover {
-		border-color: rgba(255, 255, 255, 0.3);
+	.filter-select option {
+		background: #1a2332;
+		color: #e1e8ed;
 	}
 
-	.bestof-label {
-		font-size: 0.8rem;
-		color: rgba(255, 255, 255, 0.5);
-		padding: 0.4rem 0.6rem;
-		background: rgba(255, 255, 255, 0.05);
+	.bestof-badge {
+		padding: 0.35rem 0.6rem;
+		background: rgba(102, 126, 234, 0.15);
+		color: #8b9bb3;
 		border-radius: 4px;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-	}
-
-	.filter-type-toggle {
-		display: flex;
-		background: rgba(255, 255, 255, 0.05);
-		border-radius: 4px;
-		overflow: hidden;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-	}
-
-	.type-btn {
-		padding: 0.35rem 0.65rem;
-		background: transparent;
-		border: none;
-		border-right: 1px solid rgba(255, 255, 255, 0.1);
-		color: rgba(255, 255, 255, 0.5);
 		font-size: 0.75rem;
-		cursor: pointer;
-		transition: all 0.15s;
-		white-space: nowrap;
+		font-weight: 500;
+		margin-left: auto;
 	}
 
-	.type-btn:last-child {
-		border-right: none;
+	/* Results info */
+	.results-info {
+		font-size: 0.75rem;
+		color: #6b7a94;
+		margin-bottom: 0.5rem;
 	}
 
-	.type-btn:hover {
-		color: #fff;
-		background: rgba(255, 255, 255, 0.1);
-	}
-
-	.type-btn.active {
-		background: var(--accent-green, #00ff88);
-		color: #0a0e1a;
-		font-weight: 600;
-	}
-
-	.rankings-content {
-		flex: 1;
-		overflow-y: auto;
-		min-height: 0; /* Important for flex children with overflow */
-	}
-
-	.loading-state,
-	.empty-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 3rem;
-		color: rgba(255, 255, 255, 0.5);
+	/* Loading state */
+	.loading-state {
+		text-align: center;
+		padding: 4rem 2rem;
 	}
 
 	.spinner {
 		width: 40px;
 		height: 40px;
-		border: 3px solid rgba(255, 255, 255, 0.1);
-		border-top-color: var(--accent-green, #00ff88);
+		margin: 0 auto 1rem;
+		border: 3px solid #2d3748;
+		border-top: 3px solid #667eea;
 		border-radius: 50%;
 		animation: spin 1s linear infinite;
-		margin-bottom: 1rem;
 	}
 
 	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
+		0% { transform: rotate(0deg); }
+		100% { transform: rotate(360deg); }
+	}
+
+	.loading-state p {
+		color: #8b9bb3;
+	}
+
+	/* Empty state */
+	.empty-state {
+		text-align: center;
+		padding: 4rem 2rem;
+	}
+
+	.empty-icon {
+		margin-bottom: 1rem;
+	}
+
+	.empty-icon svg {
+		width: 64px;
+		height: 64px;
+		stroke: #4a5568;
+	}
+
+	.empty-state h3 {
+		font-size: 1.1rem;
+		margin: 0;
+		color: #e1e8ed;
+	}
+
+	/* Table */
+	.table-container {
+		overflow-x: auto;
+		overflow-y: auto;
+		max-height: calc(100vh - 220px);
+		background: #1a2332;
+		border-radius: 6px;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 	}
 
 	.rankings-table {
-		background: rgba(255, 255, 255, 0.03);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 12px;
-		overflow: hidden;
-	}
-
-	.table-header {
-		display: grid;
-		grid-template-columns: 60px 1fr 100px 80px;
-		gap: 0.5rem;
-		padding: 0.75rem 1rem;
-		background: rgba(255, 255, 255, 0.05);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.5);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
-
-	.table-body {
-		display: flex;
-		flex-direction: column;
-	}
-
-	.table-row {
-		display: grid;
-		grid-template-columns: 60px 1fr 100px 80px;
-		gap: 0.5rem;
-		padding: 0.75rem 1rem;
-		border: none;
-		background: transparent;
-		color: #fff;
-		text-align: left;
-		cursor: pointer;
-		transition: background 0.2s;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 		width: 100%;
-		font-family: inherit;
-		font-size: inherit;
+		border-collapse: collapse;
+		font-size: 0.85rem;
 	}
 
-	.table-row:hover {
-		background: rgba(255, 255, 255, 0.05);
+	.rankings-table thead {
+		background: #0f1419;
+		border-bottom: 1px solid #2d3748;
+		position: sticky;
+		top: 0;
+		z-index: 1;
 	}
 
-	.table-row:last-child {
-		border-bottom: none;
+	.rankings-table th {
+		padding: 0.6rem 0.75rem;
+		text-align: left;
+		font-weight: 600;
+		color: #8b9bb3;
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
 	}
 
-	/* Zebra striping */
-	.table-row:nth-child(even) {
-		background: rgba(255, 255, 255, 0.02);
+	.pos-col { width: 50px; }
+	.points-col { width: 90px; }
+	.tournaments-col { width: 80px; }
+
+	.player-row {
+		border-bottom: 1px solid #2d3748;
+		cursor: pointer;
+		transition: all 0.15s;
 	}
 
-	.table-row.top-3 {
-		background: rgba(0, 255, 136, 0.05);
+	.player-row:hover {
+		background: #0f1419;
 	}
 
-	.table-row.top-3:nth-child(even) {
-		background: rgba(0, 255, 136, 0.07);
+	.player-row.top-1 {
+		background: rgba(255, 215, 0, 0.08);
 	}
 
-	.table-row.top-3:hover {
-		background: rgba(0, 255, 136, 0.1);
+	.player-row.top-1:hover {
+		background: rgba(255, 215, 0, 0.12);
 	}
 
-	.col-position {
-		display: flex;
+	.player-row.top-2 {
+		background: rgba(192, 192, 192, 0.06);
+	}
+
+	.player-row.top-2:hover {
+		background: rgba(192, 192, 192, 0.1);
+	}
+
+	.player-row.top-3 {
+		background: rgba(205, 127, 50, 0.06);
+	}
+
+	.player-row.top-3:hover {
+		background: rgba(205, 127, 50, 0.1);
+	}
+
+	.rankings-table td {
+		padding: 0.5rem 0.75rem;
+		color: #e1e8ed;
+	}
+
+	/* Position cell */
+	.pos-cell {
+		text-align: center;
+	}
+
+	.position {
+		display: inline-flex;
 		align-items: center;
-		gap: 0.25rem;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		font-weight: 700;
+		font-size: 0.8rem;
+		background: #2d3748;
+		color: #8b9bb3;
 	}
 
-	.position-number {
-		font-weight: bold;
-		min-width: 1.5rem;
+	.position.gold {
+		background: linear-gradient(135deg, #ffd700 0%, #ffb800 100%);
+		color: #1a1a1a;
 	}
 
-	.position-emoji {
-		font-size: 1rem;
+	.position.silver {
+		background: linear-gradient(135deg, #c0c0c0 0%, #a8a8a8 100%);
+		color: #1a1a1a;
 	}
 
-	.col-player {
+	.position.bronze {
+		background: linear-gradient(135deg, #cd7f32 0%, #b8702e 100%);
+		color: #fff;
+	}
+
+	/* Player cell */
+	.player-info {
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		overflow: hidden;
 	}
 
-	.player-photo {
+	.player-avatar {
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
@@ -572,16 +633,17 @@
 		flex-shrink: 0;
 	}
 
-	.player-avatar {
+	.player-avatar-placeholder {
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
 		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-weight: bold;
-		font-size: 0.9rem;
+		font-size: 0.8rem;
+		font-weight: 600;
 		flex-shrink: 0;
 	}
 
@@ -589,153 +651,134 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		font-weight: 500;
 	}
 
-	.col-points {
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
+	/* Points cell */
+	.points-cell {
+		vertical-align: middle;
 	}
 
 	.points-value {
-		font-weight: bold;
-		color: var(--accent-green, #00ff88);
-	}
-
-	.points-label {
-		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.5);
-	}
-
-	.col-tournaments {
-		display: flex;
-		align-items: center;
-		color: rgba(255, 255, 255, 0.6);
+		font-weight: 700;
+		color: #fbbf24;
 		font-size: 0.9rem;
 	}
 
+	.points-unit {
+		font-size: 0.7rem;
+		color: #6b7a94;
+		margin-left: 0.25rem;
+	}
+
+	/* Tournaments cell */
+	.tournaments-cell {
+		color: #8b9bb3;
+		font-size: 0.85rem;
+	}
+
+	/* Scroll indicators */
+	.load-more-hint,
 	.end-of-list {
 		text-align: center;
 		padding: 1rem;
-		color: rgba(255, 255, 255, 0.4);
+		color: #6b7a94;
 		font-size: 0.85rem;
-		border-top: 1px dashed rgba(255, 255, 255, 0.1);
 	}
 
-	/* Mobile responsiveness */
-	@media (max-width: 600px) {
+	.end-of-list {
+		border-top: 1px dashed #2d3748;
+	}
+
+	/* Responsive */
+	@media (max-width: 768px) {
+		.rankings-container {
+			padding: 1rem;
+		}
+
 		.page-header {
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 0.5rem;
+			margin: -1rem -1rem 1rem -1rem;
+			padding: 0.75rem 1rem;
 		}
 
-		.back-button {
-			padding: 0.4rem 0.75rem;
-			font-size: 0.85rem;
-		}
-
-		.page-title {
-			font-size: 1.25rem;
-		}
-
-		.filters-bar {
+		.controls-section {
 			flex-direction: column;
 			align-items: stretch;
-			gap: 0.6rem;
-			padding: 0.5rem;
 		}
 
-		.filters-left,
-		.filters-right {
+		.filter-tabs {
 			justify-content: center;
-			gap: 0.5rem;
 		}
 
-		.filter-select {
-			padding: 0.35rem 1.5rem 0.35rem 0.5rem;
-			font-size: 0.8rem;
-			min-width: 60px;
+		.bestof-badge {
+			margin-left: 0;
+			text-align: center;
 		}
 
-		.filter-type-toggle {
-			flex: 1;
-		}
-
-		.type-btn {
-			flex: 1;
-			padding: 0.35rem 0.4rem;
-			font-size: 0.7rem;
-		}
-
-		.table-header {
-			grid-template-columns: 50px 1fr 70px 50px;
-			padding: 0.5rem 0.75rem;
-			font-size: 0.65rem;
-		}
-
-		.table-row {
-			grid-template-columns: 50px 1fr 70px 50px;
-			padding: 0.5rem 0.75rem;
-			font-size: 0.9rem;
-		}
-
-		.player-photo,
-		.player-avatar {
-			width: 28px;
-			height: 28px;
-			font-size: 0.8rem;
-		}
-
-		.col-points {
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 0;
-		}
-
-		.points-label {
+		.hide-mobile {
 			display: none;
 		}
 
-		.col-tournaments {
-			font-size: 0.8rem;
+		.table-container {
+			max-height: calc(100vh - 200px);
+		}
+	}
+
+	@media (max-width: 480px) {
+		.title-section h1 {
+			font-size: 1rem;
+		}
+
+		.filter-tab {
+			padding: 0.35rem 0.5rem;
+			font-size: 0.75rem;
+		}
+
+		.rankings-table th,
+		.rankings-table td {
+			padding: 0.4rem 0.5rem;
+		}
+
+		.player-avatar,
+		.player-avatar-placeholder {
+			width: 28px;
+			height: 28px;
+			font-size: 0.75rem;
+		}
+
+		.player-name {
+			font-size: 0.85rem;
+		}
+
+		.position {
+			width: 24px;
+			height: 24px;
+			font-size: 0.75rem;
 		}
 	}
 
 	/* Landscape adjustments */
 	@media (orientation: landscape) and (max-height: 500px) {
-		.rankings-page {
-			padding: 0.5rem;
+		.rankings-container {
+			padding: 0.75rem 1rem;
 		}
 
 		.page-header {
+			margin: -0.75rem -1rem 0.75rem -1rem;
+			padding: 0.5rem 1rem;
+		}
+
+		.controls-section {
 			margin-bottom: 0.5rem;
 		}
 
-		.filters-bar {
-			padding: 0.4rem 0.75rem;
-			margin-bottom: 0.5rem;
-			gap: 0.5rem;
+		.table-container {
+			max-height: calc(100vh - 140px);
 		}
 
-		.filter-select {
-			padding: 0.3rem 1.5rem 0.3rem 0.5rem;
-			font-size: 0.8rem;
-		}
-
-		.bestof-label {
-			font-size: 0.7rem;
-			padding: 0.3rem 0.5rem;
-		}
-
-		.type-btn {
-			padding: 0.25rem 0.5rem;
-			font-size: 0.75rem;
-		}
-
-		.table-header,
-		.table-row {
-			padding: 0.4rem 0.75rem;
+		.rankings-table th,
+		.rankings-table td {
+			padding: 0.35rem 0.5rem;
 		}
 	}
 </style>

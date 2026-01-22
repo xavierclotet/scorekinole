@@ -1,7 +1,7 @@
 {
 	"name": "scorekinole",
 	"private": true,
-	"version": "2.1.4",
+	"version": "2.1.5",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -14,7 +14,9 @@
 		"build:apk": "npm run build && npx cap sync android && cd android && .\\gradlew.bat app:assembleRelease && cd .. && node rename-apk.js",
 		"release": "node scripts/create-release.js",
 		"deploy": "npm run build && firebase deploy",
-		"deploy:rules": "firebase deploy --only firestore:rules"
+		"deploy:rules": "firebase deploy --only firestore:rules",
+		"deploy:functions": "firebase deploy --only functions",
+		"functions:log": "firebase functions:log"
 	},
 	"devDependencies": {
 		"@capacitor/assets": "^3.0.5",

@@ -1,6 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import { currentUser } from '$lib/firebase/auth';
-import { isAdmin as checkIsAdmin, isSuperAdmin as checkIsSuperAdmin } from '$lib/firebase/admin';
+import { getUserProfile } from '$lib/firebase/userProfile';
 import { browser } from '$app/environment';
 
 /**
@@ -26,12 +26,10 @@ if (browser) {
     adminCheckLoading.set(true);
 
     if (user) {
-      const [adminStatus, superAdminStatus] = await Promise.all([
-        checkIsAdmin(),
-        checkIsSuperAdmin()
-      ]);
-      isAdminUser.set(adminStatus);
-      isSuperAdminUser.set(superAdminStatus);
+      // Single Firestore read instead of two separate calls
+      const profile = await getUserProfile();
+      isAdminUser.set(profile?.isAdmin === true);
+      isSuperAdminUser.set(profile?.isSuperAdmin === true);
     } else {
       isAdminUser.set(false);
       isSuperAdminUser.set(false);

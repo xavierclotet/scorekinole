@@ -29,10 +29,9 @@
     ? new Date(now + remainingMinutes * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : null;
 
-  // Dynamic text color based on progress
-  // Below 50%: dark text, Above 50%: white text
-  $: textColor = percentComplete >= 50 ? 'white' : '#374151';
-  $: textShadow = percentComplete >= 50 ? '0 1px 2px rgba(0, 0, 0, 0.5)' : 'none';
+  // Use white text with strong dark outline for visibility on any background
+  $: textColor = 'white';
+  $: textShadow = '0 0 4px rgba(0,0,0,1), 0 0 4px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 1px 1px 2px rgba(0,0,0,1)';
 
   function formatRemainingTime(minutes: number): string {
     if (minutes < 60) {

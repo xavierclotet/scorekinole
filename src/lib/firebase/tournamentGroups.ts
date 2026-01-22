@@ -289,7 +289,8 @@ export async function recalculateStandings(
           points: 0,
           total20s: 0,
           totalPointsScored: 0,
-          qualifiedForFinal: false
+          qualifiedForFinal: false,
+          headToHeadRecord: {} // Initialize head-to-head record
         });
       });
 
@@ -373,13 +374,7 @@ export async function recalculateStandings(
 
       // Apply tie-breaker and sort
       const standings = Array.from(standingsMap.values());
-      console.log(`[recalculateStandings] Group ${group.name}: calling resolveTiebreaker with ${standings.length} standings`);
-      console.log(`[recalculateStandings] isSwiss=${isSwiss}, swissRankingSystem=${swissRankingSystem}`);
-      console.log(`[recalculateStandings] Standings before tiebreaker:`, JSON.stringify(standings, null, 2));
-
       const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, swissRankingSystem);
-
-      console.log(`[recalculateStandings] Standings after tiebreaker:`, JSON.stringify(sortedStandings, null, 2));
 
       // Update group standings
       group.standings = sortedStandings;

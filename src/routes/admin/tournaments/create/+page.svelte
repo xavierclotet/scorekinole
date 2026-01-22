@@ -5,7 +5,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { goto } from '$app/navigation';
-  import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, type TournamentNameInfo } from '$lib/firebase/tournaments';
+  import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, FinalStageMode, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
@@ -31,6 +31,10 @@
   // Toast state
   let showToast = false;
   let toastMessage = '';
+
+  // Quota state
+  let quotaInfo: { canCreate: boolean; used: number; limit: number; isSuperAdmin: boolean } | null = null;
+  let quotaLoading = true;
 
   // Step 1: Basic Info
   let key = '';
@@ -188,6 +192,11 @@
   }
 
   onMount(async () => {
+    // Check quota first (not needed for edit mode)
+    quotaLoading = true;
+    quotaInfo = await checkTournamentQuota();
+    quotaLoading = false;
+
     // Check if in edit or duplicate mode
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
@@ -965,6 +974,18 @@
       return;
     }
 
+    // Re-check quota before creating (not needed for edit mode)
+    if (!editMode) {
+      const freshQuota = await checkTournamentQuota();
+      if (!freshQuota.canCreate) {
+        toastMessage = $t('tournamentLimitReached')
+          .replace('{used}', freshQuota.used.toString())
+          .replace('{limit}', freshQuota.limit.toString());
+        showToast = true;
+        return;
+      }
+    }
+
     creating = true;
 
     try {
@@ -1202,6 +1223,15 @@
             </h1>
             <div class="header-badges">
               <span class="info-badge step-badge">Paso {currentStep}/{totalSteps}</span>
+              {#if !editMode && !quotaLoading && quotaInfo}
+                {#if quotaInfo.isSuperAdmin}
+                  <span class="info-badge quota-badge unlimited">{$t('unlimitedTournaments')}</span>
+                {:else if quotaInfo.limit > 0}
+                  <span class="info-badge quota-badge" class:warning={quotaInfo.used >= quotaInfo.limit * 0.8} class:error={!quotaInfo.canCreate}>
+                    {$t('tournamentsCreatedThisYear').replace('{used}', quotaInfo.used.toString()).replace('{limit}', quotaInfo.limit.toString())}
+                  </span>
+                {/if}
+              {/if}
             </div>
           </div>
         </div>
@@ -1236,6 +1266,17 @@
       </div>
     </header>
 
+    <!-- Quota exceeded message -->
+    {#if !editMode && !quotaLoading && quotaInfo && !quotaInfo.canCreate}
+      <div class="quota-blocked-message">
+        <div class="blocked-icon">⚠️</div>
+        <h2>{$t('tournamentLimitReached').replace('{used}', quotaInfo.used.toString()).replace('{limit}', quotaInfo.limit.toString())}</h2>
+        <p>{$t('maxTournamentsPerYearHint')}</p>
+        <button class="back-button" on:click={() => goto('/admin/tournaments')}>
+          ← {$t('back')}
+        </button>
+      </div>
+    {:else}
     <div class="wizard-content">
       <!-- Step 1: Basic Info -->
       {#if currentStep === 1}
@@ -2607,6 +2648,7 @@
         </button>
       {/if}
     </div>
+    {/if}
   </div>
 </AdminGuard>
 
@@ -2617,6 +2659,17 @@
   duration={3000}
   onClose={() => showToast = false}
 />
+
+<!-- Loading Overlay -->
+{#if creating}
+  <div class="loading-overlay" data-theme={$adminTheme}>
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p class="loading-text">{editMode ? $t('savingTournament') : $t('creatingTournament')}</p>
+      <p class="loading-subtext">{$t('pleaseWait')}</p>
+    </div>
+  </div>
+{/if}
 
 <style>
   .wizard-container {
@@ -2727,6 +2780,101 @@
   .info-badge.step-badge {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
+  }
+
+  .info-badge.quota-badge {
+    background: #e8f4fd;
+    color: #1976d2;
+  }
+
+  .info-badge.quota-badge.unlimited {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+
+  .info-badge.quota-badge.warning {
+    background: #fff3cd;
+    color: #856404;
+  }
+
+  .info-badge.quota-badge.error {
+    background: #f8d7da;
+    color: #721c24;
+  }
+
+  [data-theme='dark'] .info-badge.quota-badge {
+    background: #1a3a4d;
+    color: #90caf9;
+  }
+
+  [data-theme='dark'] .info-badge.quota-badge.unlimited {
+    background: #1b3d1f;
+    color: #81c784;
+  }
+
+  [data-theme='dark'] .info-badge.quota-badge.warning {
+    background: #4d3a00;
+    color: #ffc107;
+  }
+
+  [data-theme='dark'] .info-badge.quota-badge.error {
+    background: #4d1f24;
+    color: #f48fb1;
+  }
+
+  .quota-blocked-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+    text-align: center;
+    min-height: 300px;
+  }
+
+  .quota-blocked-message .blocked-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+
+  .quota-blocked-message h2 {
+    color: #721c24;
+    margin-bottom: 0.5rem;
+  }
+
+  .quota-blocked-message p {
+    color: #666;
+    margin-bottom: 1.5rem;
+  }
+
+  .quota-blocked-message .back-button {
+    padding: 0.75rem 1.5rem;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+
+  .quota-blocked-message .back-button:hover {
+    background: #5a6268;
+  }
+
+  [data-theme='dark'] .quota-blocked-message h2 {
+    color: #f48fb1;
+  }
+
+  [data-theme='dark'] .quota-blocked-message p {
+    color: #8b9bb3;
+  }
+
+  [data-theme='dark'] .quota-blocked-message .back-button {
+    background: #2d3748;
+  }
+
+  [data-theme='dark'] .quota-blocked-message .back-button:hover {
+    background: #4a5568;
   }
 
   .header-actions {
@@ -6120,5 +6268,74 @@
       align-items: flex-start;
       gap: 0.5rem;
     }
+  }
+
+  /* Loading Overlay */
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+  }
+
+  .loading-content {
+    background: white;
+    padding: 2rem 3rem;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .loading-overlay[data-theme='dark'] .loading-content {
+    background: #1a2332;
+  }
+
+  .loading-overlay .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #10b981;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 1rem;
+  }
+
+  .loading-overlay[data-theme='dark'] .spinner {
+    border-color: #374151;
+    border-top-color: #10b981;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading-text {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 0.5rem;
+  }
+
+  .loading-overlay[data-theme='dark'] .loading-text {
+    color: #e1e8ed;
+  }
+
+  .loading-subtext {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin: 0;
+  }
+
+  .loading-overlay[data-theme='dark'] .loading-subtext {
+    color: #8b9bb3;
   }
 </style>

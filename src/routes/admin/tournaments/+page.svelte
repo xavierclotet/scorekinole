@@ -72,10 +72,12 @@
 
   function filterTournaments() {
     filteredTournaments = tournaments.filter(tournament => {
+      const query = searchQuery.toLowerCase();
       const matchesSearch =
         searchQuery === '' ||
-        tournament.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tournament.description?.toLowerCase().includes(searchQuery.toLowerCase());
+        tournament.name.toLowerCase().includes(query) ||
+        tournament.description?.toLowerCase().includes(query) ||
+        tournament.createdBy?.userName?.toLowerCase().includes(query);
 
       const matchesStatus = statusFilter === 'all' || tournament.status === statusFilter;
 
@@ -225,20 +227,6 @@
         </button>
         <button
           class="filter-tab"
-          class:active={statusFilter === 'GROUP_STAGE'}
-          on:click={() => (statusFilter = 'GROUP_STAGE')}
-        >
-          {$t('inGroups')}
-        </button>
-        <button
-          class="filter-tab"
-          class:active={statusFilter === 'FINAL_STAGE'}
-          on:click={() => (statusFilter = 'FINAL_STAGE')}
-        >
-          {$t('inFinal')}
-        </button>
-        <button
-          class="filter-tab"
           class:active={statusFilter === 'COMPLETED'}
           on:click={() => (statusFilter = 'COMPLETED')}
         >
@@ -277,7 +265,7 @@
               <th class="type-col hide-mobile">{$t('type')}</th>
               <th class="mode-col hide-mobile">{$t('mode')}</th>
               <th class="participants-col">Players</th>
-              <th class="created-col hide-small hide-mobile">{$t('created')}</th>
+              <th class="created-col hide-small hide-mobile">{$t('createdBy')}</th>
               <th class="actions-col"></th>
             </tr>
           </thead>
@@ -331,7 +319,10 @@
                   👥 {tournament.participants.length}
                 </td>
                 <td class="created-cell hide-small hide-mobile">
-                  {formatDate(tournament.createdAt)}
+                  <div class="creator-info">
+                    <span class="creator-name">{tournament.createdBy?.userName || '-'}</span>
+                    <small class="creator-date">{formatDate(tournament.createdAt)}</small>
+                  </div>
                 </td>
                 <td class="actions-cell">
                   <button
@@ -1066,6 +1057,31 @@
 
   .tournaments-container[data-theme='dark'] .tournament-desc {
     color: #8b9bb3;
+  }
+
+  /* Creator cell */
+  .creator-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .creator-name {
+    font-weight: 500;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+
+  .creator-date {
+    color: #999;
+    font-size: 0.7rem;
+  }
+
+  .tournaments-container[data-theme='dark'] .creator-date {
+    color: #6b7a94;
   }
 
   .status-badge {

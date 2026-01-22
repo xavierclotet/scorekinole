@@ -57,8 +57,7 @@ export interface RankedPlayer {
  */
 export interface RankingFilters {
   year: number;
-  filterType: 'all' | 'tier' | 'country';
-  tierValue?: TournamentTier;
+  filterType: 'all' | 'country';
   countryValue?: string;
   bestOfN: number;
 }
@@ -177,7 +176,7 @@ export function calculateRankings(
   for (const user of users) {
     if (!user.tournaments?.length) continue;
 
-    // 1. Filter user's tournaments by year and tier/country
+    // 1. Filter user's tournaments by year and country
     const matchingTournaments = user.tournaments.filter(record => {
       const tournament = tournamentsMap.get(record.tournamentId);
       if (!tournament) return false;
@@ -186,10 +185,7 @@ export function calculateRankings(
       const year = new Date(record.tournamentDate).getFullYear();
       if (year !== filters.year) return false;
 
-      // Tier or country filter (mutually exclusive)
-      if (filters.filterType === 'tier' && filters.tierValue) {
-        return tournament.tier === filters.tierValue;
-      }
+      // Country filter
       if (filters.filterType === 'country' && filters.countryValue) {
         return tournament.country === filters.countryValue;
       }

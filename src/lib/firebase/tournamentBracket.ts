@@ -5,7 +5,7 @@
 
 import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
 import { generateBracket as generateBracketAlgorithm, advanceWinner as advanceWinnerAlgorithm } from '$lib/algorithms/bracket';
-import { calculateFinalPositions, applyRankingUpdates } from './tournamentRanking';
+import { calculateFinalPositionsForTournament } from './tournamentRanking';
 import type { BracketMatch } from '$lib/types/tournament';
 
 /**
@@ -21,16 +21,32 @@ export async function generateSplitBrackets(
     goldParticipantIds: string[];
     silverParticipantIds: string[];
     goldConfig: {
-      gameMode: 'points' | 'rounds';
-      pointsToWin?: number;
-      roundsToPlay?: number;
-      matchesToWin: number;
+      // Per-phase configuration for Gold bracket
+      earlyRoundsGameMode: 'points' | 'rounds';
+      earlyRoundsPointsToWin?: number;
+      earlyRoundsToPlay?: number;
+      semifinalGameMode: 'points' | 'rounds';
+      semifinalPointsToWin?: number;
+      semifinalRoundsToPlay?: number;
+      semifinalMatchesToWin: number;
+      finalGameMode: 'points' | 'rounds';
+      finalPointsToWin?: number;
+      finalRoundsToPlay?: number;
+      finalMatchesToWin: number;
     };
     silverConfig: {
-      gameMode: 'points' | 'rounds';
-      pointsToWin?: number;
-      roundsToPlay?: number;
-      matchesToWin: number;
+      // Per-phase configuration for Silver bracket
+      earlyRoundsGameMode: 'points' | 'rounds';
+      earlyRoundsPointsToWin?: number;
+      earlyRoundsToPlay?: number;
+      semifinalGameMode: 'points' | 'rounds';
+      semifinalPointsToWin?: number;
+      semifinalRoundsToPlay?: number;
+      semifinalMatchesToWin: number;
+      finalGameMode: 'points' | 'rounds';
+      finalPointsToWin?: number;
+      finalRoundsToPlay?: number;
+      finalMatchesToWin: number;
     };
   }
 ): Promise<boolean> {
@@ -67,7 +83,7 @@ export async function generateSplitBrackets(
     console.log('🥇 Generated Gold bracket with', goldParticipants.length, 'participants');
     console.log('🥈 Generated Silver bracket with', silverParticipants.length, 'participants');
 
-    // Update tournament with both brackets
+    // Update tournament with both brackets and per-phase configuration
     return await updateTournament(tournamentId, {
       finalStage: {
         type: 'SINGLE_ELIMINATION',
@@ -75,16 +91,35 @@ export async function generateSplitBrackets(
         bracket: goldBracket,
         silverBracket: silverBracket,
         isComplete: false,
-        // Gold bracket config
-        gameMode: goldConfig.gameMode,
-        pointsToWin: goldConfig.pointsToWin,
-        roundsToPlay: goldConfig.roundsToPlay,
-        matchesToWin: goldConfig.matchesToWin,
-        // Silver bracket config
-        silverGameMode: silverConfig.gameMode,
-        silverPointsToWin: silverConfig.pointsToWin,
-        silverRoundsToPlay: silverConfig.roundsToPlay,
-        silverMatchesToWin: silverConfig.matchesToWin
+        // Default config (required by FinalStage type) - uses final phase values
+        gameMode: goldConfig.finalGameMode,
+        matchesToWin: goldConfig.finalMatchesToWin,
+        pointsToWin: goldConfig.finalGameMode === 'points' ? goldConfig.finalPointsToWin : undefined,
+        roundsToPlay: goldConfig.finalGameMode === 'rounds' ? goldConfig.finalRoundsToPlay : undefined,
+        // Gold bracket per-phase config
+        earlyRoundsGameMode: goldConfig.earlyRoundsGameMode,
+        earlyRoundsPointsToWin: goldConfig.earlyRoundsPointsToWin,
+        earlyRoundsToPlay: goldConfig.earlyRoundsToPlay,
+        semifinalGameMode: goldConfig.semifinalGameMode,
+        semifinalPointsToWin: goldConfig.semifinalPointsToWin,
+        semifinalRoundsToPlay: goldConfig.semifinalRoundsToPlay,
+        semifinalMatchesToWin: goldConfig.semifinalMatchesToWin,
+        finalGameMode: goldConfig.finalGameMode,
+        finalPointsToWin: goldConfig.finalPointsToWin,
+        finalRoundsToPlay: goldConfig.finalRoundsToPlay,
+        finalMatchesToWin: goldConfig.finalMatchesToWin,
+        // Silver bracket per-phase config
+        silverEarlyRoundsGameMode: silverConfig.earlyRoundsGameMode,
+        silverEarlyRoundsPointsToWin: silverConfig.earlyRoundsPointsToWin,
+        silverEarlyRoundsToPlay: silverConfig.earlyRoundsToPlay,
+        silverSemifinalGameMode: silverConfig.semifinalGameMode,
+        silverSemifinalPointsToWin: silverConfig.semifinalPointsToWin,
+        silverSemifinalRoundsToPlay: silverConfig.semifinalRoundsToPlay,
+        silverSemifinalMatchesToWin: silverConfig.semifinalMatchesToWin,
+        silverFinalGameMode: silverConfig.finalGameMode,
+        silverFinalPointsToWin: silverConfig.finalPointsToWin,
+        silverFinalRoundsToPlay: silverConfig.finalRoundsToPlay,
+        silverFinalMatchesToWin: silverConfig.finalMatchesToWin
       }
     });
   } catch (error) {
@@ -330,6 +365,15 @@ function isBracketComplete(bracket: any): boolean {
     thirdPlaceMatch.status === 'COMPLETED' ||
     thirdPlaceMatch.status === 'WALKOVER';
 
+  console.log('📋 isBracketComplete check:', {
+    finalMatchStatus: finalMatch?.status,
+    isFinalComplete,
+    hasThirdPlace: !!thirdPlaceMatch,
+    thirdPlaceStatus: thirdPlaceMatch?.status,
+    isThirdPlaceComplete,
+    result: isFinalComplete && isThirdPlaceComplete
+  });
+
   return isFinalComplete && isThirdPlaceComplete;
 }
 
@@ -388,26 +432,31 @@ export async function advanceWinner(
       }
     };
 
-    // If all matches are complete, mark entire tournament as COMPLETED
-    if (isTournamentComplete) {
-      updateData.status = 'COMPLETED';
-      updateData.completedAt = Date.now();
-      console.log('🏆 All brackets completed - marking tournament as COMPLETED');
-    }
-
     // Check if tournament was already completed (to avoid double ranking application)
     const wasAlreadyCompleted = tournament.status === 'COMPLETED';
 
-    const success = await updateTournamentPublic(tournamentId, updateData);
+    // If all matches are complete, mark entire tournament as COMPLETED
+    // Calculate final positions BEFORE marking as COMPLETED so Cloud Function has the data
+    if (isTournamentComplete && !wasAlreadyCompleted) {
+      updateData.status = 'COMPLETED';
+      updateData.completedAt = Date.now();
+      console.log('🏆 All brackets completed - marking tournament as COMPLETED');
 
-    // If tournament JUST completed (not already completed before), calculate positions and apply ranking updates
-    if (success && isTournamentComplete && !wasAlreadyCompleted) {
-      console.log('📊 Calculating final positions and ranking updates...');
-      await calculateFinalPositions(tournamentId);
-      await applyRankingUpdates(tournamentId);
+      // Calculate final positions and include in the same update
+      console.log('📊 Calculating final positions...');
+      const tournamentWithUpdatedBracket = {
+        ...tournament,
+        finalStage: { ...tournament.finalStage, bracket: updatedBracket, isComplete: true }
+      };
+      updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
+      console.log('📊 Final positions calculated and included in update.');
+    } else if (!isTournamentComplete) {
+      console.log('📋 Bracket status: goldComplete=' + isGoldComplete + ', silverComplete=' + isSilverComplete + ', isSplitDivisions=' + isSplitDivisions);
     }
 
-    return success;
+    console.log('📋 wasAlreadyCompleted=' + wasAlreadyCompleted + ', isTournamentComplete=' + isTournamentComplete);
+
+    return await updateTournamentPublic(tournamentId, updateData);
   } catch (error) {
     console.error('❌ Error advancing winner:', error);
     return false;
@@ -545,26 +594,27 @@ export async function advanceSilverWinner(
       }
     };
 
-    // If all matches are complete, mark entire tournament as COMPLETED
-    if (isTournamentComplete) {
-      updateData.status = 'COMPLETED';
-      updateData.completedAt = Date.now();
-      console.log('🏆 All brackets completed - marking tournament as COMPLETED');
-    }
-
     // Check if tournament was already completed (to avoid double ranking application)
     const wasAlreadyCompleted = tournament.status === 'COMPLETED';
 
-    const success = await updateTournamentPublic(tournamentId, updateData);
+    // If all matches are complete, mark entire tournament as COMPLETED
+    // Calculate final positions BEFORE marking as COMPLETED so Cloud Function has the data
+    if (isTournamentComplete && !wasAlreadyCompleted) {
+      updateData.status = 'COMPLETED';
+      updateData.completedAt = Date.now();
+      console.log('🏆 All brackets completed - marking tournament as COMPLETED');
 
-    // If tournament JUST completed, calculate positions and apply ranking updates
-    if (success && isTournamentComplete && !wasAlreadyCompleted) {
-      console.log('📊 Calculating final positions and ranking updates...');
-      await calculateFinalPositions(tournamentId);
-      await applyRankingUpdates(tournamentId);
+      // Calculate final positions and include in the same update
+      console.log('📊 Calculating final positions...');
+      const tournamentWithUpdatedBracket = {
+        ...tournament,
+        finalStage: { ...tournament.finalStage, silverBracket: updatedSilverBracket, isComplete: true }
+      };
+      updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
+      console.log('📊 Final positions calculated and included in update.');
     }
 
-    return success;
+    return await updateTournamentPublic(tournamentId, updateData);
   } catch (error) {
     console.error('❌ Error advancing silver winner:', error);
     return false;
@@ -733,10 +783,20 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
     silverWinner = silverFinalMatch.winner;
   }
 
-  // Mark final stage as complete and update tournament status
-  const success = await updateTournamentPublic(tournamentId, {
+  // Calculate final positions BEFORE marking as COMPLETED so Cloud Function has the data
+  console.log('📊 Calculating final positions...');
+  const tournamentWithComplete = {
+    ...tournament,
+    finalStage: { ...tournament.finalStage, isComplete: true }
+  };
+  const updatedParticipants = calculateFinalPositionsForTournament(tournamentWithComplete);
+  console.log('📊 Final positions calculated and included in update.');
+
+  // Mark final stage as complete and update tournament status with positions
+  return await updateTournamentPublic(tournamentId, {
     status: 'COMPLETED',
     completedAt: Date.now(),
+    participants: updatedParticipants,
     finalStage: {
       ...tournament.finalStage,
       isComplete: true,
@@ -744,13 +804,4 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
       silverWinner: silverWinner
     }
   });
-
-  // Calculate positions and apply ELO updates
-  if (success) {
-    console.log('📊 Calculating final positions and ranking updates...');
-    await calculateFinalPositions(tournamentId);
-    await applyRankingUpdates(tournamentId);
-  }
-
-  return success;
 }

@@ -21,6 +21,7 @@
     getBracketRoundNames,
     calculateSuggestedQualifiers
   } from '$lib/firebase/tournamentTransition';
+  import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { generateBracket, generateSplitBrackets } from '$lib/firebase/tournamentBracket';
   import { updateTournament } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';
@@ -59,11 +60,22 @@
   let finalRoundsToPlay: number = 4;
   let finalMatchesToWin: number = 1;
 
-  // Silver bracket configuration (for SPLIT_DIVISIONS)
-  let silverGameMode: 'points' | 'rounds' = 'points';
-  let silverPointsToWin: number = 7;
-  let silverRoundsToPlay: number = 4;
-  let silverMatchesToWin: number = 1;
+  // Silver bracket configuration (for SPLIT_DIVISIONS) - per phase like Gold
+  // Silver: all phases default to 4 rounds (less competitive than Gold)
+  // Silver Early Rounds
+  let silverEarlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
+  let silverEarlyRoundsPointsToWin: number = 7;
+  let silverEarlyRoundsToPlay: number = 4;
+  // Silver Semifinals
+  let silverSemifinalGameMode: 'points' | 'rounds' = 'rounds';
+  let silverSemifinalPointsToWin: number = 7;
+  let silverSemifinalRoundsToPlay: number = 4;
+  let silverSemifinalMatchesToWin: number = 1;
+  // Silver Final
+  let silverFinalGameMode: 'points' | 'rounds' = 'rounds';
+  let silverFinalPointsToWin: number = 7;
+  let silverFinalRoundsToPlay: number = 4;
+  let silverFinalMatchesToWin: number = 1;
 
   // Global top N value for all groups
   let topNPerGroup: number = 2;
@@ -165,6 +177,16 @@
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       } else {
+        // Recalculate standings to ensure head-to-head records are up to date
+        await recalculateStandings(tournamentId);
+        // Reload tournament after recalculation
+        tournament = await getTournament(tournamentId);
+        if (!tournament) {
+          error = true;
+          loading = false;
+          return;
+        }
+
         // Initialize group qualifiers from current state
         // Ensure groups is an array (Firestore may return object)
         const groups = Array.isArray(tournament.groupStage?.groups)
@@ -175,6 +197,8 @@
         const isSingleBracketSingleGroup = tournament.finalStageConfig?.mode !== 'SPLIT_DIVISIONS' && groups.length === 1;
         const isSplitDiv = tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
 
+        // Build qualifiers map - create new Map to ensure reactivity
+        const newQualifiersMap = new Map<number, string[]>();
         groups.forEach((group: any, index: number) => {
           const standings = Array.isArray(group.standings) ? group.standings : Object.values(group.standings || {});
           const qualified = standings
@@ -197,12 +221,12 @@
               // Multiple groups: use topNPerGroup
               defaultSelection = sortedStandings.slice(0, topNPerGroup).map((s: any) => s.participantId);
             }
-            groupQualifiers.set(index, defaultSelection);
+            newQualifiersMap.set(index, defaultSelection);
           } else {
-            groupQualifiers.set(index, qualified);
+            newQualifiersMap.set(index, qualified);
           }
         });
-        groupQualifiers = groupQualifiers; // Trigger reactivity
+        groupQualifiers = newQualifiersMap; // Assign new Map to trigger reactivity
 
         // Load final stage config from tournament if it exists
         if (tournament.finalStageConfig) {
@@ -226,12 +250,23 @@
           finalRoundsToPlay = cfg.finalRoundsToPlay || cfg.roundsToPlay || 4;
           finalMatchesToWin = cfg.finalMatchesToWin || cfg.matchesToWin || 1;
 
-          // Silver bracket config (for SPLIT_DIVISIONS)
+          // Silver bracket per-phase config (for SPLIT_DIVISIONS)
+          // Default: all phases to 4 rounds for Silver
           if (cfg.mode === 'SPLIT_DIVISIONS') {
-            silverGameMode = cfg.silverGameMode || 'points';
-            silverPointsToWin = cfg.silverPointsToWin || 7;
-            silverRoundsToPlay = cfg.silverRoundsToPlay || 4;
-            silverMatchesToWin = cfg.silverMatchesToWin || 1;
+            // Silver Early Rounds
+            silverEarlyRoundsGameMode = cfg.silverEarlyRoundsGameMode || 'rounds';
+            silverEarlyRoundsPointsToWin = cfg.silverEarlyRoundsPointsToWin || 7;
+            silverEarlyRoundsToPlay = cfg.silverEarlyRoundsToPlay || 4;
+            // Silver Semifinals
+            silverSemifinalGameMode = cfg.silverSemifinalGameMode || 'rounds';
+            silverSemifinalPointsToWin = cfg.silverSemifinalPointsToWin || 7;
+            silverSemifinalRoundsToPlay = cfg.silverSemifinalRoundsToPlay || 4;
+            silverSemifinalMatchesToWin = cfg.silverSemifinalMatchesToWin || 1;
+            // Silver Final
+            silverFinalGameMode = cfg.silverFinalGameMode || 'rounds';
+            silverFinalPointsToWin = cfg.silverFinalPointsToWin || 7;
+            silverFinalRoundsToPlay = cfg.silverFinalRoundsToPlay || 4;
+            silverFinalMatchesToWin = cfg.silverFinalMatchesToWin || 1;
           }
 
         } else {
@@ -249,10 +284,7 @@
           finalMatchesToWin = 1;
         }
 
-        // Call distributeWithCrossSeeding after groupQualifiers is initialized (for SPLIT_DIVISIONS)
-        if (tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS') {
-          distributeWithCrossSeeding();
-        }
+        // Note: Distribution for SPLIT_DIVISIONS is handled reactively via computedDistribution
       }
     } catch (err) {
       console.error('Error loading tournament:', err);
@@ -263,8 +295,10 @@
   }
 
   function handleQualifierUpdate(groupIndex: number, qualifiedIds: string[]) {
-    groupQualifiers.set(groupIndex, qualifiedIds);
-    groupQualifiers = groupQualifiers; // Trigger reactivity
+    // Create a new Map to properly trigger Svelte reactivity
+    const newMap = new Map(groupQualifiers);
+    newMap.set(groupIndex, qualifiedIds);
+    groupQualifiers = newMap;
   }
 
   async function handleGenerateBracket() {
@@ -337,21 +371,41 @@
           await updateQualifiers(tournamentId, groupIndex, finalQualifiedIds);
         }
 
-        // Generate both Gold and Silver brackets
+        // Generate both Gold and Silver brackets with per-phase configuration
         const bracketSuccess = await generateSplitBrackets(tournamentId, {
           goldParticipantIds: goldParticipants,
           silverParticipantIds: silverParticipants,
           goldConfig: {
-            gameMode: finalGameMode,
-            pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
-            roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
-            matchesToWin: finalMatchesToWin
+            // Early rounds
+            earlyRoundsGameMode,
+            earlyRoundsPointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
+            earlyRoundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
+            // Semifinals
+            semifinalGameMode,
+            semifinalPointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
+            semifinalRoundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
+            semifinalMatchesToWin,
+            // Final
+            finalGameMode,
+            finalPointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
+            finalRoundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
+            finalMatchesToWin
           },
           silverConfig: {
-            gameMode: silverGameMode,
-            pointsToWin: silverGameMode === 'points' ? silverPointsToWin : undefined,
-            roundsToPlay: silverGameMode === 'rounds' ? silverRoundsToPlay : undefined,
-            matchesToWin: silverMatchesToWin
+            // Early rounds
+            earlyRoundsGameMode: silverEarlyRoundsGameMode,
+            earlyRoundsPointsToWin: silverEarlyRoundsGameMode === 'points' ? silverEarlyRoundsPointsToWin : undefined,
+            earlyRoundsToPlay: silverEarlyRoundsGameMode === 'rounds' ? silverEarlyRoundsToPlay : undefined,
+            // Semifinals
+            semifinalGameMode: silverSemifinalGameMode,
+            semifinalPointsToWin: silverSemifinalGameMode === 'points' ? silverSemifinalPointsToWin : undefined,
+            semifinalRoundsToPlay: silverSemifinalGameMode === 'rounds' ? silverSemifinalRoundsToPlay : undefined,
+            semifinalMatchesToWin: silverSemifinalMatchesToWin,
+            // Final
+            finalGameMode: silverFinalGameMode,
+            finalPointsToWin: silverFinalGameMode === 'points' ? silverFinalPointsToWin : undefined,
+            finalRoundsToPlay: silverFinalGameMode === 'rounds' ? silverFinalRoundsToPlay : undefined,
+            finalMatchesToWin: silverFinalMatchesToWin
           }
         });
 
@@ -390,8 +444,7 @@
     if (!tournamentId) return;
 
     try {
-      const qualified = await getQualifiedParticipants(tournamentId);
-      console.log('Qualified participants:', qualified);
+      await getQualifiedParticipants(tournamentId);
       showBracketPreview = true;
     } catch (err) {
       console.error('Error loading bracket preview:', err);
@@ -405,21 +458,16 @@
   // Track if user has manually moved participants (not just changed top N)
   let userManuallyEdited = false;
 
-  // Auto-distribute when qualifiers change (for SPLIT_DIVISIONS)
-  // Re-distribute automatically unless user has manually moved individual participants
-  $: if (isSplitDivisions && totalQualifiers > 0 && !userManuallyEdited) {
-    // Use the same logic as autoDistributeParticipants but inline
-    distributeWithCrossSeeding();
-  }
-
-  function distributeWithCrossSeeding() {
-    if (!tournament?.groupStage?.groups) return;
+  // Compute gold/silver participants reactively based on groupQualifiers
+  // This ensures the UI updates immediately when checkboxes change
+  $: computedDistribution = (() => {
+    if (!isSplitDivisions || !tournament?.groupStage?.groups) {
+      return { gold: [] as string[], silver: [] as string[] };
+    }
 
     const groups = Array.isArray(tournament.groupStage.groups)
       ? tournament.groupStage.groups
       : Object.values(tournament.groupStage.groups);
-
-    const validSizes = [2, 4, 8, 16, 32];
 
     // Collect QUALIFIED participants (selected) organized by position
     const qualifiedByPosition: Map<number, Array<{ id: string; position: number; groupIndex: number }>> = new Map();
@@ -465,12 +513,16 @@
       return seededList.map(p => p.id);
     }
 
-    let goldList = applyCrossSeeding(qualifiedByPosition);
-    let silverList = applyCrossSeeding(nonQualifiedByPosition);
+    return {
+      gold: applyCrossSeeding(qualifiedByPosition),
+      silver: applyCrossSeeding(nonQualifiedByPosition)
+    };
+  })();
 
-    // Use all participants - brackets now support BYEs for non-power-of-2 counts
-    goldParticipants = goldList;
-    silverParticipants = silverList;
+  // Update goldParticipants and silverParticipants when computed distribution changes
+  $: if (!userManuallyEdited && computedDistribution) {
+    goldParticipants = computedDistribution.gold;
+    silverParticipants = computedDistribution.silver;
   }
 
   // Get all participants from all groups with their info
@@ -763,178 +815,238 @@
                 {/if}
               </div>
             </div>
-          </div>
 
-          <!-- SPLIT_DIVISIONS: Step 2 - Distribute to Gold/Silver -->
-          {#if totalQualifiers >= 2}
-            <div class="step-section">
-              <div class="step-header">
-                <span class="step-number">2</span>
-                <div>
-                  <h2>🥇🥈 {$t('goldSilverDistribution')}</h2>
-                  <p class="help-text">
-                    {$t('qualifiersToGoldRestToSilver')}
-                  </p>
-                </div>
-                {#if userManuallyEdited}
-                  <button class="auto-distribute-btn" on:click={autoDistributeParticipants} title="{$t('restoreAuto')}">
-                    🔀 {$t('restoreAuto')}
-                  </button>
-                {/if}
-              </div>
-
-              <!-- Participant distribution -->
-              <div class="distribution-section">
-            <div class="brackets-distribution">
-              <!-- Gold bracket participants -->
-              <div class="bracket-card gold">
-                <div class="bracket-header">
-                  <h4>🥇 {$t('goldLeague')} ({goldCount})</h4>
-                  <span class="validity-badge" class:valid={isValidGoldSize} class:invalid={!isValidGoldSize && goldCount > 0}>
-                    {#if isValidGoldSize && goldCount > 0}✅{:else if goldCount > 0}❌{/if}
-                  </span>
-                </div>
-                {#if goldBracketRoundNames.length > 0 && isValidGoldSize}
-                  <p class="rounds-preview">{goldBracketRoundNames.map(translateRoundName).join(' → ')}</p>
-                {/if}
-                <div class="participant-list">
-                  {#each goldParticipants as participantId, index}
-                    {@const p = getAllParticipantsFromGroups().find(x => x.id === participantId)}
-                    <div class="participant-row gold">
-                      <span class="seed-badge">{index + 1}</span>
-                      <span class="name">{p?.name || $t('unknown')}</span>
-                      <span class="position-tag">{p?.position || '?'}{p?.groupName?.charAt(p.groupName.length - 1) || '?'}</span>
+            <!-- Rounds accordion -->
+            {#if tournament.groupStage?.groups?.[0]?.pairings?.length > 0}
+              <div class="rounds-accordion">
+                <details class="rounds-details">
+                  <summary class="rounds-summary">
+                    <span class="summary-icon">📋</span>
+                    <span>{$t('roundResults')}</span>
+                    <span class="rounds-count">{tournament.groupStage.groups[0].pairings.length} {$t('rounds')}</span>
+                    <span class="chevron">▼</span>
+                  </summary>
+                  <div class="rounds-content">
+                    <div class="rounds-grid">
+                      {#each tournament.groupStage.groups[0].pairings as pairing}
+                        <div class="round-card">
+                          <div class="round-card-header">
+                            <span class="round-badge">{pairing.roundNumber}</span>
+                            <span class="round-label">{$t('round')} {pairing.roundNumber}</span>
+                          </div>
+                          <div class="matches-compact">
+                            {#each pairing.matches as match}
+                              {@const participantA = tournament.participants.find(p => p.id === match.participantA)}
+                              {@const participantB = tournament.participants.find(p => p.id === match.participantB)}
+                              {@const isBye = match.participantB === 'BYE'}
+                              <div class="match-compact" class:completed={match.status === 'COMPLETED'} class:bye={isBye}>
+                                <div class="match-teams">
+                                  <span class="team-name" class:winner={match.winner === match.participantA}>
+                                    {participantA?.name || '?'}
+                                  </span>
+                                  <span class="team-name" class:winner={match.winner === match.participantB}>
+                                    {#if isBye}
+                                      <span class="bye-text">BYE</span>
+                                    {:else}
+                                      {participantB?.name || '?'}
+                                    {/if}
+                                  </span>
+                                </div>
+                                <div class="match-result">
+                                  {#if isBye}
+                                    <span class="result-bye">-</span>
+                                  {:else if match.status === 'COMPLETED'}
+                                    <span class="result-score" class:winner-a={match.winner === match.participantA}>{match.totalPointsA ?? 0}</span>
+                                    <span class="result-separator">-</span>
+                                    <span class="result-score" class:winner-b={match.winner === match.participantB}>{match.totalPointsB ?? 0}</span>
+                                  {:else}
+                                    <span class="result-pending">-</span>
+                                  {/if}
+                                </div>
+                              </div>
+                            {/each}
+                          </div>
+                        </div>
+                      {/each}
                     </div>
-                  {:else}
-                    <p class="empty-message">{$t('noParticipants')}</p>
-                  {/each}
-                </div>
-              </div>
-
-              <!-- Silver bracket participants -->
-              <div class="bracket-card silver">
-                <div class="bracket-header">
-                  <h4>🥈 {$t('silverLeague')} ({silverCount})</h4>
-                  <span class="validity-badge" class:valid={isValidSilverSize} class:invalid={!isValidSilverSize && silverCount > 0}>
-                    {#if isValidSilverSize && silverCount > 0}✅{:else if silverCount > 0}❌{/if}
-                  </span>
-                </div>
-                {#if silverBracketRoundNames.length > 0 && isValidSilverSize}
-                  <p class="rounds-preview">{silverBracketRoundNames.map(translateRoundName).join(' → ')}</p>
-                {/if}
-                <div class="participant-list">
-                  {#each silverParticipants as participantId, index}
-                    {@const p = getAllParticipantsFromGroups().find(x => x.id === participantId)}
-                    <div class="participant-row silver">
-                      <span class="seed-badge">{index + 1} </span>
-                      <span class="name">{p?.name || $t('unknown')}</span>
-                      <span class="position-tag">{p?.position || '?'}{p?.groupName?.charAt(p.groupName.length - 1) || '?'}</span>
-                    </div>
-                  {:else}
-                    <p class="empty-message">{$t('noParticipants')}</p>
-                  {/each}
-                </div>
-              </div>
-            </div>
-            <!-- End of brackets-distribution -->
-
-            <!-- Validation messages -->
-            {#if !isValidGoldSize && goldCount > 0}
-              <div class="validation-error">
-                ⚠️ {$t('goldLeagueMustBePowerOf2').replace('{n}', String(goldCount))}
-              </div>
-            {/if}
-            {#if !isValidSilverSize && silverCount > 0}
-              <div class="validation-error">
-                ⚠️ {$t('silverLeagueMustBePowerOf2').replace('{n}', String(silverCount))}
+                  </div>
+                </details>
               </div>
             {/if}
           </div>
-          <!-- End of distribution-section -->
-        </div>
-        <!-- End of step-section -->
 
-        <!-- Step 3: Configuration for both brackets -->
+        <!-- Step 2: Configuration for both brackets - Per Phase -->
         <div class="step-section">
           <div class="step-header">
-            <span class="step-number">3</span>
+            <span class="step-number">2</span>
             <div>
               <h2>{$t('matchConfiguration')}</h2>
               <p class="help-text">{$t('configureMatchFormat')}</p>
             </div>
           </div>
 
-          <div class="dual-config-section">
-            <!-- Gold bracket config -->
+          <div class="dual-config-section advanced">
+            <!-- Gold bracket config - Per Phase -->
             <div class="bracket-config gold">
               <h3>🥇 {$t('goldLeague')}</h3>
-              <div class="config-grid">
-                <div class="config-field">
-                  <label for="goldGameMode">{$t('gameModeLabel')}</label>
-                  <select id="goldGameMode" bind:value={finalGameMode} class="select-input">
-                    <option value="points">{$t('byPointsOption')}</option>
-                    <option value="rounds">{$t('byRoundsOption')}</option>
-                  </select>
+              <div class="phases-config-grid compact">
+                <!-- Gold Early Rounds -->
+                <div class="phase-config-card">
+                  <div class="phase-config-header early">
+                    <span class="phase-icon">🎯</span>
+                    <span class="phase-title">{$t('earlyRounds')}</span>
+                  </div>
+                  <div class="phase-config-body">
+                    <div class="config-row">
+                      <select bind:value={earlyRoundsGameMode} class="select-input mini">
+                        <option value="rounds">{$t('byRoundsOption')}</option>
+                        <option value="points">{$t('byPointsOption')}</option>
+                      </select>
+                      {#if earlyRoundsGameMode === 'rounds'}
+                        <input type="number" bind:value={earlyRoundsToPlay} min="1" max="12" class="number-input mini" />
+                      {:else}
+                        <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="15" class="number-input mini" />
+                      {/if}
+                    </div>
+                  </div>
                 </div>
-                {#if finalGameMode === 'points'}
-                  <div class="config-field">
-                    <label for="goldPointsToWin">{$t('pointsToWinLabel')}</label>
-                    <input id="goldPointsToWin" type="number" bind:value={finalPointsToWin} min="1" max="15" class="number-input" />
+
+                <!-- Gold Semifinals -->
+                <div class="phase-config-card">
+                  <div class="phase-config-header semi">
+                    <span class="phase-icon">⚔️</span>
+                    <span class="phase-title">{$t('semifinals')}</span>
                   </div>
-                {:else}
-                  <div class="config-field">
-                    <label for="goldRoundsToPlay">{$t('roundsToPlayLabel')}</label>
-                    <input id="goldRoundsToPlay" type="number" bind:value={finalRoundsToPlay} min="1" max="12" class="number-input" />
+                  <div class="phase-config-body">
+                    <div class="config-row">
+                      <select bind:value={semifinalGameMode} class="select-input mini">
+                        <option value="points">{$t('byPointsOption')}</option>
+                        <option value="rounds">{$t('byRoundsOption')}</option>
+                      </select>
+                      {#if semifinalGameMode === 'rounds'}
+                        <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="12" class="number-input mini" />
+                      {:else}
+                        <input type="number" bind:value={semifinalPointsToWin} min="1" max="15" class="number-input mini" />
+                      {/if}
+                      <span class="bo-label">Md</span>
+                      <select bind:value={semifinalMatchesToWin} class="select-input mini">
+                        <option value={1}>1</option>
+                        <option value={3}>3</option>
+                      </select>
+                    </div>
                   </div>
-                {/if}
-                <div class="config-field">
-                  <label for="goldMatchesToWin">{$t('bestOfLabel')}</label>
-                  <select id="goldMatchesToWin" bind:value={finalMatchesToWin} class="select-input">
-                    <option value={1}>1 ({$t('noRematch')})</option>
-                    <option value={3}>3 ({$t('winsToN')} 2)</option>
-                    <option value={5}>5 ({$t('winsToN')} 3)</option>
-                  </select>
+                </div>
+
+                <!-- Gold Final -->
+                <div class="phase-config-card">
+                  <div class="phase-config-header final">
+                    <span class="phase-icon">🏆</span>
+                    <span class="phase-title">{$t('final')}</span>
+                  </div>
+                  <div class="phase-config-body">
+                    <div class="config-row">
+                      <select bind:value={finalGameMode} class="select-input mini">
+                        <option value="points">{$t('byPointsOption')}</option>
+                        <option value="rounds">{$t('byRoundsOption')}</option>
+                      </select>
+                      {#if finalGameMode === 'rounds'}
+                        <input type="number" bind:value={finalRoundsToPlay} min="1" max="12" class="number-input mini" />
+                      {:else}
+                        <input type="number" bind:value={finalPointsToWin} min="1" max="15" class="number-input mini" />
+                      {/if}
+                      <span class="bo-label">Md</span>
+                      <select bind:value={finalMatchesToWin} class="select-input mini">
+                        <option value={1}>1</option>
+                        <option value={3}>3</option>
+                        <option value={5}>5</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Silver bracket config -->
+            <!-- Silver bracket config - Per Phase -->
             <div class="bracket-config silver">
               <h3>🥈 {$t('silverLeague')}</h3>
-              <div class="config-grid">
-                <div class="config-field">
-                  <label for="silverGameMode">{$t('gameModeLabel')}</label>
-                  <select id="silverGameMode" bind:value={silverGameMode} class="select-input">
-                    <option value="points">{$t('byPointsOption')}</option>
-                    <option value="rounds">{$t('byRoundsOption')}</option>
-                  </select>
+              <div class="phases-config-grid compact">
+                <!-- Silver Early Rounds -->
+                <div class="phase-config-card">
+                  <div class="phase-config-header early">
+                    <span class="phase-icon">🎯</span>
+                    <span class="phase-title">{$t('earlyRounds')}</span>
+                  </div>
+                  <div class="phase-config-body">
+                    <div class="config-row">
+                      <select bind:value={silverEarlyRoundsGameMode} class="select-input mini">
+                        <option value="rounds">{$t('byRoundsOption')}</option>
+                        <option value="points">{$t('byPointsOption')}</option>
+                      </select>
+                      {#if silverEarlyRoundsGameMode === 'rounds'}
+                        <input type="number" bind:value={silverEarlyRoundsToPlay} min="1" max="12" class="number-input mini" />
+                      {:else}
+                        <input type="number" bind:value={silverEarlyRoundsPointsToWin} min="1" max="15" class="number-input mini" />
+                      {/if}
+                    </div>
+                  </div>
                 </div>
-                {#if silverGameMode === 'points'}
-                  <div class="config-field">
-                    <label for="silverPointsToWin">{$t('pointsToWinLabel')}</label>
-                    <input id="silverPointsToWin" type="number" bind:value={silverPointsToWin} min="1" max="15" class="number-input" />
+
+                <!-- Silver Semifinals -->
+                <div class="phase-config-card">
+                  <div class="phase-config-header semi">
+                    <span class="phase-icon">⚔️</span>
+                    <span class="phase-title">{$t('semifinals')}</span>
                   </div>
-                {:else}
-                  <div class="config-field">
-                    <label for="silverRoundsToPlay">{$t('roundsToPlayLabel')}</label>
-                    <input id="silverRoundsToPlay" type="number" bind:value={silverRoundsToPlay} min="1" max="12" class="number-input" />
+                  <div class="phase-config-body">
+                    <div class="config-row">
+                      <select bind:value={silverSemifinalGameMode} class="select-input mini">
+                        <option value="points">{$t('byPointsOption')}</option>
+                        <option value="rounds">{$t('byRoundsOption')}</option>
+                      </select>
+                      {#if silverSemifinalGameMode === 'rounds'}
+                        <input type="number" bind:value={silverSemifinalRoundsToPlay} min="1" max="12" class="number-input mini" />
+                      {:else}
+                        <input type="number" bind:value={silverSemifinalPointsToWin} min="1" max="15" class="number-input mini" />
+                      {/if}
+                      <span class="bo-label">Md</span>
+                      <select bind:value={silverSemifinalMatchesToWin} class="select-input mini">
+                        <option value={1}>1</option>
+                        <option value={3}>3</option>
+                      </select>
+                    </div>
                   </div>
-                {/if}
-                <div class="config-field">
-                  <label for="silverMatchesToWin">{$t('bestOfLabel')}</label>
-                  <select id="silverMatchesToWin" bind:value={silverMatchesToWin} class="select-input">
-                    <option value={1}>1 ({$t('noRematch')})</option>
-                    <option value={3}>3 ({$t('winsToN')} 2)</option>
-                    <option value={5}>5 ({$t('winsToN')} 3)</option>
-                  </select>
+                </div>
+
+                <!-- Silver Final -->
+                <div class="phase-config-card">
+                  <div class="phase-config-header final">
+                    <span class="phase-icon">🏆</span>
+                    <span class="phase-title">{$t('final')}</span>
+                  </div>
+                  <div class="phase-config-body">
+                    <div class="config-row">
+                      <select bind:value={silverFinalGameMode} class="select-input mini">
+                        <option value="points">{$t('byPointsOption')}</option>
+                        <option value="rounds">{$t('byRoundsOption')}</option>
+                      </select>
+                      {#if silverFinalGameMode === 'rounds'}
+                        <input type="number" bind:value={silverFinalRoundsToPlay} min="1" max="12" class="number-input mini" />
+                      {:else}
+                        <input type="number" bind:value={silverFinalPointsToWin} min="1" max="15" class="number-input mini" />
+                      {/if}
+                      <span class="bo-label">Md</span>
+                      <select bind:value={silverFinalMatchesToWin} class="select-input mini">
+                        <option value={1}>1</option>
+                        <option value={3}>3</option>
+                        <option value={5}>5</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      {/if}
-      <!-- End of totalQualifiers >= 4 condition -->
-
       {:else}
         <!-- SINGLE_BRACKET: Original flow -->
           <!-- Final stage configuration - 3 phases -->
@@ -1142,11 +1254,16 @@
             disabled={isProcessing || !canProceed}
           >
             {#if isProcessing}
-              ⏳ {$t('generatingBracket')}
-            {:else if isSplitDivisions}
-              🏆 {$t('generateGoldSilverBrackets')}
+              <span class="btn-spinner"></span>
+              <span>{$t('generatingBracket')}</span>
             {:else}
-              🏆 {$t('generateBracketAndAdvance')}
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+              </svg>
+              <span>{isSplitDivisions ? $t('generateGoldSilverBrackets') : $t('generateBracketAndAdvance')}</span>
+              <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
             {/if}
           </button>
         </div>
@@ -1156,6 +1273,17 @@
 </AdminGuard>
 
 <Toast bind:visible={showToast} message={toastMessage} />
+
+<!-- Loading Overlay -->
+{#if isProcessing}
+  <div class="loading-overlay">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p class="loading-text">{isSplitDivisions ? 'Generando brackets Oro/Plata...' : 'Generando bracket...'}</p>
+      <p class="loading-subtext">Por favor espere</p>
+    </div>
+  </div>
+{/if}
 
 <TimeBreakdownModal
   bind:visible={showTimeBreakdown}
@@ -1505,6 +1633,76 @@
     }
   }
 
+  /* Compact phases grid for split divisions */
+  .phases-config-grid.compact {
+    gap: 0.5rem;
+  }
+
+  .phases-config-grid.compact .phase-config-card {
+    border-radius: 4px;
+  }
+
+  .phases-config-grid.compact .phase-config-header {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.7rem;
+  }
+
+  .phases-config-grid.compact .phase-icon {
+    font-size: 0.75rem;
+  }
+
+  .phases-config-grid.compact .phase-config-body {
+    padding: 0.4rem 0.5rem;
+  }
+
+  /* Config row - inline layout for compact mode */
+  .config-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+
+  /* Mini inputs for compact phase config */
+  .select-input.mini,
+  .number-input.mini {
+    padding: 0.25rem 0.35rem;
+    font-size: 0.7rem;
+    min-width: 0;
+  }
+
+  .select-input.mini {
+    min-width: 70px;
+    max-width: 110px;
+  }
+
+  .number-input.mini {
+    width: 45px;
+    text-align: center;
+  }
+
+  .bo-label {
+    font-size: 0.65rem;
+    color: #6b7280;
+    font-weight: 500;
+    margin-left: 0.25rem;
+  }
+
+  /* Advanced dual config */
+  .dual-config-section.advanced {
+    gap: 1rem;
+  }
+
+  .dual-config-section.advanced .bracket-config {
+    padding: 0.6rem;
+  }
+
+  .dual-config-section.advanced .bracket-config h3 {
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+  }
+
   .config-card {
     background: white;
     border: 1px solid #e5e7eb;
@@ -1779,28 +1977,71 @@
   }
 
   .action-btn {
-    padding: 0.5rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
     border: none;
-    border-radius: 6px;
-    font-size: 0.8rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
+    letter-spacing: 0.01em;
   }
 
   .action-btn.generate {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: #059669;
     color: white;
+    box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
   }
 
-  .action-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  .action-btn.generate:hover:not(:disabled) {
+    background: #047857;
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+  }
+
+  .action-btn:active:not(:disabled) {
+    transform: scale(0.98);
   }
 
   .action-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
+    background: #9ca3af;
+    box-shadow: none;
+  }
+
+  .btn-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .btn-arrow {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: transform 0.2s ease;
+  }
+
+  .action-btn:hover:not(:disabled) .btn-arrow {
+    transform: translateX(2px);
+  }
+
+  .btn-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* Step sections */
@@ -2194,6 +2435,14 @@
     border-color: #6b7280;
   }
 
+  :global([data-theme='dark']) .bo-label {
+    color: #8b9bb3;
+  }
+
+  :global([data-theme='dark']) .dual-config-section.advanced .bracket-config h3 {
+    border-bottom-color: rgba(255,255,255,0.1);
+  }
+
   :global([data-theme='dark']) .bracket-card {
     background: #1a2332;
     border-color: #2d3748;
@@ -2325,5 +2574,450 @@
     .bracket-config {
       padding: 0.5rem;
     }
+  }
+
+  /* Rounds Accordion */
+  .rounds-accordion {
+    margin-top: 0.75rem;
+  }
+
+  .rounds-details {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+
+  .transition-page[data-theme='dark'] .rounds-details {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .rounds-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+    background: #f9fafb;
+    transition: all 0.2s;
+    list-style: none;
+  }
+
+  .rounds-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .rounds-summary:hover {
+    background: #f3f4f6;
+  }
+
+  .transition-page[data-theme='dark'] .rounds-summary {
+    background: #0f1419;
+    color: #e1e8ed;
+  }
+
+  .transition-page[data-theme='dark'] .rounds-summary:hover {
+    background: #1a2332;
+  }
+
+  .summary-icon {
+    font-size: 0.9rem;
+  }
+
+  .rounds-count {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: #6b7280;
+    font-weight: 500;
+  }
+
+  .chevron {
+    font-size: 0.6rem;
+    transition: transform 0.2s;
+    color: #9ca3af;
+  }
+
+  .rounds-details[open] .chevron {
+    transform: rotate(180deg);
+  }
+
+  .rounds-content {
+    padding: 0.75rem;
+    border-top: 1px solid #e5e7eb;
+    max-height: 350px;
+    overflow-y: auto;
+  }
+
+  .transition-page[data-theme='dark'] .rounds-content {
+    border-top-color: #2d3748;
+  }
+
+  .rounds-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 1200px) {
+    .rounds-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (max-width: 900px) {
+    .rounds-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 500px) {
+    .rounds-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .round-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .transition-page[data-theme='dark'] .round-card {
+    background: #0f1419;
+    border-color: #2d3748;
+  }
+
+  .round-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+
+  .round-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .round-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .matches-compact {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .match-compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.6rem;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 0.75rem;
+  }
+
+  .match-compact:last-child {
+    border-bottom: none;
+  }
+
+  .transition-page[data-theme='dark'] .match-compact {
+    border-bottom-color: #2d3748;
+  }
+
+  .match-compact.completed {
+    background: rgba(16, 185, 129, 0.05);
+  }
+
+  .match-compact.bye {
+    background: rgba(250, 204, 21, 0.08);
+    opacity: 0.8;
+  }
+
+  .match-teams {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .team-name {
+    color: #374151;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .team-name.winner {
+    color: #10b981;
+    font-weight: 700;
+  }
+
+  .transition-page[data-theme='dark'] .team-name {
+    color: #e1e8ed;
+  }
+
+  .transition-page[data-theme='dark'] .team-name.winner {
+    color: #34d399;
+  }
+
+  .bye-text {
+    color: #d97706;
+    font-style: italic;
+    font-size: 0.7rem;
+  }
+
+  .match-result {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-left: 0.5rem;
+    font-weight: 700;
+    min-width: 45px;
+    justify-content: flex-end;
+  }
+
+  .result-score {
+    color: #6b7280;
+    font-size: 0.8rem;
+  }
+
+  .result-score.winner-a,
+  .result-score.winner-b {
+    color: #10b981;
+  }
+
+  .transition-page[data-theme='dark'] .result-score {
+    color: #8b9bb3;
+  }
+
+  .transition-page[data-theme='dark'] .result-score.winner-a,
+  .transition-page[data-theme='dark'] .result-score.winner-b {
+    color: #34d399;
+  }
+
+  .result-separator {
+    color: #9ca3af;
+    font-size: 0.7rem;
+  }
+
+  .result-pending,
+  .result-bye {
+    color: #9ca3af;
+    font-size: 0.75rem;
+  }
+
+  /* Scrollbar for rounds content */
+  .rounds-content::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .rounds-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+
+  .rounds-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border-radius: 3px;
+  }
+
+  .transition-page[data-theme='dark'] .rounds-content::-webkit-scrollbar-track {
+    background: #0f1419;
+  }
+
+  /* Division summary badges */
+  .division-summary {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .division-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    flex: 1;
+    min-width: 140px;
+    transition: all 0.2s;
+  }
+
+  .division-badge.gold {
+    border-color: #fbbf24;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+  }
+
+  .division-badge.silver {
+    border-color: #9ca3af;
+    background: linear-gradient(135deg, rgba(156, 163, 175, 0.1) 0%, rgba(107, 114, 128, 0.05) 100%);
+  }
+
+  .division-badge.valid {
+    border-color: #10b981;
+  }
+
+  .division-badge.invalid {
+    border-color: #ef4444;
+  }
+
+  .division-icon {
+    font-size: 1rem;
+  }
+
+  .division-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+  }
+
+  .division-count {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-left: auto;
+  }
+
+  .validity-icon {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #10b981;
+  }
+
+  .validity-icon.invalid {
+    color: #ef4444;
+  }
+
+  .division-validation-hint {
+    margin-top: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    color: #dc2626;
+  }
+
+  .transition-page[data-theme='dark'] .division-badge {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .transition-page[data-theme='dark'] .division-badge.gold {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.08) 100%);
+    border-color: #b45309;
+  }
+
+  .transition-page[data-theme='dark'] .division-badge.silver {
+    background: linear-gradient(135deg, rgba(156, 163, 175, 0.15) 0%, rgba(107, 114, 128, 0.08) 100%);
+    border-color: #4b5563;
+  }
+
+  .transition-page[data-theme='dark'] .division-badge.valid {
+    border-color: #059669;
+  }
+
+  .transition-page[data-theme='dark'] .division-badge.invalid {
+    border-color: #dc2626;
+  }
+
+  .transition-page[data-theme='dark'] .division-label {
+    color: #8b9bb3;
+  }
+
+  .transition-page[data-theme='dark'] .division-count {
+    color: #e1e8ed;
+  }
+
+  .transition-page[data-theme='dark'] .division-validation-hint {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+  }
+
+  /* Loading Overlay */
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+  }
+
+  .loading-content {
+    background: white;
+    padding: 2rem 3rem;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .transition-page[data-theme='dark'] .loading-content {
+    background: #1a2332;
+  }
+
+  .loading-overlay .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #10b981;
+    border-radius: 50%;
+    animation: loadingSpin 0.8s linear infinite;
+    margin: 0 auto 1rem;
+  }
+
+  @keyframes loadingSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading-text {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 0.5rem;
+  }
+
+  .transition-page[data-theme='dark'] .loading-text {
+    color: #e1e8ed;
+  }
+
+  .loading-subtext {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin: 0;
+  }
+
+  .transition-page[data-theme='dark'] .loading-subtext {
+    color: #8b9bb3;
   }
 </style>

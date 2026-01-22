@@ -38,6 +38,7 @@
   let selectedIsThirdPlace: boolean = false;
   let isSuperAdminUser = false;
   let isAutoFilling = false;
+  let isSavingMatch = false;
   let unsubscribe: (() => void) | null = null;
   let showTimeBreakdown = false;
   let timeBreakdown: TimeBreakdown | null = null;
@@ -212,10 +213,41 @@
     showMatchDialog = true;
   }
 
+  // Check if a match is the final match of a bracket
+  function isFinalMatch(match: BracketMatch, bracket: any): boolean {
+    if (!bracket?.rounds?.length) return false;
+    const finalRound = bracket.rounds[bracket.rounds.length - 1];
+    return finalRound?.matches?.some((m: BracketMatch) => m.id === match.id) || false;
+  }
+
+  // Loading message based on context
+  let loadingMessage = 'Guardando resultado...';
+
   async function handleSaveMatch(event: CustomEvent) {
     if (!selectedMatch || !tournamentId || !tournament) return;
 
     const result = event.detail;
+    showMatchDialog = false;
+
+    // Check if this is a final match (could complete the tournament)
+    const goldBracketData = tournament.finalStage?.bracket;
+    const silverBracketData = tournament.finalStage?.silverBracket;
+    const isGoldFinal = goldBracketData && isFinalMatch(selectedMatch, goldBracketData);
+    const isSilverFinal = silverBracketData && isFinalMatch(selectedMatch, silverBracketData);
+    const isFinal = isGoldFinal || isSilverFinal || selectedIsThirdPlace;
+
+    // Set appropriate loading message
+    if (isFinal && !isSplitDivisions) {
+      loadingMessage = 'Finalizando torneo...';
+    } else if (isGoldFinal) {
+      loadingMessage = 'Guardando final Liga Oro...';
+    } else if (isSilverFinal) {
+      loadingMessage = 'Guardando final Liga Plata...';
+    } else {
+      loadingMessage = 'Guardando resultado...';
+    }
+
+    isSavingMatch = true;
 
     try {
       // Determine winner based on games won
@@ -246,7 +278,6 @@
 
       if (success) {
         toastMessage = `✅ ${$t('resultSaved')}`;
-        showMatchDialog = false;
         selectedMatch = null;
         // No need to reload - real-time subscription will update
       } else {
@@ -257,6 +288,9 @@
       console.error('Error saving match:', err);
       toastMessage = `❌ ${$t('errorSavingResult')}`;
       showToast = true;
+    } finally {
+      isSavingMatch = false;
+      loadingMessage = 'Guardando resultado...';
     }
   }
 
@@ -862,12 +896,24 @@
 
 <Toast bind:visible={showToast} message={toastMessage} />
 
+<!-- Loading Overlay -->
+{#if isAutoFilling || isSavingMatch}
+  <div class="loading-overlay">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p class="loading-text">{isAutoFilling ? 'Rellenando resultados...' : loadingMessage}</p>
+      <p class="loading-subtext">Por favor espere</p>
+    </div>
+  </div>
+{/if}
+
 <TimeBreakdownModal
   bind:visible={showTimeBreakdown}
   breakdown={timeBreakdown}
   showRecalculate={true}
   on:recalculate={recalculateTime}
 />
+
 
 <style>
   .bracket-page {
@@ -1808,5 +1854,69 @@
     .page-content {
       max-height: calc(100vh - 80px);
     }
+  }
+
+  /* Loading Overlay */
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+  }
+
+  .loading-content {
+    background: white;
+    padding: 2rem 3rem;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .bracket-page[data-theme='dark'] .loading-content {
+    background: #1a2332;
+  }
+
+  .loading-overlay .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #10b981;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 1rem;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading-text {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 0.5rem;
+  }
+
+  .bracket-page[data-theme='dark'] .loading-text {
+    color: #e1e8ed;
+  }
+
+  .loading-subtext {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin: 0;
+  }
+
+  .bracket-page[data-theme='dark'] .loading-subtext {
+    color: #8b9bb3;
   }
 </style>

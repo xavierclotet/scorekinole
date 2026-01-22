@@ -5,9 +5,9 @@
 
 import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
-import { isAdmin } from './admin';
-import type { Tournament, TournamentParticipant, TournamentStatus } from '$lib/types/tournament';
-import type { UserProfile } from './userProfile';
+import { isAdmin, isSuperAdmin } from './admin';
+import type { Tournament, TournamentStatus } from '$lib/types/tournament';
+import { getUserProfile, type UserProfile } from './userProfile';
 import {
   collection,
   doc,
@@ -58,6 +58,96 @@ function cleanUndefined<T>(obj: T): T {
 }
 
 /**
+ * Get count of tournaments created by a user in a specific year
+ *
+ * @param userId User ID to count tournaments for
+ * @param year Calendar year (e.g., 2024)
+ * @returns Number of tournaments created by user in that year
+ */
+export async function getUserTournamentCountForYear(
+  userId: string,
+  year: number
+): Promise<number> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return 0;
+  }
+
+  try {
+    const tournamentsRef = collection(db!, 'tournaments');
+
+    // Calculate year boundaries (timestamps in milliseconds)
+    const yearStart = new Date(year, 0, 1).getTime();
+    const yearEnd = new Date(year + 1, 0, 1).getTime();
+
+    // Query tournaments created by this user within the year
+    const q = query(
+      tournamentsRef,
+      where('createdBy.userId', '==', userId),
+      where('createdAt', '>=', Timestamp.fromMillis(yearStart)),
+      where('createdAt', '<', Timestamp.fromMillis(yearEnd))
+    );
+
+    const countSnapshot = await getCountFromServer(q);
+    return countSnapshot.data().count;
+  } catch (error) {
+    console.error('Error getting user tournament count:', error);
+    return 0;
+  }
+}
+
+/**
+ * Check if current user can create a new tournament (quota check)
+ *
+ * @returns Object with quota info: canCreate, used, limit, isSuperAdmin
+ */
+export async function checkTournamentQuota(): Promise<{
+  canCreate: boolean;
+  used: number;
+  limit: number;
+  isSuperAdmin: boolean;
+}> {
+  if (!browser || !isFirebaseEnabled()) {
+    return { canCreate: false, used: 0, limit: 0, isSuperAdmin: false };
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    return { canCreate: false, used: 0, limit: 0, isSuperAdmin: false };
+  }
+
+  try {
+    const superAdminStatus = await isSuperAdmin();
+
+    // SuperAdmins bypass quota
+    if (superAdminStatus) {
+      return { canCreate: true, used: 0, limit: Infinity, isSuperAdmin: true };
+    }
+
+    const profile = await getUserProfile();
+    const maxTournaments = profile?.maxTournamentsPerYear ?? 0;
+
+    // If max is 0, user cannot create tournaments
+    if (maxTournaments === 0) {
+      return { canCreate: false, used: 0, limit: 0, isSuperAdmin: false };
+    }
+
+    const currentYear = new Date().getFullYear();
+    const usedCount = await getUserTournamentCountForYear(user.id, currentYear);
+
+    return {
+      canCreate: usedCount < maxTournaments,
+      used: usedCount,
+      limit: maxTournaments,
+      isSuperAdmin: false
+    };
+  } catch (error) {
+    console.error('Error checking tournament quota:', error);
+    return { canCreate: false, used: 0, limit: 0, isSuperAdmin: false };
+  }
+}
+
+/**
  * Create a new tournament
  *
  * @param data Tournament data
@@ -81,6 +171,20 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
     console.error('Unauthorized: User is not admin');
     return null;
   }
+
+  // Check tournament quota (SuperAdmins bypass this check)
+  const quotaCheck = await checkTournamentQuota();
+  if (!quotaCheck.canCreate) {
+    console.error('Tournament quota exceeded:', {
+      used: quotaCheck.used,
+      limit: quotaCheck.limit
+    });
+    return null;
+  }
+
+  // Get user profile to use playerName instead of Google account name
+  const userProfile = await getUserProfile();
+  const creatorName = userProfile?.playerName || user.name;
 
   try {
     const tournamentId = `tournament-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -123,7 +227,7 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
       createdAt: Date.now(),
       createdBy: {
         userId: user.id,
-        userName: user.name
+        userName: creatorName
       },
       updatedAt: Date.now()
     };
@@ -179,6 +283,19 @@ export async function getTournament(id: string): Promise<Tournament | null> {
 
     const data = snapshot.data();
 
+    // Check permissions: admins can only access their own tournaments
+    const user = get(currentUser);
+    if (user) {
+      const superAdminStatus = await isSuperAdmin();
+      if (!superAdminStatus) {
+        // Admin: verify ownership
+        if (data.createdBy?.userId !== user.id) {
+          console.error('Unauthorized: Admin can only access own tournaments');
+          return null;
+        }
+      }
+    }
+
     // Convert Firestore timestamps to numbers
     const tournament: Tournament = {
       ...data,
@@ -225,17 +342,42 @@ export async function getAllTournaments(
     return [];
   }
 
+  // Check if user is superadmin (can see all tournaments)
+  const superAdminStatus = await isSuperAdmin();
+
   try {
     const tournamentsRef = collection(db!, 'tournaments');
-    let q = query(tournamentsRef, orderBy('createdAt', 'desc'), limit(limitCount));
+    let q;
 
-    if (statusFilter) {
-      q = query(
-        tournamentsRef,
-        where('status', '==', statusFilter),
-        orderBy('createdAt', 'desc'),
-        limit(limitCount)
-      );
+    if (superAdminStatus) {
+      // SuperAdmin: see all tournaments
+      q = query(tournamentsRef, orderBy('createdAt', 'desc'), limit(limitCount));
+      if (statusFilter) {
+        q = query(
+          tournamentsRef,
+          where('status', '==', statusFilter),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      }
+    } else {
+      // Admin: only see own tournaments
+      if (statusFilter) {
+        q = query(
+          tournamentsRef,
+          where('createdBy.userId', '==', user.id),
+          where('status', '==', statusFilter),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      } else {
+        q = query(
+          tournamentsRef,
+          where('createdBy.userId', '==', user.id),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      }
     }
 
     const snapshot = await getDocs(q);
@@ -305,24 +447,56 @@ export async function getTournamentsPaginated(
     return emptyResult;
   }
 
+  // Check if user is superadmin (can see all tournaments)
+  const superAdminStatus = await isSuperAdmin();
+
   try {
     const tournamentsRef = collection(db!, 'tournaments');
 
-    // Get total count
-    const countSnapshot = await getCountFromServer(tournamentsRef);
+    // Get total count (filtered for non-superadmins)
+    let countQuery;
+    if (superAdminStatus) {
+      countQuery = tournamentsRef;
+    } else {
+      countQuery = query(tournamentsRef, where('createdBy.userId', '==', user.id));
+    }
+    const countSnapshot = await getCountFromServer(countQuery);
     const totalCount = countSnapshot.data().count;
 
-    // Build paginated query
+    // Build paginated query (filtered for non-superadmins)
     let q;
-    if (lastDocument) {
-      q = query(
-        tournamentsRef,
-        orderBy('createdAt', 'desc'),
-        startAfter(lastDocument),
-        limit(pageSize)
-      );
+    if (superAdminStatus) {
+      // SuperAdmin: see all tournaments
+      if (lastDocument) {
+        q = query(
+          tournamentsRef,
+          orderBy('createdAt', 'desc'),
+          startAfter(lastDocument),
+          limit(pageSize)
+        );
+      } else {
+        q = query(tournamentsRef, orderBy('createdAt', 'desc'), limit(pageSize));
+      }
     } else {
-      q = query(tournamentsRef, orderBy('createdAt', 'desc'), limit(pageSize));
+      // Admin: only see own tournaments
+      // Note: This query requires a composite index on createdBy.userId + createdAt
+      // If the index doesn't exist, Firestore will show a link in the console to create it
+      if (lastDocument) {
+        q = query(
+          tournamentsRef,
+          where('createdBy.userId', '==', user.id),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastDocument),
+          limit(pageSize)
+        );
+      } else {
+        q = query(
+          tournamentsRef,
+          where('createdBy.userId', '==', user.id),
+          orderBy('createdAt', 'desc'),
+          limit(pageSize)
+        );
+      }
     }
 
     const snapshot = await getDocs(q);
@@ -389,6 +563,19 @@ export async function updateTournament(
 
   try {
     const tournamentRef = doc(db!, 'tournaments', id);
+
+    // Check ownership for non-superadmins
+    const superAdminStatus = await isSuperAdmin();
+    if (!superAdminStatus) {
+      const snapshot = await getDoc(tournamentRef);
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.createdBy?.userId !== user.id) {
+          console.error('Unauthorized: Admin can only edit own tournaments');
+          return false;
+        }
+      }
+    }
 
     // Recursively remove undefined values from updates
     const cleanUpdates = cleanUndefined(updates);
@@ -471,6 +658,20 @@ export async function deleteTournament(id: string): Promise<boolean> {
   }
 
   try {
+    // Check ownership for non-superadmins
+    const superAdminStatus = await isSuperAdmin();
+    if (!superAdminStatus) {
+      const tournamentRef = doc(db!, 'tournaments', id);
+      const snapshot = await getDoc(tournamentRef);
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.createdBy?.userId !== user.id) {
+          console.error('Unauthorized: Admin can only delete own tournaments');
+          return false;
+        }
+      }
+    }
+
     // First, revert ranking changes for all participants
     const { revertTournamentRanking } = await import('./tournamentRanking');
     const rankingReverted = await revertTournamentRanking(id);
@@ -528,9 +729,19 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
     return [];
   }
 
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return [];
+  }
+
   try {
     const tournamentsRef = collection(db!, 'tournaments');
-    const snapshot = await getDocs(tournamentsRef);
+
+    // Always filter by user's own tournaments (even for superadmins)
+    // This ensures autocomplete only suggests from your own tournament history
+    const q = query(tournamentsRef, where('createdBy.userId', '==', user.id));
+    const snapshot = await getDocs(q);
 
     // Track max edition per tournament name with additional info
     const namesMap = new Map<string, { maxEdition: number; description?: string; country?: string; city?: string }>();

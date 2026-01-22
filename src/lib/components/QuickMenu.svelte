@@ -46,30 +46,52 @@
 <div class="quick-menu-container">
 	{#if isOpen}
 		<div class="quick-menu" on:click|stopPropagation>
-			<!-- User Management Section -->
 			{#if $currentUser}
-				<!-- Logged in: Show Profile with user name -->
-				<button class="quick-menu-item" on:click={handleProfile}>
+				<!-- User info header -->
+				<div class="menu-header">
 					{#if $currentUser.photoURL}
-						<img src={$currentUser.photoURL} alt="Profile" class="profile-photo" />
+						<img src={$currentUser.photoURL} alt="" class="header-photo" />
 					{:else}
-						<div class="profile-placeholder">
+						<div class="header-photo-placeholder">
 							{$currentUser.email?.charAt(0).toUpperCase() || '?'}
 						</div>
 					{/if}
-					<span class="user-name">{$currentUser.name || $currentUser.email}</span>
-				</button>
-				<div class="divider"></div>
-				<button class="quick-menu-item" on:click={handleSignOut}>
-					<span class="icon">↪</span>
-					<span>{$t('logout')}</span>
-				</button>
+					<div class="header-info">
+						<span class="header-name">{$currentUser.name || 'User'}</span>
+						<span class="header-email">{$currentUser.email}</span>
+					</div>
+				</div>
+
+				<!-- Menu actions -->
+				<div class="menu-actions">
+					<button class="menu-item" on:click={handleProfile}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+							<circle cx="12" cy="7" r="4"/>
+						</svg>
+						<span>{$t('myProfile')}</span>
+					</button>
+					<button class="menu-item logout" on:click={handleSignOut}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+							<polyline points="16 17 21 12 16 7"/>
+							<line x1="21" y1="12" x2="9" y2="12"/>
+						</svg>
+						<span>{$t('logout')}</span>
+					</button>
+				</div>
 			{:else}
-				<!-- Not logged in: Show Login -->
-				<button class="quick-menu-item" on:click={handleLogin}>
-					<span class="icon">🔑</span>
-					<span>{$t('login')}</span>
-				</button>
+				<!-- Not logged in -->
+				<div class="menu-actions guest">
+					<button class="menu-item login" on:click={handleLogin}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+							<polyline points="10 17 15 12 10 7"/>
+							<line x1="15" y1="12" x2="3" y2="12"/>
+						</svg>
+						<span>{$t('login')}</span>
+					</button>
+				</div>
 			{/if}
 		</div>
 	{/if}
@@ -83,123 +105,186 @@
 
 	.quick-menu {
 		position: absolute;
-		top: -0.5rem;
-		right: -2rem;
-		background: rgba(26, 31, 53, 0.98);
-		border: 2px solid rgba(0, 255, 136, 0.3);
+		top: 0.5rem;
+		right: 0;
+		background: #12151f;
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
-		padding: 0.5rem;
-		min-width: 200px;
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+		min-width: 220px;
+		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
 		z-index: 1000;
-		animation: slideDown 0.2s ease-out;
+		animation: menuSlide 0.15s ease-out;
+		overflow: hidden;
 	}
 
-	@keyframes slideDown {
+	@keyframes menuSlide {
 		from {
 			opacity: 0;
-			transform: translateY(-10px);
+			transform: translateY(-8px) scale(0.96);
 		}
 		to {
 			opacity: 1;
-			transform: translateY(0);
+			transform: translateY(0) scale(1);
 		}
 	}
 
-	.quick-menu-item {
-		width: 100%;
+	/* Header section */
+	.menu-header {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
-		padding: 0.75rem 1rem;
-		background: transparent;
-		border: none;
-		border-radius: 8px;
-		color: #fff;
-		font-size: 1rem;
-		cursor: pointer;
-		transition: all 0.2s;
-		text-align: left;
+		gap: 0.75rem;
+		padding: 0.875rem 1rem;
+		background: rgba(255, 255, 255, 0.02);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
-	.quick-menu-item:hover {
-		background: rgba(0, 255, 136, 0.1);
-		color: #00ff88;
-	}
-
-	.quick-menu-item:active {
-		transform: scale(0.98);
-	}
-
-	.icon {
-		font-size: 1.25rem;
-		width: 24px;
-		text-align: center;
-	}
-
-	.profile-photo {
-		width: 28px;
-		height: 28px;
+	.header-photo {
+		width: 36px;
+		height: 36px;
 		border-radius: 50%;
 		object-fit: cover;
-		border: 2px solid #00ff88;
+		flex-shrink: 0;
 	}
 
-	.profile-placeholder {
-		width: 28px;
-		height: 28px;
+	.header-photo-placeholder {
+		width: 36px;
+		height: 36px;
 		border-radius: 50%;
-		background: rgba(0, 255, 136, 0.2);
-		border: 2px solid #00ff88;
+		background: linear-gradient(135deg, #1e3a5f 0%, #0d2137 100%);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 0.85rem;
-		font-weight: 700;
-		color: #00ff88;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: #64b5f6;
+		flex-shrink: 0;
 	}
 
-	.user-name {
+	.header-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 0;
 		flex: 1;
-		text-align: left;
+	}
+
+	.header-name {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #fff;
+		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		white-space: nowrap;
-		max-width: 150px;
-		color: #00ff88;
-		font-weight: 600;
 	}
 
-	.divider {
-		height: 1px;
-		background: rgba(255, 255, 255, 0.1);
-		margin: 0.5rem 0;
+	.header-email {
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.45);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	/* Menu actions */
+	.menu-actions {
+		padding: 0.375rem;
+	}
+
+	.menu-actions.guest {
+		padding: 0.5rem;
+	}
+
+	.menu-item {
+		width: 100%;
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		padding: 0.5rem 0.75rem;
+		background: transparent;
+		border: none;
+		border-radius: 8px;
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 0.8rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		text-align: left;
+	}
+
+	.menu-item svg {
+		width: 16px;
+		height: 16px;
+		stroke-width: 2;
+		flex-shrink: 0;
+		opacity: 0.7;
+	}
+
+	.menu-item:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: #fff;
+	}
+
+	.menu-item:hover svg {
+		opacity: 1;
+	}
+
+	.menu-item:active {
+		transform: scale(0.98);
+	}
+
+	.menu-item.logout:hover {
+		background: rgba(239, 68, 68, 0.1);
+		color: #f87171;
+	}
+
+	.menu-item.logout:hover svg {
+		stroke: #f87171;
+	}
+
+	.menu-item.login {
+		justify-content: center;
+		background: rgba(255, 255, 255, 0.04);
+		padding: 0.625rem 1rem;
+	}
+
+	.menu-item.login:hover {
+		background: rgba(59, 130, 246, 0.15);
+		color: #60a5fa;
+	}
+
+	.menu-item.login:hover svg {
+		stroke: #60a5fa;
 	}
 
 	/* Responsive */
 	@media (max-width: 480px) {
 		.quick-menu {
-			min-width: 180px;
+			min-width: 200px;
+			right: -0.5rem;
 		}
 
-		.quick-menu-item {
-			font-size: 0.9rem;
-			padding: 0.6rem 0.8rem;
+		.menu-header {
+			padding: 0.75rem;
 		}
 
-		.icon {
-			font-size: 1.1rem;
-			width: 20px;
+		.header-photo,
+		.header-photo-placeholder {
+			width: 32px;
+			height: 32px;
 		}
 
-		.profile-photo,
-		.profile-placeholder {
-			width: 24px;
-			height: 24px;
+		.header-name {
+			font-size: 0.8rem;
 		}
 
-		.profile-placeholder {
+		.menu-item {
 			font-size: 0.75rem;
+			padding: 0.45rem 0.625rem;
+		}
+
+		.menu-item svg {
+			width: 14px;
+			height: 14px;
 		}
 	}
 </style>

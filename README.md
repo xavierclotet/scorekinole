@@ -4,7 +4,7 @@
 
 Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. Perfect for casual games and professional tournaments.
 
-![Version](https://img.shields.io/badge/version-2.1.4-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.5-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Android-brightgreen.svg)
 
@@ -12,7 +12,7 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 
 ## 📥 **DOWNLOAD ANDROID APP**
 
-### 👉 [**DOWNLOAD LATEST VERSION (v2.1.4)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
+### 👉 [**DOWNLOAD LATEST VERSION (v2.1.5)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
 
 **Installation:**
 1. Download the APK file from the link above
@@ -180,7 +180,10 @@ Need help or want to report a bug?
 
 ## 📋 Recent Updates
 
-### v2.1.4 (Latest - 2026-01-21)
+### v2.1.5 (Latest - 2026-01-22)
+- Fixed rankings table column alignment (points vs tournaments)
+
+### v2.1.4 (2026-01-21)
 - Fixed tiebreaker algorithm for group standings
 - GroupStandings now uses pre-calculated positions from tiebreaker
 - Improved head-to-head resolution for multi-player ties

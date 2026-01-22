@@ -12,7 +12,6 @@
   let users: AdminUserInfo[] = [];
   let isLoading = true;
   let isLoadingMore = false;
-  let errorMessage = '';
   let selectedUser: AdminUserInfo | null = null;
   let userToDelete: AdminUserInfo | null = null;
   let isDeleting = false;
@@ -25,15 +24,12 @@
   let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
   let hasMore = true;
 
-  // For search and filter: filter locally from loaded users
   $: isSearching = searchQuery.trim().length > 0;
   $: isFiltering = filterRole !== 'all';
   $: filteredUsers = users.filter((user) => {
-    // Role filter
     if (filterRole === 'admin' && !user.isAdmin) return false;
     if (filterRole === 'user' && user.isAdmin) return false;
 
-    // Search filter
     if (isSearching) {
       const q = searchQuery.toLowerCase();
       return (
@@ -46,42 +42,14 @@
   });
 
   $: displayTotal = isSearching || isFiltering ? filteredUsers.length : totalCount;
-
-  let isMobile = false;
+  $: adminCount = users.filter(u => u.isAdmin).length;
 
   onMount(() => {
-    // Check if mobile
-    isMobile = window.innerWidth <= 768;
-
-    const handleResize = () => {
-      isMobile = window.innerWidth <= 768;
-    };
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('scroll', handleWindowScroll);
-
     loadInitialUsers();
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('scroll', handleWindowScroll);
-    };
   });
-
-  function handleWindowScroll() {
-    if (!isMobile) return;
-
-    const scrollBottom = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
-
-    // Load more when 150px from bottom
-    if (scrollBottom < 150 && hasMore && !isLoadingMore && !isSearching) {
-      loadMore();
-    }
-  }
 
   async function loadInitialUsers() {
     isLoading = true;
-    errorMessage = '';
     users = [];
     lastDoc = null;
 
@@ -93,7 +61,6 @@
       users = result.users;
     } catch (error) {
       console.error('Error loading users:', error);
-      errorMessage = 'Failed to load users';
     } finally {
       isLoading = false;
     }
@@ -118,8 +85,6 @@
   function handleScroll(e: Event) {
     const target = e.target as HTMLElement;
     const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
-
-    // Load more when 100px from bottom
     if (scrollBottom < 100 && hasMore && !isLoadingMore && !isSearching) {
       loadMore();
     }
@@ -162,130 +127,164 @@
   }
 
   function formatDate(timestamp: any): string {
-    if (!timestamp) return 'N/A';
-
+    if (!timestamp) return '-';
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleDateString();
+      return date.toLocaleDateString('es-ES', {
+        year: '2-digit',
+        month: '2-digit',
+        day: '2-digit'
+      });
     } catch {
-      return 'N/A';
+      return '-';
     }
   }
 </script>
 
 <SuperAdminGuard>
   <div class="users-container" data-theme={$adminTheme}>
-    <header class="users-header">
-      <button class="back-button" on:click={() => goto('/admin')}>
-        ← {$t('backToAdmin')}
-      </button>
-      <h1>👥 {$t('userManagement')}</h1>
-      <div class="theme-toggle-wrapper">
-        <ThemeToggle />
+    <header class="page-header">
+      <div class="header-row">
+        <button class="back-btn" on:click={() => goto('/admin')}>←</button>
+        <div class="header-main">
+          <div class="title-section">
+            <h1>{$t('userManagement')}</h1>
+            <span class="count-badge">{totalCount}</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
 
-    <div class="controls">
-      <div class="search-bar">
+    <div class="controls-section">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
         <input
           type="text"
-          placeholder={$t('searchUsers')}
           bind:value={searchQuery}
+          placeholder={$t('searchUsers')}
+          class="search-input"
         />
       </div>
-      <div class="filter-buttons">
+
+      <div class="filter-tabs">
         <button
-          class="filter-btn"
+          class="filter-tab"
           class:active={filterRole === 'all'}
           on:click={() => (filterRole = 'all')}
         >
-          {$t('filterAll')}
+          {$t('all')} ({users.length})
         </button>
         <button
-          class="filter-btn"
+          class="filter-tab"
           class:active={filterRole === 'admin'}
           on:click={() => (filterRole = 'admin')}
         >
-          Admin
+          Admins ({adminCount})
         </button>
         <button
-          class="filter-btn"
+          class="filter-tab"
           class:active={filterRole === 'user'}
           on:click={() => (filterRole = 'user')}
         >
-          User
+          Users ({users.length - adminCount})
         </button>
       </div>
-      <span class="user-count">
-        {filteredUsers.length} de {displayTotal} {$t('users')}
-      </span>
     </div>
 
     {#if isLoading}
-      <div class="loading">
+      <div class="loading-state">
         <div class="spinner"></div>
-        <p>{$t('loading')}</p>
-      </div>
-    {:else if errorMessage}
-      <div class="error-box">
-        <p>{errorMessage}</p>
-        <button on:click={loadInitialUsers}>{$t('retry')}</button>
+        <p>{$t('loading')}...</p>
       </div>
     {:else if filteredUsers.length === 0}
       <div class="empty-state">
-        <p>{$t('noUsersFound')}</p>
-        {#if isSearching}
-          <p class="search-tip">La búsqueda solo incluye usuarios ya cargados. Haz scroll para cargar más.</p>
-        {/if}
+        <div class="empty-icon">👥</div>
+        <h3>{$t('noUsersFound')}</h3>
+        <p>{searchQuery || filterRole !== 'all' ? 'No hay usuarios que coincidan con los filtros' : 'No hay usuarios registrados'}</p>
       </div>
     {:else}
+      <div class="results-info">
+        {$t('showingOf').replace('{showing}', String(filteredUsers.length)).replace('{total}', String(displayTotal))}
+      </div>
+
       <div class="table-container" on:scroll={handleScroll}>
         <table class="users-table">
           <thead>
             <tr>
-              <th class="hide-small">Foto</th>
-              <th>{$t('playerName')}</th>
-              <th class="hide-small">{$t('email')}</th>
-              <th>{$t('ranking')}</th>
-              <th class="hide-small">{$t('tournaments')}</th>
-              <th class="hide-small">{$t('createdAt')}</th>
-              <th>Admin</th>
-              <th>{$t('actions')}</th>
+              <th class="name-col">{$t('playerName')}</th>
+              <th class="email-col hide-mobile">{$t('email')}</th>
+              <th class="role-col">{$t('adminRole')}</th>
+              <th class="ranking-col">{$t('ranking')}</th>
+              <th class="tournaments-col hide-small">{$t('tournaments')}</th>
+              <th class="quota-col hide-small">Cuota</th>
+              <th class="created-col hide-small">{$t('createdAt')}</th>
+              <th class="actions-col"></th>
             </tr>
           </thead>
           <tbody>
             {#each filteredUsers as user (user.userId)}
-              <tr>
-                <td class="photo-cell hide-small">
-                  {#if user.photoURL}
-                    <img src={user.photoURL} alt={user.playerName} class="user-avatar" />
-                  {:else}
-                    <div class="user-avatar-placeholder">
-                      {user.playerName?.charAt(0).toUpperCase() || '?'}
+              <tr class="user-row" on:click={() => editUser(user)}>
+                <td class="name-cell">
+                  <div class="user-info">
+                    {#if user.photoURL}
+                      <img src={user.photoURL} alt={user.playerName} class="user-avatar" />
+                    {:else}
+                      <div class="user-avatar-placeholder">
+                        {user.playerName?.charAt(0).toUpperCase() || '?'}
+                      </div>
+                    {/if}
+                    <div class="user-details">
+                      <strong class="user-name">{user.playerName || 'Sin nombre'}</strong>
+                      <small class="user-id">{user.userId.substring(0, 8)}...</small>
                     </div>
+                  </div>
+                </td>
+                <td class="email-cell hide-mobile">
+                  {user.email || '-'}
+                </td>
+                <td class="role-cell">
+                  {#if user.isSuperAdmin}
+                    <span class="role-badge super">Super</span>
+                  {:else if user.isAdmin}
+                    <span class="role-badge admin">Admin</span>
+                  {:else}
+                    <span class="role-badge user">User</span>
                   {/if}
                 </td>
-                <td class="name-cell" title={user.userId}>{user.playerName || 'N/A'}</td>
-                <td class="email-cell hide-small">{user.email || 'N/A'}</td>
                 <td class="ranking-cell">
-                  <span class="ranking-value">{user.ranking ?? 0}</span>
+                  <span class="ranking-value">{user.ranking ?? 0} <small>pts</small></span>
                 </td>
                 <td class="tournaments-cell hide-small">
-                  <span class="tournament-count">{user.tournaments?.length ?? 0}</span>
+                  🏆 {user.tournaments?.length ?? 0}
                 </td>
-                <td class="date-cell hide-small">{formatDate(user.createdAt)}</td>
-                <td class="admin-cell">
-                  {#if user.isAdmin}
-                    <span class="admin-badge">✓ Admin</span>
+                <td class="quota-cell hide-small">
+                  {#if user.isSuperAdmin}
+                    <span class="quota-unlimited">∞</span>
+                  {:else if user.isAdmin}
+                    <span class="quota-value">{user.maxTournamentsPerYear ?? 0}/año</span>
                   {:else}
-                    <span class="user-badge">User</span>
+                    <span class="quota-na">-</span>
                   {/if}
                 </td>
+                <td class="created-cell hide-small">
+                  {formatDate(user.createdAt)}
+                </td>
                 <td class="actions-cell">
-                  <button class="edit-btn" on:click={() => editUser(user)}>
+                  <button
+                    class="action-btn edit-btn"
+                    on:click|stopPropagation={() => editUser(user)}
+                    title={$t('editUser')}
+                  >
                     ✏️
                   </button>
-                  <button class="delete-btn" on:click={() => showDeleteConfirm(user)}>
+                  <button
+                    class="action-btn delete-btn"
+                    on:click|stopPropagation={() => showDeleteConfirm(user)}
+                    title={$t('delete')}
+                  >
                     🗑️
                   </button>
                 </td>
@@ -297,13 +296,13 @@
         {#if isLoadingMore}
           <div class="loading-more">
             <div class="spinner small"></div>
-            <span>Cargando más...</span>
+            <span>{$t('loadingMore')}</span>
           </div>
         {:else if hasMore && !isSearching && !isFiltering}
           <div class="load-more-hint">
-            Scroll para cargar más usuarios
+            {$t('scrollToLoadMore')}
           </div>
-        {:else if !hasMore && !isSearching && !isFiltering}
+        {:else if !hasMore && filteredUsers.length > 0}
           <div class="end-of-list">
             Fin de la lista
           </div>
@@ -321,16 +320,25 @@
   {/if}
 
   {#if userToDelete}
-    <div class="delete-modal-overlay" data-theme={$adminTheme} on:click={cancelDelete}>
+    <div class="delete-overlay" on:click={cancelDelete}>
       <div class="delete-modal" on:click|stopPropagation>
         <h3>{$t('deleteUser')}</h3>
-        <p>{$t('deleteUserConfirm')} <strong>{userToDelete.playerName || userToDelete.email || '?'}</strong>?</p>
+        <div class="user-preview">
+          {#if userToDelete.photoURL}
+            <img src={userToDelete.photoURL} alt="" class="preview-avatar" />
+          {:else}
+            <div class="preview-avatar-placeholder">
+              {userToDelete.playerName?.charAt(0).toUpperCase() || '?'}
+            </div>
+          {/if}
+          <strong>{userToDelete.playerName || userToDelete.email || '?'}</strong>
+        </div>
         <p class="delete-warning">{$t('cannotBeUndone')}</p>
-        <div class="delete-modal-actions">
+        <div class="delete-actions">
           <button class="cancel-btn" on:click={cancelDelete} disabled={isDeleting}>
             {$t('cancel')}
           </button>
-          <button class="confirm-delete-btn" on:click={confirmDelete} disabled={isDeleting}>
+          <button class="confirm-btn" on:click={confirmDelete} disabled={isDeleting}>
             {isDeleting ? $t('deleting') : $t('delete')}
           </button>
         </div>
@@ -341,344 +349,278 @@
 
 <style>
   .users-container {
-    width: 95%;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 1.5rem;
+    padding: 1.5rem 2rem;
     min-height: 100vh;
     background: #fafafa;
     transition: background-color 0.3s;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   .users-container[data-theme='dark'] {
     background: #0f1419;
   }
 
-  .users-header {
+  /* Header */
+  .page-header {
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.75rem 1.5rem;
+    margin: -1.5rem -2rem 1.5rem -2rem;
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+
+  .users-container[data-theme='dark'] .page-header {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .header-row {
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1.5rem;
-    position: relative;
   }
 
-  .users-header h1 {
-    font-size: 1.75rem;
-    margin: 0;
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    color: #555;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .users-container[data-theme='dark'] .back-btn {
+    background: #0f1419;
+    color: #8b9bb3;
+    border-color: #2d3748;
+  }
+
+  .back-btn:hover {
+    transform: translateX(-2px);
+    border-color: #667eea;
+    color: #667eea;
+  }
+
+  .header-main {
     flex: 1;
+    min-width: 0;
+  }
+
+  .title-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .title-section h1 {
+    font-size: 1.1rem;
+    margin: 0;
     color: #1a1a1a;
-    font-weight: 600;
+    font-weight: 700;
+    white-space: nowrap;
     transition: color 0.3s;
   }
 
-  .users-container[data-theme='dark'] .users-header h1 {
+  .users-container[data-theme='dark'] .title-section h1 {
     color: #e1e8ed;
   }
 
-  .theme-toggle-wrapper {
-    margin-left: auto;
-  }
-
-  .users-container[data-theme='dark'] .theme-toggle-wrapper {
-    --toggle-bg: rgba(255, 255, 255, 0.05);
-    --toggle-color: #fbbf24;
-  }
-
-  .users-container[data-theme='light'] .theme-toggle-wrapper {
-    --toggle-bg: white;
-    --toggle-color: #3730a3;
-  }
-
-  .back-button {
-    padding: 0.6rem 1.2rem;
-    background: #ffffff;
-    color: #333;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-    font-weight: 500;
-  }
-
-  .users-container[data-theme='dark'] .back-button {
-    background: #1a2332;
-    color: #e1e8ed;
-    border-color: #2d3748;
-  }
-
-  .back-button:hover {
-    background: #f5f5f5;
-    border-color: #999;
-  }
-
-  .users-container[data-theme='dark'] .back-button:hover {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .search-bar {
-    flex: 1;
-  }
-
-  .search-bar input {
-    width: 100%;
-    padding: 0.7rem 1rem;
-    font-size: 0.95rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    transition: all 0.2s;
-    background: white;
-    color: #333;
-  }
-
-  .users-container[data-theme='dark'] .search-bar input {
-    background: #1a2332;
-    border-color: #2d3748;
-    color: #e1e8ed;
-  }
-
-  .search-bar input:focus {
-    outline: none;
-    border-color: #4CAF50;
-    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
-  }
-
-  .users-container[data-theme='dark'] .search-bar input::placeholder {
-    color: #6b7a94;
-  }
-
-  .user-count {
-    font-weight: 500;
-    color: #666;
-    white-space: nowrap;
-    font-size: 0.9rem;
-    padding: 0.5rem 1rem;
-    background: white;
-    border-radius: 6px;
-    border: 1px solid #ddd;
+  .count-badge {
+    padding: 0.2rem 0.6rem;
+    background: #f3f4f6;
+    color: #555;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
     transition: all 0.3s;
   }
 
-  .users-container[data-theme='dark'] .user-count {
-    background: #1a2332;
-    border-color: #2d3748;
+  .users-container[data-theme='dark'] .count-badge {
+    background: #0f1419;
     color: #8b9bb3;
   }
 
-  .filter-buttons {
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  /* Controls */
+  .controls-section {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    max-width: 300px;
+    position: relative;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1rem;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    transition: all 0.2s;
+  }
+
+  .users-container[data-theme='dark'] .search-input {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  }
+
+  .filter-tabs {
     display: flex;
     gap: 0.25rem;
-    background: #f0f0f0;
-    padding: 0.25rem;
-    border-radius: 6px;
+    flex-wrap: wrap;
   }
 
-  .users-container[data-theme='dark'] .filter-buttons {
-    background: #1a2332;
-  }
-
-  .filter-btn {
+  .filter-tab {
     padding: 0.4rem 0.75rem;
-    border: none;
-    background: transparent;
-    color: #666;
-    font-size: 0.8rem;
-    font-weight: 500;
+    background: white;
+    border: 1px solid #ddd;
     border-radius: 4px;
+    font-size: 0.8rem;
     cursor: pointer;
     transition: all 0.2s;
+    color: #555;
   }
 
-  .filter-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
-  }
-
-  .filter-btn.active {
-    background: white;
-    color: #333;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  }
-
-  .users-container[data-theme='dark'] .filter-btn {
+  .users-container[data-theme='dark'] .filter-tab {
+    background: #1a2332;
+    border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  .users-container[data-theme='dark'] .filter-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
+  .filter-tab:hover {
+    background: #f5f5f5;
+    border-color: #667eea;
   }
 
-  .users-container[data-theme='dark'] .filter-btn.active {
+  .users-container[data-theme='dark'] .filter-tab:hover {
     background: #2d3748;
-    color: #e1e8ed;
   }
 
-  .search-hint {
+  .filter-tab.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+    font-weight: 600;
+  }
+
+  /* Results info */
+  .results-info {
     font-size: 0.75rem;
-    color: #888;
-    font-weight: 400;
-    margin-left: 0.5rem;
+    color: #999;
+    margin-bottom: 0.5rem;
+    transition: color 0.3s;
   }
 
-  .users-container[data-theme='dark'] .search-hint {
+  .users-container[data-theme='dark'] .results-info {
     color: #6b7a94;
   }
 
-  .search-tip {
-    font-size: 0.85rem;
-    color: #666;
-    margin-top: 0.5rem;
-  }
-
-  .users-container[data-theme='dark'] .search-tip {
-    color: #8b9bb3;
-  }
-
-  .loading,
-  .error-box,
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 3rem;
-    text-align: center;
-    background: white;
-    border-radius: 8px;
-    transition: background-color 0.3s, color 0.3s;
-  }
-
-  .users-container[data-theme='dark'] .loading,
-  .users-container[data-theme='dark'] .empty-state {
-    background: #1a2332;
-    color: #e1e8ed;
-  }
-
-  .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid #f3f3f3;
-    border-top-color: #4CAF50;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin-bottom: 1rem;
-  }
-
-  .spinner.small {
-    width: 24px;
-    height: 24px;
-    border-width: 2px;
-    margin-bottom: 0;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .error-box {
-    background: #fff3cd;
-    color: #856404;
-    border: 1px solid #ffeeba;
-  }
-
-  .error-box button {
-    margin-top: 1rem;
-    padding: 0.5rem 1.5rem;
-    background: #856404;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-  }
-
+  /* Table */
   .table-container {
-    background: white;
-    border-radius: 8px;
-    border: 1px solid #e0e0e0;
-    transition: all 0.3s;
-    max-height: calc(100vh - 220px);
+    overflow-x: auto;
     overflow-y: auto;
-    overflow-x: hidden;
+    max-height: calc(100vh - 180px);
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s;
   }
 
   .users-container[data-theme='dark'] .table-container {
     background: #1a2332;
-    border-color: #2d3748;
   }
 
   .users-table {
     width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
+    border-collapse: collapse;
+    font-size: 0.85rem;
   }
 
   .users-table thead {
-    background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
-    transition: background 0.3s;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
     position: sticky;
     top: 0;
     z-index: 1;
+    transition: all 0.3s;
   }
 
   .users-container[data-theme='dark'] .users-table thead {
-    background: linear-gradient(to bottom, #1f2937, #111827);
+    background: #0f1419;
+    border-color: #2d3748;
   }
 
   .users-table th {
-    padding: 1rem 1.25rem;
+    padding: 0.6rem 0.75rem;
     text-align: left;
     font-weight: 600;
-    color: #2c3e50;
-    font-size: 0.85rem;
+    color: #666;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    border-bottom: 2px solid #dee2e6;
-    transition: all 0.3s;
+    transition: color 0.3s;
   }
 
   .users-container[data-theme='dark'] .users-table th {
     color: #8b9bb3;
-    border-bottom-color: #374151;
   }
 
-  .users-table tbody tr {
-    transition: all 0.15s ease;
-  }
-
-  .users-table tbody tr:hover {
-    background: #f8f9fa;
-    transform: translateX(2px);
-  }
-
-  .users-container[data-theme='dark'] .users-table tbody tr:hover {
-    background: #212d3f;
-  }
-
-  .users-table tbody tr:not(:last-child) {
+  .user-row {
     border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: all 0.15s;
   }
 
-  .users-container[data-theme='dark'] .users-table tbody tr:not(:last-child) {
-    border-bottom-color: #2d3748;
+  .users-container[data-theme='dark'] .user-row {
+    border-color: #2d3748;
+  }
+
+  .user-row:hover {
+    background: #f9fafb;
+  }
+
+  .users-container[data-theme='dark'] .user-row:hover {
+    background: #0f1419;
   }
 
   .users-table td {
-    padding: 1rem 1.25rem;
-    vertical-align: middle;
-    color: #333;
-    font-size: 0.9rem;
+    padding: 0.6rem 0.75rem;
+    color: #1a1a1a;
     transition: color 0.3s;
   }
 
@@ -686,183 +628,219 @@
     color: #e1e8ed;
   }
 
-  .photo-cell {
-    width: 70px;
-    padding-left: 1.5rem;
+  /* Name cell */
+  .name-cell {
+    max-width: 250px;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
   }
 
   .user-avatar {
-    width: 42px;
-    height: 42px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     object-fit: cover;
-    border: 2px solid #f0f0f0;
   }
 
   .user-avatar-placeholder {
-    width: 42px;
-    height: 42px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    border: 2px solid #f0f0f0;
   }
 
+  .user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .user-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-id {
+    font-size: 0.7rem;
+    color: #999;
+    font-family: monospace;
+  }
+
+  .users-container[data-theme='dark'] .user-id {
+    color: #6b7a94;
+  }
+
+  /* Email cell */
   .email-cell {
-    color: #555;
-    font-size: 0.88rem;
-    transition: color 0.3s;
+    color: #666;
+    font-size: 0.8rem;
   }
 
   .users-container[data-theme='dark'] .email-cell {
     color: #8b9bb3;
   }
 
-  .name-cell {
+  /* Role cell */
+  .role-badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
     font-weight: 600;
-    color: #2c3e50;
-    font-size: 0.92rem;
-    transition: color 0.3s;
+    white-space: nowrap;
   }
 
-  .users-container[data-theme='dark'] .name-cell {
-    color: #e1e8ed;
+  .role-badge.super {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
   }
 
-  .ranking-cell {
-    text-align: left;
-    padding: 1rem 1.25rem;
+  .role-badge.admin {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
   }
 
+  .role-badge.user {
+    background: #e5e7eb;
+    color: #6b7280;
+  }
+
+  .users-container[data-theme='dark'] .role-badge.user {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  /* Ranking cell */
   .ranking-value {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 40px;
-    padding: 0.3rem 0.65rem;
+    align-items: baseline;
+    gap: 0.2rem;
+    padding: 0.2rem 0.5rem;
     background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
     color: #333;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    border-radius: 16px;
-    box-shadow: 0 2px 4px rgba(253, 160, 133, 0.2);
+    border-radius: 10px;
   }
 
-  .tournaments-cell {
-    text-align: left;
-    padding: 1rem 1.25rem;
+  .ranking-value small {
+    font-size: 0.6rem;
+    font-weight: 500;
+    opacity: 0.8;
   }
 
-  .tournament-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    padding: 0.3rem 0.65rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    font-size: 0.8rem;
+  /* Quota cell */
+  .quota-unlimited {
+    color: #10b981;
     font-weight: 700;
-    border-radius: 16px;
-    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
   }
 
-  .date-cell {
-    color: #888;
-    font-size: 0.85rem;
-    transition: color 0.3s;
+  .quota-value {
+    font-size: 0.8rem;
+    color: #666;
   }
 
-  .users-container[data-theme='dark'] .date-cell {
+  .users-container[data-theme='dark'] .quota-value {
+    color: #8b9bb3;
+  }
+
+  .quota-na {
+    color: #ccc;
+  }
+
+  /* Created cell */
+  .created-cell {
+    color: #999;
+    font-size: 0.8rem;
+  }
+
+  .users-container[data-theme='dark'] .created-cell {
     color: #6b7a94;
   }
 
-  .admin-cell {
-    text-align: left;
-    padding: 1rem 1.25rem;
-  }
-
-  .admin-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.35rem 0.85rem;
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    color: white;
-    font-size: 0.75rem;
-    font-weight: 700;
-    border-radius: 20px;
-    letter-spacing: 0.3px;
-    box-shadow: 0 2px 4px rgba(17, 153, 142, 0.2);
-  }
-
-  .user-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.35rem 0.85rem;
-    background: #e9ecef;
-    color: #6c757d;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border-radius: 20px;
-    letter-spacing: 0.3px;
-  }
-
+  /* Actions cell */
   .actions-cell {
-    text-align: left;
-    padding: 1rem 0.75rem;
     display: flex;
-    gap: 0.5rem;
-    justify-content: flex-start;
+    gap: 0.25rem;
   }
 
-  .edit-btn {
-    padding: 0.5rem 0.75rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+  .action-btn {
+    width: 28px;
+    height: 28px;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 600;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
-  }
-
-  .edit-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
-  }
-
-  .edit-btn:active {
-    transform: translateY(0);
-  }
-
-  .delete-btn {
-    padding: 0.5rem 0.75rem;
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.85rem;
     transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(238, 90, 90, 0.2);
+    background: transparent;
   }
 
-  .delete-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(238, 90, 90, 0.3);
+  .action-btn:hover {
+    background: #f3f4f6;
   }
 
-  .delete-btn:active {
-    transform: translateY(0);
+  .users-container[data-theme='dark'] .action-btn:hover {
+    background: #2d3748;
+  }
+
+  .action-btn.delete-btn:hover {
+    background: #fee2e2;
+  }
+
+  .users-container[data-theme='dark'] .action-btn.delete-btn:hover {
+    background: #4d1f24;
+  }
+
+  /* Loading state */
+  .loading-state {
+    text-align: center;
+    padding: 4rem 2rem;
+  }
+
+  .spinner {
+    width: 50px;
+    height: 50px;
+    margin: 0 auto 1rem;
+    border: 4px solid #f0f0f0;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  .spinner.small {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+    margin: 0;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .loading-state p {
+    color: #666;
+    transition: color 0.3s;
+  }
+
+  .users-container[data-theme='dark'] .loading-state p {
+    color: #8b9bb3;
   }
 
   /* Infinite scroll indicators */
@@ -901,72 +879,41 @@
     border-top-color: #2d3748;
   }
 
-  /* Responsive */
-  @media (max-width: 1200px) {
-    .users-table th,
-    .users-table td {
-      padding: 0.85rem 1rem;
-      font-size: 0.85rem;
-    }
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
   }
 
-  @media (max-width: 640px) {
-    .hide-small {
-      display: none !important;
-    }
-
-    .users-table {
-      min-width: auto;
-    }
+  .empty-icon {
+    font-size: 5rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
   }
 
-  @media (max-width: 768px) {
-    .users-container {
-      padding: 1rem;
-      width: 98%;
-      padding-bottom: 2rem;
-    }
-
-    .users-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.75rem;
-    }
-
-    .users-header h1 {
-      font-size: 1.4rem;
-    }
-
-    .controls {
-      flex-direction: column;
-      align-items: stretch;
-      width: 100%;
-    }
-
-    .table-container {
-      max-height: none;
-      overflow-x: auto;
-      overflow-y: visible;
-    }
-
-    .users-table th,
-    .users-table td {
-      padding: 0.7rem 0.8rem;
-      font-size: 0.8rem;
-    }
-
-    .edit-btn {
-      padding: 0.45rem 1rem;
-      font-size: 0.8rem;
-    }
-
-    .actions-cell {
-      padding-left: 0.8rem;
-    }
+  .empty-state h3 {
+    font-size: 1.5rem;
+    margin: 0 0 0.5rem 0;
+    color: #1a1a1a;
+    transition: color 0.3s;
   }
 
-  /* Delete confirmation modal */
-  .delete-modal-overlay {
+  .users-container[data-theme='dark'] .empty-state h3 {
+    color: #e1e8ed;
+  }
+
+  .empty-state p {
+    color: #666;
+    margin: 0;
+    transition: color 0.3s;
+  }
+
+  .users-container[data-theme='dark'] .empty-state p {
+    color: #8b9bb3;
+  }
+
+  /* Delete modal */
+  .delete-overlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -983,95 +930,147 @@
     background: white;
     padding: 1.5rem;
     border-radius: 12px;
-    max-width: 360px;
+    max-width: 320px;
     width: 90%;
     text-align: center;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   }
 
-  .delete-modal-overlay[data-theme='dark'] .delete-modal {
+  .users-container[data-theme='dark'] ~ .delete-overlay .delete-modal {
     background: #1a2332;
     color: #e1e8ed;
   }
 
   .delete-modal h3 {
-    margin: 0 0 0.75rem 0;
+    margin: 0 0 1rem 0;
     font-size: 1.1rem;
-    color: #333;
   }
 
-  .delete-modal-overlay[data-theme='dark'] .delete-modal h3 {
-    color: #e1e8ed;
+  .user-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-bottom: 1rem;
   }
 
-  .delete-modal p {
-    margin: 0 0 0.5rem 0;
+  .users-container[data-theme='dark'] ~ .delete-overlay .user-preview {
+    background: #0f1419;
+  }
+
+  .preview-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .preview-avatar-placeholder {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.9rem;
-    color: #555;
-  }
-
-  .delete-modal-overlay[data-theme='dark'] .delete-modal p {
-    color: #8b9bb3;
+    font-weight: 600;
   }
 
   .delete-warning {
-    color: #e53e3e !important;
-    font-size: 0.8rem !important;
-    margin-bottom: 1rem !important;
+    color: #dc2626;
+    font-size: 0.85rem;
+    margin: 0 0 1rem 0;
   }
 
-  .delete-modal-actions {
+  .delete-actions {
     display: flex;
     gap: 0.75rem;
     justify-content: center;
-    margin-top: 1rem;
   }
 
   .cancel-btn {
-    padding: 0.5rem 1.25rem;
-    background: #e2e8f0;
-    color: #4a5568;
+    padding: 0.5rem 1rem;
+    background: #e5e7eb;
+    color: #374151;
     border: none;
     border-radius: 6px;
     font-size: 0.85rem;
-    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .cancel-btn:hover:not(:disabled) {
-    background: #cbd5e0;
+    background: #d1d5db;
   }
 
-  .delete-modal-overlay[data-theme='dark'] .cancel-btn {
-    background: #2d3748;
-    color: #e1e8ed;
+  .users-container[data-theme='dark'] ~ .delete-overlay .cancel-btn {
+    background: #374151;
+    color: #e5e7eb;
   }
 
-  .delete-modal-overlay[data-theme='dark'] .cancel-btn:hover:not(:disabled) {
-    background: #4a5568;
-  }
-
-  .confirm-delete-btn {
-    padding: 0.5rem 1.25rem;
-    background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+  .confirm-btn {
+    padding: 0.5rem 1rem;
+    background: #dc2626;
     color: white;
     border: none;
     border-radius: 6px;
     font-size: 0.85rem;
-    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
   }
 
-  .confirm-delete-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(229, 62, 62, 0.3);
+  .confirm-btn:hover:not(:disabled) {
+    background: #b91c1c;
   }
 
-  .confirm-delete-btn:disabled,
-  .cancel-btn:disabled {
+  .cancel-btn:disabled,
+  .confirm-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .users-container {
+      padding: 1rem;
+    }
+
+    .page-header {
+      margin: -1rem -1rem 1rem -1rem;
+      padding: 0.75rem 1rem;
+    }
+
+    .controls-section {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .search-box {
+      max-width: none;
+    }
+
+    .filter-tabs {
+      justify-content: center;
+    }
+
+    .hide-mobile {
+      display: none;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .hide-small {
+      display: none;
+    }
+
+    .users-table th,
+    .users-table td {
+      padding: 0.5rem;
+    }
   }
 </style>

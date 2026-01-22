@@ -21,6 +21,11 @@ export const tournamentLoading = writable<boolean>(false);
 export const tournamentError = writable<string | null>(null);
 
 /**
+ * Saving participant results state (for showing loader when tournament completes)
+ */
+export const savingParticipantResults = writable<boolean>(false);
+
+/**
  * Derived: Is tournament in group stage?
  */
 export const isGroupStage = derived(
