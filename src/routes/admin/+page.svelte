@@ -3,7 +3,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import { t } from '$lib/stores/language';
   import { currentUser } from '$lib/firebase/auth';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { isSuperAdminUser } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
 

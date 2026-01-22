@@ -5,7 +5,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { canAccessAdmin } from '$lib/stores/admin';
 	import { APP_VERSION } from '$lib/constants';
-	import { adminTheme } from '$lib/stores/adminTheme';
+	import { adminTheme } from '$lib/stores/theme';
 	import QuickMenu from '$lib/components/QuickMenu.svelte';
 	import ProfileModal from '$lib/components/ProfileModal.svelte';
 	import LoginModal from '$lib/components/LoginModal.svelte';
@@ -71,7 +71,7 @@
 	<meta name="description" content="Professional scoring app for Crokinole games. Track points, rounds, and matches with ease." />
 </svelte:head>
 
-<main class="landing">
+<main class="landing" data-theme={$adminTheme}>
 	<!-- Top bar -->
 	<div class="top-bar">
 		<div class="top-left">
@@ -178,7 +178,14 @@
 		display: flex;
 		flex-direction: column;
 		background: #0a0e1a;
+		color: #fff;
 		padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+		transition: background-color 0.3s, color 0.3s;
+	}
+
+	.landing[data-theme='light'] {
+		background: #f8fafc;
+		color: #1a1a2e;
 	}
 
 	/* Top bar */
@@ -211,6 +218,16 @@
 		background: rgba(0, 255, 136, 0.2);
 	}
 
+	.landing[data-theme='light'] .admin-btn {
+		background: rgba(16, 185, 129, 0.1);
+		border-color: rgba(16, 185, 129, 0.3);
+		color: #10b981;
+	}
+
+	.landing[data-theme='light'] .admin-btn:hover {
+		background: rgba(16, 185, 129, 0.2);
+	}
+
 	.lang-btns {
 		display: flex;
 		align-items: center;
@@ -240,6 +257,23 @@
 		color: #0a0e1a;
 	}
 
+	/* Light theme - top bar */
+	.landing[data-theme='light'] .lang-btns button {
+		border-color: rgba(0, 0, 0, 0.15);
+		color: rgba(0, 0, 0, 0.5);
+	}
+
+	.landing[data-theme='light'] .lang-btns button:hover {
+		border-color: rgba(0, 0, 0, 0.3);
+		color: #1a1a2e;
+	}
+
+	.landing[data-theme='light'] .lang-btns button.active {
+		background: #10b981;
+		border-color: #10b981;
+		color: #fff;
+	}
+
 	.theme-btn {
 		width: 32px;
 		height: 32px;
@@ -266,6 +300,18 @@
 		border-color: rgba(251, 191, 36, 0.3);
 	}
 
+	.landing[data-theme='light'] .theme-btn {
+		background: rgba(0, 0, 0, 0.05);
+		border-color: rgba(0, 0, 0, 0.15);
+		color: rgba(0, 0, 0, 0.6);
+	}
+
+	.landing[data-theme='light'] .theme-btn:hover {
+		background: rgba(0, 0, 0, 0.1);
+		color: #1a1a2e;
+		border-color: rgba(0, 0, 0, 0.3);
+	}
+
 	.profile-wrap {
 		position: relative;
 		display: flex;
@@ -290,6 +336,17 @@
 	.profile-btn:hover {
 		background: rgba(255, 255, 255, 0.1);
 		color: #fff;
+	}
+
+	.landing[data-theme='light'] .profile-btn {
+		background: rgba(0, 0, 0, 0.05);
+		border-color: rgba(0, 0, 0, 0.15);
+		color: rgba(0, 0, 0, 0.6);
+	}
+
+	.landing[data-theme='light'] .profile-btn:hover {
+		background: rgba(0, 0, 0, 0.1);
+		color: #1a1a2e;
 	}
 
 	/* Content */
@@ -336,6 +393,19 @@
 		color: rgba(255, 255, 255, 0.5);
 	}
 
+	/* Light theme - brand */
+	.landing[data-theme='light'] .logo {
+		box-shadow: 0 8px 32px rgba(16, 185, 129, 0.2);
+	}
+
+	.landing[data-theme='light'] .brand-text h1 {
+		color: #10b981;
+	}
+
+	.landing[data-theme='light'] .brand-text p {
+		color: rgba(0, 0, 0, 0.5);
+	}
+
 	/* Actions */
 	.actions {
 		display: flex;
@@ -368,6 +438,17 @@
 
 	.btn-primary:active {
 		transform: translateY(0);
+	}
+
+	/* Light theme - primary button */
+	.landing[data-theme='light'] .btn-primary {
+		background: #10b981;
+		color: #fff;
+		box-shadow: 0 4px 20px rgba(16, 185, 129, 0.25);
+	}
+
+	.landing[data-theme='light'] .btn-primary:hover {
+		box-shadow: 0 6px 24px rgba(16, 185, 129, 0.35);
 	}
 
 	.nav-links {
@@ -404,6 +485,19 @@
 		cursor: not-allowed;
 	}
 
+	/* Light theme - nav links */
+	.landing[data-theme='light'] .nav-link {
+		background: rgba(0, 0, 0, 0.03);
+		border-color: rgba(0, 0, 0, 0.1);
+		color: rgba(0, 0, 0, 0.6);
+	}
+
+	.landing[data-theme='light'] .nav-link:hover:not(.disabled) {
+		background: rgba(0, 0, 0, 0.06);
+		border-color: rgba(0, 0, 0, 0.2);
+		color: #1a1a2e;
+	}
+
 	.nav-link svg {
 		flex-shrink: 0;
 	}
@@ -424,12 +518,22 @@
 		color: rgba(255, 255, 255, 0.5);
 	}
 
+	/* Light theme - features */
+	.landing[data-theme='light'] .features span {
+		background: rgba(0, 0, 0, 0.04);
+		color: rgba(0, 0, 0, 0.5);
+	}
+
 	/* Footer */
 	footer {
 		padding: 1rem;
 		text-align: center;
 		color: rgba(255, 255, 255, 0.3);
 		font-size: 0.8rem;
+	}
+
+	.landing[data-theme='light'] footer {
+		color: rgba(0, 0, 0, 0.3);
 	}
 
 	/* Tablet+ */

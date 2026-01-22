@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from '$lib/stores/language';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { savingParticipantResults } from '$lib/stores/tournament';
 
   $: if ($savingParticipantResults) {

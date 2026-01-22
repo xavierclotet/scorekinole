@@ -7,7 +7,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import QualifierSelection from '$lib/components/tournament/QualifierSelection.svelte';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { t } from '$lib/stores/language';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';

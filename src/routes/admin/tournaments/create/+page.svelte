@@ -4,7 +4,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
   import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';

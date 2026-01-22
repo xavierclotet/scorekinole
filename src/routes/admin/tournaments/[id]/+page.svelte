@@ -7,7 +7,7 @@
   import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import CompletedTournamentView from '$lib/components/tournament/CompletedTournamentView.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import type { Tournament } from '$lib/types/tournament';

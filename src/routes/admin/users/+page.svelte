@@ -6,7 +6,7 @@
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { t } from '$lib/stores/language';
   import { goto } from '$app/navigation';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { getUsersPaginated, deleteUser, type AdminUserInfo } from '$lib/firebase/admin';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 

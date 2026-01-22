@@ -9,7 +9,7 @@
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import GroupsView from '$lib/components/tournament/GroupsView.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { t } from '$lib/stores/language';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';

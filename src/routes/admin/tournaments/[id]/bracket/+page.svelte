@@ -8,7 +8,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
   import { completeMatch, markNoShow } from '$lib/firebase/tournamentSync';
   import {

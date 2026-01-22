@@ -5,7 +5,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { t } from '$lib/stores/language';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
   import { getTournamentsPaginated, deleteTournament as deleteTournamentFirebase } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';

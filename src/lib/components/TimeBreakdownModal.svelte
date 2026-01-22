@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { t } from '$lib/stores/language';
-  import { adminTheme } from '$lib/stores/adminTheme';
+  import { adminTheme } from '$lib/stores/theme';
   import type { TimeBreakdown } from '$lib/utils/tournamentTime';
   import { formatDuration } from '$lib/utils/tournamentTime';
 
