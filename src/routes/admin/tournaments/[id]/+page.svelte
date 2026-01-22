@@ -6,6 +6,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import CompletedTournamentView from '$lib/components/tournament/CompletedTournamentView.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
@@ -26,6 +27,7 @@
   let timeBreakdown: TimeBreakdown | null = null;
   let showToast = false;
   let toastMessage = '';
+  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
   let isStarting = false;
   let isSavingQuickEdit = false;
 
@@ -107,7 +109,8 @@
 
     // Validation: minimum 2 participants
     if (tournament.participants.length < 2) {
-      toastMessage = `❌ ${$t('minParticipantsRequired')}`;
+      toastMessage = $t('minParticipantsRequired');
+      toastType = 'error';
       showToast = true;
       return;
     }
@@ -132,16 +135,16 @@
       const success = await transitionTournament(tournamentId, nextStatus);
 
       if (success) {
-        toastMessage = `✅ ${$t('tournamentStarted')}`;
-        showToast = true;
         await loadTournament();
       } else {
-        toastMessage = `❌ ${$t('errorStartingTournament')}`;
+        toastMessage = $t('errorStartingTournament');
+        toastType = 'error';
         showToast = true;
       }
     } catch (err) {
       console.error('Error starting tournament:', err);
-      toastMessage = `❌ ${$t('errorStartingTournament')}`;
+      toastMessage = $t('errorStartingTournament');
+      toastType = 'error';
       showToast = true;
     } finally {
       isStarting = false;
@@ -162,11 +165,13 @@
     const success = await cancelTournamentFirebase(tournamentId);
 
     if (success) {
-      toastMessage = `✅ ${$t('tournamentCancelled')}`;
+      toastMessage = $t('tournamentCancelled');
+      toastType = 'success';
       showToast = true;
       await loadTournament();
     } else {
-      toastMessage = `❌ ${$t('errorCancellingTournament')}`;
+      toastMessage = $t('errorCancellingTournament');
+      toastType = 'error';
       showToast = true;
     }
 
@@ -208,6 +213,7 @@
     timeBreakdown = calculateTimeBreakdown(tournament);
     await updateTournament(tournamentId, { timeEstimate });
     toastMessage = $t('timeRecalculated');
+    toastType = 'success';
     showToast = true;
   }
 
@@ -224,7 +230,8 @@
     // Validate minimum tables
     const minTables = getMinTables();
     if (editNumTables < minTables) {
-      toastMessage = `❌ ${$t('minTablesRequired').replace('{min}', String(minTables)).replace('{participants}', String(tournament.participants.length))}`;
+      toastMessage = $t('minTablesRequired').replace('{min}', String(minTables)).replace('{participants}', String(tournament.participants.length));
+      toastType = 'error';
       showToast = true;
       return;
     }
@@ -247,17 +254,20 @@
       const success = await updateTournament(tournamentId, updates);
 
       if (success) {
-        toastMessage = `✅ ${$t('configurationUpdated')}`;
+        toastMessage = $t('configurationUpdated');
+        toastType = 'success';
         showToast = true;
         closeQuickEdit();
         await loadTournament();
       } else {
-        toastMessage = `❌ ${$t('errorSavingChanges')}`;
+        toastMessage = $t('errorSavingChanges');
+        toastType = 'error';
         showToast = true;
       }
     } catch (err) {
       console.error('Error saving quick edit:', err);
-      toastMessage = `❌ ${$t('errorSavingChanges')}`;
+      toastMessage = $t('errorSavingChanges');
+      toastType = 'error';
       showToast = true;
     } finally {
       isSavingQuickEdit = false;
@@ -364,10 +374,7 @@
     <!-- Content -->
     <div class="page-content">
       {#if loading}
-        <div class="loading-state">
-          <div class="spinner"></div>
-          <p>{$t('loadingTournament')}</p>
-        </div>
+        <LoadingSpinner message={$t('loadingTournament')} />
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
@@ -778,15 +785,13 @@
   {/if}
 </AdminGuard>
 
-<Toast bind:visible={showToast} message={toastMessage} />
+<Toast bind:visible={showToast} message={toastMessage} type={toastType} />
 
 <!-- Loading Overlay -->
 {#if isStarting || isSavingQuickEdit}
-  <div class="loading-overlay">
+  <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <div class="spinner"></div>
-      <p class="loading-text">{isStarting ? 'Iniciando torneo...' : 'Guardando cambios...'}</p>
-      <p class="loading-subtext">Por favor espere</p>
+      <LoadingSpinner size="large" message={isStarting ? 'Iniciando torneo...' : 'Guardando cambios...'} />
     </div>
   </div>
 {/if}
@@ -1005,7 +1010,6 @@
     overflow-x: auto;
   }
 
-  .loading-state,
   .error-state {
     display: flex;
     flex-direction: column;
@@ -1013,19 +1017,6 @@
     justify-content: center;
     min-height: 400px;
     text-align: center;
-  }
-
-  .spinner {
-    width: 50px;
-    height: 50px;
-    border: 4px solid #e5e7eb;
-    border-top-color: #fa709a;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
   }
 
   .error-icon {
@@ -1261,7 +1252,6 @@
       font-size: 0.75rem;
     }
 
-    .loading-state,
     .error-state {
       min-height: 200px;
       padding: 1rem;
@@ -1805,34 +1795,11 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   }
 
-  .tournament-page[data-theme='dark'] .loading-content {
+  .loading-overlay[data-theme='dark'] .loading-content {
     background: #1a2332;
   }
 
-  .loading-overlay .spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid #e5e7eb;
-    border-top-color: #10b981;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 1rem;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .loading-text {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 0.5rem;
-  }
-
-  .tournament-page[data-theme='dark'] .loading-text {
+  .loading-overlay[data-theme='dark'] .loading-text {
     color: #e1e8ed;
   }
 
@@ -1842,7 +1809,7 @@
     margin: 0;
   }
 
-  .tournament-page[data-theme='dark'] .loading-subtext {
+  .loading-overlay[data-theme='dark'] .loading-subtext {
     color: #8b9bb3;
   }
 

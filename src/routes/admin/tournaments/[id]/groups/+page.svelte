@@ -6,6 +6,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import GroupsView from '$lib/components/tournament/GroupsView.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
@@ -26,6 +27,7 @@
   let error = false;
   let showToast = false;
   let toastMessage = '';
+  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
   let showCompleteConfirm = false;
   let isTransitioning = false;
   let showMatchDialog = false;
@@ -72,6 +74,7 @@
     timeBreakdown = calculateTimeBreakdown(tournament);
     await updateTournament(tournamentId, { timeEstimate });
     toastMessage = $t('timeRecalculated');
+    toastType = 'success';
     showToast = true;
   }
 
@@ -146,7 +149,8 @@
         error = true;
       } else if (tournament.status !== 'GROUP_STAGE') {
         // Redirect if not in group stage
-        toastMessage = `⚠️ ${$t('tournamentNotInGroupStage')}`;
+        toastMessage = $t('tournamentNotInGroupStage');
+        toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       }
@@ -161,7 +165,8 @@
   function handleMatchClick(match: GroupMatch) {
     // Allow editing both pending and completed matches
     if (match.participantB === 'BYE') {
-      toastMessage = `⚠️ ${$t('cannotEditByeMatch')}`;
+      toastMessage = $t('cannotEditByeMatch');
+      toastType = 'warning';
       showToast = true;
       return;
     }
@@ -183,11 +188,13 @@
     const success = await generateSwissPairings(tournamentId, nextRound);
 
     if (success) {
-      toastMessage = `✅ ${$t('swissRoundGeneratedSuccess').replace('{n}', String(nextRound))}`;
+      toastMessage = $t('swissRoundGeneratedSuccess').replace('{n}', String(nextRound));
+      toastType = 'success';
       showToast = true;
       await loadTournament();
     } else {
-      toastMessage = `❌ ${$t('errorGeneratingSwissRound')}`;
+      toastMessage = $t('errorGeneratingSwissRound');
+      toastType = 'error';
       showToast = true;
     }
   }
@@ -231,13 +238,15 @@
     );
 
     if (success) {
-      toastMessage = `✅ ${$t('resultSavedSuccessfully')}`;
+      toastMessage = $t('resultSavedSuccessfully');
+      toastType = 'success';
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
       // No need to reload - real-time subscription will update
     } else {
-      toastMessage = `❌ ${$t('errorSavingResult')}`;
+      toastMessage = $t('errorSavingResult');
+      toastType = 'error';
       showToast = true;
     }
   }
@@ -255,13 +264,15 @@
     );
 
     if (success) {
-      toastMessage = `✅ ${$t('noShowRegisteredSuccessfully')}`;
+      toastMessage = $t('noShowRegisteredSuccessfully');
+      toastType = 'success';
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
       // No need to reload - real-time subscription will update
     } else {
-      toastMessage = `❌ ${$t('errorRegisteringNoShow')}`;
+      toastMessage = $t('errorRegisteringNoShow');
+      toastType = 'error';
       showToast = true;
     }
   }
@@ -504,13 +515,15 @@
       }
 
       toastMessage = isSwiss
-        ? `✅ ${$t('matchesFilledForRound').replace('{n}', String(filledCount)).replace('{round}', String(currentRound))}`
-        : `✅ ${$t('matchesFilledAuto').replace('{n}', String(filledCount))}`;
+        ? $t('matchesFilledForRound').replace('{n}', String(filledCount)).replace('{round}', String(currentRound))
+        : $t('matchesFilledAuto').replace('{n}', String(filledCount));
+      toastType = 'success';
       showToast = true;
       await loadTournament(); // Reload to show updated results
     } catch (err) {
       console.error('Error auto-filling matches:', err);
-      toastMessage = `❌ ${$t('errorFillingMatchesGeneric')}`;
+      toastMessage = $t('errorFillingMatchesGeneric');
+      toastType = 'error';
       showToast = true;
     } finally {
       isAutoFilling = false;
@@ -535,7 +548,8 @@
 
       if (incompleteMatches.length > 0) {
         allComplete = false;
-        toastMessage = `❌ ${$t('groupHasPendingMatches').replace('{group}', translateGroupName(group.name)).replace('{n}', String(incompleteMatches.length))}`;
+        toastMessage = $t('groupHasPendingMatches').replace('{group}', translateGroupName(group.name)).replace('{n}', String(incompleteMatches.length));
+        toastType = 'error';
         showToast = true;
         return;
       }
@@ -560,16 +574,19 @@
       const success = await transitionTournament(tournamentId, 'TRANSITION');
 
       if (success) {
-        toastMessage = `✅ ${$t('groupStageCompletedTransition')}`;
+        toastMessage = $t('groupStageCompletedTransition');
+        toastType = 'success';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}/transition`), 1500);
       } else {
-        toastMessage = `❌ ${$t('errorCompletingGroupStage')}`;
+        toastMessage = $t('errorCompletingGroupStage');
+        toastType = 'error';
         showToast = true;
       }
     } catch (err) {
       console.error('Error completing group stage:', err);
-      toastMessage = `❌ ${$t('errorCompletingGroupStage')}`;
+      toastMessage = $t('errorCompletingGroupStage');
+      toastType = 'error';
       showToast = true;
     } finally {
       isTransitioning = false;
@@ -662,10 +679,7 @@
     <!-- Content -->
     <div class="page-content">
       {#if loading}
-        <div class="loading-state">
-          <div class="spinner"></div>
-          <p>{$t('loadingGroupStage')}</p>
-        </div>
+        <LoadingSpinner message={$t('loadingGroupStage')} />
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
@@ -728,15 +742,13 @@
   {/if}
 </AdminGuard>
 
-<Toast bind:visible={showToast} message={toastMessage} />
+<Toast bind:visible={showToast} message={toastMessage} type={toastType} />
 
 <!-- Loading Overlay -->
 {#if isTransitioning}
-  <div class="loading-overlay">
+  <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <div class="spinner"></div>
-      <p class="loading-text">Completando fase de grupos...</p>
-      <p class="loading-subtext">Por favor espere</p>
+      <LoadingSpinner size="large" message="Completando fase de grupos..." />
     </div>
   </div>
 {/if}
@@ -1206,7 +1218,7 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   }
 
-  .groups-page[data-theme='dark'] .loading-content {
+  .loading-overlay[data-theme='dark'] .loading-content {
     background: #1a2332;
   }
 
@@ -1233,7 +1245,7 @@
     margin: 0 0 0.5rem;
   }
 
-  .groups-page[data-theme='dark'] .loading-text {
+  .loading-overlay[data-theme='dark'] .loading-text {
     color: #e1e8ed;
   }
 
@@ -1243,7 +1255,7 @@
     margin: 0;
   }
 
-  .groups-page[data-theme='dark'] .loading-subtext {
+  .loading-overlay[data-theme='dark'] .loading-subtext {
     color: #8b9bb3;
   }
 </style>

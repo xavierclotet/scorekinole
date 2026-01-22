@@ -2,80 +2,277 @@
 	export let message: string = '';
 	export let visible: boolean = false;
 	export let duration: number = 3000;
+	export let type: 'success' | 'error' | 'info' | 'warning' = 'info';
 	export let onClose: () => void = () => {};
 
 	let timeoutId: ReturnType<typeof setTimeout> | null = null;
+	let isExiting = false;
 
 	$: if (visible) {
+		isExiting = false;
 		if (timeoutId) {
 			clearTimeout(timeoutId);
 		}
 		timeoutId = setTimeout(() => {
-			visible = false;
-			onClose();
+			isExiting = true;
+			setTimeout(() => {
+				visible = false;
+				isExiting = false;
+				onClose();
+			}, 200);
 		}, duration);
+	}
+
+	function handleDismiss() {
+		if (timeoutId) {
+			clearTimeout(timeoutId);
+		}
+		isExiting = true;
+		setTimeout(() => {
+			visible = false;
+			isExiting = false;
+			onClose();
+		}, 200);
+	}
+
+	function getIcon(t: string): string {
+		switch (t) {
+			case 'success': return '✓';
+			case 'error': return '✕';
+			case 'warning': return '!';
+			default: return 'i';
+		}
 	}
 </script>
 
 {#if visible}
-	<div class="toast" role="alert">
-		<span class="toast-icon">ℹ️</span>
-		<span class="toast-message">{message}</span>
+	<div
+		class="toast-container"
+		class:exit={isExiting}
+		role="alert"
+		aria-live="polite"
+	>
+		<div class="toast toast-{type}">
+			<div class="toast-icon-wrapper toast-icon-{type}">
+				<span class="toast-icon">{getIcon(type)}</span>
+			</div>
+			<span class="toast-message">{message}</span>
+			<button
+				class="toast-close"
+				on:click={handleDismiss}
+				aria-label="Cerrar notificación"
+			>
+				<svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+					<path d="M1 1L13 13M1 13L13 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+				</svg>
+			</button>
+		</div>
 	</div>
 {/if}
 
 <style>
-	.toast {
+	.toast-container {
 		position: fixed;
-		bottom: 5rem;
+		bottom: 1.5rem;
 		left: 50%;
 		transform: translateX(-50%);
-		background: rgba(0, 255, 136, 0.15);
-		border: 2px solid rgba(0, 255, 136, 0.5);
-		border-radius: 12px;
-		padding: 1rem 1.5rem;
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		z-index: 3000;
-		max-width: 90%;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-		opacity: 0;
-		animation: toastFadeIn 0.2s ease-out forwards;
+		z-index: 9999;
+		width: calc(100% - 1.5rem);
+		max-width: 360px;
+		animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	}
 
-	@keyframes toastFadeIn {
+	.toast-container.exit {
+		animation: slideDown 0.2s ease-in forwards;
+	}
+
+	@keyframes slideUp {
+		from {
+			opacity: 0;
+			transform: translateX(-50%) translateY(1rem);
+		}
 		to {
 			opacity: 1;
+			transform: translateX(-50%) translateY(0);
 		}
 	}
 
-	.toast-icon {
-		font-size: 1.5rem;
+	@keyframes slideDown {
+		from {
+			opacity: 1;
+			transform: translateX(-50%) translateY(0);
+		}
+		to {
+			opacity: 0;
+			transform: translateX(-50%) translateY(1rem);
+		}
+	}
+
+	.toast {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		padding: 0.625rem 0.875rem;
+		background: #1a1a2e;
+		border-radius: 10px;
+		box-shadow:
+			0 4px 6px -1px rgba(0, 0, 0, 0.2),
+			0 10px 15px -3px rgba(0, 0, 0, 0.3),
+			0 0 0 1px rgba(255, 255, 255, 0.05);
+	}
+
+	.toast-success {
+		border-left: 4px solid #22c55e;
+	}
+
+	.toast-error {
+		border-left: 4px solid #ef4444;
+	}
+
+	.toast-warning {
+		border-left: 4px solid #f59e0b;
+	}
+
+	.toast-info {
+		border-left: 4px solid #3b82f6;
+	}
+
+	.toast-icon-wrapper {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
 		flex-shrink: 0;
 	}
 
-	.toast-message {
-		color: var(--text-color, #fff);
-		font-size: 0.95rem;
-		font-weight: 600;
-		line-height: 1.4;
+	.toast-icon-success {
+		background: rgba(34, 197, 94, 0.15);
+		color: #22c55e;
 	}
 
-	/* Mobile responsiveness */
-	@media (max-width: 600px) {
+	.toast-icon-error {
+		background: rgba(239, 68, 68, 0.15);
+		color: #ef4444;
+	}
+
+	.toast-icon-warning {
+		background: rgba(245, 158, 11, 0.15);
+		color: #f59e0b;
+	}
+
+	.toast-icon-info {
+		background: rgba(59, 130, 246, 0.15);
+		color: #3b82f6;
+	}
+
+	.toast-icon {
+		font-size: 0.7rem;
+		font-weight: 700;
+		font-family: system-ui, -apple-system, sans-serif;
+		line-height: 1;
+	}
+
+	.toast-message {
+		flex: 1;
+		color: #f1f5f9;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		line-height: 1.3;
+		letter-spacing: -0.01em;
+	}
+
+	.toast-close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		background: transparent;
+		border: none;
+		border-radius: 5px;
+		color: #64748b;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		flex-shrink: 0;
+	}
+
+	.toast-close:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: #94a3b8;
+	}
+
+	.toast-close:active {
+		transform: scale(0.95);
+	}
+
+	/* Tablet */
+	@media (min-width: 600px) {
+		.toast-container {
+			bottom: 2.5rem;
+			max-width: 400px;
+		}
+
 		.toast {
-			bottom: 4rem;
-			padding: 0.875rem 1.25rem;
-			max-width: 85%;
+			padding: 0.75rem 1rem;
+			gap: 0.75rem;
+		}
+
+		.toast-icon-wrapper {
+			width: 24px;
+			height: 24px;
 		}
 
 		.toast-icon {
-			font-size: 1.25rem;
+			font-size: 0.75rem;
 		}
 
 		.toast-message {
 			font-size: 0.875rem;
+		}
+
+		.toast-close {
+			width: 24px;
+			height: 24px;
+		}
+	}
+
+	/* Mobile landscape / small screens */
+	@media (max-width: 480px) {
+		.toast-container {
+			bottom: 1rem;
+			width: calc(100% - 1rem);
+		}
+
+		.toast {
+			padding: 0.5rem 0.75rem;
+			gap: 0.5rem;
+			border-radius: 8px;
+		}
+
+		.toast-icon-wrapper {
+			width: 20px;
+			height: 20px;
+		}
+
+		.toast-icon {
+			font-size: 0.625rem;
+		}
+
+		.toast-message {
+			font-size: 0.75rem;
+		}
+
+		.toast-close {
+			width: 20px;
+			height: 20px;
+		}
+
+		.toast-close svg {
+			width: 10px;
+			height: 10px;
 		}
 	}
 </style>

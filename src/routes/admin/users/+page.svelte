@@ -3,6 +3,7 @@
   import SuperAdminGuard from '$lib/components/SuperAdminGuard.svelte';
   import UserEditModal from '$lib/components/UserEditModal.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { t } from '$lib/stores/language';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/adminTheme';
@@ -195,10 +196,7 @@
     </div>
 
     {#if isLoading}
-      <div class="loading-state">
-        <div class="spinner"></div>
-        <p>{$t('loading')}...</p>
-      </div>
+      <LoadingSpinner message={$t('loading')} />
     {:else if filteredUsers.length === 0}
       <div class="empty-state">
         <div class="empty-icon">👥</div>
@@ -294,10 +292,7 @@
         </table>
 
         {#if isLoadingMore}
-          <div class="loading-more">
-            <div class="spinner small"></div>
-            <span>{$t('loadingMore')}</span>
-          </div>
+          <LoadingSpinner size="small" message={$t('loadingMore')} inline={true} />
         {:else if hasMore && !isSearching && !isFiltering}
           <div class="load-more-hint">
             {$t('scrollToLoadMore')}
@@ -320,7 +315,7 @@
   {/if}
 
   {#if userToDelete}
-    <div class="delete-overlay" on:click={cancelDelete}>
+    <div class="delete-overlay" data-theme={$adminTheme} on:click={cancelDelete}>
       <div class="delete-modal" on:click|stopPropagation>
         <h3>{$t('deleteUser')}</h3>
         <div class="user-preview">
@@ -806,58 +801,6 @@
     background: #4d1f24;
   }
 
-  /* Loading state */
-  .loading-state {
-    text-align: center;
-    padding: 4rem 2rem;
-  }
-
-  .spinner {
-    width: 50px;
-    height: 50px;
-    margin: 0 auto 1rem;
-    border: 4px solid #f0f0f0;
-    border-top: 4px solid #667eea;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  .spinner.small {
-    width: 24px;
-    height: 24px;
-    border-width: 2px;
-    margin: 0;
-  }
-
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-
-  .loading-state p {
-    color: #666;
-    transition: color 0.3s;
-  }
-
-  .users-container[data-theme='dark'] .loading-state p {
-    color: #8b9bb3;
-  }
-
-  /* Infinite scroll indicators */
-  .loading-more {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 1.5rem;
-    color: #666;
-    font-size: 0.9rem;
-  }
-
-  .users-container[data-theme='dark'] .loading-more {
-    color: #8b9bb3;
-  }
-
   .load-more-hint,
   .end-of-list {
     text-align: center;
@@ -936,7 +879,7 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   }
 
-  .users-container[data-theme='dark'] ~ .delete-overlay .delete-modal {
+  .delete-overlay[data-theme='dark'] .delete-modal {
     background: #1a2332;
     color: #e1e8ed;
   }
@@ -957,7 +900,7 @@
     margin-bottom: 1rem;
   }
 
-  .users-container[data-theme='dark'] ~ .delete-overlay .user-preview {
+  .delete-overlay[data-theme='dark'] .user-preview {
     background: #0f1419;
   }
 
@@ -1008,7 +951,7 @@
     background: #d1d5db;
   }
 
-  .users-container[data-theme='dark'] ~ .delete-overlay .cancel-btn {
+  .delete-overlay[data-theme='dark'] .cancel-btn {
     background: #374151;
     color: #e5e7eb;
   }

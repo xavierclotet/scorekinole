@@ -3,6 +3,7 @@
   import SuperAdminGuard from '$lib/components/SuperAdminGuard.svelte';
   import MatchEditModal from '$lib/components/MatchEditModal.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { t } from '$lib/stores/language';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/adminTheme';
@@ -203,10 +204,7 @@
     </div>
 
     {#if isLoading}
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>{$t('loading')}</p>
-      </div>
+      <LoadingSpinner message={$t('loading')} />
     {:else if errorMessage}
       <div class="error-box">
         <p>{errorMessage}</p>
@@ -320,10 +318,7 @@
         </table>
 
         {#if isLoadingMore}
-          <div class="loading-more">
-            <div class="spinner small"></div>
-            <span>Cargando más...</span>
-          </div>
+          <LoadingSpinner size="small" message="Cargando más..." inline={true} />
         {:else if hasMore && !isSearching}
           <div class="load-more-hint">
             Scroll para cargar más partidas
@@ -346,7 +341,7 @@
   {/if}
 
   {#if showDeleteConfirm && matchToDelete}
-    <div class="modal-backdrop" on:click={cancelDelete}>
+    <div class="modal-backdrop" data-theme={$adminTheme} on:click={cancelDelete}>
       <div class="confirm-modal" on:click|stopPropagation>
         <h2>{$t('confirmDelete')}</h2>
         <p>{$t('deleteMatchWarning')}</p>
@@ -522,44 +517,6 @@
   .matches-container[data-theme='dark'] .empty-state {
     background: #1a2332;
     color: #e1e8ed;
-  }
-
-  .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid #f3f3f3;
-    border-top-color: #f5576c;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin-bottom: 1rem;
-  }
-
-  .spinner.small {
-    width: 24px;
-    height: 24px;
-    border-width: 2px;
-    margin-bottom: 0;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  /* Infinite scroll indicators */
-  .loading-more {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 1.5rem;
-    color: #666;
-    font-size: 0.9rem;
-  }
-
-  .matches-container[data-theme='dark'] .loading-more {
-    color: #8b9bb3;
   }
 
   .load-more-hint,
@@ -993,6 +950,31 @@
   .confirm-btn:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(245, 87, 108, 0.3);
+  }
+
+  /* Dark theme for modal */
+  .modal-backdrop[data-theme='dark'] .confirm-modal {
+    background: #1a2332;
+  }
+
+  .modal-backdrop[data-theme='dark'] .confirm-modal h2 {
+    color: #f5576c;
+  }
+
+  .modal-backdrop[data-theme='dark'] .confirm-modal p {
+    color: #8b9bb3;
+  }
+
+  .modal-backdrop[data-theme='dark'] .match-info {
+    background: #0f1419;
+  }
+
+  .modal-backdrop[data-theme='dark'] .match-info strong {
+    color: #e1e8ed;
+  }
+
+  .modal-backdrop[data-theme='dark'] .match-info span {
+    color: #8b9bb3;
   }
 
   /* Responsive */

@@ -3,6 +3,7 @@
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { t } from '$lib/stores/language';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { goto } from '$app/navigation';
@@ -20,6 +21,7 @@
   let tournamentToDelete: Tournament | null = null;
   let showToast = false;
   let toastMessage = '';
+  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
   const pageSize = 15;
 
   // Infinite scroll state
@@ -164,13 +166,15 @@
     const success = await deleteTournamentFirebase(tournamentToDelete.id);
 
     if (success) {
-      toastMessage = '✅ ' + $t('tournamentDeletedSuccess');
+      toastMessage = $t('tournamentDeletedSuccess');
+      toastType = 'success';
       showToast = true;
       tournaments = tournaments.filter(t => t.id !== tournamentToDelete!.id);
       totalCount = Math.max(0, totalCount - 1);
       filterTournaments();
     } else {
-      toastMessage = '❌ ' + $t('tournamentDeleteError');
+      toastMessage = $t('tournamentDeleteError');
+      toastType = 'error';
       showToast = true;
     }
 
@@ -236,10 +240,7 @@
     </div>
 
     {#if loading}
-      <div class="loading-state">
-        <div class="spinner"></div>
-        <p>{$t('loading')}...</p>
-      </div>
+      <LoadingSpinner message={$t('loading')} />
     {:else if filteredTournaments.length === 0}
       <div class="empty-state">
         <div class="empty-icon">🏆</div>
@@ -346,10 +347,7 @@
         </table>
 
         {#if loadingMore}
-          <div class="loading-more">
-            <div class="spinner small"></div>
-            <span>{$t('loadingMore')}</span>
-          </div>
+          <LoadingSpinner size="small" message={$t('loadingMore')} inline={true} />
         {:else if hasMore && !isSearching && !isFiltering}
           <div class="load-more-hint">
             {$t('scrollToLoadMore')}
@@ -365,7 +363,7 @@
 
   <!-- Delete Confirmation Modal -->
   {#if showDeleteConfirm && tournamentToDelete}
-    <div class="modal-backdrop" on:click={cancelDelete}>
+    <div class="modal-backdrop" data-theme={$adminTheme} on:click={cancelDelete}>
       <div class="confirm-modal" on:click|stopPropagation>
         <h2>{$t('confirmDelete')}</h2>
         <p>{$t('confirmCancelTournament')}</p>
@@ -385,7 +383,7 @@
   {/if}
 </AdminGuard>
 
-<Toast bind:visible={showToast} message={toastMessage} />
+<Toast bind:visible={showToast} message={toastMessage} type={toastType} />
 
 <style>
   .tournaments-container {
@@ -785,62 +783,7 @@
     color: #fa709a;
   }
 
-  /* Loading state */
-  .loading-state {
-    text-align: center;
-    padding: 4rem 2rem;
-  }
-
-  .spinner {
-    width: 50px;
-    height: 50px;
-    margin: 0 auto 1rem;
-    border: 4px solid #f0f0f0;
-    border-top: 4px solid #fa709a;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  .spinner.small {
-    width: 24px;
-    height: 24px;
-    border-width: 2px;
-    margin: 0;
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
-
-  .loading-state p {
-    color: #666;
-    transition: color 0.3s;
-  }
-
-  .tournaments-container[data-theme='dark'] .loading-state p {
-    color: #8b9bb3;
-  }
-
-  /* Infinite scroll indicators */
-  .loading-more {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 1.5rem;
-    color: #666;
-    font-size: 0.9rem;
-  }
-
-  .tournaments-container[data-theme='dark'] .loading-more {
-    color: #8b9bb3;
-  }
-
+  
   .load-more-hint,
   .end-of-list {
     text-align: center;
@@ -1201,7 +1144,7 @@
     transition: all 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .confirm-modal {
+  .modal-backdrop[data-theme='dark'] .confirm-modal {
     background: #1a2332;
   }
 
@@ -1212,7 +1155,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .confirm-modal h2 {
+  .modal-backdrop[data-theme='dark'] .confirm-modal h2 {
     color: #e1e8ed;
   }
 
@@ -1222,7 +1165,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .confirm-modal p {
+  .modal-backdrop[data-theme='dark'] .confirm-modal p {
     color: #8b9bb3;
   }
 
@@ -1234,7 +1177,7 @@
     transition: all 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .tournament-info {
+  .modal-backdrop[data-theme='dark'] .tournament-info {
     background: #0f1419;
   }
 
@@ -1243,7 +1186,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .tournament-info strong {
+  .modal-backdrop[data-theme='dark'] .tournament-info strong {
     color: #e1e8ed;
   }
 
@@ -1253,7 +1196,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .tournament-info span {
+  .modal-backdrop[data-theme='dark'] .tournament-info span {
     color: #8b9bb3;
   }
 
@@ -1274,7 +1217,7 @@
     transition: all 0.2s;
   }
 
-  .tournaments-container[data-theme='dark'] .cancel-btn {
+  .modal-backdrop[data-theme='dark'] .cancel-btn {
     background: #0f1419;
     color: #e1e8ed;
   }
@@ -1283,7 +1226,7 @@
     background: #e5e7eb;
   }
 
-  .tournaments-container[data-theme='dark'] .cancel-btn:hover {
+  .modal-backdrop[data-theme='dark'] .cancel-btn:hover {
     background: #2d3748;
   }
 

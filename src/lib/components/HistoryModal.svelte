@@ -37,6 +37,7 @@
 	// Toast state
 	let showToast = false;
 	let toastMessage = '';
+	let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
 
 	// Force re-render for duration updates
 	let now = Date.now();
@@ -317,6 +318,7 @@
 			console.log('ℹ️ All matches already synced');
 			// Show toast notification
 			toastMessage = $t('allMatchesAlreadySynced');
+			toastType = 'info';
 			showToast = true;
 			// Still fetch from cloud
 			fetchFromCloud();
@@ -901,6 +903,7 @@
 <Toast
 	message={toastMessage}
 	visible={showToast}
+	type={toastType}
 	duration={3000}
 	onClose={() => showToast = false}
 />

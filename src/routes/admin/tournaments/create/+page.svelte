@@ -3,6 +3,7 @@
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { goto } from '$app/navigation';
   import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
@@ -31,6 +32,7 @@
   // Toast state
   let showToast = false;
   let toastMessage = '';
+  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
 
   // Quota state
   let quotaInfo: { canCreate: boolean; used: number; limit: number; isSuperAdmin: boolean } | null = null;
@@ -222,14 +224,16 @@
     try {
       const tournament = await getTournament(tournamentId);
       if (!tournament) {
-        toastMessage = '❌ Error: Torneo no encontrado';
+        toastMessage = 'Error: Torneo no encontrado';
+        toastType = 'error';
         showToast = true;
         setTimeout(() => goto('/admin/tournaments'), 2000);
         return;
       }
 
       if (tournament.status !== 'DRAFT') {
-        toastMessage = '❌ Solo se pueden editar torneos en estado DRAFT';
+        toastMessage = 'Solo se pueden editar torneos en estado DRAFT';
+        toastType = 'error';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 2000);
         return;
@@ -358,7 +362,8 @@
       console.log('✅ Tournament loaded for editing');
     } catch (error) {
       console.error('❌ Error loading tournament for edit:', error);
-      toastMessage = '❌ Error al cargar el torneo';
+      toastMessage = 'Error al cargar el torneo';
+      toastType = 'error';
       showToast = true;
     }
   }
@@ -367,7 +372,8 @@
     try {
       const tournament = await getTournament(tournamentId);
       if (!tournament) {
-        toastMessage = '❌ Error: Torneo no encontrado';
+        toastMessage = 'Error: Torneo no encontrado';
+        toastType = 'error';
         showToast = true;
         setTimeout(() => goto('/admin/tournaments'), 2000);
         return;
@@ -491,12 +497,14 @@
       // Go directly to step 6 (review) since all data is pre-filled
       currentStep = 6;
 
-      toastMessage = `✅ Torneo cargado para duplicar (Edición #${edition})`;
+      toastMessage = `Torneo cargado para duplicar (Edición #${edition})`;
+      toastType = 'success';
       showToast = true;
       console.log('✅ Tournament loaded for duplication');
     } catch (error) {
       console.error('❌ Error loading tournament for duplication:', error);
-      toastMessage = '❌ Error al cargar el torneo';
+      toastMessage = 'Error al cargar el torneo';
+      toastType = 'error';
       showToast = true;
     }
   }
@@ -757,6 +765,7 @@
     const alreadyAdded = participants.some(p => p.userId === user.userId);
     if (alreadyAdded) {
       toastMessage = 'Este usuario ya está agregado';
+      toastType = 'warning';
       showToast = true;
       return;
     }
@@ -802,7 +811,8 @@
       // User exists - auto-fill search and show suggestion
       searchQuery = guestName.trim();
       await handleSearch();
-      toastMessage = `⚠️ Existe un usuario registrado con el nombre "${guestName}". Añádelo desde la lista de usuarios.`;
+      toastMessage = `Existe un usuario registrado con el nombre "${guestName}". Añádelo desde la lista de usuarios.`;
+      toastType = 'warning';
       showToast = true;
       return;
     }
@@ -981,6 +991,7 @@
         toastMessage = $t('tournamentLimitReached')
           .replace('{used}', freshQuota.used.toString())
           .replace('{limit}', freshQuota.limit.toString());
+        toastType = 'error';
         showToast = true;
         return;
       }
@@ -1129,12 +1140,14 @@
 
         if (!success) {
           creating = false;
-          toastMessage = '❌ Error al actualizar el torneo';
+          toastMessage = 'Error al actualizar el torneo';
+          toastType = 'error';
           showToast = true;
           return;
         }
 
-        toastMessage = '✅ Torneo actualizado exitosamente';
+        toastMessage = 'Torneo actualizado exitosamente';
+        toastType = 'success';
         showToast = true;
 
         // Redirect to tournament page
@@ -1147,7 +1160,8 @@
 
         if (!tournamentId) {
           creating = false;
-          toastMessage = '❌ Error al crear el torneo';
+          toastMessage = 'Error al crear el torneo';
+          toastType = 'error';
           showToast = true;
           return;
         }
@@ -1157,7 +1171,8 @@
 
         if (!participantsAdded) {
           creating = false;
-          toastMessage = '⚠️ Torneo creado pero hubo errores al agregar los participantes';
+          toastMessage = 'Torneo creado pero hubo errores al agregar los participantes';
+          toastType = 'warning';
           showToast = true;
           setTimeout(() => {
             goto(`/admin/tournaments/${tournamentId}`);
@@ -1169,7 +1184,8 @@
         clearDraft();
 
         // Show success toast
-        toastMessage = '✅ Torneo creado exitosamente';
+        toastMessage = 'Torneo creado exitosamente';
+        toastType = 'success';
         showToast = true;
 
         // Redirect to tournament page
@@ -1180,7 +1196,8 @@
     } catch (error) {
       console.error('Error creating/updating tournament:', error);
       creating = false;
-      toastMessage = `❌ Error al ${editMode ? 'actualizar' : 'crear'} el torneo. Por favor, inténtalo de nuevo.`;
+      toastMessage = `Error al ${editMode ? 'actualizar' : 'crear'} el torneo. Por favor, inténtalo de nuevo.`;
+      toastType = 'error';
       showToast = true;
     }
   }
@@ -2656,6 +2673,7 @@
 <Toast
   message={toastMessage}
   visible={showToast}
+  type={toastType}
   duration={3000}
   onClose={() => showToast = false}
 />
@@ -2664,9 +2682,7 @@
 {#if creating}
   <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <div class="spinner"></div>
-      <p class="loading-text">{editMode ? $t('savingTournament') : $t('creatingTournament')}</p>
-      <p class="loading-subtext">{$t('pleaseWait')}</p>
+      <LoadingSpinner size="large" message={editMode ? $t('savingTournament') : $t('creatingTournament')} />
     </div>
   </div>
 {/if}

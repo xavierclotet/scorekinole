@@ -5,6 +5,7 @@
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import QualifierSelection from '$lib/components/tournament/QualifierSelection.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { t } from '$lib/stores/language';
@@ -31,6 +32,7 @@
   let error = false;
   let showToast = false;
   let toastMessage = '';
+  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
   let isProcessing = false;
   let showBracketPreview = false;
   let showTimeBreakdown = false;
@@ -150,6 +152,7 @@
     timeBreakdown = calculateTimeBreakdown(tournament);
     await updateTournament(tournamentId, { timeEstimate });
     toastMessage = $t('timeRecalculated');
+    toastType = 'success';
     showToast = true;
   }
 
@@ -173,7 +176,8 @@
         error = true;
       } else if (tournament.status !== 'TRANSITION') {
         // Redirect if not in transition
-        toastMessage = `⚠️ ${$t('tournamentNotInTransition')}`;
+        toastMessage = $t('tournamentNotInTransition');
+        toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       } else {
@@ -357,7 +361,8 @@
         const bracketSuccess = await generateBracket(tournamentId, bracketConfig);
 
         if (!bracketSuccess) {
-          toastMessage = `❌ ${$t('errorGeneratingBracket')}`;
+          toastMessage = $t('errorGeneratingBracket');
+          toastType = 'error';
           showToast = true;
           return;
         }
@@ -410,7 +415,8 @@
         });
 
         if (!bracketSuccess) {
-          toastMessage = `❌ ${$t('errorGeneratingGoldSilverBrackets')}`;
+          toastMessage = $t('errorGeneratingGoldSilverBrackets');
+          toastType = 'error';
           showToast = true;
           return;
         }
@@ -423,17 +429,20 @@
 
       if (success) {
         toastMessage = isSplitDivisions
-          ? `✅ ${$t('goldSilverBracketsGenerated')}`
-          : `✅ ${$t('bracketGeneratedAdvancing')}`;
+          ? $t('goldSilverBracketsGenerated')
+          : $t('bracketGeneratedAdvancing');
+        toastType = 'success';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}/bracket`), 1500);
       } else {
-        toastMessage = `❌ ${$t('errorAdvancingToFinalStage')}`;
+        toastMessage = $t('errorAdvancingToFinalStage');
+        toastType = 'error';
         showToast = true;
       }
     } catch (err) {
       console.error('Error generating bracket:', err);
-      toastMessage = `❌ ${$t('errorGeneratingBracket')}`;
+      toastMessage = $t('errorGeneratingBracket');
+      toastType = 'error';
       showToast = true;
     } finally {
       isProcessing = false;
@@ -763,10 +772,7 @@
     <!-- Content -->
     <div class="page-content">
       {#if loading}
-        <div class="loading-state">
-          <div class="spinner"></div>
-          <p>{$t('loadingTransition')}</p>
-        </div>
+        <LoadingSpinner message={$t('loadingTransition')} />
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
@@ -1272,15 +1278,13 @@
   </div>
 </AdminGuard>
 
-<Toast bind:visible={showToast} message={toastMessage} />
+<Toast bind:visible={showToast} message={toastMessage} type={toastType} />
 
 <!-- Loading Overlay -->
 {#if isProcessing}
-  <div class="loading-overlay">
+  <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <div class="spinner"></div>
-      <p class="loading-text">{isSplitDivisions ? 'Generando brackets Oro/Plata...' : 'Generando bracket...'}</p>
-      <p class="loading-subtext">Por favor espere</p>
+      <LoadingSpinner size="large" message={isSplitDivisions ? 'Generando brackets Oro/Plata...' : 'Generando bracket...'} />
     </div>
   </div>
 {/if}
@@ -2980,7 +2984,7 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   }
 
-  .transition-page[data-theme='dark'] .loading-content {
+  .loading-overlay[data-theme='dark'] .loading-content {
     background: #1a2332;
   }
 
@@ -3007,7 +3011,7 @@
     margin: 0 0 0.5rem;
   }
 
-  .transition-page[data-theme='dark'] .loading-text {
+  .loading-overlay[data-theme='dark'] .loading-text {
     color: #e1e8ed;
   }
 
@@ -3017,7 +3021,7 @@
     margin: 0;
   }
 
-  .transition-page[data-theme='dark'] .loading-subtext {
+  .loading-overlay[data-theme='dark'] .loading-subtext {
     color: #8b9bb3;
   }
 </style>

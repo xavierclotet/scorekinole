@@ -6,6 +6,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/adminTheme';
   import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
@@ -31,6 +32,7 @@
   let error = false;
   let showToast = false;
   let toastMessage = '';
+  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
   let showMatchDialog = false;
   let selectedMatch: BracketMatch | null = null;
   let selectedBracketType: 'gold' | 'silver' = 'gold';
@@ -143,6 +145,7 @@
     timeBreakdown = calculateTimeBreakdown(tournament);
     await updateTournament(tournamentId, { timeEstimate });
     toastMessage = $t('timeRecalculated');
+    toastType = 'success';
     showToast = true;
   }
 
@@ -161,11 +164,13 @@
       if (!tournament) {
         error = true;
       } else if (tournament.status !== 'FINAL_STAGE') {
-        toastMessage = `⚠️ ${$t('tournamentNotInFinalStage')}`;
+        toastMessage = $t('tournamentNotInFinalStage');
+        toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       } else if (!tournament.finalStage?.bracket) {
-        toastMessage = `⚠️ ${$t('bracketNotGenerated')}`;
+        toastMessage = $t('bracketNotGenerated');
+        toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       }
@@ -277,16 +282,19 @@
       );
 
       if (success) {
-        toastMessage = `✅ ${$t('resultSaved')}`;
+        toastMessage = $t('resultSaved');
+        toastType = 'success';
         selectedMatch = null;
         // No need to reload - real-time subscription will update
       } else {
-        toastMessage = `❌ ${$t('errorSavingResult')}`;
+        toastMessage = $t('errorSavingResult');
+        toastType = 'error';
       }
       showToast = true;
     } catch (err) {
       console.error('Error saving match:', err);
-      toastMessage = `❌ ${$t('errorSavingResult')}`;
+      toastMessage = $t('errorSavingResult');
+      toastType = 'error';
       showToast = true;
     } finally {
       isSavingMatch = false;
@@ -310,17 +318,20 @@
       );
 
       if (success) {
-        toastMessage = `✅ ${$t('walkoverRegistered')}`;
+        toastMessage = $t('walkoverRegistered');
+        toastType = 'success';
         showMatchDialog = false;
         selectedMatch = null;
         // No need to reload - real-time subscription will update
       } else {
-        toastMessage = `❌ ${$t('errorRegisteringWalkover')}`;
+        toastMessage = $t('errorRegisteringWalkover');
+        toastType = 'error';
       }
       showToast = true;
     } catch (err) {
       console.error('Error handling no-show:', err);
-      toastMessage = `❌ ${$t('errorRegisteringWalkover')}`;
+      toastMessage = $t('errorRegisteringWalkover');
+      toastType = 'error';
       showToast = true;
     }
   }
@@ -535,12 +546,14 @@
         filledCount += await processBracket('silver');
       }
 
-      toastMessage = `✅ ${filledCount} ${$t('matchesFilledAutomatically')}`;
+      toastMessage = `${filledCount} ${$t('matchesFilledAutomatically')}`;
+      toastType = 'success';
       showToast = true;
       await loadTournament(); // Final reload
     } catch (err) {
       console.error('Error auto-filling bracket matches:', err);
-      toastMessage = `❌ ${$t('errorFillingMatches')}`;
+      toastMessage = $t('errorFillingMatches');
+      toastType = 'error';
       showToast = true;
     } finally {
       isAutoFilling = false;
@@ -642,10 +655,7 @@
 
     <div class="page-content">
       {#if loading}
-        <div class="loading-state">
-          <div class="spinner"></div>
-          <p>{$t('loadingBracket')}</p>
-        </div>
+        <LoadingSpinner message={$t('loadingBracket')} />
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
@@ -894,15 +904,13 @@
   />
 {/if}
 
-<Toast bind:visible={showToast} message={toastMessage} />
+<Toast bind:visible={showToast} message={toastMessage} type={toastType} />
 
 <!-- Loading Overlay -->
 {#if isAutoFilling || isSavingMatch}
-  <div class="loading-overlay">
+  <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <div class="spinner"></div>
-      <p class="loading-text">{isAutoFilling ? 'Rellenando resultados...' : loadingMessage}</p>
-      <p class="loading-subtext">Por favor espere</p>
+      <LoadingSpinner size="large" message={isAutoFilling ? 'Rellenando resultados...' : loadingMessage} />
     </div>
   </div>
 {/if}
@@ -1879,7 +1887,7 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   }
 
-  .bracket-page[data-theme='dark'] .loading-content {
+  .loading-overlay[data-theme='dark'] .loading-content {
     background: #1a2332;
   }
 
@@ -1906,7 +1914,7 @@
     margin: 0 0 0.5rem;
   }
 
-  .bracket-page[data-theme='dark'] .loading-text {
+  .loading-overlay[data-theme='dark'] .loading-text {
     color: #e1e8ed;
   }
 
@@ -1916,7 +1924,7 @@
     margin: 0;
   }
 
-  .bracket-page[data-theme='dark'] .loading-subtext {
+  .loading-overlay[data-theme='dark'] .loading-subtext {
     color: #8b9bb3;
   }
 </style>
