@@ -20,7 +20,7 @@ export interface User {
   id: string;
   name: string;
   email: string | null;
-  photo: string | null;
+  photoURL: string | null;
 }
 
 // Current user store (reactive)
@@ -42,7 +42,7 @@ export async function signInWithGoogle(): Promise<User> {
       id: 'mock-user-123',
       name: 'Developer User',
       email: 'dev@scorekinole.com',
-      photo: null
+      photoURL: null
     };
     currentUser.set(mockUser);
     return mockUser;
@@ -79,11 +79,11 @@ export async function signInWithGoogle(): Promise<User> {
         id: user.uid,
         name: user.displayName || 'Unknown',
         email: user.email,
-        photo: user.photoURL
+        photoURL: user.photoURL
       };
 
       console.log('✅ User signed in (native):', appUser.name);
-      console.log('✅ Photo URL:', appUser.photo);
+      console.log('✅ Photo URL:', appUser.photoURL);
       currentUser.set(appUser);
       return appUser;
     } else {
@@ -98,7 +98,7 @@ export async function signInWithGoogle(): Promise<User> {
         id: user.uid,
         name: user.displayName || 'Unknown',
         email: user.email,
-        photo: user.photoURL
+        photoURL: user.photoURL
       };
 
       console.log('✅ User signed in (web):', appUser.name);
@@ -154,7 +154,7 @@ export function initAuthListener(): void {
         id: user.uid,
         name: user.displayName || 'Unknown',
         email: user.email,
-        photo: user.photoURL
+        photoURL: user.photoURL
       };
       currentUser.set(appUser);
     } else {

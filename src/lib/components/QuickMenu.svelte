@@ -7,9 +7,16 @@
 
 	// Menu open/close state
 	let isOpen = false;
+	let justOpened = false;
 
 	export function toggleMenu() {
-		isOpen = !isOpen;
+		if (!isOpen) {
+			isOpen = true;
+			justOpened = true;
+			setTimeout(() => { justOpened = false; }, 100);
+		} else {
+			isOpen = false;
+		}
 	}
 
 	function closeMenu() {
@@ -17,40 +24,47 @@
 	}
 
 	// Auth actions
-	function handleLogin() {
+	function handleLogin(event: MouseEvent) {
+		event.stopPropagation();
 		dispatch('login');
 		closeMenu();
 	}
 
-	function handleProfile() {
+	function handleProfile(event: MouseEvent) {
+		event.stopPropagation();
 		dispatch('profile');
 		closeMenu();
 	}
 
-	async function handleSignOut() {
+	async function handleSignOut(event: MouseEvent) {
+		event.stopPropagation();
 		await signOut();
 		closeMenu();
 	}
 
 	// Click outside to close
 	function handleClickOutside(event: MouseEvent) {
+		if (justOpened) return;
 		const target = event.target as HTMLElement;
-		if (isOpen && !target.closest('.quick-menu-container') && !target.closest('.user-button') && !target.closest('.profile-btn')) {
+		// Don't close if clicking inside menu container or on profile button
+		if (isOpen && !target.closest('.quick-menu-container') && !target.closest('.profile-btn')) {
 			closeMenu();
 		}
 	}
 </script>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window on:mousedown={handleClickOutside} />
 
 <div class="quick-menu-container">
 	{#if isOpen}
-		<div class="quick-menu" on:click|stopPropagation>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div class="quick-menu" on:click|stopPropagation role="menu">
 			{#if $currentUser}
 				<!-- User info header -->
 				<div class="menu-header">
 					{#if $currentUser.photoURL}
-						<img src={$currentUser.photoURL} alt="" class="header-photo" />
+						<img src={$currentUser.photoURL} alt="" class="header-photo" referrerpolicy="no-referrer" />
 					{:else}
 						<div class="header-photo-placeholder">
 							{$currentUser.email?.charAt(0).toUpperCase() || '?'}
@@ -64,14 +78,14 @@
 
 				<!-- Menu actions -->
 				<div class="menu-actions">
-					<button class="menu-item" on:click={handleProfile}>
+					<button class="menu-item" on:click|stopPropagation={handleProfile}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
 							<circle cx="12" cy="7" r="4"/>
 						</svg>
 						<span>{$t('myProfile')}</span>
 					</button>
-					<button class="menu-item logout" on:click={handleSignOut}>
+					<button class="menu-item logout" on:click|stopPropagation={handleSignOut}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
 							<polyline points="16 17 21 12 16 7"/>
@@ -83,7 +97,7 @@
 			{:else}
 				<!-- Not logged in -->
 				<div class="menu-actions guest">
-					<button class="menu-item login" on:click={handleLogin}>
+					<button class="menu-item login" on:click|stopPropagation={handleLogin}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
 							<polyline points="10 17 15 12 10 7"/>
@@ -99,22 +113,25 @@
 
 <style>
 	.quick-menu-container {
-		position: relative;
-		display: inline-block;
+		position: static;
 	}
 
 	.quick-menu {
-		position: absolute;
-		top: 0.5rem;
-		right: 0;
+		position: fixed;
+		top: 3.5rem;
+		right: 1rem;
 		background: #12151f;
 		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
 		min-width: 220px;
 		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
-		z-index: 1000;
+		z-index: 99999;
 		animation: menuSlide 0.15s ease-out;
-		overflow: hidden;
+		pointer-events: auto !important;
+	}
+
+	.quick-menu * {
+		pointer-events: auto !important;
 	}
 
 	@keyframes menuSlide {

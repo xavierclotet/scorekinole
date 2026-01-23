@@ -111,12 +111,12 @@
 				{/if}
 			</button>
 			<div class="profile-wrap">
-				<QuickMenu bind:this={quickMenuComponent} on:login={handleLogin} on:profile={handleProfileOpen} />
-				<button class="nav-btn icon-btn" on:click={() => quickMenuComponent?.toggleMenu()} aria-label="Profile">
+				<button class="nav-btn icon-btn profile-btn" on:click={() => quickMenuComponent?.toggleMenu()} aria-label="Profile">
 					<svg viewBox="0 0 24 24" fill="currentColor">
 						<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
 					</svg>
 				</button>
+				<QuickMenu bind:this={quickMenuComponent} on:login={handleLogin} on:profile={handleProfileOpen} />
 			</div>
 		</div>
 	</nav>
@@ -244,7 +244,6 @@
 		padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 		transition: background-color 0.3s, color 0.3s;
 		position: relative;
-		overflow: hidden;
 	}
 
 	.landing[data-theme='light'] {
@@ -274,7 +273,7 @@
 		align-items: center;
 		padding: 1rem 1.25rem;
 		position: relative;
-		z-index: 1;
+		z-index: 100;
 	}
 
 	.nav-left, .nav-right {
@@ -400,6 +399,7 @@
 		position: relative;
 		display: flex;
 		align-items: center;
+		z-index: 1000;
 	}
 
 	/* Content */
@@ -412,7 +412,7 @@
 		padding: 1.5rem;
 		gap: 2rem;
 		position: relative;
-		z-index: 1;
+		z-index: 0;
 	}
 
 	/* Hero Section */
