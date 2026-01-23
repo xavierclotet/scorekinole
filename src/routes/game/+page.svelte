@@ -18,6 +18,7 @@
 	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import { isColorDark } from '$lib/utils/colors';
+	import { APP_VERSION } from '$lib/constants';
 	import {
 		gameTournamentContext,
 		loadTournamentContext,
@@ -45,6 +46,14 @@
 	// Tournament mode state
 	$: inTournamentMode = !!$gameTournamentContext;
 
+	// Effective settings: use tournament config when in tournament mode, otherwise gameSettings
+	$: effectiveShowHammer = inTournamentMode
+		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
+		: $gameSettings.showHammer;
+	$: effectiveShow20s = inTournamentMode
+		? $gameTournamentContext?.gameConfig.show20s ?? $gameSettings.show20s
+		: $gameSettings.show20s;
+
 	// Track if tournament match completion has been sent
 	let tournamentMatchCompletedSent = false;
 
@@ -60,6 +69,56 @@
 	let editingMatchPhase = false;
 	let eventTitleInput: HTMLInputElement;
 	let matchPhaseInput: HTMLInputElement;
+
+	// Match score indicator - swipe to cycle size
+	let swipeStartX = 0;
+	let swipeStartY = 0;
+	const SWIPE_THRESHOLD = 30; // px minimum to trigger swipe
+
+	function handleMatchScoreSwipeStart(e: TouchEvent | MouseEvent) {
+		if ('touches' in e) {
+			swipeStartX = e.touches[0].clientX;
+			swipeStartY = e.touches[0].clientY;
+		} else {
+			swipeStartX = e.clientX;
+			swipeStartY = e.clientY;
+		}
+	}
+
+	function handleMatchScoreSwipeEnd(e: TouchEvent | MouseEvent) {
+		let endX: number;
+		let endY: number;
+
+		if ('changedTouches' in e) {
+			endX = e.changedTouches[0].clientX;
+			endY = e.changedTouches[0].clientY;
+		} else {
+			endX = e.clientX;
+			endY = e.clientY;
+		}
+
+		const deltaX = endX - swipeStartX;
+		const deltaY = Math.abs(endY - swipeStartY);
+
+		// Only trigger if horizontal movement > threshold and more horizontal than vertical
+		if (Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > deltaY) {
+			if (deltaX > 0) {
+				// Swipe right - increase size
+				cycleMatchScoreSize(1);
+			} else {
+				// Swipe left - decrease size
+				cycleMatchScoreSize(-1);
+			}
+		}
+	}
+
+	function cycleMatchScoreSize(direction: 1 | -1) {
+		const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
+		const currentIndex = sizes.indexOf($gameSettings.matchScoreSize || 'medium');
+		const nextIndex = (currentIndex + direction + sizes.length) % sizes.length;
+		gameSettings.update(s => ({ ...s, matchScoreSize: sizes[nextIndex] }));
+		gameSettings.save();
+	}
 
 	// Bind showTwentyDialog to the store
 	$: showTwentyDialog = $twentyDialogPending;
@@ -695,8 +754,8 @@
 	}
 
 	function handleMatchReset() {
-		// Only show hammer dialog if showHammer setting is enabled
-		if ($gameSettings.showHammer) {
+		// Only show hammer dialog if showHammer setting is enabled (respecting tournament config)
+		if (effectiveShowHammer) {
 			// First set to false to force a re-render
 			showHammerDialog = false;
 
@@ -713,10 +772,25 @@
 		// Store the round data temporarily
 		pendingRoundData = { winningTeam, team1Points, team2Points };
 
+		// Determine if show20s is enabled - tournament config takes priority
+		const tournamentContext = get(gameTournamentContext);
+		const shouldShow20s = tournamentContext
+			? tournamentContext.gameConfig.show20s
+			: $gameSettings.show20s;
+
+		console.log('🎯 handleRoundComplete:', {
+			inTournamentMode: !!tournamentContext,
+			tournamentShow20s: tournamentContext?.gameConfig.show20s,
+			gameSettingsShow20s: $gameSettings.show20s,
+			shouldShow20s
+		});
+
 		// If show20s is enabled, show dialog first
-		if ($gameSettings.show20s) {
+		if (shouldShow20s) {
+			console.log('✅ Showing 20s dialog');
 			setTwentyDialogPending(true);
 		} else {
+			console.log('⏭️ Skipping 20s dialog, finalizing round immediately');
 			// If show20s is disabled, finalize round immediately
 			finalizeRoundWithData();
 		}
@@ -1095,23 +1169,15 @@
 
 <div class="game-page">
 	<header class="game-header" class:tournament-mode={inTournamentMode}>
-		<div class="left-section">
-			{#if inTournamentMode}
+		{#if inTournamentMode}
+			<!-- Tournament mode header -->
+			<div class="left-section">
 				<div class="tournament-header-info">
-					<span class="tournament-icon">🏆</span>
+					<svg class="tournament-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
 					<span class="tournament-name-header">{$gameTournamentContext?.tournamentName}</span>
 				</div>
-			{:else}
-				<h1 on:click|stopPropagation={handleTitleClick} class="clickable-title">
-					Scorekinole
-					<span class="version-badge">v{$gameSettings.appVersion}</span>
-				</h1>
-			{/if}
-		</div>
-
-		<div class="center-section">
-			{#if inTournamentMode}
-				<!-- Tournament mode: show phase info -->
+			</div>
+			<div class="center-section">
 				<div class="tournament-phase-info">
 					<span class="phase-badge-header">
 						{$gameTournamentContext?.phase === 'GROUP'
@@ -1119,165 +1185,84 @@
 							: ($gameTournamentContext?.bracketRoundName || 'Bracket')}
 					</span>
 				</div>
-			{:else}
-				<!-- Normal mode: editable event info -->
-				<div class="event-info-header">
-					{#if editingEventTitle}
-						<input
-							bind:this={eventTitleInput}
-							bind:value={$gameSettings.eventTitle}
-							on:blur={saveEventTitle}
-							on:keydown={handleEventTitleKeydown}
-							class="event-title-input"
-							placeholder={$t('eventTitle')}
-						/>
-					{:else if $gameSettings.eventTitle}
-						<span class="event-title-header editable" on:click={startEditingEventTitle}>
-							{$gameSettings.eventTitle}
-						</span>
-					{:else}
-						<span class="event-title-header editable placeholder" on:click={startEditingEventTitle}>
-							+ {$t('eventTitle')}
-						</span>
-					{/if}
+				{#if $gameSettings.showTimer}
+					<Timer size="small" />
+				{/if}
+			</div>
+			<div class="right-section">
+				<button class="header-btn" on:click={handleSwitchSides} aria-label={$t('switchSides')} title={$t('switchSides')}>
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/></svg>
+				</button>
+				<button class="header-btn header-btn-danger" on:click={handleTournamentExit} aria-label={$t('exitTournamentMode')} title={$t('exitTournamentMode')}>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+				</button>
+			</div>
+		{:else}
+			<!-- Normal mode header - clean minimal design -->
+			<div class="header-left">
+				<button class="header-logo" on:click={handleTitleClick}>
+					Scorekinole
+					<span class="header-logo-suffix">
+						<span class="header-logo-arena">Arena</span>
+						<span class="header-logo-version">v{APP_VERSION}</span>
+					</span>
+				</button>
+			</div>
 
+			<div class="header-center">
+				{#if editingEventTitle}
+					<input
+						bind:this={eventTitleInput}
+						bind:value={$gameSettings.eventTitle}
+						on:blur={saveEventTitle}
+						on:keydown={handleEventTitleKeydown}
+						class="header-input"
+						placeholder={$t('eventTitle')}
+					/>
+				{:else if $gameSettings.eventTitle && $gameSettings.eventTitle !== 'Scorekinole'}
+					<button class="header-title" on:click={startEditingEventTitle}>
+						{$gameSettings.eventTitle}
+					</button>
+				{/if}
+
+				{#if $gameSettings.matchPhase || editingMatchPhase}
+					{#if $gameSettings.eventTitle && $gameSettings.eventTitle !== 'Scorekinole'}
+						<span class="header-separator">·</span>
+					{/if}
 					{#if editingMatchPhase}
 						<input
 							bind:this={matchPhaseInput}
 							bind:value={$gameSettings.matchPhase}
 							on:blur={saveMatchPhase}
 							on:keydown={handleMatchPhaseKeydown}
-							class="event-phase-input"
+							class="header-input header-input-small"
 							placeholder={$t('matchPhase')}
 						/>
-					{:else if $gameSettings.matchPhase}
-						<span class="event-phase-header editable" on:click={startEditingMatchPhase}>
-							{$gameSettings.matchPhase}
-						</span>
 					{:else}
-						<span class="event-phase-header editable placeholder" on:click={startEditingMatchPhase}>
-							+ {$t('matchPhase')}
-						</span>
+						<button class="header-phase" on:click={startEditingMatchPhase}>
+							{$gameSettings.matchPhase}
+						</button>
 					{/if}
-				</div>
-			{/if}
-			{#if $gameSettings.showTimer}
-				<Timer size="small" />
-			{/if}
-		</div>
+				{/if}
 
-		<div class="right-section">
-			{#if !inTournamentMode}
-				<!-- History button only in friendly mode -->
-				<button class="icon-button history-button" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
-					📜
+				{#if $gameSettings.showTimer}
+					<Timer size="small" />
+				{/if}
+			</div>
+
+			<div class="header-right">
+				<button class="header-btn" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 				</button>
-			{/if}
-			{#if inTournamentMode}
-				<!-- Tournament mode: switch sides and exit buttons -->
-				<button class="icon-button switch-sides-button" on:click={handleSwitchSides} aria-label={$t('switchSides')} title={$t('switchSides')}>
-					⇄
+				<button class="header-btn" on:click={() => showSettings = true} aria-label="Settings" title={$t('settings')}>
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 				</button>
-				<button class="icon-button exit-tournament-button" on:click={handleTournamentExit} aria-label={$t('exitTournamentMode')} title={$t('exitTournamentMode')}>
-					✕
-				</button>
-			{:else}
-				<!-- Normal mode: settings button -->
-				<button class="icon-button" on:click={() => showSettings = true} aria-label="Settings">
-					⚙️
-				</button>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	</header>
 
-	{#if ($roundsPlayed > 0 || $currentGameRounds.length > 0) && !(($team1.hasWon || $team2.hasWon) && $currentMatchGames.length === 0)}
-		<div class="game-info">
-			{#if $gameSettings.gameMode === 'rounds'}
-				{#if $team1.hasWon || $team2.hasWon}
-					{$t('roundShort')}{$roundsPlayed} / {$gameSettings.roundsToPlay}
-				{:else}
-					{$t('roundShort')}{$roundsPlayed + 1} / {$gameSettings.roundsToPlay}
-				{/if}
-			{:else}
-				{@const currentGameNumber = $currentMatchGames.length + 1}
-				{#if $team1.hasWon || $team2.hasWon}
-					{$t('gameShort')}{currentGameNumber} • {$t('roundShort')}{$roundsPlayed} • {$gameSettings.pointsToWin} {$t('points')}
-				{:else}
-					{$t('gameShort')}{currentGameNumber} • {$t('roundShort')}{$roundsPlayed + 1} • {$gameSettings.pointsToWin} {$t('points')}
-				{/if}
-			{/if}
-		</div>
-	{/if}
 
-	<!-- Previous games results for multi-game matches -->
-	{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1 && $currentMatchGames.length > 0}
-		<div class="match-score-container">
-			<div class="previous-games">
-				{#each $currentMatchGames as game, i}
-					{@const winnerName = game.winner === 1 ? $team1.name : $team2.name}
-					{@const winnerPoints = game.winner === 1 ? game.team1Points : game.team2Points}
-					{@const loserPoints = game.winner === 1 ? game.team2Points : game.team1Points}
-					<div class="game-result">
-						<span class="game-number">P{game.gameNumber}:</span>
-						<span class="winner-name">{winnerName} ganó</span>
-						<span class="score">{winnerPoints}-{loserPoints}</span>
-					</div>
-				{/each}
-				<div class="match-total">
-					<span class="match-label">Match:</span>
-					<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team1GamesWon}</span>
-					<span>-</span>
-					<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team2GamesWon}</span>
-				</div>
-			</div>
-		</div>
-	{/if}
 
-	<!-- Score table for current game -->
-	{#if $gameSettings.showScoreTable && ($currentGameRounds.length > 0 || team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0)}
-		<div class="score-table-container">
-			<table class="score-table">
-				<thead>
-					<tr>
-						<th></th>
-						{#each $currentGameRounds as _, i}
-							<th>R{i + 1}</th>
-						{/each}
-						<!-- Show current round in progress -->
-						{#if team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0}
-							<th class="current-round">R{$currentGameRounds.length + 1}</th>
-						{/if}
-						<th class="total-col"></th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr style="background: {$team1.color}20; border-left: 3px solid {$team1.color};">
-						<td class="team-name" style="color: {$team1.color}; {isColorDark($team1.color) ? 'background: rgba(255, 255, 255, 0.85); padding: 2px 6px; border-radius: 4px;' : ''}">{$team1.name}</td>
-						{#each $currentGameRounds as round}
-							<td>{round.team1Points}</td>
-						{/each}
-						<!-- Show current round in progress -->
-						{#if team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0}
-							<td class="current-round">{team1CurrentRoundPoints}</td>
-						{/if}
-						<td class="total-col" rowspan="2" style="vertical-align: middle; font-size: 1rem;">
-							{$team1.points}-{$team2.points}
-						</td>
-					</tr>
-					<tr style="background: {$team2.color}20; border-left: 3px solid {$team2.color};">
-						<td class="team-name" style="color: {$team2.color}; {isColorDark($team2.color) ? 'background: rgba(255, 255, 255, 0.85); padding: 2px 6px; border-radius: 4px;' : ''}">{$team2.name}</td>
-						{#each $currentGameRounds as round}
-							<td>{round.team2Points}</td>
-						{/each}
-						<!-- Show current round in progress -->
-						{#if team1CurrentRoundPoints > 0 || team2CurrentRoundPoints > 0}
-							<td class="current-round">{team2CurrentRoundPoints}</td>
-						{/if}
-					</tr>
-				</tbody>
-			</table>
-		</div>
-	{/if}
 
 	<div class="teams-container">
 		<TeamCard
@@ -1289,6 +1274,7 @@
 			on:roundComplete={handleRoundComplete}
 			on:tournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 		/>
+
 		<TeamCard
 			bind:this={teamCard2}
 			teamNumber={2}
@@ -1300,19 +1286,41 @@
 		/>
 	</div>
 
+	<!-- Floating Match Score Indicators - swipe horizontally to resize -->
+	{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1}
+		<div
+			class="match-score-left match-score-{$gameSettings.matchScoreSize || 'medium'}"
+			on:mousedown={handleMatchScoreSwipeStart}
+			on:mouseup={handleMatchScoreSwipeEnd}
+			on:touchstart={handleMatchScoreSwipeStart}
+			on:touchend={handleMatchScoreSwipeEnd}
+			role="status"
+			aria-label="Match score - swipe to resize"
+		>{team1GamesWon}</div>
+		<div
+			class="match-score-right match-score-{$gameSettings.matchScoreSize || 'medium'}"
+			on:mousedown={handleMatchScoreSwipeStart}
+			on:mouseup={handleMatchScoreSwipeEnd}
+			on:touchstart={handleMatchScoreSwipeStart}
+			on:touchend={handleMatchScoreSwipeEnd}
+			role="status"
+			aria-label="Match score - swipe to resize"
+		>{team2GamesWon}</div>
+	{/if}
+
 	<!-- Next Game Button -->
 	{#if showNextGameButton}
 		<div class="next-game-container">
-			<Button variant="primary" size="large" on:click={handleNextGame}>
-				▶ {$t('nextGame')}
-			</Button>
+			<button class="next-game-button" on:click={handleNextGame}>
+				{$t('nextGame')}
+			</button>
 		</div>
 	{/if}
 
 	<!-- New Match Floating Button - hide in tournament mode -->
 	{#if !inTournamentMode}
 		<button class="floating-button new-match-button" on:click={handleNewMatchClick} aria-label={$t('newMatchButton')} title={$t('newMatchButton')}>
-			▶️
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
 		</button>
 
 		<!-- Tournament Mode Button -->
@@ -1322,7 +1330,7 @@
 			aria-label={$t('playTournamentMatch') || 'Jugar partido de torneo'}
 			title={$t('playTournamentMatch') || 'Jugar partido de torneo'}
 		>
-			🏆
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
 		</button>
 	{:else}
 		<!-- Tournament Reset Button - only in tournament mode -->
@@ -1333,22 +1341,29 @@
 			title={$t('resetMatch') || 'Reiniciar partido'}
 			disabled={isResettingTournament}
 		>
-			🔄
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
 		</button>
 	{/if}
 
 	<!-- New Match Confirmation Modal -->
 	{#if showNewMatchConfirm}
-		<div class="confirm-overlay" on:click={cancelNewMatch}>
-			<div class="confirm-modal" on:click|stopPropagation>
-				<h3>{$t('confirmNewMatch')}</h3>
-				<div class="confirm-buttons">
-					<Button variant="secondary" on:click={cancelNewMatch}>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div class="newmatch-overlay" on:click={cancelNewMatch}>
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<div class="newmatch-dialog" on:click|stopPropagation>
+				<div class="newmatch-icon">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+				</div>
+				<p class="newmatch-title">{$t('confirmNewMatch')}</p>
+				<div class="newmatch-buttons">
+					<button class="newmatch-btn cancel" on:click={cancelNewMatch}>
 						{$t('cancel')}
-					</Button>
-					<Button variant="primary" on:click={confirmNewMatch}>
+					</button>
+					<button class="newmatch-btn confirm" on:click={confirmNewMatch}>
 						{$t('confirm')}
-					</Button>
+					</button>
 				</div>
 			</div>
 		</div>
@@ -1357,39 +1372,51 @@
 	<!-- Tournament Exit Confirmation Modal -->
 	{#if showTournamentExitConfirm}
 		{@const hasProgress = $roundsPlayed > 0 || $currentGameRounds.length > 0 || $currentMatchGames.length > 0}
-		<div class="confirm-overlay" on:click={cancelTournamentExit}>
-			<div class="confirm-modal tournament-exit-modal" on:click|stopPropagation>
-				<h3>{$t('exitTournamentMessage') || '¿Qué quieres hacer con este partido?'}</h3>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div class="exit-overlay" on:click={cancelTournamentExit}>
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<div class="exit-dialog" on:click|stopPropagation>
+				<p class="exit-title">{$t('exitTournamentMessage') || '¿Qué quieres hacer con este partido?'}</p>
 
 				{#if hasProgress}
-					<div class="exit-options">
-						<div class="exit-option pause-option" on:click={pauseTournamentMatch}>
-							<span class="option-icon">⏸️</span>
-							<div class="option-text">
-								<span class="option-title">{$t('pauseMatch') || 'Pausar partido'}</span>
-								<span class="option-desc">{$t('pauseMatchDesc') || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
+					<div class="exit-actions">
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<div class="exit-action pause" on:click={pauseTournamentMatch}>
+							<div class="action-icon">
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+							</div>
+							<div class="action-content">
+								<span class="action-label">{$t('pauseMatch') || 'Pausar partido'}</span>
+								<span class="action-hint">{$t('pauseMatchDesc') || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
 							</div>
 						</div>
-						<div class="exit-option abandon-option" on:click={confirmTournamentExit}>
-							<span class="option-icon">🗑️</span>
-							<div class="option-text">
-								<span class="option-title">{$t('abandonMatch') || 'Abandonar partido'}</span>
-								<span class="option-desc">{$t('abandonMatchDesc') || 'Se perderá el progreso y otro podrá jugarlo desde cero.'}</span>
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<div class="exit-action abandon" on:click={confirmTournamentExit}>
+							<div class="action-icon">
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+							</div>
+							<div class="action-content">
+								<span class="action-label">{$t('abandonMatch') || 'Abandonar partido'}</span>
+								<span class="action-hint">{$t('abandonMatchDesc') || 'Se perderá el progreso y otro podrá jugarlo desde cero.'}</span>
 							</div>
 						</div>
 					</div>
 				{:else}
-					<p class="exit-warning">{$t('noProgressWarning') || 'El partido no tiene progreso. ¿Quieres salir?'}</p>
+					<p class="exit-info">{$t('noProgressWarning') || 'El partido no tiene progreso. ¿Quieres salir?'}</p>
 				{/if}
 
-				<div class="confirm-buttons single-button">
-					<Button variant="secondary" on:click={cancelTournamentExit}>
+				<div class="exit-footer">
+					<button class="exit-btn cancel" on:click={cancelTournamentExit}>
 						{$t('cancel')}
-					</Button>
+					</button>
 					{#if !hasProgress}
-						<Button variant="danger" on:click={confirmTournamentExit}>
+						<button class="exit-btn confirm" on:click={confirmTournamentExit}>
 							{$t('exit') || 'Salir'}
-						</Button>
+						</button>
 					{/if}
 				</div>
 			</div>
@@ -1398,17 +1425,24 @@
 
 	<!-- Tournament Reset Confirmation Modal -->
 	{#if showTournamentResetConfirm}
-		<div class="confirm-overlay" on:click={cancelTournamentReset}>
-			<div class="confirm-modal tournament-reset-modal" on:click|stopPropagation>
-				<h3>{$t('confirmResetMatch') || '¿Reiniciar partido?'}</h3>
-				<p class="reset-warning">{$t('resetMatchDesc') || 'Se pondrán todos los puntos, rondas y 20s a 0'}</p>
-				<div class="confirm-buttons">
-					<Button variant="secondary" on:click={cancelTournamentReset} disabled={isResettingTournament}>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div class="reset-overlay" on:click={cancelTournamentReset}>
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<div class="reset-dialog" on:click|stopPropagation>
+				<div class="reset-icon">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+				</div>
+				<p class="reset-title">{$t('confirmResetMatch') || '¿Reiniciar partido?'}</p>
+				<p class="reset-desc">{$t('resetMatchDesc') || 'Se pondrán todos los puntos, rondas y 20s a 0'}</p>
+				<div class="reset-buttons">
+					<button class="reset-btn cancel" on:click={cancelTournamentReset} disabled={isResettingTournament}>
 						{$t('cancel')}
-					</Button>
-					<Button variant="danger" on:click={confirmTournamentReset} disabled={isResettingTournament}>
+					</button>
+					<button class="reset-btn confirm" on:click={confirmTournamentReset} disabled={isResettingTournament}>
 						{isResettingTournament ? '...' : ($t('resetMatch') || 'Reiniciar')}
-					</Button>
+					</button>
 				</div>
 			</div>
 		</div>
@@ -1453,87 +1487,29 @@
 		justify-content: space-between;
 		align-items: center;
 		flex-shrink: 0;
-		padding: 0.5rem;
-		background: rgba(255, 255, 255, 0.05);
-		border-radius: 12px;
+		padding: 0.4rem 0.6rem;
 		margin-bottom: 0.5rem;
-		transition: all 0.3s ease;
+		min-height: 40px;
 	}
 
 	/* Tournament mode header styling */
 	.game-header.tournament-mode {
-		background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 200, 100, 0.1));
-		border: 2px solid rgba(0, 255, 136, 0.3);
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		border-radius: 10px;
 	}
 
-	/* Tournament header info (left section) */
-	.tournament-header-info {
+	/* Tournament header sections */
+	.left-section,
+	.right-section {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.tournament-icon {
-		font-size: 1.2rem;
-	}
-
-	.tournament-name-header {
-		font-size: 0.9rem;
-		font-weight: 700;
-		color: #00ff88;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		max-width: 150px;
-	}
-
-	/* Tournament phase badge (center section) */
-	.tournament-phase-info {
-		display: flex;
-		align-items: center;
-	}
-
-	.phase-badge-header {
-		font-size: 0.8rem;
-		font-weight: 600;
-		padding: 0.25rem 0.75rem;
-		background: rgba(0, 255, 136, 0.2);
-		color: #00ff88;
-		border-radius: 12px;
-		border: 1px solid rgba(0, 255, 136, 0.3);
-	}
-
-	/* Exit tournament button */
-	.exit-tournament-button {
-		background: rgba(255, 68, 68, 0.2) !important;
-		border: 1px solid rgba(255, 68, 68, 0.4) !important;
-		color: #ff6666 !important;
-		font-size: 1.2rem !important;
-		font-weight: bold;
-	}
-
-	.exit-tournament-button:hover {
-		background: rgba(255, 68, 68, 0.3) !important;
-	}
-
-	/* Switch sides button */
-	.switch-sides-button {
-		background: rgba(100, 149, 237, 0.2) !important;
-		border: 1px solid rgba(100, 149, 237, 0.4) !important;
-		color: #6495ed !important;
-		font-size: 1.2rem !important;
-		font-weight: bold;
-	}
-
-	.switch-sides-button:hover {
-		background: rgba(100, 149, 237, 0.3) !important;
-	}
-
-	.left-section {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
+		gap: 0.4rem;
 		flex: 1;
+	}
+
+	.right-section {
+		justify-content: flex-end;
 	}
 
 	.center-section {
@@ -1541,364 +1517,246 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 0.25rem;
-		flex: 1;
+		flex: 2;
 	}
 
-	.right-section {
+	/* Tournament header info */
+	.tournament-header-info {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		flex: 1;
-		justify-content: flex-end;
+		gap: 0.4rem;
 	}
 
-	.game-header h1 {
-		margin: 0;
-		font-size: 0.9rem;
-		font-weight: 900;
-		background: linear-gradient(135deg, #00ff88, #00d4ff);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		background-clip: text;
-		white-space: nowrap;
+	.tournament-icon {
+		color: rgba(255, 255, 255, 0.5);
+		flex-shrink: 0;
 	}
 
-	.clickable-title {
-		cursor: pointer;
-		transition: all 0.2s;
-		user-select: none;
-	}
-
-	.clickable-title:hover {
-		transform: scale(1.05);
-		filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.5));
-	}
-
-	.clickable-title:active {
-		transform: scale(0.98);
-	}
-
-	.version-badge {
-		font-size: 0.5rem;
-		font-weight: 600;
-		color: rgba(255, 255, 255, 0.4);
-		margin-left: 0;
-		vertical-align: baseline;
-		background: rgba(255, 255, 255, 0.05);
-		padding: 0.1rem 0.3rem;
-		border-radius: 4px;
+	.tournament-name-header {
 		font-family: 'Lexend', sans-serif;
-	}
-
-	.event-info-header {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		color: #00ff88;
-		font-weight: 700;
-		font-family: 'Orbitron', monospace;
-		text-align: center;
-		margin-bottom: 0.25rem;
-		max-width: 100%;
-		overflow: hidden;
-	}
-
-	.event-title-header {
-		font-size: 1rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
+		font-size: 0.8rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.85);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		max-width: 140px;
+	}
+
+	.tournament-phase-info {
+		display: flex;
+		align-items: center;
+	}
+
+	.phase-badge-header {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.65rem;
+		font-weight: 500;
+		padding: 0.25rem 0.6rem;
+		background: rgba(255, 255, 255, 0.05);
+		color: rgba(255, 255, 255, 0.6);
+		border-radius: 4px;
+		letter-spacing: 0.01em;
+	}
+
+	/* Normal mode header - minimal clean design */
+	.header-left,
+	.header-right {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 0.25rem;
+	}
+
+	.header-center {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
 		flex: 1;
 		min-width: 0;
 	}
 
-	.event-title-header.editable {
-		cursor: pointer;
-		padding: 0.2rem 0.4rem;
-		border-radius: 4px;
-		transition: all 0.2s;
-	}
-
-	.event-title-header.editable:hover {
-		background: rgba(0, 255, 136, 0.15);
-	}
-
-	.event-title-header.placeholder {
-		color: rgba(0, 255, 136, 0.4);
-		font-style: italic;
-	}
-
-	.event-title-input {
-		background: rgba(0, 255, 136, 0.1);
-		border: 2px solid #00ff88;
-		border-radius: 4px;
-		padding: 0.2rem 0.4rem;
-		font-size: 1rem;
-		font-weight: 700;
-		color: #00ff88;
-		font-family: 'Orbitron', monospace;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		text-align: center;
-		outline: none;
-		flex: 1;
-		min-width: 100px;
-	}
-
-	.event-title-input:focus {
-		background: rgba(0, 255, 136, 0.2);
-		box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
-	}
-
-	.event-phase-header {
-		font-size: 1rem;
-		color: rgba(255, 255, 255, 0.7);
-		white-space: nowrap;
-		flex-shrink: 0;
-	}
-
-	.event-phase-header.editable {
-		cursor: pointer;
-		padding: 0.2rem 0.4rem;
-		border-radius: 4px;
-		transition: all 0.2s;
-	}
-
-	.event-phase-header.editable:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
-	}
-
-	.event-phase-header.placeholder {
-		color: rgba(255, 255, 255, 0.3);
-		font-style: italic;
-	}
-
-	.event-phase-input {
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid rgba(255, 255, 255, 0.5);
-		border-radius: 4px;
-		padding: 0.2rem 0.4rem;
-		font-size: 1rem;
-		font-weight: 700;
-		color: #fff;
-		font-family: 'Orbitron', monospace;
-		text-align: center;
-		outline: none;
-		min-width: 80px;
-	}
-
-	.event-phase-input:focus {
-		background: rgba(255, 255, 255, 0.15);
-		border-color: #fff;
-		box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-	}
-
-	.event-phase-header::before {
-		content: '•';
-		margin-right: 1rem;
-		color: rgba(0, 255, 136, 0.5);
-	}
-
-	.game-info {
-		position: fixed;
-		top: 3.5rem;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 50;
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.7);
+	.header-logo {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.15rem;
 		font-weight: 600;
-		font-family: 'Orbitron', monospace;
-		text-align: center;
-		padding: 0.5rem 1rem;
-		background: rgba(10, 14, 26, 0.95);
-		border: 2px solid rgba(0, 255, 136, 0.3);
-		border-radius: 12px;
-		backdrop-filter: blur(12px);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 136, 0.15);
+		color: rgba(255, 255, 255, 0.85);
+		background: none;
+		border: none;
+		padding: 0.25rem 0.5rem;
+		cursor: pointer;
+		border-radius: 4px;
+		transition: all 0.15s;
+		letter-spacing: 0.01em;
+		position: relative;
+		display: flex;
+		align-items: baseline;
 	}
 
-	.match-score-container {
-		position: fixed;
-		top: 7rem;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 50;
-	}
-
-	.previous-games {
+	.header-logo-suffix {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
-		padding: 0.75rem 1rem;
-		background: rgba(10, 14, 26, 0.95);
-		border: 2px solid rgba(0, 255, 136, 0.3);
-		border-radius: 12px;
-		backdrop-filter: blur(12px);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 136, 0.15);
-		font-family: 'Orbitron', monospace;
-		font-weight: 700;
-	}
-
-	.game-result {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.85rem;
-	}
-
-	.game-number {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 0.8rem;
-	}
-
-	.winner-name {
-		font-weight: 700;
-	}
-
-	.score {
-		color: rgba(255, 255, 255, 0.9);
-		font-size: 0.9rem;
-	}
-
-	.match-total {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding-top: 0.5rem;
-		margin-top: 0.5rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.2);
-		font-size: 1rem;
-	}
-
-	.match-label {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 0.85rem;
-	}
-
-	.match-result {
-		font-size: 1.2rem;
-	}
-
-	.score-table-container {
-		position: fixed;
-		bottom: 1rem;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 100;
-		background: rgba(10, 14, 26, 0.95);
-		border: 2px solid rgba(0, 255, 136, 0.3);
-		border-radius: 12px;
-		backdrop-filter: blur(12px);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 136, 0.15);
-		padding: 0.75rem;
-		max-width: 90vw;
-		overflow-x: auto;
-	}
-
-	.score-table {
-		width: 100%;
-		border-collapse: collapse;
-		font-family: 'Orbitron', monospace;
-		font-size: 0.75rem;
-	}
-
-	.score-table th {
-		color: #00ff88;
-		font-weight: 700;
-		padding: 0.4rem 0.6rem;
-		text-align: center;
-		border-bottom: 1px solid rgba(0, 255, 136, 0.3);
-	}
-
-	.score-table td {
-		padding: 0.4rem 0.6rem;
-		text-align: center;
-		color: rgba(255, 255, 255, 0.9);
-		font-weight: 600;
-	}
-
-	.score-table .team-name {
-		text-align: left;
-		font-weight: 700;
-		font-size: 0.8rem;
-		white-space: nowrap;
-	}
-
-	.score-table .total-col {
-		font-weight: 700;
-		font-size: 0.85rem;
-		color: #00ff88;
-		border-left: 1px solid rgba(0, 255, 136, 0.3);
-	}
-
-	.score-table tbody tr {
-		border-radius: 6px;
-	}
-
-	.score-table .current-round {
-		background: rgba(0, 255, 136, 0.15);
-		font-weight: 700;
+		align-items: flex-start;
+		margin-left: 0.2rem;
 		position: relative;
+		top: -0.15rem;
 	}
 
-	.score-table th.current-round {
-		color: #00d4ff;
+	.header-logo-arena {
+		font-style: italic;
+		font-weight: 700;
+		font-size: 0.65rem;
+		color: #e85a5a;
+		transform: rotate(-8deg);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		line-height: 1;
 	}
 
-	/* Make score table smaller on mobile to not cover the score */
-	@media (max-width: 800px) {
-		.score-table-container {
-			padding: 0.5rem;
-			font-size: 0.65rem;
-			bottom: 0.5rem;
-		}
-
-		.score-table {
-			font-size: 0.65rem;
-		}
-
-		.score-table th {
-			padding: 0.3rem 0.4rem;
-			font-size: 0.65rem;
-		}
-
-		.score-table td {
-			padding: 0.3rem 0.4rem;
-			font-size: 0.65rem;
-		}
-
-		.score-table .team-name {
-			font-size: 0.7rem;
-		}
-
-		.score-table .total-col {
-			font-size: 0.75rem;
-		}
+	.header-logo-version {
+		font-style: italic;
+		font-weight: 500;
+		font-size: 0.5rem;
+		color: rgba(255, 255, 255, 0.55);
+		transform: rotate(-8deg);
+		letter-spacing: 0.05em;
+		line-height: 1;
+		margin-top: 0.12rem;
+		margin-left: 0.1rem;
 	}
 
-	.icon-button {
-		font-size: 1.2rem;
-		padding: 0.25rem;
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid rgba(255, 255, 255, 0.2);
-		border-radius: 6px;
-		color: #fff;
+	.header-logo:hover {
+		color: rgba(255, 255, 255, 1);
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.header-logo:hover .header-logo-arena {
+		color: #ff6b6b;
+	}
+
+	.header-logo:hover .header-logo-version {
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	.header-logo:active {
+		transform: scale(0.97);
+	}
+
+	.header-title {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.95);
+		background: none;
+		border: none;
+		padding: 0.3rem 0.6rem;
 		cursor: pointer;
-		transition: all 0.2s;
-		width: 32px;
-		height: 32px;
+		border-radius: 6px;
+		transition: all 0.15s;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 280px;
+		letter-spacing: 0.02em;
+	}
+
+	.header-title:hover {
+		background: rgba(255, 255, 255, 0.08);
+		color: white;
+	}
+
+	.header-title-placeholder {
+		color: rgba(255, 255, 255, 0.35);
+	}
+
+	.header-separator {
+		color: rgba(255, 255, 255, 0.3);
+		font-size: 0.9rem;
+		font-weight: 300;
+	}
+
+	.header-phase {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.9rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.7);
+		background: rgba(255, 255, 255, 0.06);
+		border: none;
+		padding: 0.25rem 0.6rem;
+		cursor: pointer;
+		border-radius: 4px;
+		transition: all 0.15s;
+		white-space: nowrap;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.header-phase:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	.header-input {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.95);
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 6px;
+		padding: 0.3rem 0.6rem;
+		outline: none;
+		text-align: center;
+		min-width: 100px;
+		max-width: 250px;
+	}
+
+	.header-input:focus {
+		background: rgba(255, 255, 255, 0.12);
+		border-color: rgba(255, 255, 255, 0.4);
+	}
+
+	.header-input-small {
+		font-size: 0.9rem;
+		font-weight: 500;
+		min-width: 70px;
+		max-width: 120px;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	/* Header buttons - minimal */
+	.header-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		width: 32px;
+		height: 32px;
+		background: none;
+		border: none;
+		border-radius: 6px;
+		color: rgba(255, 255, 255, 0.5);
+		cursor: pointer;
+		transition: all 0.15s;
 	}
 
-	.icon-button:hover {
-		background: rgba(255, 255, 255, 0.2);
-		transform: scale(1.1);
+	.header-btn:hover {
+		background: rgba(255, 255, 255, 0.08);
+		color: rgba(255, 255, 255, 0.85);
+	}
+
+	.header-btn:active {
+		transform: scale(0.95);
+	}
+
+	.header-btn-danger {
+		color: rgba(255, 100, 100, 0.7);
+	}
+
+	.header-btn-danger:hover {
+		background: rgba(255, 80, 80, 0.12);
+		color: rgba(255, 100, 100, 0.95);
 	}
 
 	.teams-container {
@@ -1910,18 +1768,129 @@
 		align-items: stretch;
 	}
 
+	/* Match Score Indicators - positioned on each side, swipe to resize */
+	.match-score-left,
+	.match-score-right {
+		position: fixed;
+		bottom: 8px;
+		z-index: 50;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 700;
+		font-family: 'Lexend', sans-serif;
+		line-height: 1;
+		color: rgba(255, 255, 255, 0.9);
+		background: rgba(0, 0, 0, 0.5);
+		backdrop-filter: blur(12px);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 8px;
+		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+		cursor: ew-resize;
+		transition: all 0.2s ease;
+		-webkit-tap-highlight-color: transparent;
+		touch-action: none;
+		user-select: none;
+	}
+
+	.match-score-left {
+		left: 50%;
+		transform: translateX(calc(-50% - 20px));
+	}
+
+	.match-score-right {
+		left: 50%;
+		transform: translateX(calc(-50% + 20px));
+	}
+
+	/* Match Score Sizes */
+	.match-score-small {
+		width: 32px;
+		height: 28px;
+		font-size: 1.1rem;
+		border-radius: 6px;
+	}
+
+	.match-score-small.match-score-left {
+		transform: translateX(calc(-50% - 20px));
+	}
+
+	.match-score-small.match-score-right {
+		transform: translateX(calc(-50% + 20px));
+	}
+
+	.match-score-medium {
+		width: 44px;
+		height: 38px;
+		font-size: 1.5rem;
+		border-radius: 10px;
+	}
+
+	.match-score-medium.match-score-left {
+		transform: translateX(calc(-50% - 26px));
+	}
+
+	.match-score-medium.match-score-right {
+		transform: translateX(calc(-50% + 26px));
+	}
+
+	.match-score-large {
+		width: 56px;
+		height: 48px;
+		font-size: 1.9rem;
+		border-radius: 12px;
+	}
+
+	.match-score-large.match-score-left {
+		transform: translateX(calc(-50% - 32px));
+	}
+
+	.match-score-large.match-score-right {
+		transform: translateX(calc(-50% + 32px));
+	}
+
 	.next-game-container {
 		position: fixed;
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
 		z-index: 100;
-		animation: fadeIn 0.3s ease-out;
+		animation: nextGameFadeIn 0.4s ease-out;
 	}
 
-	.next-game-container :global(button) {
-		font-size: 1.2rem;
-		padding: 0.8rem 1.5rem;
+	.next-game-button {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.1rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		padding: 1rem 2.5rem;
+		background: #fff;
+		color: #1a1f35;
+		border: none;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
+	}
+
+	.next-game-button:hover {
+		transform: scale(1.03);
+		box-shadow: 0 6px 28px rgba(255, 255, 255, 0.3);
+	}
+
+	.next-game-button:active {
+		transform: scale(0.98);
+	}
+
+	@keyframes nextGameFadeIn {
+		from {
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.95);
+		}
+		to {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1);
+		}
 	}
 
 	@keyframes fadeIn {
@@ -1943,14 +1912,17 @@
 			padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem));
 		}
 
-		/* Hide event info in portrait to save space */
-		.center-section .event-info-header {
+		/* Simplify header in portrait */
+		.header-title {
+			max-width: 160px;
+		}
+
+		.header-phase {
 			display: none;
 		}
 
-		/* Center the timer when event info is hidden */
-		.center-section {
-			justify-content: center;
+		.header-separator {
+			display: none;
 		}
 	}
 
@@ -1965,6 +1937,20 @@
 		.teams-container {
 			grid-template-columns: 1fr;
 		}
+
+		/* In portrait/single column, match score stays at bottom */
+		.match-score-left,
+		.match-score-right {
+			bottom: 8px;
+		}
+
+		/* Slightly smaller gaps on mobile */
+		.match-score-small.match-score-left { transform: translateX(calc(-50% - 12px)); }
+		.match-score-small.match-score-right { transform: translateX(calc(-50% + 12px)); }
+		.match-score-medium.match-score-left { transform: translateX(calc(-50% - 18px)); }
+		.match-score-medium.match-score-right { transform: translateX(calc(-50% + 18px)); }
+		.match-score-large.match-score-left { transform: translateX(calc(-50% - 24px)); }
+		.match-score-large.match-score-right { transform: translateX(calc(-50% + 24px)); }
 	}
 
 	@media (max-width: 480px) {
@@ -1974,35 +1960,25 @@
 		}
 
 		.game-header {
-			padding: 0.3rem;
-			gap: 0.3rem;
+			padding: 0.25rem 0.4rem;
 		}
 
-		.game-header h1 {
+		.header-title {
 			font-size: 0.75rem;
+			max-width: 140px;
 		}
 
-		.game-info {
+		.header-phase {
 			font-size: 0.65rem;
 		}
 
-		.icon-button {
+		.header-btn {
 			width: 28px;
 			height: 28px;
-			font-size: 0.9rem;
 		}
 
 		.teams-container {
 			gap: 0.5rem;
-		}
-
-		.event-info-header {
-			font-size: 0.65rem;
-		}
-
-		.game-info {
-			font-size: 0.65rem;
-			padding: 0.4rem 0.8rem;
 		}
 	}
 
@@ -2012,123 +1988,86 @@
 		}
 
 		.game-header {
-			padding: 0.3rem;
+			padding: 0.2rem 0.4rem;
 			margin-bottom: 0.3rem;
+			min-height: 32px;
 		}
 
-		.game-header h1 {
-			font-size: 0.85rem;
+		.header-title {
+			font-size: 0.75rem;
 		}
 
-		.game-info {
-			font-size: 0.7rem;
+		.header-phase {
+			font-size: 0.65rem;
 		}
 
-		.icon-button {
-			width: 24px;
-			height: 24px;
-			font-size: 0.8rem;
+		.header-btn {
+			width: 26px;
+			height: 26px;
 		}
 
 		.teams-container {
 			gap: 0.5rem;
 		}
-
-		.event-info-header {
-			font-size: 0.65rem;
-		}
-
-		.game-info {
-			top: 3rem;
-			font-size: 0.9rem;
-			padding: 0.4rem 0.8rem;
-		}
 	}
 
 
-
-	/* History Button - Destacado en left section */
-	.history-button {
-		background: transparent !important;
-		box-shadow: 0 2px 8px rgba(0, 255, 136, 0.2);
-		transition: all 0.2s;
-	}
-
-	.history-button:hover {
-		transform: scale(1.05);
-		background: rgba(0, 255, 136, 0.1) !important;
-		box-shadow: 0 3px 12px rgba(0, 255, 136, 0.4);
-	}
-
-	/* Floating Button - New Match */
+	/* Floating Button - Base */
 	.floating-button {
 		position: fixed;
-		bottom: 2rem;
-		left: 2rem;
+		bottom: 1.5rem;
+		left: 1.5rem;
 		z-index: 1000;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.6rem;
-		width: 3rem;
-		height: 3rem;
-		background: linear-gradient(135deg, #4a90e2, #2563eb);
-		border: none;
-		border-radius: 50%;
-		color: #ffd700;
-		font-size: 1.5rem;
+		width: 44px;
+		height: 44px;
+		background: rgba(255, 255, 255, 0.1);
+		backdrop-filter: blur(12px);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 12px;
+		color: rgba(255, 255, 255, 0.85);
+		font-size: 1.25rem;
 		cursor: pointer;
-		box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
-		transition: all 0.2s;
-		animation: fadeIn 0.3s ease-out;
+		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+		transition: all 0.2s ease;
 	}
 
 	.floating-button:hover {
-		transform: translateY(-3px);
-		box-shadow: 0 6px 16px rgba(74, 144, 226, 0.6);
+		background: rgba(255, 255, 255, 0.15);
+		border-color: rgba(255, 255, 255, 0.3);
+		transform: translateY(-2px);
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 	}
 
 	.floating-button:active {
-		transform: translateY(-1px);
+		transform: translateY(0);
 	}
 
-	.floating-button .icon {
-		font-size: 1.8rem;
-		line-height: 1;
-	}
-
-	.floating-button .label {
-		font-size: 0.75rem;
-		line-height: 1;
-	}
-
-	/* Tournament Button - positioned to the right of new match button */
+	/* Tournament Button */
 	.tournament-button {
 		left: auto;
-		right: 2rem;
-		background: linear-gradient(135deg, #00ff88, #00d4ff);
-		box-shadow: 0 4px 12px rgba(0, 255, 136, 0.4);
+		right: 1.5rem;
 	}
 
-	.tournament-button:hover {
-		box-shadow: 0 6px 16px rgba(0, 255, 136, 0.6);
-	}
-
-	/* Reset Tournament Button - positioned bottom left */
+	/* Reset Tournament Button */
 	.reset-tournament-button {
-		left: 2rem;
+		left: 1.5rem;
 		right: auto;
-		background: linear-gradient(135deg, #ff6b6b, #ff8e53);
-		box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+		color: rgba(255, 120, 120, 0.9);
+		border-color: rgba(255, 120, 120, 0.25);
 	}
 
 	.reset-tournament-button:hover {
-		box-shadow: 0 6px 16px rgba(255, 107, 107, 0.6);
+		background: rgba(255, 100, 100, 0.15);
+		border-color: rgba(255, 100, 100, 0.4);
 	}
 
 	.reset-tournament-button:disabled {
-		opacity: 0.6;
+		opacity: 0.4;
 		cursor: not-allowed;
+		transform: none;
 	}
 
 	/* Tournament Reset Modal */
@@ -2183,84 +2122,366 @@
 		gap: 1rem;
 	}
 
-	/* Tournament exit modal */
-	.tournament-exit-modal {
-		border-color: rgba(255, 200, 68, 0.4);
-		width: 450px;
+	/* New match dialog */
+	.newmatch-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.8);
+		backdrop-filter: blur(4px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 2000;
 	}
 
-	.exit-warning {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 0.9rem;
+	.newmatch-dialog {
+		background: #1a1d24;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 12px;
+		padding: 1.75rem;
+		width: min(340px, 85vw);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.newmatch-icon {
+		width: 48px;
+		height: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(100, 180, 120, 0.12);
+		border-radius: 50%;
+		color: #7cc98e;
+	}
+
+	.newmatch-title {
+		margin: 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.85);
 		text-align: center;
-		margin: 0 0 1.5rem 0;
 	}
 
-	.exit-options {
+	.newmatch-buttons {
+		display: flex;
+		gap: 0.75rem;
+		width: 100%;
+		margin-top: 0.5rem;
+	}
+
+	.newmatch-btn {
+		flex: 1;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.9rem;
+		font-weight: 500;
+		padding: 0.7rem 1rem;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: all 0.1s ease;
+	}
+
+	.newmatch-btn.cancel {
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.newmatch-btn.cancel:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
+	}
+
+	.newmatch-btn.confirm {
+		background: rgba(100, 180, 120, 0.15);
+		border: 1px solid rgba(100, 180, 120, 0.3);
+		color: #8cd89c;
+	}
+
+	.newmatch-btn.confirm:hover {
+		background: rgba(100, 180, 120, 0.25);
+		border-color: rgba(100, 180, 120, 0.45);
+	}
+
+	.newmatch-btn:active {
+		transform: scale(0.98);
+	}
+
+	/* Tournament reset dialog */
+	.reset-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.8);
+		backdrop-filter: blur(4px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 2000;
+	}
+
+	.reset-dialog {
+		background: #1a1d24;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 12px;
+		padding: 1.75rem;
+		width: min(360px, 85vw);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.reset-icon {
+		width: 48px;
+		height: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(220, 160, 80, 0.12);
+		border-radius: 50%;
+		color: #d4a856;
+	}
+
+	.reset-title {
+		margin: 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.85);
+		text-align: center;
+	}
+
+	.reset-desc {
+		margin: 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.5);
+		text-align: center;
+		line-height: 1.4;
+	}
+
+	.reset-buttons {
+		display: flex;
+		gap: 0.75rem;
+		width: 100%;
+		margin-top: 0.75rem;
+	}
+
+	.reset-btn {
+		flex: 1;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.9rem;
+		font-weight: 500;
+		padding: 0.7rem 1rem;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: all 0.1s ease;
+	}
+
+	.reset-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.reset-btn.cancel {
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.reset-btn.cancel:hover:not(:disabled) {
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
+	}
+
+	.reset-btn.confirm {
+		background: rgba(220, 160, 80, 0.15);
+		border: 1px solid rgba(220, 160, 80, 0.3);
+		color: #e4b866;
+	}
+
+	.reset-btn.confirm:hover:not(:disabled) {
+		background: rgba(220, 160, 80, 0.25);
+		border-color: rgba(220, 160, 80, 0.45);
+	}
+
+	.reset-btn:active:not(:disabled) {
+		transform: scale(0.98);
+	}
+
+	/* Tournament exit dialog */
+	.exit-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.8);
+		backdrop-filter: blur(4px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+	}
+
+	.exit-dialog {
+		background: #1a1d24;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 12px;
+		padding: 1.5rem;
+		width: min(420px, 90vw);
+	}
+
+	.exit-title {
+		margin: 0 0 1.25rem 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.7);
+		text-align: center;
+	}
+
+	.exit-info {
+		margin: 0 0 1.25rem 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.9rem;
+		color: rgba(255, 255, 255, 0.6);
+		text-align: center;
+	}
+
+	.exit-actions {
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
-		margin-bottom: 1.5rem;
+		margin-bottom: 1.25rem;
 	}
 
-	.exit-option {
+	.exit-action {
 		display: flex;
 		align-items: flex-start;
-		gap: 0.75rem;
+		gap: 1rem;
 		padding: 1rem;
 		border-radius: 8px;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.1s ease;
 	}
 
-	.exit-option .option-icon {
-		font-size: 1.5rem;
+	.exit-action .action-icon {
 		flex-shrink: 0;
+		width: 36px;
+		height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 8px;
 	}
 
-	.exit-option .option-text {
+	.exit-action .action-content {
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
+		flex: 1;
 	}
 
-	.exit-option .option-title {
-		font-weight: 700;
+	.exit-action .action-label {
+		font-family: 'Lexend', sans-serif;
 		font-size: 0.95rem;
+		font-weight: 600;
 	}
 
-	.exit-option .option-desc {
+	.exit-action .action-hint {
+		font-family: 'Lexend', sans-serif;
 		font-size: 0.8rem;
-		opacity: 0.7;
-		line-height: 1.3;
+		color: rgba(255, 255, 255, 0.5);
+		line-height: 1.35;
 	}
 
-	.pause-option {
-		background: rgba(0, 200, 255, 0.1);
-		border: 2px solid rgba(0, 200, 255, 0.3);
+	.exit-action.pause {
+		background: rgba(80, 180, 220, 0.08);
+		border: 1px solid rgba(80, 180, 220, 0.2);
 	}
 
-	.pause-option:hover {
-		background: rgba(0, 200, 255, 0.2);
-		border-color: rgba(0, 200, 255, 0.5);
+	.exit-action.pause:hover {
+		background: rgba(80, 180, 220, 0.15);
+		border-color: rgba(80, 180, 220, 0.35);
 	}
 
-	.pause-option .option-title {
-		color: #00d4ff;
+	.exit-action.pause:active {
+		transform: scale(0.99);
 	}
 
-	.abandon-option {
-		background: rgba(255, 68, 68, 0.1);
-		border: 2px solid rgba(255, 68, 68, 0.3);
+	.exit-action.pause .action-icon {
+		background: rgba(80, 180, 220, 0.15);
+		color: #70c4e0;
 	}
 
-	.abandon-option:hover {
-		background: rgba(255, 68, 68, 0.2);
-		border-color: rgba(255, 68, 68, 0.5);
+	.exit-action.pause .action-label {
+		color: #8cd0ec;
 	}
 
-	.abandon-option .option-title {
-		color: #ff6666;
+	.exit-action.abandon {
+		background: rgba(220, 90, 90, 0.08);
+		border: 1px solid rgba(220, 90, 90, 0.2);
+	}
+
+	.exit-action.abandon:hover {
+		background: rgba(220, 90, 90, 0.15);
+		border-color: rgba(220, 90, 90, 0.35);
+	}
+
+	.exit-action.abandon:active {
+		transform: scale(0.99);
+	}
+
+	.exit-action.abandon .action-icon {
+		background: rgba(220, 90, 90, 0.15);
+		color: #e07070;
+	}
+
+	.exit-action.abandon .action-label {
+		color: #ec8c8c;
+	}
+
+	.exit-footer {
+		display: flex;
+		justify-content: center;
+		gap: 0.75rem;
+	}
+
+	.exit-btn {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.9rem;
+		font-weight: 500;
+		padding: 0.65rem 1.25rem;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: all 0.1s ease;
+	}
+
+	.exit-btn.cancel {
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.exit-btn.cancel:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
+	}
+
+	.exit-btn.confirm {
+		background: rgba(220, 90, 90, 0.15);
+		border: 1px solid rgba(220, 90, 90, 0.3);
+		color: #ec8c8c;
+	}
+
+	.exit-btn.confirm:hover {
+		background: rgba(220, 90, 90, 0.25);
+		border-color: rgba(220, 90, 90, 0.45);
+	}
+
+	.exit-btn:active {
+		transform: scale(0.98);
 	}
 
 	.confirm-buttons.single-button {
@@ -2282,11 +2503,6 @@
 		.tournament-button {
 			left: auto;
 			right: 1.5rem;
-		}
-
-		.history-button {
-			font-size: 1.2rem !important;
-			padding: 0.5rem 0.6rem !important;
 		}
 
 		.confirm-modal {
@@ -2316,9 +2532,8 @@
 			max-width: 60%;
 		}
 
-		.tournament-exit-modal {
-			width: 450px;
-			max-width: 70%;
+		.exit-dialog {
+			width: min(450px, 70vw);
 		}
 	}
 
@@ -2336,11 +2551,6 @@
 			right: 1rem;
 		}
 
-		.history-button {
-			font-size: 1.1rem !important;
-			padding: 0.4rem 0.5rem !important;
-		}
-
 		.confirm-modal {
 			width: 300px;
 			max-width: 50%;
@@ -2352,42 +2562,121 @@
 			margin-bottom: 1rem;
 		}
 
-		.tournament-exit-modal {
-			width: 400px;
-			max-width: 65%;
+		.exit-dialog {
+			padding: 1.25rem;
+			width: min(400px, 65vw);
 		}
 
-		.exit-option {
+		.exit-title {
+			font-size: 0.9rem;
+			margin-bottom: 1rem;
+		}
+
+		.exit-action {
 			padding: 0.75rem;
+			gap: 0.75rem;
 		}
 
-		.exit-option .option-icon {
-			font-size: 1.2rem;
+		.exit-action .action-icon {
+			width: 30px;
+			height: 30px;
 		}
 
-		.exit-option .option-title {
+		.exit-action .action-icon svg {
+			width: 16px;
+			height: 16px;
+		}
+
+		.exit-action .action-label {
 			font-size: 0.85rem;
 		}
 
-		.exit-option .option-desc {
+		.exit-action .action-hint {
 			font-size: 0.7rem;
+		}
+
+		.newmatch-dialog {
+			padding: 1.25rem;
+			width: min(300px, 55vw);
+		}
+
+		.newmatch-icon {
+			width: 40px;
+			height: 40px;
+		}
+
+		.newmatch-icon svg {
+			width: 20px;
+			height: 20px;
+		}
+
+		.newmatch-title {
+			font-size: 0.9rem;
+		}
+
+		.newmatch-btn {
+			font-size: 0.85rem;
+			padding: 0.6rem 0.85rem;
+		}
+
+		.reset-dialog {
+			padding: 1.25rem;
+			width: min(320px, 55vw);
+		}
+
+		.reset-icon {
+			width: 40px;
+			height: 40px;
+		}
+
+		.reset-icon svg {
+			width: 20px;
+			height: 20px;
+		}
+
+		.reset-title {
+			font-size: 0.9rem;
+		}
+
+		.reset-desc {
+			font-size: 0.8rem;
+		}
+
+		.reset-btn {
+			font-size: 0.85rem;
+			padding: 0.6rem 0.85rem;
 		}
 	}
 
 	@media (max-width: 480px) {
-		.exit-option {
-			padding: 0.75rem;
+		.exit-dialog {
+			padding: 1.25rem;
 		}
 
-		.exit-option .option-icon {
-			font-size: 1.2rem;
+		.exit-title {
+			font-size: 0.9rem;
 		}
 
-		.exit-option .option-title {
-			font-size: 0.85rem;
+		.exit-action {
+			padding: 0.85rem;
+			gap: 0.75rem;
 		}
 
-		.exit-option .option-desc {
+		.exit-action .action-icon {
+			width: 32px;
+			height: 32px;
+		}
+
+		.exit-action .action-icon svg {
+			width: 18px;
+			height: 18px;
+		}
+
+		.exit-action .action-label {
+			font-size: 0.9rem;
+		}
+
+		.exit-action .action-hint {
 			font-size: 0.75rem;
 		}
 	}

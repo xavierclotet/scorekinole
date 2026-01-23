@@ -527,9 +527,18 @@
 <svelte:window on:keydown={handleKeydown} />
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={close} on:keydown={handleKeydown} role="button" tabindex="-1">
-		<div class="modal" on:click|stopPropagation on:keydown|stopPropagation role="dialog">
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<div class="modal-overlay" on:click={close}>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div class="modal" on:click|stopPropagation>
 			<div class="modal-header">
+				<div class="header-icon">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+					</svg>
+				</div>
 				<span class="modal-title">
 					{#if currentStep === 'key_input'}
 						{$t('playTournamentMatch')}
@@ -541,7 +550,12 @@
 						{$t('error')}
 					{/if}
 				</span>
-				<button class="close-btn" on:click={close} aria-label="Close">x</button>
+				<button class="close-btn" on:click={close} aria-label="Close">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="18" y1="6" x2="6" y2="18"></line>
+						<line x1="6" y1="6" x2="18" y2="18"></line>
+					</svg>
+				</button>
 			</div>
 
 			<div class="modal-content">
@@ -569,26 +583,41 @@
 									on:click={() => showKey = !showKey}
 									aria-label={showKey ? $t('hideKey') : $t('showKey')}
 								>
-									{showKey ? '🙈' : '👁️'}
+									{#if showKey}
+										<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+											<line x1="1" y1="1" x2="23" y2="23"></line>
+										</svg>
+									{:else}
+										<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+											<circle cx="12" cy="12" r="3"></circle>
+										</svg>
+									{/if}
 								</button>
 							</div>
 						</div>
 
-						<Button
-							variant="primary"
-							fullWidth
+						<button
+							class="search-btn"
 							disabled={tournamentKey.length !== 6}
 							on:click={searchTournament}
 						>
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="11" cy="11" r="8"></circle>
+								<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+							</svg>
 							{$t('searchTournament')}
-						</Button>
+						</button>
 					</div>
 
 				<!-- Step: Loading -->
 				{:else if currentStep === 'loading'}
 					<div class="step-content loading">
-						<div class="spinner"></div>
-						<p>{$t('searchingTournament')}</p>
+						<div class="spinner-container">
+							<div class="spinner"></div>
+						</div>
+						<p class="loading-text">{$t('searchingTournament')}</p>
 					</div>
 
 				<!-- Step: Match Selection -->
@@ -613,7 +642,11 @@
 									on:click={changeTournament}
 									title={$t('changeTournament')}
 								>
-									↻
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+										<polyline points="23 4 23 10 17 10"></polyline>
+										<polyline points="1 20 1 14 7 14"></polyline>
+										<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+									</svg>
 								</button>
 							</div>
 
@@ -680,11 +713,25 @@
 									class:expanded={showInProgressMatches}
 									on:click={() => showInProgressMatches = !showInProgressMatches}
 								>
-									<span class="accordion-icon">{showInProgressMatches ? '▼' : '▶'}</span>
+									<span class="accordion-icon">
+										<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+											{#if showInProgressMatches}
+												<path d="M7 10l5 5 5-5z"/>
+											{:else}
+												<path d="M10 17l5-5-5-5z"/>
+											{/if}
+										</svg>
+									</span>
 									<span class="accordion-title">
 										{$t('matchesInProgress')} ({inProgressMatchesList.length})
 									</span>
-									<span class="accordion-warning">⚠️</span>
+									<span class="accordion-warning">
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+											<line x1="12" y1="9" x2="12" y2="13"></line>
+											<line x1="12" y1="17" x2="12.01" y2="17"></line>
+										</svg>
+									</span>
 								</button>
 
 								{#if showInProgressMatches}
@@ -723,12 +770,22 @@
 				<!-- Step: Error -->
 				{:else if currentStep === 'error'}
 					<div class="step-content error">
-						<div class="error-icon">!</div>
+						<div class="error-icon">
+							<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="12" cy="12" r="10"></circle>
+								<line x1="12" y1="8" x2="12" y2="12"></line>
+								<line x1="12" y1="16" x2="12.01" y2="16"></line>
+							</svg>
+						</div>
 						<p class="error-message">{errorMessage}</p>
 
-						<Button variant="secondary" fullWidth on:click={goBack}>
+						<button class="retry-btn" on:click={goBack}>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<polyline points="1 4 1 10 7 10"></polyline>
+								<path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+							</svg>
 							{$t('tryAgain')}
-						</Button>
+						</button>
 					</div>
 				{/if}
 			</div>
@@ -739,11 +796,9 @@
 <style>
 	.modal-overlay {
 		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(0, 0, 0, 0.7);
+		inset: 0;
+		background: rgba(0, 0, 0, 0.8);
+		backdrop-filter: blur(4px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -751,48 +806,63 @@
 	}
 
 	.modal {
-		background: #1a1f35;
-		padding: 1.5rem;
+		background: #1a1d24;
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
-		max-width: 90%;
-		width: 550px;
+		padding: 1.5rem;
+		width: min(550px, 94vw);
 		max-height: 85vh;
 		overflow-y: auto;
-		position: relative;
-		border: 2px solid rgba(0, 255, 136, 0.3);
 	}
 
 	.modal-header {
-		margin-bottom: 1.5rem;
 		display: flex;
-		justify-content: space-between;
 		align-items: center;
+		gap: 0.75rem;
+		margin-bottom: 1.25rem;
+		padding-bottom: 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.header-icon {
+		width: 36px;
+		height: 36px;
+		background: rgba(59, 130, 246, 0.15);
+		border: 1px solid rgba(59, 130, 246, 0.3);
+		border-radius: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #60a5fa;
+		flex-shrink: 0;
 	}
 
 	.modal-title {
-		font-size: 1.25rem;
-		font-weight: 700;
+		flex: 1;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.1rem;
+		font-weight: 600;
 		color: #fff;
 	}
 
 	.close-btn {
-		background: none;
-		border: none;
-		font-size: 1.5rem;
-		cursor: pointer;
-		color: #fff;
-		line-height: 1;
-		padding: 0;
 		width: 32px;
 		height: 32px;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: all 0.2s;
+		cursor: pointer;
+		color: rgba(255, 255, 255, 0.5);
+		transition: all 0.15s ease;
 	}
 
 	.close-btn:hover {
-		transform: scale(1.1);
+		background: rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.8);
+		border-color: rgba(255, 255, 255, 0.2);
 	}
 
 	.modal-content {
@@ -807,12 +877,14 @@
 	}
 
 	.description {
-		color: rgba(255, 255, 255, 0.8);
-		font-size: 0.95rem;
+		font-family: 'Lexend', sans-serif;
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.9rem;
 		text-align: center;
 		margin: 0;
 	}
 
+	/* Key Input */
 	.key-input-container {
 		display: flex;
 		justify-content: center;
@@ -827,9 +899,10 @@
 
 	.key-input {
 		background: rgba(0, 0, 0, 0.3);
-		border: 2px solid rgba(0, 255, 136, 0.3);
+		border: 1px solid rgba(255, 255, 255, 0.15);
 		border-radius: 8px;
-		padding: 1rem 3rem 1rem 1.5rem;
+		padding: 1rem 3.5rem 1rem 1.5rem;
+		font-family: 'Lexend', sans-serif;
 		font-size: 1.75rem;
 		font-weight: 700;
 		text-align: center;
@@ -837,16 +910,17 @@
 		letter-spacing: 0.4em;
 		text-transform: uppercase;
 		width: 100%;
-		transition: border-color 0.2s;
+		transition: all 0.15s ease;
 	}
 
 	.key-input:focus {
 		outline: none;
-		border-color: var(--accent-green, #00ff88);
+		border-color: rgba(59, 130, 246, 0.5);
+		background: rgba(59, 130, 246, 0.05);
 	}
 
 	.key-input::placeholder {
-		color: rgba(255, 255, 255, 0.3);
+		color: rgba(255, 255, 255, 0.25);
 		letter-spacing: 0.3em;
 	}
 
@@ -859,40 +933,99 @@
 
 	.toggle-key-btn {
 		position: absolute;
-		right: 0.5rem;
+		right: 0.75rem;
 		background: none;
 		border: none;
-		font-size: 1.25rem;
 		cursor: pointer;
-		padding: 0.25rem;
-		opacity: 0.7;
-		transition: opacity 0.2s;
+		padding: 0.5rem;
+		color: rgba(255, 255, 255, 0.4);
+		transition: color 0.15s ease;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.toggle-key-btn:hover {
-		opacity: 1;
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	/* Search Button */
+	.search-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.85rem 1.25rem;
+		background: rgba(59, 130, 246, 0.15);
+		border: 1px solid rgba(59, 130, 246, 0.3);
+		border-radius: 8px;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.95rem;
+		font-weight: 500;
+		color: #60a5fa;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.search-btn:hover:not(:disabled) {
+		background: rgba(59, 130, 246, 0.25);
+		border-color: rgba(59, 130, 246, 0.5);
+	}
+
+	.search-btn:active:not(:disabled) {
+		transform: scale(0.98);
+	}
+
+	.search-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 
 	/* Loading */
 	.step-content.loading {
 		align-items: center;
-		padding: 2rem 0;
+		padding: 2.5rem 0;
+	}
+
+	.spinner-container {
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.spinner {
-		width: 48px;
-		height: 48px;
-		border: 4px solid rgba(0, 255, 136, 0.2);
-		border-top-color: var(--accent-green, #00ff88);
+		width: 40px;
+		height: 40px;
+		border: 3px solid rgba(59, 130, 246, 0.2);
+		border-top-color: #60a5fa;
 		border-radius: 50%;
 		animation: spin 1s linear infinite;
+	}
+
+	.loading-text {
+		font-family: 'Lexend', sans-serif;
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.9rem;
+		margin: 0;
 	}
 
 	@keyframes spin {
 		to { transform: rotate(360deg); }
 	}
 
-	/* Tournament Title Row */
+	/* Match Selection Header */
+	.match-selection-content {
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.match-selection-header {
+		flex-shrink: 0;
+		margin-bottom: 1rem;
+	}
+
 	.tournament-title-row {
 		display: flex;
 		flex-direction: row;
@@ -902,8 +1035,9 @@
 	}
 
 	.tournament-name {
-		color: var(--accent-green, #00ff88);
-		font-size: 1.15rem;
+		font-family: 'Lexend', sans-serif;
+		color: #60a5fa;
+		font-size: 1.05rem;
 		font-weight: 600;
 		text-align: center;
 		margin: 0;
@@ -915,57 +1049,51 @@
 	}
 
 	.edition-number {
-		color: rgba(255, 255, 255, 0.5);
+		color: rgba(255, 255, 255, 0.4);
 		font-weight: 500;
 	}
 
 	.change-tournament-btn {
-		background: rgba(255, 255, 255, 0.1);
-		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 50%;
-		width: 28px;
-		height: 28px;
+		width: 26px;
+		height: 26px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		cursor: pointer;
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 1rem;
-		transition: all 0.2s;
+		color: rgba(255, 255, 255, 0.4);
+		transition: all 0.15s ease;
 		flex-shrink: 0;
 	}
 
 	.change-tournament-btn:hover {
-		background: rgba(255, 255, 255, 0.2);
-		color: #fff;
-		border-color: rgba(255, 255, 255, 0.4);
+		background: rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.7);
+		border-color: rgba(255, 255, 255, 0.2);
 	}
 
 	.phase-badge {
 		display: inline-flex;
 		align-items: center;
-		padding: 0.2rem 0.5rem;
+		padding: 0.15rem 0.4rem;
 		border-radius: 4px;
-		font-size: 0.75rem;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.7rem;
 		font-weight: 500;
-		background: rgba(255, 255, 255, 0.1);
-		color: rgba(255, 255, 255, 0.8);
-		border: 1px solid rgba(255, 255, 255, 0.15);
+		background: rgba(255, 255, 255, 0.08);
+		color: rgba(255, 255, 255, 0.7);
+		border: 1px solid rgba(255, 255, 255, 0.1);
 	}
 
 	.phase-badge.group-stage {
-		background: rgba(33, 150, 243, 0.15);
-		color: #90caf9;
-		border: 1px solid rgba(33, 150, 243, 0.3);
+		background: rgba(59, 130, 246, 0.12);
+		color: #93c5fd;
+		border-color: rgba(59, 130, 246, 0.25);
 	}
 
-	.phase-badge.final-stage {
-		background: rgba(255, 152, 0, 0.15);
-		color: #ffcc80;
-		border: 1px solid rgba(255, 152, 0, 0.3);
-	}
-
-	/* Config Row (game config + system type) */
+	/* Config Row */
 	.config-row {
 		display: flex;
 		justify-content: center;
@@ -978,60 +1106,26 @@
 	.config-box {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.35rem 0.65rem;
+		gap: 0.35rem;
+		padding: 0.3rem 0.6rem;
 		background: rgba(0, 0, 0, 0.25);
-		border-radius: 6px;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		color: rgba(255, 255, 255, 0.75);
-		font-size: 0.8rem;
+		border-radius: 5px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		font-family: 'Lexend', sans-serif;
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.75rem;
 		font-weight: 500;
 	}
 
 	.config-box.round-highlight {
-		background: rgba(0, 188, 212, 0.2);
-		border: 1px solid rgba(0, 188, 212, 0.4);
-		color: #80deea;
+		background: rgba(59, 130, 246, 0.15);
+		border-color: rgba(59, 130, 246, 0.3);
+		color: #93c5fd;
 		font-weight: 600;
-		font-size: 0.9rem;
-	}
-
-	.system-box {
-		display: inline-flex;
-		align-items: center;
-		padding: 0.35rem 0.65rem;
-		border-radius: 6px;
 		font-size: 0.8rem;
-		font-weight: 600;
-		background: rgba(156, 39, 176, 0.15);
-		color: #ce93d8;
-		border: 1px solid rgba(156, 39, 176, 0.3);
 	}
 
-	.system-box.swiss {
-		background: rgba(156, 39, 176, 0.15);
-		color: #ce93d8;
-		border: 1px solid rgba(156, 39, 176, 0.3);
-	}
-
-	.system-box.round-robin {
-		background: rgba(0, 188, 212, 0.15);
-		color: #80deea;
-		border: 1px solid rgba(0, 188, 212, 0.3);
-	}
-
-	/* Match Selection */
-	.match-selection-content {
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-	}
-
-	.match-selection-header {
-		flex-shrink: 0;
-		margin-bottom: 0.5rem;
-	}
-
+	/* Match List */
 	.matches-list-container {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
@@ -1048,58 +1142,70 @@
 
 	.match-item-btn {
 		background: rgba(0, 0, 0, 0.2);
-		border: 2px solid rgba(255, 255, 255, 0.1);
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 8px;
 		padding: 0.75rem 0.5rem;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.15s ease;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 0.25rem;
+		gap: 0.2rem;
 		text-align: center;
 	}
 
 	.match-item-btn:hover {
-		border-color: rgba(0, 255, 136, 0.5);
-		background: rgba(0, 255, 136, 0.05);
+		border-color: rgba(59, 130, 246, 0.4);
+		background: rgba(59, 130, 246, 0.08);
+	}
+
+	.match-item-btn:active {
+		transform: scale(0.98);
 	}
 
 	.match-player {
+		font-family: 'Lexend', sans-serif;
 		color: #fff;
-		font-size: 0.95rem;
+		font-size: 0.9rem;
 		font-weight: 500;
 	}
 
 	.match-vs {
-		color: rgba(255, 255, 255, 0.4);
-		font-size: 0.8rem;
+		font-family: 'Lexend', sans-serif;
+		color: rgba(255, 255, 255, 0.35);
+		font-size: 0.75rem;
 		font-weight: 400;
 	}
 
 	.match-round-name {
-		color: #ffcc80;
-		font-size: 0.7rem;
+		font-family: 'Lexend', sans-serif;
+		color: #fcd34d;
+		font-size: 0.65rem;
 		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		padding: 0.15rem 0.4rem;
-		background: rgba(255, 152, 0, 0.15);
+		letter-spacing: 0.03em;
+		padding: 0.12rem 0.35rem;
+		background: rgba(251, 191, 36, 0.12);
 		border-radius: 3px;
-		margin-bottom: 0.15rem;
+		margin-bottom: 0.1rem;
 	}
 
 	.match-item-btn.in-progress {
-		border-color: rgba(255, 193, 7, 0.3);
+		border-color: rgba(251, 191, 36, 0.25);
 	}
 
 	.match-item-btn.in-progress:hover {
-		border-color: rgba(255, 193, 7, 0.6);
-		background: rgba(255, 193, 7, 0.1);
+		border-color: rgba(251, 191, 36, 0.5);
+		background: rgba(251, 191, 36, 0.1);
 	}
 
-	/* In-progress matches section (accordion) */
+	.match-item-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* In-progress Section */
 	.in-progress-section {
 		margin-top: 1rem;
 	}
@@ -1110,17 +1216,17 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.6rem 0.75rem;
-		background: rgba(255, 193, 7, 0.08);
-		border: 1px solid rgba(255, 193, 7, 0.25);
+		background: rgba(251, 191, 36, 0.08);
+		border: 1px solid rgba(251, 191, 36, 0.2);
 		border-radius: 6px;
 		cursor: pointer;
-		transition: all 0.2s;
-		color: rgba(255, 193, 7, 0.9);
+		transition: all 0.15s ease;
+		color: #fcd34d;
 	}
 
 	.in-progress-accordion:hover {
-		background: rgba(255, 193, 7, 0.12);
-		border-color: rgba(255, 193, 7, 0.4);
+		background: rgba(251, 191, 36, 0.12);
+		border-color: rgba(251, 191, 36, 0.35);
 	}
 
 	.in-progress-accordion.expanded {
@@ -1129,24 +1235,29 @@
 	}
 
 	.accordion-icon {
-		font-size: 0.7rem;
-		transition: transform 0.2s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: transform 0.2s ease;
 	}
 
 	.accordion-title {
 		flex: 1;
 		text-align: left;
-		font-size: 0.85rem;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.8rem;
 		font-weight: 500;
 	}
 
 	.accordion-warning {
-		font-size: 0.9rem;
+		display: flex;
+		align-items: center;
+		color: #fcd34d;
 	}
 
 	.in-progress-content {
-		background: rgba(255, 193, 7, 0.05);
-		border: 1px solid rgba(255, 193, 7, 0.25);
+		background: rgba(251, 191, 36, 0.04);
+		border: 1px solid rgba(251, 191, 36, 0.2);
 		border-top: none;
 		border-radius: 0 0 6px 6px;
 		padding: 0.75rem;
@@ -1165,8 +1276,9 @@
 	}
 
 	.in-progress-hint {
-		color: rgba(255, 193, 7, 0.8);
-		font-size: 0.75rem;
+		font-family: 'Lexend', sans-serif;
+		color: rgba(251, 191, 36, 0.7);
+		font-size: 0.7rem;
 		text-align: center;
 		margin: 0 0 0.75rem 0;
 		line-height: 1.4;
@@ -1176,79 +1288,105 @@
 		opacity: 0.9;
 	}
 
-	/* Starting indicator */
+	/* Starting Indicator */
 	.starting-indicator {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		gap: 0.75rem;
 		padding: 1rem;
-		color: var(--accent-green, #00ff88);
-		font-size: 0.95rem;
+		font-family: 'Lexend', sans-serif;
+		color: #60a5fa;
+		font-size: 0.9rem;
 	}
 
 	.spinner.small {
-		width: 24px;
-		height: 24px;
-		border-width: 3px;
-	}
-
-	.match-item-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
+		width: 20px;
+		height: 20px;
+		border-width: 2px;
 	}
 
 	/* Error */
 	.step-content.error {
 		align-items: center;
 		text-align: center;
+		padding: 1rem 0;
 	}
 
 	.error-icon {
-		width: 60px;
-		height: 60px;
-		background: rgba(255, 68, 68, 0.2);
-		border: 2px solid rgba(255, 68, 68, 0.5);
+		width: 56px;
+		height: 56px;
+		background: rgba(239, 68, 68, 0.12);
+		border: 1px solid rgba(239, 68, 68, 0.3);
 		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 2rem;
-		font-weight: 700;
-		color: #ff4444;
+		color: #f87171;
 	}
 
 	.error-message {
-		color: #ff4444;
-		font-size: 1rem;
+		font-family: 'Lexend', sans-serif;
+		color: #f87171;
+		font-size: 0.95rem;
 		margin: 0;
 	}
 
-	/* Button Row */
-	.button-row {
+	.retry-btn {
 		display: flex;
-		gap: 1rem;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.85rem 1.25rem;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 8px;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.9rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.8);
+		cursor: pointer;
+		transition: all 0.15s ease;
 	}
 
-	.button-row :global(button) {
-		flex: 1;
+	.retry-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+		border-color: rgba(255, 255, 255, 0.2);
+	}
+
+	.retry-btn:active {
+		transform: scale(0.98);
 	}
 
 	/* Mobile */
 	@media (max-width: 600px) {
 		.modal {
-			width: 95%;
-			padding: 1rem;
+			padding: 1.25rem;
+		}
+
+		.modal-header {
+			margin-bottom: 1rem;
+			padding-bottom: 0.75rem;
+		}
+
+		.header-icon {
+			width: 32px;
+			height: 32px;
+		}
+
+		.header-icon svg {
+			width: 16px;
+			height: 16px;
 		}
 
 		.modal-title {
-			font-size: 1.1rem;
+			font-size: 1rem;
 		}
 
 		.key-input {
 			font-size: 1.5rem;
-			width: 100%;
-			padding: 0.75rem 2.5rem 0.75rem 1rem;
+			padding: 0.85rem 3rem 0.85rem 1rem;
 		}
 
 		.matches-list-container {

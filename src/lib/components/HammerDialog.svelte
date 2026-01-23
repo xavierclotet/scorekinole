@@ -8,36 +8,19 @@
 
 	const dispatch = createEventDispatcher();
 
-	// Calculate if a color is dark (returns true if dark)
 	function isDarkColor(hexColor: string): boolean {
-		// Remove # if present
 		const hex = hexColor.replace('#', '');
-
-		// Convert to RGB
 		const r = parseInt(hex.substring(0, 2), 16);
 		const g = parseInt(hex.substring(2, 4), 16);
 		const b = parseInt(hex.substring(4, 6), 16);
-
-		// Calculate relative luminance using WCAG formula
 		const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-		// Return true if dark (luminance < 0.5)
 		return luminance < 0.5;
 	}
 
-	// Button text: use white if team color is dark, black if light (since button bg is team color)
-	$: team1TextColor = $team1.color && isDarkColor($team1.color) ? '#ffffff' : '#000000';
-	$: team2TextColor = $team2.color && isDarkColor($team2.color) ? '#ffffff' : '#000000';
-
-	// Border color: use white if team color is dark, otherwise use team color
-	// @ts-expect-error - Used in template style binding
-	$: team1BorderColor = $team1.color && isDarkColor($team1.color) ? '#ffffff' : $team1.color;
-	// @ts-expect-error - Used in template style binding
-	$: team2BorderColor = $team2.color && isDarkColor($team2.color) ? '#ffffff' : $team2.color;
+	$: team1TextColor = $team1.color && isDarkColor($team1.color) ? '#ffffff' : '#1a1a1a';
+	$: team2TextColor = $team2.color && isDarkColor($team2.color) ? '#ffffff' : '#1a1a1a';
 
 	function selectStartingTeam(teamNumber: 1 | 2) {
-		// The starting team does NOT have the hammer
-		// The other team gets the hammer
 		const hammerTeam = teamNumber === 1 ? 2 : 1;
 
 		if (teamNumber === 1) {
@@ -48,10 +31,7 @@
 			team2.update(t => ({ ...t, hasHammer: false }));
 		}
 
-		// Track who has hammer at the start of this game (for alternating in multi-game matches)
 		setCurrentGameStartHammer(hammerTeam);
-		console.log(`🔨 Game start: Team ${hammerTeam} has hammer, Team ${teamNumber} starts`);
-
 		close();
 	}
 
@@ -64,129 +44,112 @@
 {#if isOpen}
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="modal-overlay">
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="modal" on:click|stopPropagation>
-			<div class="modal-header">
-				<span class="modal-title">{$t('hammerDialogTitle')}</span>
-			</div>
-			<div class="modal-content">
-				<div class="buttons">
-					<button
-						class="team-btn"
-						style="background: {$team1.color}; border-color: {team1BorderColor}; color: {team1TextColor};"
-						on:click={() => selectStartingTeam(1)}
-					>
-						{$team1.name || 'Team 1'}
-					</button>
-					<button
-						class="team-btn"
-						style="background: {$team2.color}; border-color: {team2BorderColor}; color: {team2TextColor};"
-						on:click={() => selectStartingTeam(2)}
-					>
-						{$team2.name || 'Team 2'}
-					</button>
-				</div>
+	<div class="overlay">
+		<div class="dialog" on:click|stopPropagation>
+			<p class="question">{$t('hammerDialogTitle')}</p>
+			<div class="options">
+				<button
+					class="option"
+					style="--btn-color: {$team1.color}; --btn-text: {team1TextColor};"
+					on:click={() => selectStartingTeam(1)}
+				>
+					<span class="name">{$team1.name || 'Team 1'}</span>
+				</button>
+				<button
+					class="option"
+					style="--btn-color: {$team2.color}; --btn-text: {team2TextColor};"
+					on:click={() => selectStartingTeam(2)}
+				>
+					<span class="name">{$team2.name || 'Team 2'}</span>
+				</button>
 			</div>
 		</div>
 	</div>
 {/if}
 
 <style>
-	.modal-overlay {
+	.overlay {
 		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(0, 0, 0, 0.7);
+		inset: 0;
+		background: rgba(0, 0, 0, 0.8);
+		backdrop-filter: blur(4px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
 	}
 
-	.modal {
-		background: #1a1f35;
-		padding: 2rem;
+	.dialog {
+		background: #1a1d24;
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
-		width: 35%;
-		max-height: 90vh;
-		overflow-y: auto;
-	}
-
-	.modal-header {
-		margin-bottom: 1.5rem;
-	}
-
-	.modal-title {
-		font-size: 1.5rem;
-		font-weight: 700;
-		color: #fff;
-	}
-
-	.modal-content {
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-	}
-
-	.buttons {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1rem;
-	}
-
-	.team-btn {
 		padding: 1.5rem;
-		border: 3px solid;
-		border-radius: 12px;
-		font-size: 1.25rem;
-		font-weight: 700;
+		width: min(400px, 90vw);
+	}
+
+	.question {
+		margin: 0 0 1.25rem 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.7);
+		text-align: center;
+	}
+
+	.options {
+		display: flex;
+		gap: 0.75rem;
+	}
+
+	.option {
+		flex: 1;
+		background: var(--btn-color);
+		color: var(--btn-text);
+		border: none;
+		border-radius: 8px;
+		padding: 1rem;
 		cursor: pointer;
-		transition: all 0.2s;
-		font-family: 'Orbitron', monospace;
+		transition: transform 0.1s ease, opacity 0.1s ease;
 	}
 
-	.team-btn:hover {
-		transform: scale(1.05);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	.option:hover {
+		opacity: 0.9;
 	}
 
-	.team-btn:active {
+	.option:active {
 		transform: scale(0.98);
 	}
 
-	@media (max-width: 1024px) {
-		.modal {
-			width: 50%;
-		}
-	}
-
-	@media (max-width: 768px) {
-		.modal {
-			width: 70%;
-		}
-
-		.modal-title {
-			font-size: 1.25rem;
-		}
-
-		.team-btn {
-			font-size: 1rem;
-			padding: 1.25rem;
-		}
+	.name {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 600;
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	@media (max-width: 480px) {
-		.modal {
-			width: 90%;
+		.dialog {
+			padding: 1.25rem;
 		}
 
-		.team-btn {
+		.question {
 			font-size: 0.9rem;
-			padding: 1rem;
+			margin-bottom: 1rem;
+		}
+
+		.options {
+			gap: 0.6rem;
+		}
+
+		.option {
+			padding: 0.85rem 0.75rem;
+		}
+
+		.name {
+			font-size: 0.9rem;
 		}
 	}
 </style>

@@ -20,62 +20,91 @@
 	// Tournament mode detection
 	$: inTournamentMode = !!$gameTournamentContext;
 
+	// Effective showHammer: use tournament config when in tournament mode
+	$: effectiveShowHammer = inTournamentMode
+		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
+		: $gameSettings.showHammer;
+
 	// Get the appropriate team store
 	$: team = teamNumber === 1 ? $team1 : $team2;
 	$: otherTeam = teamNumber === 1 ? $team2 : $team1;
 
 	// Swipe gesture state
+	let touchStartX = 0;
 	let touchStartY = 0;
 	let touchStartTime = 0;
 	let isTouchDevice = false;
 
-	function handleTouchStart(e: TouchEvent) {
-		// Ignore if touch started on a button
-		const target = e.target as HTMLElement;
-		if (target.tagName === 'BUTTON' || target.tagName === 'INPUT') return;
+	const SWIPE_THRESHOLD = 40; // px minimum for swipe
+	const SWIPE_TIMEOUT = 500; // ms maximum for swipe
 
+	function handleTouchStart(e: TouchEvent) {
 		isTouchDevice = true;
+		touchStartX = e.touches[0].clientX;
 		touchStartY = e.touches[0].clientY;
 		touchStartTime = Date.now();
 	}
 
 	function handleTouchEnd(e: TouchEvent) {
-		// Ignore if touch started on a button
-		const target = e.target as HTMLElement;
-		if (target.tagName === 'BUTTON' || target.tagName === 'INPUT') return;
-
+		const touchEndX = e.changedTouches[0].clientX;
 		const touchEndY = e.changedTouches[0].clientY;
+		const deltaX = touchEndX - touchStartX;
 		const deltaY = touchStartY - touchEndY;
 		const deltaTime = Date.now() - touchStartTime;
 
-		// Swipe detection: minimum 30px, maximum 500ms
-		if (Math.abs(deltaY) > 30 && deltaTime < 500) {
-			if (deltaY > 0) {
-				// Swipe up - increment
+		// Determine if swipe is more horizontal or vertical
+		const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+
+		if (deltaTime < SWIPE_TIMEOUT) {
+			if (isHorizontal && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+				// Horizontal swipe - change score size
+				if (deltaX > 0) {
+					cycleMainScoreSize(1); // Right = increase
+				} else {
+					cycleMainScoreSize(-1); // Left = decrease
+				}
+			} else if (!isHorizontal && Math.abs(deltaY) > 30) {
+				// Vertical swipe - change score
+				if (deltaY > 0) {
+					incrementScore();
+				} else {
+					decrementScore();
+				}
+			} else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && deltaTime < 300) {
+				// Tap detection - increment score
 				incrementScore();
-			} else {
-				// Swipe down - decrement
-				decrementScore();
 			}
-		} else if (Math.abs(deltaY) < 10 && deltaTime < 300) {
-			// Tap detection - increment score
-			incrementScore();
 		}
 	}
 
+	function cycleMainScoreSize(direction: 1 | -1) {
+		const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
+		const currentIndex = sizes.indexOf($gameSettings.mainScoreSize || 'medium');
+		const nextIndex = (currentIndex + direction + sizes.length) % sizes.length;
+		gameSettings.update(s => ({ ...s, mainScoreSize: sizes[nextIndex] }));
+		gameSettings.save();
+	}
+
+	function cycleNameSize() {
+		const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
+		const currentIndex = sizes.indexOf($gameSettings.nameSize || 'medium');
+		const nextIndex = (currentIndex + 1) % sizes.length;
+		gameSettings.update(s => ({ ...s, nameSize: sizes[nextIndex] }));
+		gameSettings.save();
+		vibrate(10);
+	}
+
 	// Mouse drag support for desktop
+	let mouseStartX = 0;
 	let mouseStartY = 0;
 	let mouseStartTime = 0;
 	let isDragging = false;
 
 	function handleMouseDown(e: MouseEvent) {
-		// Ignore if mouse started on a button or input
-		const target = e.target as HTMLElement;
-		if (target.tagName === 'BUTTON' || target.tagName === 'INPUT') return;
-
 		// Ignore mouse events if this is a touch device
 		if (isTouchDevice) return;
 
+		mouseStartX = e.clientX;
 		mouseStartY = e.clientY;
 		mouseStartTime = Date.now();
 		isDragging = true;
@@ -88,19 +117,34 @@
 		if (!isDragging) return;
 		isDragging = false;
 
+		const mouseEndX = e.clientX;
 		const mouseEndY = e.clientY;
+		const deltaX = mouseEndX - mouseStartX;
 		const deltaY = mouseStartY - mouseEndY;
 		const deltaTime = Date.now() - mouseStartTime;
 
-		if (Math.abs(deltaY) > 30 && deltaTime < 500) {
-			if (deltaY > 0) {
+		// Determine if swipe is more horizontal or vertical
+		const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+
+		if (deltaTime < SWIPE_TIMEOUT) {
+			if (isHorizontal && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+				// Horizontal swipe - change score size
+				if (deltaX > 0) {
+					cycleMainScoreSize(1); // Right = increase
+				} else {
+					cycleMainScoreSize(-1); // Left = decrease
+				}
+			} else if (!isHorizontal && Math.abs(deltaY) > 30) {
+				// Vertical swipe - change score
+				if (deltaY > 0) {
+					incrementScore();
+				} else {
+					decrementScore();
+				}
+			} else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && deltaTime < 300) {
+				// Click detection - increment score
 				incrementScore();
-			} else {
-				decrementScore();
 			}
-		} else if (Math.abs(deltaY) < 10 && deltaTime < 300) {
-			// Click detection - increment score
-			incrementScore();
 		}
 	}
 
@@ -441,8 +485,17 @@
 	function handleNameChange(e: Event) {
 		// Block name changes in tournament mode
 		if (inTournamentMode) return;
-		const input = e.target as HTMLInputElement;
-		updateTeam(teamNumber, { name: input.value });
+		const span = e.target as HTMLSpanElement;
+		// Get text content and remove line breaks
+		const text = span.textContent?.replace(/\n/g, ' ').trim() || '';
+		updateTeam(teamNumber, { name: text });
+	}
+
+	function handlePaste(e: ClipboardEvent) {
+		e.preventDefault();
+		// Paste as plain text only
+		const text = e.clipboardData?.getData('text/plain').replace(/\n/g, ' ').trim() || '';
+		document.execCommand('insertText', false, text);
 	}
 
 	function handleChangeColor() {
@@ -452,16 +505,9 @@
 </script>
 
 <div
-	class="team-card"
+	class="team-card score-size-{$gameSettings.mainScoreSize || 'medium'} name-size-{$gameSettings.nameSize || 'medium'}"
 	class:winner={team.hasWon}
 	style="--team-color: {team.color}; --text-color: {getContrastColor(team.color)}"
-	on:touchstart={handleTouchStart}
-	on:touchend={handleTouchEnd}
-	on:mousedown={handleMouseDown}
-	on:mouseup={handleMouseUp}
-	role="button"
-	tabindex="0"
-	aria-label="{team.name} score: {team.points}"
 >
 	<div class="team-header">
 		<button
@@ -470,44 +516,73 @@
 			aria-label="Change color"
 			title={$t('chooseColor')}
 		>
-			🎨
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/></svg>
 		</button>
+		{#if teamNumber === 2}
+			<button
+				class="name-size-btn"
+				on:click|stopPropagation={cycleNameSize}
+				on:touchend|stopPropagation
+				on:mouseup|stopPropagation
+				aria-label="Change name size"
+				title="Change name size"
+			>
+				<span class="aa-icon">Aa</span>
+			</button>
+		{/if}
 		<div class="name-hammer-group">
-			<div class="name-row">
-				{#if inTournamentMode}
-					<div class="tournament-player-display">
-						<span class="player-name-badge">{team.name}</span>
-						{#if teamNumber === 1 && $gameTournamentContext?.currentUserRanking !== undefined}
-							<span class="ranking-badge">#{$gameTournamentContext.currentUserRanking}</span>
-						{/if}
-					</div>
-				{:else}
-					<input
-						type="text"
-						class="team-name"
-						value={team.name}
-						on:input={handleNameChange}
-						placeholder={$t('teamName')}
-						aria-label="Team name"
-					/>
-				{/if}
-				{#if team.hasHammer}
-					<div class="hammer-indicator" title={$t('hammer')}>🔨</div>
-				{/if}
-			</div>
-			{#if team.hasWon && currentGameNumber > 0}
-				<div class="winner-badge">
-					{#if isMatchComplete}
-						{$t('winner')}
-					{:else}
-						{$t('gameWin').replace('{n}', currentGameNumber.toString())}
+			{#if inTournamentMode}
+				<div class="tournament-player-display">
+					<span class="player-name-badge">{team.name}</span>
+					{#if teamNumber === 1 && $gameTournamentContext?.currentUserRanking !== undefined}
+						<span class="ranking-badge">#{$gameTournamentContext.currentUserRanking}</span>
 					{/if}
+				</div>
+			{:else}
+				<span
+					class="team-name"
+					contenteditable="true"
+					role="textbox"
+					tabindex="0"
+					aria-label="Team name"
+					data-placeholder={$t('teamName')}
+					on:input={handleNameChange}
+					on:keydown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+					on:paste={handlePaste}
+					on:click|stopPropagation
+					on:touchstart|stopPropagation
+					on:touchend|stopPropagation
+					on:mousedown|stopPropagation
+					on:mouseup|stopPropagation
+				>{team.name}</span>
+			{/if}
+			{#if effectiveShowHammer && team.hasHammer}
+				<div class="hammer-indicator" title={$t('hammer')}>
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12l-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L12 9"/><path d="M17.64 15L22 10.64"/><path d="M20.91 11.7l-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91"/></svg>
 				</div>
 			{/if}
 		</div>
 	</div>
 
-	<div class="score-display">
+	<div
+		class="score-display"
+		on:touchstart={handleTouchStart}
+		on:touchend={handleTouchEnd}
+		on:mousedown={handleMouseDown}
+		on:mouseup={handleMouseUp}
+		role="button"
+		tabindex="0"
+		aria-label="{team.name} score: {team.points}"
+	>
+		{#if team.hasWon && currentGameNumber > 0}
+			<div class="winner-badge">
+				{#if isMatchComplete}
+					{$t('winner')}
+				{:else}
+					{$t('gameWin').replace('{n}', currentGameNumber.toString())}
+				{/if}
+			</div>
+		{/if}
 		<div class="score">{team.points}</div>
 	</div>
 </div>
@@ -518,40 +593,20 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: space-evenly;
+		justify-content: center;
 		background-color: var(--team-color);
 		color: var(--text-color);
-		border-radius: 12px;
+		border-radius: 16px;
 		padding: 1.5rem;
 		min-height: 300px;
-		cursor: pointer;
 		user-select: none;
-		transition: all 0.3s ease;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-	}
-
-	.team-card:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-	}
-
-	.team-card:active {
-		transform: translateY(0);
+		transition: all 0.2s ease;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+		overflow: hidden;
 	}
 
 	.team-card.winner {
-		animation: pulse-winner 1s ease-in-out infinite;
-		box-shadow: 0 0 30px var(--team-color);
-	}
-
-	@keyframes pulse-winner {
-		0%,
-		100% {
-			transform: scale(1);
-		}
-		50% {
-			transform: scale(1.02);
-		}
+		box-shadow: 0 0 40px color-mix(in srgb, var(--team-color) 50%, transparent);
 	}
 
 	.team-header {
@@ -560,22 +615,32 @@
 		gap: 0.5rem;
 		width: 100%;
 		justify-content: center;
-		margin-bottom: 1rem;
-		position: relative;
+		position: absolute;
+		top: 1rem;
+		left: 0;
+		right: 0;
+		padding: 0 1rem;
+		pointer-events: none;
+	}
+
+	.team-header button,
+	.team-header input,
+	.team-header .team-name {
+		pointer-events: auto;
 	}
 
 	.color-btn {
 		position: absolute;
-		left: 0;
-		background: rgba(255, 255, 255, 0.2);
-		border: 2px solid var(--text-color);
+		left: 1rem;
+		background: rgba(255, 255, 255, 0.15);
+		border: 1px solid rgba(255, 255, 255, 0.25);
 		color: var(--text-color);
-		font-size: 1.5rem;
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
+		font-size: 1.2rem;
+		width: 36px;
+		height: 36px;
+		border-radius: 10px;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.2s ease;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -583,50 +648,88 @@
 	}
 
 	.color-btn:hover {
-		background: rgba(255, 255, 255, 0.3);
-		transform: scale(1.1);
+		background: rgba(255, 255, 255, 0.25);
 	}
 
 	.color-btn:active {
 		transform: scale(0.95);
 	}
 
+	.name-size-btn {
+		position: absolute;
+		right: 1rem;
+		background: rgba(255, 255, 255, 0.15);
+		border: 1px solid rgba(255, 255, 255, 0.25);
+		color: var(--text-color);
+		width: 36px;
+		height: 36px;
+		border-radius: 10px;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+	}
+
+	.name-size-btn:hover {
+		background: rgba(255, 255, 255, 0.25);
+	}
+
+	.name-size-btn:active {
+		transform: scale(0.95);
+	}
+
+	.aa-icon {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.85rem;
+		font-weight: 600;
+		letter-spacing: -0.02em;
+	}
+
 	.name-hammer-group {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.name-row {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
+		justify-content: center;
+		gap: 0.3rem;
+		width: 100%;
+		max-width: calc(100% - 100px); /* Leave space for buttons on both sides */
 	}
 
 	.team-name {
 		background: transparent;
 		border: none;
-		border-bottom: 2px solid var(--text-color);
+		border-bottom: 2px solid color-mix(in srgb, var(--text-color) 40%, transparent);
 		color: var(--text-color);
-		font-size: 2.4rem;
-		font-weight: 700;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.5rem;
+		font-weight: 600;
 		text-align: center;
 		padding: 0.25rem 0.5rem;
-		max-width: 350px;
-		width: 100%;
-		transition: all 0.2s;
+		max-width: 70%;
+		width: auto;
+		min-width: 80px;
+		transition: all 0.2s ease;
+		line-height: 1.2;
+		/* Allow text to wrap to second line */
+		white-space: normal;
+		word-break: break-word;
+		overflow-wrap: break-word;
+		hyphens: auto;
+		cursor: text;
+		display: inline-block;
 	}
 
 	.team-name:focus {
 		outline: none;
-		border-bottom-width: 3px;
-		transform: scale(1.05);
+		border-bottom-color: var(--text-color);
 	}
 
-	.team-name::placeholder {
+	.team-name:empty::before {
+		content: attr(data-placeholder);
 		color: var(--text-color);
-		opacity: 0.6;
+		opacity: 0.5;
 	}
 
 	.team-name.locked {
@@ -644,197 +747,298 @@
 	}
 
 	.player-name-badge {
-		font-size: 2.4rem;
-		font-weight: 700;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.5rem;
+		font-weight: 600;
 		color: var(--text-color);
 		text-align: center;
-		max-width: 350px;
-		line-height: 1.1;
+		max-width: 70%;
+		line-height: 1.2;
+		white-space: normal;
+		word-break: break-word;
+		hyphens: auto;
 	}
 
 	.ranking-badge {
-		font-size: 0.85rem;
-		font-weight: 700;
+		font-size: 0.7rem;
+		font-weight: 600;
 		padding: 0.15rem 0.5rem;
-		background: rgba(255, 215, 0, 0.25);
-		border: 1px solid rgba(255, 215, 0, 0.5);
-		border-radius: 0.5rem;
+		background: rgba(255, 215, 0, 0.2);
+		border: 1px solid rgba(255, 215, 0, 0.4);
+		border-radius: 6px;
 		color: var(--text-color);
 	}
 
 	.team-name.locked:focus {
-		transform: none;
-		border-bottom-width: 2px;
+		border-bottom-color: color-mix(in srgb, var(--text-color) 40%, transparent);
 	}
 
 	.hammer-indicator {
-		font-size: 2.2rem;
-		animation: swing 1s ease-in-out infinite;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		opacity: 0.7;
 	}
 
-	@keyframes swing {
-		0%,
-		100% {
-			transform: rotate(-10deg);
-		}
-		50% {
-			transform: rotate(10deg);
-		}
+	.hammer-indicator svg {
+		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 	}
 
 	.score-display {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		margin: 2rem 0;
+		flex: 1;
+		gap: 0.5rem;
+		width: 100%;
+		cursor: pointer;
+	}
+
+	.score-display:active .score {
+		transform: scale(0.995);
 	}
 
 	.score {
-		font-size: 13.6rem;
-		font-weight: 900;
+		font-family: 'Lexend', sans-serif;
+		font-size: 12rem;
+		font-weight: 800;
 		line-height: 1;
-		text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+		opacity: 0.95;
+		transition: font-size 0.2s ease;
 	}
+
+	/* Score size variants - base (desktop landscape) */
+	.score-size-small .score { font-size: 8rem; }
+	.score-size-medium .score { font-size: 12rem; }
+	.score-size-large .score { font-size: 16rem; }
+
+	/* Name size variants - base (desktop) */
+	.name-size-small .team-name,
+	.name-size-small .player-name-badge { font-size: 1.5rem; }
+	.name-size-medium .team-name,
+	.name-size-medium .player-name-badge { font-size: 1.9rem; }
+	.name-size-large .team-name,
+	.name-size-large .player-name-badge { font-size: 2.3rem; }
+
+	/* Hammer size scales with name size */
+	.name-size-small .hammer-indicator svg { width: 18px; height: 18px; }
+	.name-size-medium .hammer-indicator svg { width: 22px; height: 22px; }
+	.name-size-large .hammer-indicator svg { width: 26px; height: 26px; }
 
 	.winner-badge {
-		background: linear-gradient(135deg, #ffd700, #ffed4e);
-		color: #000;
-		padding: 0.4rem 1rem;
-		border-radius: 20px;
-		font-weight: 900;
-		font-size: 0.85rem;
-		letter-spacing: 0.05em;
-		box-shadow:
-			0 4px 12px rgba(255, 215, 0, 0.4),
-			0 0 20px rgba(255, 215, 0, 0.3);
-		animation: winnerGlow 1.5s ease-in-out infinite;
-	}
-
-	@keyframes winnerGlow {
-		0%, 100% {
-			box-shadow:
-				0 4px 12px rgba(255, 215, 0, 0.4),
-				0 0 20px rgba(255, 215, 0, 0.3);
-		}
-		50% {
-			box-shadow:
-				0 4px 16px rgba(255, 215, 0, 0.6),
-				0 0 30px rgba(255, 215, 0, 0.5);
-		}
-	}
-
-	@keyframes bounce {
-		0%,
-		100% {
-			transform: translateY(0);
-		}
-		50% {
-			transform: translateY(-10px);
-		}
+		background: rgba(255, 255, 255, 0.12);
+		backdrop-filter: blur(8px);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		color: var(--text-color);
+		padding: 0.35rem 0.9rem;
+		border-radius: 4px;
+		font-family: 'Lexend', sans-serif;
+		font-weight: 500;
+		font-size: 0.7rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		opacity: 0.9;
 	}
 
 	/* Responsive adjustments */
 	@media (max-width: 768px) {
-		.team-name,
-		.player-name-badge {
-			font-size: 2.16rem;
-		}
+		/* Score sizes for tablet */
+		.score-size-small .score { font-size: 6rem; }
+		.score-size-medium .score { font-size: 8rem; }
+		.score-size-large .score { font-size: 10rem; }
 
-		.score {
-			font-size: 7.2rem;
-		}
+		/* Name sizes for tablet */
+		.name-size-small .team-name,
+		.name-size-small .player-name-badge { font-size: 1.3rem; }
+		.name-size-medium .team-name,
+		.name-size-medium .player-name-badge { font-size: 1.6rem; }
+		.name-size-large .team-name,
+		.name-size-large .player-name-badge { font-size: 2rem; }
+
+		/* Hammer sizes for tablet */
+		.name-size-small .hammer-indicator svg { width: 16px; height: 16px; }
+		.name-size-medium .hammer-indicator svg { width: 20px; height: 20px; }
+		.name-size-large .hammer-indicator svg { width: 24px; height: 24px; }
 
 		.winner-badge {
-			font-size: 0.8rem;
-			padding: 0.35rem 0.85rem;
+			font-size: 0.7rem;
+			padding: 0.3rem 0.8rem;
 		}
 
 		.ranking-badge {
+			font-size: 0.65rem;
+		}
+
+		.color-btn,
+		.name-size-btn {
+			width: 32px;
+			height: 32px;
+		}
+
+		.aa-icon {
 			font-size: 0.8rem;
 		}
 	}
 
 	@media (max-width: 480px) {
 		.team-card {
-			min-height: 250px;
+			min-height: 220px;
 			padding: 1rem;
+			border-radius: 12px;
 		}
 
-		.team-name,
-		.player-name-badge {
-			font-size: 1.8rem;
-		}
+		/* Score sizes for mobile */
+		.score-size-small .score { font-size: 4.5rem; }
+		.score-size-medium .score { font-size: 6rem; }
+		.score-size-large .score { font-size: 8rem; }
 
-		.score {
-			font-size: 6rem;
-		}
+		/* Name sizes for mobile */
+		.name-size-small .team-name,
+		.name-size-small .player-name-badge { font-size: 1.2rem; }
+		.name-size-medium .team-name,
+		.name-size-medium .player-name-badge { font-size: 1.45rem; }
+		.name-size-large .team-name,
+		.name-size-large .player-name-badge { font-size: 1.75rem; }
 
-		.winner-badge {
-			font-size: 0.75rem;
-			padding: 0.3rem 0.75rem;
-		}
-
-		.hammer-indicator {
-			font-size: 1.2rem;
-		}
-
-		.ranking-badge {
-			font-size: 0.75rem;
-			padding: 0.1rem 0.4rem;
-		}
-	}
-
-	/* Portrait mobile - score grande aprovechando altura */
-	@media (max-width: 768px) and (orientation: portrait) {
-		.score {
-			font-size: 9.6rem;
-		}
-
-		.team-name,
-		.player-name-badge {
-			font-size: 2.4rem;
-		}
-	}
-
-	@media (max-width: 480px) and (orientation: portrait) {
-		.score {
-			font-size: 8rem;
-		}
-
-		.team-name,
-		.player-name-badge {
-			font-size: 2rem;
-		}
-	}
-
-	/* Landscape mobile - score más pequeño por altura limitada */
-	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
-		.team-card {
-			min-height: 200px;
-			padding: 0.75rem;
-		}
-
-		.team-name,
-		.player-name-badge {
-			font-size: 1.6rem;
-		}
-
-		.score {
-			font-size: 5rem;
-			margin: 1rem 0;
-		}
+		/* Hammer sizes for mobile */
+		.name-size-small .hammer-indicator svg { width: 14px; height: 14px; }
+		.name-size-medium .hammer-indicator svg { width: 17px; height: 17px; }
+		.name-size-large .hammer-indicator svg { width: 21px; height: 21px; }
 
 		.winner-badge {
-			font-size: 0.7rem;
+			font-size: 0.65rem;
 			padding: 0.25rem 0.6rem;
 		}
 
-		.hammer-indicator {
-			font-size: 1.4rem;
+		.ranking-badge {
+			font-size: 0.6rem;
+			padding: 0.1rem 0.4rem;
+		}
+
+		.color-btn,
+		.name-size-btn {
+			width: 28px;
+			height: 28px;
+			border-radius: 8px;
+		}
+
+		.aa-icon {
+			font-size: 0.75rem;
+		}
+
+		.team-header {
+			top: 0.75rem;
+		}
+	}
+
+	/* Portrait mobile - bigger scores */
+	@media (max-width: 768px) and (orientation: portrait) {
+		.score {
+			font-size: 10rem;
+		}
+
+		/* Name sizes for portrait tablet */
+		.name-size-small .team-name,
+		.name-size-small .player-name-badge { font-size: 1.4rem; }
+		.name-size-medium .team-name,
+		.name-size-medium .player-name-badge { font-size: 1.7rem; }
+		.name-size-large .team-name,
+		.name-size-large .player-name-badge { font-size: 2.1rem; }
+
+		/* Hammer sizes for portrait tablet */
+		.name-size-small .hammer-indicator svg { width: 17px; height: 17px; }
+		.name-size-medium .hammer-indicator svg { width: 21px; height: 21px; }
+		.name-size-large .hammer-indicator svg { width: 25px; height: 25px; }
+	}
+
+	@media (max-width: 480px) and (orientation: portrait) {
+		/* Score sizes for portrait mobile */
+		.score-size-small .score { font-size: 6rem; }
+		.score-size-medium .score { font-size: 8rem; }
+		.score-size-large .score { font-size: 10rem; }
+
+		/* Name sizes for portrait mobile */
+		.name-size-small .team-name,
+		.name-size-small .player-name-badge { font-size: 1.25rem; }
+		.name-size-medium .team-name,
+		.name-size-medium .player-name-badge { font-size: 1.5rem; }
+		.name-size-large .team-name,
+		.name-size-large .player-name-badge { font-size: 1.8rem; }
+
+		/* Hammer sizes for portrait mobile */
+		.name-size-small .hammer-indicator svg { width: 15px; height: 15px; }
+		.name-size-medium .hammer-indicator svg { width: 18px; height: 18px; }
+		.name-size-large .hammer-indicator svg { width: 22px; height: 22px; }
+	}
+
+	/* Very small portrait phones */
+	@media (max-width: 380px) and (orientation: portrait) {
+		/* Score sizes for very small phones */
+		.score-size-small .score { font-size: 5rem; }
+		.score-size-medium .score { font-size: 7rem; }
+		.score-size-large .score { font-size: 9rem; }
+
+		/* Name sizes for very small phones */
+		.name-size-small .team-name,
+		.name-size-small .player-name-badge { font-size: 1.1rem; }
+		.name-size-medium .team-name,
+		.name-size-medium .player-name-badge { font-size: 1.3rem; }
+		.name-size-large .team-name,
+		.name-size-large .player-name-badge { font-size: 1.55rem; }
+
+		/* Hammer sizes for very small phones */
+		.name-size-small .hammer-indicator svg { width: 13px; height: 13px; }
+		.name-size-medium .hammer-indicator svg { width: 16px; height: 16px; }
+		.name-size-large .hammer-indicator svg { width: 19px; height: 19px; }
+	}
+
+	/* Landscape mobile - smaller scores due to limited height */
+	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+		.team-card {
+			min-height: 180px;
+			padding: 0.75rem;
+		}
+
+		/* Score sizes for landscape mobile (height-limited) */
+		.score-size-small .score { font-size: 3.5rem; }
+		.score-size-medium .score { font-size: 5rem; }
+		.score-size-large .score { font-size: 6.5rem; }
+
+		/* Name sizes for landscape mobile */
+		.name-size-small .team-name,
+		.name-size-small .player-name-badge { font-size: 1.1rem; }
+		.name-size-medium .team-name,
+		.name-size-medium .player-name-badge { font-size: 1.3rem; }
+		.name-size-large .team-name,
+		.name-size-large .player-name-badge { font-size: 1.55rem; }
+
+		/* Hammer sizes for landscape mobile */
+		.name-size-small .hammer-indicator svg { width: 13px; height: 13px; }
+		.name-size-medium .hammer-indicator svg { width: 16px; height: 16px; }
+		.name-size-large .hammer-indicator svg { width: 19px; height: 19px; }
+
+		.winner-badge {
+			font-size: 0.6rem;
+			padding: 0.2rem 0.5rem;
 		}
 
 		.ranking-badge {
+			font-size: 0.55rem;
+		}
+
+		.color-btn,
+		.name-size-btn {
+			width: 26px;
+			height: 26px;
+		}
+
+		.aa-icon {
 			font-size: 0.7rem;
+		}
+
+		.team-header {
+			top: 0.5rem;
 		}
 	}
 </style>

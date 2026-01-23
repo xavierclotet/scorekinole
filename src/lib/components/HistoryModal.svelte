@@ -22,7 +22,7 @@
 	import type { HistoryTab, MatchHistory } from '$lib/types/history';
 	import { onDestroy } from 'svelte';
 	import { currentUser } from '$lib/firebase/auth';
-	import { syncLocalMatchesToCloud, getMatchesFromCloud, syncMatchToCloud } from '$lib/firebase/firestore';
+	import { syncLocalMatchesToCloud, getMatchesFromCloud } from '$lib/firebase/firestore';
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
 
@@ -507,7 +507,6 @@
 								{#each currentMatchConfigBadges as badge}
 									<span class="config-badge">{badge}</span>
 								{/each}
-								<span class="config-badge duration-badge">⏱️ {durationText}</span>
 							</div>
 
 							<!-- Match Score Summary (like score-container) -->
@@ -919,41 +918,40 @@
 
 	.tabs {
 		display: flex;
-		gap: 0.5rem;
-		border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+		gap: 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 		overflow-x: auto;
 		flex-shrink: 0;
-		margin-bottom: 1.5rem;
+		margin-bottom: 1rem;
 	}
 
 	.tab {
-		padding: 0.75rem 1.5rem;
+		padding: 0.6rem 1rem;
 		background: transparent;
 		border: none;
-		border-bottom: 3px solid transparent;
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 1rem;
-		font-weight: 600;
+		border-bottom: 2px solid transparent;
+		color: rgba(255, 255, 255, 0.45);
+		font-size: 0.8rem;
+		font-weight: 500;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.15s ease;
 		white-space: nowrap;
 	}
 
 	.tab:hover {
-		color: rgba(255, 255, 255, 0.8);
-		background: rgba(255, 255, 255, 0.05);
+		color: rgba(255, 255, 255, 0.7);
 	}
 
 	.tab.active {
-		color: var(--accent-green, #00ff88);
-		border-bottom-color: var(--accent-green, #00ff88);
+		color: rgba(255, 255, 255, 0.9);
+		border-bottom-color: rgba(255, 255, 255, 0.5);
 	}
 
 	.tab-content {
 		flex: 1;
 		overflow-y: auto;
 		min-height: 0;
-		padding-bottom: 1rem;
+		padding: 0 0.5rem 1rem 0;
 	}
 
 	.current-match-tab,
@@ -961,84 +959,82 @@
 	.deleted-tab {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
-		padding-bottom: 1rem;
+		gap: 0.75rem;
 	}
 
 	.current-match-info {
-		background: rgba(255, 255, 255, 0.05);
-		border-radius: 12px;
-		padding: 1rem;
+		background: rgba(255, 255, 255, 0.02);
+		border-radius: 8px;
+		padding: 0.85rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.6rem;
 	}
 
 	.match-header h3 {
 		margin: 0;
-		font-size: 1.1rem;
-		font-weight: 700;
-		color: var(--accent-green, #00ff88);
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.9);
 	}
 
 	.match-header .phase {
-		color: rgba(255, 255, 255, 0.7);
-		font-weight: 500;
-		font-size: 0.95rem;
+		color: rgba(255, 255, 255, 0.5);
+		font-weight: 400;
+		font-size: 0.9rem;
 	}
 
 	.match-datetime {
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.4);
+		font-size: 0.75rem;
 	}
 
 	.game-info {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: 0.35rem;
 		flex-wrap: wrap;
 	}
 
 	.config-badge {
-		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.85);
-		font-weight: 600;
-		padding: 0.25rem 0.6rem;
-		background: rgba(0, 255, 136, 0.12);
-		border: 1px solid rgba(0, 255, 136, 0.3);
-		border-radius: 10px;
+		font-size: 0.65rem;
+		color: rgba(255, 255, 255, 0.6);
+		font-weight: 500;
+		padding: 0.2rem 0.5rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 4px;
 		white-space: nowrap;
-		letter-spacing: 0.3px;
 	}
 
 	.duration-badge {
-		background: rgba(100, 150, 255, 0.12);
-		border-color: rgba(100, 150, 255, 0.3);
+		background: rgba(100, 150, 200, 0.08);
+		border-color: rgba(100, 150, 200, 0.15);
 	}
 
-	/* Match Score Summary (like score-container) */
+	/* Match Score Summary */
 	.match-score-summary {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 8px;
-		padding: 1rem;
-		margin: 0.5rem 0;
+		gap: 0.4rem;
+		background: rgba(0, 0, 0, 0.15);
+		border-radius: 6px;
+		padding: 0.75rem;
+		margin: 0.25rem 0;
 	}
 
 	.game-result-summary {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.95rem;
-		color: rgba(255, 255, 255, 0.9);
+		gap: 0.4rem;
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.75);
 	}
 
 	.game-result-summary .game-number {
-		font-weight: 700;
-		color: var(--accent-green, #00ff88);
-		min-width: 30px;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.5);
+		min-width: 28px;
 	}
 
 	.game-result-summary .winner-name {
@@ -1046,129 +1042,116 @@
 	}
 
 	.game-result-summary .score {
-		font-weight: 700;
-		color: rgba(255, 255, 255, 0.8);
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.7);
 	}
 
 	.game-result-summary .twenties-summary {
-		color: var(--accent-green, #00ff88);
-		font-size: 0.9rem;
-		margin-left: 0.5rem;
+		color: rgba(255, 200, 100, 0.8);
+		font-size: 0.75rem;
+		margin-left: 0.4rem;
 	}
 
 	.match-total-summary {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		font-size: 1.1rem;
-		font-weight: 700;
-		padding-top: 0.5rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.2);
-		margin-top: 0.25rem;
+		gap: 0.4rem;
+		font-size: 0.9rem;
+		font-weight: 600;
+		padding-top: 0.4rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+		margin-top: 0.2rem;
 	}
 
 	.match-total-summary .match-label {
-		color: rgba(255, 255, 255, 0.9);
+		color: rgba(255, 255, 255, 0.6);
 	}
 
 	.match-total-summary .match-result {
-		font-size: 1.2rem;
+		font-size: 1rem;
 	}
 
 	.match-total-summary .match-twenties {
-		color: var(--accent-green, #00ff88);
-		font-size: 1rem;
+		color: rgba(255, 200, 100, 0.8);
+		font-size: 0.85rem;
 	}
 
 	.games-section {
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
-		margin-top: 1rem;
-	}
-
-	.games-section h4 {
-		margin: 0;
-		font-size: 1.2rem;
-		font-weight: 700;
-		color: rgba(255, 255, 255, 0.9);
-		border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-		padding-bottom: 0.5rem;
+		gap: 0.75rem;
+		margin-top: 0.5rem;
 	}
 
 	.game-table {
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 8px;
+		background: rgba(0, 0, 0, 0.12);
+		border-radius: 6px;
 		overflow: hidden;
-		padding: 1rem;
+		padding: 0.65rem;
 	}
 
 	.game-table.completed-game {
-		border: 1px solid rgba(100, 150, 255, 0.2);
+		border: 1px solid rgba(255, 255, 255, 0.05);
 	}
 
 	.game-table.current-game {
-		border: 2px solid var(--accent-green, #00ff88);
-	}
-
-	.game-title {
-		font-weight: 700;
-		font-size: 1rem;
-		margin-bottom: 0.75rem;
-		color: rgba(255, 255, 255, 0.9);
+		border: 1px solid rgba(100, 180, 150, 0.25);
+		background: rgba(100, 180, 150, 0.03);
 	}
 
 	.in-progress-badge {
-		color: var(--accent-green, #00ff88);
-		font-size: 0.85rem;
-		font-weight: 600;
+		color: rgba(100, 200, 150, 0.8);
+		font-size: 0.7rem;
+		font-weight: 500;
 	}
 
 	.game-row {
 		display: flex;
-		gap: 0.5rem;
-		padding: 0.5rem;
+		gap: 0.4rem;
+		padding: 0.35rem 0.4rem;
 		align-items: center;
 	}
 
 	.game-row .team-name {
-		width: 160px;
+		width: 140px;
 		flex-shrink: 0;
 	}
 
 	.game-row .round-col {
 		flex: 1;
-		min-width: 40px;
+		min-width: 36px;
 	}
 
 	.game-row .total-col {
-		width: 80px;
+		width: 70px;
 		flex-shrink: 0;
 	}
 
 	.game-row.header {
-		background: rgba(255, 255, 255, 0.05);
+		background: rgba(255, 255, 255, 0.03);
 		border-radius: 4px;
-		font-weight: 700;
-		font-size: 0.85rem;
-		color: var(--accent-green, #00ff88);
-		margin-bottom: 0.25rem;
+		font-weight: 600;
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.45);
+		margin-bottom: 0.15rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
-	/* Move specific styling to the flexbox children */
 	.game-row .team-name {
-		font-weight: 600;
+		font-weight: 500;
 		text-align: left;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		color: #f0f0f0;
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 0.8rem;
 	}
 
 	.game-row .round-col {
 		text-align: center;
-		font-size: 0.95rem;
-		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.6);
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
@@ -1178,32 +1161,30 @@
 	.points-with-hammer {
 		display: flex;
 		align-items: center;
-		gap: 0.2rem;
+		gap: 0.15rem;
 		justify-content: center;
 	}
 
 	.hammer-indicator {
-		font-size: 0.85rem;
-		opacity: 1;
-		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+		font-size: 0.7rem;
+		opacity: 0.7;
 	}
 
 	.twenty-indicator {
-		font-size: 0.65rem;
-		color: var(--accent-green, #00ff88);
+		font-size: 0.55rem;
+		color: rgba(255, 200, 100, 0.75);
 		font-weight: 600;
 	}
 
-	/* Twenty indicator in round columns - smaller */
 	.round-col .twenty-indicator {
-		font-size: 0.6rem;
+		font-size: 0.5rem;
 	}
 
 	.game-row .total-col {
 		text-align: center;
-		font-weight: 700;
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.6);
+		font-weight: 600;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
@@ -1211,55 +1192,53 @@
 	}
 
 	.game-row .total-col.total-score {
-		font-size: 1.1rem;
-		color: var(--accent-green, #00ff88);
+		font-size: 0.9rem;
+		color: rgba(255, 255, 255, 0.85);
 	}
 
-	.history-actions,
 	.deleted-actions {
 		display: flex;
 		justify-content: flex-end;
-		padding-bottom: 1rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		padding-bottom: 0.75rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
 	.history-list,
 	.deleted-list {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0.5rem;
 	}
 
 	.empty-state {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		min-height: 200px;
+		min-height: 150px;
 		text-align: center;
-		color: rgba(255, 255, 255, 0.5);
+		color: rgba(255, 255, 255, 0.35);
 	}
 
 	.empty-state p {
-		font-size: 1.1rem;
+		font-size: 0.9rem;
 	}
 
 	/* Scrollbar styling */
 	.tab-content::-webkit-scrollbar {
-		width: 8px;
+		width: 4px;
 	}
 
 	.tab-content::-webkit-scrollbar-track {
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 4px;
+		background: transparent;
 	}
 
 	.tab-content::-webkit-scrollbar-thumb {
-		background: var(--accent-green, #00ff88);
-		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.12);
+		border-radius: 2px;
 	}
 
 	.tab-content::-webkit-scrollbar-thumb:hover {
-		background: var(--accent-green-light, #00ffaa);
+		background: rgba(255, 255, 255, 0.2);
 	}
 
 	/* Editable values */
@@ -1269,76 +1248,53 @@
 		color: inherit;
 		font: inherit;
 		cursor: pointer;
-		padding: 0.2rem 0.4rem;
-		border-radius: 4px;
-		transition: all 0.2s;
+		padding: 0.15rem 0.3rem;
+		border-radius: 3px;
+		transition: all 0.15s ease;
 	}
 
 	.editable-value:hover {
-		background: rgba(0, 255, 136, 0.15);
-		color: var(--accent-green, #00ff88);
+		background: rgba(255, 255, 255, 0.1);
 	}
 
 	.editable-twenty {
 		background: transparent;
 		border: none;
-		color: var(--accent-green, #00ff88);
+		color: rgba(255, 200, 100, 0.75);
 		font: inherit;
 		cursor: pointer;
-		padding: 0.1rem 0.3rem;
-		border-radius: 4px;
-		transition: all 0.2s;
+		padding: 0.1rem 0.25rem;
+		border-radius: 3px;
+		transition: all 0.15s ease;
 	}
 
 	.editable-twenty:hover {
-		background: rgba(0, 255, 136, 0.2);
-		transform: scale(1.1);
-	}
-
-	.twenty-indicator-add {
-		background: transparent;
-		border: 1px dashed rgba(0, 255, 136, 0.3);
-		color: rgba(0, 255, 136, 0.5);
-		font-size: 0.65rem;
-		cursor: pointer;
-		padding: 0.1rem 0.3rem;
-		border-radius: 4px;
-		transition: all 0.2s;
-		font-weight: 600;
-	}
-
-	.twenty-indicator-add:hover {
-		background: rgba(0, 255, 136, 0.1);
-		border-color: rgba(0, 255, 136, 0.5);
-		color: var(--accent-green, #00ff88);
-		transform: scale(1.05);
+		background: rgba(255, 200, 100, 0.15);
 	}
 
 	.edit-input {
-		width: 45px;
-		background: rgba(0, 255, 136, 0.1);
-		border: 2px solid var(--accent-green, #00ff88);
-		border-radius: 4px;
-		padding: 0.2rem 0.3rem;
-		font-size: 0.95rem;
+		width: 40px;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 3px;
+		padding: 0.15rem 0.25rem;
+		font-size: 0.85rem;
 		font-weight: 600;
 		color: #fff;
 		text-align: center;
-		font-family: 'Orbitron', monospace;
 	}
 
 	.edit-input:focus {
 		outline: none;
-		background: rgba(0, 255, 136, 0.2);
-		box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+		background: rgba(255, 255, 255, 0.12);
+		border-color: rgba(255, 255, 255, 0.35);
 	}
 
 	.edit-input-twenty {
-		width: 40px;
-		font-size: 0.85rem;
+		width: 35px;
+		font-size: 0.75rem;
 	}
 
-	/* Remove spinner from number inputs */
 	.edit-input::-webkit-inner-spin-button,
 	.edit-input::-webkit-outer-spin-button {
 		-webkit-appearance: none;
@@ -1347,63 +1303,59 @@
 
 	.edit-input[type=number] {
 		-moz-appearance: textfield;
+		appearance: textfield;
 	}
 
 	/* Sync Button */
 	.sync-button {
-		background: rgba(0, 255, 136, 0.1);
-		border: 2px solid rgba(0, 255, 136, 0.3);
-		border-radius: 6px;
-		padding: 0.3rem 0.6rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 4px;
+		padding: 0.25rem 0.5rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.3rem;
+		gap: 0.25rem;
 		cursor: pointer;
-		color: var(--accent-green, #00ff88);
-		transition: all 0.3s;
-		font-size: 0.75rem;
-		font-weight: 600;
+		color: rgba(255, 255, 255, 0.65);
+		transition: all 0.15s ease;
+		font-size: 0.7rem;
+		font-weight: 500;
 		white-space: nowrap;
 	}
 
 	.sync-button:hover:not(:disabled) {
-		background: rgba(0, 255, 136, 0.2);
-		border-color: var(--accent-green, #00ff88);
-		transform: translateY(-2px);
-		box-shadow: 0 4px 8px rgba(0, 255, 136, 0.2);
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.2);
+		color: rgba(255, 255, 255, 0.85);
 	}
 
 	.sync-button:active:not(:disabled) {
-		transform: translateY(0);
+		transform: scale(0.98);
 	}
 
 	.sync-button:disabled {
-		opacity: 0.6;
+		opacity: 0.5;
 		cursor: not-allowed;
 	}
 
 	.sync-button .sync-icon {
-		font-size: 0.85rem;
+		font-size: 0.75rem;
 	}
 
 	.sync-button .syncing {
 		display: inline-block;
-		font-size: 0.85rem;
+		font-size: 0.75rem;
 		animation: spin 1s linear infinite;
 	}
 
 	.sync-button .sync-text {
-		font-family: 'Orbitron', monospace;
+		font-weight: 500;
 	}
 
 	@keyframes spin {
-		from {
-			transform: rotate(0deg);
-		}
-		to {
-			transform: rotate(360deg);
-		}
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	/* Responsive */
@@ -1413,121 +1365,51 @@
 		}
 
 		.tabs {
-			gap: 0.25rem;
-			margin-bottom: 1rem;
+			margin-bottom: 0.75rem;
 		}
 
 		.tab {
-			padding: 0.5rem 0.75rem;
-			font-size: 0.8rem;
+			padding: 0.5rem 0.7rem;
+			font-size: 0.75rem;
 		}
 
 		.match-header h3 {
-			font-size: 0.95rem;
+			font-size: 0.85rem;
 		}
 
 		.match-header .phase {
-			font-size: 0.85rem;
+			font-size: 0.8rem;
 		}
 
 		.match-datetime {
-			font-size: 0.75rem;
-		}
-
-		.game-info {
-			font-size: 0.8rem;
+			font-size: 0.7rem;
 		}
 
 		.game-row .team-name {
-			width: 100px;
-			font-size: 0.85rem;
+			width: 90px;
+			font-size: 0.75rem;
 		}
 
 		.game-row .round-col {
-			font-size: 0.85rem;
-			min-width: 35px;
+			font-size: 0.75rem;
+			min-width: 32px;
 		}
 
 		.game-row .total-col {
-			width: 60px;
-			font-size: 0.75rem;
+			width: 55px;
+			font-size: 0.7rem;
 		}
 
 		.game-row .total-col.total-score {
-			font-size: 0.95rem;
-		}
-
-		.game-row.header {
-			font-size: 0.75rem;
-		}
-
-		.current-match-info {
-			padding: 0.75rem;
-			gap: 0.5rem;
-		}
-
-		.game-table {
-			padding: 0.75rem;
-		}
-
-		.sync-button {
-			padding: 0.25rem 0.5rem;
-			font-size: 0.65rem;
-			gap: 0.25rem;
-		}
-
-		.sync-button .sync-icon,
-		.sync-button .syncing {
-			font-size: 0.75rem;
-		}
-
-		.tab-content {
-			padding-bottom: 2rem;
-		}
-
-		.current-match-tab,
-		.history-tab,
-		.deleted-tab {
-			padding-bottom: 2rem;
-		}
-	}
-
-	/* Portrait mobile - maximize vertical space */
-	@media (max-width: 600px) and (orientation: portrait) {
-		.history-modal {
-			max-height: 80vh;
-		}
-
-		.tabs {
-			margin-bottom: 0.75rem;
-		}
-	}
-
-	/* Landscape mobile - reduce even more */
-	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
-		.history-modal {
-			max-height: 70vh;
-		}
-
-		.tabs {
-			margin-bottom: 0.5rem;
-		}
-
-		.tab {
-			padding: 0.4rem 0.6rem;
-			font-size: 0.75rem;
-		}
-
-		.match-header h3 {
 			font-size: 0.85rem;
 		}
 
-		.match-header .phase {
-			font-size: 0.75rem;
+		.game-row.header {
+			font-size: 0.65rem;
 		}
 
 		.current-match-info {
-			padding: 0.5rem;
+			padding: 0.6rem;
 			gap: 0.4rem;
 		}
 
@@ -1535,38 +1417,68 @@
 			padding: 0.5rem;
 		}
 
-		.game-row {
-			padding: 0.3rem;
-		}
-
-		.game-row .team-name {
-			width: 80px;
-			font-size: 0.75rem;
-		}
-
-		.game-row .round-col {
-			font-size: 0.75rem;
-			min-width: 30px;
-		}
-
-		.game-row .total-col {
-			width: 50px;
-			font-size: 0.7rem;
-		}
-
-		.game-row .total-col.total-score {
-			font-size: 0.85rem;
-		}
-
 		.sync-button {
 			padding: 0.2rem 0.4rem;
 			font-size: 0.6rem;
-			gap: 0.2rem;
+		}
+	}
+
+	/* Portrait mobile */
+	@media (max-width: 600px) and (orientation: portrait) {
+		.history-modal {
+			max-height: 80vh;
+		}
+	}
+
+	/* Landscape mobile */
+	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+		.history-modal {
+			max-height: 70vh;
 		}
 
-		.sync-button .sync-icon,
-		.sync-button .syncing {
-			font-size: 0.7rem;
+		.tabs {
+			margin-bottom: 0.4rem;
+		}
+
+		.tab {
+			padding: 0.35rem 0.5rem;
+			font-size: 0.65rem;
+		}
+
+		.match-header h3 {
+			font-size: 0.75rem;
+		}
+
+		.current-match-info {
+			padding: 0.4rem;
+			gap: 0.3rem;
+		}
+
+		.game-table {
+			padding: 0.4rem;
+		}
+
+		.game-row {
+			padding: 0.25rem 0.3rem;
+		}
+
+		.game-row .team-name {
+			width: 70px;
+			font-size: 0.65rem;
+		}
+
+		.game-row .round-col {
+			font-size: 0.65rem;
+			min-width: 28px;
+		}
+
+		.game-row .total-col {
+			width: 45px;
+			font-size: 0.6rem;
+		}
+
+		.game-row .total-col.total-score {
+			font-size: 0.75rem;
 		}
 	}
 </style>

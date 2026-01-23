@@ -68,122 +68,100 @@
 	}
 
 	.label {
-		color: var(--accent-green, #00ff88);
-		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.8rem;
 		font-weight: 500;
 	}
 
 	.controls {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.control-btn {
-		width: 36px;
-		height: 36px;
-		border-radius: 50%;
-		border: 2px solid var(--accent-green, #00ff88);
-		background: transparent;
-		color: var(--accent-green, #00ff88);
-		font-size: 1.3rem;
-		font-weight: bold;
+		width: 28px;
+		height: 28px;
+		border-radius: 6px;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: rgba(255, 255, 255, 0.08);
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 1rem;
+		font-weight: 500;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: all 0.2s ease;
-		position: relative;
-		overflow: hidden;
-	}
-
-	.control-btn::before {
-		content: '';
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		width: 0;
-		height: 0;
-		border-radius: 50%;
-		background: var(--accent-green, #00ff88);
-		transform: translate(-50%, -50%);
-		transition: width 0.4s, height 0.4s;
-		z-index: -1;
-	}
-
-	.control-btn:hover:not(:disabled)::before {
-		width: 100%;
-		height: 100%;
+		transition: all 0.15s ease;
 	}
 
 	.control-btn:hover:not(:disabled) {
-		color: #000;
-		transform: scale(1.1);
+		background: rgba(255, 255, 255, 0.15);
+		border-color: rgba(255, 255, 255, 0.3);
 	}
 
 	.control-btn:active:not(:disabled) {
 		transform: scale(0.95);
+		background: rgba(255, 255, 255, 0.2);
 	}
 
 	.control-btn:disabled {
 		opacity: 0.3;
 		cursor: not-allowed;
-		border-color: #666;
-		color: #666;
 	}
 
 	.value {
-		min-width: 50px;
+		min-width: 36px;
 		text-align: center;
-		font-size: 1.3rem;
-		font-weight: bold;
-		color: var(--text-color, #fff);
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.9);
 		user-select: none;
 	}
 
 	/* Focus styles */
 	.control-btn:focus-visible {
-		outline: 2px solid var(--accent-green, #00ff88);
+		outline: 2px solid rgba(255, 255, 255, 0.4);
 		outline-offset: 2px;
 	}
 
 	/* Mobile optimizations */
 	@media (max-width: 600px) {
 		.control-btn {
-			width: 32px;
-			height: 32px;
-			font-size: 1.2rem;
+			width: 26px;
+			height: 26px;
+			font-size: 0.95rem;
 		}
 
 		.value {
-			font-size: 1.2rem;
-			min-width: 45px;
+			font-size: 1rem;
+			min-width: 32px;
 		}
 
 		.label {
-			font-size: 0.8rem;
+			font-size: 0.75rem;
 		}
 	}
 
 	/* Landscape optimizations */
 	@media (orientation: landscape) and (max-height: 600px) {
 		.control-btn {
-			width: 32px;
-			height: 32px;
-			font-size: 1.2rem;
+			width: 24px;
+			height: 24px;
+			font-size: 0.9rem;
 		}
 
 		.value {
-			font-size: 1.1rem;
-			min-width: 40px;
+			font-size: 0.95rem;
+			min-width: 28px;
 		}
 
 		.label {
-			font-size: 0.75rem;
+			font-size: 0.7rem;
 		}
 
 		.controls {
-			gap: 0.5rem;
+			gap: 0.4rem;
 		}
 	}
 </style>

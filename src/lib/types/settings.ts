@@ -54,4 +54,13 @@ export interface GameSettings {
 
     /** Y position of timer (draggable, null = default centered) */
     timerY: number | null;
+
+    /** Size of the match score indicator: 'small', 'medium', or 'large' */
+    matchScoreSize: 'small' | 'medium' | 'large';
+
+    /** Size of the main score display: 'small', 'medium', or 'large' */
+    mainScoreSize: 'small' | 'medium' | 'large';
+
+    /** Size of the team name display: 'small', 'medium', or 'large' */
+    nameSize: 'small' | 'medium' | 'large';
 }

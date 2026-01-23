@@ -66,40 +66,38 @@
 		left: 0;
 		width: 100%;
 		height: 100%;
-		background: rgba(0, 0, 0, 0.7);
+		background: rgba(0, 0, 0, 0.75);
+		backdrop-filter: blur(4px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
-		animation: fadeIn 0.2s ease-out;
+		animation: fadeIn 0.15s ease-out;
 	}
 
 	@keyframes fadeIn {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
+		from { opacity: 0; }
+		to { opacity: 1; }
 	}
 
 	.modal-content {
-		background: var(--bg-modal, #1a1f35);
-		padding: 1.5rem;
+		background: #1a1d24;
+		padding: 1.25rem;
 		border-radius: 12px;
 		min-width: 50%;
 		max-width: 90%;
 		max-height: 90vh;
 		position: relative;
-		animation: slideIn 0.3s ease-out;
-		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+		animation: slideIn 0.2s ease-out;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		border: 1px solid rgba(255, 255, 255, 0.06);
 		display: flex;
 		flex-direction: column;
 	}
 
 	@keyframes slideIn {
 		from {
-			transform: translateY(-20px);
+			transform: translateY(-10px);
 			opacity: 0;
 		}
 		to {
@@ -112,16 +110,20 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 1.5rem;
+		margin-bottom: 1rem;
+		padding-bottom: 0.75rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 		gap: 1rem;
 		flex-shrink: 0;
 	}
 
 	.modal-title {
-		color: var(--accent-green, #00ff88);
+		color: rgba(255, 255, 255, 0.9);
 		margin: 0;
-		font-size: 1.5rem;
+		font-size: 1.1rem;
+		font-weight: 600;
 		flex: 1;
+		letter-spacing: 0.01em;
 	}
 
 	.header-actions {
@@ -133,22 +135,26 @@
 	.close-btn {
 		background: none;
 		border: none;
-		font-size: 2rem;
+		font-size: 1.5rem;
 		cursor: pointer;
-		color: var(--text-color, #fff);
-		width: 40px;
-		height: 40px;
+		color: rgba(255, 255, 255, 0.4);
+		width: 32px;
+		height: 32px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-radius: 50%;
-		transition: all 0.2s;
+		border-radius: 6px;
+		transition: all 0.15s ease;
 		flex-shrink: 0;
 	}
 
 	.close-btn:hover {
-		background: rgba(255, 255, 255, 0.1);
-		transform: rotate(90deg);
+		background: rgba(255, 255, 255, 0.08);
+		color: rgba(255, 255, 255, 0.8);
+	}
+
+	.close-btn:active {
+		transform: scale(0.95);
 	}
 
 	.modal-body {
@@ -162,21 +168,20 @@
 
 	/* Scrollbar styling */
 	.modal-body::-webkit-scrollbar {
-		width: 8px;
+		width: 4px;
 	}
 
 	.modal-body::-webkit-scrollbar-track {
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 4px;
+		background: transparent;
 	}
 
 	.modal-body::-webkit-scrollbar-thumb {
-		background: var(--accent-green, #00ff88);
-		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.15);
+		border-radius: 2px;
 	}
 
 	.modal-body::-webkit-scrollbar-thumb:hover {
-		background: var(--accent-green-light, #00ffaa);
+		background: rgba(255, 255, 255, 0.25);
 	}
 
 	/* Mobile responsiveness */
@@ -195,17 +200,18 @@
 		}
 
 		.modal-header {
-			margin-bottom: 1rem;
+			margin-bottom: 0.75rem;
+			padding-bottom: 0.6rem;
 		}
 
 		.modal-title {
-			font-size: 1.1rem;
+			font-size: 0.95rem;
 		}
 
 		.close-btn {
-			font-size: 1.6rem;
-			width: 32px;
-			height: 32px;
+			font-size: 1.3rem;
+			width: 28px;
+			height: 28px;
 		}
 	}
 
@@ -217,11 +223,12 @@
 		}
 
 		.modal-header {
-			margin-bottom: 0.75rem;
+			margin-bottom: 0.6rem;
+			padding-bottom: 0.5rem;
 		}
 
 		.modal-title {
-			font-size: 1rem;
+			font-size: 0.9rem;
 		}
 	}
 
@@ -241,17 +248,18 @@
 		}
 
 		.modal-header {
-			margin-bottom: 0.5rem;
+			margin-bottom: 0.4rem;
+			padding-bottom: 0.4rem;
 		}
 
 		.modal-title {
-			font-size: 0.9rem;
+			font-size: 0.8rem;
 		}
 
 		.close-btn {
-			font-size: 1.4rem;
-			width: 28px;
-			height: 28px;
+			font-size: 1.1rem;
+			width: 24px;
+			height: 24px;
 		}
 	}
 </style>

@@ -68,56 +68,61 @@
 			</div>
 		{/if}
 
-		<!-- Game Type Section (Individual/Parejas) -->
-		<section class="settings-section" class:disabled={inTournamentMode}>
-			<h3>{$t('gameType')}</h3>
-			<div class="button-group">
-				<button
-					class="mode-button"
-					class:active={$gameSettings.gameType === 'singles'}
-					on:click={() => !inTournamentMode && handleGameTypeChange('singles')}
-					type="button"
-					disabled={inTournamentMode}
-				>
-					{$t('singles')}
-				</button>
-				<button
-					class="mode-button"
-					class:active={$gameSettings.gameType === 'doubles'}
-					on:click={() => !inTournamentMode && handleGameTypeChange('doubles')}
-					type="button"
-					disabled={inTournamentMode}
-				>
-					{$t('doubles')}
-				</button>
-			</div>
-		</section>
+		<!-- Game Settings Row (Type + Mode side by side) -->
+		<div class="settings-row">
+			<!-- Game Type Section (Individual/Parejas) -->
+			<section class="settings-section" class:disabled={inTournamentMode}>
+				<h3>{$t('gameType')}</h3>
+				<div class="button-group">
+					<button
+						class="mode-button"
+						class:active={$gameSettings.gameType === 'singles'}
+						on:click={() => !inTournamentMode && handleGameTypeChange('singles')}
+						type="button"
+						disabled={inTournamentMode}
+					>
+						{$t('singles')}
+					</button>
+					<button
+						class="mode-button"
+						class:active={$gameSettings.gameType === 'doubles'}
+						on:click={() => !inTournamentMode && handleGameTypeChange('doubles')}
+						type="button"
+						disabled={inTournamentMode}
+					>
+						{$t('doubles')}
+					</button>
+				</div>
+			</section>
 
-		<!-- Game Mode Section -->
-		<section class="settings-section" class:disabled={inTournamentMode}>
-			<h3>{$t('gameMode')}</h3>
-			<div class="button-group">
-				<button
-					class="mode-button"
-					class:active={$gameSettings.gameMode === 'points'}
-					on:click={() => !inTournamentMode && handleGameModeChange('points')}
-					type="button"
-					disabled={inTournamentMode}
-				>
-					{$t('modePoints')}
-				</button>
-				<button
-					class="mode-button"
-					class:active={$gameSettings.gameMode === 'rounds'}
-					on:click={() => !inTournamentMode && handleGameModeChange('rounds')}
-					type="button"
-					disabled={inTournamentMode}
-				>
-					{$t('modeRounds')}
-				</button>
-			</div>
+			<!-- Game Mode Section -->
+			<section class="settings-section" class:disabled={inTournamentMode}>
+				<h3>{$t('gameMode')}</h3>
+				<div class="button-group">
+					<button
+						class="mode-button"
+						class:active={$gameSettings.gameMode === 'points'}
+						on:click={() => !inTournamentMode && handleGameModeChange('points')}
+						type="button"
+						disabled={inTournamentMode}
+					>
+						{$t('modePoints')}
+					</button>
+					<button
+						class="mode-button"
+						class:active={$gameSettings.gameMode === 'rounds'}
+						on:click={() => !inTournamentMode && handleGameModeChange('rounds')}
+						type="button"
+						disabled={inTournamentMode}
+					>
+						{$t('modeRounds')}
+					</button>
+				</div>
+			</section>
+		</div>
 
-			<!-- Points/Rounds Configuration -->
+		<!-- Points/Rounds Configuration -->
+		<section class="settings-section config-section" class:disabled={inTournamentMode}>
 			<div class="mode-config">
 				{#if $gameSettings.gameMode === 'points'}
 					<NumberControl
@@ -171,12 +176,6 @@
 				<label class="toggle-item" on:click|preventDefault={() => handleToggle('showTimer')}>
 					<span class="toggle-label">{$t('showTimer')}</span>
 					<input type="checkbox" checked={$gameSettings.showTimer} readonly />
-					<span class="toggle-switch"></span>
-				</label>
-
-				<label class="toggle-item" on:click|preventDefault={() => handleToggle('showScoreTable')}>
-					<span class="toggle-label">{$t('showScoreTable')}</span>
-					<input type="checkbox" checked={$gameSettings.showScoreTable} readonly />
 					<span class="toggle-switch"></span>
 				</label>
 			</div>
@@ -268,12 +267,11 @@
 	.settings-content {
 		display: flex;
 		flex-direction: column;
-		gap: 1.25rem;
-		padding: 1rem;
+		gap: 0.5rem;
+		padding: 0.75rem;
 		overflow-y: auto;
 		min-height: 0;
 		flex: 1;
-		padding-bottom: 1rem;
 	}
 
 	/* Tournament Mode Banner */
@@ -281,149 +279,168 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.75rem 1rem;
-		background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 200, 100, 0.1));
-		border: 2px solid rgba(0, 255, 136, 0.4);
-		border-radius: 8px;
-		margin-bottom: 0.5rem;
+		padding: 0.6rem 0.85rem;
+		background: rgba(255, 200, 100, 0.08);
+		border: 1px solid rgba(255, 200, 100, 0.25);
+		border-radius: 6px;
+		margin-bottom: 0.25rem;
 	}
 
 	.tournament-banner .lock-icon {
-		font-size: 1.2rem;
+		font-size: 0.9rem;
 	}
 
 	.tournament-banner .banner-text {
-		color: #00ff88;
-		font-weight: 600;
-		font-size: 0.9rem;
+		color: #ffcc66;
+		font-weight: 500;
+		font-size: 0.8rem;
+		letter-spacing: 0.02em;
 	}
 
 	/* Disabled sections in tournament mode */
 	.settings-section.disabled {
-		opacity: 0.5;
+		opacity: 0.4;
 		pointer-events: none;
 	}
 
 	.settings-section.disabled h3 {
-		color: rgba(0, 255, 136, 0.5);
+		color: rgba(255, 255, 255, 0.4);
 	}
 
 	.toggle-item.disabled {
-		opacity: 0.5;
+		opacity: 0.4;
 		pointer-events: none;
 		cursor: not-allowed;
 	}
 
 	/* Scrollbar styling */
 	.settings-content::-webkit-scrollbar {
-		width: 8px;
+		width: 4px;
 	}
 
 	.settings-content::-webkit-scrollbar-track {
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 4px;
+		background: transparent;
 	}
 
 	.settings-content::-webkit-scrollbar-thumb {
-		background: var(--accent-green, #00ff88);
-		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.15);
+		border-radius: 2px;
 	}
 
 	.settings-content::-webkit-scrollbar-thumb:hover {
-		background: var(--accent-green-light, #00ffaa);
+		background: rgba(255, 255, 255, 0.25);
+	}
+
+	/* Two-column layout for related settings */
+	.settings-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
 	}
 
 	.settings-section {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.5rem;
+		padding: 0.75rem;
+		background: rgba(255, 255, 255, 0.02);
+		border-radius: 8px;
+	}
+
+	.config-section {
+		padding: 0.5rem 0.75rem;
+	}
+
+	.config-section .mode-config {
+		margin-top: 0;
 	}
 
 	.settings-section h3 {
 		margin: 0;
-		font-size: 1.1rem;
-		color: #00ff88;
-		font-weight: 700;
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.5);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
 	}
 
 	.button-group {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.5rem;
+		display: flex;
+		gap: 0.4rem;
 	}
 
 	.button-group-three {
-		display: grid;
-		grid-template-columns: 1fr 1fr 1fr;
-		gap: 0.5rem;
+		display: flex;
+		gap: 0.4rem;
 	}
 
 	.mode-config {
-		margin-top: 0.5rem;
+		margin-top: 0.4rem;
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.75rem;
+		gap: 0.5rem;
 	}
 
 	.mode-button {
-		padding: 0.65rem 1rem;
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid rgba(255, 255, 255, 0.2);
-		border-radius: 8px;
-		color: #fff;
-		font-size: 0.95rem;
-		font-weight: 600;
+		padding: 0.55rem 0.75rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.85rem;
+		font-weight: 500;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.15s ease;
 	}
 
 	.mode-button:hover {
-		background: rgba(255, 255, 255, 0.15);
-		border-color: rgba(255, 255, 255, 0.3);
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.2);
+		color: #fff;
 	}
 
 	.mode-button.active {
-		background: #00ff88;
-		color: #000;
-		border-color: #00ff88;
+		background: rgba(74, 222, 128, 0.15);
+		color: #fff;
+		border-color: rgba(74, 222, 128, 0.4);
+		font-weight: 600;
 	}
 
 	.timer-controls {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 1rem;
+		gap: 0.5rem;
 	}
 
 	.toggle-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-		gap: 0.75rem;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.4rem;
 	}
 
 	.toggle-item {
 		display: flex;
-		flex-direction: column;
+		flex-direction: row;
 		align-items: center;
-		justify-content: center;
+		justify-content: space-between;
 		gap: 0.5rem;
-		padding: 0.75rem;
-		background: rgba(255, 255, 255, 0.05);
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
+		padding: 0.5rem 0.65rem;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		border-radius: 6px;
 		cursor: pointer;
 		position: relative;
-		transition: all 0.2s;
+		transition: all 0.15s ease;
 	}
 
 	.toggle-item:hover {
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(0, 255, 136, 0.3);
+		background: rgba(255, 255, 255, 0.06);
+		border-color: rgba(255, 255, 255, 0.12);
 	}
 
 	.toggle-label {
-		font-size: 0.85rem;
-		color: #fff;
-		text-align: center;
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.8);
 		font-weight: 500;
 	}
 
@@ -436,11 +453,11 @@
 
 	.toggle-switch {
 		position: relative;
-		width: 44px;
-		height: 24px;
-		background: rgba(255, 255, 255, 0.2);
-		border-radius: 12px;
-		transition: all 0.3s;
+		width: 36px;
+		height: 20px;
+		background: rgba(255, 255, 255, 0.15);
+		border-radius: 10px;
+		transition: all 0.2s ease;
 		flex-shrink: 0;
 	}
 
@@ -449,31 +466,20 @@
 		position: absolute;
 		top: 2px;
 		left: 2px;
-		width: 20px;
-		height: 20px;
-		background: #fff;
+		width: 16px;
+		height: 16px;
+		background: rgba(255, 255, 255, 0.7);
 		border-radius: 50%;
-		transition: all 0.3s;
+		transition: all 0.2s ease;
 	}
 
 	.toggle-item input:checked ~ .toggle-switch {
-		background: #00ff88;
+		background: #4ade80;
 	}
 
 	.toggle-item input:checked ~ .toggle-switch::before {
-		transform: translateX(20px);
-	}
-
-	.app-info {
-		text-align: center;
-		padding: 1rem;
-		background: rgba(255, 255, 255, 0.05);
-		border-radius: 8px;
-		color: rgba(255, 255, 255, 0.7);
-	}
-
-	.app-info p {
-		margin: 0.25rem 0;
+		transform: translateX(16px);
+		background: #fff;
 	}
 
 	/* Responsive */
@@ -483,55 +489,61 @@
 		}
 
 		.settings-content {
-			gap: 1rem;
-			padding-bottom: 2rem;
+			gap: 0.4rem;
+			padding: 0.5rem;
+		}
+
+		.settings-row {
+			grid-template-columns: 1fr;
+			gap: 0.4rem;
 		}
 
 		.settings-section {
-			gap: 0.5rem;
+			gap: 0.4rem;
+			padding: 0.6rem;
 		}
 
 		.settings-section h3 {
-			font-size: 1rem;
+			font-size: 0.65rem;
 		}
 
 		.mode-button {
-			padding: 0.5rem 0.75rem;
-			font-size: 0.9rem;
-		}
-
-		.mode-config {
-			gap: 0.5rem;
-		}
-
-		.timer-controls {
-			gap: 0.5rem;
-		}
-
-		.toggle-grid {
-			gap: 0.5rem;
-		}
-
-		.toggle-item {
-			padding: 0.65rem 0.5rem;
-		}
-
-		.toggle-label {
+			padding: 0.5rem 0.6rem;
 			font-size: 0.8rem;
 		}
 
-		.toggle-switch {
-			width: 40px;
-			height: 22px;
+		.mode-config {
+			gap: 0.4rem;
 		}
 
-		.toggle-switch::before {
-			width: 18px;
+		.timer-controls {
+			gap: 0.4rem;
+		}
+
+		.toggle-grid {
+			gap: 0.35rem;
+		}
+
+		.toggle-item {
+			padding: 0.45rem 0.55rem;
+		}
+
+		.toggle-label {
+			font-size: 0.75rem;
+		}
+
+		.toggle-switch {
+			width: 32px;
 			height: 18px;
 		}
 
+		.toggle-switch::before {
+			width: 14px;
+			height: 14px;
+		}
+
 		.toggle-item input:checked ~ .toggle-switch::before {
-			transform: translateX(18px);
+			transform: translateX(14px);
 		}
 	}
 
@@ -545,15 +557,16 @@
 	/* Landscape optimization */
 	@media (orientation: landscape) {
 		.settings-content {
-			gap: 1rem;
+			gap: 0.4rem;
 		}
 
 		.settings-section {
-			gap: 0.5rem;
+			gap: 0.4rem;
+			padding: 0.6rem;
 		}
 
 		.settings-section h3 {
-			font-size: 1rem;
+			font-size: 0.65rem;
 		}
 
 		.mode-config {
@@ -567,115 +580,107 @@
 		}
 
 		.settings-content {
-			padding: 0.75rem;
-			gap: 0.75rem;
+			padding: 0.5rem;
+			gap: 0.35rem;
+		}
+
+		.settings-section {
+			padding: 0.5rem;
 		}
 
 		.settings-section h3 {
-			font-size: 0.95rem;
+			font-size: 0.6rem;
 		}
 
 		.mode-button {
-			padding: 0.5rem 0.75rem;
-			font-size: 0.85rem;
+			padding: 0.4rem 0.5rem;
+			font-size: 0.75rem;
 		}
 
 		.mode-config,
 		.timer-controls,
 		.toggle-grid {
-			gap: 0.5rem;
+			gap: 0.35rem;
 		}
 
 		.toggle-item {
-			padding: 0.6rem 0.5rem;
+			padding: 0.4rem 0.5rem;
 		}
 
 		.toggle-label {
-			font-size: 0.75rem;
+			font-size: 0.7rem;
 		}
 
 		.toggle-switch {
-			width: 38px;
-			height: 20px;
-		}
-
-		.toggle-switch::before {
-			width: 16px;
+			width: 30px;
 			height: 16px;
 		}
 
+		.toggle-switch::before {
+			width: 12px;
+			height: 12px;
+		}
+
 		.toggle-item input:checked ~ .toggle-switch::before {
-			transform: translateX(18px);
+			transform: translateX(14px);
 		}
 	}
 
-	/* Advanced Actions Section */
+	/* Actions Section */
 	.advanced-section {
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
-		padding-top: 1rem;
-		margin-top: 0.5rem;
-	}
-
-	.description {
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.6);
-		margin: 0;
-		text-align: center;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		margin-top: 0.25rem;
+		padding-top: 0.5rem;
 	}
 
 	.action-buttons {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.75rem;
-		margin-top: 0.5rem;
+		display: flex;
+		gap: 0.4rem;
 	}
 
 	.action-button {
 		display: flex;
-		flex-direction: column;
+		flex-direction: row;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 1rem 0.75rem;
-		background: rgba(255, 255, 255, 0.08);
-		border: 2px solid rgba(255, 255, 255, 0.15);
-		border-radius: 8px;
-		color: #fff;
-		font-size: 0.9rem;
-		font-weight: 600;
+		justify-content: center;
+		gap: 0.3rem;
+		padding: 0.55rem 0.75rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.85rem;
+		font-weight: 500;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.15s ease;
 	}
 
 	.action-button:hover {
-		background: rgba(255, 255, 255, 0.12);
-		border-color: rgba(0, 255, 136, 0.4);
-		transform: translateY(-2px);
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.15);
+		color: #fff;
 	}
 
 	.action-button:active {
-		transform: translateY(0);
+		transform: scale(0.98);
 	}
 
 	.action-button .icon {
-		font-size: 1.5rem;
+		font-size: 0.9rem;
 	}
 
 	@media (max-width: 600px) {
 		.action-buttons {
-			gap: 0.5rem;
+			gap: 0.35rem;
 		}
 
 		.action-button {
-			padding: 0.75rem 0.5rem;
-			font-size: 0.85rem;
+			padding: 0.5rem 0.4rem;
+			font-size: 0.75rem;
 		}
 
 		.action-button .icon {
-			font-size: 1.3rem;
-		}
-
-		.description {
-			font-size: 0.8rem;
+			font-size: 0.9rem;
 		}
 	}
 </style>

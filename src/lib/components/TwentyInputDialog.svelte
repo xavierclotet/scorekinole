@@ -107,27 +107,20 @@
 {#if isOpen}
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="modal-overlay">
+	<div class="overlay">
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="modal" on:click|stopPropagation>
-			<div class="modal-header">
-				<span class="modal-title">{$t('twentyDialogTitle')}</span>
-			</div>
-			<div class="modal-content">
-				<!-- Team 1 Section (Left) -->
-				<div class="team-section">
-					<div class="team-header" style="color: {team1HeaderColor}">
-						{team1Name}
-					</div>
-					<div class="calculator">
+		<div class="dialog" on:click|stopPropagation>
+			<p class="title">{$t('twentyDialogTitle')}</p>
+			<div class="teams">
+				<div class="team-column">
+					<span class="team-name" style="color: {team1HeaderColor}">{team1Name}</span>
+					<div class="number-grid">
 						{#each numbers as num}
 							<button
-								class="calc-btn"
+								class="num-btn"
 								class:selected={team1Twenty === num}
-								style="background: {team1Twenty === num ? $team1.color : `${$team1.color}10`};
-								       border-color: {team1Twenty === num ? $team1.color : `${team1BorderColor}40`};
-								       color: {team1Twenty === num ? team1SelectedTextColor : team1UnselectedTextColor};"
+								style="--team-color: {$team1.color}; --text-selected: {team1SelectedTextColor}; --text-unselected: {team1UnselectedTextColor}; --border-color: {team1BorderColor};"
 								on:click={() => selectTeam1Twenty(num)}
 							>
 								{num}
@@ -136,19 +129,14 @@
 					</div>
 				</div>
 
-				<!-- Team 2 Section (Right) -->
-				<div class="team-section">
-					<div class="team-header" style="color: {team2HeaderColor}">
-						{team2Name}
-					</div>
-					<div class="calculator">
+				<div class="team-column">
+					<span class="team-name" style="color: {team2HeaderColor}">{team2Name}</span>
+					<div class="number-grid">
 						{#each numbers as num}
 							<button
-								class="calc-btn"
+								class="num-btn"
 								class:selected={team2Twenty === num}
-								style="background: {team2Twenty === num ? $team2.color : `${$team2.color}10`};
-								       border-color: {team2Twenty === num ? $team2.color : `${team2BorderColor}40`};
-								       color: {team2Twenty === num ? team2SelectedTextColor : team2UnselectedTextColor};"
+								style="--team-color: {$team2.color}; --text-selected: {team2SelectedTextColor}; --text-unselected: {team2UnselectedTextColor}; --border-color: {team2BorderColor};"
 								on:click={() => selectTeam2Twenty(num)}
 							>
 								{num}
@@ -162,190 +150,159 @@
 {/if}
 
 <style>
-	.modal-overlay {
+	.overlay {
 		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(0, 0, 0, 0.7);
+		inset: 0;
+		background: rgba(0, 0, 0, 0.8);
+		backdrop-filter: blur(4px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
 	}
 
-	.modal {
-		background: #1a1f35;
-		padding: 1.5rem;
+	.dialog {
+		background: #1a1d24;
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
-		max-width: 95%;
-		width: 700px;
+		padding: 2rem;
+		width: min(700px, 94vw);
 		max-height: 90vh;
 		overflow-y: auto;
 	}
 
-	.modal-header {
-		margin-bottom: 1rem;
+	.title {
+		margin: 0 0 1.25rem 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.7);
 		text-align: center;
 	}
 
-	.modal-title {
-		font-size: 1.25rem;
-		font-weight: 700;
-		color: #fff;
-	}
-
-	.modal-content {
+	.teams {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 1.5rem;
+		gap: 3rem;
 	}
 
-	.team-section {
+	.team-column {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 1rem;
 	}
 
-	.team-header {
-		font-size: 1.1rem;
-		font-weight: 700;
+	.team-name {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 600;
 		text-align: center;
-		font-family: 'Orbitron', monospace;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.calculator {
+	.number-grid {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		gap: 0.5rem;
+		gap: 1rem;
 	}
 
-	.calc-btn {
-		padding: 1rem 0.75rem;
-		border: 2px solid;
-		border-radius: 10px;
-		font-size: 1.5rem;
+	.num-btn {
+		aspect-ratio: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
+		border-radius: 8px;
+		font-family: 'Lexend', sans-serif;
+		font-size: 2.5rem;
 		font-weight: 700;
+		color: var(--text-unselected);
 		cursor: pointer;
-		transition: all 0.2s;
-		font-family: 'Orbitron', monospace;
+		transition: all 0.1s ease;
 	}
 
-	.calc-btn:hover {
-		filter: brightness(1.2);
-		transform: scale(1.05);
+	.num-btn:hover {
+		background: color-mix(in srgb, var(--team-color) 15%, transparent);
+		border-color: color-mix(in srgb, var(--border-color) 50%, transparent);
 	}
 
-	.calc-btn:active {
-		transform: scale(0.95);
+	.num-btn:active {
+		transform: scale(0.96);
 	}
 
-	.calc-btn.selected {
-		box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-		transform: scale(1.1);
+	.num-btn.selected {
+		background: var(--team-color);
+		border-color: var(--team-color);
+		color: var(--text-selected);
 	}
 
-	/* Larger screens */
-	@media (min-width: 600px) {
-		.calculator {
-			grid-template-columns: repeat(3, 1fr);
-			gap: 0.6rem;
-		}
-
-		.calc-btn {
-			padding: 1.1rem 0.8rem;
-			font-size: 1.6rem;
-		}
-	}
-
-	/* Tablets */
-	@media (max-width: 768px) {
-		.modal {
-			width: 95%;
-			padding: 1rem;
-		}
-
-		.modal-title {
-			font-size: 1.1rem;
-		}
-
-		.team-header {
-			font-size: 1rem;
-		}
-
-		.calculator {
-			grid-template-columns: repeat(3, 1fr);
-			gap: 0.4rem;
-		}
-
-		.calc-btn {
-			padding: 0.9rem 0.5rem;
-			font-size: 1.3rem;
-		}
-	}
-
-	/* Small phones */
 	@media (max-width: 480px) {
-		.modal {
-			padding: 0.75rem;
+		.dialog {
+			padding: 1.25rem;
 		}
 
-		.modal-content {
-			gap: 1rem;
+		.title {
+			font-size: 0.9rem;
+			margin-bottom: 1rem;
 		}
 
-		.team-header {
+		.teams {
+			gap: 1.25rem;
+		}
+
+		.team-column {
+			gap: 0.75rem;
+		}
+
+		.team-name {
 			font-size: 0.9rem;
 		}
 
-		.calculator {
-			grid-template-columns: repeat(3, 1fr);
-			gap: 0.3rem;
+		.number-grid {
+			gap: 0.5rem;
 		}
 
-		.calc-btn {
-			padding: 0.75rem 0.4rem;
-			font-size: 1.15rem;
-			border-radius: 8px;
+		.num-btn {
+			font-size: 1.8rem;
+			border-radius: 6px;
 		}
 	}
 
-	/* Landscape mode on phones */
 	@media (max-height: 500px) and (orientation: landscape) {
-		.modal {
-			padding: 0.75rem;
+		.dialog {
+			padding: 1rem;
 			max-height: 95vh;
 		}
 
-		.modal-header {
-			margin-bottom: 0.5rem;
+		.title {
+			font-size: 0.85rem;
+			margin-bottom: 0.75rem;
 		}
 
-		.modal-title {
-			font-size: 1rem;
+		.teams {
+			gap: 1.5rem;
 		}
 
-		.team-section {
-			gap: 0.4rem;
+		.team-column {
+			gap: 0.5rem;
 		}
 
-		.team-header {
-			font-size: 0.9rem;
+		.team-name {
+			font-size: 0.85rem;
 		}
 
-		.calculator {
+		.number-grid {
 			grid-template-columns: repeat(5, 1fr);
-			gap: 0.25rem;
+			gap: 0.35rem;
 		}
 
-		.calc-btn {
-			padding: 0.5rem 0.3rem;
-			font-size: 1rem;
-			border-radius: 6px;
+		.num-btn {
+			font-size: 1.1rem;
+			aspect-ratio: auto;
+			padding: 0.5rem 0.4rem;
 		}
 	}
 </style>

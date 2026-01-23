@@ -1,6 +1,6 @@
 import type { GameSettings } from './types/settings';
 
-export const APP_VERSION = '2.1.6';
+export const APP_VERSION = '2.1.7';
 export const APP_NAME = 'Scorekinole';
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
@@ -20,7 +20,10 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     eventTitle: 'Scorekinole',
     matchPhase: '',
     timerX: null,
-    timerY: null
+    timerY: null,
+    matchScoreSize: 'medium',
+    mainScoreSize: 'medium',
+    nameSize: 'medium'
 };
 
 export const DEVELOPED_COUNTRIES = [

@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { timerDisplay, timerWarning, timerTimeout, toggleTimer, resetTimer } from '$lib/stores/timer';
+	import { timerDisplay, timerWarning, timerCritical, timerTimeout, toggleTimer, resetTimer } from '$lib/stores/timer';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { t } from '$lib/stores/language';
 	import { onMount } from 'svelte';
 
 	// Props
@@ -11,7 +10,6 @@
 	let timerContainer: HTMLDivElement;
 	let isDragging = false;
 	let hasMoved = false;
-	let dragStartTime = 0;
 	let startX = 0;
 	let startY = 0;
 	let offsetX = 0;
@@ -36,7 +34,6 @@
 	function handleDragStart(e: MouseEvent | TouchEvent) {
 		isDragging = true;
 		hasMoved = false;
-		dragStartTime = Date.now();
 
 		const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
 		const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
@@ -117,25 +114,23 @@
 	role="button"
 	tabindex="-1"
 >
-	<button
-		class="timer-display"
-		class:warning={$timerWarning}
-		class:timeout={$timerTimeout}
-		on:click={handleTimerClick}
-		aria-label="Timer - Click to toggle"
-	>
-		{#if $timerTimeout}
-			<span class="timeout-text">{$t('timeOut')}</span>
-		{:else}
-			{$timerDisplay}
-		{/if}
-
+	<div class="timer-wrapper" class:warning={$timerWarning} class:critical={$timerCritical} class:timeout={$timerTimeout}>
+		<button
+			class="timer-display"
+			on:click={handleTimerClick}
+			aria-label="Timer - Click to toggle"
+		>
+			<span class="timer-time">{$timerDisplay}</span>
+		</button>
 		{#if showResetButton}
 			<button class="timer-reset" on:click|stopPropagation={handleTimerReset} aria-label="Reset timer">
-				⟲
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+					<path d="M3 3v5h5"/>
+				</svg>
 			</button>
 		{/if}
-	</button>
+	</div>
 </div>
 
 <style>
@@ -154,94 +149,122 @@
 		z-index: 200;
 	}
 
-	.timer-container.dragging .timer-display {
+	.timer-container.dragging .timer-wrapper {
 		transition: none;
-		opacity: 0.9;
+		opacity: 0.85;
+	}
+
+	.timer-wrapper {
+		display: flex;
+		align-items: center;
+		background: rgba(30, 35, 45, 0.85);
+		backdrop-filter: blur(12px);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 8px;
+		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+		overflow: hidden;
+	}
+
+	/* Warning: < 60s, >= 30s - orange tint */
+	.timer-wrapper.warning {
+		background: rgba(60, 40, 25, 0.9);
+		border-color: rgba(255, 180, 100, 0.3);
+		animation: timerPulseWarning 2s ease-in-out infinite;
+	}
+
+	.timer-wrapper.warning .timer-display {
+		color: rgba(255, 200, 130, 0.95);
+	}
+
+	.timer-wrapper.warning .timer-reset {
+		border-color: rgba(255, 180, 100, 0.2);
+		color: rgba(255, 180, 100, 0.7);
+	}
+
+	/* Critical: < 30s - reddish */
+	.timer-wrapper.critical {
+		background: rgba(80, 35, 30, 0.9);
+		border-color: rgba(255, 120, 100, 0.35);
+		animation: timerPulseCritical 1.2s ease-in-out infinite;
+	}
+
+	.timer-wrapper.critical .timer-display {
+		color: rgba(255, 150, 130, 0.95);
+	}
+
+	.timer-wrapper.critical .timer-reset {
+		border-color: rgba(255, 120, 100, 0.25);
+		color: rgba(255, 130, 110, 0.75);
+	}
+
+	/* Timeout: = 0 - flashing red */
+	.timer-wrapper.timeout {
+		background: rgba(200, 50, 50, 0.6);
+		border-color: rgba(255, 80, 80, 0.4);
+		animation: timerFlash 0.8s ease-in-out infinite;
+	}
+
+	.timer-wrapper.timeout .timer-display {
+		color: #ff7070;
+	}
+
+	.timer-wrapper.timeout .timer-reset {
+		border-color: rgba(255, 80, 80, 0.3);
+		color: rgba(255, 120, 120, 0.8);
+	}
+
+	@keyframes timerFlash {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.6; }
+	}
+
+	@keyframes timerPulseWarning {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.85; }
+	}
+
+	@keyframes timerPulseCritical {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.75; }
 	}
 
 	.timer-display {
-		font-family: 'Orbitron', monospace;
-		font-weight: 900;
-		padding: 1rem 2rem;
-		background: rgba(10, 14, 26, 0.95);
-		backdrop-filter: blur(8px);
-		border: 3px solid #00ff88;
-		border-radius: 16px;
-		color: #00ff88;
+		font-family: 'Lexend', sans-serif;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		padding: 0.5rem 0.9rem;
+		background: transparent;
+		border: none;
+		color: rgba(255, 255, 255, 0.9);
 		cursor: pointer;
-		transition: all 0.3s;
+		transition: all 0.15s ease;
 		user-select: none;
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 1rem;
-		position: relative;
+		text-align: center;
+	}
+
+	.timer-time {
+		letter-spacing: 0.02em;
+		display: inline-block;
+		width: 5.5ch;
+		font-feature-settings: "tnum" 1;
 	}
 
 	.timer-display:hover {
-		transform: scale(1.05);
-		box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.timer-display:active {
-		transform: scale(0.98);
-	}
-
-	.timer-display.warning {
-		background: rgba(26, 10, 14, 0.95);
-		backdrop-filter: blur(8px);
-		border-color: #ff3366;
-		color: #ff3366;
-		animation: pulse 1s ease-in-out infinite;
-		box-shadow: 0 4px 16px rgba(255, 51, 102, 0.3);
-	}
-
-	.timer-display.timeout {
-		background: rgba(26, 10, 14, 0.95);
-		backdrop-filter: blur(8px);
-		border-color: #ff3366;
-		color: #ff3366;
-		animation: flash 0.5s ease-in-out infinite;
-		box-shadow: 0 4px 16px rgba(255, 51, 102, 0.4);
-	}
-
-	@keyframes pulse {
-		0%, 100% {
-			transform: scale(1);
-			box-shadow: 0 0 20px rgba(255, 51, 102, 0.3);
-		}
-		50% {
-			transform: scale(1.05);
-			box-shadow: 0 0 40px rgba(255, 51, 102, 0.6);
-		}
-	}
-
-	@keyframes flash {
-		0%, 100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.5;
-		}
-	}
-
-	.timeout-text {
-		font-size: 0.6em;
-		letter-spacing: 0.1em;
+		background: rgba(255, 255, 255, 0.12);
 	}
 
 	.timer-reset {
-		font-size: 1.1rem;
-		padding: 0.2rem;
-		background: rgba(255, 255, 255, 0.1);
-		border: 2px solid rgba(255, 255, 255, 0.3);
-		border-radius: 50%;
-		color: #fff;
+		padding: 0.5rem;
+		background: transparent;
+		border: none;
+		border-left: 1px solid rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.5);
 		cursor: pointer;
-		transition: all 0.2s;
-		width: 24px;
-		height: 24px;
+		transition: all 0.15s ease;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -249,90 +272,107 @@
 	}
 
 	.timer-reset:hover {
-		background: rgba(255, 255, 255, 0.2);
-		transform: rotate(180deg);
+		background: rgba(255, 255, 255, 0.08);
+		color: rgba(255, 255, 255, 0.9);
 	}
 
 	.timer-reset:active {
-		transform: rotate(180deg) scale(0.95);
+		background: rgba(255, 255, 255, 0.12);
+	}
+
+	.timer-reset svg {
+		display: block;
 	}
 
 	/* Size variants */
 	.size-small .timer-display {
-		font-size: 1.5rem;
-		padding: 0.5rem 1rem;
-		min-width: 100px;
+		font-size: 1.1rem;
+		padding: 0.4rem 0.75rem;
 	}
 
 	.size-small .timer-reset {
-		width: 20px;
-		height: 20px;
-		font-size: 0.9rem;
+		padding: 0.4rem;
+	}
+
+	.size-small .timer-reset svg {
+		width: 16px;
+		height: 16px;
 	}
 
 	.size-medium .timer-display {
-		font-size: 2rem;
-		padding: 0.75rem 1.5rem;
-		min-width: 150px;
+		font-size: 1.5rem;
+		padding: 0.55rem 1rem;
 	}
 
 	.size-medium .timer-reset {
-		width: 22px;
-		height: 22px;
-		font-size: 1rem;
+		padding: 0.55rem;
+	}
+
+	.size-medium .timer-reset svg {
+		width: 18px;
+		height: 18px;
 	}
 
 	.size-large .timer-display {
-		font-size: 2.1rem;
-		padding: 0.7rem 1.4rem;
-		min-width: 140px;
+		font-size: 1.8rem;
+		padding: 0.7rem 1.2rem;
 	}
 
 	.size-large .timer-reset {
-		width: 24px;
-		height: 24px;
-		font-size: 1.1rem;
+		padding: 0.7rem;
+	}
+
+	.size-large .timer-reset svg {
+		width: 20px;
+		height: 20px;
 	}
 
 	/* Responsive */
 	@media (max-width: 768px) {
 		.size-large .timer-display {
-			font-size: 1.75rem;
-			min-width: 112px;
+			font-size: 1.6rem;
+			padding: 0.6rem 1rem;
 		}
 
 		.size-large .timer-reset {
-			width: 22px;
-			height: 22px;
-			font-size: 1rem;
+			padding: 0.6rem;
+		}
+
+		.size-large .timer-reset svg {
+			width: 18px;
+			height: 18px;
 		}
 	}
 
 	@media (max-width: 480px) {
 		.size-large .timer-display {
 			font-size: 1.4rem;
-			min-width: 98px;
-			padding: 0.5rem 1rem;
+			padding: 0.5rem 0.85rem;
 		}
 
 		.size-large .timer-reset {
-			width: 20px;
-			height: 20px;
-			font-size: 0.9rem;
+			padding: 0.5rem;
+		}
+
+		.size-large .timer-reset svg {
+			width: 16px;
+			height: 16px;
 		}
 	}
 
 	@media (orientation: landscape) and (max-height: 600px) {
 		.size-large .timer-display {
 			font-size: 1.2rem;
-			min-width: 90px;
-			padding: 0.4rem 0.8rem;
+			padding: 0.45rem 0.8rem;
 		}
 
 		.size-large .timer-reset {
-			width: 18px;
-			height: 18px;
-			font-size: 0.8rem;
+			padding: 0.45rem;
+		}
+
+		.size-large .timer-reset svg {
+			width: 14px;
+			height: 14px;
 		}
 	}
 </style>
