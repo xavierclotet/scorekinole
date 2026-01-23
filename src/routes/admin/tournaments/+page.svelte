@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
@@ -8,6 +9,8 @@
   import { adminTheme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
   import { getTournamentsPaginated, deleteTournament as deleteTournamentFirebase } from '$lib/firebase/tournaments';
+  import { currentUser } from '$lib/firebase/auth';
+  import { isSuperAdminUser } from '$lib/stores/admin';
   import type { Tournament } from '$lib/types/tournament';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
@@ -15,6 +18,7 @@
   let filteredTournaments: Tournament[] = [];
   let searchQuery = '';
   let statusFilter: 'all' | 'DRAFT' | 'GROUP_STAGE' | 'FINAL_STAGE' | 'COMPLETED' | 'CANCELLED' = 'all';
+  let creatorFilter = 'all'; // 'all', 'mine', or a specific creator userId
   let loading = true;
   let loadingMore = false;
   let showDeleteConfirm = false;
@@ -31,6 +35,21 @@
 
   $: isSearching = searchQuery.trim().length > 0;
   $: isFiltering = statusFilter !== 'all';
+
+  // Get unique creators from tournaments (for superadmin filter), excluding current user
+  interface Creator {
+    userId: string;
+    userName: string;
+  }
+  $: uniqueCreators = tournaments.reduce((acc: Creator[], tournament) => {
+    const creator = tournament.createdBy;
+    const userId = $currentUser?.id;
+    // Exclude current user (already has "My tournaments" option)
+    if (creator?.userId && creator?.userName && creator.userId !== userId && !acc.find(c => c.userId === creator.userId)) {
+      acc.push({ userId: creator.userId, userName: creator.userName });
+    }
+    return acc;
+  }, []).sort((a, b) => a.userName.localeCompare(b.userName));
 
   onMount(async () => {
     await loadInitialTournaments();
@@ -73,6 +92,7 @@
   }
 
   function filterTournaments() {
+    const user = get(currentUser);
     filteredTournaments = tournaments.filter(tournament => {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
@@ -83,17 +103,25 @@
 
       const matchesStatus = statusFilter === 'all' || tournament.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      let matchesCreator = true;
+      if (creatorFilter === 'mine') {
+        matchesCreator = tournament.createdBy?.userId === user?.id;
+      } else if (creatorFilter !== 'all') {
+        matchesCreator = tournament.createdBy?.userId === creatorFilter;
+      }
+
+      return matchesSearch && matchesStatus && matchesCreator;
     });
   }
 
   $: {
     searchQuery;
     statusFilter;
+    creatorFilter;
     filterTournaments();
   }
 
-  $: displayTotal = isSearching || isFiltering ? filteredTournaments.length : totalCount;
+  $: displayTotal = isSearching || isFiltering || creatorFilter !== 'all' ? filteredTournaments.length : totalCount;
 
   function getStatusText(status: string): string {
     switch (status) {
@@ -237,6 +265,16 @@
           {$t('completedPlural')}
         </button>
       </div>
+
+      {#if $isSuperAdminUser}
+        <select class="creator-filter" bind:value={creatorFilter}>
+          <option value="all">{$t('allCreators')}</option>
+          <option value="mine">{$t('myTournaments')}</option>
+          {#each uniqueCreators as creator}
+            <option value={creator.userId}>{creator.userName}</option>
+          {/each}
+        </select>
+      {/if}
     </div>
 
     {#if loading}
@@ -599,6 +637,50 @@
     background: #2d3748;
   }
 
+  /* Creator filter select */
+  .creator-filter {
+    padding: 0.4rem 0.75rem;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: auto;
+    min-width: 140px;
+  }
+
+  .creator-filter:hover {
+    border-color: #fa709a;
+  }
+
+  .creator-filter:focus {
+    outline: none;
+    border-color: #fa709a;
+    box-shadow: 0 0 0 2px rgba(250, 112, 154, 0.1);
+  }
+
+  .tournaments-container[data-theme='dark'] .creator-filter {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #8b9bb3;
+  }
+
+  .tournaments-container[data-theme='dark'] .creator-filter:hover {
+    border-color: #667eea;
+  }
+
+  .tournaments-container[data-theme='dark'] .creator-filter:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  }
+
+  .tournaments-container[data-theme='dark'] .creator-filter option {
+    background: #1a2332;
+    color: #8b9bb3;
+  }
+
   .filter-tab.active {
     background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
     color: white;
@@ -912,16 +994,24 @@
     transition: all 0.15s;
   }
 
+  .tournament-row:nth-child(even) {
+    background: #f9fafb;
+  }
+
   .tournaments-container[data-theme='dark'] .tournament-row {
     border-color: #2d3748;
   }
 
+  .tournaments-container[data-theme='dark'] .tournament-row:nth-child(even) {
+    background: #0f1419;
+  }
+
   .tournament-row:hover {
-    background: #f9fafb;
+    background: #f3f4f6;
   }
 
   .tournaments-container[data-theme='dark'] .tournament-row:hover {
-    background: #0f1419;
+    background: #243447;
   }
 
   .tournaments-table td {

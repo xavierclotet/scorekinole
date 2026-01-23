@@ -49,6 +49,18 @@
 	let pendingMatchesList: MatchDisplay[] = [];
 	let inProgressMatchesList: MatchDisplay[] = [];
 
+	// Matches grouped by group (for multi-group tournaments)
+	interface GroupedMatches {
+		groupId: string;
+		groupName: string;
+		currentRound: number;
+		totalRounds: number;
+		matches: MatchDisplay[];
+	}
+	let pendingMatchesByGroup: GroupedMatches[] = [];
+	let inProgressMatchesByGroup: GroupedMatches[] = [];
+	let hasMultipleGroups = false;
+
 	// Show/hide tournament key
 	let showKey = false;
 
@@ -140,6 +152,9 @@
 		pendingMatches = [];
 		pendingMatchesList = [];
 		inProgressMatchesList = [];
+		pendingMatchesByGroup = [];
+		inProgressMatchesByGroup = [];
+		hasMultipleGroups = false;
 		selectedMatch = null;
 		selectedSide = null;
 		errorMessage = '';
@@ -150,6 +165,141 @@
 		rrCurrentRound = 0;
 		rrTotalRounds = 0;
 		isCheckingSavedKey = false;
+	}
+
+	// Translate group name based on language
+	// Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
+	function translateGroupName(name: string): string {
+		if (name === 'Swiss') return $t('swissSystem');
+		// New identifier format
+		if (name === 'SINGLE_GROUP') return $t('singleGroup');
+		const idMatch = name.match(/^GROUP_([A-H])$/);
+		if (idMatch) {
+			return `${$t('group')} ${idMatch[1]}`;
+		}
+		// Legacy Spanish format (for existing tournaments)
+		if (name === 'Grupo Único') return $t('singleGroup');
+		const legacyMatch = name.match(/^Grupo ([A-H])$/);
+		if (legacyMatch) {
+			return `${$t('group')} ${legacyMatch[1]}`;
+		}
+		return name;
+	}
+
+	function processMatchesForDisplay(result: Tournament, matches: PendingMatchInfo[]) {
+		// Reset all lists
+		pendingMatchesList = [];
+		inProgressMatchesList = [];
+		pendingMatchesByGroup = [];
+		inProgressMatchesByGroup = [];
+
+		const isRoundRobin = result.status === 'GROUP_STAGE' && result.groupStage?.type === 'ROUND_ROBIN';
+		const numGroups = result.groupStage?.groups?.length || 1;
+		hasMultipleGroups = numGroups > 1;
+
+		if (isRoundRobin && result.groupStage?.groups) {
+			// For Round Robin with multiple groups, group matches by group and calculate current round per group
+			const pendingByGroup = new Map<string, { groupName: string; currentRound: number; totalRounds: number; matches: MatchDisplay[] }>();
+			const inProgressByGroup = new Map<string, { groupName: string; currentRound: number; totalRounds: number; matches: MatchDisplay[] }>();
+
+			// Calculate current round for each group
+			for (const group of result.groupStage.groups) {
+				if (!group.schedule) continue;
+
+				const totalRounds = group.schedule.length;
+				let currentRound = 0;
+
+				// Find the first round with pending/in-progress matches
+				for (const round of group.schedule) {
+					const hasPending = round.matches.some(m => m.status === 'PENDING' || m.status === 'IN_PROGRESS');
+					if (hasPending) {
+						currentRound = round.roundNumber;
+						break;
+					}
+				}
+
+				// Store for later use - translate group name for display
+				const translatedName = translateGroupName(group.name);
+				pendingByGroup.set(group.id, { groupName: translatedName, currentRound, totalRounds, matches: [] });
+				inProgressByGroup.set(group.id, { groupName: translatedName, currentRound, totalRounds, matches: [] });
+			}
+
+			// Distribute matches to their groups, filtering by current round
+			for (const match of matches) {
+				const groupId = match.groupId || '';
+				const groupData = pendingByGroup.get(groupId);
+				if (!groupData) continue;
+
+				// Only include matches from the current round of this group
+				if (match.roundNumber !== groupData.currentRound) continue;
+
+				const isInProgress = match.isInProgress || false;
+				const matchDisplay: MatchDisplay = { match, isInProgress };
+
+				if (isInProgress) {
+					inProgressByGroup.get(groupId)?.matches.push(matchDisplay);
+				} else {
+					pendingByGroup.get(groupId)?.matches.push(matchDisplay);
+				}
+			}
+
+			// Sort function by table number
+			const sortByTable = (a: MatchDisplay, b: MatchDisplay) =>
+				(a.match.tableNumber || 999) - (b.match.tableNumber || 999);
+
+			// Convert maps to arrays, only including groups with matches, and sort matches by table
+			pendingMatchesByGroup = Array.from(pendingByGroup.entries())
+				.filter(([_, data]) => data.matches.length > 0)
+				.map(([groupId, data]) => ({
+					groupId,
+					groupName: data.groupName,
+					currentRound: data.currentRound,
+					totalRounds: data.totalRounds,
+					matches: data.matches.sort(sortByTable)
+				}))
+				.sort((a, b) => a.groupName.localeCompare(b.groupName));
+
+			inProgressMatchesByGroup = Array.from(inProgressByGroup.entries())
+				.filter(([_, data]) => data.matches.length > 0)
+				.map(([groupId, data]) => ({
+					groupId,
+					groupName: data.groupName,
+					currentRound: data.currentRound,
+					totalRounds: data.totalRounds,
+					matches: data.matches.sort(sortByTable)
+				}))
+				.sort((a, b) => a.groupName.localeCompare(b.groupName));
+
+			// Also populate flat lists (for single group or fallback)
+			if (!hasMultipleGroups && result.groupStage?.groups?.[0]?.schedule) {
+				const schedule = result.groupStage.groups[0].schedule;
+				rrTotalRounds = schedule.length;
+				rrCurrentRound = pendingByGroup.get(result.groupStage.groups[0].id)?.currentRound || 0;
+			}
+
+			// Flatten for single group display (already sorted within groups)
+			pendingMatchesList = pendingMatchesByGroup.flatMap(g => g.matches);
+			inProgressMatchesList = inProgressMatchesByGroup.flatMap(g => g.matches);
+
+		} else {
+			// Non-RR or single group: use flat list
+			for (const match of matches) {
+				const isInProgress = match.isInProgress || false;
+				const matchDisplay: MatchDisplay = { match, isInProgress };
+
+				if (isInProgress) {
+					inProgressMatchesList.push(matchDisplay);
+				} else {
+					pendingMatchesList.push(matchDisplay);
+				}
+			}
+
+			// Sort by table number
+			const sortByTable = (a: MatchDisplay, b: MatchDisplay) =>
+				(a.match.tableNumber || 999) - (b.match.tableNumber || 999);
+			pendingMatchesList.sort(sortByTable);
+			inProgressMatchesList.sort(sortByTable);
+		}
 	}
 
 	async function searchTournament() {
@@ -194,55 +344,8 @@
 					return;
 				}
 
-				// Build lists for player_selection view
-				pendingMatchesList = [];
-				inProgressMatchesList = [];
-
-				// For Round Robin, calculate current round and filter
-				const isRoundRobin = result.status === 'GROUP_STAGE' && result.groupStage?.type === 'ROUND_ROBIN';
-
-				if (isRoundRobin && result.groupStage?.groups?.[0]?.schedule) {
-					// Calculate total rounds from schedule
-					const schedule = result.groupStage.groups[0].schedule;
-					rrTotalRounds = schedule.length;
-
-					// Find the first round with pending matches (current round)
-					rrCurrentRound = 0;
-					for (const round of schedule) {
-						const hasPending = round.matches.some(m => m.status === 'PENDING' || m.status === 'IN_PROGRESS');
-						if (hasPending) {
-							rrCurrentRound = round.roundNumber;
-							break;
-						}
-					}
-
-					// Filter matches to only include current round
-					for (const match of pendingMatches) {
-						// Only include matches from the current round
-						if (match.roundNumber !== rrCurrentRound) continue;
-
-						const isInProgress = match.isInProgress || false;
-						const matchDisplay: MatchDisplay = { match, isInProgress };
-
-						if (isInProgress) {
-							inProgressMatchesList.push(matchDisplay);
-						} else {
-							pendingMatchesList.push(matchDisplay);
-						}
-					}
-				} else {
-					// Non-RR: include all matches
-					for (const match of pendingMatches) {
-						const isInProgress = match.isInProgress || false;
-						const matchDisplay: MatchDisplay = { match, isInProgress };
-
-						if (isInProgress) {
-							inProgressMatchesList.push(matchDisplay);
-						} else {
-							pendingMatchesList.push(matchDisplay);
-						}
-					}
-				}
+				// Process matches
+				processMatchesForDisplay(result, pendingMatches);
 
 				// Go to player_selection (NO auto-select - user picks the match)
 				currentStep = 'player_selection';
@@ -255,63 +358,8 @@
 					return;
 				}
 
-				// Build list of matches (not players)
-				// Separate pending from in-progress
-				pendingMatchesList = [];
-				inProgressMatchesList = [];
-
-				// For Round Robin, calculate current round and filter
-				const isRoundRobin = result.status === 'GROUP_STAGE' && result.groupStage?.type === 'ROUND_ROBIN';
-
-				if (isRoundRobin && result.groupStage?.groups?.[0]?.schedule) {
-					// Calculate total rounds from schedule
-					const schedule = result.groupStage.groups[0].schedule;
-					rrTotalRounds = schedule.length;
-
-					// Find the first round with pending matches (current round)
-					rrCurrentRound = 0;
-					for (const round of schedule) {
-						const hasPending = round.matches.some(m => m.status === 'PENDING' || m.status === 'IN_PROGRESS');
-						if (hasPending) {
-							rrCurrentRound = round.roundNumber;
-							break;
-						}
-					}
-
-					// Filter matches to only include current round
-					for (const match of pendingMatches) {
-						// Only include matches from the current round
-						if (match.roundNumber !== rrCurrentRound) continue;
-
-						const isInProgress = match.isInProgress || false;
-						const matchDisplay: MatchDisplay = { match, isInProgress };
-
-						if (isInProgress) {
-							inProgressMatchesList.push(matchDisplay);
-						} else {
-							pendingMatchesList.push(matchDisplay);
-						}
-					}
-				} else {
-					// Non-RR: include all matches
-					for (const match of pendingMatches) {
-						const isInProgress = match.isInProgress || false;
-						const matchDisplay: MatchDisplay = { match, isInProgress };
-
-						if (isInProgress) {
-							inProgressMatchesList.push(matchDisplay);
-						} else {
-							pendingMatchesList.push(matchDisplay);
-						}
-					}
-				}
-
-				// Sort by participant names
-				const sortByNames = (a: MatchDisplay, b: MatchDisplay) =>
-					a.match.participantAName.localeCompare(b.match.participantAName);
-
-				pendingMatchesList.sort(sortByNames);
-				inProgressMatchesList.sort(sortByNames);
+				// Process matches (already sorted by table number)
+				processMatchesForDisplay(result, pendingMatches);
 
 				currentStep = 'player_selection';
 			}
@@ -358,6 +406,9 @@
 			pendingMatches = [];
 			pendingMatchesList = [];
 			inProgressMatchesList = [];
+			pendingMatchesByGroup = [];
+			inProgressMatchesByGroup = [];
+			hasMultipleGroups = false;
 			selectedMatch = null;
 			selectedSide = null;
 		} else if (currentStep === 'error') {
@@ -373,6 +424,9 @@
 		pendingMatches = [];
 		pendingMatchesList = [];
 		inProgressMatchesList = [];
+		pendingMatchesByGroup = [];
+		inProgressMatchesByGroup = [];
+		hasMultipleGroups = false;
 		selectedMatch = null;
 		selectedSide = null;
 		currentStep = 'key_input';
@@ -624,18 +678,13 @@
 				{:else if currentStep === 'player_selection' && tournament}
 					<div class="step-content match-selection-content">
 						<div class="match-selection-header">
-							<!-- Tournament Title with Phase -->
+							<!-- Tournament Title with Phase and Config Badges -->
 							<div class="tournament-title-row">
 								<p class="tournament-name">
 									{#if tournament.edition}
 										<span class="edition-number">#{tournament.edition}</span>
 									{/if}
 									{tournament.name}
-									{#if tournament.status === 'GROUP_STAGE'}
-										<span class="phase-badge group-stage">
-											{$t('groupStage')}
-										</span>
-									{/if}
 								</p>
 								<button
 									class="change-tournament-btn"
@@ -650,56 +699,72 @@
 								</button>
 							</div>
 
-							<!-- Game Config + System Type Row -->
-							<div class="config-row">
+							<!-- Badges Row: Phase + Config -->
+							<div class="badges-row">
+								{#if tournament.status === 'GROUP_STAGE'}
+									<span class="phase-badge group-stage">{$t('groupStage')}</span>
+								{/if}
 								{#if tournament.status === 'GROUP_STAGE' && tournament.groupStage?.type === 'SWISS'}
-									<!-- Swiss: solo mostrar SS y ronda actual -->
-									<span class="config-box">
-										SS · {$t('round')} {tournament.groupStage.currentRound}/{tournament.groupStage.totalRounds}
-									</span>
+									<span class="config-badge">SS · R{tournament.groupStage.currentRound}/{tournament.groupStage.totalRounds}</span>
 								{:else if tournament.status === 'GROUP_STAGE' && tournament.groupStage?.type === 'ROUND_ROBIN' && rrCurrentRound > 0}
-									<!-- Round Robin: mostrar ronda actual -->
-									<span class="config-box round-highlight">
-										{$t('round')} {rrCurrentRound}/{rrTotalRounds}
+									<span class="config-badge">R{rrCurrentRound}/{rrTotalRounds}</span>
+								{:else if getCurrentPhaseConfig(tournament)}
+									{@const phaseConfig = getCurrentPhaseConfig(tournament)}
+									<span class="config-badge">
+										{#if phaseConfig?.gameMode === 'points'}
+											{phaseConfig.pointsToWin}pts
+										{:else}
+											{phaseConfig?.roundsToPlay}r
+										{/if}
+										· Bo{phaseConfig?.matchesToWin === 1 ? '1' : phaseConfig?.matchesToWin}
 									</span>
-								{:else}
-									<!-- Fase Final: mostrar config del juego -->
-									{#if getCurrentPhaseConfig(tournament)}
-										{@const phaseConfig = getCurrentPhaseConfig(tournament)}
-										<span class="config-box">
-											{#if phaseConfig?.gameMode === 'points'}
-												{phaseConfig.pointsToWin} {$t('points')}
-											{:else}
-												{phaseConfig?.roundsToPlay} {$t('rounds')}
-											{/if}
-											·
-											{#if phaseConfig?.matchesToWin === 1}
-												1 {$t('game')}
-											{:else}
-												{$t('bestOf').replace('{games}', String(phaseConfig?.matchesToWin))}
-											{/if}
-										</span>
-									{/if}
 								{/if}
 							</div>
 						</div>
 
 						<!-- Show list of matches - click to start immediately -->
-						<!-- Pending matches (normal) -->
-						{#if pendingMatchesList.length > 0}
-							<div class="matches-list-container">
+						<!-- Multi-group display -->
+						{#if hasMultipleGroups && pendingMatchesByGroup.length > 0}
+							<div class="groups-container">
+								{#each pendingMatchesByGroup as group}
+									<div class="group-section">
+										<div class="group-header">
+											<span class="group-name">{group.groupName}</span>
+											<span class="group-round">{$t('round')} {group.currentRound}/{group.totalRounds}</span>
+										</div>
+										<div class="matches-list">
+											{#each group.matches as matchDisplay}
+												<button
+													class="match-row-btn"
+													disabled={isStarting}
+													on:click={() => selectMatchAndStart(matchDisplay)}
+												>
+													<span class="table-num">M{matchDisplay.match.tableNumber || '?'}</span>
+													<span class="player left">{matchDisplay.match.participantAName}</span>
+													<span class="vs-badge">vs</span>
+													<span class="player right">{matchDisplay.match.participantBName}</span>
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/each}
+							</div>
+						<!-- Single group or non-RR display -->
+						{:else if pendingMatchesList.length > 0}
+							<div class="matches-list">
 								{#each pendingMatchesList as matchDisplay}
 									<button
-										class="match-item-btn"
+										class="match-row-btn"
 										disabled={isStarting}
 										on:click={() => selectMatchAndStart(matchDisplay)}
 									>
 										{#if matchDisplay.match.bracketRoundName}
-											<span class="match-round-name">{matchDisplay.match.bracketRoundName}</span>
+											<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 										{/if}
-										<span class="match-player">{matchDisplay.match.participantAName}</span>
-										<span class="match-vs">vs</span>
-										<span class="match-player">{matchDisplay.match.participantBName}</span>
+										<span class="table-num">M{matchDisplay.match.tableNumber || '?'}</span>
+										<span class="player left">{matchDisplay.match.participantAName}</span>
+										<span class="vs-badge">vs</span>
+										<span class="player right">{matchDisplay.match.participantBName}</span>
 									</button>
 								{/each}
 							</div>
@@ -737,22 +802,51 @@
 								{#if showInProgressMatches}
 									<div class="in-progress-content">
 										<p class="in-progress-hint">{$t('inProgressWarning')}</p>
-										<div class="matches-list-container in-progress">
-											{#each inProgressMatchesList as matchDisplay}
-												<button
-													class="match-item-btn in-progress"
-													disabled={isStarting}
-													on:click={() => selectMatchAndStart(matchDisplay)}
-												>
-													{#if matchDisplay.match.bracketRoundName}
-														<span class="match-round-name">{matchDisplay.match.bracketRoundName}</span>
-													{/if}
-													<span class="match-player">{matchDisplay.match.participantAName}</span>
-													<span class="match-vs">vs</span>
-													<span class="match-player">{matchDisplay.match.participantBName}</span>
-												</button>
-											{/each}
-										</div>
+										<!-- Multi-group in-progress display -->
+										{#if hasMultipleGroups && inProgressMatchesByGroup.length > 0}
+											<div class="groups-container in-progress">
+												{#each inProgressMatchesByGroup as group}
+													<div class="group-section">
+														<div class="group-header in-progress">
+															<span class="group-name">{group.groupName}</span>
+															<span class="group-round">{$t('round')} {group.currentRound}/{group.totalRounds}</span>
+														</div>
+														<div class="matches-list in-progress">
+															{#each group.matches as matchDisplay}
+																<button
+																	class="match-row-btn in-progress"
+																	disabled={isStarting}
+																	on:click={() => selectMatchAndStart(matchDisplay)}
+																>
+																	<span class="table-num">M{matchDisplay.match.tableNumber || '?'}</span>
+																	<span class="player left">{matchDisplay.match.participantAName}</span>
+																	<span class="vs-badge">vs</span>
+																	<span class="player right">{matchDisplay.match.participantBName}</span>
+																</button>
+															{/each}
+														</div>
+													</div>
+												{/each}
+											</div>
+										{:else}
+											<div class="matches-list in-progress">
+												{#each inProgressMatchesList as matchDisplay}
+													<button
+														class="match-row-btn in-progress"
+														disabled={isStarting}
+														on:click={() => selectMatchAndStart(matchDisplay)}
+													>
+														{#if matchDisplay.match.bracketRoundName}
+															<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
+														{/if}
+														<span class="table-num">M{matchDisplay.match.tableNumber || '?'}</span>
+														<span class="player left">{matchDisplay.match.participantAName}</span>
+														<span class="vs-badge">vs</span>
+														<span class="player right">{matchDisplay.match.participantBName}</span>
+													</button>
+												{/each}
+											</div>
+										{/if}
 									</div>
 								{/if}
 							</div>
@@ -810,7 +904,7 @@
 		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
 		padding: 1.5rem;
-		width: min(550px, 94vw);
+		width: min(680px, 94vw);
 		max-height: 85vh;
 		overflow-y: auto;
 	}
@@ -873,7 +967,7 @@
 	.step-content {
 		display: flex;
 		flex-direction: column;
-		gap: 1.25rem;
+		gap: 0;
 	}
 
 	.description {
@@ -1074,14 +1168,24 @@
 		border-color: rgba(255, 255, 255, 0.2);
 	}
 
+	/* Badges Row */
+	.badges-row {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 0.4rem;
+		margin-top: 0.4rem;
+		flex-wrap: wrap;
+	}
+
 	.phase-badge {
 		display: inline-flex;
 		align-items: center;
-		padding: 0.15rem 0.4rem;
+		padding: 0.2rem 0.5rem;
 		border-radius: 4px;
 		font-family: 'Lexend', sans-serif;
-		font-size: 0.7rem;
-		font-weight: 500;
+		font-size: 0.68rem;
+		font-weight: 600;
 		background: rgba(255, 255, 255, 0.08);
 		color: rgba(255, 255, 255, 0.7);
 		border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1093,116 +1197,196 @@
 		border-color: rgba(59, 130, 246, 0.25);
 	}
 
-	/* Config Row */
-	.config-row {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		gap: 0.5rem;
-		margin-top: 0.5rem;
-		flex-wrap: wrap;
-	}
-
-	.config-box {
+	.config-badge {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.35rem;
-		padding: 0.3rem 0.6rem;
-		background: rgba(0, 0, 0, 0.25);
-		border-radius: 5px;
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
 		font-family: 'Lexend', sans-serif;
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.75rem;
-		font-weight: 500;
-	}
-
-	.config-box.round-highlight {
-		background: rgba(59, 130, 246, 0.15);
-		border-color: rgba(59, 130, 246, 0.3);
-		color: #93c5fd;
+		font-size: 0.68rem;
 		font-weight: 600;
-		font-size: 0.8rem;
+		background: rgba(255, 255, 255, 0.06);
+		color: rgba(255, 255, 255, 0.55);
+		border: 1px solid rgba(255, 255, 255, 0.08);
 	}
 
-	/* Match List */
-	.matches-list-container {
+	/* Groups Container */
+	.groups-container {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		overflow-y: auto;
+		max-height: 350px;
+	}
+
+	.groups-container.in-progress {
+		max-height: none;
+	}
+
+	.group-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.group-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.4rem 0.6rem;
+		background: rgba(59, 130, 246, 0.1);
+		border: 1px solid rgba(59, 130, 246, 0.2);
+		border-radius: 6px;
+	}
+
+	.group-header.in-progress {
+		background: rgba(251, 191, 36, 0.1);
+		border-color: rgba(251, 191, 36, 0.2);
+	}
+
+	.group-name {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: #93c5fd;
+	}
+
+	.group-header.in-progress .group-name {
+		color: #fcd34d;
+	}
+
+	.group-round {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.7rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.5);
+		background: rgba(0, 0, 0, 0.2);
+		padding: 0.15rem 0.4rem;
+		border-radius: 4px;
+	}
+
+	/* Match List - Grid Layout */
+	.matches-list {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
-		gap: 0.5rem;
+		gap: 1rem;
 		overflow-y: auto;
-		max-height: 300px;
+		max-height: 320px;
 	}
 
-	@media (max-width: 500px) {
-		.matches-list-container {
+	.group-section .matches-list {
+		max-height: none;
+		overflow-y: visible;
+	}
+
+	@media (max-width: 560px) {
+		.matches-list {
 			grid-template-columns: 1fr;
 		}
 	}
 
-	.match-item-btn {
-		background: rgba(0, 0, 0, 0.2);
+	.match-row-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		width: 100%;
+		background: rgba(255, 255, 255, 0.03);
 		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 8px;
-		padding: 0.75rem 0.5rem;
+		border-radius: 6px;
+		padding: 0.85rem 0.7rem;
 		cursor: pointer;
 		transition: all 0.15s ease;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.2rem;
-		text-align: center;
 	}
 
-	.match-item-btn:hover {
-		border-color: rgba(59, 130, 246, 0.4);
-		background: rgba(59, 130, 246, 0.08);
+	.match-row-btn:hover {
+		border-color: rgba(96, 165, 250, 0.4);
+		background: rgba(96, 165, 250, 0.06);
 	}
 
-	.match-item-btn:active {
-		transform: scale(0.98);
+	.match-row-btn:active {
+		transform: scale(0.995);
 	}
 
-	.match-player {
-		font-family: 'Lexend', sans-serif;
-		color: #fff;
-		font-size: 0.9rem;
-		font-weight: 500;
-	}
-
-	.match-vs {
-		font-family: 'Lexend', sans-serif;
-		color: rgba(255, 255, 255, 0.35);
-		font-size: 0.75rem;
-		font-weight: 400;
-	}
-
-	.match-round-name {
-		font-family: 'Lexend', sans-serif;
-		color: #fcd34d;
-		font-size: 0.65rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		padding: 0.12rem 0.35rem;
-		background: rgba(251, 191, 36, 0.12);
-		border-radius: 3px;
-		margin-bottom: 0.1rem;
-	}
-
-	.match-item-btn.in-progress {
-		border-color: rgba(251, 191, 36, 0.25);
-	}
-
-	.match-item-btn.in-progress:hover {
-		border-color: rgba(251, 191, 36, 0.5);
-		background: rgba(251, 191, 36, 0.1);
-	}
-
-	.match-item-btn:disabled {
+	.match-row-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.match-row-btn .table-num {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.65rem;
+		font-weight: 700;
+		color: #fff;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		padding: 0.2rem 0.4rem;
+		border-radius: 4px;
+		min-width: 1.8rem;
+		text-align: center;
+		flex-shrink: 0;
+	}
+
+	.match-row-btn .player {
+		flex: 1;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: #e5e7eb;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		min-width: 0;
+	}
+
+	.match-row-btn .player.left {
+		text-align: right;
+	}
+
+	.match-row-btn .player.right {
+		text-align: left;
+	}
+
+	.match-row-btn .vs-badge {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.4);
+		text-transform: uppercase;
+		padding: 0.15rem 0.4rem;
+		background: rgba(255, 255, 255, 0.05);
+		border-radius: 4px;
+		flex-shrink: 0;
+	}
+
+	.match-row-btn .bracket-round {
+		font-family: 'Lexend', sans-serif;
+		color: #fcd34d;
+		font-size: 0.6rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+		padding: 0.15rem 0.35rem;
+		background: rgba(251, 191, 36, 0.15);
+		border-radius: 3px;
+		flex-shrink: 0;
+	}
+
+	/* In-progress matches */
+	.match-row-btn.in-progress {
+		border-color: rgba(251, 191, 36, 0.25);
+		background: rgba(251, 191, 36, 0.04);
+	}
+
+	.match-row-btn.in-progress:hover {
+		border-color: rgba(251, 191, 36, 0.45);
+		background: rgba(251, 191, 36, 0.08);
+	}
+
+	.match-row-btn.in-progress .table-num {
+		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+	}
+
+	.matches-list.in-progress {
+		opacity: 0.95;
 	}
 
 	/* In-progress Section */
@@ -1389,8 +1573,28 @@
 			padding: 0.85rem 3rem 0.85rem 1rem;
 		}
 
-		.matches-list-container {
+		.matches-list {
 			max-height: 250px;
+		}
+
+		.match-row-btn {
+			padding: 0.75rem 0.6rem;
+			gap: 0.5rem;
+		}
+
+		.match-row-btn .table-num {
+			font-size: 0.6rem;
+			padding: 0.15rem 0.3rem;
+			min-width: 1.5rem;
+		}
+
+		.match-row-btn .player {
+			font-size: 0.8rem;
+		}
+
+		.match-row-btn .vs-badge {
+			font-size: 0.65rem;
+			padding: 0.1rem 0.3rem;
 		}
 	}
 </style>

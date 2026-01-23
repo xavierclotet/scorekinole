@@ -20,10 +20,22 @@
 	// Tournament mode detection
 	$: inTournamentMode = !!$gameTournamentContext;
 
-	// Effective showHammer: use tournament config when in tournament mode
+	// Effective settings: use tournament config when in tournament mode
 	$: effectiveShowHammer = inTournamentMode
 		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
 		: $gameSettings.showHammer;
+
+	$: effectiveGameMode = inTournamentMode
+		? $gameTournamentContext?.gameConfig.gameMode ?? $gameSettings.gameMode
+		: $gameSettings.gameMode;
+
+	$: effectiveRoundsToPlay = inTournamentMode
+		? $gameTournamentContext?.gameConfig.roundsToPlay ?? $gameSettings.roundsToPlay
+		: $gameSettings.roundsToPlay;
+
+	$: effectivePointsToWin = inTournamentMode
+		? $gameTournamentContext?.gameConfig.pointsToWin ?? $gameSettings.pointsToWin
+		: $gameSettings.pointsToWin;
 
 	// Get the appropriate team store
 	$: team = teamNumber === 1 ? $team1 : $team2;
@@ -260,12 +272,13 @@
 	}
 
 	function checkRoundsModeWin() {
-		if ($gameSettings.gameMode !== 'rounds') return;
+		// Use effective game mode (tournament config when in tournament mode)
+		if (effectiveGameMode !== 'rounds') return;
 
 		const currentRoundsPlayed = get(roundsPlayed);
 
 		// Check if we've reached the target number of rounds
-		if (currentRoundsPlayed >= $gameSettings.roundsToPlay) {
+		if (currentRoundsPlayed >= effectiveRoundsToPlay) {
 			const t1 = get(team1);
 			const t2 = get(team2);
 
@@ -280,21 +293,26 @@
 				updateTeam(1, { hasWon: false });
 				// Check if this game win completes the match
 				saveGameAndCheckMatchComplete();
+			} else {
+				// Tie - both teams have same rounds won, match ends as tie
+				updateTeam(1, { hasWon: false });
+				updateTeam(2, { hasWon: false });
+				saveGameAndCheckMatchComplete(true);
 			}
-			// In case of tie, no winner - don't save game
 		}
 	}
 
 	function checkPointsModeWin() {
-		if ($gameSettings.gameMode !== 'points') return;
+		// Use effective game mode (tournament config when in tournament mode)
+		if (effectiveGameMode !== 'points') return;
 
 		const t1 = get(team1);
 		const t2 = get(team2);
 
 		// Check if either team reached pointsToWin AND has 2-point lead
 		const pointDifference = Math.abs(t1.points - t2.points);
-		const team1Won = t1.points >= $gameSettings.pointsToWin && pointDifference >= 2 && t1.points > t2.points;
-		const team2Won = t2.points >= $gameSettings.pointsToWin && pointDifference >= 2 && t2.points > t1.points;
+		const team1Won = t1.points >= effectivePointsToWin && pointDifference >= 2 && t1.points > t2.points;
+		const team2Won = t2.points >= effectivePointsToWin && pointDifference >= 2 && t2.points > t1.points;
 
 		if (team1Won && !t1.hasWon) {
 			updateTeam(1, { hasWon: true });
@@ -314,7 +332,7 @@
 		// See checkPointsModeWin() and checkRoundsModeWin()
 	}
 
-	function saveGameAndCheckMatchComplete() {
+	function saveGameAndCheckMatchComplete(isTie: boolean = false) {
 		const t1 = get(team1);
 		const t2 = get(team2);
 		const settings = get(gameSettings);
@@ -322,13 +340,14 @@
 		const matchGames = get(currentMatchGames);
 		const current = get(currentMatch);
 
-		console.log('🟢 saveGameAndCheckMatchComplete called');
+		console.log('🟢 saveGameAndCheckMatchComplete called', { isTie });
 		console.log('Settings:', settings);
 		console.log('matchesToWin:', settings.matchesToWin);
 
 		// Save this completed game
 		const gameNumber = matchGames.length + 1;
-		const winner = t1.hasWon ? 1 : 2;
+		// In case of tie, winner is null
+		const winner = isTie ? null : (t1.hasWon ? 1 : 2);
 
 		const newGame = {
 			gameNumber,
@@ -424,7 +443,8 @@
 		// Determine match winner based on games won
 		const team1GamesWon = current.games.filter(g => g.winner === 1).length;
 		const team2GamesWon = current.games.filter(g => g.winner === 2).length;
-		const matchWinner = team1GamesWon > team2GamesWon ? 1 : 2;
+		// Handle ties: if equal games won, winner is null
+		const matchWinner = team1GamesWon > team2GamesWon ? 1 : team2GamesWon > team1GamesWon ? 2 : null;
 
 		console.log('Team 1 games won:', team1GamesWon);
 		console.log('Team 2 games won:', team2GamesWon);
@@ -712,11 +732,10 @@
 		min-width: 80px;
 		transition: all 0.2s ease;
 		line-height: 1.2;
-		/* Allow text to wrap to second line */
+		/* Allow text to wrap only at spaces */
 		white-space: normal;
-		word-break: break-word;
-		overflow-wrap: break-word;
-		hyphens: auto;
+		word-break: normal;
+		overflow-wrap: normal;
 		cursor: text;
 		display: inline-block;
 	}
@@ -755,8 +774,8 @@
 		max-width: 70%;
 		line-height: 1.2;
 		white-space: normal;
-		word-break: break-word;
-		hyphens: auto;
+		word-break: normal;
+		overflow-wrap: normal;
 	}
 
 	.ranking-badge {

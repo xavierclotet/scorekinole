@@ -54,8 +54,8 @@
 
     <div class="participant left" class:winner={match.winner === match.participantA} class:tie={isTie}>
       <span class="name">{getParticipantName(match.participantA)}</span>
-      {#if match.total20sA !== undefined && match.total20sA > 0}
-        <span class="t20">🎯{match.total20sA}</span>
+      {#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
+        <span class="t20">🎯{match.total20sA ?? 0}</span>
       {/if}
     </div>
 
@@ -71,15 +71,23 @@
           <span class="score" class:winner-b={match.winner === match.participantB}>{isBye ? '-' : (match.gamesWonB || 0)}</span>
         {/if}
       {:else if match.status === 'IN_PROGRESS'}
-        <span class="live-indicator"></span>
+        {#if gameMode === 'rounds'}
+          <span class="score live">{match.totalPointsA || 0}</span>
+          <span class="sep">-</span>
+          <span class="score live">{isBye ? '-' : (match.totalPointsB || 0)}</span>
+        {:else}
+          <span class="score live">{match.gamesWonA || 0}</span>
+          <span class="sep">-</span>
+          <span class="score live">{isBye ? '-' : (match.gamesWonB || 0)}</span>
+        {/if}
       {:else}
         <span class="pending">vs</span>
       {/if}
     </div>
 
     <div class="participant right" class:winner={match.winner === match.participantB} class:tie={isTie} class:bye-participant={isBye}>
-      {#if match.total20sB !== undefined && match.total20sB > 0 && !isBye}
-        <span class="t20">🎯{match.total20sB}</span>
+      {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
+        <span class="t20">🎯{match.total20sB ?? 0}</span>
       {/if}
       <span class="name">{getParticipantName(match.participantB)}</span>
     </div>
@@ -232,17 +240,14 @@
     text-transform: uppercase;
   }
 
-  .score-center .live-indicator {
-    width: 6px;
-    height: 6px;
-    background: #f59e0b;
-    border-radius: 50%;
-    animation: pulse-live 1.5s ease-in-out infinite;
+  .score-center .score.live {
+    color: #f59e0b;
+    animation: pulse-score 2s ease-in-out infinite;
   }
 
-  @keyframes pulse-live {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.2); }
+  @keyframes pulse-score {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
   }
 
   .status-dot {
@@ -308,6 +313,10 @@
 
   :global([data-theme='dark']) .score-center .pending {
     color: #6b7280;
+  }
+
+  :global([data-theme='dark']) .score-center .score.live {
+    color: #fbbf24;
   }
 
   :global([data-theme='dark']) .no-show-warning {

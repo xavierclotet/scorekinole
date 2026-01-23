@@ -173,7 +173,7 @@
       {#each sortedParticipants as participant (participant.id)}
         {@const delta = getRankingDelta(participant)}
         {@const pos = participant.finalPosition || 0}
-        <div class="standing-row" class:top-3={pos <= 3} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3}>
+        <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4}>
           <span class="pos">{getPositionDisplay(pos)}</span>
           <span class="name">{participant.name}</span>
           {#if tournament.rankingConfig?.enabled}
@@ -531,13 +531,13 @@
   }
 
   .standings-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 0.35rem;
   }
 
   .standings-grid.with-ranking {
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    /* Same single column layout for ranking */
   }
 
   .standing-row {
@@ -563,7 +563,7 @@
     background: #243447;
   }
 
-  .standing-row.top-3 {
+  .standing-row.top-4 {
     background: linear-gradient(90deg, rgba(251, 191, 36, 0.08) 0%, transparent 100%);
   }
 
@@ -582,7 +582,12 @@
     background: linear-gradient(90deg, rgba(217, 119, 6, 0.08) 0%, transparent 100%);
   }
 
-  :global([data-theme='dark']) .standing-row.top-3 {
+  .standing-row.fourth {
+    border-left-color: #6b7280;
+    background: linear-gradient(90deg, rgba(107, 114, 128, 0.08) 0%, transparent 100%);
+  }
+
+  :global([data-theme='dark']) .standing-row.top-4 {
     background: linear-gradient(90deg, rgba(251, 191, 36, 0.1) 0%, transparent 100%);
   }
 
@@ -596,6 +601,10 @@
 
   :global([data-theme='dark']) .standing-row.third {
     background: linear-gradient(90deg, rgba(217, 119, 6, 0.1) 0%, transparent 100%);
+  }
+
+  :global([data-theme='dark']) .standing-row.fourth {
+    background: linear-gradient(90deg, rgba(107, 114, 128, 0.1) 0%, transparent 100%);
   }
 
   .standing-row .pos {

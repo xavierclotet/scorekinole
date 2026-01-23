@@ -34,6 +34,7 @@
   let toastMessage = '';
   let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
   let isProcessing = false;
+  let isRecalculating = false;
   let showBracketPreview = false;
   let showTimeBreakdown = false;
   let timeBreakdown: TimeBreakdown | null = null;
@@ -154,6 +155,30 @@
     toastMessage = $t('timeRecalculated');
     toastType = 'success';
     showToast = true;
+  }
+
+  async function handleRecalculateStandings() {
+    if (!tournamentId || isRecalculating) return;
+    isRecalculating = true;
+    try {
+      console.log('=== RECALCULATING STANDINGS ===');
+      console.log('Tournament ID:', tournamentId);
+      await recalculateStandings(tournamentId);
+      // Reload tournament to get updated standings
+      tournament = await getTournament(tournamentId);
+      console.log('=== STANDINGS RECALCULATED ===');
+      console.log('Updated groups:', tournament?.groupStage?.groups);
+      toastMessage = $t('standingsRecalculated');
+      toastType = 'success';
+      showToast = true;
+    } catch (err) {
+      console.error('Error recalculating standings:', err);
+      toastMessage = 'Error recalculating standings';
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      isRecalculating = false;
+    }
   }
 
   onMount(async () => {
@@ -804,6 +829,18 @@
                   />
                   <span class="top-n-hint">{$t('perGroupLabel')}</span>
                 </label>
+                <button
+                  class="recalculate-btn"
+                  on:click={handleRecalculateStandings}
+                  disabled={isRecalculating}
+                  title={$t('recalculateStandings')}
+                >
+                  {#if isRecalculating}
+                    <span class="spinner-small"></span>
+                  {:else}
+                    🔄
+                  {/if}
+                </button>
               </div>
             </div>
 
@@ -1179,6 +1216,18 @@
                   />
                   <span class="top-n-hint">{$t('perGroupLabel')}</span>
                 </label>
+                <button
+                  class="recalculate-btn"
+                  on:click={handleRecalculateStandings}
+                  disabled={isRecalculating}
+                  title={$t('recalculateStandings')}
+                >
+                  {#if isRecalculating}
+                    <span class="spinner-small"></span>
+                  {:else}
+                    🔄
+                  {/if}
+                </button>
               </div>
             </div>
             <div class="groups-grid">
@@ -1835,6 +1884,7 @@
   .top-n-control {
     display: flex;
     align-items: center;
+    gap: 0.5rem;
   }
 
   .top-n-label {
@@ -1878,6 +1928,55 @@
     font-size: 0.75rem;
     color: #6b7280;
     font-weight: 400;
+  }
+
+  .recalculate-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin-left: 0.5rem;
+    padding: 0;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+  }
+
+  .recalculate-btn:hover:not(:disabled) {
+    background: #e5e7eb;
+    border-color: #9ca3af;
+  }
+
+  .recalculate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .transition-page[data-theme='dark'] .recalculate-btn {
+    background: #1a1a2e;
+    border-color: #2d3748;
+  }
+
+  .transition-page[data-theme='dark'] .recalculate-btn:hover:not(:disabled) {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+
+  .spinner-small {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #d1d5db;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .groups-grid {

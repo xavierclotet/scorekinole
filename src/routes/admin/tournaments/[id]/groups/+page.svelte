@@ -661,12 +661,24 @@
               {/if}
               {#if allMatchesComplete}
                 <button
-                  class="action-btn complete"
+                  class="final-stage-btn"
                   on:click={confirmCompleteGroups}
                   disabled={isTransitioning}
                   title={$t('completeGroupStage')}
                 >
-                  {isTransitioning ? `⏳` : `✅`} {$t('toFinalStage')}
+                  <span class="btn-text">{$t('toFinalStage')}</span>
+                  <span class="btn-icon">
+                    {#if isTransitioning}
+                      <svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                      </svg>
+                    {:else}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                      </svg>
+                    {/if}
+                  </span>
                 </button>
               {/if}
             {/if}
@@ -891,19 +903,70 @@
     white-space: nowrap;
   }
 
-  .action-btn.complete {
+  /* Final Stage Button - Professional CTA */
+  .final-stage-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1rem;
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Lexend', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
   }
 
-  .action-btn.complete:hover:not(:disabled) {
+  .final-stage-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
   }
 
-  .action-btn.complete:disabled {
-    opacity: 0.6;
+  .final-stage-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  }
+
+  .final-stage-btn:disabled {
+    opacity: 0.7;
     cursor: not-allowed;
+  }
+
+  .final-stage-btn .btn-text {
+    white-space: nowrap;
+  }
+
+  .final-stage-btn .btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+  }
+
+  .final-stage-btn:hover:not(:disabled) .btn-icon {
+    transform: translateX(2px);
+  }
+
+  .final-stage-btn .btn-icon svg {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+
+  .final-stage-btn .btn-icon .spinner {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 
   .action-btn.autofill {

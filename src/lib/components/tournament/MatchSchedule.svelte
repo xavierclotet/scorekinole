@@ -340,7 +340,7 @@
 
   .matches-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 0.4rem;
     padding: 0.5rem 0.75rem 0.75rem;
     border-top: 1px solid #e5e7eb;

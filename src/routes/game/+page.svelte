@@ -134,13 +134,20 @@
 	$: team2GamesWon = $currentMatchGames.filter(game => game.winner === 2).length;
 
 	// Check if match is complete
-	// In rounds mode, match is complete after first game
+	// In rounds mode, match is complete after first game (includes ties)
 	// In points mode, match is complete when someone reaches the required wins
 	// matchesToWin = "best of X" format (e.g., 3 = best of 3, need 2 wins)
 	$: requiredWinsToComplete = Math.ceil($gameSettings.matchesToWin / 2);
 	$: isMatchComplete = $gameSettings.gameMode === 'rounds'
-		? (team1GamesWon >= 1 || team2GamesWon >= 1)
+		? (team1GamesWon >= 1 || team2GamesWon >= 1 || ($currentMatchGames.length > 0 && !$team1.hasWon && !$team2.hasWon))
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete);
+
+	// Check if match ended in a tie (rounds mode only)
+	// A tie occurs when the game completed but neither team won (both hasWon = false and game saved)
+	$: isTieMatch = $gameSettings.gameMode === 'rounds' &&
+		$currentMatchGames.length > 0 &&
+		!$team1.hasWon &&
+		!$team2.hasWon;
 
 	// Show "Next Game" button when someone won the current game AND match is not complete AND it's a multi-game match
 	// Note: We removed the "$currentMatchGames.length > 0" requirement because:
@@ -544,10 +551,12 @@
 		const finalGamesWonA = savedData?.gamesWonA ?? (isUserSideA ? team1GamesWon : team2GamesWon);
 		const finalGamesWonB = savedData?.gamesWonB ?? (isUserSideA ? team2GamesWon : team1GamesWon);
 
-		// Determine winner based on accurate game counts
+		// Determine winner based on accurate game counts (null for ties)
 		const winner = finalGamesWonA > finalGamesWonB
 			? context.participantAId
-			: context.participantBId;
+			: finalGamesWonB > finalGamesWonA
+				? context.participantBId
+				: null;
 
 		// Use the rounds from the saved context (which includes all games)
 		// This is more reliable than reading from currentMatch which may be cleared
@@ -1170,31 +1179,31 @@
 <div class="game-page">
 	<header class="game-header" class:tournament-mode={inTournamentMode}>
 		{#if inTournamentMode}
-			<!-- Tournament mode header -->
-			<div class="left-section">
-				<div class="tournament-header-info">
-					<svg class="tournament-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-					<span class="tournament-name-header">{$gameTournamentContext?.tournamentName}</span>
-				</div>
+			<!-- Tournament mode header - same style as normal mode -->
+			<div class="header-left">
+				<span class="header-title tournament-title">
+					<svg class="tournament-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+					{$gameTournamentContext?.tournamentName}
+				</span>
 			</div>
-			<div class="center-section">
-				<div class="tournament-phase-info">
-					<span class="phase-badge-header">
-						{$gameTournamentContext?.phase === 'GROUP'
-							? ($t('groupStage') || 'Fase de Grupos')
-							: ($gameTournamentContext?.bracketRoundName || 'Bracket')}
-					</span>
-				</div>
+
+			<div class="header-center">
+				<span class="header-phase">
+					{$gameTournamentContext?.phase === 'GROUP'
+						? ($t('groupStage') || 'Fase de Grupos')
+						: ($gameTournamentContext?.bracketRoundName || 'Bracket')}
+				</span>
 				{#if $gameSettings.showTimer}
 					<Timer size="small" />
 				{/if}
 			</div>
-			<div class="right-section">
+
+			<div class="header-right">
 				<button class="header-btn" on:click={handleSwitchSides} aria-label={$t('switchSides')} title={$t('switchSides')}>
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/></svg>
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/></svg>
 				</button>
 				<button class="header-btn header-btn-danger" on:click={handleTournamentExit} aria-label={$t('exitTournamentMode')} title={$t('exitTournamentMode')}>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 				</button>
 			</div>
 		{:else}
@@ -1274,6 +1283,15 @@
 			on:roundComplete={handleRoundComplete}
 			on:tournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 		/>
+
+		<!-- Tie Overlay - shown between the two cards when match ends in tie -->
+		{#if isTieMatch}
+			<div class="tie-overlay">
+				<div class="tie-badge">
+					{$t('tie') || 'EMPATE'}
+				</div>
+			</div>
+		{/if}
 
 		<TeamCard
 			bind:this={teamCard2}
@@ -1499,64 +1517,21 @@
 		border-radius: 10px;
 	}
 
-	/* Tournament header sections */
-	.left-section,
-	.right-section {
+	/* Tournament title with icon */
+	.tournament-title {
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
-		flex: 1;
+		cursor: default;
 	}
 
-	.right-section {
-		justify-content: flex-end;
-	}
-
-	.center-section {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.25rem;
-		flex: 2;
-	}
-
-	/* Tournament header info */
-	.tournament-header-info {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
+	.tournament-title:hover {
+		background: none;
 	}
 
 	.tournament-icon {
 		color: rgba(255, 255, 255, 0.5);
 		flex-shrink: 0;
-	}
-
-	.tournament-name-header {
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.8rem;
-		font-weight: 500;
-		color: rgba(255, 255, 255, 0.85);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		max-width: 140px;
-	}
-
-	.tournament-phase-info {
-		display: flex;
-		align-items: center;
-	}
-
-	.phase-badge-header {
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.65rem;
-		font-weight: 500;
-		padding: 0.25rem 0.6rem;
-		background: rgba(255, 255, 255, 0.05);
-		color: rgba(255, 255, 255, 0.6);
-		border-radius: 4px;
-		letter-spacing: 0.01em;
 	}
 
 	/* Normal mode header - minimal clean design */
@@ -1766,6 +1741,68 @@
 		gap: 1rem;
 		overflow: hidden;
 		align-items: stretch;
+		position: relative;
+	}
+
+	/* Tie Overlay - positioned between names and score */
+	.tie-overlay {
+		position: absolute;
+		top: 28%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 100;
+		pointer-events: none;
+	}
+
+	.tie-badge {
+		background: linear-gradient(135deg, rgba(107, 114, 128, 0.95) 0%, rgba(75, 85, 99, 0.95) 100%);
+		backdrop-filter: blur(12px);
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		color: white;
+		padding: 0.6rem 1.25rem;
+		border-radius: 10px;
+		font-family: 'Lexend', sans-serif;
+		font-weight: 700;
+		font-size: 1rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+		animation: tie-pulse 2s ease-in-out infinite;
+	}
+
+	@keyframes tie-pulse {
+		0%, 100% {
+			transform: scale(1);
+			box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+		}
+		50% {
+			transform: scale(1.02);
+			box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+		}
+	}
+
+	/* Responsive adjustments for tie overlay */
+	@media (max-width: 768px) and (orientation: portrait) {
+		.tie-overlay {
+			top: 22%;
+		}
+
+		.tie-badge {
+			padding: 0.5rem 1rem;
+			font-size: 0.9rem;
+		}
+	}
+
+	@media (orientation: landscape) and (max-height: 600px) {
+		.tie-overlay {
+			top: 25%;
+		}
+
+		.tie-badge {
+			padding: 0.4rem 0.8rem;
+			font-size: 0.8rem;
+			border-radius: 8px;
+		}
 	}
 
 	/* Match Score Indicators - positioned on each side, swipe to resize */
@@ -2512,17 +2549,6 @@
 
 		.confirm-modal h3 {
 			font-size: 1rem;
-		}
-
-		/* Tournament header responsive */
-		.tournament-name-header {
-			max-width: 100px;
-			font-size: 0.8rem;
-		}
-
-		.phase-badge-header {
-			font-size: 0.7rem;
-			padding: 0.2rem 0.5rem;
 		}
 	}
 

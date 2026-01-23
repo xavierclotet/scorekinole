@@ -51,7 +51,7 @@ export interface MatchProgressData {
  */
 export interface MatchCompleteData {
   rounds: MatchRound[];
-  winner: string;
+  winner: string | null; // null for ties in rounds mode
   gamesWonA: number;
   gamesWonB: number;
   totalPointsA: number;

@@ -78,9 +78,14 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
  * @returns Updated participants array with finalPosition set
  */
 export function calculateFinalPositionsForTournament(tournament: any): any[] {
+  console.log('🏅 calculateFinalPositionsForTournament called');
+  console.log('🏅 Tournament:', { id: tournament.id, status: tournament.status, phaseType: tournament.phaseType });
+  console.log('🏅 Has finalStage:', !!tournament.finalStage, 'isComplete:', tournament.finalStage?.isComplete);
+
   const updatedParticipants = [...tournament.participants];
 
   if (tournament.phaseType === 'TWO_PHASE') {
+    console.log('🏅 TWO_PHASE: assigning initial positions from group standings');
     tournament.groupStage?.groups.forEach((group: any) => {
       group.standings.forEach((standing: any) => {
         const participant = updatedParticipants.find(p => p.id === standing.participantId);
@@ -91,8 +96,10 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     });
   }
 
-  if (tournament.finalStage && (tournament.finalStage.isComplete || tournament.status === 'FINAL_STAGE')) {
+  if (tournament.finalStage && (tournament.finalStage.isComplete || tournament.status === 'FINAL_STAGE' || tournament.status === 'COMPLETED')) {
+    console.log('🏅 Processing finalStage bracket positions');
     const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
+    console.log('🏅 isSplitDivisions:', isSplitDivisions);
 
     const clearBracketParticipantPositions = (bracket: any) => {
       if (!bracket || !bracket.rounds) return;
@@ -126,50 +133,75 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     }
 
     const assignBracketPositions = (bracket: any, startPosition: number): number => {
+      console.log('🏅 assignBracketPositions called, startPosition:', startPosition);
+      console.log('🏅 Bracket rounds:', bracket?.rounds?.length, 'thirdPlaceMatch:', !!bracket?.thirdPlaceMatch);
+
       if (!bracket || !bracket.rounds || bracket.rounds.length === 0) {
+        console.log('🏅 No bracket or rounds, returning 0');
         return 0;
       }
 
       let positionsAssigned = 0;
       let currentPosition = startPosition;
 
+      // Process final match (1st and 2nd place)
       const finalRound = bracket.rounds[bracket.rounds.length - 1];
       const finalMatch = finalRound?.matches[0];
+      console.log('🏅 Final match:', { winner: finalMatch?.winner, participantA: finalMatch?.participantA, participantB: finalMatch?.participantB });
+
       if (finalMatch?.winner && finalMatch.participantA && finalMatch.participantB) {
         const winner = updatedParticipants.find(p => p.id === finalMatch.winner);
         if (winner) {
           winner.finalPosition = currentPosition++;
           positionsAssigned++;
+          console.log(`🏅 1st place: ${winner.name} -> position ${winner.finalPosition}`);
         }
-        const loser = updatedParticipants.find(
-          p => p.id === (finalMatch.winner === finalMatch.participantA ? finalMatch.participantB : finalMatch.participantA)
-        );
+        const loserId = finalMatch.winner === finalMatch.participantA ? finalMatch.participantB : finalMatch.participantA;
+        const loser = updatedParticipants.find(p => p.id === loserId);
         if (loser) {
           loser.finalPosition = currentPosition++;
           positionsAssigned++;
+          console.log(`🏅 2nd place: ${loser.name} -> position ${loser.finalPosition}`);
         }
+      } else {
+        console.log('🏅 Final match not complete or missing participants');
       }
 
+      // Process 3rd place match
       const thirdPlaceMatch = bracket.thirdPlaceMatch;
+      let thirdPlaceProcessed = false;
+      console.log('🏅 Third place match:', { winner: thirdPlaceMatch?.winner, participantA: thirdPlaceMatch?.participantA, participantB: thirdPlaceMatch?.participantB });
+
       if (thirdPlaceMatch?.winner && thirdPlaceMatch.participantA && thirdPlaceMatch.participantB) {
         const thirdPlace = updatedParticipants.find(p => p.id === thirdPlaceMatch.winner);
         if (thirdPlace) {
           thirdPlace.finalPosition = currentPosition++;
           positionsAssigned++;
+          console.log(`🏅 3rd place: ${thirdPlace.name} -> position ${thirdPlace.finalPosition}`);
         }
-        const fourthPlace = updatedParticipants.find(
-          p => p.id === (thirdPlaceMatch.winner === thirdPlaceMatch.participantA ? thirdPlaceMatch.participantB : thirdPlaceMatch.participantA)
-        );
+        const fourthPlaceId = thirdPlaceMatch.winner === thirdPlaceMatch.participantA ? thirdPlaceMatch.participantB : thirdPlaceMatch.participantA;
+        const fourthPlace = updatedParticipants.find(p => p.id === fourthPlaceId);
         if (fourthPlace) {
           fourthPlace.finalPosition = currentPosition++;
           positionsAssigned++;
+          console.log(`🏅 4th place: ${fourthPlace.name} -> position ${fourthPlace.finalPosition}`);
         }
+        thirdPlaceProcessed = true;
+      } else {
+        console.log('🏅 Third place match not complete or missing participants');
       }
 
+      // Process remaining rounds (for larger brackets with more than 4 participants)
+      console.log('🏅 Processing remaining rounds, thirdPlaceProcessed:', thirdPlaceProcessed);
       for (let i = bracket.rounds.length - 2; i >= 0; i--) {
         const round = bracket.rounds[i];
-        if (i === bracket.rounds.length - 2 && thirdPlaceMatch) continue;
+        // Only skip semifinal round if third place match was successfully processed
+        if (i === bracket.rounds.length - 2 && thirdPlaceProcessed) {
+          console.log(`🏅 Skipping round ${i} (semifinal) because 3rd place match was processed`);
+          continue;
+        }
 
+        console.log(`🏅 Processing round ${i} with ${round.matches.length} matches`);
         const roundLosers: string[] = [];
         round.matches.forEach((match: any) => {
           if (match.winner && match.participantA && match.participantB) {
@@ -183,10 +215,12 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
           if (loser && !loser.finalPosition) {
             loser.finalPosition = currentPosition++;
             positionsAssigned++;
+            console.log(`🏅 Round ${i} loser: ${loser.name} -> position ${loser.finalPosition}`);
           }
         });
       }
 
+      console.log('🏅 Total positions assigned:', positionsAssigned);
       return positionsAssigned;
     };
 
@@ -199,62 +233,107 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     }
   }
 
-  if (tournament.phaseType === 'TWO_PHASE' && tournament.groupStage) {
-    let nextPosition = updatedParticipants.filter(p => p.finalPosition).length + 1;
+  // For TWO_PHASE tournaments with a final stage, only bracket participants get finalPosition and ranking points
+  // Participants who didn't qualify for the bracket do NOT get ranking points
+  // Clear finalPosition for non-bracket participants (they were set from group standings earlier)
+  if (tournament.phaseType === 'TWO_PHASE' && tournament.groupStage && tournament.finalStage) {
+    console.log('🏅 TWO_PHASE cleanup: clearing non-bracket participants');
 
-    const groups = Array.isArray(tournament.groupStage.groups)
-      ? tournament.groupStage.groups
-      : Object.values(tournament.groupStage.groups);
+    // Collect all participant IDs that are in the bracket (excluding BYE)
+    const bracketParticipantIds = new Set<string>();
 
-    const remainingStandings: Array<{
-      participantId: string;
-      totalPointsScored: number;
-      total20s: number;
-      points: number;
-    }> = [];
-
-    groups.forEach((group: any) => {
-      const standings = Array.isArray(group.standings)
-        ? group.standings
-        : Object.values(group.standings || {});
-
-      standings.forEach((standing: any) => {
-        const participant = updatedParticipants.find(p => p.id === standing.participantId);
-        if (participant && !participant.finalPosition) {
-          remainingStandings.push({
-            participantId: standing.participantId,
-            totalPointsScored: standing.totalPointsScored || 0,
-            total20s: standing.total20s || 0,
-            points: standing.points || 0
-          });
-        }
+    const collectBracketParticipants = (bracket: any) => {
+      if (!bracket || !bracket.rounds) return;
+      bracket.rounds.forEach((round: any) => {
+        round.matches.forEach((match: any) => {
+          if (match.participantA && match.participantA !== 'BYE') bracketParticipantIds.add(match.participantA);
+          if (match.participantB && match.participantB !== 'BYE') bracketParticipantIds.add(match.participantB);
+        });
       });
-    });
+      if (bracket.thirdPlaceMatch) {
+        if (bracket.thirdPlaceMatch.participantA && bracket.thirdPlaceMatch.participantA !== 'BYE') {
+          bracketParticipantIds.add(bracket.thirdPlaceMatch.participantA);
+        }
+        if (bracket.thirdPlaceMatch.participantB && bracket.thirdPlaceMatch.participantB !== 'BYE') {
+          bracketParticipantIds.add(bracket.thirdPlaceMatch.participantB);
+        }
+      }
+    };
 
-    remainingStandings.sort((a, b) => {
-      if (b.totalPointsScored !== a.totalPointsScored) {
-        return b.totalPointsScored - a.totalPointsScored;
-      }
-      if (b.total20s !== a.total20s) {
-        return b.total20s - a.total20s;
-      }
-      return b.points - a.points;
-    });
+    if (tournament.finalStage.bracket) {
+      collectBracketParticipants(tournament.finalStage.bracket);
+    }
+    if (tournament.finalStage.silverBracket) {
+      collectBracketParticipants(tournament.finalStage.silverBracket);
+    }
 
-    remainingStandings.forEach(standing => {
-      const participant = updatedParticipants.find(p => p.id === standing.participantId);
-      if (participant) {
-        participant.finalPosition = nextPosition++;
+    console.log('🏅 Bracket participant IDs:', Array.from(bracketParticipantIds));
+
+    // Clear finalPosition for participants NOT in the bracket
+    // They should not receive ranking points
+    let clearedCount = 0;
+    updatedParticipants.forEach(p => {
+      if (!bracketParticipantIds.has(p.id)) {
+        if (p.finalPosition !== undefined) {
+          console.log(`🏅 Clearing finalPosition for non-bracket participant: ${p.name} (was ${p.finalPosition})`);
+          clearedCount++;
+        }
+        p.finalPosition = undefined;
       }
     });
+    console.log(`🏅 Cleared ${clearedCount} non-bracket participants`);
+
+    // Log final positions after cleanup
+    const positionedParticipants = updatedParticipants.filter(p => p.finalPosition !== undefined);
+    console.log('🏅 Participants with finalPosition after cleanup:', positionedParticipants.map(p => ({ name: p.name, pos: p.finalPosition })));
   }
 
+  // For ONE_PHASE tournaments, only bracket participants get finalPosition
+  // Non-bracket participants do NOT get ranking points
   if (tournament.phaseType === 'ONE_PHASE') {
-    updatedParticipants.forEach((p, index) => {
-      if (!p.finalPosition) {
-        p.finalPosition = index + 1;
+    // Collect all participant IDs that are in the bracket (excluding BYE)
+    const bracketParticipantIds = new Set<string>();
+
+    const collectBracketParticipants = (bracket: any) => {
+      if (!bracket || !bracket.rounds) return;
+      bracket.rounds.forEach((round: any) => {
+        round.matches.forEach((match: any) => {
+          if (match.participantA && match.participantA !== 'BYE') bracketParticipantIds.add(match.participantA);
+          if (match.participantB && match.participantB !== 'BYE') bracketParticipantIds.add(match.participantB);
+        });
+      });
+      if (bracket.thirdPlaceMatch) {
+        if (bracket.thirdPlaceMatch.participantA && bracket.thirdPlaceMatch.participantA !== 'BYE') {
+          bracketParticipantIds.add(bracket.thirdPlaceMatch.participantA);
+        }
+        if (bracket.thirdPlaceMatch.participantB && bracket.thirdPlaceMatch.participantB !== 'BYE') {
+          bracketParticipantIds.add(bracket.thirdPlaceMatch.participantB);
+        }
+      }
+    };
+
+    if (tournament.finalStage?.bracket) {
+      collectBracketParticipants(tournament.finalStage.bracket);
+    }
+    if (tournament.finalStage?.silverBracket) {
+      collectBracketParticipants(tournament.finalStage.silverBracket);
+    }
+
+    // Only assign positions to participants who are NOT already positioned
+    // AND who are in the bracket (they didn't get positioned by assignBracketPositions)
+    // This handles participants eliminated in early rounds of the bracket
+    let nextBracketPosition = updatedParticipants.filter(p => p.finalPosition).length + 1;
+
+    updatedParticipants.forEach(p => {
+      // Only assign position if:
+      // 1. They don't have a position yet
+      // 2. They ARE in the bracket (participated in at least one match)
+      if (!p.finalPosition && bracketParticipantIds.has(p.id)) {
+        p.finalPosition = nextBracketPosition++;
       }
     });
+
+    // Participants not in bracket remain without finalPosition (no ranking points)
   }
 
   return updatedParticipants;

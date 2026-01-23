@@ -132,72 +132,32 @@ function resolveTwoPlayerTie(
 /**
  * Resolve a tie between 3+ participants
  *
- * For WINS ranking: count head-to-head wins among tied players > 20s > unresolved
- * For POINTS ranking: 20s > count head-to-head wins > unresolved
+ * For 3+ players, H2H can create cycles (A beats B, B beats C, C beats A)
+ * so we only use total 20s as tiebreaker.
+ *
+ * H2H is only used for exactly 2 players tied (in resolveTwoPlayerTie).
  *
  * Returns sorted array and marks unresolved ties
  */
 function resolveMultiPlayerTie(
   tiedGroup: GroupStanding[],
-  rankingSystem: SwissRankingSystem,
+  _rankingSystem: SwissRankingSystem,
   participantMap: Map<string, TournamentParticipant>
 ): GroupStanding[] {
-  // Count head-to-head wins among the tied players
-  const h2hWins = new Map<string, number>();
+  console.log(`[Tiebreaker] Resolving ${tiedGroup.length}-way tie (using 20s only - H2H can create cycles):`);
+  tiedGroup.forEach(s => {
+    const p = participantMap.get(s.participantId);
+    console.log(`  - ${p?.name || s.participantId}: points=${s.points}, 20s=${s.total20s}`);
+  });
 
-  // Initialize win counts
-  for (const standing of tiedGroup) {
-    h2hWins.set(standing.participantId, 0);
-  }
-
-  // Count head-to-head wins within the tied group
-  for (let i = 0; i < tiedGroup.length; i++) {
-    for (let j = i + 1; j < tiedGroup.length; j++) {
-      const a = tiedGroup[i];
-      const b = tiedGroup[j];
-      const h2h = getHeadToHeadResult(a, b);
-
-      if (h2h === 1) {
-        h2hWins.set(a.participantId, h2hWins.get(a.participantId)! + 1);
-      } else if (h2h === -1) {
-        h2hWins.set(b.participantId, h2hWins.get(b.participantId)! + 1);
-      }
-      // If h2h === 0 (tie 4-4), neither gets a win
-    }
-  }
-
-  // Sort based on ranking system
+  // Sort by total 20s, then by ranking snapshot
   const sorted = [...tiedGroup].sort((a, b) => {
-    const winsA = h2hWins.get(a.participantId)!;
-    const winsB = h2hWins.get(b.participantId)!;
-
-    if (rankingSystem === 'WINS') {
-      // WINS: head-to-head wins > 20s > ranking
-
-      // 1. Head-to-head wins among tied players
-      if (winsA !== winsB) {
-        return winsB - winsA;
-      }
-
-      // 2. Total 20s
-      if (a.total20s !== b.total20s) {
-        return b.total20s - a.total20s;
-      }
-    } else {
-      // POINTS: 20s > head-to-head wins > ranking
-
-      // 1. Total 20s
-      if (a.total20s !== b.total20s) {
-        return b.total20s - a.total20s;
-      }
-
-      // 2. Head-to-head wins among tied players
-      if (winsA !== winsB) {
-        return winsB - winsA;
-      }
+    // 1. Total 20s (higher is better)
+    if (a.total20s !== b.total20s) {
+      return b.total20s - a.total20s;
     }
 
-    // Fallback to initial ranking
+    // 2. Fallback to initial ranking
     const participantA = participantMap.get(a.participantId);
     const participantB = participantMap.get(b.participantId);
     if (participantA && participantB) {
@@ -207,20 +167,22 @@ function resolveMultiPlayerTie(
     return 0;
   });
 
-  // Check for unresolved ties (players with same h2h wins and 20s)
+  console.log('[Tiebreaker] Sorted result (by 20s):');
+  sorted.forEach((s, idx) => {
+    const p = participantMap.get(s.participantId);
+    console.log(`  ${idx + 1}. ${p?.name || s.participantId}: 20s=${s.total20s}, rankingSnapshot=${p?.rankingSnapshot}`);
+  });
+
+  // Mark unresolved ties (players with same 20s)
   for (let i = 0; i < sorted.length; i++) {
     const current = sorted[i];
-    const currentWins = h2hWins.get(current.participantId)!;
-
     const tiedWithIds: string[] = [];
 
     for (let j = 0; j < sorted.length; j++) {
       if (i === j) continue;
 
       const other = sorted[j];
-      const otherWins = h2hWins.get(other.participantId)!;
-
-      if (currentWins === otherWins && current.total20s === other.total20s) {
+      if (current.total20s === other.total20s) {
         tiedWithIds.push(other.participantId);
       }
     }

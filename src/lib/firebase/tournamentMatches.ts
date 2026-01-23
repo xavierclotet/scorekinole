@@ -469,12 +469,14 @@ export interface PendingMatchInfo {
   match: GroupMatch | BracketMatch;
   phase: 'GROUP' | 'FINAL';
   groupId?: string;
+  groupName?: string;  // Group name for display (e.g., "Grupo A")
   roundNumber?: number;
   bracketRoundName?: string;
   participantAName: string;
   participantBName: string;
   gameConfig: TournamentGameConfig;
   isInProgress?: boolean;  // True if match is IN_PROGRESS (for resume functionality)
+  tableNumber?: number;    // Table number for display (e.g., M1, M2)
 }
 
 /**
@@ -633,10 +635,12 @@ export async function getPendingMatchesForUser(
                 match,
                 phase: 'GROUP',
                 groupId: group.id,
+                groupName: group.name,
                 roundNumber: round.roundNumber,
                 participantAName: getParticipantName(tournament, match.participantA),
                 participantBName: getParticipantName(tournament, match.participantB),
-                gameConfig: getGameConfigForMatch(tournament, 'GROUP')
+                gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
+                tableNumber: match.tableNumber
               });
             }
           }
@@ -653,10 +657,12 @@ export async function getPendingMatchesForUser(
                 match,
                 phase: 'GROUP',
                 groupId: group.id,
+                groupName: group.name,
                 roundNumber: pairing.roundNumber,
                 participantAName: getParticipantName(tournament, match.participantA),
                 participantBName: getParticipantName(tournament, match.participantB),
-                gameConfig: getGameConfigForMatch(tournament, 'GROUP')
+                gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
+                tableNumber: match.tableNumber
               });
             }
           }
@@ -752,11 +758,13 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                 match,
                 phase: 'GROUP',
                 groupId: group.id,
+                groupName: group.name,
                 roundNumber: round.roundNumber,
                 participantAName: getParticipantName(tournament, match.participantA),
                 participantBName: getParticipantName(tournament, match.participantB),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
-                isInProgress: isInProgress(match.status)
+                isInProgress: isInProgress(match.status),
+                tableNumber: match.tableNumber
               };
               if (isInProgress(match.status)) {
                 inProgressMatches.push(matchInfo);
@@ -777,11 +785,13 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                 match,
                 phase: 'GROUP',
                 groupId: group.id,
+                groupName: group.name,
                 roundNumber: pairing.roundNumber,
                 participantAName: getParticipantName(tournament, match.participantA),
                 participantBName: getParticipantName(tournament, match.participantB),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
-                isInProgress: isInProgress(match.status)
+                isInProgress: isInProgress(match.status),
+                tableNumber: match.tableNumber
               };
               if (isInProgress(match.status)) {
                 inProgressMatches.push(matchInfo);
@@ -1443,7 +1453,7 @@ export async function completeTournamentMatch(
   phase: 'GROUP' | 'FINAL',
   groupId: string | undefined,
   result: {
-    winner: string;
+    winner: string | null; // null for ties in rounds mode
     gamesWonA: number;
     gamesWonB: number;
     totalPointsA: number;
@@ -1505,7 +1515,7 @@ export async function completeTournamentMatch(
       const updateFn = isSilverBracket ? updateSilverBracketMatch : updateBracketMatch;
       const updateSuccess = await updateFn(tournamentId, matchId, {
         status: 'COMPLETED',
-        winner: result.winner,
+        winner: result.winner ?? undefined, // Convert null to undefined for type compatibility
         gamesWonA: result.gamesWonA,
         gamesWonB: result.gamesWonB,
         totalPointsA: result.totalPointsA,
@@ -1519,9 +1529,14 @@ export async function completeTournamentMatch(
         return false;
       }
 
-      // Advance winner to next match
-      const advanceFn = isSilverBracket ? advanceSilverWinner : advanceWinner;
-      return await advanceFn(tournamentId, matchId, result.winner);
+      // Only advance winner if there is one (not a tie)
+      // In bracket matches, ties shouldn't normally happen, but handle gracefully
+      if (result.winner) {
+        const advanceFn = isSilverBracket ? advanceSilverWinner : advanceWinner;
+        return await advanceFn(tournamentId, matchId, result.winner);
+      }
+
+      return true; // Match completed but no winner to advance (tie)
     }
   } catch (error) {
     console.error('❌ Error completing tournament match:', error);

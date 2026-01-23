@@ -8,6 +8,7 @@
   import CompletedTournamentView from '$lib/components/tournament/CompletedTournamentView.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { adminTheme } from '$lib/stores/theme';
+  import { currentUser } from '$lib/firebase/auth';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import type { Tournament } from '$lib/types/tournament';
@@ -59,13 +60,23 @@
 
       if (!tournament) {
         error = true;
-      } else if (!tournament.timeEstimate) {
-        // Calculate time estimate for existing tournaments that don't have it
-        // Uses tournament.timeConfig if available, otherwise defaults
-        const timeEstimate = calculateTournamentTimeEstimate(tournament);
-        tournament.timeEstimate = timeEstimate;
-        // Save the calculated estimate to Firebase
-        await updateTournament(tournamentId, { timeEstimate });
+      } else {
+        // Check if tournament was created by another admin and is still active
+        const isActive = !['COMPLETED', 'CANCELLED'].includes(tournament.status);
+        if ($currentUser && tournament.createdBy?.userId !== $currentUser.id && isActive) {
+          toastMessage = $t('notYourTournament');
+          toastType = 'warning';
+          showToast = true;
+        }
+
+        if (!tournament.timeEstimate) {
+          // Calculate time estimate for existing tournaments that don't have it
+          // Uses tournament.timeConfig if available, otherwise defaults
+          const timeEstimate = calculateTournamentTimeEstimate(tournament);
+          tournament.timeEstimate = timeEstimate;
+          // Save the calculated estimate to Firebase
+          await updateTournament(tournamentId, { timeEstimate });
+        }
       }
     } catch (err) {
       console.error('Error loading tournament:', err);
@@ -467,6 +478,11 @@
                   </span>
                 </div>
               {/if}
+
+              <div class="config-item">
+                <span class="config-label">{$t('createdBy')}:</span>
+                <span class="config-value">{tournament.createdBy?.userName || '-'}</span>
+              </div>
             </div>
           </section>
 
