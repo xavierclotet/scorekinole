@@ -73,6 +73,167 @@
     : (tournament?.finalStage?.silverMatchesToWin || 1);
   $: showGamesWon = matchesToWin > 1;
 
+  // Phase configuration editing
+  let savingPhaseConfig = false;
+
+  // Determine phase type from round name
+  function getPhaseType(roundName: string): 'early' | 'semifinal' | 'final' {
+    const name = roundName.toLowerCase();
+    if (name.includes('final') && !name.includes('semi') && !name.includes('quarter') && !name.includes('cuarto')) {
+      return 'final';
+    }
+    if (name.includes('semi')) {
+      return 'semifinal';
+    }
+    return 'early';
+  }
+
+  // Check if any match in a round has started (IN_PROGRESS or COMPLETED) - excludes BYE matches
+  function isRoundLocked(roundMatches: BracketMatch[]): boolean {
+    return roundMatches.some(m => {
+      // Skip BYE matches - they don't count as "started"
+      if (isBye(m.participantA) || isBye(m.participantB)) return false;
+      return m.status === 'IN_PROGRESS' || m.status === 'COMPLETED' || m.status === 'WALKOVER';
+    });
+  }
+
+  // Get current config for a phase (for editing in the UI)
+  function getPhaseEditConfig(phaseType: 'early' | 'semifinal' | 'final', isGold: boolean): { gameMode: 'points' | 'rounds'; value: number; matchesToWin: number } {
+    const config = tournament?.finalStageConfig;
+    if (!config) {
+      // Defaults
+      if (phaseType === 'final') return { gameMode: 'points', value: isGold ? 9 : 4, matchesToWin: 1 };
+      if (phaseType === 'semifinal') return { gameMode: isGold ? 'points' : 'rounds', value: isGold ? 7 : 4, matchesToWin: 1 };
+      return { gameMode: 'rounds', value: 4, matchesToWin: 1 };
+    }
+
+    if (isGold) {
+      if (phaseType === 'final') {
+        return {
+          gameMode: config.finalGameMode || 'points',
+          value: config.finalGameMode === 'rounds' ? (config.finalRoundsToPlay || 4) : (config.finalPointsToWin || 9),
+          matchesToWin: config.finalMatchesToWin || 1
+        };
+      }
+      if (phaseType === 'semifinal') {
+        return {
+          gameMode: config.semifinalGameMode || 'points',
+          value: config.semifinalGameMode === 'rounds' ? (config.semifinalRoundsToPlay || 4) : (config.semifinalPointsToWin || 7),
+          matchesToWin: config.semifinalMatchesToWin || 1
+        };
+      }
+      return {
+        gameMode: config.earlyRoundsGameMode || 'rounds',
+        value: config.earlyRoundsGameMode === 'points' ? (config.earlyRoundsPointsToWin || 7) : (config.earlyRoundsToPlay || 4),
+        matchesToWin: config.matchesToWin || 1
+      };
+    } else {
+      // Silver
+      if (phaseType === 'final') {
+        return {
+          gameMode: config.silverFinalGameMode || 'rounds',
+          value: config.silverFinalGameMode === 'points' ? (config.silverFinalPointsToWin || 7) : (config.silverFinalRoundsToPlay || 4),
+          matchesToWin: config.silverFinalMatchesToWin || 1
+        };
+      }
+      if (phaseType === 'semifinal') {
+        return {
+          gameMode: config.silverSemifinalGameMode || 'rounds',
+          value: config.silverSemifinalGameMode === 'points' ? (config.silverSemifinalPointsToWin || 7) : (config.silverSemifinalRoundsToPlay || 4),
+          matchesToWin: config.silverSemifinalMatchesToWin || 1
+        };
+      }
+      return {
+        gameMode: config.silverEarlyRoundsGameMode || 'rounds',
+        value: config.silverEarlyRoundsGameMode === 'points' ? (config.silverEarlyRoundsPointsToWin || 7) : (config.silverEarlyRoundsToPlay || 4),
+        matchesToWin: config.silverMatchesToWin || 1
+      };
+    }
+  }
+
+  // Helper to parse game mode from select value
+  function parseGameMode(value: string): 'points' | 'rounds' {
+    return value === 'points' ? 'points' : 'rounds';
+  }
+
+  // Save phase configuration
+  async function savePhaseConfig(phaseType: 'early' | 'semifinal' | 'final', isGold: boolean, gameMode: 'points' | 'rounds', value: number, matchesToWin: number) {
+    if (!tournament || !tournamentId) return;
+
+    savingPhaseConfig = true;
+    try {
+      const currentConfig = tournament.finalStageConfig || {};
+      let updates: any = { finalStageConfig: { ...currentConfig } };
+
+      if (isGold) {
+        if (phaseType === 'final') {
+          updates.finalStageConfig.finalGameMode = gameMode;
+          if (gameMode === 'points') {
+            updates.finalStageConfig.finalPointsToWin = value;
+          } else {
+            updates.finalStageConfig.finalRoundsToPlay = value;
+          }
+          updates.finalStageConfig.finalMatchesToWin = matchesToWin;
+        } else if (phaseType === 'semifinal') {
+          updates.finalStageConfig.semifinalGameMode = gameMode;
+          if (gameMode === 'points') {
+            updates.finalStageConfig.semifinalPointsToWin = value;
+          } else {
+            updates.finalStageConfig.semifinalRoundsToPlay = value;
+          }
+          updates.finalStageConfig.semifinalMatchesToWin = matchesToWin;
+        } else {
+          updates.finalStageConfig.earlyRoundsGameMode = gameMode;
+          if (gameMode === 'points') {
+            updates.finalStageConfig.earlyRoundsPointsToWin = value;
+          } else {
+            updates.finalStageConfig.earlyRoundsToPlay = value;
+          }
+          updates.finalStageConfig.matchesToWin = matchesToWin;
+        }
+      } else {
+        // Silver
+        if (phaseType === 'final') {
+          updates.finalStageConfig.silverFinalGameMode = gameMode;
+          if (gameMode === 'points') {
+            updates.finalStageConfig.silverFinalPointsToWin = value;
+          } else {
+            updates.finalStageConfig.silverFinalRoundsToPlay = value;
+          }
+          updates.finalStageConfig.silverFinalMatchesToWin = matchesToWin;
+        } else if (phaseType === 'semifinal') {
+          updates.finalStageConfig.silverSemifinalGameMode = gameMode;
+          if (gameMode === 'points') {
+            updates.finalStageConfig.silverSemifinalPointsToWin = value;
+          } else {
+            updates.finalStageConfig.silverSemifinalRoundsToPlay = value;
+          }
+          updates.finalStageConfig.silverSemifinalMatchesToWin = matchesToWin;
+        } else {
+          updates.finalStageConfig.silverEarlyRoundsGameMode = gameMode;
+          if (gameMode === 'points') {
+            updates.finalStageConfig.silverEarlyRoundsPointsToWin = value;
+          } else {
+            updates.finalStageConfig.silverEarlyRoundsToPlay = value;
+          }
+          updates.finalStageConfig.silverMatchesToWin = matchesToWin;
+        }
+      }
+
+      await updateTournament(tournamentId, updates);
+      toastMessage = 'Configuración guardada';
+      toastType = 'success';
+      showToast = true;
+    } catch (err) {
+      console.error('Error saving phase config:', err);
+      toastMessage = 'Error al guardar configuración';
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      savingPhaseConfig = false;
+    }
+  }
+
   onMount(async () => {
     await loadTournament();
     isSuperAdminUser = await isSuperAdmin();
@@ -666,6 +827,145 @@
           </button>
         </div>
       {:else if bracket}
+        <!-- Phase Configuration Panel -->
+        {@const isGold = activeTab === 'gold'}
+        {@const earlyConfig = getPhaseEditConfig('early', isGold)}
+        {@const semiConfig = getPhaseEditConfig('semifinal', isGold)}
+        {@const finalConfig = getPhaseEditConfig('final', isGold)}
+        {@const hasEarlyRounds = rounds.length > 2}
+        {@const earlyRounds = hasEarlyRounds ? rounds.slice(0, -2) : []}
+        {@const semiRound = rounds.length >= 2 ? rounds[rounds.length - 2] : null}
+        {@const finalRound = rounds.length >= 1 ? rounds[rounds.length - 1] : null}
+        {@const earlyLocked = earlyRounds.some(r => isRoundLocked(r.matches))}
+        {@const semiLocked = semiRound ? isRoundLocked(semiRound.matches) : false}
+        {@const finalLocked = finalRound ? isRoundLocked(finalRound.matches) : false}
+        {@const thirdPlaceLocked = thirdPlaceMatch?.status === 'IN_PROGRESS' || thirdPlaceMatch?.status === 'COMPLETED' || thirdPlaceMatch?.status === 'WALKOVER'}
+
+        <div class="phase-config-panel">
+          <div class="phase-config-header">
+            <span class="config-icon">⚙️</span>
+            <span>Configuración de fases {isGold ? '(Oro)' : '(Plata)'}</span>
+          </div>
+          <div class="phase-config-grid">
+            <!-- Early Rounds Config -->
+            {#if hasEarlyRounds}
+              <div class="phase-config-item" class:locked={earlyLocked}>
+                <label>Tempranas</label>
+                <div class="config-inputs">
+                  <select
+                    value={earlyConfig.gameMode}
+                    disabled={earlyLocked || savingPhaseConfig}
+                    on:change={(e) => savePhaseConfig('early', isGold, parseGameMode(e.currentTarget.value), earlyConfig.value, earlyConfig.matchesToWin)}
+                  >
+                    <option value="rounds">Rondas</option>
+                    <option value="points">Puntos</option>
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    max="15"
+                    value={earlyConfig.value}
+                    disabled={earlyLocked || savingPhaseConfig}
+                    on:change={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, parseInt(e.currentTarget.value) || 4, earlyConfig.matchesToWin)}
+                  />
+                  {#if earlyConfig.gameMode === 'points'}
+                    <span class="bo-label">Bo</span>
+                    <select
+                      class="bo-select"
+                      value={earlyConfig.matchesToWin}
+                      disabled={earlyLocked || savingPhaseConfig}
+                      on:change={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, earlyConfig.value, parseInt(e.currentTarget.value) || 1)}
+                    >
+                      <option value={1}>1</option>
+                      <option value={3}>3</option>
+                      <option value={5}>5</option>
+                    </select>
+                  {/if}
+                </div>
+                {#if earlyLocked}<span class="lock-icon">🔒</span>{/if}
+              </div>
+            {/if}
+
+            <!-- Semifinals and 3rd/4th Place Config -->
+            {#if semiRound}
+              <div class="phase-config-item" class:locked={semiLocked || thirdPlaceLocked}>
+                <label>Semis y 3º/4º</label>
+                <div class="config-inputs">
+                  <select
+                    value={semiConfig.gameMode}
+                    disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
+                    on:change={(e) => savePhaseConfig('semifinal', isGold, parseGameMode(e.currentTarget.value), semiConfig.value, semiConfig.matchesToWin)}
+                  >
+                    <option value="rounds">Rondas</option>
+                    <option value="points">Puntos</option>
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    max="15"
+                    value={semiConfig.value}
+                    disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
+                    on:change={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, parseInt(e.currentTarget.value) || 7, semiConfig.matchesToWin)}
+                  />
+                  {#if semiConfig.gameMode === 'points'}
+                    <span class="bo-label">Bo</span>
+                    <select
+                      class="bo-select"
+                      value={semiConfig.matchesToWin}
+                      disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
+                      on:change={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, semiConfig.value, parseInt(e.currentTarget.value) || 1)}
+                    >
+                      <option value={1}>1</option>
+                      <option value={3}>3</option>
+                      <option value={5}>5</option>
+                    </select>
+                  {/if}
+                </div>
+                {#if semiLocked || thirdPlaceLocked}<span class="lock-icon">🔒</span>{/if}
+              </div>
+            {/if}
+
+            <!-- Final Config -->
+            {#if finalRound}
+              <div class="phase-config-item" class:locked={finalLocked}>
+                <label>Final</label>
+                <div class="config-inputs">
+                  <select
+                    value={finalConfig.gameMode}
+                    disabled={finalLocked || savingPhaseConfig}
+                    on:change={(e) => savePhaseConfig('final', isGold, parseGameMode(e.currentTarget.value), finalConfig.value, finalConfig.matchesToWin)}
+                  >
+                    <option value="rounds">Rondas</option>
+                    <option value="points">Puntos</option>
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    max="15"
+                    value={finalConfig.value}
+                    disabled={finalLocked || savingPhaseConfig}
+                    on:change={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, parseInt(e.currentTarget.value) || 9, finalConfig.matchesToWin)}
+                  />
+                  {#if finalConfig.gameMode === 'points'}
+                    <span class="bo-label">Bo</span>
+                    <select
+                      class="bo-select"
+                      value={finalConfig.matchesToWin}
+                      disabled={finalLocked || savingPhaseConfig}
+                      on:change={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, finalConfig.value, parseInt(e.currentTarget.value) || 1)}
+                    >
+                      <option value={1}>1</option>
+                      <option value={3}>3</option>
+                      <option value={5}>5</option>
+                    </select>
+                  {/if}
+                </div>
+                {#if finalLocked}<span class="lock-icon">🔒</span>{/if}
+              </div>
+            {/if}
+          </div>
+        </div>
+
         <!-- Bracket title for split divisions -->
         {#if isSplitDivisions}
           <div class="bracket-title" class:gold={activeTab === 'gold'} class:silver={activeTab === 'silver'}>
@@ -926,6 +1226,9 @@
 <style>
   .bracket-page {
     min-height: 100vh;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
     background: #fafafa;
     transition: background-color 0.3s;
   }
@@ -1064,7 +1367,8 @@
 
   .page-content {
     padding: 1.5rem;
-    max-height: calc(100vh - 60px);
+    min-height: 0;
+    flex: 1;
     overflow-y: auto;
     overflow-x: auto;
   }
@@ -1160,7 +1464,7 @@
 
   .bracket-container {
     display: flex;
-    gap: 4rem;
+    gap: 6rem;
     padding: 0.75rem;
     min-width: max-content;
     align-items: stretch;
@@ -1303,19 +1607,19 @@
   /* Round 0 (first round): base height = 100% + 2rem (match height + gap) */
   /* Each subsequent round doubles: 2^roundIndex * base */
   .bracket-round[style*="--round-index: 0"] .bracket-match::before {
-    height: calc(100% + 2.4rem);  /* 1x */
+    height: calc(100% + 1.6rem);  /* 1x */
   }
   .bracket-round[style*="--round-index: 1"] .bracket-match::before {
-    height: calc(200% + 4rem);  /* 2x */
+    height: calc(200% + 3rem);  /* 2x */
   }
   .bracket-round[style*="--round-index: 2"] .bracket-match::before {
-    height: calc(400% + 8rem);  /* 4x */
+    height: calc(400% + 6rem);  /* 4x */
   }
   .bracket-round[style*="--round-index: 3"] .bracket-match::before {
-    height: calc(800% + 16rem); /* 8x */
+    height: calc(800% + 12rem); /* 8x */
   }
   .bracket-round[style*="--round-index: 4"] .bracket-match::before {
-    height: calc(1600% + 32rem); /* 16x */
+    height: calc(1600% + 24rem); /* 16x */
   }
 
   /* Remove vertical connectors from final round */
@@ -1684,6 +1988,141 @@
     font-weight: 700;
   }
 
+  /* Phase Configuration Panel */
+  .phase-config-panel {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .bracket-page[data-theme='dark'] .phase-config-panel {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .phase-config-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 0.75rem;
+  }
+
+  .config-icon {
+    font-size: 1rem;
+  }
+
+  .phase-config-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .phase-config-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    position: relative;
+  }
+
+  .bracket-page[data-theme='dark'] .phase-config-item {
+    background: #0f172a;
+    border-color: #334155;
+  }
+
+  .phase-config-item.locked {
+    opacity: 0.6;
+  }
+
+  .phase-config-item label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    min-width: 60px;
+  }
+
+  .bracket-page[data-theme='dark'] .phase-config-item label {
+    color: #94a3b8;
+  }
+
+  .config-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .config-inputs select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    background: white;
+    cursor: pointer;
+  }
+
+  .bracket-page[data-theme='dark'] .config-inputs select {
+    background: #1e293b;
+    border-color: #475569;
+    color: #e2e8f0;
+  }
+
+  .config-inputs input[type="number"] {
+    width: 45px;
+    padding: 0.25rem 0.35rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+
+  .bracket-page[data-theme='dark'] .config-inputs input[type="number"] {
+    background: #1e293b;
+    border-color: #475569;
+    color: #e2e8f0;
+  }
+
+  .config-inputs select:disabled,
+  .config-inputs input:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .bo-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-left: 0.25rem;
+  }
+
+  .bo-select {
+    width: 52px;
+    padding: 0.25rem 0.4rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    background: white;
+    cursor: pointer;
+  }
+
+  .bracket-page[data-theme='dark'] .bo-select {
+    background: #1e293b;
+    border-color: #475569;
+    color: #e2e8f0;
+  }
+
+  .lock-icon {
+    font-size: 0.7rem;
+    margin-left: 0.25rem;
+  }
+
   /* Bracket title */
   .bracket-title {
     font-size: 1.5rem;
@@ -1765,7 +2204,6 @@
 
     .page-content {
       padding: 0.75rem;
-      max-height: calc(100vh - 100px);
     }
 
     .bracket-title {
@@ -1782,11 +2220,10 @@
 
     .page-content {
       padding: 0.5rem;
-      max-height: calc(100vh - 90px);
     }
 
     .bracket-container {
-      gap: 2rem;
+      gap: 6rem;
     }
 
     .bracket-round {
@@ -1859,9 +2296,6 @@
       font-size: 0.75rem;
     }
 
-    .page-content {
-      max-height: calc(100vh - 80px);
-    }
   }
 
   /* Loading Overlay */

@@ -544,22 +544,65 @@
                 </div>
 
                 {#if tournament.finalStageConfig.mode === 'SPLIT_DIVISIONS'}
-                  <div class="config-item">
-                    <span class="config-label">🥇 {$t('goldBracket')}:</span>
+                  <!-- Gold Bracket Phases -->
+                  <div class="config-item bracket-header">
+                    <span class="config-label">🥇 {$t('goldBracket')}</span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('earlyRounds')}:</span>
                     <span class="config-value">
-                      {tournament.finalStageConfig.gameMode === 'points'
-                        ? `${$t('byPoints')} (${tournament.finalStageConfig.pointsToWin})`
-                        : `${$t('byRounds')} (${tournament.finalStageConfig.roundsToPlay})`}
-                      · Bo{tournament.finalStageConfig.matchesToWin}
+                      {(tournament.finalStageConfig.earlyRoundsGameMode ?? 'rounds') === 'points'
+                        ? `${tournament.finalStageConfig.earlyRoundsPointsToWin ?? 7}p`
+                        : `${tournament.finalStageConfig.earlyRoundsToPlay ?? 4}r`}
                     </span>
                   </div>
-                  <div class="config-item">
-                    <span class="config-label">🥈 {$t('silverBracket')}:</span>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('semifinals')}:</span>
                     <span class="config-value">
-                      {tournament.finalStageConfig.silverGameMode === 'points'
-                        ? `${$t('byPoints')} (${tournament.finalStageConfig.silverPointsToWin})`
-                        : `${$t('byRounds')} (${tournament.finalStageConfig.silverRoundsToPlay})`}
-                      · Bo{tournament.finalStageConfig.silverMatchesToWin}
+                      {(tournament.finalStageConfig.semifinalGameMode ?? tournament.finalStageConfig.gameMode ?? 'points') === 'points'
+                        ? `${tournament.finalStageConfig.semifinalPointsToWin ?? tournament.finalStageConfig.pointsToWin ?? 7}p`
+                        : `${tournament.finalStageConfig.semifinalRoundsToPlay ?? tournament.finalStageConfig.roundsToPlay ?? 4}r`}
+                      · Bo{tournament.finalStageConfig.semifinalMatchesToWin ?? tournament.finalStageConfig.matchesToWin ?? 1}
+                    </span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('final')}:</span>
+                    <span class="config-value">
+                      {(tournament.finalStageConfig.finalGameMode ?? tournament.finalStageConfig.gameMode ?? 'points') === 'points'
+                        ? `${tournament.finalStageConfig.finalPointsToWin ?? tournament.finalStageConfig.pointsToWin ?? 9}p`
+                        : `${tournament.finalStageConfig.finalRoundsToPlay ?? tournament.finalStageConfig.roundsToPlay ?? 4}r`}
+                      · Bo{tournament.finalStageConfig.finalMatchesToWin ?? tournament.finalStageConfig.matchesToWin ?? 1}
+                    </span>
+                  </div>
+
+                  <!-- Silver Bracket Phases (default: all 4 rounds) -->
+                  <div class="config-item bracket-header">
+                    <span class="config-label">🥈 {$t('silverBracket')}</span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('earlyRounds')}:</span>
+                    <span class="config-value">
+                      {(tournament.finalStageConfig.silverEarlyRoundsGameMode ?? tournament.finalStageConfig.silverGameMode ?? 'rounds') === 'points'
+                        ? `${tournament.finalStageConfig.silverEarlyRoundsPointsToWin ?? tournament.finalStageConfig.silverPointsToWin ?? 7}p`
+                        : `${tournament.finalStageConfig.silverEarlyRoundsToPlay ?? tournament.finalStageConfig.silverRoundsToPlay ?? 4}r`}
+                    </span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('semifinals')}:</span>
+                    <span class="config-value">
+                      {(tournament.finalStageConfig.silverSemifinalGameMode ?? tournament.finalStageConfig.silverGameMode ?? 'rounds') === 'points'
+                        ? `${tournament.finalStageConfig.silverSemifinalPointsToWin ?? tournament.finalStageConfig.silverPointsToWin ?? 7}p`
+                        : `${tournament.finalStageConfig.silverSemifinalRoundsToPlay ?? tournament.finalStageConfig.silverRoundsToPlay ?? 4}r`}
+                      · Bo{tournament.finalStageConfig.silverSemifinalMatchesToWin ?? tournament.finalStageConfig.silverMatchesToWin ?? 1}
+                    </span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('final')}:</span>
+                    <span class="config-value">
+                      {(tournament.finalStageConfig.silverFinalGameMode ?? tournament.finalStageConfig.silverGameMode ?? 'rounds') === 'points'
+                        ? `${tournament.finalStageConfig.silverFinalPointsToWin ?? tournament.finalStageConfig.silverPointsToWin ?? 7}p`
+                        : `${tournament.finalStageConfig.silverFinalRoundsToPlay ?? tournament.finalStageConfig.silverRoundsToPlay ?? 4}r`}
+                      · Bo{tournament.finalStageConfig.silverFinalMatchesToWin ?? tournament.finalStageConfig.silverMatchesToWin ?? 1}
                     </span>
                   </div>
                 {:else}
@@ -591,22 +634,65 @@
                 </div>
 
                 {#if tournament.finalStage.mode === 'SPLIT_DIVISIONS'}
-                  <div class="config-item">
-                    <span class="config-label">🥇 {$t('goldBracket')}:</span>
+                  <!-- Gold Bracket Phases -->
+                  <div class="config-item bracket-header">
+                    <span class="config-label">🥇 {$t('goldBracket')}</span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('earlyRounds')}:</span>
                     <span class="config-value">
-                      {tournament.finalStage.gameMode === 'points'
-                        ? `${$t('byPoints')} (${tournament.finalStage.pointsToWin})`
-                        : `${$t('byRounds')} (${tournament.finalStage.roundsToPlay})`}
-                      · Bo{tournament.finalStage.matchesToWin}
+                      {(tournament.finalStage.earlyRoundsGameMode ?? 'rounds') === 'points'
+                        ? `${tournament.finalStage.earlyRoundsPointsToWin ?? 7}p`
+                        : `${tournament.finalStage.earlyRoundsToPlay ?? 4}r`}
                     </span>
                   </div>
-                  <div class="config-item">
-                    <span class="config-label">🥈 {$t('silverBracket')}:</span>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('semifinals')}:</span>
                     <span class="config-value">
-                      {tournament.finalStage.silverGameMode === 'points'
-                        ? `${$t('byPoints')} (${tournament.finalStage.silverPointsToWin})`
-                        : `${$t('byRounds')} (${tournament.finalStage.silverRoundsToPlay})`}
-                      · Bo{tournament.finalStage.silverMatchesToWin}
+                      {(tournament.finalStage.semifinalGameMode ?? tournament.finalStage.gameMode ?? 'points') === 'points'
+                        ? `${tournament.finalStage.semifinalPointsToWin ?? tournament.finalStage.pointsToWin ?? 7}p`
+                        : `${tournament.finalStage.semifinalRoundsToPlay ?? tournament.finalStage.roundsToPlay ?? 4}r`}
+                      · Bo{tournament.finalStage.semifinalMatchesToWin ?? tournament.finalStage.matchesToWin ?? 1}
+                    </span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('final')}:</span>
+                    <span class="config-value">
+                      {(tournament.finalStage.finalGameMode ?? tournament.finalStage.gameMode ?? 'points') === 'points'
+                        ? `${tournament.finalStage.finalPointsToWin ?? tournament.finalStage.pointsToWin ?? 9}p`
+                        : `${tournament.finalStage.finalRoundsToPlay ?? tournament.finalStage.roundsToPlay ?? 4}r`}
+                      · Bo{tournament.finalStage.finalMatchesToWin ?? tournament.finalStage.matchesToWin ?? 1}
+                    </span>
+                  </div>
+
+                  <!-- Silver Bracket Phases (default: all 4 rounds) -->
+                  <div class="config-item bracket-header">
+                    <span class="config-label">🥈 {$t('silverBracket')}</span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('earlyRounds')}:</span>
+                    <span class="config-value">
+                      {(tournament.finalStage.silverEarlyRoundsGameMode ?? tournament.finalStage.silverGameMode ?? 'rounds') === 'points'
+                        ? `${tournament.finalStage.silverEarlyRoundsPointsToWin ?? tournament.finalStage.silverPointsToWin ?? 7}p`
+                        : `${tournament.finalStage.silverEarlyRoundsToPlay ?? tournament.finalStage.silverRoundsToPlay ?? 4}r`}
+                    </span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('semifinals')}:</span>
+                    <span class="config-value">
+                      {(tournament.finalStage.silverSemifinalGameMode ?? tournament.finalStage.silverGameMode ?? 'rounds') === 'points'
+                        ? `${tournament.finalStage.silverSemifinalPointsToWin ?? tournament.finalStage.silverPointsToWin ?? 7}p`
+                        : `${tournament.finalStage.silverSemifinalRoundsToPlay ?? tournament.finalStage.silverRoundsToPlay ?? 4}r`}
+                      · Bo{tournament.finalStage.silverSemifinalMatchesToWin ?? tournament.finalStage.silverMatchesToWin ?? 1}
+                    </span>
+                  </div>
+                  <div class="config-item phase-config">
+                    <span class="config-label">{$t('final')}:</span>
+                    <span class="config-value">
+                      {(tournament.finalStage.silverFinalGameMode ?? tournament.finalStage.silverGameMode ?? 'rounds') === 'points'
+                        ? `${tournament.finalStage.silverFinalPointsToWin ?? tournament.finalStage.silverPointsToWin ?? 7}p`
+                        : `${tournament.finalStage.silverFinalRoundsToPlay ?? tournament.finalStage.silverRoundsToPlay ?? 4}r`}
+                      · Bo{tournament.finalStage.silverFinalMatchesToWin ?? tournament.finalStage.silverMatchesToWin ?? 1}
                     </span>
                   </div>
                 {:else}
@@ -1168,6 +1254,36 @@
     border-radius: 4px;
     font-size: 0.85rem;
     font-weight: 600;
+  }
+
+  /* Bracket phase configuration */
+  .config-item.bracket-header {
+    margin-top: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+    border-left: 3px solid #667eea;
+  }
+
+  .config-item.bracket-header .config-label {
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .tournament-page[data-theme='dark'] .config-item.bracket-header .config-label {
+    color: #e1e8ed;
+  }
+
+  .config-item.phase-config {
+    padding-left: 1.2rem;
+    font-size: 0.75rem;
+  }
+
+  .config-item.phase-config .config-label {
+    font-size: 0.75rem;
+  }
+
+  .config-item.phase-config .config-value {
+    font-size: 0.75rem;
   }
 
   /* Responsive */

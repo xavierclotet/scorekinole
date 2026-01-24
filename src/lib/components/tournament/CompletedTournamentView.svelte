@@ -173,7 +173,7 @@
       {#each sortedParticipants as participant (participant.id)}
         {@const delta = getRankingDelta(participant)}
         {@const pos = participant.finalPosition || 0}
-        <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4}>
+        <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
           <span class="pos">{getPositionDisplay(pos)}</span>
           <span class="name">{participant.name}</span>
           {#if tournament.rankingConfig?.enabled}
@@ -583,8 +583,8 @@
   }
 
   .standing-row.fourth {
-    border-left-color: #6b7280;
-    background: linear-gradient(90deg, rgba(107, 114, 128, 0.08) 0%, transparent 100%);
+    border-left-color: #d97706;
+    background: linear-gradient(90deg, rgba(217, 119, 6, 0.08) 0%, transparent 100%);
   }
 
   :global([data-theme='dark']) .standing-row.top-4 {
@@ -604,7 +604,24 @@
   }
 
   :global([data-theme='dark']) .standing-row.fourth {
-    background: linear-gradient(90deg, rgba(107, 114, 128, 0.1) 0%, transparent 100%);
+    background: linear-gradient(90deg, rgba(217, 119, 6, 0.1) 0%, transparent 100%);
+  }
+
+  /* Zebra striping for positions 5+ */
+  .standing-row.zebra-odd {
+    background: #f9fafb;
+  }
+
+  .standing-row.zebra-even {
+    background: #f3f4f6;
+  }
+
+  :global([data-theme='dark']) .standing-row.zebra-odd {
+    background: #1a2332;
+  }
+
+  :global([data-theme='dark']) .standing-row.zebra-even {
+    background: #1f2937;
   }
 
   .standing-row .pos {

@@ -10,6 +10,8 @@
 
   const dispatch = createEventDispatcher<{
     update: string[]; // Array of qualified participant IDs
+    standingsChanged: { groupIndex: number; standings: any[] }; // When positions are manually swapped
+    tiesStatusChanged: { groupIndex: number; hasUnresolvedTies: boolean }; // Tie status changed
   }>();
 
   // Modal state for player matches
@@ -109,6 +111,140 @@
   function getTiedWithNames(tiedWith: string[] | undefined): string {
     if (!tiedWith || tiedWith.length === 0) return '';
     return tiedWith.map(id => getParticipantName(id)).join(', ');
+  }
+
+  // Check if there are unresolved ties in this group
+  $: hasUnresolvedTies = standings.some((s: any) => s.tiedWith && s.tiedWith.length > 0);
+
+  // Emit tie status whenever it changes
+  $: if (standings.length > 0) {
+    dispatch('tiesStatusChanged', { groupIndex, hasUnresolvedTies });
+  }
+
+  // Move a participant up (swap with the one above)
+  function moveUp(participantId: string, event: MouseEvent) {
+    event.stopPropagation();
+    const idx = standings.findIndex((s: any) => s.participantId === participantId);
+    if (idx <= 0) return; // Can't move up if already first
+
+    const current = standings[idx];
+    const above = standings[idx - 1];
+
+    // Only allow if they are tied with each other
+    if (!current.tiedWith?.includes(above.participantId)) return;
+
+    // Swap positions
+    const tempPos = current.position;
+    current.position = above.position;
+    above.position = tempPos;
+
+    // Clear the tie between these two (they've been manually ordered)
+    current.tiedWith = current.tiedWith?.filter((id: string) => id !== above.participantId);
+    above.tiedWith = above.tiedWith?.filter((id: string) => id !== current.participantId);
+
+    // If no more ties, clear tieReason
+    if (!current.tiedWith || current.tiedWith.length === 0) {
+      current.tiedWith = undefined;
+      current.tieReason = undefined;
+    }
+    if (!above.tiedWith || above.tiedWith.length === 0) {
+      above.tiedWith = undefined;
+      above.tieReason = undefined;
+    }
+
+    // Resort standings by position
+    standings = [...standings].sort((a: any, b: any) => a.position - b.position);
+
+    // Emit the change
+    dispatch('standingsChanged', { groupIndex, standings: [...standings] });
+  }
+
+  // Move a participant down (swap with the one below)
+  function moveDown(participantId: string, event: MouseEvent) {
+    event.stopPropagation();
+    const idx = standings.findIndex((s: any) => s.participantId === participantId);
+    if (idx < 0 || idx >= standings.length - 1) return; // Can't move down if already last
+
+    const current = standings[idx];
+    const below = standings[idx + 1];
+
+    // Only allow if they are tied with each other
+    if (!current.tiedWith?.includes(below.participantId)) return;
+
+    // Swap positions
+    const tempPos = current.position;
+    current.position = below.position;
+    below.position = tempPos;
+
+    // Clear the tie between these two (they've been manually ordered)
+    current.tiedWith = current.tiedWith?.filter((id: string) => id !== below.participantId);
+    below.tiedWith = below.tiedWith?.filter((id: string) => id !== current.participantId);
+
+    // If no more ties, clear tieReason
+    if (!current.tiedWith || current.tiedWith.length === 0) {
+      current.tiedWith = undefined;
+      current.tieReason = undefined;
+    }
+    if (!below.tiedWith || below.tiedWith.length === 0) {
+      below.tiedWith = undefined;
+      below.tieReason = undefined;
+    }
+
+    // Resort standings by position
+    standings = [...standings].sort((a: any, b: any) => a.position - b.position);
+
+    // Emit the change
+    dispatch('standingsChanged', { groupIndex, standings: [...standings] });
+  }
+
+  // Check if participant can move up (has a tie with the one above)
+  function canMoveUp(participantId: string): boolean {
+    const idx = standings.findIndex((s: any) => s.participantId === participantId);
+    if (idx <= 0) return false;
+    const current = standings[idx];
+    const above = standings[idx - 1];
+    return current.tiedWith?.includes(above.participantId) ?? false;
+  }
+
+  // Check if participant can move down (has a tie with the one below)
+  function canMoveDown(participantId: string): boolean {
+    const idx = standings.findIndex((s: any) => s.participantId === participantId);
+    if (idx < 0 || idx >= standings.length - 1) return false;
+    const current = standings[idx];
+    const below = standings[idx + 1];
+    return current.tiedWith?.includes(below.participantId) ?? false;
+  }
+
+  // Confirm current order for a participant (clear their tie without moving)
+  function confirmOrder(participantId: string, event: MouseEvent) {
+    event.stopPropagation();
+    const standing = standings.find((s: any) => s.participantId === participantId);
+    if (!standing || !standing.tiedWith) return;
+
+    // Clear ties for this participant and all they were tied with
+    const tiedWithIds = [...standing.tiedWith];
+
+    // Clear this participant's tie
+    standing.tiedWith = undefined;
+    standing.tieReason = undefined;
+
+    // Also clear the tie reference from other participants
+    for (const otherId of tiedWithIds) {
+      const other = standings.find((s: any) => s.participantId === otherId);
+      if (other && other.tiedWith) {
+        other.tiedWith = other.tiedWith.filter((id: string) => id !== participantId);
+        if (other.tiedWith.length === 0) {
+          other.tiedWith = undefined;
+          other.tieReason = undefined;
+        }
+      }
+    }
+
+    // Trigger reactivity
+    standings = [...standings];
+
+    // Emit the change
+    dispatch('standingsChanged', { groupIndex, standings: [...standings] });
   }
 
   function openPlayerMatches(participantId: string, event: MouseEvent) {
@@ -213,15 +349,33 @@
               />
             </td>
             <td class="pos-col">
-              <span class="position-badge" class:selected={isSelected} class:tied={hasTie}>
-                {standing.position}
-              </span>
+              <div class="position-cell">
+                <span class="position-badge" class:selected={isSelected} class:tied={hasTie}>
+                  {standing.position}
+                </span>
+              </div>
             </td>
             <td class="name-col">
-              {getParticipantName(standing.participantId)}
-              {#if hasTie}
-                <span class="tie-indicator" title="{$t('tiedWith')}: {tiedNames}">⚠️</span>
-              {/if}
+              <div class="name-cell">
+                <span class="player-name">{getParticipantName(standing.participantId)}</span>
+                {#if hasTie}
+                  <span class="tie-indicator" title="{$t('tiedWith')}: {tiedNames}">⚠️</span>
+                  {#if canMoveDown(standing.participantId)}
+                    <div class="tie-actions">
+                      <button
+                        class="tie-btn confirm-btn"
+                        on:click={(e) => confirmOrder(standing.participantId, e)}
+                        title={$t('confirmOrder')}
+                      >=</button>
+                      <button
+                        class="tie-btn swap-btn"
+                        on:click={(e) => moveDown(standing.participantId, e)}
+                        title={$t('swapOrder')}
+                      >↓</button>
+                    </div>
+                  {/if}
+                {/if}
+              </div>
             </td>
             <td class="matches-col">{standing.matchesPlayed}</td>
             <td class="wins-col">{standing.matchesWon}</td>
@@ -403,7 +557,69 @@
   }
 
   .pos-col {
-    width: 32px;
+    width: 80px;
+    min-width: 80px;
+  }
+
+  th.pos-col {
+    text-align: center;
+  }
+
+  .position-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .name-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .player-name {
+    flex-shrink: 0;
+  }
+
+  .tie-actions {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: 0.25rem;
+  }
+
+  .tie-btn {
+    border: none;
+    color: white;
+    width: 18px;
+    height: 18px;
+    font-size: 0.65rem;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .confirm-btn {
+    background: #10b981;
+  }
+
+  .confirm-btn:hover {
+    background: #059669;
+    transform: scale(1.05);
+  }
+
+  .swap-btn {
+    background: #f59e0b;
+  }
+
+  .swap-btn:hover {
+    background: #d97706;
+    transform: scale(1.05);
   }
 
   .position-badge {

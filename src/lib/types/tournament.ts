@@ -289,8 +289,11 @@ export interface GroupStanding {
   // Tie-breaker criteria
   total20s: number;                // Tie-breaker 1
   totalPointsScored: number;       // Tie-breaker 2
-  headToHeadRecord?: {             // Tie-breaker 3
-    [participantId: string]: 'WIN' | 'LOSS' | 'TIE';
+  headToHeadRecord?: {             // Tie-breaker 3 - includes result and 20s for mini-league calc
+    [participantId: string]: {
+      result: 'WIN' | 'LOSS' | 'TIE';
+      twenties: number;  // 20s scored in that specific match
+    };
   };
 
   // Qualification

@@ -39,15 +39,18 @@ function getPrimaryValue(standing: GroupStanding, isSwiss: boolean, rankingSyste
  */
 function getHeadToHeadResult(standingA: GroupStanding, standingB: GroupStanding): number | null {
   if (standingA.headToHeadRecord) {
-    const result = standingA.headToHeadRecord[standingB.participantId];
-    if (result === 'WIN') return 1;
-    if (result === 'LOSS') return -1;
-    if (result === 'TIE') return 0; // They played and tied (4-4)
+    const record = standingA.headToHeadRecord[standingB.participantId];
+    if (record) {
+      if (record.result === 'WIN') return 1;
+      if (record.result === 'LOSS') return -1;
+      if (record.result === 'TIE') return 0; // They played and tied (4-4)
+    }
     // undefined = no record (didn't play each other)
     return null;
   }
   return null;
 }
+
 
 /**
  * Resolve a tie between exactly 2 participants
@@ -130,70 +133,276 @@ function resolveTwoPlayerTie(
 }
 
 /**
+ * Calculate mini-league points for a participant (only matches between tied players)
+ */
+function calculateMiniLeaguePoints(standing: GroupStanding, tiedIds: Set<string>): number {
+  if (!standing.headToHeadRecord) return 0;
+
+  let points = 0;
+  for (const opponentId of tiedIds) {
+    if (opponentId === standing.participantId) continue;
+    const record = standing.headToHeadRecord[opponentId];
+    if (record) {
+      if (record.result === 'WIN') points += 2;
+      else if (record.result === 'TIE') points += 1;
+      // LOSS = 0
+    }
+  }
+  return points;
+}
+
+/**
+ * Calculate mini-league 20s for a participant (only matches between tied players)
+ */
+function calculateMiniLeague20s(standing: GroupStanding, tiedIds: Set<string>): number {
+  if (!standing.headToHeadRecord) return 0;
+
+  let twenties = 0;
+  for (const opponentId of tiedIds) {
+    if (opponentId === standing.participantId) continue;
+    const record = standing.headToHeadRecord[opponentId];
+    if (record) {
+      twenties += record.twenties;
+    }
+  }
+  return twenties;
+}
+
+/**
+ * Resolve remaining 2-player ties using H2H after initial sorting
+ */
+function resolveRemainingTwoPlayerTies(
+  sorted: GroupStanding[],
+  participantMap: Map<string, TournamentParticipant>,
+  compareValue: (s: GroupStanding) => number
+): GroupStanding[] {
+  const result: GroupStanding[] = [];
+  let i = 0;
+
+  while (i < sorted.length) {
+    // Find all players with same compare value starting at i
+    const currentValue = compareValue(sorted[i]);
+    let j = i + 1;
+    while (j < sorted.length && compareValue(sorted[j]) === currentValue) {
+      j++;
+    }
+
+    const tiedSubgroup = sorted.slice(i, j);
+
+    if (tiedSubgroup.length === 2) {
+      // Exactly 2 players tied - try H2H
+      const [a, b] = tiedSubgroup;
+      const h2h = getHeadToHeadResult(a, b);
+
+      if (h2h !== null && h2h !== 0) {
+        // H2H resolves it
+        a.tiedWith = undefined;
+        a.tieReason = undefined;
+        b.tiedWith = undefined;
+        b.tieReason = undefined;
+        if (h2h === 1) {
+          result.push(a, b);
+        } else {
+          result.push(b, a);
+        }
+      } else {
+        // Still tied - mark as unresolved, use ranking snapshot for order
+        a.tiedWith = [b.participantId];
+        a.tieReason = 'unresolved';
+        b.tiedWith = [a.participantId];
+        b.tieReason = 'unresolved';
+
+        const pA = participantMap.get(a.participantId);
+        const pB = participantMap.get(b.participantId);
+        if (pA && pB && pA.rankingSnapshot !== pB.rankingSnapshot) {
+          result.push(...(pA.rankingSnapshot > pB.rankingSnapshot ? [a, b] : [b, a]));
+        } else {
+          result.push(a, b);
+        }
+      }
+    } else if (tiedSubgroup.length > 2) {
+      // 3+ still tied - mark all as unresolved
+      for (const s of tiedSubgroup) {
+        s.tiedWith = tiedSubgroup.filter(x => x !== s).map(x => x.participantId);
+        s.tieReason = 'unresolved';
+      }
+      result.push(...tiedSubgroup);
+    } else {
+      // Single player - no tie
+      tiedSubgroup[0].tiedWith = undefined;
+      tiedSubgroup[0].tieReason = undefined;
+      result.push(...tiedSubgroup);
+    }
+
+    i = j;
+  }
+
+  return result;
+}
+
+/**
  * Resolve a tie between 3+ participants
  *
- * For 3+ players, H2H can create cycles (A beats B, B beats C, C beats A)
- * so we only use total 20s as tiebreaker.
+ * SWISS SYSTEM (3+ players):
+ * 1. Total 20s
+ * 2. If 2-player ties remain after 20s sorting: apply H2H between them
  *
- * H2H is only used for exactly 2 players tied (in resolveTwoPlayerTie).
+ * ROUND ROBIN (3+ players) - Mini-league:
+ * 1. Points only from matches between tied players (mini-league)
+ * 2. 20s only from matches between tied players
+ * 3. Total 20s (all matches)
+ * 4. If 2-player ties remain: apply H2H
  *
  * Returns sorted array and marks unresolved ties
  */
 function resolveMultiPlayerTie(
   tiedGroup: GroupStanding[],
   _rankingSystem: SwissRankingSystem,
-  participantMap: Map<string, TournamentParticipant>
+  participantMap: Map<string, TournamentParticipant>,
+  isSwiss: boolean
 ): GroupStanding[] {
-  console.log(`[Tiebreaker] Resolving ${tiedGroup.length}-way tie (using 20s only - H2H can create cycles):`);
+  const tiedIds = new Set(tiedGroup.map(s => s.participantId));
+
+  console.log(`[Tiebreaker] Resolving ${tiedGroup.length}-way tie (${isSwiss ? 'SWISS' : 'ROUND ROBIN'}):`);
   tiedGroup.forEach(s => {
     const p = participantMap.get(s.participantId);
-    console.log(`  - ${p?.name || s.participantId}: points=${s.points}, 20s=${s.total20s}`);
+    const miniPts = calculateMiniLeaguePoints(s, tiedIds);
+    const mini20s = calculateMiniLeague20s(s, tiedIds);
+    console.log(`  - ${p?.name || s.participantId}: pts=${s.points}, total20s=${s.total20s}, miniPts=${miniPts}, mini20s=${mini20s}`);
   });
 
-  // Sort by total 20s, then by ranking snapshot
-  const sorted = [...tiedGroup].sort((a, b) => {
-    // 1. Total 20s (higher is better)
-    if (a.total20s !== b.total20s) {
-      return b.total20s - a.total20s;
-    }
+  let sorted: GroupStanding[];
 
-    // 2. Fallback to initial ranking
-    const participantA = participantMap.get(a.participantId);
-    const participantB = participantMap.get(b.participantId);
-    if (participantA && participantB) {
-      return participantB.rankingSnapshot - participantA.rankingSnapshot;
-    }
-
-    return 0;
-  });
-
-  console.log('[Tiebreaker] Sorted result (by 20s):');
-  sorted.forEach((s, idx) => {
-    const p = participantMap.get(s.participantId);
-    console.log(`  ${idx + 1}. ${p?.name || s.participantId}: 20s=${s.total20s}, rankingSnapshot=${p?.rankingSnapshot}`);
-  });
-
-  // Mark unresolved ties (players with same 20s)
-  for (let i = 0; i < sorted.length; i++) {
-    const current = sorted[i];
-    const tiedWithIds: string[] = [];
-
-    for (let j = 0; j < sorted.length; j++) {
-      if (i === j) continue;
-
-      const other = sorted[j];
-      if (current.total20s === other.total20s) {
-        tiedWithIds.push(other.participantId);
+  if (isSwiss) {
+    // SWISS: Sort by total 20s only
+    sorted = [...tiedGroup].sort((a, b) => {
+      // 1. Total 20s (higher is better)
+      if (a.total20s !== b.total20s) {
+        return b.total20s - a.total20s;
       }
+      // Fallback to initial ranking for stable sort
+      const pA = participantMap.get(a.participantId);
+      const pB = participantMap.get(b.participantId);
+      if (pA && pB) {
+        return pB.rankingSnapshot - pA.rankingSnapshot;
+      }
+      return 0;
+    });
+
+    console.log('[Tiebreaker] SWISS sorted by total 20s:');
+    sorted.forEach((s, idx) => {
+      const p = participantMap.get(s.participantId);
+      console.log(`  ${idx + 1}. ${p?.name || s.participantId}: 20s=${s.total20s}`);
+    });
+
+    // Resolve remaining 2-player ties with H2H
+    sorted = resolveRemainingTwoPlayerTies(sorted, participantMap, s => s.total20s);
+
+  } else {
+    // ROUND ROBIN: Mini-league approach
+    // 1. Sort by mini-league points
+    sorted = [...tiedGroup].sort((a, b) => {
+      const miniPtsA = calculateMiniLeaguePoints(a, tiedIds);
+      const miniPtsB = calculateMiniLeaguePoints(b, tiedIds);
+      if (miniPtsA !== miniPtsB) {
+        return miniPtsB - miniPtsA;
+      }
+
+      // 2. Mini-league 20s
+      const mini20sA = calculateMiniLeague20s(a, tiedIds);
+      const mini20sB = calculateMiniLeague20s(b, tiedIds);
+      if (mini20sA !== mini20sB) {
+        return mini20sB - mini20sA;
+      }
+
+      // 3. Total 20s (all matches)
+      if (a.total20s !== b.total20s) {
+        return b.total20s - a.total20s;
+      }
+
+      // Fallback to initial ranking for stable sort
+      const pA = participantMap.get(a.participantId);
+      const pB = participantMap.get(b.participantId);
+      if (pA && pB) {
+        return pB.rankingSnapshot - pA.rankingSnapshot;
+      }
+      return 0;
+    });
+
+    console.log('[Tiebreaker] ROUND ROBIN sorted by mini-league:');
+    sorted.forEach((s, idx) => {
+      const p = participantMap.get(s.participantId);
+      const miniPts = calculateMiniLeaguePoints(s, tiedIds);
+      const mini20s = calculateMiniLeague20s(s, tiedIds);
+      console.log(`  ${idx + 1}. ${p?.name || s.participantId}: miniPts=${miniPts}, mini20s=${mini20s}, total20s=${s.total20s}`);
+    });
+
+    // Create a compound compare value for detecting remaining ties
+    // (mini-league points * 10000 + mini-league 20s * 100 + total 20s would overflow, so use string comparison)
+    const getCompareKey = (s: GroupStanding): string => {
+      const miniPts = calculateMiniLeaguePoints(s, tiedIds);
+      const mini20s = calculateMiniLeague20s(s, tiedIds);
+      return `${miniPts.toString().padStart(5, '0')}-${mini20s.toString().padStart(5, '0')}-${s.total20s.toString().padStart(5, '0')}`;
+    };
+
+    // Resolve remaining 2-player ties with H2H
+    // For this we need a numeric compare, so we'll handle it inline
+    const result: GroupStanding[] = [];
+    let i = 0;
+
+    while (i < sorted.length) {
+      const currentKey = getCompareKey(sorted[i]);
+      let j = i + 1;
+      while (j < sorted.length && getCompareKey(sorted[j]) === currentKey) {
+        j++;
+      }
+
+      const tiedSubgroup = sorted.slice(i, j);
+
+      if (tiedSubgroup.length === 2) {
+        const [a, b] = tiedSubgroup;
+        const h2h = getHeadToHeadResult(a, b);
+
+        if (h2h !== null && h2h !== 0) {
+          a.tiedWith = undefined;
+          a.tieReason = undefined;
+          b.tiedWith = undefined;
+          b.tieReason = undefined;
+          if (h2h === 1) {
+            result.push(a, b);
+          } else {
+            result.push(b, a);
+          }
+        } else {
+          a.tiedWith = [b.participantId];
+          a.tieReason = 'unresolved';
+          b.tiedWith = [a.participantId];
+          b.tieReason = 'unresolved';
+
+          const pA = participantMap.get(a.participantId);
+          const pB = participantMap.get(b.participantId);
+          if (pA && pB && pA.rankingSnapshot !== pB.rankingSnapshot) {
+            result.push(...(pA.rankingSnapshot > pB.rankingSnapshot ? [a, b] : [b, a]));
+          } else {
+            result.push(a, b);
+          }
+        }
+      } else if (tiedSubgroup.length > 2) {
+        for (const s of tiedSubgroup) {
+          s.tiedWith = tiedSubgroup.filter(x => x !== s).map(x => x.participantId);
+          s.tieReason = 'unresolved';
+        }
+        result.push(...tiedSubgroup);
+      } else {
+        tiedSubgroup[0].tiedWith = undefined;
+        tiedSubgroup[0].tieReason = undefined;
+        result.push(...tiedSubgroup);
+      }
+
+      i = j;
     }
 
-    if (tiedWithIds.length > 0) {
-      current.tiedWith = tiedWithIds;
-      current.tieReason = 'unresolved';
-    } else {
-      current.tiedWith = undefined;
-      current.tieReason = undefined;
-    }
+    sorted = result;
   }
 
   return sorted;
@@ -205,7 +414,8 @@ function resolveMultiPlayerTie(
 function resolveTiedGroup(
   tiedGroup: GroupStanding[],
   rankingSystem: SwissRankingSystem,
-  participantMap: Map<string, TournamentParticipant>
+  participantMap: Map<string, TournamentParticipant>,
+  isSwiss: boolean
 ): GroupStanding[] {
   if (tiedGroup.length === 1) {
     // No tie to resolve
@@ -218,7 +428,7 @@ function resolveTiedGroup(
     return resolveTwoPlayerTie(tiedGroup, rankingSystem, participantMap);
   }
 
-  return resolveMultiPlayerTie(tiedGroup, rankingSystem, participantMap);
+  return resolveMultiPlayerTie(tiedGroup, rankingSystem, participantMap, isSwiss);
 }
 
 /**
@@ -265,7 +475,7 @@ export function resolveTiebreaker(
 
   for (const primaryValue of sortedPrimaryValues) {
     const tiedGroup = groups.get(primaryValue)!;
-    const resolvedGroup = resolveTiedGroup(tiedGroup, swissRankingSystem, participantMap);
+    const resolvedGroup = resolveTiedGroup(tiedGroup, swissRankingSystem, participantMap, isSwiss);
     result.push(...resolvedGroup);
   }
 
@@ -284,13 +494,17 @@ export function resolveTiebreaker(
  * @param participantA First participant ID
  * @param participantB Second participant ID
  * @param winner Winner ID (or null for tie)
+ * @param twentiesA 20s scored by participant A in this match
+ * @param twentiesB 20s scored by participant B in this match
  * @returns Updated standings
  */
 export function updateHeadToHeadRecord(
   standings: GroupStanding[],
   participantA: string,
   participantB: string,
-  winner: string | null
+  winner: string | null,
+  twentiesA: number = 0,
+  twentiesB: number = 0
 ): GroupStanding[] {
   const updated = [...standings];
 
@@ -309,17 +523,17 @@ export function updateHeadToHeadRecord(
     standingB.headToHeadRecord = {};
   }
 
-  // Update records
+  // Update records with result and 20s
   if (winner === null) {
     // Tie
-    standingA.headToHeadRecord[participantB] = 'TIE';
-    standingB.headToHeadRecord[participantA] = 'TIE';
+    standingA.headToHeadRecord[participantB] = { result: 'TIE', twenties: twentiesA };
+    standingB.headToHeadRecord[participantA] = { result: 'TIE', twenties: twentiesB };
   } else if (winner === participantA) {
-    standingA.headToHeadRecord[participantB] = 'WIN';
-    standingB.headToHeadRecord[participantA] = 'LOSS';
+    standingA.headToHeadRecord[participantB] = { result: 'WIN', twenties: twentiesA };
+    standingB.headToHeadRecord[participantA] = { result: 'LOSS', twenties: twentiesB };
   } else {
-    standingA.headToHeadRecord[participantB] = 'LOSS';
-    standingB.headToHeadRecord[participantA] = 'WIN';
+    standingA.headToHeadRecord[participantB] = { result: 'LOSS', twenties: twentiesA };
+    standingB.headToHeadRecord[participantA] = { result: 'WIN', twenties: twentiesB };
   }
 
   return updated;

@@ -165,40 +165,41 @@ exports.onTournamentComplete = (0, firestore_1.onDocumentUpdated)({
     }
     firebase_functions_1.logger.info(`Tournament ${tournamentId} (${afterData.name}) just completed - processing participant results`);
     const rankingEnabled = afterData.rankingConfig?.enabled ?? false;
-    const tier = rankingEnabled
-        ? (afterData.rankingConfig?.tier || "CLUB")
-        : "CLUB";
+    // If ranking is disabled, skip all processing
+    if (!rankingEnabled) {
+        firebase_functions_1.logger.info(`Ranking disabled for tournament ${tournamentId} - skipping participant ranking updates`);
+        return;
+    }
+    const tier = afterData.rankingConfig?.tier || "CLUB";
     const activeParticipants = afterData.participants.filter((p) => p.status === "ACTIVE" && p.finalPosition);
     const totalParticipants = afterData.participants.filter((p) => p.status === "ACTIVE").length;
-    firebase_functions_1.logger.info(`Processing ${activeParticipants.length} participants with final positions`);
+    firebase_functions_1.logger.info(`Processing ${activeParticipants.length} participants with final positions (tier: ${tier})`);
     // Add tournamentId to the tournament object (not included in document data)
     const tournamentWithId = { ...afterData, id: tournamentId };
-    // Process all participants
-    const results = await Promise.allSettled(activeParticipants.map((p) => processParticipant(p, tournamentWithId, tier, totalParticipants, rankingEnabled)));
+    // Process all participants (only runs if ranking is enabled)
+    const results = await Promise.allSettled(activeParticipants.map((p) => processParticipant(p, tournamentWithId, tier, totalParticipants, true)));
     const successful = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.filter((r) => r.status === "rejected").length;
     firebase_functions_1.logger.info(`Tournament ${tournamentId} processing complete: ${successful} successful, ${failed} failed`);
-    // Update tournament to mark ranking updates as applied (if ranking enabled)
-    if (rankingEnabled) {
-        try {
-            const updatedParticipants = afterData.participants.map((p) => {
-                if (p.status === "ACTIVE" && p.finalPosition) {
-                    const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
-                    return {
-                        ...p,
-                        currentRanking: (p.rankingSnapshot || 0) + pointsEarned,
-                    };
-                }
-                return p;
-            });
-            await db.collection("tournaments").doc(tournamentId).update({
-                participants: updatedParticipants,
-            });
-            firebase_functions_1.logger.info(`Updated participant rankings in tournament ${tournamentId}`);
-        }
-        catch (error) {
-            firebase_functions_1.logger.error("Error updating tournament participants:", error);
-        }
+    // Update tournament to mark ranking updates as applied
+    try {
+        const updatedParticipants = afterData.participants.map((p) => {
+            if (p.status === "ACTIVE" && p.finalPosition) {
+                const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
+                return {
+                    ...p,
+                    currentRanking: (p.rankingSnapshot || 0) + pointsEarned,
+                };
+            }
+            return p;
+        });
+        await db.collection("tournaments").doc(tournamentId).update({
+            participants: updatedParticipants,
+        });
+        firebase_functions_1.logger.info(`Updated participant rankings in tournament ${tournamentId}`);
+    }
+    catch (error) {
+        firebase_functions_1.logger.error("Error updating tournament participants:", error);
     }
 });
 //# sourceMappingURL=index.js.map

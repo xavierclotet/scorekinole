@@ -4,7 +4,7 @@
 
 Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. Perfect for casual games and professional tournaments.
 
-![Version](https://img.shields.io/badge/version-2.1.9-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.10-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Android-brightgreen.svg)
 
@@ -12,7 +12,7 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 
 ## 📥 **DOWNLOAD ANDROID APP**
 
-### 👉 [**DOWNLOAD LATEST VERSION (v2.1.9)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
+### 👉 [**DOWNLOAD LATEST VERSION (v2.1.10)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
 
 **Installation:**
 1. Download the APK file from the link above
@@ -21,7 +21,7 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 
 ---
 
-## ✨ What Can You Do With ScoreCroki?
+## ✨ What Can You Do With ScoreCrokinole Arena?
 
 ### 🎮 **Easy Score Tracking**
 - **Swipe to Score**: Just swipe up or down on the screen to add or remove points
@@ -129,7 +129,7 @@ Complete tournament administration system for professional Crokinole events:
 
 #### **Visualization**
 - **Beautiful bracket display**: Visual connectors between matches
-- **Group standings**: Live updated tables with tiebreakers
+- **Group standings**: Live updated tables with tiebreakers ([see tiebreaker rules](docs/TIEBREAKER.md))
 - **Match details**: Round-by-round breakdown
 - **Tournament results**: Final standings with all statistics
 

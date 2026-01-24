@@ -318,8 +318,9 @@ function calculateBracketRoundsBreakdown(
   }
 
   // Add 3rd place match if applicable
+  // 3rd place match uses SEMIFINALS config (same as semis), not finals
   if (includeThirdPlace && numParticipants >= 4) {
-    const finalConfig = phaseConfigs?.finals || { minutesPerMatch: defaultMinutesPerMatch, breakBetweenMatches };
+    const thirdPlaceConfig = phaseConfigs?.semifinals || { minutesPerMatch: defaultMinutesPerMatch, breakBetweenMatches, gameMode: 'points', pointsToWin: 7 };
 
     // If parallelFinals is true, final and 3rd place are played together
     // So we mark it and adjust the time (it doesn't add extra time if parallel)
@@ -332,12 +333,12 @@ function calculateBracketRoundsBreakdown(
         finalRound.name = 'finals'; // Use plural
       }
     } else {
-      // Sequential: add 3rd place as separate round
+      // Sequential: add 3rd place as separate round (uses semis config)
       rounds.push({
         name: 'thirdPlace',
         matches: 1,
-        minutes: Math.round(finalConfig.minutesPerMatch + finalConfig.breakBetweenMatches),
-        config: getConfigString(finalConfig)
+        minutes: Math.round(thirdPlaceConfig.minutesPerMatch + thirdPlaceConfig.breakBetweenMatches),
+        config: getConfigString(thirdPlaceConfig)
       });
     }
   }
@@ -555,10 +556,11 @@ export function calculateTimeBreakdown(
         // Swiss rounds are already time slots - each Swiss round has N/2 parallel matches
         matchRounds = numSwissRounds;
       } else {
-        // Round Robin: N-1 rounds per group (participants play against all others)
-        // Each round's matches are played in parallel across tables
+        // Round Robin: rounds depend on participant count
+        // - Even number: N-1 rounds (everyone plays each round)
+        // - Odd number: N rounds (one BYE per round)
         const participantsPerGroup = Math.ceil(numParticipants / numGroups);
-        matchRounds = participantsPerGroup - 1;
+        matchRounds = participantsPerGroup % 2 === 0 ? participantsPerGroup - 1 : participantsPerGroup;
       }
 
       const totalMinutes = matchRounds * (detailed.minutesPerMatch + effectiveConfig.breakBetweenMatches);

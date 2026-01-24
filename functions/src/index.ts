@@ -248,9 +248,14 @@ export const onTournamentComplete = onDocumentUpdated(
     logger.info(`Tournament ${tournamentId} (${afterData.name}) just completed - processing participant results`);
 
     const rankingEnabled = afterData.rankingConfig?.enabled ?? false;
-    const tier: TournamentTier = rankingEnabled
-      ? (afterData.rankingConfig?.tier || "CLUB")
-      : "CLUB";
+
+    // If ranking is disabled, skip all processing
+    if (!rankingEnabled) {
+      logger.info(`Ranking disabled for tournament ${tournamentId} - skipping participant ranking updates`);
+      return;
+    }
+
+    const tier: TournamentTier = afterData.rankingConfig?.tier || "CLUB";
 
     const activeParticipants = afterData.participants.filter(
       (p) => p.status === "ACTIVE" && p.finalPosition
@@ -260,15 +265,15 @@ export const onTournamentComplete = onDocumentUpdated(
       (p) => p.status === "ACTIVE"
     ).length;
 
-    logger.info(`Processing ${activeParticipants.length} participants with final positions`);
+    logger.info(`Processing ${activeParticipants.length} participants with final positions (tier: ${tier})`);
 
     // Add tournamentId to the tournament object (not included in document data)
     const tournamentWithId: Tournament = { ...afterData, id: tournamentId };
 
-    // Process all participants
+    // Process all participants (only runs if ranking is enabled)
     const results = await Promise.allSettled(
       activeParticipants.map((p) =>
-        processParticipant(p, tournamentWithId, tier, totalParticipants, rankingEnabled)
+        processParticipant(p, tournamentWithId, tier, totalParticipants, true)
       )
     );
 
@@ -279,28 +284,26 @@ export const onTournamentComplete = onDocumentUpdated(
       `Tournament ${tournamentId} processing complete: ${successful} successful, ${failed} failed`
     );
 
-    // Update tournament to mark ranking updates as applied (if ranking enabled)
-    if (rankingEnabled) {
-      try {
-        const updatedParticipants = afterData.participants.map((p) => {
-          if (p.status === "ACTIVE" && p.finalPosition) {
-            const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
-            return {
-              ...p,
-              currentRanking: (p.rankingSnapshot || 0) + pointsEarned,
-            };
-          }
-          return p;
-        });
+    // Update tournament to mark ranking updates as applied
+    try {
+      const updatedParticipants = afterData.participants.map((p) => {
+        if (p.status === "ACTIVE" && p.finalPosition) {
+          const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
+          return {
+            ...p,
+            currentRanking: (p.rankingSnapshot || 0) + pointsEarned,
+          };
+        }
+        return p;
+      });
 
-        await db.collection("tournaments").doc(tournamentId).update({
-          participants: updatedParticipants,
-        });
+      await db.collection("tournaments").doc(tournamentId).update({
+        participants: updatedParticipants,
+      });
 
-        logger.info(`Updated participant rankings in tournament ${tournamentId}`);
-      } catch (error) {
-        logger.error("Error updating tournament participants:", error);
-      }
+      logger.info(`Updated participant rankings in tournament ${tournamentId}`);
+    } catch (error) {
+      logger.error("Error updating tournament participants:", error);
     }
   }
 );

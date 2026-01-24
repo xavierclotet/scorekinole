@@ -387,22 +387,27 @@ export async function applyRankingUpdates(tournamentId: string): Promise<boolean
   const rankingEnabled = tournament.rankingConfig?.enabled ?? false;
   console.log('🏅 Tournament rankingConfig:', tournament.rankingConfig, 'enabled:', rankingEnabled);
 
+  // If ranking is disabled, skip all processing
+  if (!rankingEnabled) {
+    console.log('🏅 Ranking disabled - skipping participant ranking updates');
+    return true;
+  }
+
   // Show loader
   savingParticipantResults.set(true);
 
   try {
     const { addTournamentRecord } = await import('./userProfile');
 
-    const tier = rankingEnabled ? (tournament.rankingConfig?.tier || 'CLUB') : 'CLUB';
+    const tier = tournament.rankingConfig?.tier || 'CLUB';
     const totalParticipants = tournament.participants.filter(p => p.status === 'ACTIVE').length;
     const activeParticipants = tournament.participants.filter(p => p.status === 'ACTIVE' && p.finalPosition);
 
-    console.log('🏅 Active participants with finalPosition:', activeParticipants.length);
+    console.log('🏅 Active participants with finalPosition:', activeParticipants.length, 'tier:', tier);
 
     for (const participant of activeParticipants) {
       const position = participant.finalPosition || 0;
-      // Only calculate ranking points if ranking is enabled, otherwise 0
-      const pointsEarned = rankingEnabled ? calculateRankingPoints(position, tier) : 0;
+      const pointsEarned = calculateRankingPoints(position, tier);
       const rankingBefore = participant.rankingSnapshot || 0;
       const rankingAfter = rankingBefore + pointsEarned;
 
@@ -433,23 +438,21 @@ export async function applyRankingUpdates(tournamentId: string): Promise<boolean
       }
     }
 
-    // Only update participant rankings in tournament if ranking is enabled
-    if (rankingEnabled) {
-      const updatedParticipants = tournament.participants.map(p => {
-        if (p.status === 'ACTIVE' && p.finalPosition) {
-          const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
-          return {
-            ...p,
-            currentRanking: (p.rankingSnapshot || 0) + pointsEarned
-          };
-        }
-        return p;
-      });
+    // Update participant rankings in tournament document
+    const updatedParticipants = tournament.participants.map(p => {
+      if (p.status === 'ACTIVE' && p.finalPosition) {
+        const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
+        return {
+          ...p,
+          currentRanking: (p.rankingSnapshot || 0) + pointsEarned
+        };
+      }
+      return p;
+    });
 
-      await updateTournamentPublic(tournamentId, {
-        participants: updatedParticipants
-      });
-    }
+    await updateTournamentPublic(tournamentId, {
+      participants: updatedParticipants
+    });
 
     return true;
   } catch (error) {

@@ -24,7 +24,7 @@
   } from '$lib/firebase/tournamentTransition';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { generateBracket, generateSplitBrackets } from '$lib/firebase/tournamentBracket';
-  import { updateTournament } from '$lib/firebase/tournaments';
+  import { updateTournament, updateTournamentPublic } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';
 
   let tournament: Tournament | null = null;
@@ -83,6 +83,10 @@
   // Global top N value for all groups
   let topNPerGroup: number = 2;
 
+  // Track unresolved ties per group
+  let groupTiesStatus = new Map<number, boolean>();
+  $: hasAnyUnresolvedTies = Array.from(groupTiesStatus.values()).some(hasTies => hasTies);
+
   $: tournamentId = $page.params.id;
   $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
   $: isSplitDivisions = tournament?.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
@@ -97,10 +101,10 @@
   $: isValidGoldSize = isValidBracketSize(goldCount);
   $: isValidSilverSize = isValidBracketSize(silverCount);
 
-  // Can proceed logic
-  $: canProceed = isSplitDivisions
+  // Can proceed logic - also check for unresolved ties
+  $: canProceed = !hasAnyUnresolvedTies && (isSplitDivisions
     ? (goldCount >= 2 && isValidGoldSize && silverCount >= 2 && isValidSilverSize)
-    : (totalQualifiers >= 2 && isValidSize);
+    : (totalQualifiers >= 2 && isValidSize));
 
   $: bracketRoundNames = totalQualifiers > 0 ? getBracketRoundNames(totalQualifiers) : [];
   $: goldBracketRoundNames = goldCount > 0 ? getBracketRoundNames(goldCount) : [];
@@ -226,10 +230,15 @@
         const isSingleBracketSingleGroup = tournament.finalStageConfig?.mode !== 'SPLIT_DIVISIONS' && groups.length === 1;
         const isSplitDiv = tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
 
-        // Build qualifiers map - create new Map to ensure reactivity
+        // Build qualifiers map and check for ties - create new Maps to ensure reactivity
         const newQualifiersMap = new Map<number, string[]>();
+        const newTiesStatusMap = new Map<number, boolean>();
         groups.forEach((group: any, index: number) => {
           const standings = Array.isArray(group.standings) ? group.standings : Object.values(group.standings || {});
+
+          // Check for unresolved ties in this group
+          const hasUnresolvedTies = standings.some((s: any) => s.tiedWith && s.tiedWith.length > 0);
+          newTiesStatusMap.set(index, hasUnresolvedTies);
           const qualified = standings
             .filter((s: any) => s.qualifiedForFinal)
             .map((s: any) => s.participantId);
@@ -256,6 +265,7 @@
           }
         });
         groupQualifiers = newQualifiersMap; // Assign new Map to trigger reactivity
+        groupTiesStatus = newTiesStatusMap; // Initialize tie status from loaded standings
 
         // Load final stage config from tournament if it exists
         if (tournament.finalStageConfig) {
@@ -328,6 +338,49 @@
     const newMap = new Map(groupQualifiers);
     newMap.set(groupIndex, qualifiedIds);
     groupQualifiers = newMap;
+  }
+
+  function handleTiesStatusChanged(groupIndex: number, hasUnresolvedTies: boolean) {
+    // Track tie status per group
+    const newMap = new Map(groupTiesStatus);
+    newMap.set(groupIndex, hasUnresolvedTies);
+    groupTiesStatus = newMap;
+  }
+
+  async function handleStandingsChanged(groupIndex: number, newStandings: any[]) {
+    // Save the updated standings to Firebase
+    if (!tournament || !tournament.groupStage?.groups) return;
+
+    try {
+      const groups = [...tournament.groupStage.groups];
+      groups[groupIndex] = {
+        ...groups[groupIndex],
+        standings: newStandings
+      };
+
+      await updateTournamentPublic(tournamentId, {
+        groupStage: {
+          ...tournament.groupStage,
+          groups
+        }
+      });
+
+      // Update local tournament object
+      tournament = {
+        ...tournament,
+        groupStage: {
+          ...tournament.groupStage,
+          groups
+        }
+      };
+
+      console.log(`[Transition] Standings updated for group ${groupIndex}`);
+    } catch (err) {
+      console.error('Error saving standings:', err);
+      toastMessage = 'Error saving standings';
+      toastType = 'error';
+      showToast = true;
+    }
   }
 
   async function handleGenerateBracket() {
@@ -853,11 +906,30 @@
                       groupIndex={index}
                       topN={topNPerGroup}
                       on:update={(e) => handleQualifierUpdate(index, e.detail)}
+                      on:tiesStatusChanged={(e) => handleTiesStatusChanged(e.detail.groupIndex, e.detail.hasUnresolvedTies)}
+                      on:standingsChanged={(e) => handleStandingsChanged(e.detail.groupIndex, e.detail.standings)}
                     />
                   {/each}
                 {/if}
               </div>
             </div>
+
+            <!-- Warning for unresolved ties -->
+            {#if hasAnyUnresolvedTies}
+              <div class="action-required-banner">
+                <div class="banner-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <div class="banner-content">
+                  <span class="banner-title">{$t('unresolvedTiesBlockBracket')}</span>
+                  <span class="banner-hint">{$t('resolveTiesFirst')}</span>
+                </div>
+              </div>
+            {/if}
 
             <!-- Rounds accordion -->
             {#if tournament.groupStage?.groups?.[0]?.pairings?.length > 0}
@@ -1238,10 +1310,29 @@
                     groupIndex={index}
                     topN={topNPerGroup}
                     on:update={(e) => handleQualifierUpdate(index, e.detail)}
+                    on:tiesStatusChanged={(e) => handleTiesStatusChanged(e.detail.groupIndex, e.detail.hasUnresolvedTies)}
+                    on:standingsChanged={(e) => handleStandingsChanged(e.detail.groupIndex, e.detail.standings)}
                   />
                 {/each}
               {/if}
             </div>
+
+            <!-- Warning for unresolved ties -->
+            {#if hasAnyUnresolvedTies}
+              <div class="action-required-banner">
+                <div class="banner-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <div class="banner-content">
+                  <span class="banner-title">{$t('unresolvedTiesBlockBracket')}</span>
+                  <span class="banner-hint">{$t('resolveTiesFirst')}</span>
+                </div>
+              </div>
+            {/if}
           </div>
 
           <!-- Summary and validation -->
@@ -2070,6 +2161,47 @@
     font-size: 0.8rem;
     font-weight: 600;
     line-height: 1.4;
+  }
+
+  .action-required-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    margin: 1rem 0;
+    padding: 0.875rem 1rem;
+    background: #fffbeb;
+    border: 1px solid #fbbf24;
+    border-radius: 6px;
+  }
+
+  .action-required-banner .banner-icon {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    color: #d97706;
+  }
+
+  .action-required-banner .banner-icon svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .action-required-banner .banner-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .action-required-banner .banner-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #92400e;
+  }
+
+  .action-required-banner .banner-hint {
+    font-size: 0.75rem;
+    color: #b45309;
   }
 
   .actions-section {

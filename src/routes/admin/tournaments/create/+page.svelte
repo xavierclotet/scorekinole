@@ -68,7 +68,7 @@
   let finalStageMode: 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' = 'SINGLE_BRACKET';
   // Gold bracket config (or single bracket if SINGLE_BRACKET mode)
   let finalGameMode: 'points' | 'rounds' = 'points';
-  let finalPointsToWin = 7;
+  let finalPointsToWin = 9;
   let finalRoundsToPlay = 4;
   let finalMatchesToWin = 1;
   // Silver bracket config (only for SPLIT_DIVISIONS mode) - default: 4 rounds, best of 1
@@ -93,16 +93,16 @@
   let bracketFinalPointsToWin = 9;
   let bracketFinalRoundsToPlay = 4;
   let bracketFinalMatchesToWin = 1;
-  // Silver bracket advanced config
+  // Silver bracket advanced config (default: all phases to 4 rounds)
   let silverEarlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
   let silverEarlyRoundsPointsToWin = 7;
   let silverEarlyRoundsToPlay = 4;
-  let silverSemifinalGameMode: 'points' | 'rounds' = 'points';
+  let silverSemifinalGameMode: 'points' | 'rounds' = 'rounds';
   let silverSemifinalPointsToWin = 7;
   let silverSemifinalRoundsToPlay = 4;
   let silverSemifinalMatchesToWin = 1;
-  let silverBracketFinalGameMode: 'points' | 'rounds' = 'points';
-  let silverBracketFinalPointsToWin = 9;
+  let silverBracketFinalGameMode: 'points' | 'rounds' = 'rounds';
+  let silverBracketFinalPointsToWin = 7;
   let silverBracketFinalRoundsToPlay = 4;
   let silverBracketFinalMatchesToWin = 1;
 
@@ -113,7 +113,7 @@
   let matchesToWin = 3;
 
   // Step 3: Ranking Configuration
-  let rankingEnabled = true;
+  let rankingEnabled = false;
   let selectedTier: TournamentTier = 'CLUB';
 
   // Step 4: Participants
@@ -331,7 +331,7 @@
       }
 
       // Step 3
-      rankingEnabled = tournament.rankingConfig?.enabled ?? true;
+      rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
       // Step 4 - Load participants
@@ -466,7 +466,7 @@
       }
 
       // Step 3
-      rankingEnabled = tournament.rankingConfig?.enabled ?? true;
+      rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
       // Step 4 - Copy participants (without match data)
@@ -564,7 +564,7 @@
       matchesToWin = data.matchesToWin || 3;
 
       // Step 3
-      rankingEnabled = data.rankingEnabled ?? true;
+      rankingEnabled = data.rankingEnabled ?? false;
       selectedTier = data.selectedTier || 'CLUB';
 
       // Step 4
@@ -1043,48 +1043,51 @@
 
         // Final stage configuration will be set when transitioning (in generateBracket)
         // We store it in finalStageConfig for now
+        // Always save per-phase configuration (use advanced values if enabled, otherwise defaults)
+        const goldEarlyMode = showAdvancedBracketConfig ? earlyRoundsGameMode : 'rounds';
+        const goldSemiMode = showAdvancedBracketConfig ? semifinalGameMode : 'points';
+        const goldFinalMode = showAdvancedBracketConfig ? bracketFinalGameMode : 'points';
+        const silverEarlyMode = showAdvancedBracketConfig ? silverEarlyRoundsGameMode : 'rounds';
+        const silverSemiMode = showAdvancedBracketConfig ? silverSemifinalGameMode : 'rounds';
+        const silverFinalMode = showAdvancedBracketConfig ? silverBracketFinalGameMode : 'rounds';
+
         tournamentData.finalStageConfig = {
           mode: finalStageMode,
-          // Gold bracket config (or single bracket if SINGLE_BRACKET mode)
+          // Gold bracket base config (or single bracket if SINGLE_BRACKET mode)
           gameMode: finalGameMode,
           pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
           roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
           matchesToWin: finalMatchesToWin,
+          // Gold bracket per-phase config (always saved)
+          earlyRoundsGameMode: goldEarlyMode,
+          earlyRoundsPointsToWin: goldEarlyMode === 'points' ? (showAdvancedBracketConfig ? earlyRoundsPointsToWin : 7) : undefined,
+          earlyRoundsToPlay: goldEarlyMode === 'rounds' ? (showAdvancedBracketConfig ? earlyRoundsToPlay : 4) : undefined,
+          semifinalGameMode: goldSemiMode,
+          semifinalPointsToWin: goldSemiMode === 'points' ? (showAdvancedBracketConfig ? semifinalPointsToWin : 7) : undefined,
+          semifinalRoundsToPlay: goldSemiMode === 'rounds' ? (showAdvancedBracketConfig ? semifinalRoundsToPlay : 4) : undefined,
+          semifinalMatchesToWin: showAdvancedBracketConfig ? semifinalMatchesToWin : 1,
+          finalGameMode: goldFinalMode,
+          finalPointsToWin: goldFinalMode === 'points' ? (showAdvancedBracketConfig ? bracketFinalPointsToWin : 9) : undefined,
+          finalRoundsToPlay: goldFinalMode === 'rounds' ? (showAdvancedBracketConfig ? bracketFinalRoundsToPlay : 4) : undefined,
+          finalMatchesToWin: showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1,
           // Silver bracket config (only for SPLIT_DIVISIONS mode)
-          silverGameMode: finalStageMode === 'SPLIT_DIVISIONS' ? silverGameMode : undefined,
-          silverPointsToWin: finalStageMode === 'SPLIT_DIVISIONS' && silverGameMode === 'points' ? silverPointsToWin : undefined,
-          silverRoundsToPlay: finalStageMode === 'SPLIT_DIVISIONS' && silverGameMode === 'rounds' ? silverRoundsToPlay : undefined,
-          silverMatchesToWin: finalStageMode === 'SPLIT_DIVISIONS' ? silverMatchesToWin : undefined,
-          // Advanced per-phase configuration (if enabled)
-          ...(showAdvancedBracketConfig ? {
-            // Early rounds (octavos, cuartos)
-            earlyRoundsGameMode,
-            earlyRoundsPointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
-            earlyRoundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
-            // Semifinals
-            semifinalGameMode,
-            semifinalPointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
-            semifinalRoundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
-            semifinalMatchesToWin,
-            // Final
-            finalGameMode: bracketFinalGameMode,
-            finalPointsToWin: bracketFinalGameMode === 'points' ? bracketFinalPointsToWin : undefined,
-            finalRoundsToPlay: bracketFinalGameMode === 'rounds' ? bracketFinalRoundsToPlay : undefined,
-            finalMatchesToWin: bracketFinalMatchesToWin,
-            // Silver bracket advanced config (only for SPLIT_DIVISIONS)
-            ...(finalStageMode === 'SPLIT_DIVISIONS' ? {
-              silverEarlyRoundsGameMode,
-              silverEarlyRoundsPointsToWin: silverEarlyRoundsGameMode === 'points' ? silverEarlyRoundsPointsToWin : undefined,
-              silverEarlyRoundsToPlay: silverEarlyRoundsGameMode === 'rounds' ? silverEarlyRoundsToPlay : undefined,
-              silverSemifinalGameMode,
-              silverSemifinalPointsToWin: silverSemifinalGameMode === 'points' ? silverSemifinalPointsToWin : undefined,
-              silverSemifinalRoundsToPlay: silverSemifinalGameMode === 'rounds' ? silverSemifinalRoundsToPlay : undefined,
-              silverSemifinalMatchesToWin,
-              silverFinalGameMode: silverBracketFinalGameMode,
-              silverFinalPointsToWin: silverBracketFinalGameMode === 'points' ? silverBracketFinalPointsToWin : undefined,
-              silverFinalRoundsToPlay: silverBracketFinalGameMode === 'rounds' ? silverBracketFinalRoundsToPlay : undefined,
-              silverFinalMatchesToWin: silverBracketFinalMatchesToWin
-            } : {})
+          ...(finalStageMode === 'SPLIT_DIVISIONS' ? {
+            silverGameMode,
+            silverPointsToWin: silverGameMode === 'points' ? silverPointsToWin : undefined,
+            silverRoundsToPlay: silverGameMode === 'rounds' ? silverRoundsToPlay : undefined,
+            silverMatchesToWin,
+            // Silver bracket per-phase config (always saved, default: all 4 rounds)
+            silverEarlyRoundsGameMode: silverEarlyMode,
+            silverEarlyRoundsPointsToWin: silverEarlyMode === 'points' ? (showAdvancedBracketConfig ? silverEarlyRoundsPointsToWin : 7) : undefined,
+            silverEarlyRoundsToPlay: silverEarlyMode === 'rounds' ? (showAdvancedBracketConfig ? silverEarlyRoundsToPlay : 4) : undefined,
+            silverSemifinalGameMode: silverSemiMode,
+            silverSemifinalPointsToWin: silverSemiMode === 'points' ? (showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7) : undefined,
+            silverSemifinalRoundsToPlay: silverSemiMode === 'rounds' ? (showAdvancedBracketConfig ? silverSemifinalRoundsToPlay : 4) : undefined,
+            silverSemifinalMatchesToWin: showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1,
+            silverFinalGameMode: silverFinalMode,
+            silverFinalPointsToWin: silverFinalMode === 'points' ? (showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7) : undefined,
+            silverFinalRoundsToPlay: silverFinalMode === 'rounds' ? (showAdvancedBracketConfig ? silverBracketFinalRoundsToPlay : 4) : undefined,
+            silverFinalMatchesToWin: showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1
           } : {})
         };
       } else {
@@ -2570,13 +2573,32 @@
                     <span>{finalStageMode === 'SPLIT_DIVISIONS' ? 'Bracket Oro' : 'Config. Final'}</span>
                   </div>
                   <div class="review-card-body">
+                    <!-- Show per-phase config -->
                     <div class="review-row">
-                      <span class="review-label">Modo</span>
-                      <span class="review-value">{finalGameMode === 'points' ? `${finalPointsToWin} pts` : `${finalRoundsToPlay} rondas`}</span>
+                      <span class="review-label">{$t('earlyRounds')}</span>
+                      <span class="review-value">
+                        {(showAdvancedBracketConfig ? earlyRoundsGameMode : 'rounds') === 'points'
+                          ? `${showAdvancedBracketConfig ? earlyRoundsPointsToWin : 7}p`
+                          : `${showAdvancedBracketConfig ? earlyRoundsToPlay : 4}r`}
+                      </span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">Partidos</span>
-                      <span class="review-value">Bo{finalMatchesToWin}</span>
+                      <span class="review-label">{$t('semifinals')}</span>
+                      <span class="review-value">
+                        {(showAdvancedBracketConfig ? semifinalGameMode : 'points') === 'points'
+                          ? `${showAdvancedBracketConfig ? semifinalPointsToWin : 7}p`
+                          : `${showAdvancedBracketConfig ? semifinalRoundsToPlay : 4}r`}
+                        · Bo{showAdvancedBracketConfig ? semifinalMatchesToWin : 1}
+                      </span>
+                    </div>
+                    <div class="review-row">
+                      <span class="review-label">{$t('final')}</span>
+                      <span class="review-value">
+                        {(showAdvancedBracketConfig ? bracketFinalGameMode : 'points') === 'points'
+                          ? `${showAdvancedBracketConfig ? bracketFinalPointsToWin : 9}p`
+                          : `${showAdvancedBracketConfig ? bracketFinalRoundsToPlay : 4}r`}
+                        · Bo{showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -2588,13 +2610,32 @@
                       <span>Bracket Plata</span>
                     </div>
                     <div class="review-card-body">
+                      <!-- Show per-phase config for silver (default: all 4 rounds) -->
                       <div class="review-row">
-                        <span class="review-label">Modo</span>
-                        <span class="review-value">{silverGameMode === 'points' ? `${silverPointsToWin} pts` : `${silverRoundsToPlay} rondas`}</span>
+                        <span class="review-label">{$t('earlyRounds')}</span>
+                        <span class="review-value">
+                          {(showAdvancedBracketConfig ? silverEarlyRoundsGameMode : 'rounds') === 'points'
+                            ? `${showAdvancedBracketConfig ? silverEarlyRoundsPointsToWin : 7}p`
+                            : `${showAdvancedBracketConfig ? silverEarlyRoundsToPlay : 4}r`}
+                        </span>
                       </div>
                       <div class="review-row">
-                        <span class="review-label">Partidos</span>
-                        <span class="review-value">Bo{silverMatchesToWin}</span>
+                        <span class="review-label">{$t('semifinals')}</span>
+                        <span class="review-value">
+                          {(showAdvancedBracketConfig ? silverSemifinalGameMode : 'rounds') === 'points'
+                            ? `${showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7}p`
+                            : `${showAdvancedBracketConfig ? silverSemifinalRoundsToPlay : 4}r`}
+                          · Bo{showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1}
+                        </span>
+                      </div>
+                      <div class="review-row">
+                        <span class="review-label">{$t('final')}</span>
+                        <span class="review-value">
+                          {(showAdvancedBracketConfig ? silverBracketFinalGameMode : 'rounds') === 'points'
+                            ? `${showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7}p`
+                            : `${showAdvancedBracketConfig ? silverBracketFinalRoundsToPlay : 4}r`}
+                          · Bo{showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1}
+                        </span>
                       </div>
                     </div>
                   </div>

@@ -345,14 +345,16 @@ export async function recalculateStandings(
             }
           }
 
-          // Update head-to-head
+          // Update head-to-head (including 20s for mini-league tiebreaker)
           if (standingB && match.participantB !== 'BYE') {
             const standings = Array.from(standingsMap.values());
             const updatedStandings = updateHeadToHeadRecord(
               standings,
               match.participantA,
               match.participantB,
-              match.winner || null
+              match.winner || null,
+              match.total20sA || 0,
+              match.total20sB || 0
             );
             updatedStandings.forEach(s => standingsMap.set(s.participantId, s));
           }
