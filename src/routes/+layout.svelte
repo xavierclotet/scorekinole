@@ -4,7 +4,9 @@
 	import { loadTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { loadHistory } from '$lib/stores/history';
-	import { initAuthListener } from '$lib/firebase/auth';
+	import { initAuthListener, needsProfileSetup, currentUser } from '$lib/firebase/auth';
+	import { saveUserProfile } from '$lib/firebase/userProfile';
+	import CompleteProfileModal from '$lib/components/CompleteProfileModal.svelte';
 	import '../app.css';
 
 	onMount(() => {
@@ -17,6 +19,26 @@
 		// Initialize Firebase auth listener
 		initAuthListener();
 	});
+
+	async function handleProfileComplete(event: CustomEvent<string>) {
+		const playerName = event.detail;
+		try {
+			const result = await saveUserProfile(playerName);
+			if (result) {
+				// Update currentUser name and close modal
+				currentUser.update(u => u ? { ...u, name: playerName } : null);
+				needsProfileSetup.set(false);
+				console.log('✅ Profile setup completed');
+			}
+		} catch (error) {
+			console.error('❌ Error completing profile setup:', error);
+		}
+	}
 </script>
 
 <slot />
+
+<CompleteProfileModal
+	isOpen={$needsProfileSetup}
+	on:save={handleProfileComplete}
+/>

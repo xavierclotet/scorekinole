@@ -1,4 +1,5 @@
-import { auth, isFirebaseEnabled } from './config';
+import { auth, db, isFirebaseEnabled } from './config';
+import { doc, getDoc } from 'firebase/firestore';
 import {
   GoogleAuthProvider,
   signInWithPopup,
@@ -25,6 +26,9 @@ export interface User {
 
 // Current user store (reactive)
 export const currentUser = writable<User | null>(null);
+
+// Flag to indicate user needs to complete their profile (no document in users collection)
+export const needsProfileSetup = writable<boolean>(false);
 
 /**
  * Sign in with Google
@@ -148,7 +152,7 @@ export function initAuthListener(): void {
     return;
   }
 
-  onAuthStateChanged(auth!, (user: FirebaseUser | null) => {
+  onAuthStateChanged(auth!, async (user: FirebaseUser | null) => {
     if (user) {
       const appUser: User = {
         id: user.uid,
@@ -157,8 +161,26 @@ export function initAuthListener(): void {
         photoURL: user.photoURL
       };
       currentUser.set(appUser);
+
+      // Check if user has a document in the users collection
+      try {
+        const userDocRef = doc(db!, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (!userDocSnap.exists()) {
+          console.log('ℹ️ User authenticated but no profile in Firestore - needs setup');
+          needsProfileSetup.set(true);
+        } else {
+          console.log('✅ User has profile in Firestore');
+          needsProfileSetup.set(false);
+        }
+      } catch (error) {
+        console.error('❌ Error checking user profile:', error);
+        needsProfileSetup.set(false);
+      }
     } else {
       currentUser.set(null);
+      needsProfileSetup.set(false);
     }
   });
 }

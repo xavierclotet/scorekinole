@@ -74,7 +74,8 @@ export async function saveUserProfile(playerName: string): Promise<UserProfile |
     const profile: UserProfile = {
       playerName: playerName.trim(),
       email: user.email,
-      photoURL: user.photo,
+      photoURL: user.photoURL,
+      authProvider: 'google',
       updatedAt: serverTimestamp(),
       createdAt: serverTimestamp() // Will only set on first create
     };
