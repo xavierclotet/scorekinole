@@ -22,7 +22,7 @@ export interface ValidationResult {
  * @param tournament Tournament to validate
  * @returns Validation result
  */
-export function validateTournament(tournament: Partial<Tournament>): ValidationResult {
+export function validateTournament(tournament: Partial<Tournament> & Record<string, any>): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -36,6 +36,8 @@ export function validateTournament(tournament: Partial<Tournament>): ValidationR
     errors.push('El tipo de juego es obligatorio');
   }
 
+  // Note: gameMode, pointsToWin, roundsToPlay, matchesToWin are form fields
+  // that get converted to groupStage/finalStage configs when saving
   if (!tournament.gameMode) {
     errors.push('El modo de juego es obligatorio');
   }

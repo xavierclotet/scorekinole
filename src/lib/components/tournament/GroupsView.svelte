@@ -286,6 +286,9 @@
     (rounds: Set<number>) => rounds.size > 0
   );
 
+  // Check if any group is expanded
+  $: anyGroupExpanded = expandedGroups.size > 0;
+
   // Wrapper to add groupId to match before calling onMatchClick
   function handleMatchClick(groupId: string, match: GroupMatch) {
     if (onMatchClick) {
@@ -365,20 +368,29 @@
       </select>
     </div>
 
-    {#if groups.length > 1}
-      <div class="expand-controls">
-        <button class="expand-btn" on:click={expandAll} title="{$t('expandAllGroups')}">
-          <span class="icon">+</span> {$t('groups')}
+    <div class="toggle-controls">
+      {#if groups.length > 1}
+        <button
+          class="toggle-btn"
+          on:click={anyGroupExpanded ? collapseAll : expandAll}
+          title={anyGroupExpanded ? $t('collapseAllGroups') : $t('expandAllGroups')}
+        >
+          {#if anyGroupExpanded}
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
+            </svg>
+            {$t('collapseAllGroups')}
+          {:else}
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+            </svg>
+            {$t('expandAllGroups')}
+          {/if}
         </button>
-        <button class="expand-btn" on:click={collapseAll} title="{$t('collapseAllGroups')}">
-          <span class="icon">−</span> {$t('groups')}
-        </button>
-      </div>
-    {/if}
+      {/if}
 
-    <div class="rounds-toggle">
       <button
-        class="toggle-rounds-btn"
+        class="toggle-btn"
         on:click={anyRoundExpanded ? collapseAllRounds : expandAllRounds}
         title={anyRoundExpanded ? $t('collapseAllRoundsTooltip') : $t('expandAllRounds')}
       >
@@ -633,45 +645,15 @@
   }
 
   /* Expand/Collapse controls for groups */
-  .expand-controls {
-    display: flex;
-    gap: 0.3rem;
-  }
-
-  .expand-btn {
-    padding: 0.25rem 0.5rem;
-    background: white;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    color: #6b7280;
-    font-size: 0.7rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
+  /* Toggle controls container - positioned to the right */
+  .toggle-controls {
     display: flex;
     align-items: center;
-    gap: 0.15rem;
-  }
-
-  .expand-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
-  }
-
-  .expand-btn .icon {
-    font-weight: 700;
-    font-size: 0.85rem;
-    line-height: 1;
-  }
-
-  /* Rounds toggle button */
-  .rounds-toggle {
-    display: flex;
-    align-items: center;
+    gap: 0.5rem;
     margin-left: auto;
   }
 
-  .toggle-rounds-btn {
+  .toggle-btn {
     padding: 0.25rem 0.5rem;
     background: white;
     border: 1px solid #d1d5db;
@@ -686,12 +668,12 @@
     gap: 0.25rem;
   }
 
-  .toggle-rounds-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
+  .toggle-btn:hover {
+    border-color: #059669;
+    color: #059669;
   }
 
-  .toggle-rounds-btn svg {
+  .toggle-btn svg {
     flex-shrink: 0;
     width: 12px;
     height: 12px;
@@ -979,15 +961,15 @@
     color: #667eea;
   }
 
-  :global([data-theme='dark']) .toggle-rounds-btn {
+  :global([data-theme='dark']) .toggle-btn {
     background: #1a2332;
     border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .toggle-rounds-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
+  :global([data-theme='dark']) .toggle-btn:hover {
+    border-color: #10b981;
+    color: #10b981;
   }
 
   :global([data-theme='dark']) .group-accordion {
@@ -1112,7 +1094,7 @@
       font-size: 0.6rem;
     }
 
-    .toggle-rounds-btn {
+    .toggle-btn {
       padding: 0.2rem 0.4rem;
       font-size: 0.6rem;
     }

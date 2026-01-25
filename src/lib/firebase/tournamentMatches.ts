@@ -477,6 +477,7 @@ export interface PendingMatchInfo {
   gameConfig: TournamentGameConfig;
   isInProgress?: boolean;  // True if match is IN_PROGRESS (for resume functionality)
   tableNumber?: number;    // Table number for display (e.g., M1, M2)
+  isSilverBracket?: boolean;  // True if match is in the silver bracket (for SPLIT_DIVISIONS mode)
 }
 
 /**
@@ -500,7 +501,7 @@ function getGameConfigForMatch(
     };
   }
 
-  // Final stage - check for per-phase configuration
+  // Final stage - get config from the appropriate bracket
   const fs = tournament.finalStage;
   if (!fs) {
     // Fallback defaults
@@ -514,84 +515,52 @@ function getGameConfigForMatch(
     };
   }
 
-  // Determine which config to use based on bracket round name and silver bracket
-  const prefix = isSilverBracket ? 'silver' : '';
-  const roundNameLower = bracketRoundName?.toLowerCase() || '';
-
-  // Check for per-phase config
-  if (roundNameLower.includes('final') && !roundNameLower.includes('semi')) {
-    // Final match
-    const gameMode = isSilverBracket
-      ? (fs.silverFinalGameMode || fs.silverGameMode || fs.gameMode)
-      : (fs.finalGameMode || fs.gameMode);
-    const pointsToWin = isSilverBracket
-      ? (fs.silverFinalPointsToWin || fs.silverPointsToWin || fs.pointsToWin)
-      : (fs.finalPointsToWin || fs.pointsToWin);
-    const roundsToPlay = isSilverBracket
-      ? (fs.silverFinalRoundsToPlay || fs.silverRoundsToPlay || fs.roundsToPlay)
-      : (fs.finalRoundsToPlay || fs.roundsToPlay);
-    const matchesToWin = isSilverBracket
-      ? (fs.silverFinalMatchesToWin || fs.silverMatchesToWin || fs.matchesToWin)
-      : (fs.finalMatchesToWin || fs.matchesToWin);
-
+  // Get the bracket config based on silver or gold bracket
+  const bracket = isSilverBracket ? fs.silverBracket : fs.goldBracket;
+  if (!bracket || !bracket.config) {
+    // Fallback defaults if no bracket config
     return {
-      gameMode,
-      pointsToWin,
-      roundsToPlay,
-      matchesToWin,
-      show20s: tournament.show20s,
-      showHammer: tournament.showHammer,
-      gameType: tournament.gameType
-    };
-  } else if (roundNameLower.includes('semi')) {
-    // Semifinal
-    const gameMode = isSilverBracket
-      ? (fs.silverSemifinalGameMode || fs.silverGameMode || fs.gameMode)
-      : (fs.semifinalGameMode || fs.gameMode);
-    const pointsToWin = isSilverBracket
-      ? (fs.silverSemifinalPointsToWin || fs.silverPointsToWin || fs.pointsToWin)
-      : (fs.semifinalPointsToWin || fs.pointsToWin);
-    const roundsToPlay = isSilverBracket
-      ? (fs.silverSemifinalRoundsToPlay || fs.silverRoundsToPlay || fs.roundsToPlay)
-      : (fs.semifinalRoundsToPlay || fs.roundsToPlay);
-    const matchesToWin = isSilverBracket
-      ? (fs.silverSemifinalMatchesToWin || fs.silverMatchesToWin || fs.matchesToWin)
-      : (fs.semifinalMatchesToWin || fs.matchesToWin);
-
-    return {
-      gameMode,
-      pointsToWin,
-      roundsToPlay,
-      matchesToWin,
-      show20s: tournament.show20s,
-      showHammer: tournament.showHammer,
-      gameType: tournament.gameType
-    };
-  } else {
-    // Early rounds (octavos, cuartos, etc.)
-    const gameMode = isSilverBracket
-      ? (fs.silverEarlyRoundsGameMode || fs.silverGameMode || fs.gameMode)
-      : (fs.earlyRoundsGameMode || fs.gameMode);
-    const pointsToWin = isSilverBracket
-      ? (fs.silverEarlyRoundsPointsToWin || fs.silverPointsToWin || fs.pointsToWin)
-      : (fs.earlyRoundsPointsToWin || fs.pointsToWin);
-    const roundsToPlay = isSilverBracket
-      ? (fs.silverEarlyRoundsToPlay || fs.silverRoundsToPlay || fs.roundsToPlay)
-      : (fs.earlyRoundsToPlay || fs.roundsToPlay);
-    const matchesToWin = isSilverBracket
-      ? (fs.silverMatchesToWin || fs.matchesToWin)
-      : fs.matchesToWin;
-
-    return {
-      gameMode,
-      pointsToWin,
-      roundsToPlay,
-      matchesToWin,
+      gameMode: 'points',
+      pointsToWin: 7,
+      matchesToWin: 1,
       show20s: tournament.show20s,
       showHammer: tournament.showHammer,
       gameType: tournament.gameType
     };
   }
+
+  const bracketConfig = bracket.config;
+
+  // Determine which phase config to use based on bracket round name
+  // Round names from bracket.ts: 'finals', 'semifinals', 'quarterfinals', 'round16', etc.
+  const roundNameLower = bracketRoundName?.toLowerCase() || '';
+
+  // Important: 'quarterfinals' contains 'final' but is NOT the final round
+  // Check for exact 'finals' or exclude 'quarter' from the 'final' check
+  const isFinal = roundNameLower === 'finals' ||
+    (roundNameLower.includes('final') && !roundNameLower.includes('semi') && !roundNameLower.includes('quarter'));
+  const isSemifinal = roundNameLower.includes('semi') || roundNameLower.includes('tercer');
+
+  // Get the phase config
+  let phaseConfig;
+  if (isFinal) {
+    phaseConfig = bracketConfig.final;
+  } else if (isSemifinal) {
+    phaseConfig = bracketConfig.semifinal;
+  } else {
+    phaseConfig = bracketConfig.earlyRounds;
+  }
+
+  // Return config from the phase
+  return {
+    gameMode: phaseConfig.gameMode,
+    pointsToWin: phaseConfig.gameMode === 'points' ? phaseConfig.pointsToWin : undefined,
+    roundsToPlay: phaseConfig.gameMode === 'rounds' ? phaseConfig.roundsToPlay : undefined,
+    matchesToWin: phaseConfig.matchesToWin,
+    show20s: tournament.show20s,
+    showHammer: tournament.showHammer,
+    gameType: tournament.gameType
+  };
 }
 
 /**
@@ -674,26 +643,50 @@ export async function getPendingMatchesForUser(
   // Check final stage bracket
   if (tournament.finalStage && !tournament.finalStage.isComplete) {
     // Gold bracket
-    for (const round of tournament.finalStage.bracket.rounds) {
-      for (const match of round.matches) {
+    const goldBracket = tournament.finalStage.goldBracket;
+    if (goldBracket?.rounds) {
+      for (const round of goldBracket.rounds) {
+        for (const match of round.matches) {
+          if (match.status === 'PENDING' &&
+              match.participantA && match.participantB &&
+              (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
+            pendingMatches.push({
+              match,
+              phase: 'FINAL',
+              roundNumber: round.roundNumber,
+              bracketRoundName: round.name,
+              participantAName: getParticipantName(tournament, match.participantA),
+              participantBName: getParticipantName(tournament, match.participantB),
+              gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false),
+              isSilverBracket: false,
+              tableNumber: match.tableNumber
+            });
+          }
+        }
+      }
+
+      // Third place match
+      if (goldBracket.thirdPlaceMatch) {
+        const match = goldBracket.thirdPlaceMatch;
         if (match.status === 'PENDING' &&
             match.participantA && match.participantB &&
             (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
           pendingMatches.push({
             match,
             phase: 'FINAL',
-            roundNumber: round.roundNumber,
-            bracketRoundName: round.name,
+            bracketRoundName: 'Tercer Puesto',
             participantAName: getParticipantName(tournament, match.participantA),
             participantBName: getParticipantName(tournament, match.participantB),
-            gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false)
+            gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false),
+            isSilverBracket: false,
+            tableNumber: match.tableNumber
           });
         }
       }
     }
 
     // Silver bracket (if exists)
-    if (tournament.finalStage.silverBracket) {
+    if (tournament.finalStage.silverBracket?.rounds) {
       for (const round of tournament.finalStage.silverBracket.rounds) {
         for (const match of round.matches) {
           if (match.status === 'PENDING' &&
@@ -703,30 +696,15 @@ export async function getPendingMatchesForUser(
               match,
               phase: 'FINAL',
               roundNumber: round.roundNumber,
-              bracketRoundName: `${round.name} (Silver)`,
+              bracketRoundName: round.name,
               participantAName: getParticipantName(tournament, match.participantA),
               participantBName: getParticipantName(tournament, match.participantB),
-              gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, true)
+              gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, true),
+              isSilverBracket: true,
+              tableNumber: match.tableNumber
             });
           }
         }
-      }
-    }
-
-    // Third place match
-    if (tournament.finalStage.bracket.thirdPlaceMatch) {
-      const match = tournament.finalStage.bracket.thirdPlaceMatch;
-      if (match.status === 'PENDING' &&
-          match.participantA && match.participantB &&
-          (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
-        pendingMatches.push({
-          match,
-          phase: 'FINAL',
-          bracketRoundName: 'Tercer Puesto',
-          participantAName: getParticipantName(tournament, match.participantA),
-          participantBName: getParticipantName(tournament, match.participantB),
-          gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false)
-        });
       }
     }
   }
@@ -807,19 +785,56 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
 
   // Check final stage bracket
   if (tournament.finalStage && !tournament.finalStage.isComplete) {
+    console.log('🔍 getAllPendingMatches - Checking final stage brackets');
+
     // Gold bracket
-    for (const round of tournament.finalStage.bracket.rounds) {
-      for (const match of round.matches) {
+    const goldBracket = tournament.finalStage.goldBracket;
+    if (goldBracket?.rounds) {
+      console.log('🥇 Gold bracket rounds:', goldBracket.rounds.length);
+      for (const round of goldBracket.rounds) {
+        console.log(`  📍 Round ${round.roundNumber} (${round.name}): ${round.matches.length} matches`);
+        for (const match of round.matches) {
+          const statusOk = shouldIncludeMatch(match.status);
+          const hasA = !!match.participantA;
+          const hasB = !!match.participantB;
+          const included = statusOk && hasA && hasB;
+          console.log(`    🎯 Match ${match.id}: status=${match.status}, table=${match.tableNumber}, A=${match.participantA || 'NONE'}, B=${match.participantB || 'NONE'} => ${included ? '✅ INCLUDED' : '❌ EXCLUDED'} (statusOk=${statusOk}, hasA=${hasA}, hasB=${hasB})`);
+          if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
+            const matchInfo: PendingMatchInfo = {
+              match,
+              phase: 'FINAL',
+              roundNumber: round.roundNumber,
+              bracketRoundName: round.name,
+              participantAName: getParticipantName(tournament, match.participantA),
+              participantBName: getParticipantName(tournament, match.participantB),
+              gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false),
+              isInProgress: isInProgress(match.status),
+              isSilverBracket: false,
+              tableNumber: match.tableNumber
+            };
+            if (isInProgress(match.status)) {
+              inProgressMatches.push(matchInfo);
+            } else {
+              pendingMatches.push(matchInfo);
+            }
+          }
+        }
+      }
+
+      // Third place match (Gold bracket)
+      if (goldBracket.thirdPlaceMatch) {
+        const match = goldBracket.thirdPlaceMatch;
         if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
           const matchInfo: PendingMatchInfo = {
             match,
             phase: 'FINAL',
-            roundNumber: round.roundNumber,
-            bracketRoundName: round.name,
+            bracketRoundName: 'Tercer Puesto',
             participantAName: getParticipantName(tournament, match.participantA),
             participantBName: getParticipantName(tournament, match.participantB),
-            gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false),
-            isInProgress: isInProgress(match.status)
+            gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false),
+            isInProgress: isInProgress(match.status),
+            isSilverBracket: false,
+            tableNumber: match.tableNumber
           };
           if (isInProgress(match.status)) {
             inProgressMatches.push(matchInfo);
@@ -831,19 +846,28 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
     }
 
     // Silver bracket
-    if (tournament.finalStage.silverBracket) {
+    if (tournament.finalStage.silverBracket?.rounds) {
+      console.log('🥈 Silver bracket rounds:', tournament.finalStage.silverBracket.rounds.length);
       for (const round of tournament.finalStage.silverBracket.rounds) {
+        console.log(`  📍 Round ${round.roundNumber} (${round.name}): ${round.matches.length} matches`);
         for (const match of round.matches) {
+          const statusOk = shouldIncludeMatch(match.status);
+          const hasA = !!match.participantA;
+          const hasB = !!match.participantB;
+          const included = statusOk && hasA && hasB;
+          console.log(`    🎯 Match ${match.id}: status=${match.status}, table=${match.tableNumber}, A=${match.participantA || 'NONE'}, B=${match.participantB || 'NONE'} => ${included ? '✅ INCLUDED' : '❌ EXCLUDED'} (statusOk=${statusOk}, hasA=${hasA}, hasB=${hasB})`);
           if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
             const matchInfo: PendingMatchInfo = {
               match,
               phase: 'FINAL',
               roundNumber: round.roundNumber,
-              bracketRoundName: `${round.name} (Silver)`,
+              bracketRoundName: round.name,
               participantAName: getParticipantName(tournament, match.participantA),
               participantBName: getParticipantName(tournament, match.participantB),
               gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, true),
-              isInProgress: isInProgress(match.status)
+              isInProgress: isInProgress(match.status),
+              isSilverBracket: true,
+              tableNumber: match.tableNumber
             };
             if (isInProgress(match.status)) {
               inProgressMatches.push(matchInfo);
@@ -853,52 +877,40 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
           }
         }
       }
-    }
 
-    // Third place match (Gold bracket)
-    if (tournament.finalStage.bracket.thirdPlaceMatch) {
-      const match = tournament.finalStage.bracket.thirdPlaceMatch;
-      if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
-        const matchInfo: PendingMatchInfo = {
-          match,
-          phase: 'FINAL',
-          bracketRoundName: 'Tercer Puesto',
-          participantAName: getParticipantName(tournament, match.participantA),
-          participantBName: getParticipantName(tournament, match.participantB),
-          gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false),
-          isInProgress: isInProgress(match.status)
-        };
-        if (isInProgress(match.status)) {
-          inProgressMatches.push(matchInfo);
-        } else {
-          pendingMatches.push(matchInfo);
-        }
-      }
-    }
-
-    // Third place match (Silver bracket)
-    if (tournament.finalStage.silverBracket?.thirdPlaceMatch) {
-      const match = tournament.finalStage.silverBracket.thirdPlaceMatch;
-      if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
-        const matchInfo: PendingMatchInfo = {
-          match,
-          phase: 'FINAL',
-          bracketRoundName: 'Tercer Puesto (Silver)',
-          participantAName: getParticipantName(tournament, match.participantA),
-          participantBName: getParticipantName(tournament, match.participantB),
-          gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', true),
-          isInProgress: isInProgress(match.status)
-        };
-        if (isInProgress(match.status)) {
-          inProgressMatches.push(matchInfo);
-        } else {
-          pendingMatches.push(matchInfo);
+      // Third place match (Silver bracket)
+      if (tournament.finalStage.silverBracket.thirdPlaceMatch) {
+        const match = tournament.finalStage.silverBracket.thirdPlaceMatch;
+        if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
+          const matchInfo: PendingMatchInfo = {
+            match,
+            phase: 'FINAL',
+            bracketRoundName: 'Tercer Puesto',
+            participantAName: getParticipantName(tournament, match.participantA),
+            participantBName: getParticipantName(tournament, match.participantB),
+            gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', true),
+            isInProgress: isInProgress(match.status),
+            isSilverBracket: true,
+            tableNumber: match.tableNumber
+          };
+          if (isInProgress(match.status)) {
+            inProgressMatches.push(matchInfo);
+          } else {
+            pendingMatches.push(matchInfo);
+          }
         }
       }
     }
   }
 
   // Return pending matches first, then in-progress matches (for emergency resume)
+  console.log('📊 getAllPendingMatches SUMMARY:', {
+    pendingCount: pendingMatches.length,
+    inProgressCount: inProgressMatches.length,
+    totalReturned: pendingMatches.length + inProgressMatches.length,
+    pendingTables: pendingMatches.map(m => m.tableNumber),
+    inProgressTables: inProgressMatches.map(m => m.tableNumber)
+  });
   return [...pendingMatches, ...inProgressMatches];
 }
 
@@ -1027,7 +1039,7 @@ export async function startTournamentMatch(
       };
 
       // Try gold bracket first
-      let result = findAndUpdateMatch(tournament.finalStage.bracket);
+      let result = findAndUpdateMatch(tournament.finalStage.goldBracket);
 
       // Try silver bracket if not found
       if (result === 'not_found' && tournament.finalStage.silverBracket) {
@@ -1112,17 +1124,19 @@ export async function resumeTournamentMatch(
       }
     } else if (phase === 'FINAL' && tournament.finalStage) {
       // Check gold bracket
-      for (const round of tournament.finalStage.bracket.rounds) {
-        const match = round.matches.find(m => m.id === matchId);
-        if (match) {
-          foundMatch = match;
-          break;
+      if (tournament.finalStage.goldBracket?.rounds) {
+        for (const round of tournament.finalStage.goldBracket.rounds) {
+          const match = round.matches.find(m => m.id === matchId);
+          if (match) {
+            foundMatch = match;
+            break;
+          }
         }
-      }
 
-      // Check 3rd place
-      if (!foundMatch && tournament.finalStage.bracket.thirdPlaceMatch?.id === matchId) {
-        foundMatch = tournament.finalStage.bracket.thirdPlaceMatch;
+        // Check 3rd place
+        if (!foundMatch && tournament.finalStage.goldBracket.thirdPlaceMatch?.id === matchId) {
+          foundMatch = tournament.finalStage.goldBracket.thirdPlaceMatch;
+        }
       }
 
       // Check silver bracket
@@ -1227,19 +1241,21 @@ export async function abandonTournamentMatch(
       };
 
       // Check gold bracket
-      for (const round of tournament.finalStage.bracket.rounds) {
-        const matchIndex = round.matches.findIndex(m => m.id === matchId);
-        if (matchIndex !== -1) {
-          resetMatch(round.matches[matchIndex]);
-          matchFound = true;
-          break;
+      if (tournament.finalStage.goldBracket?.rounds) {
+        for (const round of tournament.finalStage.goldBracket.rounds) {
+          const matchIndex = round.matches.findIndex(m => m.id === matchId);
+          if (matchIndex !== -1) {
+            resetMatch(round.matches[matchIndex]);
+            matchFound = true;
+            break;
+          }
         }
-      }
 
-      // Check 3rd place
-      if (!matchFound && tournament.finalStage.bracket.thirdPlaceMatch?.id === matchId) {
-        resetMatch(tournament.finalStage.bracket.thirdPlaceMatch);
-        matchFound = true;
+        // Check 3rd place
+        if (!matchFound && tournament.finalStage.goldBracket.thirdPlaceMatch?.id === matchId) {
+          resetMatch(tournament.finalStage.goldBracket.thirdPlaceMatch);
+          matchFound = true;
+        }
       }
 
       // Check silver bracket
@@ -1392,23 +1408,25 @@ export async function updateTournamentMatchRounds(
       };
 
       // Check gold bracket
-      for (const round of tournament.finalStage.bracket.rounds) {
-        const matchIndex = round.matches.findIndex(m => m.id === matchId);
-        if (matchIndex !== -1) {
-          updateMatchRounds(round.matches[matchIndex]);
+      if (tournament.finalStage.goldBracket?.rounds) {
+        for (const round of tournament.finalStage.goldBracket.rounds) {
+          const matchIndex = round.matches.findIndex(m => m.id === matchId);
+          if (matchIndex !== -1) {
+            updateMatchRounds(round.matches[matchIndex]);
+            matchFound = true;
+            break;
+          }
+        }
+
+        // Check 3rd place
+        if (!matchFound && tournament.finalStage.goldBracket.thirdPlaceMatch?.id === matchId) {
+          updateMatchRounds(tournament.finalStage.goldBracket.thirdPlaceMatch);
           matchFound = true;
-          break;
         }
       }
 
-      // Check 3rd place
-      if (!matchFound && tournament.finalStage.bracket.thirdPlaceMatch?.id === matchId) {
-        updateMatchRounds(tournament.finalStage.bracket.thirdPlaceMatch);
-        matchFound = true;
-      }
-
       // Check silver bracket
-      if (!matchFound && tournament.finalStage.silverBracket) {
+      if (!matchFound && tournament.finalStage.silverBracket?.rounds) {
         for (const round of tournament.finalStage.silverBracket.rounds) {
           const matchIndex = round.matches.findIndex(m => m.id === matchId);
           if (matchIndex !== -1) {

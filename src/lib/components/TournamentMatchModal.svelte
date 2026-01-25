@@ -60,6 +60,7 @@
 	let pendingMatchesByGroup: GroupedMatches[] = [];
 	let inProgressMatchesByGroup: GroupedMatches[] = [];
 	let hasMultipleGroups = false;
+	let hasSplitDivisions = false;  // True when in FINAL_STAGE with SPLIT_DIVISIONS mode (Oro/Plata)
 
 	// Show/hide tournament key
 	let showKey = false;
@@ -155,6 +156,7 @@
 		pendingMatchesByGroup = [];
 		inProgressMatchesByGroup = [];
 		hasMultipleGroups = false;
+		hasSplitDivisions = false;
 		selectedMatch = null;
 		selectedSide = null;
 		errorMessage = '';
@@ -282,23 +284,94 @@
 			inProgressMatchesList = inProgressMatchesByGroup.flatMap(g => g.matches);
 
 		} else {
-			// Non-RR or single group: use flat list
-			for (const match of matches) {
-				const isInProgress = match.isInProgress || false;
-				const matchDisplay: MatchDisplay = { match, isInProgress };
+			// Check if we're in FINAL_STAGE with SPLIT_DIVISIONS (Oro/Plata)
+			const isFinalWithSplit = result.status === 'FINAL_STAGE' &&
+				result.finalStage?.mode === 'SPLIT_DIVISIONS' &&
+				!!result.finalStage?.silverBracket;
 
-				if (isInProgress) {
-					inProgressMatchesList.push(matchDisplay);
-				} else {
-					pendingMatchesList.push(matchDisplay);
+			hasSplitDivisions = isFinalWithSplit;
+
+			if (isFinalWithSplit) {
+				// Group matches by Gold/Silver bracket
+				const pendingByBracket = new Map<string, { groupName: string; currentRound: number; totalRounds: number; matches: MatchDisplay[] }>();
+				const inProgressByBracket = new Map<string, { groupName: string; currentRound: number; totalRounds: number; matches: MatchDisplay[] }>();
+
+				// Initialize Gold and Silver groups
+				pendingByBracket.set('gold', { groupName: $t('goldLeague'), currentRound: 0, totalRounds: 0, matches: [] });
+				pendingByBracket.set('silver', { groupName: $t('silverLeague'), currentRound: 0, totalRounds: 0, matches: [] });
+				inProgressByBracket.set('gold', { groupName: $t('goldLeague'), currentRound: 0, totalRounds: 0, matches: [] });
+				inProgressByBracket.set('silver', { groupName: $t('silverLeague'), currentRound: 0, totalRounds: 0, matches: [] });
+
+				// Distribute matches
+				for (const match of matches) {
+					const bracketId = match.isSilverBracket ? 'silver' : 'gold';
+					const isInProgress = match.isInProgress || false;
+					const matchDisplay: MatchDisplay = { match, isInProgress };
+
+					if (isInProgress) {
+						inProgressByBracket.get(bracketId)?.matches.push(matchDisplay);
+					} else {
+						pendingByBracket.get(bracketId)?.matches.push(matchDisplay);
+					}
 				}
-			}
 
-			// Sort by table number
-			const sortByTable = (a: MatchDisplay, b: MatchDisplay) =>
-				(a.match.tableNumber || 999) - (b.match.tableNumber || 999);
-			pendingMatchesList.sort(sortByTable);
-			inProgressMatchesList.sort(sortByTable);
+				// Sort function by table number
+				const sortByTable = (a: MatchDisplay, b: MatchDisplay) =>
+					(a.match.tableNumber || 999) - (b.match.tableNumber || 999);
+
+				// Convert maps to arrays, Gold first then Silver
+				const bracketOrder = ['gold', 'silver'];
+				pendingMatchesByGroup = bracketOrder
+					.map(bracketId => {
+						const data = pendingByBracket.get(bracketId)!;
+						return {
+							groupId: bracketId,
+							groupName: data.groupName,
+							currentRound: data.currentRound,
+							totalRounds: data.totalRounds,
+							matches: data.matches.sort(sortByTable)
+						};
+					})
+					.filter(g => g.matches.length > 0);
+
+				inProgressMatchesByGroup = bracketOrder
+					.map(bracketId => {
+						const data = inProgressByBracket.get(bracketId)!;
+						return {
+							groupId: bracketId,
+							groupName: data.groupName,
+							currentRound: data.currentRound,
+							totalRounds: data.totalRounds,
+							matches: data.matches.sort(sortByTable)
+						};
+					})
+					.filter(g => g.matches.length > 0);
+
+				// Also populate flat lists
+				pendingMatchesList = pendingMatchesByGroup.flatMap(g => g.matches);
+				inProgressMatchesList = inProgressMatchesByGroup.flatMap(g => g.matches);
+
+			} else {
+				// Non-RR, non-split: use flat list
+				hasSplitDivisions = false;
+
+				for (const match of matches) {
+					const isInProgress = match.isInProgress || false;
+					const matchDisplay: MatchDisplay = { match, isInProgress };
+
+					if (isInProgress) {
+						inProgressMatchesList.push(matchDisplay);
+					} else {
+						pendingMatchesList.push(matchDisplay);
+					}
+				}
+
+				// Sort by table number
+				const sortByTable = (a: MatchDisplay, b: MatchDisplay) =>
+					(a.match.tableNumber || 999) - (b.match.tableNumber || 999);
+				pendingMatchesList.sort(sortByTable);
+				inProgressMatchesList.sort(sortByTable);
+			}
 		}
 	}
 
@@ -365,6 +438,9 @@
 			}
 		} catch (error) {
 			console.error('Error searching tournament:', error);
+			// Clear saved key on error so user can retry with a different key
+			localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
+			tournamentKey = '';
 			errorMessage = $t('connectionError');
 			currentStep = 'error';
 		}
@@ -409,6 +485,7 @@
 			pendingMatchesByGroup = [];
 			inProgressMatchesByGroup = [];
 			hasMultipleGroups = false;
+			hasSplitDivisions = false;
 			selectedMatch = null;
 			selectedSide = null;
 		} else if (currentStep === 'error') {
@@ -417,7 +494,7 @@
 		}
 	}
 
-	function changeTournament() {
+	function refreshMatches() {
 		// Reset to key input and clear the saved key field (but keep in localStorage until new one is saved)
 		tournamentKey = '';
 		tournament = null;
@@ -427,6 +504,7 @@
 		pendingMatchesByGroup = [];
 		inProgressMatchesByGroup = [];
 		hasMultipleGroups = false;
+		hasSplitDivisions = false;
 		selectedMatch = null;
 		selectedSide = null;
 		currentStep = 'key_input';
@@ -557,7 +635,7 @@
 		}
 	}
 
-	// Get current phase game configuration
+	// Get current phase game configuration (default final config for backward compatibility)
 	function getCurrentPhaseConfig(t: Tournament): { gameMode: 'points' | 'rounds'; pointsToWin?: number; roundsToPlay?: number; matchesToWin: number } | null {
 		if (t.status === 'GROUP_STAGE' && t.groupStage) {
 			return {
@@ -566,12 +644,14 @@
 				roundsToPlay: t.groupStage.roundsToPlay,
 				matchesToWin: t.groupStage.matchesToWin
 			};
-		} else if ((t.status === 'FINAL_STAGE' || t.phaseType === 'ONE_PHASE') && t.finalStage) {
+		} else if ((t.status === 'FINAL_STAGE' || t.phaseType === 'ONE_PHASE') && t.finalStage?.goldBracket?.config) {
+			// Return the final phase config as default
+			const finalConfig = t.finalStage.goldBracket.config.final;
 			return {
-				gameMode: t.finalStage.gameMode,
-				pointsToWin: t.finalStage.pointsToWin,
-				roundsToPlay: t.finalStage.roundsToPlay,
-				matchesToWin: t.finalStage.matchesToWin
+				gameMode: finalConfig.gameMode,
+				pointsToWin: finalConfig.pointsToWin,
+				roundsToPlay: finalConfig.roundsToPlay,
+				matchesToWin: finalConfig.matchesToWin
 			};
 		}
 		return null;
@@ -590,7 +670,12 @@
 			<div class="modal-header">
 				<div class="header-icon">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+						<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+						<path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+						<path d="M4 22h16"></path>
+						<path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+						<path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+						<path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
 					</svg>
 				</div>
 				<span class="modal-title">
@@ -615,10 +700,19 @@
 			<div class="modal-content">
 				<!-- Step: Key Input -->
 				{#if currentStep === 'key_input'}
-					<div class="step-content">
-						<p class="description">{$t('enterTournamentKey')}</p>
+					<div class="step-content key-step">
+						<div class="key-icon-wrapper">
+							<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="7.5" cy="15.5" r="5.5"></circle>
+								<path d="m21 2-9.6 9.6"></path>
+								<path d="m15.5 7.5 3 3L22 7l-3-3"></path>
+							</svg>
+						</div>
 
-						<div class="key-input-container">
+						<p class="key-description">{$t('enterTournamentKey')}</p>
+						<p class="key-hint">{$t('keyHint') || 'Solicita la clave al organizador del torneo'}</p>
+
+						<div class="key-input-group">
 							<div class="key-input-wrapper">
 								<input
 									type="text"
@@ -626,7 +720,7 @@
 									class:masked={!showKey}
 									bind:this={keyInputElement}
 									bind:value={tournamentKey}
-									placeholder="******"
+									placeholder="ABC123"
 									maxlength="6"
 									autocomplete="off"
 									autocapitalize="characters"
@@ -638,31 +732,29 @@
 									aria-label={showKey ? $t('hideKey') : $t('showKey')}
 								>
 									{#if showKey}
-										<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
 											<line x1="1" y1="1" x2="23" y2="23"></line>
 										</svg>
 									{:else}
-										<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
 											<circle cx="12" cy="12" r="3"></circle>
 										</svg>
 									{/if}
 								</button>
 							</div>
-						</div>
 
-						<button
-							class="search-btn"
-							disabled={tournamentKey.length !== 6}
-							on:click={searchTournament}
-						>
-							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<circle cx="11" cy="11" r="8"></circle>
-								<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-							</svg>
-							{$t('searchTournament')}
-						</button>
+							<button
+								class="search-btn"
+								disabled={tournamentKey.length !== 6}
+								on:click={searchTournament}
+							>
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+									<polyline points="9 18 15 12 9 6"></polyline>
+								</svg>
+							</button>
+						</div>
 					</div>
 
 				<!-- Step: Loading -->
@@ -687,9 +779,9 @@
 									{tournament.name}
 								</p>
 								<button
-									class="change-tournament-btn"
-									on:click={changeTournament}
-									title={$t('changeTournament')}
+									class="refresh-matches-btn"
+									on:click={refreshMatches}
+									title={$t('refreshMatches')}
 								>
 									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 										<polyline points="23 4 23 10 17 10"></polyline>
@@ -699,50 +791,58 @@
 								</button>
 							</div>
 
-							<!-- Badges Row: Phase + Config -->
+							<!-- Phase Badge -->
 							<div class="badges-row">
 								{#if tournament.status === 'GROUP_STAGE'}
 									<span class="phase-badge group-stage">{$t('groupStage')}</span>
-								{/if}
-								{#if tournament.status === 'GROUP_STAGE' && tournament.groupStage?.type === 'SWISS'}
-									<span class="config-badge">SS · R{tournament.groupStage.currentRound}/{tournament.groupStage.totalRounds}</span>
-								{:else if tournament.status === 'GROUP_STAGE' && tournament.groupStage?.type === 'ROUND_ROBIN' && rrCurrentRound > 0}
-									<span class="config-badge">R{rrCurrentRound}/{rrTotalRounds}</span>
-								{:else if getCurrentPhaseConfig(tournament)}
-									{@const phaseConfig = getCurrentPhaseConfig(tournament)}
-									<span class="config-badge">
-										{#if phaseConfig?.gameMode === 'points'}
-											{phaseConfig.pointsToWin}pts
-										{:else}
-											{phaseConfig?.roundsToPlay}r
-										{/if}
-										· Bo{phaseConfig?.matchesToWin === 1 ? '1' : phaseConfig?.matchesToWin}
-									</span>
+									{#if tournament.groupStage?.type === 'SWISS'}
+										<span class="config-badge">SS · R{tournament.groupStage.currentRound}/{tournament.groupStage.totalRounds}</span>
+									{:else if tournament.groupStage?.type === 'ROUND_ROBIN' && rrCurrentRound > 0 && !hasMultipleGroups}
+										<span class="config-badge">R{rrCurrentRound}/{rrTotalRounds}</span>
+									{/if}
 								{/if}
 							</div>
 						</div>
 
 						<!-- Show list of matches - click to start immediately -->
-						<!-- Multi-group display -->
-						{#if hasMultipleGroups && pendingMatchesByGroup.length > 0}
+						<!-- Multi-group display (Round Robin groups or Oro/Plata brackets) -->
+						{#if (hasMultipleGroups || hasSplitDivisions) && pendingMatchesByGroup.length > 0}
 							<div class="groups-container">
 								{#each pendingMatchesByGroup as group}
 									<div class="group-section">
-										<div class="group-header">
+										<div class="group-header" class:gold-league={group.groupId === 'gold'} class:silver-league={group.groupId === 'silver'}>
 											<span class="group-name">{group.groupName}</span>
-											<span class="group-round">{$t('round')} {group.currentRound}/{group.totalRounds}</span>
+											{#if group.currentRound > 0}
+												<span class="group-round">{$t('round')} {group.currentRound}/{group.totalRounds}</span>
+											{/if}
 										</div>
 										<div class="matches-list">
 											{#each group.matches as matchDisplay}
 												<button
-													class="match-row-btn"
-													disabled={isStarting}
+													class="match-row-btn two-rows"
+													class:no-table={!matchDisplay.match.tableNumber}
+													disabled={isStarting || !matchDisplay.match.tableNumber}
 													on:click={() => selectMatchAndStart(matchDisplay)}
 												>
-													<span class="table-num">M{matchDisplay.match.tableNumber || '?'}</span>
-													<span class="player left">{matchDisplay.match.participantAName}</span>
-													<span class="vs-badge">vs</span>
-													<span class="player right">{matchDisplay.match.participantBName}</span>
+													<div class="match-row-top">
+														{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
+															<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
+														{/if}
+														<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `M${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+														<span class="match-config">
+															{#if matchDisplay.match.gameConfig.gameMode === 'points'}
+																{matchDisplay.match.gameConfig.pointsToWin}P
+															{:else}
+																{matchDisplay.match.gameConfig.roundsToPlay}R
+															{/if}
+															Bo{matchDisplay.match.gameConfig.matchesToWin}
+														</span>
+													</div>
+													<div class="match-row-bottom">
+														<span class="player left">{matchDisplay.match.participantAName}</span>
+														<span class="vs-badge">vs</span>
+														<span class="player right">{matchDisplay.match.participantBName}</span>
+													</div>
 												</button>
 											{/each}
 										</div>
@@ -754,17 +854,30 @@
 							<div class="matches-list">
 								{#each pendingMatchesList as matchDisplay}
 									<button
-										class="match-row-btn"
-										disabled={isStarting}
+										class="match-row-btn two-rows"
+										class:no-table={!matchDisplay.match.tableNumber}
+										disabled={isStarting || !matchDisplay.match.tableNumber}
 										on:click={() => selectMatchAndStart(matchDisplay)}
 									>
-										{#if matchDisplay.match.bracketRoundName}
-											<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
-										{/if}
-										<span class="table-num">M{matchDisplay.match.tableNumber || '?'}</span>
-										<span class="player left">{matchDisplay.match.participantAName}</span>
-										<span class="vs-badge">vs</span>
-										<span class="player right">{matchDisplay.match.participantBName}</span>
+										<div class="match-row-top">
+											{#if matchDisplay.match.bracketRoundName}
+												<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
+											{/if}
+											<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `M${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+											<span class="match-config">
+												{#if matchDisplay.match.gameConfig.gameMode === 'points'}
+													{matchDisplay.match.gameConfig.pointsToWin}P
+												{:else}
+													{matchDisplay.match.gameConfig.roundsToPlay}R
+												{/if}
+												Bo{matchDisplay.match.gameConfig.matchesToWin}
+											</span>
+										</div>
+										<div class="match-row-bottom">
+											<span class="player left">{matchDisplay.match.participantAName}</span>
+											<span class="vs-badge">vs</span>
+											<span class="player right">{matchDisplay.match.participantBName}</span>
+										</div>
 									</button>
 								{/each}
 							</div>
@@ -802,26 +915,43 @@
 								{#if showInProgressMatches}
 									<div class="in-progress-content">
 										<p class="in-progress-hint">{$t('inProgressWarning')}</p>
-										<!-- Multi-group in-progress display -->
-										{#if hasMultipleGroups && inProgressMatchesByGroup.length > 0}
+										<!-- Multi-group in-progress display (Round Robin groups or Oro/Plata brackets) -->
+										{#if (hasMultipleGroups || hasSplitDivisions) && inProgressMatchesByGroup.length > 0}
 											<div class="groups-container in-progress">
 												{#each inProgressMatchesByGroup as group}
 													<div class="group-section">
-														<div class="group-header in-progress">
+														<div class="group-header in-progress" class:gold-league={group.groupId === 'gold'} class:silver-league={group.groupId === 'silver'}>
 															<span class="group-name">{group.groupName}</span>
-															<span class="group-round">{$t('round')} {group.currentRound}/{group.totalRounds}</span>
+															{#if group.currentRound > 0}
+																<span class="group-round">{$t('round')} {group.currentRound}/{group.totalRounds}</span>
+															{/if}
 														</div>
 														<div class="matches-list in-progress">
 															{#each group.matches as matchDisplay}
 																<button
-																	class="match-row-btn in-progress"
+																	class="match-row-btn in-progress two-rows"
 																	disabled={isStarting}
 																	on:click={() => selectMatchAndStart(matchDisplay)}
 																>
-																	<span class="table-num">M{matchDisplay.match.tableNumber || '?'}</span>
-																	<span class="player left">{matchDisplay.match.participantAName}</span>
-																	<span class="vs-badge">vs</span>
-																	<span class="player right">{matchDisplay.match.participantBName}</span>
+																	<div class="match-row-top">
+																		{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
+																			<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
+																		{/if}
+																		<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `M${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+																		<span class="match-config">
+																			{#if matchDisplay.match.gameConfig.gameMode === 'points'}
+																				{matchDisplay.match.gameConfig.pointsToWin}P
+																			{:else}
+																				{matchDisplay.match.gameConfig.roundsToPlay}R
+																			{/if}
+																			Bo{matchDisplay.match.gameConfig.matchesToWin}
+																		</span>
+																	</div>
+																	<div class="match-row-bottom">
+																		<span class="player left">{matchDisplay.match.participantAName}</span>
+																		<span class="vs-badge">vs</span>
+																		<span class="player right">{matchDisplay.match.participantBName}</span>
+																	</div>
 																</button>
 															{/each}
 														</div>
@@ -832,17 +962,29 @@
 											<div class="matches-list in-progress">
 												{#each inProgressMatchesList as matchDisplay}
 													<button
-														class="match-row-btn in-progress"
+														class="match-row-btn in-progress two-rows"
 														disabled={isStarting}
 														on:click={() => selectMatchAndStart(matchDisplay)}
 													>
-														{#if matchDisplay.match.bracketRoundName}
-															<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
-														{/if}
-														<span class="table-num">M{matchDisplay.match.tableNumber || '?'}</span>
-														<span class="player left">{matchDisplay.match.participantAName}</span>
-														<span class="vs-badge">vs</span>
-														<span class="player right">{matchDisplay.match.participantBName}</span>
+														<div class="match-row-top">
+															{#if matchDisplay.match.bracketRoundName}
+																<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
+															{/if}
+															<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `M${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+															<span class="match-config">
+																{#if matchDisplay.match.gameConfig.gameMode === 'points'}
+																	{matchDisplay.match.gameConfig.pointsToWin}P
+																{:else}
+																	{matchDisplay.match.gameConfig.roundsToPlay}R
+																{/if}
+																Bo{matchDisplay.match.gameConfig.matchesToWin}
+															</span>
+														</div>
+														<div class="match-row-bottom">
+															<span class="player left">{matchDisplay.match.participantAName}</span>
+															<span class="vs-badge">vs</span>
+															<span class="player right">{matchDisplay.match.participantBName}</span>
+														</div>
 													</button>
 												{/each}
 											</div>
@@ -970,6 +1112,41 @@
 		gap: 0;
 	}
 
+	.step-content.key-step {
+		align-items: center;
+		padding: 0.5rem 0 1rem;
+	}
+
+	.key-icon-wrapper {
+		width: 56px;
+		height: 56px;
+		border-radius: 50%;
+		background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.08) 100%);
+		border: 1px solid rgba(251, 191, 36, 0.25);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-bottom: 1rem;
+		color: #fbbf24;
+	}
+
+	.key-description {
+		font-family: 'Lexend', sans-serif;
+		color: rgba(255, 255, 255, 0.9);
+		font-size: 1.05rem;
+		font-weight: 500;
+		text-align: center;
+		margin: 0 0 0.25rem;
+	}
+
+	.key-hint {
+		font-family: 'Lexend', sans-serif;
+		color: rgba(255, 255, 255, 0.45);
+		font-size: 0.8rem;
+		text-align: center;
+		margin: 0 0 1.25rem;
+	}
+
 	.description {
 		font-family: 'Lexend', sans-serif;
 		color: rgba(255, 255, 255, 0.7);
@@ -979,29 +1156,32 @@
 	}
 
 	/* Key Input */
-	.key-input-container {
+	.key-input-group {
 		display: flex;
-		justify-content: center;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+		max-width: 280px;
 	}
 
 	.key-input-wrapper {
 		position: relative;
 		display: flex;
 		align-items: center;
-		width: 100%;
+		flex: 1;
 	}
 
 	.key-input {
-		background: rgba(0, 0, 0, 0.3);
-		border: 1px solid rgba(255, 255, 255, 0.15);
-		border-radius: 8px;
-		padding: 1rem 3.5rem 1rem 1.5rem;
+		background: rgba(0, 0, 0, 0.35);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 10px;
+		padding: 0.75rem 2.5rem 0.75rem 1rem;
 		font-family: 'Lexend', sans-serif;
-		font-size: 1.75rem;
-		font-weight: 700;
+		font-size: 1.1rem;
+		font-weight: 600;
 		text-align: center;
 		color: #fff;
-		letter-spacing: 0.4em;
+		letter-spacing: 0.25em;
 		text-transform: uppercase;
 		width: 100%;
 		transition: all 0.15s ease;
@@ -1009,30 +1189,30 @@
 
 	.key-input:focus {
 		outline: none;
-		border-color: rgba(59, 130, 246, 0.5);
-		background: rgba(59, 130, 246, 0.05);
+		border-color: rgba(251, 191, 36, 0.4);
+		background: rgba(251, 191, 36, 0.05);
 	}
 
 	.key-input::placeholder {
-		color: rgba(255, 255, 255, 0.25);
-		letter-spacing: 0.3em;
+		color: rgba(255, 255, 255, 0.2);
+		letter-spacing: 0.15em;
+		font-weight: 400;
 	}
 
 	.key-input.masked {
 		-webkit-text-security: disc;
-		text-security: disc;
 		font-family: 'Verdana', sans-serif;
-		letter-spacing: 0.25em;
+		letter-spacing: 0.2em;
 	}
 
 	.toggle-key-btn {
 		position: absolute;
-		right: 0.75rem;
+		right: 0.5rem;
 		background: none;
 		border: none;
 		cursor: pointer;
-		padding: 0.5rem;
-		color: rgba(255, 255, 255, 0.4);
+		padding: 0.35rem;
+		color: rgba(255, 255, 255, 0.35);
 		transition: color 0.15s ease;
 		display: flex;
 		align-items: center;
@@ -1040,7 +1220,7 @@
 	}
 
 	.toggle-key-btn:hover {
-		color: rgba(255, 255, 255, 0.7);
+		color: rgba(255, 255, 255, 0.6);
 	}
 
 	/* Search Button */
@@ -1048,31 +1228,28 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
-		width: 100%;
-		padding: 0.85rem 1.25rem;
-		background: rgba(59, 130, 246, 0.15);
-		border: 1px solid rgba(59, 130, 246, 0.3);
-		border-radius: 8px;
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.95rem;
-		font-weight: 500;
-		color: #60a5fa;
+		width: 44px;
+		height: 44px;
+		flex-shrink: 0;
+		background: linear-gradient(135deg, rgba(251, 191, 36, 0.9) 0%, rgba(245, 158, 11, 0.9) 100%);
+		border: none;
+		border-radius: 10px;
+		color: #1a1a2e;
 		cursor: pointer;
 		transition: all 0.15s ease;
 	}
 
 	.search-btn:hover:not(:disabled) {
-		background: rgba(59, 130, 246, 0.25);
-		border-color: rgba(59, 130, 246, 0.5);
+		background: linear-gradient(135deg, rgba(251, 191, 36, 1) 0%, rgba(245, 158, 11, 1) 100%);
+		transform: translateX(2px);
 	}
 
 	.search-btn:active:not(:disabled) {
-		transform: scale(0.98);
+		transform: scale(0.95);
 	}
 
 	.search-btn:disabled {
-		opacity: 0.4;
+		opacity: 0.3;
 		cursor: not-allowed;
 	}
 
@@ -1147,7 +1324,7 @@
 		font-weight: 500;
 	}
 
-	.change-tournament-btn {
+	.refresh-matches-btn {
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 50%;
@@ -1162,7 +1339,7 @@
 		flex-shrink: 0;
 	}
 
-	.change-tournament-btn:hover {
+	.refresh-matches-btn:hover {
 		background: rgba(255, 255, 255, 0.1);
 		color: rgba(255, 255, 255, 0.7);
 		border-color: rgba(255, 255, 255, 0.2);
@@ -1242,6 +1419,26 @@
 	.group-header.in-progress {
 		background: rgba(251, 191, 36, 0.1);
 		border-color: rgba(251, 191, 36, 0.2);
+	}
+
+	/* Liga Oro - Gold gradient */
+	.group-header.gold-league {
+		background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%);
+		border-color: rgba(251, 191, 36, 0.35);
+	}
+
+	.group-header.gold-league .group-name {
+		color: #fcd34d;
+	}
+
+	/* Liga Plata - Silver gradient */
+	.group-header.silver-league {
+		background: linear-gradient(135deg, rgba(156, 163, 175, 0.15) 0%, rgba(107, 114, 128, 0.15) 100%);
+		border-color: rgba(156, 163, 175, 0.35);
+	}
+
+	.group-header.silver-league .group-name {
+		color: #d1d5db;
 	}
 
 	.group-name {
@@ -1325,6 +1522,21 @@
 		flex-shrink: 0;
 	}
 
+	.match-row-btn .table-num.tbd {
+		background: linear-gradient(135deg, #78716c 0%, #57534e 100%);
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.match-row-btn.no-table {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.match-row-btn.no-table:hover {
+		border-color: rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.03);
+	}
+
 	.match-row-btn .player {
 		flex: 1;
 		font-family: 'Lexend', sans-serif;
@@ -1366,6 +1578,38 @@
 		letter-spacing: 0.02em;
 		padding: 0.15rem 0.35rem;
 		background: rgba(251, 191, 36, 0.15);
+		border-radius: 3px;
+		flex-shrink: 0;
+	}
+
+	/* Two-row layout for matches */
+	.match-row-btn.two-rows {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 0.4rem;
+		padding: 0.6rem 0.7rem;
+	}
+
+	.match-row-top {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.match-row-bottom {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.match-config {
+		margin-left: auto;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.6rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.5);
+		background: rgba(255, 255, 255, 0.06);
+		padding: 0.15rem 0.4rem;
 		border-radius: 3px;
 		flex-shrink: 0;
 	}
@@ -1569,8 +1813,32 @@
 		}
 
 		.key-input {
-			font-size: 1.5rem;
-			padding: 0.85rem 3rem 0.85rem 1rem;
+			font-size: 1rem;
+			padding: 0.7rem 2.25rem 0.7rem 0.85rem;
+		}
+
+		.key-input-group {
+			max-width: 240px;
+		}
+
+		.key-icon-wrapper {
+			width: 48px;
+			height: 48px;
+			margin-bottom: 0.75rem;
+		}
+
+		.key-icon-wrapper svg {
+			width: 24px;
+			height: 24px;
+		}
+
+		.key-description {
+			font-size: 0.95rem;
+		}
+
+		.search-btn {
+			width: 40px;
+			height: 40px;
 		}
 
 		.matches-list {

@@ -222,18 +222,20 @@ export async function markNoShow(
       let isSilverBracket = false;
 
       // Check gold bracket
-      for (const round of tournament.finalStage.bracket.rounds) {
-        match = round.matches.find(m => m.id === matchId);
-        if (match) break;
-      }
+      if (tournament.finalStage.goldBracket?.rounds) {
+        for (const round of tournament.finalStage.goldBracket.rounds) {
+          match = round.matches.find(m => m.id === matchId);
+          if (match) break;
+        }
 
-      // Check 3rd place
-      if (!match && tournament.finalStage.bracket.thirdPlaceMatch?.id === matchId) {
-        match = tournament.finalStage.bracket.thirdPlaceMatch;
+        // Check 3rd place
+        if (!match && tournament.finalStage.goldBracket.thirdPlaceMatch?.id === matchId) {
+          match = tournament.finalStage.goldBracket.thirdPlaceMatch;
+        }
       }
 
       // Check silver bracket
-      if (!match && tournament.finalStage.silverBracket) {
+      if (!match && tournament.finalStage.silverBracket?.rounds) {
         for (const round of tournament.finalStage.silverBracket.rounds) {
           match = round.matches.find(m => m.id === matchId);
           if (match) {

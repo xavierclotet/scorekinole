@@ -89,7 +89,7 @@
 
   $: tournamentId = $page.params.id;
   $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
-  $: isSplitDivisions = tournament?.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
+  $: isSplitDivisions = tournament?.finalStage?.mode === 'SPLIT_DIVISIONS';
 
   // For single bracket mode
   $: totalQualifiers = Array.from(groupQualifiers.values()).flat().length;
@@ -115,8 +115,8 @@
   // Initialize topNPerGroup based on mode
   let topNInitialized = false;
   $: if (!topNInitialized && tournament && suggestedQualifiers.perGroup > 0) {
-    const isSingleBracketSingleGroup = tournament.finalStageConfig?.mode !== 'SPLIT_DIVISIONS' && numGroups === 1;
-    const isSplitDiv = tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
+    const isSingleBracketSingleGroup = tournament.finalStage?.mode !== 'SPLIT_DIVISIONS' && numGroups === 1;
+    const isSplitDiv = tournament.finalStage?.mode === 'SPLIT_DIVISIONS';
 
     if (isSingleBracketSingleGroup) {
       // SINGLE_BRACKET with single group: all participants
@@ -227,8 +227,8 @@
           : Object.values(tournament.groupStage?.groups || {});
 
         // Determine default selection based on mode
-        const isSingleBracketSingleGroup = tournament.finalStageConfig?.mode !== 'SPLIT_DIVISIONS' && groups.length === 1;
-        const isSplitDiv = tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS';
+        const isSingleBracketSingleGroup = tournament.finalStage?.mode !== 'SPLIT_DIVISIONS' && groups.length === 1;
+        const isSplitDiv = tournament.finalStage?.mode === 'SPLIT_DIVISIONS';
 
         // Build qualifiers map and check for ties - create new Maps to ensure reactivity
         const newQualifiersMap = new Map<number, string[]>();
@@ -267,47 +267,45 @@
         groupQualifiers = newQualifiersMap; // Assign new Map to trigger reactivity
         groupTiesStatus = newTiesStatusMap; // Initialize tie status from loaded standings
 
-        // Load final stage config from tournament if it exists
-        if (tournament.finalStageConfig) {
-          const cfg = tournament.finalStageConfig;
+        // Load final stage config from tournament goldBracket.config if it exists
+        const goldConfig = tournament.finalStage?.goldBracket?.config;
+        const silverConfig = tournament.finalStage?.silverBracket?.config;
 
-          // Early rounds config (octavos, cuartos) - default: 4 rounds
-          // Only use specific config if it was explicitly set, otherwise use defaults
-          earlyRoundsGameMode = cfg.earlyRoundsGameMode || 'rounds';
-          earlyRoundsPointsToWin = cfg.earlyRoundsPointsToWin || 7;
-          earlyRoundsToPlay = cfg.earlyRoundsToPlay || 4;
+        if (goldConfig) {
+          // Early rounds config (octavos, cuartos)
+          earlyRoundsGameMode = goldConfig.earlyRounds?.gameMode || 'rounds';
+          earlyRoundsPointsToWin = goldConfig.earlyRounds?.pointsToWin || 7;
+          earlyRoundsToPlay = goldConfig.earlyRounds?.roundsToPlay || 4;
 
-          // Semifinals config - default: same as final (7 points)
-          semifinalGameMode = cfg.semifinalGameMode || cfg.gameMode || 'points';
-          semifinalPointsToWin = cfg.semifinalPointsToWin || cfg.pointsToWin || 7;
-          semifinalRoundsToPlay = cfg.semifinalRoundsToPlay || cfg.roundsToPlay || 4;
-          semifinalMatchesToWin = cfg.semifinalMatchesToWin || cfg.matchesToWin || 1;
+          // Semifinals config
+          semifinalGameMode = goldConfig.semifinal?.gameMode || 'points';
+          semifinalPointsToWin = goldConfig.semifinal?.pointsToWin || 7;
+          semifinalRoundsToPlay = goldConfig.semifinal?.roundsToPlay || 4;
+          semifinalMatchesToWin = goldConfig.semifinal?.matchesToWin || 1;
 
-          // Final config - use tournament config, fallback to 9 points
-          finalGameMode = cfg.finalGameMode || cfg.gameMode || 'points';
-          finalPointsToWin = cfg.finalPointsToWin || cfg.pointsToWin || 9;
-          finalRoundsToPlay = cfg.finalRoundsToPlay || cfg.roundsToPlay || 4;
-          finalMatchesToWin = cfg.finalMatchesToWin || cfg.matchesToWin || 1;
+          // Final config
+          finalGameMode = goldConfig.final?.gameMode || 'points';
+          finalPointsToWin = goldConfig.final?.pointsToWin || 9;
+          finalRoundsToPlay = goldConfig.final?.roundsToPlay || 4;
+          finalMatchesToWin = goldConfig.final?.matchesToWin || 1;
 
           // Silver bracket per-phase config (for SPLIT_DIVISIONS)
-          // Default: all phases to 4 rounds for Silver
-          if (cfg.mode === 'SPLIT_DIVISIONS') {
+          if (tournament.finalStage?.mode === 'SPLIT_DIVISIONS' && silverConfig) {
             // Silver Early Rounds
-            silverEarlyRoundsGameMode = cfg.silverEarlyRoundsGameMode || 'rounds';
-            silverEarlyRoundsPointsToWin = cfg.silverEarlyRoundsPointsToWin || 7;
-            silverEarlyRoundsToPlay = cfg.silverEarlyRoundsToPlay || 4;
+            silverEarlyRoundsGameMode = silverConfig.earlyRounds?.gameMode || 'rounds';
+            silverEarlyRoundsPointsToWin = silverConfig.earlyRounds?.pointsToWin || 7;
+            silverEarlyRoundsToPlay = silverConfig.earlyRounds?.roundsToPlay || 4;
             // Silver Semifinals
-            silverSemifinalGameMode = cfg.silverSemifinalGameMode || 'rounds';
-            silverSemifinalPointsToWin = cfg.silverSemifinalPointsToWin || 7;
-            silverSemifinalRoundsToPlay = cfg.silverSemifinalRoundsToPlay || 4;
-            silverSemifinalMatchesToWin = cfg.silverSemifinalMatchesToWin || 1;
+            silverSemifinalGameMode = silverConfig.semifinal?.gameMode || 'rounds';
+            silverSemifinalPointsToWin = silverConfig.semifinal?.pointsToWin || 7;
+            silverSemifinalRoundsToPlay = silverConfig.semifinal?.roundsToPlay || 4;
+            silverSemifinalMatchesToWin = silverConfig.semifinal?.matchesToWin || 1;
             // Silver Final
-            silverFinalGameMode = cfg.silverFinalGameMode || 'rounds';
-            silverFinalPointsToWin = cfg.silverFinalPointsToWin || 7;
-            silverFinalRoundsToPlay = cfg.silverFinalRoundsToPlay || 4;
-            silverFinalMatchesToWin = cfg.silverFinalMatchesToWin || 1;
+            silverFinalGameMode = silverConfig.final?.gameMode || 'rounds';
+            silverFinalPointsToWin = silverConfig.final?.pointsToWin || 7;
+            silverFinalRoundsToPlay = silverConfig.final?.roundsToPlay || 4;
+            silverFinalMatchesToWin = silverConfig.final?.matchesToWin || 1;
           }
-
         } else {
           // Default values - early rounds: 4 rounds, semis: 7 points, final: 9 points
           earlyRoundsGameMode = 'rounds';
@@ -395,47 +393,28 @@
           await updateQualifiers(tournamentId, groupIndex, qualifiedIds);
         }
 
-        // Save updated final stage config to tournament
-        const updatedFinalStageConfig = {
-          ...tournament.finalStageConfig,
-          // Early rounds
-          earlyRoundsGameMode,
-          earlyRoundsPointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
-          earlyRoundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
-          // Semifinals
-          semifinalGameMode,
-          semifinalPointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
-          semifinalRoundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
-          semifinalMatchesToWin,
-          // Final
-          finalGameMode,
-          finalPointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
-          finalRoundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
-          finalMatchesToWin
-        };
-
-        // Update tournament with new config
-        await updateTournament(tournamentId, { finalStageConfig: updatedFinalStageConfig });
-
-        // Generate single bracket - pass all config including per-phase settings
+        // Build bracket config with per-phase settings (new structure)
         const bracketConfig = {
-          gameMode: finalGameMode,
-          pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
-          roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
-          matchesToWin: finalMatchesToWin,
-          // Pass per-phase configuration
-          earlyRoundsGameMode,
-          earlyRoundsPointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
-          earlyRoundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
-          semifinalGameMode,
-          semifinalPointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
-          semifinalRoundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
-          semifinalMatchesToWin,
-          finalGameMode,
-          finalPointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
-          finalRoundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
-          finalMatchesToWin
+          earlyRounds: {
+            gameMode: earlyRoundsGameMode,
+            pointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
+            roundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
+            matchesToWin: 1 // Early rounds are always Bo1
+          },
+          semifinal: {
+            gameMode: semifinalGameMode,
+            pointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
+            roundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
+            matchesToWin: semifinalMatchesToWin
+          },
+          final: {
+            gameMode: finalGameMode,
+            pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
+            roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
+            matchesToWin: finalMatchesToWin
+          }
         };
+        // Generate bracket - config will be stored inside goldBracket.config
         const bracketSuccess = await generateBracket(tournamentId, bracketConfig);
 
         if (!bracketSuccess) {
@@ -454,41 +433,49 @@
           await updateQualifiers(tournamentId, groupIndex, finalQualifiedIds);
         }
 
-        // Generate both Gold and Silver brackets with per-phase configuration
+        // Generate both Gold and Silver brackets with per-phase configuration (new structure)
         const bracketSuccess = await generateSplitBrackets(tournamentId, {
           goldParticipantIds: goldParticipants,
           silverParticipantIds: silverParticipants,
           goldConfig: {
-            // Early rounds
-            earlyRoundsGameMode,
-            earlyRoundsPointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
-            earlyRoundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
-            // Semifinals
-            semifinalGameMode,
-            semifinalPointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
-            semifinalRoundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
-            semifinalMatchesToWin,
-            // Final
-            finalGameMode,
-            finalPointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
-            finalRoundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
-            finalMatchesToWin
+            earlyRounds: {
+              gameMode: earlyRoundsGameMode,
+              pointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
+              roundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
+              matchesToWin: 1
+            },
+            semifinal: {
+              gameMode: semifinalGameMode,
+              pointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
+              roundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
+              matchesToWin: semifinalMatchesToWin
+            },
+            final: {
+              gameMode: finalGameMode,
+              pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
+              roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
+              matchesToWin: finalMatchesToWin
+            }
           },
           silverConfig: {
-            // Early rounds
-            earlyRoundsGameMode: silverEarlyRoundsGameMode,
-            earlyRoundsPointsToWin: silverEarlyRoundsGameMode === 'points' ? silverEarlyRoundsPointsToWin : undefined,
-            earlyRoundsToPlay: silverEarlyRoundsGameMode === 'rounds' ? silverEarlyRoundsToPlay : undefined,
-            // Semifinals
-            semifinalGameMode: silverSemifinalGameMode,
-            semifinalPointsToWin: silverSemifinalGameMode === 'points' ? silverSemifinalPointsToWin : undefined,
-            semifinalRoundsToPlay: silverSemifinalGameMode === 'rounds' ? silverSemifinalRoundsToPlay : undefined,
-            semifinalMatchesToWin: silverSemifinalMatchesToWin,
-            // Final
-            finalGameMode: silverFinalGameMode,
-            finalPointsToWin: silverFinalGameMode === 'points' ? silverFinalPointsToWin : undefined,
-            finalRoundsToPlay: silverFinalGameMode === 'rounds' ? silverFinalRoundsToPlay : undefined,
-            finalMatchesToWin: silverFinalMatchesToWin
+            earlyRounds: {
+              gameMode: silverEarlyRoundsGameMode,
+              pointsToWin: silverEarlyRoundsGameMode === 'points' ? silverEarlyRoundsPointsToWin : undefined,
+              roundsToPlay: silverEarlyRoundsGameMode === 'rounds' ? silverEarlyRoundsToPlay : undefined,
+              matchesToWin: 1
+            },
+            semifinal: {
+              gameMode: silverSemifinalGameMode,
+              pointsToWin: silverSemifinalGameMode === 'points' ? silverSemifinalPointsToWin : undefined,
+              roundsToPlay: silverSemifinalGameMode === 'rounds' ? silverSemifinalRoundsToPlay : undefined,
+              matchesToWin: silverSemifinalMatchesToWin
+            },
+            final: {
+              gameMode: silverFinalGameMode,
+              pointsToWin: silverFinalGameMode === 'points' ? silverFinalPointsToWin : undefined,
+              roundsToPlay: silverFinalGameMode === 'rounds' ? silverFinalRoundsToPlay : undefined,
+              matchesToWin: silverFinalMatchesToWin
+            }
           }
         });
 

@@ -15,7 +15,6 @@ export type TournamentStatus =
 // Tournament configuration
 export type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE';
 export type GroupStageType = 'ROUND_ROBIN' | 'SWISS';
-export type FinalStageType = 'SINGLE_ELIMINATION';
 export type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS';  // Single bracket or Gold/Silver divisions
 
 // Group stage ranking system: by wins or by total points scored
@@ -71,44 +70,6 @@ export interface Tournament {
   groupStage?: GroupStage;
   finalStage: FinalStage;
 
-  // Final stage config (stored during tournament creation for TWO_PHASE tournaments)
-  finalStageConfig?: {
-    mode: FinalStageMode;           // Single bracket or split divisions (Gold/Silver)
-    // Gold bracket config (or single bracket if mode is SINGLE_BRACKET)
-    gameMode: 'points' | 'rounds';
-    pointsToWin?: number;
-    roundsToPlay?: number;
-    matchesToWin: number;
-    // Silver bracket config (only used when mode is SPLIT_DIVISIONS)
-    silverGameMode?: 'points' | 'rounds';
-    silverPointsToWin?: number;
-    silverRoundsToPlay?: number;
-    silverMatchesToWin?: number;
-    // Per-phase configuration (optional, overrides default config above)
-    earlyRoundsGameMode?: 'points' | 'rounds';
-    earlyRoundsPointsToWin?: number;
-    earlyRoundsToPlay?: number;
-    semifinalGameMode?: 'points' | 'rounds';
-    semifinalPointsToWin?: number;
-    semifinalRoundsToPlay?: number;
-    semifinalMatchesToWin?: number;
-    finalGameMode?: 'points' | 'rounds';
-    finalPointsToWin?: number;
-    finalRoundsToPlay?: number;
-    finalMatchesToWin?: number;
-    // Silver bracket per-phase config (only for SPLIT_DIVISIONS)
-    silverEarlyRoundsGameMode?: 'points' | 'rounds';
-    silverEarlyRoundsPointsToWin?: number;
-    silverEarlyRoundsToPlay?: number;
-    silverSemifinalGameMode?: 'points' | 'rounds';
-    silverSemifinalPointsToWin?: number;
-    silverSemifinalRoundsToPlay?: number;
-    silverSemifinalMatchesToWin?: number;
-    silverFinalGameMode?: 'points' | 'rounds';
-    silverFinalPointsToWin?: number;
-    silverFinalRoundsToPlay?: number;
-    silverFinalMatchesToWin?: number;
-  };
 
   // Time configuration (per-tournament settings for time estimation)
   timeConfig?: TournamentTimeConfig;
@@ -305,59 +266,44 @@ export interface GroupStanding {
 }
 
 /**
- * Final stage structure (always single elimination)
+ * Configuration for a bracket phase (early rounds, semifinal, or final)
+ */
+export interface PhaseConfig {
+  gameMode: 'points' | 'rounds';
+  pointsToWin?: number;   // Only if gameMode is 'points'
+  roundsToPlay?: number;  // Only if gameMode is 'rounds'
+  matchesToWin: number;   // Best of X
+}
+
+/**
+ * Configuration for all phases of a bracket
+ */
+export interface BracketConfig {
+  earlyRounds: PhaseConfig;
+  semifinal: PhaseConfig;
+  final: PhaseConfig;
+}
+
+/**
+ * Bracket with embedded configuration
+ */
+export interface BracketWithConfig {
+  rounds: BracketRound[];
+  totalRounds: number;
+  thirdPlaceMatch?: BracketMatch;
+  config: BracketConfig;
+}
+
+/**
+ * Final stage structure (single elimination)
  */
 export interface FinalStage {
-  type: FinalStageType;
-  mode: FinalStageMode;         // Single bracket or split divisions
-  bracket: Bracket;             // Gold bracket (or single bracket)
-  silverBracket?: Bracket;      // Silver bracket (only for SPLIT_DIVISIONS)
+  mode: FinalStageMode;                       // Single bracket or split divisions
+  goldBracket: BracketWithConfig;             // Gold bracket (always present)
+  silverBracket?: BracketWithConfig;          // Silver bracket (only for SPLIT_DIVISIONS)
   isComplete: boolean;
-  winner?: string;              // Participant ID (Gold winner)
-  silverWinner?: string;        // Silver bracket winner (only for SPLIT_DIVISIONS)
-
-  // Phase-specific game configuration for Gold bracket (can differ from group stage)
-  gameMode: 'points' | 'rounds';
-  pointsToWin?: number;        // For points mode (e.g., 7 points)
-  roundsToPlay?: number;       // For rounds mode (e.g., 4 rounds)
-  matchesToWin: number;        // Best of X (e.g., best of 3)
-
-  // Silver bracket game configuration (only for SPLIT_DIVISIONS)
-  silverGameMode?: 'points' | 'rounds';
-  silverPointsToWin?: number;
-  silverRoundsToPlay?: number;
-  silverMatchesToWin?: number;
-
-  // Per-phase configuration for bracket (optional, overrides default config)
-  // Early rounds (octavos, cuartos, etc.)
-  earlyRoundsGameMode?: 'points' | 'rounds';  // default: 'rounds'
-  earlyRoundsPointsToWin?: number;            // default: 7
-  earlyRoundsToPlay?: number;                 // default: 4
-
-  // Semifinals configuration
-  semifinalGameMode?: 'points' | 'rounds';    // default: 'points'
-  semifinalPointsToWin?: number;              // default: 7
-  semifinalRoundsToPlay?: number;
-  semifinalMatchesToWin?: number;             // default: 1
-
-  // Final configuration
-  finalGameMode?: 'points' | 'rounds';        // default: 'points'
-  finalPointsToWin?: number;                  // default: 9
-  finalRoundsToPlay?: number;
-  finalMatchesToWin?: number;                 // default: 1
-
-  // Silver bracket per-phase configuration (only for SPLIT_DIVISIONS)
-  silverEarlyRoundsGameMode?: 'points' | 'rounds';
-  silverEarlyRoundsPointsToWin?: number;
-  silverEarlyRoundsToPlay?: number;
-  silverSemifinalGameMode?: 'points' | 'rounds';
-  silverSemifinalPointsToWin?: number;
-  silverSemifinalRoundsToPlay?: number;
-  silverSemifinalMatchesToWin?: number;
-  silverFinalGameMode?: 'points' | 'rounds';
-  silverFinalPointsToWin?: number;
-  silverFinalRoundsToPlay?: number;
-  silverFinalMatchesToWin?: number;
+  winner?: string;                            // Gold bracket winner participant ID
+  silverWinner?: string;                      // Silver bracket winner (only for SPLIT_DIVISIONS)
 }
 
 /**

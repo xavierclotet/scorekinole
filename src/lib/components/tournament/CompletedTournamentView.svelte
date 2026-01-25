@@ -5,12 +5,14 @@
   import MatchResultDialog from './MatchResultDialog.svelte';
   import { BYE_PARTICIPANT, isBye } from '$lib/algorithms/bracket';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
+  import { calculateFinalPositions, applyRankingUpdates } from '$lib/firebase/tournamentRanking';
   import { t } from '$lib/stores/language';
 
   const dispatch = createEventDispatcher<{ updated: void }>();
 
   // Track which groups are recalculating
   let recalculatingGroups = new Set<string>();
+  let recalculatingPositions = false;
 
   export let tournament: Tournament;
 
@@ -52,7 +54,7 @@
 
   // Check if this is a split divisions tournament
   $: isSplitDivisions = tournament.finalStage?.mode === 'SPLIT_DIVISIONS';
-  $: goldBracket = tournament.finalStage?.bracket;
+  $: goldBracket = tournament.finalStage?.goldBracket;
   $: silverBracket = tournament.finalStage?.silverBracket;
 
   // Match configuration - determines if we show games won or total points
@@ -124,6 +126,28 @@
     }
   }
 
+  // Recalculate final positions for bracket participants
+  async function handleRecalculatePositions() {
+    if (recalculatingPositions) return;
+
+    recalculatingPositions = true;
+
+    try {
+      const success = await calculateFinalPositions(tournament.id);
+      if (success) {
+        // Also recalculate ranking if enabled
+        if (tournament.rankingConfig?.enabled) {
+          await applyRankingUpdates(tournament.id);
+        }
+        dispatch('updated');
+      }
+    } catch (err) {
+      console.error('Error recalculating positions:', err);
+    } finally {
+      recalculatingPositions = false;
+    }
+  }
+
   // Get all matches from group schedule or pairings
   function getGroupMatches(group: any): GroupMatch[] {
     const schedule = group.schedule || group.pairings;
@@ -169,6 +193,25 @@
 <div class="completed-view">
   <!-- Final Standings with Ranking - Compact Grid Layout -->
   <div class="final-standings-section">
+    <div class="standings-header">
+      <h3>{$t('finalStandings')}</h3>
+      <button
+        class="recalc-positions-btn"
+        on:click={handleRecalculatePositions}
+        disabled={recalculatingPositions}
+        title={$t('recalculatePositions')}
+      >
+        {#if recalculatingPositions}
+          <span class="spinner-small"></span>
+        {:else}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+          </svg>
+        {/if}
+        <span>{$t('recalculate')}</span>
+      </button>
+    </div>
     <div class="standings-grid" class:with-ranking={tournament.rankingConfig?.enabled}>
       {#each sortedParticipants as participant (participant.id)}
         {@const delta = getRankingDelta(participant)}
@@ -300,7 +343,7 @@
           </div>
         {/each}
       </div>
-    {:else if activeTab === 'bracket' && tournament.finalStage?.bracket}
+    {:else if activeTab === 'bracket' && goldBracket}
       <!-- Bracket View -->
       <div class="bracket-section">
         <!-- Gold Bracket (or single bracket) -->
@@ -312,7 +355,7 @@
             </div>
           {/if}
           <div class="bracket-container">
-          {#each tournament.finalStage.bracket.rounds as round (round.roundNumber)}
+          {#each goldBracket.rounds as round (round.roundNumber)}
             <div class="bracket-round">
               <h3 class="round-name">{round.name}</h3>
               <div class="matches-column">
@@ -362,8 +405,8 @@
           {/each}
 
           <!-- 3rd/4th Place Match (Gold) -->
-          {#if tournament.finalStage.bracket.thirdPlaceMatch}
-            {@const thirdPlaceMatch = tournament.finalStage.bracket.thirdPlaceMatch}
+          {#if goldBracket.thirdPlaceMatch}
+            {@const thirdPlaceMatch = goldBracket.thirdPlaceMatch}
             <div class="bracket-round third-place-round">
               <h3 class="round-name third-place">3º y 4º Puesto</h3>
               <div class="matches-column">
@@ -528,6 +571,68 @@
   /* Final Standings Section - Compact Grid */
   .final-standings-section {
     margin-bottom: 1.5rem;
+  }
+
+  .final-standings-section > .standings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  .final-standings-section > .standings-header h3 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  :global([data-theme='dark']) .final-standings-section > .standings-header h3 {
+    color: #e1e8ed;
+  }
+
+  .recalc-positions-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #4b5563;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .recalc-positions-btn:hover:not(:disabled) {
+    background: #e5e7eb;
+    border-color: #667eea;
+    color: #374151;
+  }
+
+  .recalc-positions-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .recalc-positions-btn svg {
+    flex-shrink: 0;
+  }
+
+  :global([data-theme='dark']) .recalc-positions-btn {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #9ca3af;
+  }
+
+  :global([data-theme='dark']) .recalc-positions-btn:hover:not(:disabled) {
+    background: #4a5568;
+    border-color: #667eea;
+    color: #e1e8ed;
   }
 
   .standings-grid {

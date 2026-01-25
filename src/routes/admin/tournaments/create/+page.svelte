@@ -80,9 +80,10 @@
   // Advanced bracket phase configuration
   let showAdvancedBracketConfig = false;
   // Early rounds (octavos, cuartos)
-  let earlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
+  let earlyRoundsGameMode: 'points' | 'rounds' = 'points';
   let earlyRoundsPointsToWin = 7;
   let earlyRoundsToPlay = 4;
+  let earlyRoundsMatchesToWin = 1;
   // Semifinals
   let semifinalGameMode: 'points' | 'rounds' = 'points';
   let semifinalPointsToWin = 7;
@@ -97,6 +98,7 @@
   let silverEarlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
   let silverEarlyRoundsPointsToWin = 7;
   let silverEarlyRoundsToPlay = 4;
+  let silverEarlyRoundsMatchesToWin = 1;
   let silverSemifinalGameMode: 'points' | 'rounds' = 'rounds';
   let silverSemifinalPointsToWin = 7;
   let silverSemifinalRoundsToPlay = 4;
@@ -279,29 +281,40 @@
           numSwissRounds = tournament.numSwissRounds || 4;
         }
 
-        // Final stage config from finalStageConfig or finalStage
-        if (tournament.finalStageConfig) {
-          finalStageMode = tournament.finalStageConfig.mode || 'SINGLE_BRACKET';
-          finalGameMode = tournament.finalStageConfig.gameMode || 'points';
-          finalPointsToWin = tournament.finalStageConfig.pointsToWin || 7;
-          finalRoundsToPlay = tournament.finalStageConfig.roundsToPlay || 4;
-          finalMatchesToWin = tournament.finalStageConfig.matchesToWin || 1;
+        // Final stage config from goldBracket.config
+        if (tournament.finalStage?.goldBracket?.config) {
+          const goldConfig = tournament.finalStage.goldBracket.config;
+          finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
+          // Use final phase config as the main display values
+          finalGameMode = goldConfig.final?.gameMode || 'points';
+          finalPointsToWin = goldConfig.final?.pointsToWin || 7;
+          finalRoundsToPlay = goldConfig.final?.roundsToPlay || 4;
+          finalMatchesToWin = goldConfig.final?.matchesToWin || 1;
+
           // Silver bracket config
-          silverGameMode = tournament.finalStageConfig.silverGameMode || 'points';
-          silverPointsToWin = tournament.finalStageConfig.silverPointsToWin || 7;
-          silverRoundsToPlay = tournament.finalStageConfig.silverRoundsToPlay || 4;
-          silverMatchesToWin = tournament.finalStageConfig.silverMatchesToWin || 1;
+          if (tournament.finalStage.silverBracket?.config) {
+            const silverConfig = tournament.finalStage.silverBracket.config;
+            silverGameMode = silverConfig.final?.gameMode || 'rounds';
+            silverPointsToWin = silverConfig.final?.pointsToWin || 7;
+            silverRoundsToPlay = silverConfig.final?.roundsToPlay || 4;
+            silverMatchesToWin = silverConfig.final?.matchesToWin || 1;
+          } else {
+            silverGameMode = 'rounds';
+            silverPointsToWin = 7;
+            silverRoundsToPlay = 4;
+            silverMatchesToWin = 1;
+          }
         } else if (tournament.finalStage) {
           finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
-          finalGameMode = tournament.finalStage.gameMode || 'points';
-          finalPointsToWin = tournament.finalStage.pointsToWin || 7;
-          finalRoundsToPlay = tournament.finalStage.roundsToPlay || 4;
-          finalMatchesToWin = tournament.finalStage.matchesToWin || 1;
-          // Silver bracket config
-          silverGameMode = tournament.finalStage.silverGameMode || 'points';
-          silverPointsToWin = tournament.finalStage.silverPointsToWin || 7;
-          silverRoundsToPlay = tournament.finalStage.silverRoundsToPlay || 4;
-          silverMatchesToWin = tournament.finalStage.silverMatchesToWin || 1;
+          // Defaults
+          finalGameMode = 'points';
+          finalPointsToWin = 7;
+          finalRoundsToPlay = 4;
+          finalMatchesToWin = 1;
+          silverGameMode = 'rounds';
+          silverPointsToWin = 7;
+          silverRoundsToPlay = 4;
+          silverMatchesToWin = 1;
         } else {
           finalStageMode = 'SINGLE_BRACKET';
           finalGameMode = 'points';
@@ -315,12 +328,13 @@
           silverMatchesToWin = 1;
         }
       } else {
-        // ONE_PHASE: load from finalStage
-        if (tournament.finalStage) {
-          gameMode = tournament.finalStage.gameMode || 'points';
-          pointsToWin = tournament.finalStage.pointsToWin || 7;
-          roundsToPlay = tournament.finalStage.roundsToPlay || 4;
-          matchesToWin = tournament.finalStage.matchesToWin || 3;
+        // ONE_PHASE: load from goldBracket.config
+        if (tournament.finalStage?.goldBracket?.config) {
+          const config = tournament.finalStage.goldBracket.config;
+          gameMode = config.final?.gameMode || 'points';
+          pointsToWin = config.final?.pointsToWin || 7;
+          roundsToPlay = config.final?.roundsToPlay || 4;
+          matchesToWin = config.final?.matchesToWin || 3;
         } else {
           // Legacy fallback
           gameMode = tournament.gameMode || 'points';
@@ -420,26 +434,35 @@
           numSwissRounds = tournament.numSwissRounds || 4;
         }
 
-        if (tournament.finalStageConfig) {
-          finalStageMode = tournament.finalStageConfig.mode || 'SINGLE_BRACKET';
-          finalGameMode = tournament.finalStageConfig.gameMode || 'points';
-          finalPointsToWin = tournament.finalStageConfig.pointsToWin || 7;
-          finalRoundsToPlay = tournament.finalStageConfig.roundsToPlay || 4;
-          finalMatchesToWin = tournament.finalStageConfig.matchesToWin || 1;
-          silverGameMode = tournament.finalStageConfig.silverGameMode || 'points';
-          silverPointsToWin = tournament.finalStageConfig.silverPointsToWin || 7;
-          silverRoundsToPlay = tournament.finalStageConfig.silverRoundsToPlay || 4;
-          silverMatchesToWin = tournament.finalStageConfig.silverMatchesToWin || 1;
+        if (tournament.finalStage?.goldBracket?.config) {
+          const goldConfig = tournament.finalStage.goldBracket.config;
+          finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
+          finalGameMode = goldConfig.final?.gameMode || 'points';
+          finalPointsToWin = goldConfig.final?.pointsToWin || 7;
+          finalRoundsToPlay = goldConfig.final?.roundsToPlay || 4;
+          finalMatchesToWin = goldConfig.final?.matchesToWin || 1;
+          if (tournament.finalStage.silverBracket?.config) {
+            const silverConfig = tournament.finalStage.silverBracket.config;
+            silverGameMode = silverConfig.final?.gameMode || 'rounds';
+            silverPointsToWin = silverConfig.final?.pointsToWin || 7;
+            silverRoundsToPlay = silverConfig.final?.roundsToPlay || 4;
+            silverMatchesToWin = silverConfig.final?.matchesToWin || 1;
+          } else {
+            silverGameMode = 'rounds';
+            silverPointsToWin = 7;
+            silverRoundsToPlay = 4;
+            silverMatchesToWin = 1;
+          }
         } else if (tournament.finalStage) {
           finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
-          finalGameMode = tournament.finalStage.gameMode || 'points';
-          finalPointsToWin = tournament.finalStage.pointsToWin || 7;
-          finalRoundsToPlay = tournament.finalStage.roundsToPlay || 4;
-          finalMatchesToWin = tournament.finalStage.matchesToWin || 1;
-          silverGameMode = tournament.finalStage.silverGameMode || 'points';
-          silverPointsToWin = tournament.finalStage.silverPointsToWin || 7;
-          silverRoundsToPlay = tournament.finalStage.silverRoundsToPlay || 4;
-          silverMatchesToWin = tournament.finalStage.silverMatchesToWin || 1;
+          finalGameMode = 'points';
+          finalPointsToWin = 7;
+          finalRoundsToPlay = 4;
+          finalMatchesToWin = 1;
+          silverGameMode = 'rounds';
+          silverPointsToWin = 7;
+          silverRoundsToPlay = 4;
+          silverMatchesToWin = 1;
         } else {
           finalStageMode = 'SINGLE_BRACKET';
           finalGameMode = 'points';
@@ -452,16 +475,17 @@
           silverMatchesToWin = 1;
         }
       } else {
-        if (tournament.finalStage) {
-          gameMode = tournament.finalStage.gameMode || 'points';
-          pointsToWin = tournament.finalStage.pointsToWin || 7;
-          roundsToPlay = tournament.finalStage.roundsToPlay || 4;
-          matchesToWin = tournament.finalStage.matchesToWin || 3;
+        if (tournament.finalStage?.goldBracket?.config) {
+          const config = tournament.finalStage.goldBracket.config;
+          gameMode = config.final?.gameMode || 'points';
+          pointsToWin = config.final?.pointsToWin || 7;
+          roundsToPlay = config.final?.roundsToPlay || 4;
+          matchesToWin = config.final?.matchesToWin || 3;
         } else {
-          gameMode = tournament.gameMode || 'points';
-          pointsToWin = tournament.pointsToWin || 7;
-          roundsToPlay = tournament.roundsToPlay || 4;
-          matchesToWin = tournament.matchesToWin || 3;
+          gameMode = 'points';
+          pointsToWin = 7;
+          roundsToPlay = 4;
+          matchesToWin = 3;
         }
       }
 
@@ -1041,8 +1065,7 @@
           rankingSystem: rankingSystem
         };
 
-        // Final stage configuration will be set when transitioning (in generateBracket)
-        // We store it in finalStageConfig for now
+        // Final stage configuration - stored in goldBracket.config (and silverBracket.config for SPLIT_DIVISIONS)
         // Always save per-phase configuration (use advanced values if enabled, otherwise defaults)
         const goldEarlyMode = showAdvancedBracketConfig ? earlyRoundsGameMode : 'rounds';
         const goldSemiMode = showAdvancedBracketConfig ? semifinalGameMode : 'points';
@@ -1051,44 +1074,66 @@
         const silverSemiMode = showAdvancedBracketConfig ? silverSemifinalGameMode : 'rounds';
         const silverFinalMode = showAdvancedBracketConfig ? silverBracketFinalGameMode : 'rounds';
 
-        tournamentData.finalStageConfig = {
+        // Build gold bracket config
+        const goldBracketConfig = {
+          earlyRounds: {
+            gameMode: goldEarlyMode,
+            pointsToWin: goldEarlyMode === 'points' ? (showAdvancedBracketConfig ? earlyRoundsPointsToWin : 7) : undefined,
+            roundsToPlay: goldEarlyMode === 'rounds' ? (showAdvancedBracketConfig ? earlyRoundsToPlay : 4) : undefined,
+            matchesToWin: showAdvancedBracketConfig ? earlyRoundsMatchesToWin : 1
+          },
+          semifinal: {
+            gameMode: goldSemiMode,
+            pointsToWin: goldSemiMode === 'points' ? (showAdvancedBracketConfig ? semifinalPointsToWin : 7) : undefined,
+            roundsToPlay: goldSemiMode === 'rounds' ? (showAdvancedBracketConfig ? semifinalRoundsToPlay : 4) : undefined,
+            matchesToWin: showAdvancedBracketConfig ? semifinalMatchesToWin : 1
+          },
+          final: {
+            gameMode: goldFinalMode,
+            pointsToWin: goldFinalMode === 'points' ? (showAdvancedBracketConfig ? bracketFinalPointsToWin : 9) : undefined,
+            roundsToPlay: goldFinalMode === 'rounds' ? (showAdvancedBracketConfig ? bracketFinalRoundsToPlay : 4) : undefined,
+            matchesToWin: showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1
+          }
+        };
+
+        // Build silver bracket config (for SPLIT_DIVISIONS)
+        const silverBracketConfig = finalStageMode === 'SPLIT_DIVISIONS' ? {
+          earlyRounds: {
+            gameMode: silverEarlyMode,
+            pointsToWin: silverEarlyMode === 'points' ? (showAdvancedBracketConfig ? silverEarlyRoundsPointsToWin : 7) : undefined,
+            roundsToPlay: silverEarlyMode === 'rounds' ? (showAdvancedBracketConfig ? silverEarlyRoundsToPlay : 4) : undefined,
+            matchesToWin: showAdvancedBracketConfig ? silverEarlyRoundsMatchesToWin : 1
+          },
+          semifinal: {
+            gameMode: silverSemiMode,
+            pointsToWin: silverSemiMode === 'points' ? (showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7) : undefined,
+            roundsToPlay: silverSemiMode === 'rounds' ? (showAdvancedBracketConfig ? silverSemifinalRoundsToPlay : 4) : undefined,
+            matchesToWin: showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1
+          },
+          final: {
+            gameMode: silverFinalMode,
+            pointsToWin: silverFinalMode === 'points' ? (showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7) : undefined,
+            roundsToPlay: silverFinalMode === 'rounds' ? (showAdvancedBracketConfig ? silverBracketFinalRoundsToPlay : 4) : undefined,
+            matchesToWin: showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1
+          }
+        } : undefined;
+
+        // Set finalStage with brackets containing their configs
+        tournamentData.finalStage = {
           mode: finalStageMode,
-          // Gold bracket base config (or single bracket if SINGLE_BRACKET mode)
-          gameMode: finalGameMode,
-          pointsToWin: finalGameMode === 'points' ? finalPointsToWin : undefined,
-          roundsToPlay: finalGameMode === 'rounds' ? finalRoundsToPlay : undefined,
-          matchesToWin: finalMatchesToWin,
-          // Gold bracket per-phase config (always saved)
-          earlyRoundsGameMode: goldEarlyMode,
-          earlyRoundsPointsToWin: goldEarlyMode === 'points' ? (showAdvancedBracketConfig ? earlyRoundsPointsToWin : 7) : undefined,
-          earlyRoundsToPlay: goldEarlyMode === 'rounds' ? (showAdvancedBracketConfig ? earlyRoundsToPlay : 4) : undefined,
-          semifinalGameMode: goldSemiMode,
-          semifinalPointsToWin: goldSemiMode === 'points' ? (showAdvancedBracketConfig ? semifinalPointsToWin : 7) : undefined,
-          semifinalRoundsToPlay: goldSemiMode === 'rounds' ? (showAdvancedBracketConfig ? semifinalRoundsToPlay : 4) : undefined,
-          semifinalMatchesToWin: showAdvancedBracketConfig ? semifinalMatchesToWin : 1,
-          finalGameMode: goldFinalMode,
-          finalPointsToWin: goldFinalMode === 'points' ? (showAdvancedBracketConfig ? bracketFinalPointsToWin : 9) : undefined,
-          finalRoundsToPlay: goldFinalMode === 'rounds' ? (showAdvancedBracketConfig ? bracketFinalRoundsToPlay : 4) : undefined,
-          finalMatchesToWin: showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1,
-          // Silver bracket config (only for SPLIT_DIVISIONS mode)
-          ...(finalStageMode === 'SPLIT_DIVISIONS' ? {
-            silverGameMode,
-            silverPointsToWin: silverGameMode === 'points' ? silverPointsToWin : undefined,
-            silverRoundsToPlay: silverGameMode === 'rounds' ? silverRoundsToPlay : undefined,
-            silverMatchesToWin,
-            // Silver bracket per-phase config (always saved, default: all 4 rounds)
-            silverEarlyRoundsGameMode: silverEarlyMode,
-            silverEarlyRoundsPointsToWin: silverEarlyMode === 'points' ? (showAdvancedBracketConfig ? silverEarlyRoundsPointsToWin : 7) : undefined,
-            silverEarlyRoundsToPlay: silverEarlyMode === 'rounds' ? (showAdvancedBracketConfig ? silverEarlyRoundsToPlay : 4) : undefined,
-            silverSemifinalGameMode: silverSemiMode,
-            silverSemifinalPointsToWin: silverSemiMode === 'points' ? (showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7) : undefined,
-            silverSemifinalRoundsToPlay: silverSemiMode === 'rounds' ? (showAdvancedBracketConfig ? silverSemifinalRoundsToPlay : 4) : undefined,
-            silverSemifinalMatchesToWin: showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1,
-            silverFinalGameMode: silverFinalMode,
-            silverFinalPointsToWin: silverFinalMode === 'points' ? (showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7) : undefined,
-            silverFinalRoundsToPlay: silverFinalMode === 'rounds' ? (showAdvancedBracketConfig ? silverBracketFinalRoundsToPlay : 4) : undefined,
-            silverFinalMatchesToWin: showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1
-          } : {})
+          goldBracket: {
+            rounds: [],
+            totalRounds: 0,
+            config: goldBracketConfig
+          },
+          ...(silverBracketConfig ? {
+            silverBracket: {
+              rounds: [],
+              totalRounds: 0,
+              config: silverBracketConfig
+            }
+          } : {}),
+          isComplete: false
         };
       } else {
         // ONE_PHASE: final stage configuration (for bracket directly)
@@ -1109,18 +1154,36 @@
           finalMatchesToWinValue
         });
 
-        tournamentData.finalStage = {
-          type: 'SINGLE_ELIMINATION',
-          mode: 'SINGLE_BRACKET',
-          bracket: {
-            rounds: [],
-            totalRounds: 0
+        // Build bracket config - for ONE_PHASE, all phases use the same config
+        const bracketConfig = {
+          earlyRounds: {
+            gameMode: finalGameModeValue,
+            pointsToWin: finalGameModeValue === 'points' ? finalPointsToWinValue : undefined,
+            roundsToPlay: finalGameModeValue === 'rounds' ? finalRoundsToPlayValue : undefined,
+            matchesToWin: finalMatchesToWinValue
           },
-          isComplete: false,
-          gameMode: finalGameModeValue,
-          pointsToWin: finalGameModeValue === 'points' ? finalPointsToWinValue : undefined,
-          roundsToPlay: finalGameModeValue === 'rounds' ? finalRoundsToPlayValue : undefined,
-          matchesToWin: finalMatchesToWinValue
+          semifinal: {
+            gameMode: finalGameModeValue,
+            pointsToWin: finalGameModeValue === 'points' ? finalPointsToWinValue : undefined,
+            roundsToPlay: finalGameModeValue === 'rounds' ? finalRoundsToPlayValue : undefined,
+            matchesToWin: finalMatchesToWinValue
+          },
+          final: {
+            gameMode: finalGameModeValue,
+            pointsToWin: finalGameModeValue === 'points' ? finalPointsToWinValue : undefined,
+            roundsToPlay: finalGameModeValue === 'rounds' ? finalRoundsToPlayValue : undefined,
+            matchesToWin: finalMatchesToWinValue
+          }
+        };
+
+        tournamentData.finalStage = {
+          mode: 'SINGLE_BRACKET',
+          goldBracket: {
+            rounds: [],
+            totalRounds: 0,
+            config: bracketConfig
+          },
+          isComplete: false
         };
       }
 
@@ -1268,7 +1331,8 @@
             class="progress-step"
             class:active={i + 1 <= currentStep}
             class:current={i + 1 === currentStep}
-            disabled={!editMode}
+            class:clickable={editMode || duplicateMode}
+            disabled={!editMode && !duplicateMode}
             on:click={() => goToStep(i + 1)}
           >
             <div class="step-number">{i + 1}</div>
@@ -1502,7 +1566,7 @@
                   <span class="field-hint">Máx. {maxPlayersForTables} jugadores</span>
                 </div>
                 <div class="config-field phase-selector">
-                  <label>Estructura</label>
+                  <label>{$t('structure')}</label>
                   <div class="toggle-buttons">
                     <button
                       type="button"
@@ -1553,7 +1617,7 @@
                 <!-- Sistema y configuración básica en línea -->
                 <div class="inline-config">
                   <div class="config-field">
-                    <label>Sistema</label>
+                    <label>{$t('system')}</label>
                     <div class="toggle-buttons">
                       <button
                         type="button"
@@ -1561,7 +1625,7 @@
                         class:active={groupStageType === 'ROUND_ROBIN'}
                         on:click={() => groupStageType = 'ROUND_ROBIN'}
                       >
-                        Round Robin
+                        {$t('roundRobin')}
                       </button>
                       <button
                         type="button"
@@ -1569,13 +1633,13 @@
                         class:active={groupStageType === 'SWISS'}
                         on:click={() => groupStageType = 'SWISS'}
                       >
-                        Suizo
+                        {$t('swiss')}
                       </button>
                     </div>
                   </div>
                   {#if groupStageType === 'ROUND_ROBIN'}
                     <div class="config-field">
-                      <label for="numGroups">Grupos</label>
+                      <label for="numGroups">{$t('groups')}</label>
                       <input
                         id="numGroups"
                         type="number"
@@ -1587,7 +1651,7 @@
                     </div>
                   {:else}
                     <div class="config-field">
-                      <label for="numSwissRounds">Rondas</label>
+                      <label for="numSwissRounds">{$t('rounds')}</label>
                       <input
                         id="numSwissRounds"
                         type="number"
@@ -1599,7 +1663,7 @@
                     </div>
                   {/if}
                   <div class="config-field">
-                    <label>Clasificación</label>
+                    <label>{$t('rankingSystem')}</label>
                     <div class="toggle-buttons">
                       <button
                         type="button"
@@ -1608,7 +1672,7 @@
                         on:click={() => rankingSystem = 'WINS'}
                         title={groupStageType === 'ROUND_ROBIN' ? '2 pts victoria, 1 empate' : '1 pt victoria, 0.5 empate'}
                       >
-                        Victorias
+                        {$t('byWins')}
                       </button>
                       <button
                         type="button"
@@ -1617,7 +1681,7 @@
                         on:click={() => rankingSystem = 'POINTS'}
                         title="Suma de puntos anotados"
                       >
-                        Puntos
+                        {$t('points')}
                       </button>
                     </div>
                   </div>
@@ -1625,16 +1689,15 @@
 
                 <!-- Configuración de partidos -->
                 <div class="match-settings">
-                  <span class="settings-label">Partidos:</span>
                   <div class="settings-row">
-                    <div class="toggle-buttons small">
+                    <div class="toggle-buttons">
                       <button
                         type="button"
                         class="toggle-btn"
                         class:active={groupGameMode === 'points'}
                         on:click={() => groupGameMode = 'points'}
                       >
-                        Puntos
+                        {$t('points')}
                       </button>
                       <button
                         type="button"
@@ -1642,7 +1705,7 @@
                         class:active={groupGameMode === 'rounds'}
                         on:click={() => groupGameMode = 'rounds'}
                       >
-                        Rondas
+                        {$t('rounds')}
                       </button>
                     </div>
                     {#if groupGameMode === 'points'}
@@ -1657,6 +1720,15 @@
                         />
                         <span>pts</span>
                       </div>
+                      <div class="inline-field">
+                        <span>{$t('bestOfN')}</span>
+                        <select bind:value={groupMatchesToWin} class="input-field mini">
+                          <option value={1}>1</option>
+                          <option value={3}>3</option>
+                          <option value={5}>5</option>
+                          <option value={7}>7</option>
+                        </select>
+                      </div>
                     {:else}
                       <div class="inline-field">
                         <input
@@ -1666,18 +1738,9 @@
                           max="20"
                           class="input-field mini"
                         />
-                        <span>rondas</span>
+                        <span>{$t('rounds').toLowerCase()}</span>
                       </div>
                     {/if}
-                    <div class="inline-field">
-                      <span>Mejor de</span>
-                      <select bind:value={groupMatchesToWin} class="input-field mini">
-                        <option value={1}>1</option>
-                        <option value={3}>3</option>
-                        <option value={5}>5</option>
-                        <option value={7}>7</option>
-                      </select>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1693,7 +1756,7 @@
                 <!-- Estructura de brackets -->
                 <div class="inline-config">
                   <div class="config-field wide">
-                    <label>Estructura</label>
+                    <label>{$t('structure')}</label>
                     <div class="toggle-buttons">
                       <button
                         type="button"
@@ -1715,275 +1778,287 @@
                   </div>
                 </div>
 
-                <!-- Brackets configuración -->
-                <div class="brackets-config" class:split={finalStageMode === 'SPLIT_DIVISIONS'}>
-                  <!-- Gold/Main Bracket -->
-                  <div class="bracket-box" class:gold={finalStageMode === 'SPLIT_DIVISIONS'}>
-                    {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                      <span class="bracket-label gold">Oro</span>
-                    {/if}
-                    <div class="match-settings">
-                      <div class="settings-row">
-                        <div class="toggle-buttons small">
-                          <button
-                            type="button"
-                            class="toggle-btn"
-                            class:active={finalGameMode === 'points'}
-                            on:click={() => finalGameMode = 'points'}
-                          >
-                            Puntos
-                          </button>
-                          <button
-                            type="button"
-                            class="toggle-btn"
-                            class:active={finalGameMode === 'rounds'}
-                            on:click={() => finalGameMode = 'rounds'}
-                          >
-                            Rondas
-                          </button>
-                        </div>
-                        {#if finalGameMode === 'points'}
-                          <div class="inline-field">
-                            <span>a</span>
-                            <input
-                              type="number"
-                              bind:value={finalPointsToWin}
-                              min="1"
-                              max="50"
-                              class="input-field mini"
-                            />
-                            <span>pts</span>
-                          </div>
-                        {:else}
-                          <div class="inline-field">
-                            <input
-                              type="number"
-                              bind:value={finalRoundsToPlay}
-                              min="1"
-                              max="20"
-                              class="input-field mini"
-                            />
-                            <span>rondas</span>
-                          </div>
-                        {/if}
-                        <div class="inline-field">
-                          <span>Md</span>
-                          <select bind:value={finalMatchesToWin} class="input-field mini">
-                            <option value={1}>1</option>
-                            <option value={3}>3</option>
-                            <option value={5}>5</option>
-                            <option value={7}>7</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Silver Bracket -->
-                  {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                    <div class="bracket-box silver">
-                      <span class="bracket-label silver">Plata</span>
+                {#if finalStageMode === 'SINGLE_BRACKET'}
+                  <!-- Configuración para Bracket Único -->
+                  <div class="brackets-config">
+                    <div class="bracket-box">
                       <div class="match-settings">
                         <div class="settings-row">
-                          <div class="toggle-buttons small">
+                          <div class="toggle-buttons">
                             <button
                               type="button"
                               class="toggle-btn"
-                              class:active={silverGameMode === 'points'}
-                              on:click={() => silverGameMode = 'points'}
+                              class:active={finalGameMode === 'points'}
+                              on:click={() => finalGameMode = 'points'}
                             >
                               Puntos
                             </button>
                             <button
                               type="button"
                               class="toggle-btn"
-                              class:active={silverGameMode === 'rounds'}
-                              on:click={() => silverGameMode = 'rounds'}
+                              class:active={finalGameMode === 'rounds'}
+                              on:click={() => finalGameMode = 'rounds'}
                             >
                               Rondas
                             </button>
                           </div>
-                          {#if silverGameMode === 'points'}
+                          {#if finalGameMode === 'points'}
                             <div class="inline-field">
                               <span>a</span>
                               <input
                                 type="number"
-                                bind:value={silverPointsToWin}
+                                bind:value={finalPointsToWin}
                                 min="1"
                                 max="50"
                                 class="input-field mini"
                               />
                               <span>pts</span>
                             </div>
+                            <div class="inline-field">
+                              <span>Md</span>
+                              <select bind:value={finalMatchesToWin} class="input-field mini">
+                                <option value={1}>1</option>
+                                <option value={3}>3</option>
+                                <option value={5}>5</option>
+                                <option value={7}>7</option>
+                              </select>
+                            </div>
                           {:else}
                             <div class="inline-field">
                               <input
                                 type="number"
-                                bind:value={silverRoundsToPlay}
+                                bind:value={finalRoundsToPlay}
                                 min="1"
                                 max="20"
                                 class="input-field mini"
                               />
-                              <span>rondas</span>
+                              <span>{$t('rounds').toLowerCase()}</span>
                             </div>
                           {/if}
-                          <div class="inline-field">
-                            <span>Md</span>
-                            <select bind:value={silverMatchesToWin} class="input-field mini">
-                              <option value={1}>1</option>
-                              <option value={3}>3</option>
-                              <option value={5}>5</option>
-                              <option value={7}>7</option>
-                            </select>
-                          </div>
                         </div>
                       </div>
                     </div>
-                  {/if}
-                </div>
+                  </div>
 
-                <!-- Advanced bracket phase configuration -->
-                <div class="advanced-config-section">
-                  <button
-                    type="button"
-                    class="advanced-toggle"
-                    on:click={() => showAdvancedBracketConfig = !showAdvancedBracketConfig}
-                  >
-                    {showAdvancedBracketConfig ? '−' : '+'} Configuración avanzada por fase
-                  </button>
+                  <!-- Advanced bracket phase configuration for single bracket -->
+                  <div class="advanced-config-section">
+                    <button
+                      type="button"
+                      class="advanced-toggle"
+                      on:click={() => showAdvancedBracketConfig = !showAdvancedBracketConfig}
+                    >
+                      {showAdvancedBracketConfig ? '−' : '+'} Configuración avanzada por fase
+                    </button>
 
-                  {#if showAdvancedBracketConfig}
-                    <div class="advanced-phases-grid" class:split={finalStageMode === 'SPLIT_DIVISIONS'}>
-                      <!-- Gold Advanced -->
-                      <div class="advanced-bracket" class:gold={finalStageMode === 'SPLIT_DIVISIONS'}>
-                        {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                          <span class="advanced-bracket-title gold">Oro - Por fase</span>
-                        {/if}
+                    {#if showAdvancedBracketConfig}
+                      <div class="advanced-phases-grid">
+                        <div class="advanced-bracket">
+                          <div class="phase-row">
+                            <span class="phase-name">{$t('earlyRounds')}</span>
+                            <div class="phase-controls">
+                              <div class="toggle-buttons">
+                                <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} on:click={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                                <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} on:click={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                              </div>
+                              {#if earlyRoundsGameMode === 'rounds'}
+                                <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
+                              {:else}
+                                <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
+                                <span class="bo-label">Md</span>
+                                <select bind:value={earlyRoundsMatchesToWin} class="input-field mini">
+                                  <option value={1}>1</option>
+                                  <option value={3}>3</option>
+                                  <option value={5}>5</option>
+                                </select>
+                              {/if}
+                            </div>
+                          </div>
 
-                        <div class="phase-row">
-                          <span class="phase-name">Tempranas</span>
-                          <div class="phase-controls">
-                            <select bind:value={earlyRoundsGameMode} class="input-field mini">
-                              <option value="rounds">Rondas</option>
-                              <option value="points">Puntos</option>
-                            </select>
-                            {#if earlyRoundsGameMode === 'rounds'}
-                              <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
-                            {:else}
-                              <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
-                            {/if}
+                          <div class="phase-row">
+                            <span class="phase-name">{$t('semifinals')}</span>
+                            <div class="phase-controls">
+                              <div class="toggle-buttons">
+                                <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} on:click={() => semifinalGameMode = 'points'}>{$t('points')}</button>
+                                <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} on:click={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                              </div>
+                              {#if semifinalGameMode === 'rounds'}
+                                <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                              {:else}
+                                <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
+                                <span class="bo-label">Md</span>
+                                <select bind:value={semifinalMatchesToWin} class="input-field mini">
+                                  <option value={1}>1</option>
+                                  <option value={3}>3</option>
+                                  <option value={5}>5</option>
+                                </select>
+                              {/if}
+                            </div>
+                          </div>
+
+                          <div class="phase-row">
+                            <span class="phase-name">{$t('final')}</span>
+                            <div class="phase-controls">
+                              <div class="toggle-buttons">
+                                <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} on:click={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
+                                <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} on:click={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                              </div>
+                              {#if bracketFinalGameMode === 'rounds'}
+                                <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                              {:else}
+                                <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
+                                <span class="bo-label">Md</span>
+                                <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
+                                  <option value={1}>1</option>
+                                  <option value={3}>3</option>
+                                  <option value={5}>5</option>
+                                </select>
+                              {/if}
+                            </div>
                           </div>
                         </div>
+                      </div>
+                    {/if}
+                  </div>
+                {:else}
+                  <!-- Configuración directa por fase para Oro/Plata -->
+                  <div class="advanced-phases-grid split">
+                    <!-- Gold Bracket -->
+                    <div class="advanced-bracket gold">
+                      <span class="advanced-bracket-title gold">{$t('gold')}</span>
 
-                        <div class="phase-row">
-                          <span class="phase-name">Semifinal</span>
-                          <div class="phase-controls">
-                            <select bind:value={semifinalGameMode} class="input-field mini">
-                              <option value="points">Puntos</option>
-                              <option value="rounds">Rondas</option>
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('earlyRounds')}</span>
+                        <div class="phase-controls">
+                          <div class="toggle-buttons">
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} on:click={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} on:click={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                          </div>
+                          {#if earlyRoundsGameMode === 'rounds'}
+                            <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
+                          {:else}
+                            <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
+                            <span class="bo-label">Md</span>
+                            <select bind:value={earlyRoundsMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
                             </select>
-                            {#if semifinalGameMode === 'rounds'}
-                              <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
-                            {:else}
-                              <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
-                            {/if}
+                          {/if}
+                        </div>
+                      </div>
+
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('semifinals')}</span>
+                        <div class="phase-controls">
+                          <div class="toggle-buttons">
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} on:click={() => semifinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} on:click={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          </div>
+                          {#if semifinalGameMode === 'rounds'}
+                            <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                          {:else}
+                            <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
                             <span class="bo-label">Md</span>
                             <select bind:value={semifinalMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
                               <option value={3}>3</option>
                               <option value={5}>5</option>
                             </select>
-                          </div>
+                          {/if}
                         </div>
+                      </div>
 
-                        <div class="phase-row">
-                          <span class="phase-name">Final</span>
-                          <div class="phase-controls">
-                            <select bind:value={bracketFinalGameMode} class="input-field mini">
-                              <option value="points">Puntos</option>
-                              <option value="rounds">Rondas</option>
-                            </select>
-                            {#if bracketFinalGameMode === 'rounds'}
-                              <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
-                            {:else}
-                              <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
-                            {/if}
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('final')}</span>
+                        <div class="phase-controls">
+                          <div class="toggle-buttons">
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} on:click={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} on:click={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          </div>
+                          {#if bracketFinalGameMode === 'rounds'}
+                            <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                          {:else}
+                            <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
                             <span class="bo-label">Md</span>
                             <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
                               <option value={3}>3</option>
                               <option value={5}>5</option>
                             </select>
+                          {/if}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Silver Bracket -->
+                    <div class="advanced-bracket silver">
+                      <span class="advanced-bracket-title silver">{$t('silver')}</span>
+
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('earlyRounds')}</span>
+                        <div class="phase-controls">
+                          <div class="toggle-buttons">
+                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'points'} on:click={() => silverEarlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'rounds'} on:click={() => silverEarlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
+                          {#if silverEarlyRoundsGameMode === 'rounds'}
+                            <input type="number" bind:value={silverEarlyRoundsToPlay} min="1" max="20" class="input-field mini" />
+                          {:else}
+                            <input type="number" bind:value={silverEarlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
+                            <span class="bo-label">Md</span>
+                            <select bind:value={silverEarlyRoundsMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                            </select>
+                          {/if}
                         </div>
                       </div>
 
-                      <!-- Silver Advanced -->
-                      {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                        <div class="advanced-bracket silver">
-                          <span class="advanced-bracket-title silver">Plata - Por fase</span>
-
-                          <div class="phase-row">
-                            <span class="phase-name">Tempranas</span>
-                            <div class="phase-controls">
-                              <select bind:value={silverEarlyRoundsGameMode} class="input-field mini">
-                                <option value="rounds">Rondas</option>
-                                <option value="points">Puntos</option>
-                              </select>
-                              {#if silverEarlyRoundsGameMode === 'rounds'}
-                                <input type="number" bind:value={silverEarlyRoundsToPlay} min="1" max="20" class="input-field mini" />
-                              {:else}
-                                <input type="number" bind:value={silverEarlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
-                              {/if}
-                            </div>
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('semifinals')}</span>
+                        <div class="phase-controls">
+                          <div class="toggle-buttons">
+                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'points'} on:click={() => silverSemifinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'rounds'} on:click={() => silverSemifinalGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
-
-                          <div class="phase-row">
-                            <span class="phase-name">Semifinal</span>
-                            <div class="phase-controls">
-                              <select bind:value={silverSemifinalGameMode} class="input-field mini">
-                                <option value="points">Puntos</option>
-                                <option value="rounds">Rondas</option>
-                              </select>
-                              {#if silverSemifinalGameMode === 'rounds'}
-                                <input type="number" bind:value={silverSemifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
-                              {:else}
-                                <input type="number" bind:value={silverSemifinalPointsToWin} min="1" max="20" class="input-field mini" />
-                              {/if}
-                              <span class="bo-label">Md</span>
-                              <select bind:value={silverSemifinalMatchesToWin} class="input-field mini">
-                                <option value={1}>1</option>
-                                <option value={3}>3</option>
-                                <option value={5}>5</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          <div class="phase-row">
-                            <span class="phase-name">Final</span>
-                            <div class="phase-controls">
-                              <select bind:value={silverBracketFinalGameMode} class="input-field mini">
-                                <option value="points">Puntos</option>
-                                <option value="rounds">Rondas</option>
-                              </select>
-                              {#if silverBracketFinalGameMode === 'rounds'}
-                                <input type="number" bind:value={silverBracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
-                              {:else}
-                                <input type="number" bind:value={silverBracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
-                              {/if}
-                              <span class="bo-label">Md</span>
-                              <select bind:value={silverBracketFinalMatchesToWin} class="input-field mini">
-                                <option value={1}>1</option>
-                                <option value={3}>3</option>
-                                <option value={5}>5</option>
-                              </select>
-                            </div>
-                          </div>
+                          {#if silverSemifinalGameMode === 'rounds'}
+                            <input type="number" bind:value={silverSemifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                          {:else}
+                            <input type="number" bind:value={silverSemifinalPointsToWin} min="1" max="20" class="input-field mini" />
+                            <span class="bo-label">Md</span>
+                            <select bind:value={silverSemifinalMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                            </select>
+                          {/if}
                         </div>
-                      {/if}
+                      </div>
+
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('final')}</span>
+                        <div class="phase-controls">
+                          <div class="toggle-buttons">
+                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'points'} on:click={() => silverBracketFinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'rounds'} on:click={() => silverBracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          </div>
+                          {#if silverBracketFinalGameMode === 'rounds'}
+                            <input type="number" bind:value={silverBracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                          {:else}
+                            <input type="number" bind:value={silverBracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
+                            <span class="bo-label">Md</span>
+                            <select bind:value={silverBracketFinalMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                            </select>
+                          {/if}
+                        </div>
+                      </div>
                     </div>
-                  {/if}
-                </div>
+                  </div>
+                {/if}
               </div>
             </div>
           {:else}
@@ -1995,7 +2070,7 @@
               <div class="section-body">
                 <div class="match-settings">
                   <div class="settings-row">
-                    <div class="toggle-buttons small">
+                    <div class="toggle-buttons">
                       <button
                         type="button"
                         class="toggle-btn"
@@ -2025,6 +2100,15 @@
                         />
                         <span>pts</span>
                       </div>
+                      <div class="inline-field">
+                        <span>Md</span>
+                        <select bind:value={matchesToWin} class="input-field mini">
+                          <option value={1}>1</option>
+                          <option value={3}>3</option>
+                          <option value={5}>5</option>
+                          <option value={7}>7</option>
+                        </select>
+                      </div>
                     {:else}
                       <div class="inline-field">
                         <input
@@ -2034,18 +2118,9 @@
                           max="20"
                           class="input-field mini"
                         />
-                        <span>rondas</span>
+                        <span>{$t('rounds').toLowerCase()}</span>
                       </div>
                     {/if}
-                    <div class="inline-field">
-                      <span>Md</span>
-                      <select bind:value={matchesToWin} class="input-field mini">
-                        <option value={1}>1</option>
-                        <option value={3}>3</option>
-                        <option value={5}>5</option>
-                        <option value={7}>7</option>
-                      </select>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -2138,7 +2213,7 @@
                   </thead>
                   <tbody>
                     <tr>
-                      <td>Puntos</td>
+                      <td>{$t('points')}</td>
                       {#each getPointsDistribution(selectedTier) as item}
                         <td class="points">{item.points}</td>
                       {/each}
@@ -2549,18 +2624,18 @@
                   </div>
                   {#if phaseType === 'TWO_PHASE'}
                     <div class="review-row">
-                      <span class="review-label">Grupos</span>
+                      <span class="review-label">{$t('groups')}</span>
                       <span class="review-value">
-                        {groupStageType === 'ROUND_ROBIN' ? `Round Robin (${numGroups})` : `Suizo (${numSwissRounds}R)`}
+                        {groupStageType === 'ROUND_ROBIN' ? `${$t('roundRobin')} (${numGroups})` : `${$t('swiss')} (${numSwissRounds}R)`}
                       </span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">Clasificación</span>
-                      <span class="review-value">{rankingSystem === 'WINS' ? 'Por victorias' : 'Por puntos'}</span>
+                      <span class="review-label">{$t('rankingSystem')}</span>
+                      <span class="review-value">{rankingSystem === 'WINS' ? $t('byWins') : $t('byPoints')}</span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">Fase Final</span>
-                      <span class="review-value">{finalStageMode === 'SINGLE_BRACKET' ? 'Bracket único' : 'Oro / Plata'}</span>
+                      <span class="review-label">{$t('finalStage')}</span>
+                      <span class="review-value">{finalStageMode === 'SINGLE_BRACKET' ? $t('singleBracket') : $t('goldSilver')}</span>
                     </div>
                   {/if}
                 </div>
@@ -2570,7 +2645,7 @@
                 <div class="review-card">
                   <div class="review-card-header">
                     <span class="review-icon">{finalStageMode === 'SPLIT_DIVISIONS' ? '🥇' : '⚙️'}</span>
-                    <span>{finalStageMode === 'SPLIT_DIVISIONS' ? 'Bracket Oro' : 'Config. Final'}</span>
+                    <span>{finalStageMode === 'SPLIT_DIVISIONS' ? $t('goldBracket') : $t('finalStage')}</span>
                   </div>
                   <div class="review-card-body">
                     <!-- Show per-phase config -->
@@ -2586,18 +2661,16 @@
                       <span class="review-label">{$t('semifinals')}</span>
                       <span class="review-value">
                         {(showAdvancedBracketConfig ? semifinalGameMode : 'points') === 'points'
-                          ? `${showAdvancedBracketConfig ? semifinalPointsToWin : 7}p`
+                          ? `${showAdvancedBracketConfig ? semifinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? semifinalMatchesToWin : 1}`
                           : `${showAdvancedBracketConfig ? semifinalRoundsToPlay : 4}r`}
-                        · Bo{showAdvancedBracketConfig ? semifinalMatchesToWin : 1}
                       </span>
                     </div>
                     <div class="review-row">
                       <span class="review-label">{$t('final')}</span>
                       <span class="review-value">
                         {(showAdvancedBracketConfig ? bracketFinalGameMode : 'points') === 'points'
-                          ? `${showAdvancedBracketConfig ? bracketFinalPointsToWin : 9}p`
+                          ? `${showAdvancedBracketConfig ? bracketFinalPointsToWin : 9}p · Bo${showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1}`
                           : `${showAdvancedBracketConfig ? bracketFinalRoundsToPlay : 4}r`}
-                        · Bo{showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1}
                       </span>
                     </div>
                   </div>
@@ -2607,7 +2680,7 @@
                   <div class="review-card">
                     <div class="review-card-header">
                       <span class="review-icon">🥈</span>
-                      <span>Bracket Plata</span>
+                      <span>{$t('silverBracket')}</span>
                     </div>
                     <div class="review-card-body">
                       <!-- Show per-phase config for silver (default: all 4 rounds) -->
@@ -2623,18 +2696,16 @@
                         <span class="review-label">{$t('semifinals')}</span>
                         <span class="review-value">
                           {(showAdvancedBracketConfig ? silverSemifinalGameMode : 'rounds') === 'points'
-                            ? `${showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7}p`
+                            ? `${showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1}`
                             : `${showAdvancedBracketConfig ? silverSemifinalRoundsToPlay : 4}r`}
-                          · Bo{showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1}
                         </span>
                       </div>
                       <div class="review-row">
                         <span class="review-label">{$t('final')}</span>
                         <span class="review-value">
                           {(showAdvancedBracketConfig ? silverBracketFinalGameMode : 'rounds') === 'points'
-                            ? `${showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7}p`
+                            ? `${showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1}`
                             : `${showAdvancedBracketConfig ? silverBracketFinalRoundsToPlay : 4}r`}
-                          · Bo{showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1}
                         </span>
                       </div>
                     </div>
@@ -2702,7 +2773,11 @@
         </button>
       {:else}
         <button class="nav-button primary create" on:click={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
-          {creating ? (editMode ? 'Guardando...' : 'Creando...') : (editMode ? '💾 Guardar Cambios' : duplicateMode ? '📋 Crear Copia' : '🏆 Crear Torneo')}
+          {#if creating}
+            <LoadingSpinner size="small" inline={true} message={editMode ? 'Guardando...' : 'Creando...'} />
+          {:else}
+            {editMode ? '💾 Guardar Cambios' : duplicateMode ? '📋 Crear Copia' : '🏆 Crear Torneo'}
+          {/if}
         </button>
       {/if}
     </div>
@@ -2945,7 +3020,8 @@
   .progress-bar {
     display: flex;
     justify-content: center;
-    gap: 0.25rem;
+    align-items: flex-start;
+    gap: 0;
     margin-top: 0.75rem;
     position: relative;
   }
@@ -2954,73 +3030,134 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.35rem;
     position: relative;
     z-index: 1;
     background: none;
     border: none;
-    cursor: pointer;
-    padding: 0.25rem 0.5rem;
+    cursor: default;
+    padding: 0.25rem 0.75rem;
     transition: all 0.2s;
   }
 
+  /* Línea conectora entre pasos */
+  .progress-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: calc(50% + 18px);
+    width: calc(100% - 8px);
+    height: 2px;
+    background: #e0e0e0;
+    z-index: 0;
+  }
+
+  .progress-step.active:not(:last-child)::after {
+    background: #059669;
+  }
+
+  .wizard-container[data-theme='dark'] .progress-step:not(:last-child)::after {
+    background: #374151;
+  }
+
+  .wizard-container[data-theme='dark'] .progress-step.active:not(:last-child)::after {
+    background: #10b981;
+  }
+
   .progress-step:hover {
-    opacity: 0.8;
+    opacity: 1;
+  }
+
+  .progress-step.clickable {
+    cursor: pointer;
+  }
+
+  .progress-step.clickable:hover .step-number {
+    transform: scale(1.05);
+    border-color: #059669;
+  }
+
+  .progress-step.clickable:hover .step-label {
+    color: #059669;
   }
 
   .step-number {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: #f0f0f0;
-    border: 2px solid #e0e0e0;
+    background: #fff;
+    border: 2px solid #d1d5db;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: 0.75rem;
-    color: #999;
+    color: #9ca3af;
     transition: all 0.2s;
+    position: relative;
+    z-index: 2;
   }
 
   .wizard-container[data-theme='dark'] .step-number {
-    background: #1a2332;
-    border-color: #2d3748;
+    background: #1f2937;
+    border-color: #4b5563;
+    color: #6b7280;
   }
 
   .progress-step.active .step-number {
-    border-color: #667eea;
-    color: #667eea;
-    background: white;
+    border-color: #059669;
+    color: #059669;
+    background: #ecfdf5;
   }
 
   .wizard-container[data-theme='dark'] .progress-step.active .step-number {
-    background: #1a2332;
+    background: #064e3b;
+    border-color: #10b981;
+    color: #10b981;
   }
 
   .progress-step.current .step-number {
-    background: #667eea;
+    background: #059669;
     color: white;
-    border-color: #667eea;
+    border-color: #059669;
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+  }
+
+  .wizard-container[data-theme='dark'] .progress-step.current .step-number {
+    background: #10b981;
+    color: #ffffff;
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
   }
 
   .step-label {
     font-size: 0.65rem;
-    color: #999;
+    font-weight: 500;
+    color: #9ca3af;
     text-align: center;
-    transition: color 0.3s;
+    transition: color 0.2s;
+    white-space: nowrap;
   }
 
   .wizard-container[data-theme='dark'] .step-label {
-    color: #6b7a94;
+    color: #6b7280;
   }
 
   .progress-step.active .step-label {
-    color: #333;
+    color: #374151;
   }
 
   .wizard-container[data-theme='dark'] .progress-step.active .step-label {
-    color: #c5d0de;
+    color: #d1d5db;
+  }
+
+  .progress-step.current .step-label {
+    color: #059669;
+    font-weight: 600;
+  }
+
+  .wizard-container[data-theme='dark'] .progress-step.current .step-label {
+    color: #10b981;
   }
 
   /* Content */
@@ -3876,60 +4013,81 @@
 
   /* Toggle buttons */
   .toggle-buttons {
-    display: flex;
-    background: #f3f4f6;
-    border-radius: 4px;
-    padding: 2px;
-    gap: 2px;
+    display: inline-flex;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
   }
 
   .wizard-container[data-theme='dark'] .toggle-buttons {
-    background: #374151;
+    border-color: #4b5563;
   }
 
   .toggle-buttons.small {
-    padding: 1px;
+    border-radius: 5px;
   }
 
   .toggle-btn {
-    padding: 0.35rem 0.6rem;
+    padding: 0.4rem 0.7rem;
     border: none;
     background: transparent;
-    border-radius: 3px;
+    border-radius: 0;
     font-size: 0.75rem;
     font-weight: 500;
     color: #6b7280;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.15s ease;
     white-space: nowrap;
+    border-right: 1px solid #d1d5db;
+  }
+
+  .toggle-btn:last-child {
+    border-right: none;
   }
 
   .toggle-buttons.small .toggle-btn {
-    padding: 0.25rem 0.5rem;
+    padding: 0.3rem 0.55rem;
     font-size: 0.7rem;
   }
 
-  .toggle-btn:hover {
-    color: #374151;
+  .toggle-buttons.mini {
+    border-radius: 5px;
+  }
+
+  .toggle-buttons.mini .toggle-btn {
+    padding: 0.25rem 0.45rem;
+    font-size: 0.65rem;
+    font-weight: 500;
+  }
+
+  .toggle-btn:hover:not(.active) {
+    background: #ecfdf5;
+    color: #047857;
   }
 
   .toggle-btn.active {
-    background: white;
-    color: #1a1a1a;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    background: #059669;
+    color: white;
+    border-color: #059669;
   }
 
   .wizard-container[data-theme='dark'] .toggle-btn {
     color: #9ca3af;
+    border-color: #4b5563;
   }
 
-  .wizard-container[data-theme='dark'] .toggle-btn:hover {
-    color: #e5e7eb;
+  .wizard-container[data-theme='dark'] .toggle-btn:hover:not(.active) {
+    background: #374151;
+    color: #6ee7b7;
   }
 
   .wizard-container[data-theme='dark'] .toggle-btn.active {
-    background: #1f2937;
-    color: #f3f4f6;
+    background: #10b981;
+    color: #ffffff;
+    border-color: #10b981;
   }
 
   /* Input compact styles */
@@ -5710,6 +5868,15 @@
   .nav-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .nav-button.primary.create {
+    min-height: 42px;
+    min-width: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
   }
 
   /* Responsive */

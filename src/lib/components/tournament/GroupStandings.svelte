@@ -62,6 +62,135 @@
 
   // Show Pts column when ranking by WINS
   $: showPtsColumn = effectiveRankingSystem === 'WINS';
+
+  // Group standings by primary value (points/swissPoints) to detect ties
+  // This helps show mini-league button even when ties were resolved
+  $: standingsByPrimaryValue = (() => {
+    const groups = new Map<number, string[]>();
+    for (const s of standings) {
+      const primaryValue = isSwiss
+        ? (s.swissPoints ?? (s.matchesWon * 2 + s.matchesTied))
+        : s.points;
+      if (!groups.has(primaryValue)) {
+        groups.set(primaryValue, []);
+      }
+      groups.get(primaryValue)!.push(s.participantId);
+    }
+    return groups;
+  })();
+
+  // Check if a player is part of a 3+ player tie (same primary value)
+  function isPartOfMultiTie(participantId: string): boolean {
+    for (const [_, ids] of standingsByPrimaryValue) {
+      if (ids.includes(participantId) && ids.length >= 3) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Check if this is the first player in a multi-tie group (to show button only once)
+  function isFirstInMultiTie(participantId: string): boolean {
+    for (const [_, ids] of standingsByPrimaryValue) {
+      if (ids.includes(participantId) && ids.length >= 3) {
+        // Find the first one by position in standings
+        const firstId = standings
+          .filter(s => ids.includes(s.participantId))
+          .sort((a, b) => (a.position ?? 99) - (b.position ?? 99))[0]?.participantId;
+        return firstId === participantId;
+      }
+    }
+    return false;
+  }
+
+  // Get all participants in the same primary value group
+  function getTiedGroupIds(participantId: string): string[] {
+    for (const [_, ids] of standingsByPrimaryValue) {
+      if (ids.includes(participantId)) {
+        return ids;
+      }
+    }
+    return [participantId];
+  }
+
+  // ==========================================
+  // Mini-league tiebreaker modal
+  // ==========================================
+  let showTiebreakerModal = false;
+  let tiebreakerData: Array<{
+    participantId: string;
+    name: string;
+    miniPts: number;
+    mini20s: number;
+  }> = [];
+
+  // Calculate mini-league points for a participant (only matches between tied players)
+  function calculateMiniLeaguePoints(standing: GroupStanding, tiedIds: Set<string>): number {
+    if (!standing.headToHeadRecord) return 0;
+
+    let points = 0;
+    for (const opponentId of tiedIds) {
+      if (opponentId === standing.participantId) continue;
+      const record = standing.headToHeadRecord[opponentId];
+      if (record) {
+        if (record.result === 'WIN') points += 2;
+        else if (record.result === 'TIE') points += 1;
+        // LOSS = 0
+      }
+    }
+    return points;
+  }
+
+  // Calculate mini-league 20s for a participant (only matches between tied players)
+  function calculateMiniLeague20s(standing: GroupStanding, tiedIds: Set<string>): number {
+    if (!standing.headToHeadRecord) return 0;
+
+    let twenties = 0;
+    for (const opponentId of tiedIds) {
+      if (opponentId === standing.participantId) continue;
+      const record = standing.headToHeadRecord[opponentId];
+      if (record) {
+        twenties += record.twenties;
+      }
+    }
+    return twenties;
+  }
+
+  // Open tiebreaker modal when clicking on a tied player
+  function openTiebreakerModal(standing: GroupStanding) {
+    // Get all participant IDs with the same primary value
+    const groupIds = getTiedGroupIds(standing.participantId);
+    if (groupIds.length < 3) return;
+
+    const tiedIds = new Set(groupIds);
+
+    // Build the mini-league data
+    tiebreakerData = [];
+    for (const id of tiedIds) {
+      const s = standings.find(st => st.participantId === id);
+      if (s) {
+        tiebreakerData.push({
+          participantId: id,
+          name: getParticipantName(id),
+          miniPts: calculateMiniLeaguePoints(s, tiedIds),
+          mini20s: calculateMiniLeague20s(s, tiedIds)
+        });
+      }
+    }
+
+    // Sort by mini-league points, then by mini-league 20s
+    tiebreakerData.sort((a, b) => {
+      if (b.miniPts !== a.miniPts) return b.miniPts - a.miniPts;
+      return b.mini20s - a.mini20s;
+    });
+
+    showTiebreakerModal = true;
+  }
+
+  function closeTiebreakerModal() {
+    showTiebreakerModal = false;
+    tiebreakerData = [];
+  }
 </script>
 
 <div class="standings-table">
@@ -85,7 +214,8 @@
       {#each sortedStandings as standing, i (standing.participantId)}
         {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
         {@const tiedNames = getTiedWithNames(standing.tiedWith)}
-        <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie}>
+        {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
+        <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie} class:in-multi-tie={inMultiTie}>
           <td class="pos-col">
             <span class="position-badge" class:qualified={standing.qualifiedForFinal} class:tied={hasTie}>
               {i + 1}
@@ -94,7 +224,22 @@
           <td class="name-col">
             <span class="participant-name">
               {getParticipantName(standing.participantId)}
+              {#if isFirstInMultiTie(standing.participantId)}
+                <!-- First player in 3+ tie group - show mini-league button -->
+                <button
+                  class="tie-badge"
+                  on:click|stopPropagation={() => openTiebreakerModal(standing)}
+                  title="{$t('miniLeagueTiebreaker')}"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4"/>
+                    <path d="M14 4h6v6"/>
+                    <path d="M20 4L10 14"/>
+                  </svg>
+                </button>
+              {/if}
               {#if hasTie}
+                <!-- Unresolved tie - show warning -->
                 <span class="tie-indicator" title="{$t('tiedWith')}: {tiedNames}">⚠️</span>
               {/if}
               {#if standing.qualifiedForFinal}
@@ -126,6 +271,45 @@
     </div>
   {/if}
 </div>
+
+<!-- Mini-league tiebreaker modal -->
+{#if showTiebreakerModal}
+  <div class="modal-overlay" on:click={closeTiebreakerModal} on:keydown={(e) => e.key === 'Escape' && closeTiebreakerModal()} role="button" tabindex="0">
+    <div class="tiebreaker-modal" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3>{$t('miniLeagueTiebreaker')}</h3>
+        <button class="close-btn" on:click={closeTiebreakerModal} aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description">{$t('miniLeagueDescription')}</p>
+        <table class="tiebreaker-table">
+          <thead>
+            <tr>
+              <th class="pos-col">#</th>
+              <th class="name-col">{$t('participant')}</th>
+              <th class="mini-pts-col">{$t('pointsShort')}</th>
+              <th class="mini-20s-col">{$t('twentiesShort')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each tiebreakerData as player, i (player.participantId)}
+              <tr>
+                <td class="pos-col">
+                  <span class="position-badge tied">{i + 1}</span>
+                </td>
+                <td class="name-col">
+                  <span class="participant-name">{player.name}</span>
+                </td>
+                <td class="mini-pts-col"><strong>{player.miniPts}</strong></td>
+                <td class="mini-20s-col">{player.mini20s}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .standings-table {
@@ -266,11 +450,35 @@
     font-size: 0.7rem;
   }
 
-  /* Tie indicator */
+  /* Tie indicator for 2-player unresolved ties */
   .tie-indicator {
     margin-left: 0.2rem;
     cursor: help;
     font-size: 0.7rem;
+  }
+
+  /* Tie badge button for 3+ player mini-league */
+  .tie-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.3rem;
+    padding: 0.2rem;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+
+  .tie-badge:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+  }
+
+  .tie-badge svg {
+    display: block;
   }
 
   .position-badge.tied {
@@ -279,11 +487,29 @@
   }
 
   tbody tr.has-tie {
-    background: rgba(245, 158, 11, 0.08);
+    background: rgba(245, 158, 11, 0.12);
   }
 
   tbody tr.has-tie:hover {
+    background: rgba(245, 158, 11, 0.18);
+  }
+
+  /* 3+ players with same points - stronger orange background */
+  tbody tr.in-multi-tie {
     background: rgba(245, 158, 11, 0.15);
+  }
+
+  tbody tr.in-multi-tie:hover {
+    background: rgba(245, 158, 11, 0.22);
+  }
+
+  /* Override qualified background when in multi-tie */
+  tbody tr.in-multi-tie.qualified {
+    background: rgba(245, 158, 11, 0.15);
+  }
+
+  tbody tr.in-multi-tie.qualified:hover {
+    background: rgba(245, 158, 11, 0.22);
   }
 
   .empty-state {
@@ -369,6 +595,23 @@
     background: rgba(245, 158, 11, 0.25);
   }
 
+  /* Dark mode 3+ player ties */
+  :global([data-theme='dark']) tbody tr.in-multi-tie {
+    background: rgba(245, 158, 11, 0.2);
+  }
+
+  :global([data-theme='dark']) tbody tr.in-multi-tie:hover {
+    background: rgba(245, 158, 11, 0.3);
+  }
+
+  :global([data-theme='dark']) tbody tr.in-multi-tie.qualified {
+    background: rgba(245, 158, 11, 0.2);
+  }
+
+  :global([data-theme='dark']) tbody tr.in-multi-tie.qualified:hover {
+    background: rgba(245, 158, 11, 0.3);
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     table {
@@ -435,5 +678,173 @@
     .empty-state {
       padding: 1rem;
     }
+  }
+
+  /* ==========================================
+   * Mini-league tiebreaker modal
+   * ========================================== */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .tiebreaker-modal {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    max-width: 400px;
+    width: 100%;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+  }
+
+  .close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .modal-body {
+    padding: 1rem 1.25rem;
+    overflow-y: auto;
+  }
+
+  .modal-description {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin: 0 0 1rem 0;
+    line-height: 1.4;
+  }
+
+  .tiebreaker-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .tiebreaker-table thead {
+    background: #f3f4f6;
+  }
+
+  .tiebreaker-table th {
+    padding: 0.5rem;
+    text-align: left;
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .tiebreaker-table th.pos-col {
+    width: 36px;
+    text-align: center;
+  }
+
+  .tiebreaker-table th.mini-pts-col,
+  .tiebreaker-table th.mini-20s-col {
+    width: 50px;
+    text-align: center;
+  }
+
+  .tiebreaker-table tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .tiebreaker-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .tiebreaker-table td {
+    padding: 0.6rem 0.5rem;
+    color: #1f2937;
+  }
+
+  .tiebreaker-table td.pos-col,
+  .tiebreaker-table td.mini-pts-col,
+  .tiebreaker-table td.mini-20s-col {
+    text-align: center;
+  }
+
+  .tiebreaker-table td.mini-pts-col {
+    background: rgba(245, 158, 11, 0.1);
+    font-weight: 700;
+  }
+
+  /* Dark mode for modal */
+  :global([data-theme='dark']) .tiebreaker-modal {
+    background: #1a2332;
+  }
+
+  :global([data-theme='dark']) .modal-header {
+    border-bottom-color: #2d3748;
+  }
+
+  :global([data-theme='dark']) .modal-body {
+    background: #1a2332;
+  }
+
+  :global([data-theme='dark']) .modal-description {
+    color: #8b9bb3;
+  }
+
+  :global([data-theme='dark']) .tiebreaker-table thead {
+    background: #0f1419;
+  }
+
+  :global([data-theme='dark']) .tiebreaker-table th {
+    color: #8b9bb3;
+  }
+
+  :global([data-theme='dark']) .tiebreaker-table tbody tr {
+    border-bottom-color: #243447;
+  }
+
+  :global([data-theme='dark']) .tiebreaker-table td {
+    color: #e1e8ed;
+  }
+
+  :global([data-theme='dark']) .tiebreaker-table td.mini-pts-col {
+    background: rgba(245, 158, 11, 0.15);
   }
 </style>

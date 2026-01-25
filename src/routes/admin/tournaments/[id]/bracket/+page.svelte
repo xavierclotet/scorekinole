@@ -15,8 +15,9 @@
     updateBracketMatch,
     advanceWinner,
     updateSilverBracketMatch,
-    advanceSilverWinner
-  } from '$lib/firebase/tournamentBracket'; // For autoFill (SuperAdmin only)
+    advanceSilverWinner,
+    reassignTables
+  } from '$lib/firebase/tournamentBracket';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
@@ -53,7 +54,7 @@
   $: isSplitDivisions = tournament?.finalStage?.mode === 'SPLIT_DIVISIONS';
 
   // Gold bracket
-  $: goldBracket = tournament?.finalStage?.bracket;
+  $: goldBracket = tournament?.finalStage?.goldBracket;
   $: goldRounds = goldBracket?.rounds || [];
   $: goldThirdPlaceMatch = goldBracket?.thirdPlaceMatch;
 
@@ -68,13 +69,80 @@
   $: thirdPlaceMatch = activeTab === 'gold' ? goldThirdPlaceMatch : silverThirdPlaceMatch;
 
   // Match configuration - determines if we show games won or total points
+  // Uses early rounds config as the default (most common phase)
   $: matchesToWin = activeTab === 'gold'
-    ? (tournament?.finalStage?.matchesToWin || 1)
-    : (tournament?.finalStage?.silverMatchesToWin || 1);
+    ? (tournament?.finalStage?.goldBracket?.config?.earlyRounds?.matchesToWin || 1)
+    : (tournament?.finalStage?.silverBracket?.config?.earlyRounds?.matchesToWin || 1);
   $: showGamesWon = matchesToWin > 1;
 
   // Phase configuration editing
   let savingPhaseConfig = false;
+  let configExpanded = false;
+
+  // Table management
+  let isReassigningTables = false;
+  let editingNumTables = false;
+  let tempNumTables = 4;
+
+  $: currentNumTables = tournament?.numTables || 4;
+
+  function startEditingTables() {
+    tempNumTables = currentNumTables;
+    editingNumTables = true;
+  }
+
+  function cancelEditingTables() {
+    editingNumTables = false;
+  }
+
+  async function saveNumTablesAndReassign() {
+    if (!tournament || isReassigningTables) return;
+
+    isReassigningTables = true;
+    try {
+      const result = await reassignTables(tournamentId, tempNumTables);
+      if (result.success) {
+        toastMessage = `Mesas actualizadas: ${result.tablesAssigned} partidos asignados`;
+        toastType = 'success';
+        showToast = true;
+        editingNumTables = false;
+      } else {
+        toastMessage = result.error || 'Error al reasignar mesas';
+        toastType = 'error';
+        showToast = true;
+      }
+    } catch (err) {
+      toastMessage = 'Error al reasignar mesas';
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      isReassigningTables = false;
+    }
+  }
+
+  async function handleReassignTables() {
+    if (!tournament || isReassigningTables) return;
+
+    isReassigningTables = true;
+    try {
+      const result = await reassignTables(tournamentId);
+      if (result.success) {
+        toastMessage = `${result.tablesAssigned} partidos con mesa asignada`;
+        toastType = 'success';
+        showToast = true;
+      } else {
+        toastMessage = result.error || 'Error al reasignar mesas';
+        toastType = 'error';
+        showToast = true;
+      }
+    } catch (err) {
+      toastMessage = 'Error al reasignar mesas';
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      isReassigningTables = false;
+    }
+  }
 
   // Determine phase type from round name
   function getPhaseType(roundName: string): 'early' | 'semifinal' | 'final' {
@@ -99,7 +167,9 @@
 
   // Get current config for a phase (for editing in the UI)
   function getPhaseEditConfig(phaseType: 'early' | 'semifinal' | 'final', isGold: boolean): { gameMode: 'points' | 'rounds'; value: number; matchesToWin: number } {
-    const config = tournament?.finalStageConfig;
+    const bracket = isGold ? tournament?.finalStage?.goldBracket : tournament?.finalStage?.silverBracket;
+    const config = bracket?.config;
+
     if (!config) {
       // Defaults
       if (phaseType === 'final') return { gameMode: 'points', value: isGold ? 9 : 4, matchesToWin: 1 };
@@ -107,48 +177,17 @@
       return { gameMode: 'rounds', value: 4, matchesToWin: 1 };
     }
 
-    if (isGold) {
-      if (phaseType === 'final') {
-        return {
-          gameMode: config.finalGameMode || 'points',
-          value: config.finalGameMode === 'rounds' ? (config.finalRoundsToPlay || 4) : (config.finalPointsToWin || 9),
-          matchesToWin: config.finalMatchesToWin || 1
-        };
-      }
-      if (phaseType === 'semifinal') {
-        return {
-          gameMode: config.semifinalGameMode || 'points',
-          value: config.semifinalGameMode === 'rounds' ? (config.semifinalRoundsToPlay || 4) : (config.semifinalPointsToWin || 7),
-          matchesToWin: config.semifinalMatchesToWin || 1
-        };
-      }
-      return {
-        gameMode: config.earlyRoundsGameMode || 'rounds',
-        value: config.earlyRoundsGameMode === 'points' ? (config.earlyRoundsPointsToWin || 7) : (config.earlyRoundsToPlay || 4),
-        matchesToWin: config.matchesToWin || 1
-      };
-    } else {
-      // Silver
-      if (phaseType === 'final') {
-        return {
-          gameMode: config.silverFinalGameMode || 'rounds',
-          value: config.silverFinalGameMode === 'points' ? (config.silverFinalPointsToWin || 7) : (config.silverFinalRoundsToPlay || 4),
-          matchesToWin: config.silverFinalMatchesToWin || 1
-        };
-      }
-      if (phaseType === 'semifinal') {
-        return {
-          gameMode: config.silverSemifinalGameMode || 'rounds',
-          value: config.silverSemifinalGameMode === 'points' ? (config.silverSemifinalPointsToWin || 7) : (config.silverSemifinalRoundsToPlay || 4),
-          matchesToWin: config.silverSemifinalMatchesToWin || 1
-        };
-      }
-      return {
-        gameMode: config.silverEarlyRoundsGameMode || 'rounds',
-        value: config.silverEarlyRoundsGameMode === 'points' ? (config.silverEarlyRoundsPointsToWin || 7) : (config.silverEarlyRoundsToPlay || 4),
-        matchesToWin: config.silverMatchesToWin || 1
-      };
-    }
+    const phaseConfig = phaseType === 'final' ? config.final
+      : phaseType === 'semifinal' ? config.semifinal
+      : config.earlyRounds;
+
+    return {
+      gameMode: phaseConfig.gameMode || 'points',
+      value: phaseConfig.gameMode === 'rounds'
+        ? (phaseConfig.roundsToPlay || 4)
+        : (phaseConfig.pointsToWin || 7),
+      matchesToWin: phaseConfig.matchesToWin || 1
+    };
   }
 
   // Helper to parse game mode from select value
@@ -158,67 +197,39 @@
 
   // Save phase configuration
   async function savePhaseConfig(phaseType: 'early' | 'semifinal' | 'final', isGold: boolean, gameMode: 'points' | 'rounds', value: number, matchesToWin: number) {
-    if (!tournament || !tournamentId) return;
+    if (!tournament || !tournamentId || !tournament.finalStage) return;
 
     savingPhaseConfig = true;
     try {
-      const currentConfig = tournament.finalStageConfig || {};
-      let updates: any = { finalStageConfig: { ...currentConfig } };
+      const bracketKey = isGold ? 'goldBracket' : 'silverBracket';
+      const bracket = tournament.finalStage[bracketKey];
+      if (!bracket) return;
 
-      if (isGold) {
-        if (phaseType === 'final') {
-          updates.finalStageConfig.finalGameMode = gameMode;
-          if (gameMode === 'points') {
-            updates.finalStageConfig.finalPointsToWin = value;
-          } else {
-            updates.finalStageConfig.finalRoundsToPlay = value;
-          }
-          updates.finalStageConfig.finalMatchesToWin = matchesToWin;
-        } else if (phaseType === 'semifinal') {
-          updates.finalStageConfig.semifinalGameMode = gameMode;
-          if (gameMode === 'points') {
-            updates.finalStageConfig.semifinalPointsToWin = value;
-          } else {
-            updates.finalStageConfig.semifinalRoundsToPlay = value;
-          }
-          updates.finalStageConfig.semifinalMatchesToWin = matchesToWin;
-        } else {
-          updates.finalStageConfig.earlyRoundsGameMode = gameMode;
-          if (gameMode === 'points') {
-            updates.finalStageConfig.earlyRoundsPointsToWin = value;
-          } else {
-            updates.finalStageConfig.earlyRoundsToPlay = value;
-          }
-          updates.finalStageConfig.matchesToWin = matchesToWin;
-        }
-      } else {
-        // Silver
-        if (phaseType === 'final') {
-          updates.finalStageConfig.silverFinalGameMode = gameMode;
-          if (gameMode === 'points') {
-            updates.finalStageConfig.silverFinalPointsToWin = value;
-          } else {
-            updates.finalStageConfig.silverFinalRoundsToPlay = value;
-          }
-          updates.finalStageConfig.silverFinalMatchesToWin = matchesToWin;
-        } else if (phaseType === 'semifinal') {
-          updates.finalStageConfig.silverSemifinalGameMode = gameMode;
-          if (gameMode === 'points') {
-            updates.finalStageConfig.silverSemifinalPointsToWin = value;
-          } else {
-            updates.finalStageConfig.silverSemifinalRoundsToPlay = value;
-          }
-          updates.finalStageConfig.silverSemifinalMatchesToWin = matchesToWin;
-        } else {
-          updates.finalStageConfig.silverEarlyRoundsGameMode = gameMode;
-          if (gameMode === 'points') {
-            updates.finalStageConfig.silverEarlyRoundsPointsToWin = value;
-          } else {
-            updates.finalStageConfig.silverEarlyRoundsToPlay = value;
-          }
-          updates.finalStageConfig.silverMatchesToWin = matchesToWin;
-        }
-      }
+      // Build the new phase config
+      const newPhaseConfig = {
+        gameMode,
+        ...(gameMode === 'points' ? { pointsToWin: value } : { roundsToPlay: value }),
+        matchesToWin
+      };
+
+      // Get current bracket config or create defaults
+      const currentConfig = bracket.config || {
+        earlyRounds: { gameMode: 'rounds', roundsToPlay: 4, matchesToWin: 1 },
+        semifinal: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 },
+        final: { gameMode: 'points', pointsToWin: 9, matchesToWin: 1 }
+      };
+
+      // Update the specific phase
+      const configKey = phaseType === 'final' ? 'final' : phaseType === 'semifinal' ? 'semifinal' : 'earlyRounds';
+      const newConfig = {
+        ...currentConfig,
+        [configKey]: newPhaseConfig
+      };
+
+      // Build the update object
+      const updates: any = {
+        [`finalStage.${bracketKey}.config`]: newConfig
+      };
 
       await updateTournament(tournamentId, updates);
       toastMessage = 'Configuración guardada';
@@ -248,7 +259,7 @@
           if (selectedMatch && showMatchDialog) {
             const selectedMatchId = selectedMatch.id;
             const bracket = selectedBracketType === 'gold'
-              ? updated.finalStage?.bracket
+              ? updated.finalStage?.goldBracket
               : updated.finalStage?.silverBracket;
 
             let foundMatch: BracketMatch | null = null;
@@ -329,7 +340,7 @@
         toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
-      } else if (!tournament.finalStage?.bracket) {
+      } else if (!tournament.finalStage?.goldBracket) {
         toastMessage = $t('bracketNotGenerated');
         toastType = 'warning';
         showToast = true;
@@ -396,7 +407,7 @@
     showMatchDialog = false;
 
     // Check if this is a final match (could complete the tournament)
-    const goldBracketData = tournament.finalStage?.bracket;
+    const goldBracketData = tournament.finalStage?.goldBracket;
     const silverBracketData = tournament.finalStage?.silverBracket;
     const isGoldFinal = goldBracketData && isFinalMatch(selectedMatch, goldBracketData);
     const isSilverFinal = silverBracketData && isFinalMatch(selectedMatch, silverBracketData);
@@ -507,7 +518,7 @@
    * Simulates games until reaching pointsToWin (default 7) with 2+ point lead
    */
   async function autoFillAllMatches() {
-    if (!tournament || !tournament.finalStage?.bracket || !tournamentId) return;
+    if (!tournament || !tournament.finalStage?.goldBracket || !tournamentId) return;
 
     isAutoFilling = true;
     let filledCount = 0;
@@ -652,7 +663,7 @@
           if (!tournament?.finalStage) break;
 
           const currentBracket = bracketType === 'gold'
-            ? tournament.finalStage.bracket
+            ? tournament.finalStage.goldBracket
             : tournament.finalStage.silverBracket;
 
           if (!currentBracket) break;
@@ -663,11 +674,10 @@
           for (const round of currentBracket.rounds) {
             // Get phase-specific config for this round
             const phaseConfig = getPhaseConfig(
-              tournament.finalStage,
+              currentBracket,
               round.roundNumber,
               totalRounds,
-              false, // not third place
-              isSilver
+              false // not third place
             );
 
             for (const match of round.matches) {
@@ -683,11 +693,10 @@
           if (thirdPlace) {
             // 3rd place uses semifinal config
             const thirdPlaceConfig = getPhaseConfig(
-              tournament.finalStage,
-              totalRounds, // doesn't matter for third place
+              currentBracket,
+              totalRounds - 1, // semifinal round number for config
               totalRounds,
-              true, // is third place
-              isSilver
+              true // is third place
             );
             if (await simulateMatch(thirdPlace, bracketType, thirdPlaceConfig)) {
               hasMoreMatches = true;
@@ -841,127 +850,69 @@
         {@const finalLocked = finalRound ? isRoundLocked(finalRound.matches) : false}
         {@const thirdPlaceLocked = thirdPlaceMatch?.status === 'IN_PROGRESS' || thirdPlaceMatch?.status === 'COMPLETED' || thirdPlaceMatch?.status === 'WALKOVER'}
 
-        <div class="phase-config-panel">
-          <div class="phase-config-header">
-            <span class="config-icon">⚙️</span>
-            <span>Configuración de fases {isGold ? '(Oro)' : '(Plata)'}</span>
+        <!-- Global table config (affects both brackets) -->
+        <div class="global-table-config">
+          <div class="table-config-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="9" y1="21" x2="9" y2="9"></line>
+            </svg>
+            <span>Mesas</span>
           </div>
-          <div class="phase-config-grid">
-            <!-- Early Rounds Config -->
-            {#if hasEarlyRounds}
-              <div class="phase-config-item" class:locked={earlyLocked}>
-                <label>Tempranas</label>
-                <div class="config-inputs">
-                  <select
-                    value={earlyConfig.gameMode}
-                    disabled={earlyLocked || savingPhaseConfig}
-                    on:change={(e) => savePhaseConfig('early', isGold, parseGameMode(e.currentTarget.value), earlyConfig.value, earlyConfig.matchesToWin)}
-                  >
-                    <option value="rounds">Rondas</option>
-                    <option value="points">Puntos</option>
-                  </select>
-                  <input
-                    type="number"
-                    min="1"
-                    max="15"
-                    value={earlyConfig.value}
-                    disabled={earlyLocked || savingPhaseConfig}
-                    on:change={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, parseInt(e.currentTarget.value) || 4, earlyConfig.matchesToWin)}
-                  />
-                  {#if earlyConfig.gameMode === 'points'}
-                    <span class="bo-label">Bo</span>
-                    <select
-                      class="bo-select"
-                      value={earlyConfig.matchesToWin}
-                      disabled={earlyLocked || savingPhaseConfig}
-                      on:change={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, earlyConfig.value, parseInt(e.currentTarget.value) || 1)}
-                    >
-                      <option value={1}>1</option>
-                      <option value={3}>3</option>
-                      <option value={5}>5</option>
-                    </select>
-                  {/if}
-                </div>
-                {#if earlyLocked}<span class="lock-icon">🔒</span>{/if}
-              </div>
-            {/if}
-
-            <!-- Semifinals and 3rd/4th Place Config -->
-            {#if semiRound}
-              <div class="phase-config-item" class:locked={semiLocked || thirdPlaceLocked}>
-                <label>Semis y 3º/4º</label>
-                <div class="config-inputs">
-                  <select
-                    value={semiConfig.gameMode}
-                    disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
-                    on:change={(e) => savePhaseConfig('semifinal', isGold, parseGameMode(e.currentTarget.value), semiConfig.value, semiConfig.matchesToWin)}
-                  >
-                    <option value="rounds">Rondas</option>
-                    <option value="points">Puntos</option>
-                  </select>
-                  <input
-                    type="number"
-                    min="1"
-                    max="15"
-                    value={semiConfig.value}
-                    disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
-                    on:change={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, parseInt(e.currentTarget.value) || 7, semiConfig.matchesToWin)}
-                  />
-                  {#if semiConfig.gameMode === 'points'}
-                    <span class="bo-label">Bo</span>
-                    <select
-                      class="bo-select"
-                      value={semiConfig.matchesToWin}
-                      disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
-                      on:change={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, semiConfig.value, parseInt(e.currentTarget.value) || 1)}
-                    >
-                      <option value={1}>1</option>
-                      <option value={3}>3</option>
-                      <option value={5}>5</option>
-                    </select>
-                  {/if}
-                </div>
-                {#if semiLocked || thirdPlaceLocked}<span class="lock-icon">🔒</span>{/if}
-              </div>
-            {/if}
-
-            <!-- Final Config -->
-            {#if finalRound}
-              <div class="phase-config-item" class:locked={finalLocked}>
-                <label>Final</label>
-                <div class="config-inputs">
-                  <select
-                    value={finalConfig.gameMode}
-                    disabled={finalLocked || savingPhaseConfig}
-                    on:change={(e) => savePhaseConfig('final', isGold, parseGameMode(e.currentTarget.value), finalConfig.value, finalConfig.matchesToWin)}
-                  >
-                    <option value="rounds">Rondas</option>
-                    <option value="points">Puntos</option>
-                  </select>
-                  <input
-                    type="number"
-                    min="1"
-                    max="15"
-                    value={finalConfig.value}
-                    disabled={finalLocked || savingPhaseConfig}
-                    on:change={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, parseInt(e.currentTarget.value) || 9, finalConfig.matchesToWin)}
-                  />
-                  {#if finalConfig.gameMode === 'points'}
-                    <span class="bo-label">Bo</span>
-                    <select
-                      class="bo-select"
-                      value={finalConfig.matchesToWin}
-                      disabled={finalLocked || savingPhaseConfig}
-                      on:change={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, finalConfig.value, parseInt(e.currentTarget.value) || 1)}
-                    >
-                      <option value={1}>1</option>
-                      <option value={3}>3</option>
-                      <option value={5}>5</option>
-                    </select>
-                  {/if}
-                </div>
-                {#if finalLocked}<span class="lock-icon">🔒</span>{/if}
-              </div>
+          <div class="table-config-controls">
+            {#if editingNumTables}
+              <input
+                type="number"
+                min="1"
+                max="20"
+                bind:value={tempNumTables}
+                class="table-number-input"
+                disabled={isReassigningTables}
+              />
+              <button
+                class="table-action-btn confirm"
+                on:click={saveNumTablesAndReassign}
+                disabled={isReassigningTables}
+                title="Guardar y reasignar"
+              >
+                {#if isReassigningTables}
+                  <span class="spinner"></span>
+                {:else}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                {/if}
+              </button>
+              <button
+                class="table-action-btn cancel"
+                on:click={cancelEditingTables}
+                disabled={isReassigningTables}
+                title="Cancelar"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            {:else}
+              <button class="table-value" on:click={startEditingTables} title="Clic para editar">{currentNumTables}</button>
+              <button
+                class="table-action-btn sync"
+                on:click={handleReassignTables}
+                disabled={isReassigningTables}
+                title="Reasignar mesas"
+              >
+                {#if isReassigningTables}
+                  <span class="spinner"></span>
+                {:else}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                  </svg>
+                {/if}
+              </button>
             {/if}
           </div>
         </div>
@@ -972,6 +923,149 @@
             {activeTab === 'gold' ? `🥇 ${$t('goldLeague')}` : `🥈 ${$t('silverLeague')}`}
           </div>
         {/if}
+
+        <!-- Phase Configuration Accordion (specific to current bracket) -->
+        <div class="config-accordion" class:expanded={configExpanded}>
+          <button class="accordion-header" on:click={() => configExpanded = !configExpanded}>
+            <div class="accordion-title">
+              <svg class="accordion-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+              <span>Configuración {isGold ? 'Oro' : 'Plata'}</span>
+            </div>
+            <div class="accordion-summary">
+              {#if hasEarlyRounds}
+                <span class="summary-badge" title="Tempranas">{earlyConfig.gameMode === 'rounds' ? `${earlyConfig.value}R` : `${earlyConfig.value}P`}</span>
+              {/if}
+              {#if semiRound}
+                <span class="summary-badge" title="Semis">{semiConfig.gameMode === 'rounds' ? `${semiConfig.value}R` : `${semiConfig.value}P`}</span>
+              {/if}
+              {#if finalRound}
+                <span class="summary-badge" title="Final">{finalConfig.gameMode === 'rounds' ? `${finalConfig.value}R` : `${finalConfig.value}P`}</span>
+              {/if}
+            </div>
+          </button>
+
+          {#if configExpanded}
+            <div class="accordion-content">
+              <div class="phase-config-grid">
+                {#if hasEarlyRounds}
+                  <div class="phase-config-item" class:locked={earlyLocked}>
+                    <label>Tempranas</label>
+                    <div class="config-inputs">
+                      <select
+                        value={earlyConfig.gameMode}
+                        disabled={earlyLocked || savingPhaseConfig}
+                        on:change={(e) => savePhaseConfig('early', isGold, parseGameMode(e.currentTarget.value), earlyConfig.value, earlyConfig.matchesToWin)}
+                      >
+                        <option value="rounds">Rondas</option>
+                        <option value="points">Puntos</option>
+                      </select>
+                      <input
+                        type="number"
+                        min="1"
+                        max="15"
+                        value={earlyConfig.value}
+                        disabled={earlyLocked || savingPhaseConfig}
+                        on:change={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, parseInt(e.currentTarget.value) || 4, earlyConfig.matchesToWin)}
+                      />
+                      {#if earlyConfig.gameMode === 'points'}
+                        <span class="bo-label">Bo</span>
+                        <select
+                          class="bo-select"
+                          value={earlyConfig.matchesToWin}
+                          disabled={earlyLocked || savingPhaseConfig}
+                          on:change={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, earlyConfig.value, parseInt(e.currentTarget.value) || 1)}
+                        >
+                          <option value={1}>1</option>
+                          <option value={3}>3</option>
+                          <option value={5}>5</option>
+                        </select>
+                      {/if}
+                    </div>
+                    {#if earlyLocked}<span class="lock-icon">🔒</span>{/if}
+                  </div>
+                {/if}
+
+                {#if semiRound}
+                  <div class="phase-config-item" class:locked={semiLocked || thirdPlaceLocked}>
+                    <label>Semis y 3º/4º</label>
+                    <div class="config-inputs">
+                      <select
+                        value={semiConfig.gameMode}
+                        disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
+                        on:change={(e) => savePhaseConfig('semifinal', isGold, parseGameMode(e.currentTarget.value), semiConfig.value, semiConfig.matchesToWin)}
+                      >
+                        <option value="rounds">Rondas</option>
+                        <option value="points">Puntos</option>
+                      </select>
+                      <input
+                        type="number"
+                        min="1"
+                        max="15"
+                        value={semiConfig.value}
+                        disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
+                        on:change={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, parseInt(e.currentTarget.value) || 7, semiConfig.matchesToWin)}
+                      />
+                      {#if semiConfig.gameMode === 'points'}
+                        <span class="bo-label">Bo</span>
+                        <select
+                          class="bo-select"
+                          value={semiConfig.matchesToWin}
+                          disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
+                          on:change={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, semiConfig.value, parseInt(e.currentTarget.value) || 1)}
+                        >
+                          <option value={1}>1</option>
+                          <option value={3}>3</option>
+                          <option value={5}>5</option>
+                        </select>
+                      {/if}
+                    </div>
+                    {#if semiLocked || thirdPlaceLocked}<span class="lock-icon">🔒</span>{/if}
+                  </div>
+                {/if}
+
+                {#if finalRound}
+                  <div class="phase-config-item" class:locked={finalLocked}>
+                    <label>Final</label>
+                    <div class="config-inputs">
+                      <select
+                        value={finalConfig.gameMode}
+                        disabled={finalLocked || savingPhaseConfig}
+                        on:change={(e) => savePhaseConfig('final', isGold, parseGameMode(e.currentTarget.value), finalConfig.value, finalConfig.matchesToWin)}
+                      >
+                        <option value="rounds">Rondas</option>
+                        <option value="points">Puntos</option>
+                      </select>
+                      <input
+                        type="number"
+                        min="1"
+                        max="15"
+                        value={finalConfig.value}
+                        disabled={finalLocked || savingPhaseConfig}
+                        on:change={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, parseInt(e.currentTarget.value) || 9, finalConfig.matchesToWin)}
+                      />
+                      {#if finalConfig.gameMode === 'points'}
+                        <span class="bo-label">Bo</span>
+                        <select
+                          class="bo-select"
+                          value={finalConfig.matchesToWin}
+                          disabled={finalLocked || savingPhaseConfig}
+                          on:change={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, finalConfig.value, parseInt(e.currentTarget.value) || 1)}
+                        >
+                          <option value={1}>1</option>
+                          <option value={3}>3</option>
+                          <option value={5}>5</option>
+                        </select>
+                      {/if}
+                    </div>
+                    {#if finalLocked}<span class="lock-icon">🔒</span>{/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/if}
+        </div>
 
         <div class="bracket-container" class:silver-bracket={activeTab === 'silver'}>
           {#each rounds as round, roundIndex (round.roundNumber)}
@@ -1052,6 +1146,13 @@
                       {@const statusInfo = getStatusDisplay(match.status)}
                       <div class="status-badge" style="background: {statusInfo.color}">
                         {statusInfo.text}
+                      </div>
+                    {/if}
+
+                    <!-- Table number badge -->
+                    {#if !isByeMatch(match) && match.participantA && match.participantB}
+                      <div class="table-badge" class:tbd={!match.tableNumber}>
+                        {match.tableNumber ? `M${match.tableNumber}` : 'TBD'}
                       </div>
                     {/if}
 
@@ -1155,6 +1256,13 @@
                     {@const statusInfo = getStatusDisplay(thirdPlaceMatch.status)}
                     <div class="status-badge" style="background: {statusInfo.color}">
                       {statusInfo.text}
+                    </div>
+                  {/if}
+
+                  <!-- Table number badge -->
+                  {#if thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
+                    <div class="table-badge" class:tbd={!thirdPlaceMatch.tableNumber}>
+                      {thirdPlaceMatch.tableNumber ? `M${thirdPlaceMatch.tableNumber}` : 'TBD'}
                     </div>
                   {/if}
 
@@ -1901,6 +2009,42 @@
     background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
   }
 
+  .table-badge {
+    position: absolute;
+    top: 50%;
+    right: -2.2rem;
+    transform: translateY(-50%);
+    padding: 0.15rem 0.35rem;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    border-radius: 3px;
+    font-family: 'Lexend', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    z-index: 5;
+  }
+
+  .table-badge.tbd {
+    background: #fef3c7;
+    border-color: #fcd34d;
+    color: #92400e;
+  }
+
+  .bracket-page[data-theme='dark'] .table-badge {
+    background: #334155;
+    border-color: #475569;
+    color: #cbd5e1;
+  }
+
+  .bracket-page[data-theme='dark'] .table-badge.tbd {
+    background: #422006;
+    border-color: #a16207;
+    color: #fcd34d;
+  }
+
   /* 3rd/4th place match styles */
   .third-place-round {
     margin-left: 2rem;
@@ -1986,6 +2130,157 @@
   .tab-complete {
     color: #10b981;
     font-weight: 700;
+  }
+
+  /* Global Table Config */
+  .global-table-config {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+  }
+
+  .bracket-page[data-theme='dark'] .global-table-config {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .table-config-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .table-config-label svg {
+    opacity: 0.7;
+  }
+
+  .table-config-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  /* Configuration Accordion */
+  .config-accordion {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+
+  .bracket-page[data-theme='dark'] .config-accordion {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.65rem 1rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .accordion-header:hover {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .bracket-page[data-theme='dark'] .accordion-header:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .accordion-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+  }
+
+  .bracket-page[data-theme='dark'] .accordion-title {
+    color: #94a3b8;
+  }
+
+  .accordion-icon {
+    transition: transform 0.2s ease;
+    color: #64748b;
+  }
+
+  .config-accordion.expanded .accordion-icon {
+    transform: rotate(90deg);
+  }
+
+  .accordion-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .summary-badge {
+    padding: 0.2rem 0.5rem;
+    background: #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #475569;
+  }
+
+  .bracket-page[data-theme='dark'] .summary-badge {
+    background: #334155;
+    color: #94a3b8;
+  }
+
+  .accordion-content {
+    padding: 0 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .config-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem;
+  }
+
+  .bracket-page[data-theme='dark'] .config-section {
+    background: #0f172a;
+    border-color: #334155;
+  }
+
+  .config-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 0.6rem;
+  }
+
+  .config-section-title svg {
+    opacity: 0.7;
+  }
+
+  .table-config-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   /* Phase Configuration Panel */
@@ -2121,6 +2416,169 @@
   .lock-icon {
     font-size: 0.7rem;
     margin-left: 0.25rem;
+  }
+
+  /* Table Configuration Panel - matches phase-config style */
+  .table-config-panel {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .bracket-page[data-theme='dark'] .table-config-panel {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .table-config-panel .table-config-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+
+  .bracket-page[data-theme='dark'] .table-config-panel .table-config-item {
+    background: #0f172a;
+    border-color: #334155;
+  }
+
+  .table-config-item label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    min-width: 70px;
+  }
+
+  .table-config-item label svg {
+    opacity: 0.7;
+  }
+
+  .bracket-page[data-theme='dark'] .table-config-item label {
+    color: #94a3b8;
+  }
+
+  .table-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .table-value {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 28px;
+    padding: 0 0.5rem;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .table-value:hover {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+  }
+
+  .bracket-page[data-theme='dark'] .table-value {
+    background: #334155;
+    border-color: #475569;
+    color: #e2e8f0;
+  }
+
+  .bracket-page[data-theme='dark'] .table-value:hover {
+    background: #475569;
+  }
+
+  .table-number-input {
+    width: 48px;
+    height: 28px;
+    padding: 0 0.35rem;
+    border: 1px solid #3b82f6;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    background: white;
+    color: #334155;
+    outline: none;
+  }
+
+  .bracket-page[data-theme='dark'] .table-number-input {
+    background: #1e293b;
+    border-color: #60a5fa;
+    color: #e2e8f0;
+  }
+
+  .table-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .table-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .table-action-btn.sync {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .table-action-btn.sync:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .table-action-btn.confirm {
+    background: #10b981;
+    color: white;
+  }
+
+  .table-action-btn.confirm:hover:not(:disabled) {
+    background: #059669;
+  }
+
+  .table-action-btn.cancel {
+    background: #64748b;
+    color: white;
+  }
+
+  .table-action-btn.cancel:hover:not(:disabled) {
+    background: #475569;
+  }
+
+  .table-action-btn .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* Bracket title */

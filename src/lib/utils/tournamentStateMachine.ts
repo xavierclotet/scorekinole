@@ -337,10 +337,10 @@ async function startFinalStage(tournamentId: string): Promise<boolean> {
  */
 async function completeTournament(tournamentId: string): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage) return false;
+  if (!tournament || !tournament.finalStage || !tournament.finalStage.goldBracket) return false;
 
   // Verify final is complete
-  const finalRound = tournament.finalStage.bracket.rounds[tournament.finalStage.bracket.rounds.length - 1];
+  const finalRound = tournament.finalStage.goldBracket.rounds[tournament.finalStage.goldBracket.rounds.length - 1];
   const finalMatch = finalRound?.matches[0];
 
   if (!finalMatch || (finalMatch.status !== 'COMPLETED' && finalMatch.status !== 'WALKOVER')) {

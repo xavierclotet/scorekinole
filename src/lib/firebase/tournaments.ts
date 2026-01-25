@@ -209,20 +209,18 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
         tier: 'CLUB'
       },
       participants: [],
-      finalStage: {
-        type: 'SINGLE_ELIMINATION',
-        bracket: {
+      finalStage: data.finalStage || {
+        mode: 'SINGLE_BRACKET',
+        goldBracket: {
           rounds: [],
-          totalRounds: 0
+          totalRounds: 0,
+          config: {
+            earlyRounds: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 },
+            semifinal: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 },
+            final: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 }
+          }
         },
-        isComplete: false,
-        // Merge game config from data.finalStage if provided (for ONE_PHASE tournaments)
-        // Only include defined values (Firebase rejects undefined)
-        ...(data.finalStage?.mode && { mode: data.finalStage.mode }),
-        ...(data.finalStage?.gameMode && { gameMode: data.finalStage.gameMode }),
-        ...(data.finalStage?.pointsToWin !== undefined && { pointsToWin: data.finalStage.pointsToWin }),
-        ...(data.finalStage?.roundsToPlay !== undefined && { roundsToPlay: data.finalStage.roundsToPlay }),
-        ...(data.finalStage?.matchesToWin !== undefined && { matchesToWin: data.finalStage.matchesToWin })
+        isComplete: false
       },
       createdAt: Date.now(),
       createdBy: {
@@ -239,11 +237,6 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
     // Add groupStage configuration if it exists in the data
     if ('groupStage' in data && data.groupStage) {
       tournament.groupStage = data.groupStage;
-    }
-
-    // Add finalStageConfig if it exists in the data
-    if ('finalStageConfig' in data && data.finalStageConfig) {
-      tournament.finalStageConfig = data.finalStageConfig;
     }
 
     await setDoc(tournamentRef, {

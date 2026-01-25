@@ -586,7 +586,7 @@ export function calculateTimeBreakdown(
   }
 
   // Final Stage calculation
-  const finalConfig = tournament.finalStageConfig || tournament.finalStage;
+  const finalConfig = tournament.finalStage;
   const isSplitDivisions = finalConfig?.mode === 'SPLIT_DIVISIONS';
 
   // For SPLIT_DIVISIONS: half go to Gold bracket, half to Silver
@@ -648,15 +648,21 @@ export function calculateTimeBreakdown(
       const semifinalMatches = hasSemifinals ? 2 : 0;
       const finalMatches = hasThirdPlace ? 2 : 1; // Final + 3rd place (or just final)
 
+      // Get bracket config (use goldBracket config as default)
+      const bracketConfig = finalConfig?.goldBracket?.config;
+      const earlyConfig = bracketConfig?.earlyRounds || { gameMode: 'rounds', roundsToPlay: 4, matchesToWin: 1 };
+      const semiConfig = bracketConfig?.semifinal || { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 };
+      const finConfig = bracketConfig?.final || { gameMode: 'points', pointsToWin: 9, matchesToWin: 1 };
+
       // Calculate time for early rounds using default or specific config
       // Default: early rounds are 4 rounds (not points)
       let earlyRoundsMinutes = 0;
       let earlyMinutesPerMatch = 0;
       if (earlyRoundMatches > 0) {
-        const earlyGameMode = finalConfig.earlyRoundsGameMode || 'rounds';  // Default: rounds mode
-        const earlyPointsToWin = finalConfig.earlyRoundsPointsToWin || 7;
-        const earlyRoundsToPlay = finalConfig.earlyRoundsToPlay || 4;  // Default: 4 rounds
-        const earlyMatchesToWin = finalConfig.matchesToWin || 1;
+        const earlyGameMode = earlyConfig.gameMode || 'rounds';  // Default: rounds mode
+        const earlyPointsToWin = earlyConfig.pointsToWin || 7;
+        const earlyRoundsToPlay = earlyConfig.roundsToPlay || 4;  // Default: 4 rounds
+        const earlyMatchesToWin = earlyConfig.matchesToWin || 1;
         earlyMinutesPerMatch = calculateMinutesPerMatch(
           earlyGameMode,
           earlyPointsToWin,
@@ -674,10 +680,10 @@ export function calculateTimeBreakdown(
       let semifinalsMinutes = 0;
       let semiMinutesPerMatch = 0;
       if (semifinalMatches > 0) {
-        const semiGameMode = finalConfig.semifinalGameMode || 'points';  // Default: points mode
-        const semiPointsToWin = finalConfig.semifinalPointsToWin || 7;  // Default: 7 points
-        const semiRoundsToPlay = finalConfig.semifinalRoundsToPlay || 4;
-        const semiMatchesToWin = finalConfig.semifinalMatchesToWin || finalConfig.matchesToWin || 1;
+        const semiGameMode = semiConfig.gameMode || 'points';  // Default: points mode
+        const semiPointsToWin = semiConfig.pointsToWin || 7;  // Default: 7 points
+        const semiRoundsToPlay = semiConfig.roundsToPlay || 4;
+        const semiMatchesToWin = semiConfig.matchesToWin || 1;
         semiMinutesPerMatch = calculateMinutesPerMatch(
           semiGameMode,
           semiPointsToWin,
@@ -707,10 +713,10 @@ export function calculateTimeBreakdown(
       let finalsMinutes = 0;
       let finalMinutesPerMatch = 0;
       let finalDetails = { minutesPerGame: 0, avgGamesPlayed: 1 };
-      const finalGameMode = finalConfig.finalGameMode || finalConfig.gameMode || 'points';
-      const finalPointsToWin = finalConfig.finalPointsToWin || 9;  // Default 9 for finals
-      const finalRoundsToPlay = finalConfig.finalRoundsToPlay || finalConfig.roundsToPlay || 4;
-      const finalMatchesToWin = finalConfig.finalMatchesToWin || finalConfig.matchesToWin || 1;
+      const finalGameMode = finConfig.gameMode || 'points';
+      const finalPointsToWin = finConfig.pointsToWin || 9;  // Default 9 for finals
+      const finalRoundsToPlay = finConfig.roundsToPlay || 4;
+      const finalMatchesToWin = finConfig.matchesToWin || 1;
 
       if (finalMatches > 0) {
         const detailed = calculateMinutesPerMatchDetailed(
@@ -741,12 +747,12 @@ export function calculateTimeBreakdown(
       // Early rounds: default 4R (rounds mode)
       // Semifinals: default 7P (points mode)
       // Finals: default 9P (points mode) - already defined above
-      const earlyGameModeForConfig = finalConfig.earlyRoundsGameMode || 'rounds';
-      const earlyPointsToWinForConfig = finalConfig.earlyRoundsPointsToWin || 7;
-      const earlyRoundsToPlayForConfig = finalConfig.earlyRoundsToPlay || 4;
-      const semiGameModeForConfig = finalConfig.semifinalGameMode || 'points';
-      const semiPointsToWinForConfig = finalConfig.semifinalPointsToWin || 7;
-      const semiRoundsToPlayForConfig = finalConfig.semifinalRoundsToPlay || 4;
+      const earlyGameModeForConfig = earlyConfig.gameMode || 'rounds';
+      const earlyPointsToWinForConfig = earlyConfig.pointsToWin || 7;
+      const earlyRoundsToPlayForConfig = earlyConfig.roundsToPlay || 4;
+      const semiGameModeForConfig = semiConfig.gameMode || 'points';
+      const semiPointsToWinForConfig = semiConfig.pointsToWin || 7;
+      const semiRoundsToPlayForConfig = semiConfig.roundsToPlay || 4;
 
       // Calculate detailed bracket rounds breakdown with phase-specific configs
       const bracketRounds = calculateBracketRoundsBreakdown(
@@ -1029,8 +1035,8 @@ export function calculateRemainingTime(tournament: Tournament): {
   // === FINAL STAGE - Calculate by bracket phases ===
   // Get status per bracket round from actual tournament data
   const goldBracketStatus = getBracketRoundStatus(
-    tournament.finalStage?.bracket,
-    tournament.finalStage?.bracket?.thirdPlaceMatch
+    tournament.finalStage?.goldBracket,
+    tournament.finalStage?.goldBracket?.thirdPlaceMatch
   );
   const silverBracketStatus = getBracketRoundStatus(
     tournament.finalStage?.silverBracket,

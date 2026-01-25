@@ -320,12 +320,7 @@ function resolveMultiPlayerTie(
         return b.total20s - a.total20s;
       }
 
-      // Fallback to initial ranking for stable sort
-      const pA = participantMap.get(a.participantId);
-      const pB = participantMap.get(b.participantId);
-      if (pA && pB) {
-        return pB.rankingSnapshot - pA.rankingSnapshot;
-      }
+      // No fallback to ranking - leave as truly unresolved
       return 0;
     });
 
@@ -337,23 +332,28 @@ function resolveMultiPlayerTie(
       console.log(`  ${idx + 1}. ${p?.name || s.participantId}: miniPts=${miniPts}, mini20s=${mini20s}, total20s=${s.total20s}`);
     });
 
-    // Create a compound compare value for detecting remaining ties
-    // (mini-league points * 10000 + mini-league 20s * 100 + total 20s would overflow, so use string comparison)
-    const getCompareKey = (s: GroupStanding): string => {
+    // Key for detecting truly unresolved ties (same miniPts + mini20s + total20s)
+    const getFullCompareKey = (s: GroupStanding): string => {
       const miniPts = calculateMiniLeaguePoints(s, tiedIds);
       const mini20s = calculateMiniLeague20s(s, tiedIds);
       return `${miniPts.toString().padStart(5, '0')}-${mini20s.toString().padStart(5, '0')}-${s.total20s.toString().padStart(5, '0')}`;
     };
 
-    // Resolve remaining 2-player ties with H2H
-    // For this we need a numeric compare, so we'll handle it inline
+    // Key for detecting sub-ties (same miniPts + mini20s, resolved by total20s)
+    const getMiniLeagueKey = (s: GroupStanding): string => {
+      const miniPts = calculateMiniLeaguePoints(s, tiedIds);
+      const mini20s = calculateMiniLeague20s(s, tiedIds);
+      return `${miniPts.toString().padStart(5, '0')}-${mini20s.toString().padStart(5, '0')}`;
+    };
+
+    // First pass: detect truly unresolved ties (same miniPts + mini20s + total20s)
     const result: GroupStanding[] = [];
     let i = 0;
 
     while (i < sorted.length) {
-      const currentKey = getCompareKey(sorted[i]);
+      const currentKey = getFullCompareKey(sorted[i]);
       let j = i + 1;
-      while (j < sorted.length && getCompareKey(sorted[j]) === currentKey) {
+      while (j < sorted.length && getFullCompareKey(sorted[j]) === currentKey) {
         j++;
       }
 
@@ -374,18 +374,12 @@ function resolveMultiPlayerTie(
             result.push(b, a);
           }
         } else {
+          // Truly unresolved - mark as tied and leave order as-is
           a.tiedWith = [b.participantId];
           a.tieReason = 'unresolved';
           b.tiedWith = [a.participantId];
           b.tieReason = 'unresolved';
-
-          const pA = participantMap.get(a.participantId);
-          const pB = participantMap.get(b.participantId);
-          if (pA && pB && pA.rankingSnapshot !== pB.rankingSnapshot) {
-            result.push(...(pA.rankingSnapshot > pB.rankingSnapshot ? [a, b] : [b, a]));
-          } else {
-            result.push(a, b);
-          }
+          result.push(a, b);
         }
       } else if (tiedSubgroup.length > 2) {
         for (const s of tiedSubgroup) {
@@ -400,6 +394,34 @@ function resolveMultiPlayerTie(
       }
 
       i = j;
+    }
+
+    // Second pass: mark sub-ties (same miniPts + mini20s but resolved by total20s)
+    // These should also show warning since they were resolved by total20s, not mini-league
+    for (let k = 0; k < result.length - 1; k++) {
+      const current = result[k];
+      const next = result[k + 1];
+
+      // Skip if already marked as unresolved
+      if (current.tiedWith && current.tiedWith.length > 0) continue;
+
+      // Check if they have the same mini-league key (same miniPts + mini20s)
+      if (getMiniLeagueKey(current) === getMiniLeagueKey(next)) {
+        // They were resolved by total20s - mark as sub-tie
+        current.tiedWith = current.tiedWith || [];
+        if (!current.tiedWith.includes(next.participantId)) {
+          current.tiedWith.push(next.participantId);
+        }
+        current.tieReason = 'twenties';  // Resolved by total 20s
+
+        next.tiedWith = next.tiedWith || [];
+        if (!next.tiedWith.includes(current.participantId)) {
+          next.tiedWith.push(current.participantId);
+        }
+        next.tieReason = 'twenties';
+
+        console.log(`[Tiebreaker] Sub-tie detected: ${current.participantId} and ${next.participantId} (resolved by total 20s)`);
+      }
     }
 
     sorted = result;

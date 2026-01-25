@@ -127,7 +127,9 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       }
     };
 
-    clearBracketParticipantPositions(tournament.finalStage.bracket);
+    // Use goldBracket for SPLIT_DIVISIONS mode, otherwise fallback to bracket for legacy data
+    const goldBracketRef = tournament.finalStage.goldBracket || tournament.finalStage.bracket;
+    clearBracketParticipantPositions(goldBracketRef);
     if (isSplitDivisions && tournament.finalStage.silverBracket) {
       clearBracketParticipantPositions(tournament.finalStage.silverBracket);
     }
@@ -224,7 +226,8 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       return positionsAssigned;
     };
 
-    const goldBracket = tournament.finalStage.bracket;
+    // Use goldBracket for SPLIT_DIVISIONS mode, otherwise fallback to bracket for legacy data
+    const goldBracket = tournament.finalStage.goldBracket || tournament.finalStage.bracket;
     const goldPositionsAssigned = assignBracketPositions(goldBracket, 1);
 
     if (isSplitDivisions && tournament.finalStage.silverBracket) {
@@ -260,8 +263,10 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       }
     };
 
-    if (tournament.finalStage.bracket) {
-      collectBracketParticipants(tournament.finalStage.bracket);
+    // Use goldBracket for SPLIT_DIVISIONS mode, otherwise fallback to bracket for legacy data
+    const goldBracketForCleanup = tournament.finalStage.goldBracket || tournament.finalStage.bracket;
+    if (goldBracketForCleanup) {
+      collectBracketParticipants(goldBracketForCleanup);
     }
     if (tournament.finalStage.silverBracket) {
       collectBracketParticipants(tournament.finalStage.silverBracket);
@@ -312,8 +317,10 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       }
     };
 
-    if (tournament.finalStage?.bracket) {
-      collectBracketParticipants(tournament.finalStage.bracket);
+    // Use goldBracket for SPLIT_DIVISIONS mode, otherwise fallback to bracket for legacy data
+    const goldBracketForOnePhase = tournament.finalStage?.goldBracket || tournament.finalStage?.bracket;
+    if (goldBracketForOnePhase) {
+      collectBracketParticipants(goldBracketForOnePhase);
     }
     if (tournament.finalStage?.silverBracket) {
       collectBracketParticipants(tournament.finalStage.silverBracket);

@@ -23,6 +23,7 @@
   let loadingMore = false;
   let showDeleteConfirm = false;
   let tournamentToDelete: Tournament | null = null;
+  let deleting = false;
   let showToast = false;
   let toastMessage = '';
   let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
@@ -189,7 +190,9 @@
   }
 
   async function deleteTournament() {
-    if (!tournamentToDelete) return;
+    if (!tournamentToDelete || deleting) return;
+
+    deleting = true;
 
     const success = await deleteTournamentFirebase(tournamentToDelete.id);
 
@@ -206,6 +209,7 @@
       showToast = true;
     }
 
+    deleting = false;
     showDeleteConfirm = false;
     tournamentToDelete = null;
   }
@@ -348,7 +352,7 @@
                     </span>
                     <span class="mode-separator">+</span>
                   {/if}
-                  {#if tournament.finalStage?.mode === 'SPLIT_DIVISIONS' || tournament.finalStageConfig?.mode === 'SPLIT_DIVISIONS'}
+                  {#if tournament.finalStage?.mode === 'SPLIT_DIVISIONS'}
                     <span class="mode-final split">{$t('goldSilver')}</span>
                   {:else}
                     <span class="mode-final">1F</span>
@@ -401,7 +405,7 @@
 
   <!-- Delete Confirmation Modal -->
   {#if showDeleteConfirm && tournamentToDelete}
-    <div class="modal-backdrop" data-theme={$adminTheme} on:click={cancelDelete}>
+    <div class="modal-backdrop" data-theme={$adminTheme} on:click={() => !deleting && cancelDelete()}>
       <div class="confirm-modal" on:click|stopPropagation>
         <h2>{$t('confirmDelete')}</h2>
         <p>{$t('confirmCancelTournament')}</p>
@@ -413,8 +417,14 @@
           <span>{$t('createdAt')}: {formatDate(tournamentToDelete.createdAt)}</span>
         </div>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={cancelDelete}>{$t('cancel')}</button>
-          <button class="delete-btn-confirm" on:click={deleteTournament}>{$t('delete')}</button>
+          <button class="cancel-btn" on:click={cancelDelete} disabled={deleting}>{$t('cancel')}</button>
+          <button class="delete-btn-confirm" on:click={deleteTournament} disabled={deleting}>
+            {#if deleting}
+              <LoadingSpinner size="small" inline={true} message={$t('deleting')} />
+            {:else}
+              {$t('delete')}
+            {/if}
+          </button>
         </div>
       </div>
     </div>
@@ -1329,6 +1339,12 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    min-height: 42px;
+    min-width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
   }
 
   .delete-btn-confirm:hover {

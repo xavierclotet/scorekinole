@@ -6,7 +6,250 @@
 import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
 import { generateBracket as generateBracketAlgorithm, advanceWinner as advanceWinnerAlgorithm } from '$lib/algorithms/bracket';
 import { calculateFinalPositionsForTournament } from './tournamentRanking';
-import type { BracketMatch } from '$lib/types/tournament';
+import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig } from '$lib/types/tournament';
+
+/**
+ * Get all playable matches from a bracket (PENDING with both participants, no BYE)
+ */
+function getPlayableMatches(bracket: Bracket): BracketMatch[] {
+  const matches: BracketMatch[] = [];
+
+  for (const round of bracket.rounds) {
+    for (const match of round.matches) {
+      if (
+        match.status === 'PENDING' &&
+        match.participantA &&
+        match.participantB &&
+        match.participantA !== 'BYE' &&
+        match.participantB !== 'BYE' &&
+        !match.tableNumber
+      ) {
+        matches.push(match);
+      }
+    }
+  }
+
+  // Also check third place match
+  if (bracket.thirdPlaceMatch &&
+      bracket.thirdPlaceMatch.status === 'PENDING' &&
+      bracket.thirdPlaceMatch.participantA &&
+      bracket.thirdPlaceMatch.participantB &&
+      !bracket.thirdPlaceMatch.tableNumber) {
+    matches.push(bracket.thirdPlaceMatch);
+  }
+
+  return matches;
+}
+
+/**
+ * Get tables currently in use (assigned to PENDING or IN_PROGRESS matches)
+ */
+function getUsedTables(bracket: Bracket): Set<number> {
+  const used = new Set<number>();
+
+  for (const round of bracket.rounds) {
+    for (const match of round.matches) {
+      if ((match.status === 'PENDING' || match.status === 'IN_PROGRESS') && match.tableNumber) {
+        used.add(match.tableNumber);
+      }
+    }
+  }
+
+  if (bracket.thirdPlaceMatch &&
+      (bracket.thirdPlaceMatch.status === 'PENDING' || bracket.thirdPlaceMatch.status === 'IN_PROGRESS') &&
+      bracket.thirdPlaceMatch.tableNumber) {
+    used.add(bracket.thirdPlaceMatch.tableNumber);
+  }
+
+  return used;
+}
+
+/**
+ * Get available tables (not currently in use)
+ */
+function getAvailableTables(usedTables: Set<number>, numTables: number): number[] {
+  const available: number[] = [];
+  for (let i = 1; i <= numTables; i++) {
+    if (!usedTables.has(i)) {
+      available.push(i);
+    }
+  }
+  return available;
+}
+
+/**
+ * Assign tables to playable matches in brackets, respecting the table limit
+ * If there are 2 brackets, tables are split between them (half each)
+ *
+ * @param goldBracket Gold bracket (or main bracket if no split)
+ * @param silverBracket Silver bracket (optional)
+ * @param numTables Maximum number of tables available
+ */
+function assignTablesToBrackets(
+  goldBracket: Bracket,
+  silverBracket: Bracket | null,
+  numTables: number
+): void {
+  // Get tables currently used by both brackets
+  const usedByGold = getUsedTables(goldBracket);
+  const usedBySilver = silverBracket ? getUsedTables(silverBracket) : new Set<number>();
+  const allUsed = new Set([...usedByGold, ...usedBySilver]);
+
+  // Get available tables
+  const availableTables = getAvailableTables(allUsed, numTables);
+
+  if (availableTables.length === 0) {
+    return; // No tables available
+  }
+
+  // Get playable matches from both brackets
+  const goldPlayable = getPlayableMatches(goldBracket);
+  const silverPlayable = silverBracket ? getPlayableMatches(silverBracket) : [];
+
+  console.log('🎯 assignTablesToBrackets:', {
+    numTables,
+    availableTables,
+    goldPlayableCount: goldPlayable.length,
+    silverPlayableCount: silverPlayable.length
+  });
+
+  if (silverBracket) {
+    // Calculate how many tables each bracket actually needs
+    const goldNeeds = goldPlayable.length;
+    const silverNeeds = silverPlayable.length;
+    const totalNeeds = goldNeeds + silverNeeds;
+
+    console.log('🎯 Table needs:', { goldNeeds, silverNeeds, totalNeeds, availableTables: availableTables.length });
+
+    let tableIndex = 0;
+
+    if (totalNeeds <= availableTables.length) {
+      // Enough tables for everyone - assign all needed
+      for (let i = 0; i < goldNeeds; i++) {
+        goldPlayable[i].tableNumber = availableTables[tableIndex++];
+      }
+      for (let i = 0; i < silverNeeds; i++) {
+        silverPlayable[i].tableNumber = availableTables[tableIndex++];
+      }
+      console.log('🎯 All matches got tables:', { goldAssigned: goldNeeds, silverAssigned: silverNeeds });
+    } else {
+      // Not enough tables - split proportionally (prioritize gold slightly)
+      const tablesForGold = Math.ceil(availableTables.length / 2);
+      const tablesForSilver = availableTables.length - tablesForGold;
+
+      for (let i = 0; i < Math.min(tablesForGold, goldNeeds); i++) {
+        goldPlayable[i].tableNumber = availableTables[tableIndex++];
+      }
+      for (let i = 0; i < Math.min(tablesForSilver, silverNeeds); i++) {
+        silverPlayable[i].tableNumber = availableTables[tableIndex++];
+      }
+      console.log('🎯 Split tables (not enough):', { tablesForGold, tablesForSilver });
+    }
+  } else {
+    // Single bracket: all tables go to gold
+    for (let i = 0; i < Math.min(availableTables.length, goldPlayable.length); i++) {
+      goldPlayable[i].tableNumber = availableTables[i];
+    }
+  }
+}
+
+
+/**
+ * Reassign tables for all pending matches in the bracket(s)
+ * Also optionally updates the number of tables available
+ *
+ * @param tournamentId Tournament ID
+ * @param newNumTables Optional new number of tables (if changing)
+ * @returns Object with success status and info about changes made
+ */
+export async function reassignTables(
+  tournamentId: string,
+  newNumTables?: number
+): Promise<{ success: boolean; error?: string; tablesAssigned?: number }> {
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) {
+      return { success: false, error: 'Tournament not found' };
+    }
+
+    if (!tournament.finalStage || !tournament.finalStage.goldBracket) {
+      return { success: false, error: 'No bracket found' };
+    }
+
+    // Update numTables if provided
+    const numTables = newNumTables ?? tournament.numTables ?? 4;
+
+    // Clone brackets to modify
+    const goldBracket = JSON.parse(JSON.stringify(tournament.finalStage.goldBracket)) as Bracket;
+    const silverBracket = tournament.finalStage.silverBracket
+      ? JSON.parse(JSON.stringify(tournament.finalStage.silverBracket)) as Bracket
+      : null;
+
+    // Clear existing table assignments for PENDING matches only
+    const clearPendingTables = (bracket: Bracket) => {
+      for (const round of bracket.rounds) {
+        for (const match of round.matches) {
+          if (match.status === 'PENDING') {
+            match.tableNumber = undefined;
+          }
+        }
+      }
+      if (bracket.thirdPlaceMatch?.status === 'PENDING') {
+        bracket.thirdPlaceMatch.tableNumber = undefined;
+      }
+    };
+
+    clearPendingTables(goldBracket);
+    if (silverBracket) {
+      clearPendingTables(silverBracket);
+    }
+
+    // Reassign tables
+    assignTablesToBrackets(goldBracket, silverBracket, numTables);
+
+    // Count how many tables were assigned
+    let tablesAssigned = 0;
+    const countAssigned = (bracket: Bracket) => {
+      for (const round of bracket.rounds) {
+        for (const match of round.matches) {
+          if (match.status === 'PENDING' && match.tableNumber) {
+            tablesAssigned++;
+          }
+        }
+      }
+      if (bracket.thirdPlaceMatch?.status === 'PENDING' && bracket.thirdPlaceMatch.tableNumber) {
+        tablesAssigned++;
+      }
+    };
+
+    countAssigned(goldBracket);
+    if (silverBracket) {
+      countAssigned(silverBracket);
+    }
+
+    // Update tournament
+    const updateData: any = {
+      numTables,
+      finalStage: {
+        ...tournament.finalStage,
+        goldBracket
+      }
+    };
+
+    if (silverBracket) {
+      updateData.finalStage.silverBracket = silverBracket;
+    }
+
+    await updateTournament(tournamentId, updateData);
+
+    console.log('✅ Tables reassigned:', { numTables, tablesAssigned });
+    return { success: true, tablesAssigned };
+  } catch (error) {
+    console.error('Error reassigning tables:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
 
 /**
  * Generate split brackets (Gold/Silver) for SPLIT_DIVISIONS mode
@@ -20,34 +263,8 @@ export async function generateSplitBrackets(
   options: {
     goldParticipantIds: string[];
     silverParticipantIds: string[];
-    goldConfig: {
-      // Per-phase configuration for Gold bracket
-      earlyRoundsGameMode: 'points' | 'rounds';
-      earlyRoundsPointsToWin?: number;
-      earlyRoundsToPlay?: number;
-      semifinalGameMode: 'points' | 'rounds';
-      semifinalPointsToWin?: number;
-      semifinalRoundsToPlay?: number;
-      semifinalMatchesToWin: number;
-      finalGameMode: 'points' | 'rounds';
-      finalPointsToWin?: number;
-      finalRoundsToPlay?: number;
-      finalMatchesToWin: number;
-    };
-    silverConfig: {
-      // Per-phase configuration for Silver bracket
-      earlyRoundsGameMode: 'points' | 'rounds';
-      earlyRoundsPointsToWin?: number;
-      earlyRoundsToPlay?: number;
-      semifinalGameMode: 'points' | 'rounds';
-      semifinalPointsToWin?: number;
-      semifinalRoundsToPlay?: number;
-      semifinalMatchesToWin: number;
-      finalGameMode: 'points' | 'rounds';
-      finalPointsToWin?: number;
-      finalRoundsToPlay?: number;
-      finalMatchesToWin: number;
-    };
+    goldConfig: BracketConfig;
+    silverConfig: BracketConfig;
   }
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
@@ -76,50 +293,40 @@ export async function generateSplitBrackets(
       return false;
     }
 
-    // Generate both brackets
-    const goldBracket = generateBracketAlgorithm(goldParticipants);
-    const silverBracket = generateBracketAlgorithm(silverParticipants);
+    // Generate both brackets using algorithm
+    const goldBracketRaw = generateBracketAlgorithm(goldParticipants);
+    const silverBracketRaw = generateBracketAlgorithm(silverParticipants);
+
+    // Assign table numbers to brackets respecting the table limit
+    // Tables are distributed fairly between gold and silver brackets
+    const numTables = tournament.numTables || 4;
+    assignTablesToBrackets(goldBracketRaw, silverBracketRaw, numTables);
 
     console.log('🥇 Generated Gold bracket with', goldParticipants.length, 'participants');
     console.log('🥈 Generated Silver bracket with', silverParticipants.length, 'participants');
 
-    // Update tournament with both brackets and per-phase configuration
+    // Create BracketWithConfig objects
+    const goldBracketWithConfig: BracketWithConfig = {
+      rounds: goldBracketRaw.rounds,
+      totalRounds: goldBracketRaw.totalRounds,
+      thirdPlaceMatch: goldBracketRaw.thirdPlaceMatch,
+      config: goldConfig
+    };
+
+    const silverBracketWithConfig: BracketWithConfig = {
+      rounds: silverBracketRaw.rounds,
+      totalRounds: silverBracketRaw.totalRounds,
+      thirdPlaceMatch: silverBracketRaw.thirdPlaceMatch,
+      config: silverConfig
+    };
+
+    // Update tournament with both brackets (config embedded in each bracket)
     return await updateTournament(tournamentId, {
       finalStage: {
-        type: 'SINGLE_ELIMINATION',
         mode: 'SPLIT_DIVISIONS',
-        bracket: goldBracket,
-        silverBracket: silverBracket,
-        isComplete: false,
-        // Default config (required by FinalStage type) - uses final phase values
-        gameMode: goldConfig.finalGameMode,
-        matchesToWin: goldConfig.finalMatchesToWin,
-        pointsToWin: goldConfig.finalGameMode === 'points' ? goldConfig.finalPointsToWin : undefined,
-        roundsToPlay: goldConfig.finalGameMode === 'rounds' ? goldConfig.finalRoundsToPlay : undefined,
-        // Gold bracket per-phase config
-        earlyRoundsGameMode: goldConfig.earlyRoundsGameMode,
-        earlyRoundsPointsToWin: goldConfig.earlyRoundsPointsToWin,
-        earlyRoundsToPlay: goldConfig.earlyRoundsToPlay,
-        semifinalGameMode: goldConfig.semifinalGameMode,
-        semifinalPointsToWin: goldConfig.semifinalPointsToWin,
-        semifinalRoundsToPlay: goldConfig.semifinalRoundsToPlay,
-        semifinalMatchesToWin: goldConfig.semifinalMatchesToWin,
-        finalGameMode: goldConfig.finalGameMode,
-        finalPointsToWin: goldConfig.finalPointsToWin,
-        finalRoundsToPlay: goldConfig.finalRoundsToPlay,
-        finalMatchesToWin: goldConfig.finalMatchesToWin,
-        // Silver bracket per-phase config
-        silverEarlyRoundsGameMode: silverConfig.earlyRoundsGameMode,
-        silverEarlyRoundsPointsToWin: silverConfig.earlyRoundsPointsToWin,
-        silverEarlyRoundsToPlay: silverConfig.earlyRoundsToPlay,
-        silverSemifinalGameMode: silverConfig.semifinalGameMode,
-        silverSemifinalPointsToWin: silverConfig.semifinalPointsToWin,
-        silverSemifinalRoundsToPlay: silverConfig.semifinalRoundsToPlay,
-        silverSemifinalMatchesToWin: silverConfig.semifinalMatchesToWin,
-        silverFinalGameMode: silverConfig.finalGameMode,
-        silverFinalPointsToWin: silverConfig.finalPointsToWin,
-        silverFinalRoundsToPlay: silverConfig.finalRoundsToPlay,
-        silverFinalMatchesToWin: silverConfig.finalMatchesToWin
+        goldBracket: goldBracketWithConfig,
+        silverBracket: silverBracketWithConfig,
+        isComplete: false
       }
     });
   } catch (error) {
@@ -132,29 +339,12 @@ export async function generateSplitBrackets(
  * Generate bracket from qualified participants
  *
  * @param tournamentId Tournament ID
- * @param config Optional final stage game configuration
+ * @param config Optional bracket configuration (per-phase settings)
  * @returns true if successful
  */
 export async function generateBracket(
   tournamentId: string,
-  config?: {
-    gameMode: 'points' | 'rounds';
-    pointsToWin?: number;
-    roundsToPlay?: number;
-    matchesToWin: number;
-    // Per-phase configuration
-    earlyRoundsGameMode?: 'points' | 'rounds';
-    earlyRoundsPointsToWin?: number;
-    earlyRoundsToPlay?: number;
-    semifinalGameMode?: 'points' | 'rounds';
-    semifinalPointsToWin?: number;
-    semifinalRoundsToPlay?: number;
-    semifinalMatchesToWin?: number;
-    finalGameMode?: 'points' | 'rounds';
-    finalPointsToWin?: number;
-    finalRoundsToPlay?: number;
-    finalMatchesToWin?: number;
-  }
+  config?: BracketConfig
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
   if (!tournament) {
@@ -225,39 +415,39 @@ export async function generateBracket(
       return false;
     }
 
-    // Generate bracket
-    const bracket = generateBracketAlgorithm(qualifiedParticipants);
+    // Generate bracket using algorithm
+    const bracketRaw = generateBracketAlgorithm(qualifiedParticipants);
 
-    // Update tournament
-    // Use provided config or defaults: points mode (to 7 points), best of 3
-    const finalStageConfig = config || {
-      gameMode: 'points' as const,
+    // Assign table numbers respecting the table limit
+    const numTables = tournament.numTables || 4;
+    assignTablesToBrackets(bracketRaw, null, numTables);
+
+    // Default config: points mode (7 points), best of 1 for all phases
+    const defaultPhaseConfig: PhaseConfig = {
+      gameMode: 'points',
       pointsToWin: 7,
-      matchesToWin: 3
+      matchesToWin: 1
+    };
+
+    const bracketConfig: BracketConfig = config || {
+      earlyRounds: { ...defaultPhaseConfig },
+      semifinal: { ...defaultPhaseConfig },
+      final: { ...defaultPhaseConfig }
+    };
+
+    // Create BracketWithConfig object
+    const goldBracketWithConfig: BracketWithConfig = {
+      rounds: bracketRaw.rounds,
+      totalRounds: bracketRaw.totalRounds,
+      thirdPlaceMatch: bracketRaw.thirdPlaceMatch,
+      config: bracketConfig
     };
 
     return await updateTournament(tournamentId, {
       finalStage: {
-        type: 'SINGLE_ELIMINATION',
         mode: 'SINGLE_BRACKET',
-        bracket,
-        isComplete: false,
-        gameMode: finalStageConfig.gameMode,
-        pointsToWin: finalStageConfig.pointsToWin,
-        roundsToPlay: finalStageConfig.roundsToPlay,
-        matchesToWin: finalStageConfig.matchesToWin,
-        // Per-phase configuration
-        earlyRoundsGameMode: finalStageConfig.earlyRoundsGameMode,
-        earlyRoundsPointsToWin: finalStageConfig.earlyRoundsPointsToWin,
-        earlyRoundsToPlay: finalStageConfig.earlyRoundsToPlay,
-        semifinalGameMode: finalStageConfig.semifinalGameMode,
-        semifinalPointsToWin: finalStageConfig.semifinalPointsToWin,
-        semifinalRoundsToPlay: finalStageConfig.semifinalRoundsToPlay,
-        semifinalMatchesToWin: finalStageConfig.semifinalMatchesToWin,
-        finalGameMode: finalStageConfig.finalGameMode,
-        finalPointsToWin: finalStageConfig.finalPointsToWin,
-        finalRoundsToPlay: finalStageConfig.finalRoundsToPlay,
-        finalMatchesToWin: finalStageConfig.finalMatchesToWin
+        goldBracket: goldBracketWithConfig,
+        isComplete: false
       }
     });
   } catch (error) {
@@ -280,13 +470,13 @@ export async function updateBracketMatch(
   result: Partial<BracketMatch>
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage) {
-    console.error('Tournament or final stage not found');
+  if (!tournament || !tournament.finalStage || !tournament.finalStage.goldBracket) {
+    console.error('Tournament or gold bracket not found');
     return false;
   }
 
   try {
-    const bracket = tournament.finalStage.bracket;
+    const goldBracket = tournament.finalStage.goldBracket;
     let matchUpdated = false;
 
     console.log('🔧 updateBracketMatch - Received result:', result);
@@ -309,15 +499,15 @@ export async function updateBracketMatch(
     }
 
     // Find and update match (check 3rd place match first)
-    if (bracket.thirdPlaceMatch?.id === matchId) {
-      bracket.thirdPlaceMatch = {
-        ...bracket.thirdPlaceMatch,
+    if (goldBracket.thirdPlaceMatch?.id === matchId) {
+      goldBracket.thirdPlaceMatch = {
+        ...goldBracket.thirdPlaceMatch,
         ...cleanResult
       };
       matchUpdated = true;
     } else {
       // Search in rounds
-      for (const round of bracket.rounds) {
+      for (const round of goldBracket.rounds) {
         const matchIndex = round.matches.findIndex(m => m.id === matchId);
         if (matchIndex !== -1) {
           round.matches[matchIndex] = {
@@ -339,7 +529,7 @@ export async function updateBracketMatch(
     await updateTournamentPublic(tournamentId, {
       finalStage: {
         ...tournament.finalStage,
-        bracket
+        goldBracket
       }
     });
 
@@ -391,21 +581,33 @@ export async function advanceWinner(
   winnerId: string
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage) {
-    console.error('Tournament or final stage not found');
+  if (!tournament || !tournament.finalStage || !tournament.finalStage.goldBracket) {
+    console.error('Tournament or gold bracket not found');
     return false;
   }
 
   try {
     // Use algorithm to advance winner in gold bracket
-    const updatedBracket = advanceWinnerAlgorithm(
-      tournament.finalStage.bracket,
+    const updatedBracketRaw = advanceWinnerAlgorithm(
+      tournament.finalStage.goldBracket,
       matchId,
       winnerId
     );
 
+    // Preserve config in updated bracket
+    const updatedGoldBracket: BracketWithConfig = {
+      ...updatedBracketRaw,
+      config: tournament.finalStage.goldBracket.config
+    };
+
+    // Assign tables to any newly ready matches
+    // Tables freed from completed matches become available for new matches
+    const numTables = tournament.numTables || 4;
+    const silverBracketForTables = tournament.finalStage.silverBracket || null;
+    assignTablesToBrackets(updatedGoldBracket, silverBracketForTables, numTables);
+
     // Check if gold bracket is complete
-    const isGoldComplete = isBracketComplete(updatedBracket);
+    const isGoldComplete = isBracketComplete(updatedGoldBracket);
 
     // For SPLIT_DIVISIONS, also check silver bracket
     const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
@@ -416,7 +618,7 @@ export async function advanceWinner(
     const isTournamentComplete = isGoldComplete && isSilverComplete;
 
     // Get gold final match winner
-    const goldFinalRound = updatedBracket.rounds[updatedBracket.rounds.length - 1];
+    const goldFinalRound = updatedGoldBracket.rounds[updatedGoldBracket.rounds.length - 1];
     const goldFinalMatch = goldFinalRound.matches[0];
     const goldWinner = (goldFinalMatch.status === 'COMPLETED' || goldFinalMatch.status === 'WALKOVER')
       ? goldFinalMatch.winner
@@ -426,7 +628,7 @@ export async function advanceWinner(
     const updateData: any = {
       finalStage: {
         ...tournament.finalStage,
-        bracket: updatedBracket,
+        goldBracket: updatedGoldBracket,
         isComplete: isTournamentComplete,
         winner: goldWinner
       }
@@ -446,7 +648,7 @@ export async function advanceWinner(
       console.log('📊 Calculating final positions...');
       const tournamentWithUpdatedBracket = {
         ...tournament,
-        finalStage: { ...tournament.finalStage, bracket: updatedBracket, isComplete: true }
+        finalStage: { ...tournament.finalStage, goldBracket: updatedGoldBracket, isComplete: true }
       };
       updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
       console.log('📊 Final positions calculated and included in update.');
@@ -555,24 +757,37 @@ export async function advanceSilverWinner(
   winnerId: string
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage || !tournament.finalStage.silverBracket) {
-    console.error('Tournament or silver bracket not found');
+  if (!tournament || !tournament.finalStage || !tournament.finalStage.silverBracket || !tournament.finalStage.goldBracket) {
+    console.error('Tournament or brackets not found');
     return false;
   }
 
   try {
     // Use algorithm to advance winner in silver bracket
-    const updatedSilverBracket = advanceWinnerAlgorithm(
+    const updatedSilverBracketRaw = advanceWinnerAlgorithm(
       tournament.finalStage.silverBracket,
       matchId,
       winnerId
     );
 
+    // Preserve config in updated bracket
+    const updatedSilverBracket: BracketWithConfig = {
+      ...updatedSilverBracketRaw,
+      config: tournament.finalStage.silverBracket.config
+    };
+
+    // Assign tables to any newly ready matches
+    // Find the highest table number currently in use across both brackets
+    // Assign tables to any newly ready matches
+    // Tables freed from completed matches become available for new matches
+    const numTables = tournament.numTables || 4;
+    assignTablesToBrackets(tournament.finalStage.goldBracket, updatedSilverBracket, numTables);
+
     // Check if silver bracket is complete
     const isSilverComplete = isBracketComplete(updatedSilverBracket);
 
     // Also check gold bracket
-    const isGoldComplete = isBracketComplete(tournament.finalStage.bracket);
+    const isGoldComplete = isBracketComplete(tournament.finalStage.goldBracket);
 
     // Tournament is complete only when both brackets are done
     const isTournamentComplete = isGoldComplete && isSilverComplete;
@@ -694,14 +909,14 @@ export async function markBracketNoShow(
   participantId: string
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage) {
-    console.error('Tournament or final stage not found');
+  if (!tournament || !tournament.finalStage || !tournament.finalStage.goldBracket) {
+    console.error('Tournament or gold bracket not found');
     return false;
   }
 
   // Find match
   let match: BracketMatch | undefined;
-  for (const round of tournament.finalStage.bracket.rounds) {
+  for (const round of tournament.finalStage.goldBracket.rounds) {
     match = round.matches.find(m => m.id === matchId);
     if (match) break;
   }
@@ -742,8 +957,8 @@ export async function markBracketNoShow(
  */
 export async function completeFinalStage(tournamentId: string): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage) {
-    console.error('Tournament or final stage not found');
+  if (!tournament || !tournament.finalStage || !tournament.finalStage.goldBracket) {
+    console.error('Tournament or gold bracket not found');
     return false;
   }
 
@@ -754,7 +969,7 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
   }
 
   // Check if gold bracket is complete
-  const isGoldComplete = isBracketComplete(tournament.finalStage.bracket);
+  const isGoldComplete = isBracketComplete(tournament.finalStage.goldBracket);
   if (!isGoldComplete) {
     console.error('Gold bracket is not complete');
     return false;
@@ -771,7 +986,7 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
   }
 
   // Get gold bracket winner
-  const goldFinalRound = tournament.finalStage.bracket.rounds[tournament.finalStage.bracket.rounds.length - 1];
+  const goldFinalRound = tournament.finalStage.goldBracket.rounds[tournament.finalStage.goldBracket.rounds.length - 1];
   const goldFinalMatch = goldFinalRound.matches[0];
   const goldWinner = goldFinalMatch.winner;
 

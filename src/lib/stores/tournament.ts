@@ -168,14 +168,14 @@ export const tournamentProgress = derived(currentTournament, $tournament => {
       return 50;
 
     case 'FINAL_STAGE':
-      if (!$tournament.finalStage) return 75;
-      const totalBracketMatches = $tournament.finalStage.bracket.rounds.reduce(
-        (sum, r) => sum + r.matches.length,
+      if (!$tournament.finalStage || !$tournament.finalStage.goldBracket) return 75;
+      const totalBracketMatches = $tournament.finalStage.goldBracket.rounds.reduce(
+        (sum: number, r: any) => sum + r.matches.length,
         0
       );
-      const completedBracketMatches = $tournament.finalStage.bracket.rounds.reduce(
-        (sum, r) =>
-          sum + r.matches.filter(m => m.status === 'COMPLETED' || m.status === 'WALKOVER').length,
+      const completedBracketMatches = $tournament.finalStage.goldBracket.rounds.reduce(
+        (sum: number, r: any) =>
+          sum + r.matches.filter((m: any) => m.status === 'COMPLETED' || m.status === 'WALKOVER').length,
         0
       );
       return (
