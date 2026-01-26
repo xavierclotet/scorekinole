@@ -85,7 +85,7 @@
   // Advanced bracket phase configuration
   let showAdvancedBracketConfig = false;
   // Early rounds (octavos, cuartos)
-  let earlyRoundsGameMode: 'points' | 'rounds' = 'points';
+  let earlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
   let earlyRoundsPointsToWin = 7;
   let earlyRoundsToPlay = 4;
   let earlyRoundsMatchesToWin = 1;
@@ -1142,42 +1142,25 @@
         };
       } else {
         // ONE_PHASE: final stage configuration (for bracket directly)
-        // Ensure values have defaults to prevent undefined
-        const finalGameModeValue = gameMode || 'points';
-        const finalPointsToWinValue = pointsToWin || 7;
-        const finalRoundsToPlayValue = roundsToPlay || 4;
-        const finalMatchesToWinValue = matchesToWin || 1;
-
-        console.log('📝 ONE_PHASE config:', {
-          gameMode,
-          pointsToWin,
-          roundsToPlay,
-          matchesToWin,
-          finalGameModeValue,
-          finalPointsToWinValue,
-          finalRoundsToPlayValue,
-          finalMatchesToWinValue
-        });
-
-        // Build bracket config - for ONE_PHASE, all phases use the same config
+        // Use phase-specific variables for each bracket phase
         const bracketConfig = {
           earlyRounds: {
-            gameMode: finalGameModeValue,
-            pointsToWin: finalGameModeValue === 'points' ? finalPointsToWinValue : undefined,
-            roundsToPlay: finalGameModeValue === 'rounds' ? finalRoundsToPlayValue : undefined,
-            matchesToWin: finalMatchesToWinValue
+            gameMode: earlyRoundsGameMode,
+            pointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
+            roundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
+            matchesToWin: earlyRoundsMatchesToWin
           },
           semifinal: {
-            gameMode: finalGameModeValue,
-            pointsToWin: finalGameModeValue === 'points' ? finalPointsToWinValue : undefined,
-            roundsToPlay: finalGameModeValue === 'rounds' ? finalRoundsToPlayValue : undefined,
-            matchesToWin: finalMatchesToWinValue
+            gameMode: semifinalGameMode,
+            pointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
+            roundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
+            matchesToWin: semifinalMatchesToWin
           },
           final: {
-            gameMode: finalGameModeValue,
-            pointsToWin: finalGameModeValue === 'points' ? finalPointsToWinValue : undefined,
-            roundsToPlay: finalGameModeValue === 'rounds' ? finalRoundsToPlayValue : undefined,
-            matchesToWin: finalMatchesToWinValue
+            gameMode: bracketFinalGameMode,
+            pointsToWin: bracketFinalGameMode === 'points' ? bracketFinalPointsToWin : undefined,
+            roundsToPlay: bracketFinalGameMode === 'rounds' ? bracketFinalRoundsToPlay : undefined,
+            matchesToWin: bracketFinalMatchesToWin
           }
         };
 
@@ -1569,7 +1552,7 @@
                     max="100"
                     class="input-field compact"
                   />
-                  <span class="field-hint">Máx. {maxPlayersForTables} jugadores</span>
+                  <span class="field-hint">{maxPlayersForTables} jugadores en paralelo</span>
                 </div>
                 <div class="config-field phase-selector">
                   <label>{$t('structure')}</label>
@@ -1785,145 +1768,72 @@
                 </div>
 
                 {#if finalStageMode === 'SINGLE_BRACKET'}
-                  <!-- Configuración para Bracket Único -->
-                  <div class="brackets-config">
-                    <div class="bracket-box">
-                      <div class="match-settings">
-                        <div class="settings-row">
+                  <!-- Configuración directa por fase para Bracket Único -->
+                  <div class="advanced-phases-grid">
+                    <div class="advanced-bracket">
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('earlyRounds')}</span>
+                        <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button
-                              type="button"
-                              class="toggle-btn"
-                              class:active={finalGameMode === 'points'}
-                              on:click={() => finalGameMode = 'points'}
-                            >
-                              Puntos
-                            </button>
-                            <button
-                              type="button"
-                              class="toggle-btn"
-                              class:active={finalGameMode === 'rounds'}
-                              on:click={() => finalGameMode = 'rounds'}
-                            >
-                              Rondas
-                            </button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} on:click={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} on:click={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
-                          {#if finalGameMode === 'points'}
-                            <div class="inline-field">
-                              <span>a</span>
-                              <input
-                                type="number"
-                                bind:value={finalPointsToWin}
-                                min="1"
-                                max="50"
-                                class="input-field mini"
-                              />
-                              <span>pts</span>
-                            </div>
-                            <div class="inline-field">
-                              <span>Md</span>
-                              <select bind:value={finalMatchesToWin} class="input-field mini">
-                                <option value={1}>1</option>
-                                <option value={3}>3</option>
-                                <option value={5}>5</option>
-                                <option value={7}>7</option>
-                              </select>
-                            </div>
+                          {#if earlyRoundsGameMode === 'rounds'}
+                            <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
-                            <div class="inline-field">
-                              <input
-                                type="number"
-                                bind:value={finalRoundsToPlay}
-                                min="1"
-                                max="20"
-                                class="input-field mini"
-                              />
-                              <span>{$t('rounds').toLowerCase()}</span>
-                            </div>
+                            <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
+                            <span class="bo-label">Md</span>
+                            <select bind:value={earlyRoundsMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                            </select>
+                          {/if}
+                        </div>
+                      </div>
+
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('semifinals')}</span>
+                        <div class="phase-controls">
+                          <div class="toggle-buttons">
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} on:click={() => semifinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} on:click={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          </div>
+                          {#if semifinalGameMode === 'rounds'}
+                            <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                          {:else}
+                            <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
+                            <span class="bo-label">Md</span>
+                            <select bind:value={semifinalMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                            </select>
+                          {/if}
+                        </div>
+                      </div>
+
+                      <div class="phase-row">
+                        <span class="phase-name">{$t('final')}</span>
+                        <div class="phase-controls">
+                          <div class="toggle-buttons">
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} on:click={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} on:click={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          </div>
+                          {#if bracketFinalGameMode === 'rounds'}
+                            <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                          {:else}
+                            <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
+                            <span class="bo-label">Md</span>
+                            <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
+                              <option value={1}>1</option>
+                              <option value={3}>3</option>
+                              <option value={5}>5</option>
+                            </select>
                           {/if}
                         </div>
                       </div>
                     </div>
-                  </div>
-
-                  <!-- Advanced bracket phase configuration for single bracket -->
-                  <div class="advanced-config-section">
-                    <button
-                      type="button"
-                      class="advanced-toggle"
-                      on:click={() => showAdvancedBracketConfig = !showAdvancedBracketConfig}
-                    >
-                      {showAdvancedBracketConfig ? '−' : '+'} Configuración avanzada por fase
-                    </button>
-
-                    {#if showAdvancedBracketConfig}
-                      <div class="advanced-phases-grid">
-                        <div class="advanced-bracket">
-                          <div class="phase-row">
-                            <span class="phase-name">{$t('earlyRounds')}</span>
-                            <div class="phase-controls">
-                              <div class="toggle-buttons">
-                                <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} on:click={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                                <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} on:click={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
-                              </div>
-                              {#if earlyRoundsGameMode === 'rounds'}
-                                <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
-                              {:else}
-                                <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
-                                <span class="bo-label">Md</span>
-                                <select bind:value={earlyRoundsMatchesToWin} class="input-field mini">
-                                  <option value={1}>1</option>
-                                  <option value={3}>3</option>
-                                  <option value={5}>5</option>
-                                </select>
-                              {/if}
-                            </div>
-                          </div>
-
-                          <div class="phase-row">
-                            <span class="phase-name">{$t('semifinals')}</span>
-                            <div class="phase-controls">
-                              <div class="toggle-buttons">
-                                <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} on:click={() => semifinalGameMode = 'points'}>{$t('points')}</button>
-                                <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} on:click={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
-                              </div>
-                              {#if semifinalGameMode === 'rounds'}
-                                <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
-                              {:else}
-                                <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
-                                <span class="bo-label">Md</span>
-                                <select bind:value={semifinalMatchesToWin} class="input-field mini">
-                                  <option value={1}>1</option>
-                                  <option value={3}>3</option>
-                                  <option value={5}>5</option>
-                                </select>
-                              {/if}
-                            </div>
-                          </div>
-
-                          <div class="phase-row">
-                            <span class="phase-name">{$t('final')}</span>
-                            <div class="phase-controls">
-                              <div class="toggle-buttons">
-                                <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} on:click={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
-                                <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} on:click={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
-                              </div>
-                              {#if bracketFinalGameMode === 'rounds'}
-                                <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
-                              {:else}
-                                <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
-                                <span class="bo-label">Md</span>
-                                <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
-                                  <option value={1}>1</option>
-                                  <option value={3}>3</option>
-                                  <option value={5}>5</option>
-                                </select>
-                              {/if}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    {/if}
                   </div>
                 {:else}
                   <!-- Configuración directa por fase para Oro/Plata -->
@@ -2093,59 +2003,71 @@
                 <span class="section-title">Configuración de Partidos</span>
               </div>
               <div class="section-body">
-                <div class="match-settings">
-                  <div class="settings-row">
-                    <div class="toggle-buttons">
-                      <button
-                        type="button"
-                        class="toggle-btn"
-                        class:active={gameMode === 'points'}
-                        on:click={() => gameMode = 'points'}
-                      >
-                        Puntos
-                      </button>
-                      <button
-                        type="button"
-                        class="toggle-btn"
-                        class:active={gameMode === 'rounds'}
-                        on:click={() => gameMode = 'rounds'}
-                      >
-                        Rondas
-                      </button>
+                <!-- Configuración directa por fase para ONE_PHASE -->
+                <div class="advanced-phases-grid">
+                  <div class="advanced-bracket">
+                    <div class="phase-row">
+                      <span class="phase-name">{$t('earlyRounds')}</span>
+                      <div class="phase-controls">
+                        <div class="toggle-buttons">
+                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} on:click={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} on:click={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                        </div>
+                        {#if earlyRoundsGameMode === 'rounds'}
+                          <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
+                        {:else}
+                          <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
+                          <span class="bo-label">Md</span>
+                          <select bind:value={earlyRoundsMatchesToWin} class="input-field mini">
+                            <option value={1}>1</option>
+                            <option value={3}>3</option>
+                            <option value={5}>5</option>
+                          </select>
+                        {/if}
+                      </div>
                     </div>
-                    {#if gameMode === 'points'}
-                      <div class="inline-field">
-                        <span>a</span>
-                        <input
-                          type="number"
-                          bind:value={pointsToWin}
-                          min="1"
-                          max="50"
-                          class="input-field mini"
-                        />
-                        <span>pts</span>
+
+                    <div class="phase-row">
+                      <span class="phase-name">{$t('semifinals')}</span>
+                      <div class="phase-controls">
+                        <div class="toggle-buttons">
+                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} on:click={() => semifinalGameMode = 'points'}>{$t('points')}</button>
+                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} on:click={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                        </div>
+                        {#if semifinalGameMode === 'rounds'}
+                          <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                        {:else}
+                          <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
+                          <span class="bo-label">Md</span>
+                          <select bind:value={semifinalMatchesToWin} class="input-field mini">
+                            <option value={1}>1</option>
+                            <option value={3}>3</option>
+                            <option value={5}>5</option>
+                          </select>
+                        {/if}
                       </div>
-                      <div class="inline-field">
-                        <span>Md</span>
-                        <select bind:value={matchesToWin} class="input-field mini">
-                          <option value={1}>1</option>
-                          <option value={3}>3</option>
-                          <option value={5}>5</option>
-                          <option value={7}>7</option>
-                        </select>
+                    </div>
+
+                    <div class="phase-row">
+                      <span class="phase-name">{$t('final')}</span>
+                      <div class="phase-controls">
+                        <div class="toggle-buttons">
+                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} on:click={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
+                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} on:click={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                        </div>
+                        {#if bracketFinalGameMode === 'rounds'}
+                          <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
+                        {:else}
+                          <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
+                          <span class="bo-label">Md</span>
+                          <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
+                            <option value={1}>1</option>
+                            <option value={3}>3</option>
+                            <option value={5}>5</option>
+                          </select>
+                        {/if}
                       </div>
-                    {:else}
-                      <div class="inline-field">
-                        <input
-                          type="number"
-                          bind:value={roundsToPlay}
-                          min="1"
-                          max="20"
-                          class="input-field mini"
-                        />
-                        <span>{$t('rounds').toLowerCase()}</span>
-                      </div>
-                    {/if}
+                    </div>
                   </div>
                 </div>
 
@@ -2277,12 +2199,16 @@
           <h2>👥 Participantes</h2>
 
           <!-- Counter bar -->
-          <div class="participants-counter" class:warning={participants.length >= maxPlayersForTables}>
+          <div class="participants-counter" class:warning={participants.length > maxPlayersForTables}>
             <span class="counter-text">
-              {participants.length} / {maxPlayersForTables}
+              {participants.length} jugadores
             </span>
             <span class="counter-label">
-              {participants.length >= maxPlayersForTables ? 'Límite alcanzado' : `para ${numTables} ${numTables === 1 ? 'mesa' : 'mesas'}`}
+              {#if participants.length > maxPlayersForTables}
+                ⚠️ Algunos descansarán ({maxPlayersForTables} juegan a la vez)
+              {:else}
+                {numTables} {numTables === 1 ? 'mesa' : 'mesas'} · {maxPlayersForTables} en paralelo
+              {/if}
             </span>
           </div>
 
@@ -2305,7 +2231,7 @@
                 {#if searchLoading}
                   <span class="search-loading">⏳</span>
                 {/if}
-                {#if searchResults.length > 0 && participants.length < maxPlayersForTables}
+                {#if searchResults.length > 0}
                   <div class="search-results">
                     {#each searchResults.slice(0, 6) as user}
                       <button
@@ -2339,7 +2265,7 @@
                 <button
                   class="add-btn"
                   on:click={addGuestPlayer}
-                  disabled={guestName.trim().length < 3 || participants.length >= maxPlayersForTables}
+                  disabled={guestName.trim().length < 3}
                 >
                   +
                 </button>
@@ -2682,6 +2608,10 @@
                       <span class="review-value">{finalStageMode === 'SINGLE_BRACKET' ? $t('singleBracket') : $t('goldSilver')}</span>
                     </div>
                   {/if}
+                  <div class="review-row">
+                    <span class="review-label">Clasificación</span>
+                    <span class="review-value">{consolationEnabled ? 'Sí' : 'No'}</span>
+                  </div>
                 </div>
               </div>
 

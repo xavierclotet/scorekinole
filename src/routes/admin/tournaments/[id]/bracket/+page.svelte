@@ -1036,55 +1036,6 @@
             <ThemeToggle />
           </div>
         </div>
-
-        <!-- Tabs for SPLIT_DIVISIONS -->
-        {#if isSplitDivisions}
-          <div class="bracket-tabs">
-            <button
-              class="tab-btn"
-              class:active={activeTab === 'gold'}
-              on:click={() => activeTab = 'gold'}
-            >
-              🥇 {$t('goldLeague')}
-              {#if goldBracket?.thirdPlaceMatch?.winner || goldRounds[goldRounds.length - 1]?.matches[0]?.winner}
-                <span class="tab-complete">✓</span>
-              {/if}
-            </button>
-            <button
-              class="tab-btn"
-              class:active={activeTab === 'silver'}
-              on:click={() => activeTab = 'silver'}
-            >
-              🥈 {$t('silverLeague')}
-              {#if silverBracket?.thirdPlaceMatch?.winner || silverRounds[silverRounds.length - 1]?.matches[0]?.winner}
-                <span class="tab-complete">✓</span>
-              {/if}
-            </button>
-          </div>
-        {/if}
-
-        <!-- Bracket view toggle (Main vs Consolation) -->
-        {#if consolationEnabledValue}
-          <div class="bracket-view-tabs" data-theme={$adminTheme}>
-            <button
-              class="bracket-view-tab"
-              class:active={bracketView === 'main'}
-              on:click={() => bracketView = 'main'}
-            >
-              🏆 {$t('mainBracket') || 'Ganadores'}
-            </button>
-            <button
-              class="bracket-view-tab"
-              class:active={bracketView === 'consolation'}
-              on:click={() => bracketView = 'consolation'}
-            >
-              🎯 {$t('consolationRounds')}
-              {#if consolationBrackets.length > 0}
-                <span class="bracket-count">{consolationBrackets.length}</span>
-              {/if}
-            </button>
-          </div>
-        {/if}
       {/if}
     </header>
 
@@ -1182,10 +1133,63 @@
           </div>
         </div>
 
-        <!-- Bracket title for split divisions -->
-        {#if isSplitDivisions}
-          <div class="bracket-title" class:gold={activeTab === 'gold'} class:silver={activeTab === 'silver'}>
-            {activeTab === 'gold' ? `🥇 ${$t('goldLeague')}` : `🥈 ${$t('silverLeague')}`}
+        <!-- Bracket filters bar -->
+        {#if isSplitDivisions || consolationEnabledValue}
+          <div class="bracket-filters">
+            {#if isSplitDivisions}
+              <div class="filter-group">
+                <span class="filter-label">Liga</span>
+                <div class="filter-options">
+                  <button
+                    class="filter-btn"
+                    class:active={activeTab === 'gold'}
+                    on:click={() => activeTab = 'gold'}
+                  >
+                    <span class="filter-icon gold">●</span>
+                    Oro
+                    {#if goldBracket?.thirdPlaceMatch?.winner || goldRounds[goldRounds.length - 1]?.matches[0]?.winner}
+                      <span class="filter-complete">✓</span>
+                    {/if}
+                  </button>
+                  <button
+                    class="filter-btn"
+                    class:active={activeTab === 'silver'}
+                    on:click={() => activeTab = 'silver'}
+                  >
+                    <span class="filter-icon silver">●</span>
+                    Plata
+                    {#if silverBracket?.thirdPlaceMatch?.winner || silverRounds[silverRounds.length - 1]?.matches[0]?.winner}
+                      <span class="filter-complete">✓</span>
+                    {/if}
+                  </button>
+                </div>
+              </div>
+            {/if}
+
+            {#if consolationEnabledValue}
+              <div class="filter-group">
+                <span class="filter-label">Fase</span>
+                <div class="filter-options">
+                  <button
+                    class="filter-btn"
+                    class:active={bracketView === 'main'}
+                    on:click={() => bracketView = 'main'}
+                  >
+                    Ganadores
+                  </button>
+                  <button
+                    class="filter-btn"
+                    class:active={bracketView === 'consolation'}
+                    on:click={() => bracketView = 'consolation'}
+                  >
+                    Consolación
+                    {#if consolationBrackets.length > 0}
+                      <span class="filter-count">{consolationBrackets.length}</span>
+                    {/if}
+                  </button>
+                </div>
+              </div>
+            {/if}
           </div>
         {/if}
 
@@ -2096,6 +2100,19 @@
     align-items: stretch;
   }
 
+  /* When showing consolation view, container should be block */
+  .bracket-container:has(.consolation-section),
+  .bracket-container:has(.consolation-empty) {
+    display: block;
+    min-width: 100%;
+    padding: 0;
+  }
+
+  .bracket-container > .consolation-section,
+  .bracket-container > .consolation-empty {
+    width: 100%;
+  }
+
   .bracket-round {
     display: flex;
     flex-direction: column;
@@ -2608,73 +2625,6 @@
     display: none !important;
   }
 
-  /* Bracket view toggle tabs (Main vs Consolation) */
-  .bracket-view-tabs {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-    padding: 0.35rem;
-    background: #f3f4f6;
-    border-radius: 10px;
-    width: fit-content;
-  }
-
-  .bracket-view-tabs[data-theme='dark'] {
-    background: #0f1419;
-  }
-
-  .bracket-view-tab {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: transparent;
-    color: #6b7280;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .bracket-view-tab:hover:not(:disabled) {
-    background: #e5e7eb;
-  }
-
-  .bracket-view-tabs[data-theme='dark'] .bracket-view-tab {
-    color: #8b9bb3;
-  }
-
-  .bracket-view-tabs[data-theme='dark'] .bracket-view-tab:hover:not(:disabled) {
-    background: #2d3748;
-  }
-
-  .bracket-view-tab.active {
-    background: white;
-    color: #1a1a1a;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .bracket-view-tabs[data-theme='dark'] .bracket-view-tab.active {
-    background: #1a2332;
-    color: #e1e8ed;
-  }
-
-  .bracket-view-tab:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .bracket-count {
-    background: #10b981;
-    color: white;
-    padding: 0.15rem 0.5rem;
-    border-radius: 10px;
-    font-size: 0.75rem;
-    font-weight: 700;
-  }
-
   .bracket-pending {
     background: #6b7280;
     color: white;
@@ -2682,64 +2632,6 @@
     border-radius: 10px;
     font-size: 0.7rem;
     font-weight: 500;
-  }
-
-  /* Bracket tabs for SPLIT_DIVISIONS */
-  .bracket-tabs {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1rem;
-    padding: 0.5rem;
-    background: #f3f4f6;
-    border-radius: 12px;
-    width: fit-content;
-  }
-
-  .bracket-page[data-theme='dark'] .bracket-tabs {
-    background: #0f1419;
-  }
-
-  .tab-btn {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: transparent;
-    color: #6b7280;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .tab-btn:hover {
-    background: #e5e7eb;
-  }
-
-  .bracket-page[data-theme='dark'] .tab-btn {
-    color: #8b9bb3;
-  }
-
-  .bracket-page[data-theme='dark'] .tab-btn:hover {
-    background: #2d3748;
-  }
-
-  .tab-btn.active {
-    background: white;
-    color: #1a1a1a;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .bracket-page[data-theme='dark'] .tab-btn.active {
-    background: #1a2332;
-    color: #e1e8ed;
-  }
-
-  .tab-complete {
-    color: #10b981;
-    font-weight: 700;
   }
 
   /* Global Table Config */
@@ -2782,7 +2674,7 @@
   .config-accordion {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    border-radius: 8px;
     margin-bottom: 1rem;
     overflow: hidden;
   }
@@ -2797,7 +2689,7 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 0.65rem 1rem;
+    padding: 0.35rem 1rem;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -3191,34 +3083,137 @@
     to { transform: rotate(360deg); }
   }
 
-  /* Bracket title */
-  .bracket-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    text-align: center;
-    padding: 1rem;
+  /* Bracket filters bar */
+  .bracket-filters {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.75rem 1rem;
     margin-bottom: 1rem;
-    border-radius: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
   }
 
-  .bracket-title.gold {
-    background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%);
-    color: #92400e;
+  .bracket-page[data-theme='dark'] .bracket-filters {
+    background: #1a2332;
+    border-color: #2d3748;
   }
 
-  .bracket-title.silver {
-    background: linear-gradient(135deg, #e5e7eb 0%, #9ca3af 100%);
-    color: #374151;
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
   }
 
-  .bracket-page[data-theme='dark'] .bracket-title.gold {
-    background: linear-gradient(135deg, #78350f 0%, #b45309 100%);
-    color: #fbbf24;
+  .filter-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
   }
 
-  .bracket-page[data-theme='dark'] .bracket-title.silver {
-    background: linear-gradient(135deg, #374151 0%, #6b7280 100%);
-    color: #e5e7eb;
+  .bracket-page[data-theme='dark'] .filter-label {
+    color: #8b9bb3;
+  }
+
+  .filter-options {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
+    background: #e2e8f0;
+    border-radius: 6px;
+  }
+
+  .bracket-page[data-theme='dark'] .filter-options {
+    background: #0f1419;
+  }
+
+  .filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.85rem;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+    color: #64748b;
+  }
+
+  .bracket-page[data-theme='dark'] .filter-btn {
+    color: #8b9bb3;
+  }
+
+  .filter-btn:hover:not(.active) {
+    color: #334155;
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .bracket-page[data-theme='dark'] .filter-btn:hover:not(.active) {
+    color: #e1e8ed;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .filter-btn.active {
+    background: white;
+    color: #1e293b;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .bracket-page[data-theme='dark'] .filter-btn.active {
+    background: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .filter-icon {
+    font-size: 0.65rem;
+    line-height: 1;
+  }
+
+  .filter-icon.gold {
+    color: #f59e0b;
+  }
+
+  .filter-icon.silver {
+    color: #9ca3af;
+  }
+
+  .filter-complete {
+    color: #10b981;
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+
+  .filter-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.35rem;
+    background: #e2e8f0;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .filter-btn.active .filter-count {
+    background: #e2e8f0;
+  }
+
+  .bracket-page[data-theme='dark'] .filter-count {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  .bracket-page[data-theme='dark'] .filter-btn.active .filter-count {
+    background: #1a2332;
   }
 
   /* Mobile optimizations for screens <= 640px */
@@ -3259,25 +3254,22 @@
       font-size: 0.9rem;
     }
 
-    .bracket-tabs {
-      margin-top: 0.5rem;
-      padding: 0.3rem;
-      gap: 0.25rem;
-    }
-
-    .tab-btn {
-      padding: 0.5rem 0.75rem;
-      font-size: 0.85rem;
-    }
-
     .page-content {
       padding: 0.75rem;
     }
 
-    .bracket-title {
-      font-size: 1.1rem;
-      padding: 0.5rem;
-      margin-bottom: 0.5rem;
+    .bracket-filters {
+      gap: 1rem;
+      padding: 0.5rem 0.75rem;
+    }
+
+    .filter-label {
+      font-size: 0.75rem;
+    }
+
+    .filter-btn {
+      padding: 0.4rem 0.7rem;
+      font-size: 0.8rem;
     }
   }
 
@@ -3323,19 +3315,19 @@
       width: 4rem;
     }
 
-    .bracket-title {
-      font-size: 1rem;
-      padding: 0.4rem;
+    .bracket-filters {
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 0.5rem;
     }
 
-    .bracket-tabs {
-      margin-top: 0.4rem;
+    .filter-group {
+      gap: 0.5rem;
     }
 
-    .tab-btn {
-      padding: 0.4rem 0.6rem;
-      font-size: 0.8rem;
-      gap: 0.3rem;
+    .filter-btn {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.78rem;
     }
   }
 
@@ -3359,11 +3351,29 @@
       font-size: 0.6rem;
     }
 
-    .tab-btn {
-      padding: 0.35rem 0.5rem;
-      font-size: 0.75rem;
+    .bracket-filters {
+      gap: 0.5rem;
+      padding: 0.4rem;
     }
 
+    .filter-label {
+      font-size: 0.7rem;
+    }
+
+    .filter-options {
+      gap: 0.15rem;
+      padding: 0.15rem;
+    }
+
+    .filter-btn {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.75rem;
+      gap: 0.25rem;
+    }
+
+    .filter-icon {
+      font-size: 0.55rem;
+    }
   }
 
   /* Loading Overlay */
@@ -3441,7 +3451,6 @@
     background: #f8fafc;
     border-radius: 12px;
     border: 1px solid #e2e8f0;
-    margin-top: 1rem;
   }
 
   .consolation-empty[data-theme='dark'] {
@@ -3527,7 +3536,6 @@
   }
 
   .consolation-section {
-    margin-top: 2rem;
     padding: 1.5rem;
     background: #f8fafc;
     border-radius: 12px;
@@ -3659,7 +3667,7 @@
   .consolation-unified {
     display: flex;
     flex-direction: row;
-    gap: 1.5rem;
+    gap: 3.5rem;
     overflow-x: auto;
     padding: 0.5rem 0;
     align-items: flex-start;
@@ -3737,7 +3745,7 @@
   /* Visual separator between R16 and QF sections */
   .consolation-round.qf-start {
     position: relative;
-    margin-left: 1rem;
+    margin-left: 2rem;
     padding-left: 1.5rem;
   }
 
