@@ -522,11 +522,13 @@ export async function generateSplitBrackets(
  *
  * @param tournamentId Tournament ID
  * @param config Optional bracket configuration (per-phase settings)
+ * @param consolationEnabled Optional flag to generate consolation brackets
  * @returns true if successful
  */
 export async function generateBracket(
   tournamentId: string,
-  config?: BracketConfig
+  config?: BracketConfig,
+  consolationEnabled?: boolean
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
   if (!tournament) {
@@ -625,9 +627,27 @@ export async function generateBracket(
       config: bracketConfig
     };
 
+    // Generate consolation brackets with placeholders if enabled
+    if (consolationEnabled) {
+      const bracketSize = nextPowerOfTwo(qualifiedParticipants.length);
+      const available = getAvailableConsolationSources(bracketSize);
+
+      goldBracketWithConfig.consolationBrackets = [];
+
+      if (available.hasR16) {
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'R16'));
+        console.log('🎯 Generated R16 consolation structure for SINGLE_BRACKET');
+      }
+      if (available.hasQF) {
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'QF'));
+        console.log('🎯 Generated QF consolation structure for SINGLE_BRACKET');
+      }
+    }
+
     return await updateTournament(tournamentId, {
       finalStage: {
         mode: 'SINGLE_BRACKET',
+        consolationEnabled: consolationEnabled || false,
         goldBracket: goldBracketWithConfig,
         isComplete: false
       }

@@ -39,6 +39,8 @@
   let editShow20s = $state(false);
   let editShowHammer = $state(false);
   let editRankingEnabled = $state(false);
+  let editRankingTier = $state<'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR'>('CLUB');
+  let editConsolationEnabled = $state(false);
 
   let tournamentId = $derived($page.params.id);
 
@@ -208,6 +210,14 @@
     editShow20s = tournament.show20s;
     editShowHammer = tournament.showHammer;
     editRankingEnabled = tournament.rankingConfig?.enabled ?? true;
+    editRankingTier = tournament.rankingConfig?.tier || 'CLUB';
+    // Initialize consolation toggle from current tournament state
+    editConsolationEnabled = Boolean(
+      tournament.finalStage?.consolationEnabled ??
+      (tournament.finalStage as Record<string, unknown>)?.['consolationEnabled '] ??
+      tournament.finalStage?.goldBracket?.config?.consolationEnabled ??
+      false
+    );
 
     showQuickEdit = true;
   }
@@ -264,9 +274,17 @@
         showHammer: editShowHammer,
         rankingConfig: {
           enabled: editRankingEnabled,
-          tier: tournament.rankingConfig?.tier || 'CLUB'
+          tier: editRankingTier
         }
       };
+
+      // Update consolationEnabled in finalStage if it exists
+      if (tournament.finalStage) {
+        updates.finalStage = {
+          ...tournament.finalStage,
+          consolationEnabled: editConsolationEnabled
+        };
+      }
 
       const success = await updateTournament(tournamentId, updates);
 
@@ -740,18 +758,22 @@
     <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeQuickEdit} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeQuickEdit()}>
       <div class="quick-edit-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div class="quick-edit-header">
-          <h2>⚙️ {$t('tournamentSettings')}</h2>
+          <div class="header-title">
+            <h2>⚙️ {$t('tournamentSettings')}</h2>
+            <span class="header-subtitle">{$t('modifiableConfiguration')}</span>
+          </div>
           <button class="close-btn" onclick={closeQuickEdit}>×</button>
         </div>
 
-        <p class="quick-edit-subtitle">{$t('modifiableConfiguration')}</p>
-
-        <div class="quick-edit-form">
-          <!-- Basic Info Section -->
-          <div class="form-section">
-            <h3>📋 {$t('basicInfo')}</h3>
-
-            <div class="form-group">
+        <div class="quick-edit-body">
+          <!-- Left Column: Basic Info -->
+          <div class="edit-column">
+            <div class="column-header">
+              <span class="column-icon">📋</span>
+              <span>{$t('basicInfo')}</span>
+            </div>
+            
+            <div class="field-group">
               <label for="edit-name">{$t('tournamentName')}</label>
               <input
                 type="text"
@@ -761,18 +783,18 @@
               />
             </div>
 
-            <div class="form-group">
-              <label for="edit-date">{$t('date')}</label>
-              <input
-                type="date"
-                id="edit-date"
-                bind:value={editDate}
-              />
-            </div>
+            <div class="field-row">
+              <div class="field-group">
+                <label for="edit-date">{$t('date')}</label>
+                <input
+                  type="date"
+                  id="edit-date"
+                  bind:value={editDate}
+                />
+              </div>
 
-            <div class="form-group">
-              <label for="edit-tables">{$t('availableTables')}</label>
-              <div class="input-with-hint">
+              <div class="field-group">
+                <label for="edit-tables">{$t('availableTables')}</label>
                 <input
                   type="number"
                   id="edit-tables"
@@ -780,58 +802,87 @@
                   min={getMinTables()}
                   max="50"
                 />
-                <span class="hint">{$t('minimum')}: {getMinTables()} ({tournament.participants.length} {$t('participants')})</span>
+                <span class="field-hint">{$t('minimum')}: {getMinTables()}</span>
               </div>
             </div>
-          </div>
 
-          <!-- Game Options Section -->
-          <div class="form-section">
-            <h3>🎮 {$t('gameOptions')}</h3>
-
-            <div class="toggle-group">
-              <label class="toggle-item">
-                <input type="checkbox" bind:checked={editShow20s} />
-                <span class="toggle-label">
-                  <span class="toggle-icon">🎯</span>
-                  {$t('track20s')}
+            <!-- Ranking Section -->
+            <div class="subsection">
+              <div class="subsection-header">
+                <span class="subsection-icon">📊</span>
+                <span>{$t('rankingSystem')}</span>
+              </div>
+              
+              <label class="switch-row">
+                <span class="switch-label">
+                  <span class="switch-icon">📈</span>
+                  {$t('rankingSystemEnabled')}
                 </span>
+                <input type="checkbox" bind:checked={editRankingEnabled} class="toggle-switch" />
               </label>
 
-              <label class="toggle-item">
-                <input type="checkbox" bind:checked={editShowHammer} />
-                <span class="toggle-label">
-                  <span class="toggle-icon">🔨</span>
-                  {$t('showHammer')}
-                </span>
-              </label>
+              {#if editRankingEnabled}
+                <div class="field-group tier-field">
+                  <label for="edit-tier">{$t('category')}</label>
+                  <select id="edit-tier" bind:value={editRankingTier}>
+                    <option value="CLUB">🏠 {$t('tierClub')} · 15p máx</option>
+                    <option value="REGIONAL">🏝️ {$t('tierRegional')} · 25p máx</option>
+                    <option value="NATIONAL">🇪🇸 {$t('tierNational')} · 40p máx</option>
+                    <option value="MAJOR">🏆 {$t('tierMajor')} · 50p máx</option>
+                  </select>
+                </div>
+              {/if}
             </div>
           </div>
 
-          <!-- Ranking Section -->
-          <div class="form-section">
-            <h3>📊 {$t('rankingSystem')}</h3>
+          <!-- Right Column: Options -->
+          <div class="edit-column">
+            <div class="column-header">
+              <span class="column-icon">🎮</span>
+              <span>{$t('gameOptions')}</span>
+            </div>
 
-            <label class="toggle-item ranking-toggle">
-              <input type="checkbox" bind:checked={editRankingEnabled} />
-              <span class="toggle-label">
-                <span class="toggle-icon">📈</span>
-                {$t('rankingSystemEnabled')}
-              </span>
-            </label>
+            <div class="options-grid">
+              <label class="option-card">
+                <input type="checkbox" bind:checked={editShow20s} />
+                <span class="option-icon">🎯</span>
+                <span class="option-text">{$t('track20s')}</span>
+              </label>
 
-            {#if editRankingEnabled && tournament.rankingConfig?.tier}
-              <p class="ranking-info">
-                {$t('category')}: <strong>{tournament.rankingConfig.tier}</strong>
-              </p>
+              <label class="option-card">
+                <input type="checkbox" bind:checked={editShowHammer} />
+                <span class="option-icon">🔨</span>
+                <span class="option-text">{$t('showHammer')}</span>
+              </label>
+            </div>
+
+            <!-- Final Stage Section -->
+            {#if tournament.finalStage}
+              <div class="subsection">
+                <div class="subsection-header">
+                  <span class="subsection-icon">🏆</span>
+                  <span>{$t('finalStage')}</span>
+                </div>
+
+                <label class="switch-row">
+                  <span class="switch-label">
+                    <span class="switch-icon">🎖️</span>
+                    {$t('consolationRounds')}
+                  </span>
+                  <input type="checkbox" bind:checked={editConsolationEnabled} class="toggle-switch" />
+                </label>
+                <p class="option-description">
+                  {$t('consolationRoundsDescription')}
+                </p>
+              </div>
             {/if}
           </div>
         </div>
 
-        <div class="quick-edit-actions">
-          <button class="cancel-btn" onclick={closeQuickEdit}>{$t('cancel')}</button>
+        <div class="quick-edit-footer">
+          <button class="btn-secondary" onclick={closeQuickEdit}>{$t('cancel')}</button>
           <button
-            class="confirm-btn"
+            class="btn-primary"
             onclick={saveQuickEdit}
             disabled={isSavingQuickEdit || !editName.trim()}
           >
@@ -1566,16 +1617,16 @@
     cursor: not-allowed;
   }
 
-  /* Quick Edit Modal */
+  /* Quick Edit Modal - Redesigned */
   .quick-edit-modal {
     background: white;
-    border-radius: 16px;
+    border-radius: 20px;
     padding: 0;
-    max-width: 500px;
+    max-width: 720px;
     width: 95%;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25);
     transition: all 0.3s;
   }
 
@@ -1586,13 +1637,13 @@
   .quick-edit-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 1.25rem 1.5rem;
+    align-items: flex-start;
+    padding: 1.5rem 2rem;
     border-bottom: 1px solid #e5e7eb;
     position: sticky;
     top: 0;
     background: white;
-    border-radius: 16px 16px 0 0;
+    border-radius: 20px 20px 0 0;
     z-index: 1;
   }
 
@@ -1601,9 +1652,16 @@
     border-color: #2d3748;
   }
 
+  .header-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
   .quick-edit-header h2 {
     margin: 0;
-    font-size: 1.25rem;
+    font-size: 1.35rem;
+    font-weight: 700;
     color: #1a1a1a;
   }
 
@@ -1611,12 +1669,21 @@
     color: #e1e8ed;
   }
 
+  .header-subtitle {
+    font-size: 0.85rem;
+    color: #888;
+  }
+
+  .modal-backdrop[data-theme='dark'] .header-subtitle {
+    color: #6b7a94;
+  }
+
   .close-btn {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border: none;
     background: #f3f4f6;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 1.5rem;
     line-height: 1;
     color: #666;
@@ -1625,6 +1692,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
 
   .modal-backdrop[data-theme='dark'] .close-btn {
@@ -1635,6 +1703,7 @@
   .close-btn:hover {
     background: #e5e7eb;
     color: #1a1a1a;
+    transform: scale(1.05);
   }
 
   .modal-backdrop[data-theme='dark'] .close-btn:hover {
@@ -1642,200 +1711,381 @@
     color: #e1e8ed;
   }
 
-  .quick-edit-subtitle {
-    padding: 0 1.5rem;
-    margin: 0.75rem 0 0 0;
+  /* 2-Column Body Layout */
+  .quick-edit-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    padding: 0;
+  }
+
+  .edit-column {
+    padding: 1.5rem 2rem;
+  }
+
+  .edit-column:first-child {
+    border-right: 1px solid #e5e7eb;
+  }
+
+  .modal-backdrop[data-theme='dark'] .edit-column:first-child {
+    border-color: #2d3748;
+  }
+
+  .column-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 0.85rem;
-    color: #888;
-  }
-
-  .modal-backdrop[data-theme='dark'] .quick-edit-subtitle {
-    color: #6b7a94;
-  }
-
-  .quick-edit-form {
-    padding: 1rem 1.5rem;
-  }
-
-  .form-section {
-    margin-bottom: 1.5rem;
-  }
-
-  .form-section:last-child {
-    margin-bottom: 0;
-  }
-
-  .form-section h3 {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #666;
-    margin: 0 0 0.75rem 0;
+    font-weight: 700;
+    color: #667eea;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.2);
   }
 
-  .modal-backdrop[data-theme='dark'] .form-section h3 {
-    color: #8b9bb3;
+  .column-icon {
+    font-size: 1rem;
   }
 
-  .form-group {
+  /* Field Groups */
+  .field-group {
     margin-bottom: 1rem;
   }
 
-  .form-group:last-child {
+  .field-group:last-child {
     margin-bottom: 0;
   }
 
-  .form-group label {
+  .field-group label {
     display: block;
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: 0.8rem;
+    font-weight: 600;
     color: #555;
     margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
 
-  .modal-backdrop[data-theme='dark'] .form-group label {
+  .modal-backdrop[data-theme='dark'] .field-group label {
     color: #8b9bb3;
   }
 
-  .form-group input[type="text"],
-  .form-group input[type="date"],
-  .form-group input[type="number"] {
+  .field-group input[type="text"],
+  .field-group input[type="date"],
+  .field-group input[type="number"],
+  .field-group select {
     width: 100%;
-    padding: 0.65rem 0.85rem;
+    padding: 0.7rem 0.9rem;
     border: 1px solid #ddd;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.95rem;
     color: #1a1a1a;
     background: #f9fafb;
     transition: all 0.2s;
   }
 
-  .modal-backdrop[data-theme='dark'] .form-group input[type="text"],
-  .modal-backdrop[data-theme='dark'] .form-group input[type="date"],
-  .modal-backdrop[data-theme='dark'] .form-group input[type="number"] {
+  .modal-backdrop[data-theme='dark'] .field-group input[type="text"],
+  .modal-backdrop[data-theme='dark'] .field-group input[type="date"],
+  .modal-backdrop[data-theme='dark'] .field-group input[type="number"],
+  .modal-backdrop[data-theme='dark'] .field-group select {
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
-  .form-group input:focus {
+  .field-group input:focus,
+  .field-group select:focus {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
   }
 
-  .input-with-hint {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
   }
 
-  .input-with-hint input {
-    width: auto;
-  }
-
-  .hint {
-    font-size: 0.75rem;
+  .field-hint {
+    font-size: 0.7rem;
     color: #888;
+    margin-top: 0.25rem;
+    display: block;
   }
 
-  .modal-backdrop[data-theme='dark'] .hint {
+  .modal-backdrop[data-theme='dark'] .field-hint {
     color: #6b7a94;
   }
 
-  /* Toggle items */
-  .toggle-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+  /* Subsections */
+  .subsection {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #e5e7eb;
   }
 
-  .toggle-item {
+  .modal-backdrop[data-theme='dark'] .subsection {
+    border-color: #2d3748;
+  }
+
+  .subsection-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    background: #f9fafb;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 0.85rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .toggle-item {
+  .modal-backdrop[data-theme='dark'] .subsection-header {
+    color: #8b9bb3;
+  }
+
+  .subsection-icon {
+    font-size: 0.95rem;
+  }
+
+  /* Switch Rows */
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    background: #f9fafb;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 0.75rem;
+  }
+
+  .modal-backdrop[data-theme='dark'] .switch-row {
     background: #0f1419;
   }
 
-  .toggle-item:hover {
+  .switch-row:hover {
     background: #f3f4f6;
   }
 
-  .modal-backdrop[data-theme='dark'] .toggle-item:hover {
+  .modal-backdrop[data-theme='dark'] .switch-row:hover {
     background: #1e293b;
   }
 
-  .toggle-item input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: #667eea;
-    cursor: pointer;
-  }
-
-  .toggle-label {
+  .switch-label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     font-weight: 500;
     color: #1a1a1a;
-  }
-
-  .modal-backdrop[data-theme='dark'] .toggle-label {
-    color: #e1e8ed;
-  }
-
-  .toggle-icon {
-    font-size: 1.1rem;
-  }
-
-  .ranking-toggle {
-    margin-bottom: 0.75rem;
-  }
-
-  .form-group.inline {
-    margin-bottom: 0;
-  }
-
-  .form-group.inline label {
-    font-size: 0.8rem;
-    margin-bottom: 0.3rem;
-  }
-
-  .form-group.inline input {
-    padding: 0.5rem 0.65rem;
     font-size: 0.9rem;
   }
 
-  /* Quick Edit Actions */
-  .quick-edit-actions {
+  .modal-backdrop[data-theme='dark'] .switch-label {
+    color: #e1e8ed;
+  }
+
+  .switch-icon {
+    font-size: 1rem;
+  }
+
+  /* Toggle Switch Style */
+  .toggle-switch {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 44px;
+    height: 24px;
+    background: #d1d5db;
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .toggle-switch::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    background: white;
+    transition: all 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  .toggle-switch:checked {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .toggle-switch:checked::before {
+    transform: translateX(20px);
+  }
+
+  /* Option Cards (Game Options) */
+  .options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .option-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 0.9rem;
+    background: #f9fafb;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+    text-align: left;
+  }
+
+  .modal-backdrop[data-theme='dark'] .option-card {
+    background: #0f1419;
+  }
+
+  .option-card:hover {
+    background: #f3f4f6;
+    border-color: rgba(102, 126, 234, 0.3);
+  }
+
+  .modal-backdrop[data-theme='dark'] .option-card:hover {
+    background: #1e293b;
+  }
+
+  .option-card:has(input:checked) {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: #667eea;
+  }
+
+  .modal-backdrop[data-theme='dark'] .option-card:has(input:checked) {
+    background: rgba(102, 126, 234, 0.15);
+  }
+
+  .option-card input[type="checkbox"] {
+    display: none;
+  }
+
+  .option-icon {
+    font-size: 1.1rem;
+  }
+
+  .option-text {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #555;
+  }
+
+  .modal-backdrop[data-theme='dark'] .option-text {
+    color: #b0bec5;
+  }
+
+  .option-card:has(input:checked) .option-text {
+    color: #667eea;
+  }
+
+  .option-description {
+    font-size: 0.75rem;
+    color: #888;
+    margin: 0;
+    line-height: 1.4;
+    padding: 0 0.5rem;
+  }
+
+  .modal-backdrop[data-theme='dark'] .option-description {
+    color: #6b7a94;
+  }
+
+  /* Tier Field */
+  .tier-field {
+    margin-top: 0.5rem;
+  }
+
+  .tier-field select {
+    font-size: 0.9rem;
+  }
+
+  /* Footer */
+  .quick-edit-footer {
     display: flex;
     gap: 1rem;
     justify-content: flex-end;
-    padding: 1.25rem 1.5rem;
+    padding: 1.25rem 2rem;
     border-top: 1px solid #e5e7eb;
     background: #f9fafb;
-    border-radius: 0 0 16px 16px;
+    border-radius: 0 0 20px 20px;
     position: sticky;
     bottom: 0;
   }
 
-  .modal-backdrop[data-theme='dark'] .quick-edit-actions {
+  .modal-backdrop[data-theme='dark'] .quick-edit-footer {
     background: #0f1419;
     border-color: #2d3748;
   }
 
+  .btn-secondary {
+    padding: 0.75rem 1.5rem;
+    background: white;
+    color: #555;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+  }
+
+  .modal-backdrop[data-theme='dark'] .btn-secondary {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #b0bec5;
+  }
+
+  .btn-secondary:hover {
+    background: #f3f4f6;
+    border-color: #ccc;
+  }
+
+  .modal-backdrop[data-theme='dark'] .btn-secondary:hover {
+    background: #2d3748;
+  }
+
+  .btn-primary {
+    padding: 0.75rem 1.75rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  }
+
+  .btn-primary:hover {
+    opacity: 0.95;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
   /* Responsive for quick edit modal */
-  @media (max-width: 600px) {
+  @media (max-width: 700px) {
     .quick-edit-modal {
+      max-width: 100%;
       width: 100%;
       max-height: 100vh;
       border-radius: 0;
@@ -1843,9 +2093,27 @@
 
     .quick-edit-header {
       border-radius: 0;
+      padding: 1.25rem 1.5rem;
     }
 
-    .quick-edit-actions {
+    .quick-edit-body {
+      grid-template-columns: 1fr;
+    }
+
+    .edit-column {
+      padding: 1.25rem 1.5rem;
+    }
+
+    .edit-column:first-child {
+      border-right: none;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .modal-backdrop[data-theme='dark'] .edit-column:first-child {
+      border-color: #2d3748;
+    }
+
+    .quick-edit-footer {
       border-radius: 0;
     }
   }
