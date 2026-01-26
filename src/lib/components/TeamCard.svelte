@@ -54,6 +54,10 @@
 	let team = $derived(teamNumber === 1 ? $team1 : $team2);
 	let otherTeam = $derived(teamNumber === 1 ? $team2 : $team1);
 
+	// Name editing state
+	let isEditingName = $state(false);
+	let nameInputRef = $state<HTMLInputElement | null>(null);
+
 	// Swipe gesture state
 	let touchStartX = $state(0);
 	let touchStartY = $state(0);
@@ -174,7 +178,10 @@
 	}
 
 	function incrementScore() {
-		// Block scoring if either team has already won
+		// Block scoring if match is complete (including ties) or either team has won
+		if (isMatchComplete) {
+			return; // Don't allow score changes after match is complete
+		}
 		const t1 = get(team1);
 		const t2 = get(team2);
 		if (t1.hasWon || t2.hasWon) {
@@ -193,7 +200,10 @@
 	}
 
 	function decrementScore() {
-		// Block scoring if either team has already won
+		// Block scoring if match is complete (including ties) or either team has won
+		if (isMatchComplete) {
+			return; // Don't allow score changes after match is complete
+		}
 		const t1 = get(team1);
 		const t2 = get(team2);
 		if (t1.hasWon || t2.hasWon) {
@@ -290,7 +300,13 @@
 
 		const currentRoundsPlayed = get(roundsPlayed);
 		const context = get(gameTournamentContext);
+		const settings = get(gameSettings);
+
+		// Determine if ties are NOT allowed:
+		// - Tournament bracket matches: always require winner (extra rounds)
+		// - Friendly matches: check allowTiesInRoundsMode setting
 		const isBracketMatch = context?.phase === 'FINAL';
+		const requireWinner = isBracketMatch || (!context && !settings.allowTiesInRoundsMode);
 
 		// Check if we've reached the target number of rounds
 		if (currentRoundsPlayed >= effectiveRoundsToPlay) {
@@ -309,15 +325,15 @@
 				// Check if this game win completes the match
 				saveGameAndCheckMatchComplete();
 			} else {
-				// Tie situation - different handling for bracket vs regular matches
-				if (isBracketMatch) {
-					// Bracket match: don't declare tie, continue with extra rounds
+				// Tie situation - different handling based on requireWinner
+				if (requireWinner) {
+					// Bracket or no-tie mode: don't declare tie, continue with extra rounds
 					// The tie overlay won't show because neither team hasWon
 					// Players will play extra round(s) until someone wins
-					console.log('🎯 Bracket tiebreaker: continuing with extra round');
+					console.log('🎯 Tiebreaker: continuing with extra round');
 					onextraRound?.({ roundNumber: currentRoundsPlayed + 1 });
 				} else {
-					// Regular match: end as tie
+					// Regular match with ties allowed: end as tie
 					updateTeam(1, { hasWon: false });
 					updateTeam(2, { hasWon: false });
 					saveGameAndCheckMatchComplete(true);
@@ -529,17 +545,24 @@
 	function handleNameChange(e: Event) {
 		// Block name changes in tournament mode
 		if (inTournamentMode) return;
-		const span = e.target as HTMLSpanElement;
-		// Get text content and remove line breaks
-		const text = span.textContent?.replace(/\n/g, ' ').trim() || '';
+		const input = e.target as HTMLInputElement;
+		const text = input.value.trim();
 		updateTeam(teamNumber, { name: text });
 	}
 
-	function handlePaste(e: ClipboardEvent) {
-		e.preventDefault();
-		// Paste as plain text only
-		const text = e.clipboardData?.getData('text/plain').replace(/\n/g, ' ').trim() || '';
-		document.execCommand('insertText', false, text);
+	function startEditingName(e: Event) {
+		if (inTournamentMode) return;
+		e.stopPropagation();
+		isEditingName = true;
+		// Focus the input after it renders
+		setTimeout(() => {
+			nameInputRef?.focus();
+			nameInputRef?.select();
+		}, 0);
+	}
+
+	function stopEditingName() {
+		isEditingName = false;
 	}
 
 	function handleChangeColor() {
@@ -582,23 +605,32 @@
 						<span class="ranking-badge">#{$gameTournamentContext.currentUserRanking}</span>
 					{/if}
 				</div>
-			{:else}
-				<span
-					class="team-name"
-					contenteditable="true"
-					role="textbox"
-					tabindex="0"
-					aria-label="Team name"
-					data-placeholder={$t('teamName')}
+			{:else if isEditingName}
+				<input
+					bind:this={nameInputRef}
+					type="text"
+					class="team-name-input"
+					value={team.name}
+					placeholder={$t('teamName')}
 					oninput={handleNameChange}
-					onkeydown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-					onpaste={handlePaste}
+					onblur={stopEditingName}
+					onkeydown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
 					onclick={(e) => e.stopPropagation()}
 					ontouchstart={(e) => e.stopPropagation()}
 					ontouchend={(e) => e.stopPropagation()}
 					onmousedown={(e) => e.stopPropagation()}
 					onmouseup={(e) => e.stopPropagation()}
-				>{team.name}</span>
+				/>
+			{:else}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<span
+					class="team-name-display"
+					onclick={startEditingName}
+					ontouchend={startEditingName}
+				>
+					{team.name || $t('teamName')}
+				</span>
 			{/if}
 			{#if effectiveShowHammer && team.hasHammer}
 				<div class="hammer-indicator" title={$t('hammer')}>
@@ -668,14 +700,14 @@
 	}
 
 	.team-header button,
-	.team-header input,
-	.team-header .team-name {
+	.team-header input {
 		pointer-events: auto;
 	}
 
 	.color-btn {
 		position: absolute;
 		left: 1rem;
+		top: 0;
 		background: rgba(255, 255, 255, 0.15);
 		border: 1px solid rgba(255, 255, 255, 0.25);
 		color: var(--text-color);
@@ -702,6 +734,7 @@
 	.name-size-btn {
 		position: absolute;
 		right: 1rem;
+		top: 0;
 		background: rgba(255, 255, 255, 0.15);
 		border: 1px solid rgba(255, 255, 255, 0.25);
 		color: var(--text-color);
@@ -741,7 +774,7 @@
 		max-width: calc(100% - 100px); /* Leave space for buttons on both sides */
 	}
 
-	.team-name {
+	.team-name-input {
 		background: transparent;
 		border: none;
 		border-bottom: 2px solid color-mix(in srgb, var(--text-color) 40%, transparent);
@@ -756,29 +789,39 @@
 		min-width: 80px;
 		transition: all 0.2s ease;
 		line-height: 1.2;
-		/* Allow text to wrap only at spaces */
-		white-space: normal;
-		word-break: normal;
-		overflow-wrap: normal;
 		cursor: text;
-		display: inline-block;
 	}
 
-	.team-name:focus {
+	.team-name-input:focus {
 		outline: none;
 		border-bottom-color: var(--text-color);
 	}
 
-	.team-name:empty::before {
-		content: attr(data-placeholder);
+	.team-name-input::placeholder {
 		color: var(--text-color);
 		opacity: 0.5;
 	}
 
-	.team-name.locked {
-		cursor: default;
-		border-bottom-style: solid;
-		opacity: 0.9;
+	.team-name-display {
+		color: var(--text-color);
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.5rem;
+		font-weight: 600;
+		text-align: center;
+		padding: 0.25rem 0.5rem;
+		max-width: 70%;
+		line-height: 1.2;
+		/* Allow text to wrap */
+		white-space: normal;
+		word-break: normal;
+		overflow-wrap: break-word;
+		cursor: text;
+		border-bottom: 2px solid transparent;
+		transition: border-color 0.2s ease;
+	}
+
+	.team-name-display:hover {
+		border-bottom-color: color-mix(in srgb, var(--text-color) 40%, transparent);
 	}
 
 	/* Tournament player display */
@@ -810,10 +853,6 @@
 		border: 1px solid rgba(255, 215, 0, 0.4);
 		border-radius: 6px;
 		color: var(--text-color);
-	}
-
-	.team-name.locked:focus {
-		border-bottom-color: color-mix(in srgb, var(--text-color) 40%, transparent);
 	}
 
 	.hammer-indicator {
@@ -857,11 +896,14 @@
 	.score-size-large .score { font-size: 16rem; }
 
 	/* Name size variants - base (desktop) */
-	.name-size-small .team-name,
+	.name-size-small .team-name-input,
+	.name-size-small .team-name-display,
 	.name-size-small .player-name-badge { font-size: 1.5rem; }
-	.name-size-medium .team-name,
+	.name-size-medium .team-name-input,
+	.name-size-medium .team-name-display,
 	.name-size-medium .player-name-badge { font-size: 1.9rem; }
-	.name-size-large .team-name,
+	.name-size-large .team-name-input,
+	.name-size-large .team-name-display,
 	.name-size-large .player-name-badge { font-size: 2.3rem; }
 
 	/* Hammer size scales with name size */
@@ -892,11 +934,14 @@
 		.score-size-large .score { font-size: 10rem; }
 
 		/* Name sizes for tablet */
-		.name-size-small .team-name,
+		.name-size-small .team-name-input,
+	.name-size-small .team-name-display,
 		.name-size-small .player-name-badge { font-size: 1.3rem; }
-		.name-size-medium .team-name,
+		.name-size-medium .team-name-input,
+	.name-size-medium .team-name-display,
 		.name-size-medium .player-name-badge { font-size: 1.6rem; }
-		.name-size-large .team-name,
+		.name-size-large .team-name-input,
+	.name-size-large .team-name-display,
 		.name-size-large .player-name-badge { font-size: 2rem; }
 
 		/* Hammer sizes for tablet */
@@ -937,11 +982,14 @@
 		.score-size-large .score { font-size: 8rem; }
 
 		/* Name sizes for mobile */
-		.name-size-small .team-name,
+		.name-size-small .team-name-input,
+	.name-size-small .team-name-display,
 		.name-size-small .player-name-badge { font-size: 1.2rem; }
-		.name-size-medium .team-name,
+		.name-size-medium .team-name-input,
+	.name-size-medium .team-name-display,
 		.name-size-medium .player-name-badge { font-size: 1.45rem; }
-		.name-size-large .team-name,
+		.name-size-large .team-name-input,
+	.name-size-large .team-name-display,
 		.name-size-large .player-name-badge { font-size: 1.75rem; }
 
 		/* Hammer sizes for mobile */
@@ -982,11 +1030,14 @@
 		}
 
 		/* Name sizes for portrait tablet */
-		.name-size-small .team-name,
+		.name-size-small .team-name-input,
+	.name-size-small .team-name-display,
 		.name-size-small .player-name-badge { font-size: 1.4rem; }
-		.name-size-medium .team-name,
+		.name-size-medium .team-name-input,
+	.name-size-medium .team-name-display,
 		.name-size-medium .player-name-badge { font-size: 1.7rem; }
-		.name-size-large .team-name,
+		.name-size-large .team-name-input,
+	.name-size-large .team-name-display,
 		.name-size-large .player-name-badge { font-size: 2.1rem; }
 
 		/* Hammer sizes for portrait tablet */
@@ -1002,11 +1053,14 @@
 		.score-size-large .score { font-size: 10rem; }
 
 		/* Name sizes for portrait mobile */
-		.name-size-small .team-name,
+		.name-size-small .team-name-input,
+	.name-size-small .team-name-display,
 		.name-size-small .player-name-badge { font-size: 1.25rem; }
-		.name-size-medium .team-name,
+		.name-size-medium .team-name-input,
+	.name-size-medium .team-name-display,
 		.name-size-medium .player-name-badge { font-size: 1.5rem; }
-		.name-size-large .team-name,
+		.name-size-large .team-name-input,
+	.name-size-large .team-name-display,
 		.name-size-large .player-name-badge { font-size: 1.8rem; }
 
 		/* Hammer sizes for portrait mobile */
@@ -1023,11 +1077,14 @@
 		.score-size-large .score { font-size: 9rem; }
 
 		/* Name sizes for very small phones */
-		.name-size-small .team-name,
+		.name-size-small .team-name-input,
+	.name-size-small .team-name-display,
 		.name-size-small .player-name-badge { font-size: 1.1rem; }
-		.name-size-medium .team-name,
+		.name-size-medium .team-name-input,
+	.name-size-medium .team-name-display,
 		.name-size-medium .player-name-badge { font-size: 1.3rem; }
-		.name-size-large .team-name,
+		.name-size-large .team-name-input,
+	.name-size-large .team-name-display,
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for very small phones */
@@ -1049,11 +1106,14 @@
 		.score-size-large .score { font-size: 6.5rem; }
 
 		/* Name sizes for landscape mobile */
-		.name-size-small .team-name,
+		.name-size-small .team-name-input,
+	.name-size-small .team-name-display,
 		.name-size-small .player-name-badge { font-size: 1.1rem; }
-		.name-size-medium .team-name,
+		.name-size-medium .team-name-input,
+	.name-size-medium .team-name-display,
 		.name-size-medium .player-name-badge { font-size: 1.3rem; }
-		.name-size-large .team-name,
+		.name-size-large .team-name-input,
+	.name-size-large .team-name-display,
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for landscape mobile */

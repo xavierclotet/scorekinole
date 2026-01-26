@@ -162,6 +162,11 @@
 	let isInExtraRounds = $state(false);
 	let isBracketMatch = $derived($gameTournamentContext?.phase === 'FINAL');
 
+	// Whether a winner is required (no ties allowed):
+	// - Tournament bracket matches: always require winner
+	// - Friendly matches: check allowTiesInRoundsMode setting
+	let requireWinner = $derived(isBracketMatch || (!$gameTournamentContext && !$gameSettings.allowTiesInRoundsMode));
+
 	// Handle extra round event from TeamCard (bracket tiebreaker)
 	function handleExtraRound({ roundNumber }: { roundNumber: number }) {
 		console.log('🎯 Extra round triggered:', roundNumber);
@@ -170,12 +175,12 @@
 
 	// Check if match ended in a tie (rounds mode only)
 	// A tie occurs when the game completed but neither team won (both hasWon = false and game saved)
-	// In bracket mode, we don't show tie - instead extra rounds are played
+	// When requireWinner is true, we don't show tie - instead extra rounds are played
 	let isTieMatch = $derived($gameSettings.gameMode === 'rounds' &&
 		$currentMatchGames.length > 0 &&
 		!$team1.hasWon &&
 		!$team2.hasWon &&
-		!isBracketMatch); // Don't show tie overlay in bracket mode
+		!requireWinner); // Don't show tie overlay when winner is required
 
 	// Show "Next Game" button when someone won the current game AND match is not complete AND it's a multi-game match
 	// Note: We removed the "$currentMatchGames.length > 0" requirement because:

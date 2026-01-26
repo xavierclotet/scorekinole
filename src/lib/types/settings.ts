@@ -43,6 +43,9 @@ export interface GameSettings {
     /** Number of rounds to play in 'rounds' mode */
     roundsToPlay: number;
 
+    /** Whether ties are allowed in rounds mode (if false, extra rounds until winner) */
+    allowTiesInRoundsMode: boolean;
+
     /** Optional event/tournament title to display */
     eventTitle: string;
 

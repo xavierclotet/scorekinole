@@ -17,6 +17,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     gameType: 'singles',
     gameMode: 'rounds',
     roundsToPlay: 4,
+    allowTiesInRoundsMode: true,
     eventTitle: 'Scorekinole',
     matchPhase: '',
     timerX: null,

@@ -22,12 +22,17 @@
 	let team1Twenty = $state<number | null>(null);
 	let team2Twenty = $state<number | null>(null);
 
-	// Reset values when dialog opens
-	$effect(() => {
-		if (isOpen) {
+	// Track previous isOpen state to detect when dialog opens
+	let wasOpen = $state(false);
+
+	// Reset values when dialog opens (using $effect.pre to run before render)
+	$effect.pre(() => {
+		if (isOpen && !wasOpen) {
+			// Dialog just opened - reset values
 			team1Twenty = null;
 			team2Twenty = null;
 		}
+		wasOpen = isOpen;
 	});
 
 	// Calculate if a color is dark (returns true if dark)

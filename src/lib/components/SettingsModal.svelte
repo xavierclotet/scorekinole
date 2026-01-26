@@ -36,7 +36,7 @@
 		gameSettings.save();
 	}
 
-	function handleToggle(key: 'show20s' | 'showHammer' | 'showTimer' | 'showScoreTable') {
+	function handleToggle(key: 'show20s' | 'showHammer' | 'showTimer' | 'showScoreTable' | 'allowTiesInRoundsMode') {
 		gameSettings.update(s => ({ ...s, [key]: !s[key] }));
 		gameSettings.save();
 	}
@@ -157,6 +157,11 @@
 						label={$t('roundsToPlay')}
 						disabled={inTournamentMode}
 					/>
+					<label class="toggle-item compact" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('allowTiesInRoundsMode'); }}>
+						<span class="toggle-label">{$t('allowTies')}</span>
+						<input type="checkbox" checked={$gameSettings.allowTiesInRoundsMode} readonly disabled={inTournamentMode} />
+						<span class="toggle-switch"></span>
+					</label>
 				{/if}
 			</div>
 		</section>
