@@ -13,6 +13,7 @@
   let playerName = user.playerName;
   let ranking = user.ranking ?? 0;
   let isAdmin = user.isAdmin || false;
+  let canAutofill = user.canAutofill || false;
   let maxTournamentsPerYear = user.maxTournamentsPerYear ?? 0;
   let isSaving = false;
   let errorMessage = '';
@@ -27,7 +28,7 @@
     errorMessage = '';
 
     try {
-      const updates: { playerName?: string; ranking?: number; maxTournamentsPerYear?: number } = {};
+      const updates: { playerName?: string; ranking?: number; maxTournamentsPerYear?: number; canAutofill?: boolean } = {};
 
       if (playerName !== user.playerName) {
         updates.playerName = playerName;
@@ -39,6 +40,10 @@
 
       if (maxTournamentsPerYear !== (user.maxTournamentsPerYear ?? 0)) {
         updates.maxTournamentsPerYear = maxTournamentsPerYear;
+      }
+
+      if (canAutofill !== (user.canAutofill || false)) {
+        updates.canAutofill = canAutofill;
       }
 
       if (Object.keys(updates).length > 0) {
@@ -174,6 +179,21 @@
               </div>
             </label>
           </div>
+
+          {#if isAdmin}
+            <div class="field">
+              <label class="toggle-label">
+                <span>{$t('canAutofill')}</span>
+                <div class="toggle-switch autofill" class:active={canAutofill}>
+                  <input type="checkbox" bind:checked={canAutofill} />
+                  <span class="toggle-track">
+                    <span class="toggle-thumb"></span>
+                  </span>
+                </div>
+              </label>
+              <span class="field-hint">{$t('canAutofillHint')}</span>
+            </div>
+          {/if}
 
           {#if isAdmin}
             <div class="field">
@@ -563,8 +583,13 @@
   }
 
   .toggle-switch.active .toggle-track {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-    box-shadow: 0 0 8px rgba(17, 153, 142, 0.4);
+    background: #22c55e;
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
+  }
+
+  .toggle-switch.autofill.active .toggle-track {
+    background: #22c55e;
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
   }
 
   .toggle-thumb {
@@ -585,6 +610,11 @@
 
   .modal-overlay[data-theme='dark'] .toggle-track {
     background: #374151;
+  }
+
+  .modal-overlay[data-theme='dark'] .toggle-switch.active .toggle-track {
+    background: #22c55e;
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.7);
   }
 
   /* Error Alert */

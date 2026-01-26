@@ -20,6 +20,7 @@
   import { updateMatchResult } from '$lib/firebase/tournamentMatches'; // For autoFill (SuperAdmin only)
   import { generateSwissPairings } from '$lib/firebase/tournamentGroups';
   import { isSuperAdmin } from '$lib/firebase/admin';
+  import { getUserProfile } from '$lib/firebase/userProfile';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
 
   let tournament: Tournament | null = null;
@@ -34,6 +35,7 @@
   let selectedMatch: GroupMatch | null = null;
   let activeGroupId: string | null = null;
   let isSuperAdminUser = false;
+  let canAutofillUser = false;
   let isAutoFilling = false;
   let unsubscribe: (() => void) | null = null;
   let showTimeBreakdown = false;
@@ -81,6 +83,8 @@
   onMount(async () => {
     await loadTournament();
     isSuperAdminUser = await isSuperAdmin();
+    const profile = await getUserProfile();
+    canAutofillUser = profile?.canAutofill === true;
 
     // Subscribe to real-time updates from Firebase
     if (tournamentId) {
@@ -643,7 +647,7 @@
                 return matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
               })}
               {@const allMatchesComplete = allSwissRoundsComplete || allRoundRobinComplete}
-              {#if isSuperAdminUser && !allMatchesComplete}
+              {#if (isSuperAdminUser || canAutofillUser) && !allMatchesComplete}
                 <button
                   class="action-btn autofill"
                   on:click={autoFillAllMatches}

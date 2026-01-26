@@ -66,6 +66,11 @@
 
   // Final stage game config (only for TWO_PHASE)
   let finalStageMode: 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' = 'SINGLE_BRACKET';
+
+  // Consolation bracket config (for both TWO_PHASE and ONE_PHASE)
+  // Auto-detects level based on bracket size: >=16 players = R16+QF, >=8 = QF only
+  let consolationEnabled = false;
+
   // Gold bracket config (or single bracket if SINGLE_BRACKET mode)
   let finalGameMode: 'points' | 'rounds' = 'points';
   let finalPointsToWin = 9;
@@ -845,20 +850,19 @@
       ...participants,
       {
         type: 'GUEST',
-        name: guestName.trim()
+        name: guestName.trim(),
+        rankingSnapshot: 0
       }
     ];
 
     // Set next player number based on total participants
     guestName = `Player${participants.length + 1}`;
     guestNameMatchedUser = null;
-    updateEloSuggestions();
     saveDraft(); // Save after adding guest
   }
 
   function removeParticipant(index: number) {
     participants = participants.filter((_, i) => i !== index);
-    updateEloSuggestions();
     saveDraft(); // Save after removing participant
   }
 
@@ -1121,6 +1125,7 @@
         // Set finalStage with brackets containing their configs
         tournamentData.finalStage = {
           mode: finalStageMode,
+          consolationEnabled: consolationEnabled,
           goldBracket: {
             rounds: [],
             totalRounds: 0,
@@ -1178,6 +1183,7 @@
 
         tournamentData.finalStage = {
           mode: 'SINGLE_BRACKET',
+          consolationEnabled: consolationEnabled,
           goldBracket: {
             rounds: [],
             totalRounds: 0,
@@ -2059,6 +2065,25 @@
                     </div>
                   </div>
                 {/if}
+
+                <!-- Consolation Bracket Configuration -->
+                <div class="consolation-toggle-row">
+                  <div class="consolation-toggle-info">
+                    <span class="consolation-toggle-label">Rondas de clasificación</span>
+                    <span class="consolation-toggle-desc">Partidos extra para posiciones 5º-16º</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="toggle-switch"
+                    class:active={consolationEnabled}
+                    on:click={() => consolationEnabled = !consolationEnabled}
+                    aria-pressed={consolationEnabled}
+                  >
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
           {:else}
@@ -2122,6 +2147,25 @@
                       </div>
                     {/if}
                   </div>
+                </div>
+
+                <!-- Consolation Bracket Configuration for ONE_PHASE -->
+                <div class="consolation-toggle-row">
+                  <div class="consolation-toggle-info">
+                    <span class="consolation-toggle-label">Rondas de clasificación</span>
+                    <span class="consolation-toggle-desc">Partidos extra para posiciones 5º-16º</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="toggle-switch"
+                    class:active={consolationEnabled}
+                    on:click={() => consolationEnabled = !consolationEnabled}
+                    aria-pressed={consolationEnabled}
+                  >
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -4350,6 +4394,95 @@
     font-size: 0.65rem;
     color: #9ca3af;
     margin-left: 0.25rem;
+  }
+
+  /* Consolation Toggle Row */
+  .consolation-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1rem;
+    margin-top: 1rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+
+  .wizard-container[data-theme='dark'] .consolation-toggle-row {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .consolation-toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .consolation-toggle-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .wizard-container[data-theme='dark'] .consolation-toggle-label {
+    color: #f3f4f6;
+  }
+
+  .consolation-toggle-desc {
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .wizard-container[data-theme='dark'] .consolation-toggle-desc {
+    color: #9ca3af;
+  }
+
+  /* Toggle Switch */
+  .toggle-switch {
+    position: relative;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .toggle-track {
+    display: block;
+    width: 44px;
+    height: 24px;
+    background: #d1d5db;
+    border-radius: 12px;
+    transition: background-color 0.2s;
+    position: relative;
+  }
+
+  .toggle-switch.active .toggle-track {
+    background: #10b981;
+  }
+
+  .toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+  }
+
+  .toggle-switch.active .toggle-thumb {
+    transform: translateX(20px);
+  }
+
+  .wizard-container[data-theme='dark'] .toggle-track {
+    background: #4b5563;
+  }
+
+  .wizard-container[data-theme='dark'] .toggle-switch.active .toggle-track {
+    background: #10b981;
   }
 
   /* Options section */

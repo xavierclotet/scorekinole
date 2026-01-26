@@ -568,6 +568,11 @@
 				? Math.max(...existingRounds.map((r: any) => r.gameNumber || 1))
 				: 1;
 
+			// Determine bracket type (gold or silver) - consolation matches belong to their parent bracket
+			const bracketType: 'gold' | 'silver' | undefined =
+				selectedMatch.isSilverBracket ? 'silver' :
+				selectedMatch.phase === 'FINAL' ? 'gold' : undefined;
+
 			const context: TournamentMatchContext = {
 				tournamentId: tournament.id,
 				tournamentKey: tournament.key,
@@ -577,6 +582,8 @@
 				roundNumber: selectedMatch.roundNumber,
 				groupId: selectedMatch.groupId,
 				bracketRoundName: selectedMatch.bracketRoundName,
+				bracketType,
+				isConsolation: selectedMatch.isConsolation || false,
 				participantAId: selectedMatch.match.participantA || '',
 				participantBId: 'participantB' in selectedMatch.match ? selectedMatch.match.participantB || '' : '',
 				participantAName: selectedMatch.participantAName,
@@ -596,6 +603,9 @@
 			};
 
 			console.log('📦 Context creado para /game:', {
+				bracketRoundName: context.bracketRoundName,
+				phase: context.phase,
+				isConsolation: selectedMatch.isConsolation,
 				existingRounds: context.existingRounds,
 				currentGameData: context.currentGameData
 			});
@@ -828,7 +838,7 @@
 														{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
 															<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 														{/if}
-														<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `M${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+														<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${$t('tableShort')}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
 														<span class="match-config">
 															{#if matchDisplay.match.gameConfig.gameMode === 'points'}
 																{matchDisplay.match.gameConfig.pointsToWin}P
@@ -863,7 +873,7 @@
 											{#if matchDisplay.match.bracketRoundName}
 												<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 											{/if}
-											<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `M${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+											<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${$t('tableShort')}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
 											<span class="match-config">
 												{#if matchDisplay.match.gameConfig.gameMode === 'points'}
 													{matchDisplay.match.gameConfig.pointsToWin}P
@@ -937,7 +947,7 @@
 																		{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
 																			<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 																		{/if}
-																		<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `M${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+																		<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${$t('tableShort')}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
 																		<span class="match-config">
 																			{#if matchDisplay.match.gameConfig.gameMode === 'points'}
 																				{matchDisplay.match.gameConfig.pointsToWin}P
@@ -970,7 +980,7 @@
 															{#if matchDisplay.match.bracketRoundName}
 																<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 															{/if}
-															<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `M${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+															<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${$t('tableShort')}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
 															<span class="match-config">
 																{#if matchDisplay.match.gameConfig.gameMode === 'points'}
 																	{matchDisplay.match.gameConfig.pointsToWin}P

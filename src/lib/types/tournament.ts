@@ -285,6 +285,20 @@ export interface BracketConfig {
 }
 
 /**
+ * Consolation bracket for eliminated players
+ * QF losers compete for positions 5-8
+ * R16 losers compete for positions 9-16
+ */
+export interface ConsolationBracket {
+  source: 'QF' | 'R16';           // Which round's losers this bracket contains
+  rounds: BracketRound[];         // Mini-bracket structure
+  totalRounds: number;            // Number of rounds in this consolation bracket
+  startPosition: number;          // Starting position for rankings (5 for QF, 9 for R16)
+  numLosers?: number;             // Actual number of losers (may be less due to BYEs)
+  isComplete: boolean;
+}
+
+/**
  * Bracket with embedded configuration
  */
 export interface BracketWithConfig {
@@ -292,6 +306,7 @@ export interface BracketWithConfig {
   totalRounds: number;
   thirdPlaceMatch?: BracketMatch;
   config: BracketConfig;
+  consolationBrackets?: ConsolationBracket[];  // Consolation brackets for eliminated players
 }
 
 /**
@@ -299,6 +314,7 @@ export interface BracketWithConfig {
  */
 export interface FinalStage {
   mode: FinalStageMode;                       // Single bracket or split divisions
+  consolationEnabled?: boolean;               // Enable consolation brackets for eliminated players (applies to both brackets)
   goldBracket: BracketWithConfig;             // Gold bracket (always present)
   silverBracket?: BracketWithConfig;          // Silver bracket (only for SPLIT_DIVISIONS)
   isComplete: boolean;
@@ -367,6 +383,10 @@ export interface BracketMatch {
 
   // Navigation
   nextMatchId?: string;         // Where winner advances
+  nextMatchIdForLoser?: string; // Where loser goes (for consolation brackets)
+
+  // Consolation bracket specific
+  isThirdPlace?: boolean;       // True if this is a "loser's match" in consolation (e.g., 7-8, 11-12)
 }
 
 /**

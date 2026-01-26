@@ -5,9 +5,11 @@
 import { isFirebaseEnabled } from './config';
 import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
 import { calculateRankingPoints } from '$lib/algorithms/ranking';
+import { calculateConsolationPositions } from '$lib/algorithms/bracket';
 import { browser } from '$app/environment';
 import { getOrCreateUserByName, getUserProfileById, removeTournamentRecord } from './userProfile';
 import { savingParticipantResults } from '$lib/stores/tournament';
+import type { ConsolationBracket } from '$lib/types/tournament';
 
 /**
  * Sync current ranking for all participants from Firestore users collection
@@ -234,6 +236,43 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       const silverStartPosition = goldPositionsAssigned + 1;
       assignBracketPositions(tournament.finalStage.silverBracket, silverStartPosition);
     }
+
+    // Process consolation brackets for positions 5-8 and 9-16
+    const processConsolationBrackets = (bracket: any, positionOffset: number = 0) => {
+      if (!bracket?.consolationBrackets || bracket.consolationBrackets.length === 0) {
+        console.log('🏅 No consolation brackets to process');
+        return;
+      }
+
+      console.log(`🏅 Processing ${bracket.consolationBrackets.length} consolation bracket(s)`);
+
+      for (const consolation of bracket.consolationBrackets as ConsolationBracket[]) {
+        if (!consolation.isComplete) {
+          console.log(`🏅 Consolation bracket ${consolation.source} not complete, skipping`);
+          continue;
+        }
+
+        const positions = calculateConsolationPositions(consolation);
+        console.log(`🏅 Consolation ${consolation.source} positions:`, Array.from(positions.entries()));
+
+        positions.forEach((position, participantId) => {
+          const participant = updatedParticipants.find(p => p.id === participantId);
+          if (participant) {
+            const adjustedPosition = position + positionOffset;
+            participant.finalPosition = adjustedPosition;
+            console.log(`🏅 Consolation position: ${participant.name} -> ${adjustedPosition}`);
+          }
+        });
+      }
+    };
+
+    // Process gold bracket consolation (positions 5-8, 9-16)
+    processConsolationBrackets(goldBracket, 0);
+
+    // Process silver bracket consolation (offset by gold bracket size)
+    if (isSplitDivisions && tournament.finalStage.silverBracket) {
+      processConsolationBrackets(tournament.finalStage.silverBracket, goldPositionsAssigned);
+    }
   }
 
   // For TWO_PHASE tournaments with a final stage, only bracket participants get finalPosition and ranking points
@@ -259,6 +298,17 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
         }
         if (bracket.thirdPlaceMatch.participantB && bracket.thirdPlaceMatch.participantB !== 'BYE') {
           bracketParticipantIds.add(bracket.thirdPlaceMatch.participantB);
+        }
+      }
+      // Also collect from consolation brackets
+      if (bracket.consolationBrackets) {
+        for (const consolation of bracket.consolationBrackets as ConsolationBracket[]) {
+          consolation.rounds.forEach((round: any) => {
+            round.matches.forEach((match: any) => {
+              if (match.participantA && match.participantA !== 'BYE') bracketParticipantIds.add(match.participantA);
+              if (match.participantB && match.participantB !== 'BYE') bracketParticipantIds.add(match.participantB);
+            });
+          });
         }
       }
     };
@@ -313,6 +363,17 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
         }
         if (bracket.thirdPlaceMatch.participantB && bracket.thirdPlaceMatch.participantB !== 'BYE') {
           bracketParticipantIds.add(bracket.thirdPlaceMatch.participantB);
+        }
+      }
+      // Also collect from consolation brackets
+      if (bracket.consolationBrackets) {
+        for (const consolation of bracket.consolationBrackets as ConsolationBracket[]) {
+          consolation.rounds.forEach((round: any) => {
+            round.matches.forEach((match: any) => {
+              if (match.participantA && match.participantA !== 'BYE') bracketParticipantIds.add(match.participantA);
+              if (match.participantB && match.participantB !== 'BYE') bracketParticipantIds.add(match.participantB);
+            });
+          });
         }
       }
     };

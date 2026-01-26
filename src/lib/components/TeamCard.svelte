@@ -276,6 +276,8 @@
 		if (effectiveGameMode !== 'rounds') return;
 
 		const currentRoundsPlayed = get(roundsPlayed);
+		const context = get(gameTournamentContext);
+		const isBracketMatch = context?.phase === 'FINAL';
 
 		// Check if we've reached the target number of rounds
 		if (currentRoundsPlayed >= effectiveRoundsToPlay) {
@@ -294,10 +296,19 @@
 				// Check if this game win completes the match
 				saveGameAndCheckMatchComplete();
 			} else {
-				// Tie - both teams have same rounds won, match ends as tie
-				updateTeam(1, { hasWon: false });
-				updateTeam(2, { hasWon: false });
-				saveGameAndCheckMatchComplete(true);
+				// Tie situation - different handling for bracket vs regular matches
+				if (isBracketMatch) {
+					// Bracket match: don't declare tie, continue with extra rounds
+					// The tie overlay won't show because neither team hasWon
+					// Players will play extra round(s) until someone wins
+					console.log('🎯 Bracket tiebreaker: continuing with extra round');
+					dispatch('extraRound', { roundNumber: currentRoundsPlayed + 1 });
+				} else {
+					// Regular match: end as tie
+					updateTeam(1, { hasWon: false });
+					updateTeam(2, { hasWon: false });
+					saveGameAndCheckMatchComplete(true);
+				}
 			}
 		}
 	}

@@ -49,6 +49,8 @@ export interface TournamentMatchContext {
   roundNumber?: number;
   groupId?: string;
   bracketRoundName?: string;  // "Octavos", "Cuartos", "Semifinales", "Final"
+  bracketType?: 'gold' | 'silver';  // Which bracket: gold or silver
+  isConsolation?: boolean;  // True if this is a consolation bracket match
 
   // Participants
   participantAId: string;

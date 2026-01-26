@@ -11,6 +11,7 @@ export interface UserProfile {
   photoURL: string | null;
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
+  canAutofill?: boolean;           // Can use autofill buttons in groups/bracket pages
   maxTournamentsPerYear?: number;  // Max tournaments this admin can create per year (0-365)
   // Ranking and tournament tracking
   ranking?: number;                      // Current ranking points (starts at 0)

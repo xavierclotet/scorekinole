@@ -484,7 +484,7 @@
           <tr
             class:selected={isSelected}
             class:has-tie={hasTie}
-            class:in-multi-tie={inMultiTie}
+            class:in-multi-tie={inMultiTie && !isSwiss}
             on:click={() => toggleParticipant(standing.participantId)}
             role="button"
             tabindex="0"
@@ -507,8 +507,8 @@
             <td class="name-col">
               <div class="name-cell">
                 <span class="player-name">{getParticipantName(standing.participantId)}</span>
-                {#if isFirstInMultiTie(standing.participantId)}
-                  <!-- First player in 3+ tie group - show mini-league button -->
+                {#if !isSwiss && isFirstInMultiTie(standing.participantId)}
+                  <!-- First player in 3+ tie group - show mini-league button (only for Round Robin) -->
                   <button
                     class="tie-badge"
                     on:click={(e) => openTiebreakerModal(standing, e)}

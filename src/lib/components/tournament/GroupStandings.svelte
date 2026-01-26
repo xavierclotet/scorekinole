@@ -14,6 +14,9 @@
   export let rankingSystem: GroupRankingSystem = 'WINS';
   // @deprecated - use rankingSystem instead
   export let swissRankingSystem: GroupRankingSystem = 'WINS';
+  // Whether to enable the mini-league tiebreaker button and modal
+  // Set to false for /groups page, true for /transition page
+  export let enableTiebreaker: boolean = true;
 
   // Use rankingSystem if provided, fallback to swissRankingSystem for backwards compatibility
   $: effectiveRankingSystem = rankingSystem || swissRankingSystem || 'WINS';
@@ -215,7 +218,7 @@
         {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
         {@const tiedNames = getTiedWithNames(standing.tiedWith)}
         {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
-        <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie} class:in-multi-tie={inMultiTie}>
+        <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie} class:in-multi-tie={inMultiTie && !isSwiss}>
           <td class="pos-col">
             <span class="position-badge" class:qualified={standing.qualifiedForFinal} class:tied={hasTie}>
               {i + 1}
@@ -224,7 +227,7 @@
           <td class="name-col">
             <span class="participant-name">
               {getParticipantName(standing.participantId)}
-              {#if isFirstInMultiTie(standing.participantId)}
+              {#if enableTiebreaker && !isSwiss && isFirstInMultiTie(standing.participantId)}
                 <!-- First player in 3+ tie group - show mini-league button -->
                 <button
                   class="tie-badge"
@@ -272,8 +275,8 @@
   {/if}
 </div>
 
-<!-- Mini-league tiebreaker modal -->
-{#if showTiebreakerModal}
+<!-- Mini-league tiebreaker modal (only shown when enableTiebreaker prop is true) -->
+{#if enableTiebreaker && showTiebreakerModal}
   <div class="modal-overlay" on:click={closeTiebreakerModal} on:keydown={(e) => e.key === 'Escape' && closeTiebreakerModal()} role="button" tabindex="0">
     <div class="tiebreaker-modal" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true">
       <div class="modal-header">

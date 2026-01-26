@@ -54,6 +54,22 @@
 		? $gameTournamentContext?.gameConfig.show20s ?? $gameSettings.show20s
 		: $gameSettings.show20s;
 
+	// Tournament match format string (e.g., "4R", "7p", "7p Bo3")
+	$: tournamentMatchFormat = (() => {
+		if (!$gameTournamentContext) return '';
+		const config = $gameTournamentContext.gameConfig;
+		if (config.gameMode === 'rounds') {
+			return `${config.roundsToPlay || 4}R`;
+		} else {
+			const points = config.pointsToWin || 7;
+			const matches = config.matchesToWin || 1;
+			if (matches > 1) {
+				return `${points}p Bo${matches}`;
+			}
+			return `${points}p`;
+		}
+	})();
+
 	// Track if tournament match completion has been sent
 	let tournamentMatchCompletedSent = false;
 
@@ -142,12 +158,24 @@
 		? (team1GamesWon >= 1 || team2GamesWon >= 1 || ($currentMatchGames.length > 0 && !$team1.hasWon && !$team2.hasWon))
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete);
 
+	// Bracket tiebreaker state - when in bracket mode and tied, we play extra rounds
+	let isInExtraRounds = false;
+	$: isBracketMatch = $gameTournamentContext?.phase === 'FINAL';
+
+	// Handle extra round event from TeamCard (bracket tiebreaker)
+	function handleExtraRound(event: CustomEvent<{ roundNumber: number }>) {
+		console.log('🎯 Extra round triggered:', event.detail);
+		isInExtraRounds = true;
+	}
+
 	// Check if match ended in a tie (rounds mode only)
 	// A tie occurs when the game completed but neither team won (both hasWon = false and game saved)
+	// In bracket mode, we don't show tie - instead extra rounds are played
 	$: isTieMatch = $gameSettings.gameMode === 'rounds' &&
 		$currentMatchGames.length > 0 &&
 		!$team1.hasWon &&
-		!$team2.hasWon;
+		!$team2.hasWon &&
+		!isBracketMatch; // Don't show tie overlay in bracket mode
 
 	// Show "Next Game" button when someone won the current game AND match is not complete AND it's a multi-game match
 	// Note: We removed the "$currentMatchGames.length > 0" requirement because:
@@ -208,7 +236,8 @@
 
 		// Reset completion flag when starting/resuming a tournament match
 		tournamentMatchCompletedSent = false;
-		console.log('🔄 tournamentMatchCompletedSent reset to false');
+		isInExtraRounds = false;
+		console.log('🔄 tournamentMatchCompletedSent reset to false, isInExtraRounds reset to false');
 
 		console.log('🎯 applyTournamentConfig llamado:', {
 			existingRounds: context.existingRounds,
@@ -491,6 +520,7 @@
 		// Reset local game state
 		resetTeams();
 		resetMatchState();
+		isInExtraRounds = false;
 
 		console.log('⏸️ Tournament match paused - progress preserved in Firebase');
 	}
@@ -522,6 +552,7 @@
 		// Reset game state
 		resetTeams();
 		resetMatchState();
+		isInExtraRounds = false;
 	}
 
 	/**
@@ -648,6 +679,7 @@
 		// El reset se hará cuando se inicie un nuevo partido de torneo
 		// Solo limpiamos el contexto del torneo para que no se vuelva a enviar
 		clearTournamentContext();
+		isInExtraRounds = false;
 	}
 
 	onDestroy(() => {
@@ -658,6 +690,7 @@
 		team1.update(t => ({ ...t, points: 0, hasWon: false }));
 		team2.update(t => ({ ...t, points: 0, hasWon: false }));
 		saveTeams();
+		isInExtraRounds = false;
 
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
@@ -666,6 +699,7 @@
 	function handleResetMatch() {
 		resetTeams();
 		resetMatchState();
+		isInExtraRounds = false;
 
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
@@ -714,6 +748,7 @@
 			// Reset local state first
 			resetTeams();
 			resetMatchState();
+			isInExtraRounds = false;
 
 			// Restore team names from tournament context
 			const isUserSideA = context.currentUserSide === 'A';
@@ -875,8 +910,9 @@
 			console.log('🔍 SYNC - partidas guardadas:', current.games.map((g, i) => `P${i+1}: ${g.rounds?.length || 0} rondas`));
 		}
 
-		// IMPORTANT: Check if we have previous rounds from context.existingRounds (from Firebase resume)
-		// that might not be in current.games (which only tracks local game state)
+		// IMPORTANT: Get ONLY rounds from PREVIOUS games (not current game) from context.existingRounds
+		// This is needed for resumed matches where previous games are stored in Firebase
+		// We NEVER use existingRounds for the current game - always use currentRounds as the source of truth
 		const existingPreviousRounds = context.existingRounds?.filter(r => r.gameNumber < currentGameNumber) || [];
 		const hasExistingPreviousRounds = existingPreviousRounds.length > 0;
 		const hasCurrentGamesWithRounds = current?.games?.some(g => g?.rounds?.length > 0);
@@ -919,16 +955,16 @@
 			}
 		}
 
-		// Add current game rounds (for the game in progress)
-		// BUT only if the current game hasn't already been saved
-		const completedGamesCount = allRounds.length > 0
-			? Math.max(...allRounds.map(r => r.gameNumber))
-			: 0;
-		const currentGameRoundsInAll = allRounds.filter(r => r.gameNumber === currentGameNumber);
-		const currentGameAlreadySaved = currentGameRoundsInAll.length === currentRounds?.length &&
-			currentRounds?.length > 0;
+		// Add current game rounds from currentRounds store
+		// BUT only if the current game is NOT already saved in current.games
+		// When a game completes, it's saved to current.games WITH its rounds,
+		// but currentRounds store isn't cleared immediately, causing duplication
+		const currentGameAlreadyInGames = current?.games?.some((game, idx) => {
+			// Check if game at index (currentGameNumber - 1) has rounds
+			return idx === currentGameNumber - 1 && game?.rounds?.length > 0;
+		}) || false;
 
-		if (currentRounds && Array.isArray(currentRounds) && !currentGameAlreadySaved) {
+		if (currentRounds && Array.isArray(currentRounds) && currentRounds.length > 0 && !currentGameAlreadyInGames) {
 			currentRounds.forEach((round, roundIndex) => {
 				const pointsA = isUserSideA ? round.team1Points : round.team2Points;
 				const pointsB = isUserSideA ? round.team2Points : round.team1Points;
@@ -974,11 +1010,26 @@
 			let gameComplete = false;
 			let winnerA = false;
 
+			// Check if this is a bracket match (requires tiebreaker on tie)
+			const isBracketMatch = context?.phase === 'FINAL';
+
 			if (gameMode === 'rounds') {
-				// In rounds mode, game is complete when all rounds are played
-				const gameRounds = allRounds.filter(r => r.gameNumber === gameNumber);
-				gameComplete = gameRounds.length >= roundsToPlay;
-				if (gameComplete) {
+				// In rounds mode, game is complete when:
+				// - All rounds are played AND there's a winner (pointsA != pointsB)
+				// - OR in bracket mode with tie: game is NOT complete until someone wins
+				const hasEnoughRounds = gameRounds.length >= roundsToPlay;
+				const hasClearWinner = pointsA !== pointsB;
+
+				if (isBracketMatch) {
+					// Bracket: game is only complete when there's a clear winner
+					// (tie requires extra rounds)
+					gameComplete = hasEnoughRounds && hasClearWinner;
+				} else {
+					// Regular match: game is complete when rounds are done (tie is valid end state)
+					gameComplete = hasEnoughRounds;
+				}
+
+				if (gameComplete && hasClearWinner) {
 					winnerA = pointsA > pointsB;
 				}
 			} else {
@@ -1189,10 +1240,20 @@
 
 			<div class="header-center">
 				<span class="header-phase">
-					{$gameTournamentContext?.phase === 'GROUP'
-						? ($t('groupStage') || 'Fase de Grupos')
-						: ($gameTournamentContext?.bracketRoundName || 'Bracket')}
+					{#if $gameTournamentContext?.phase === 'GROUP'}
+						{$t('groupStage') || 'Fase de Grupos'}
+					{:else}
+						{$gameTournamentContext?.bracketRoundName || 'Bracket'}
+						{#if $gameTournamentContext?.bracketType === 'gold'}
+							<span class="bracket-type gold">{$t('gold')}</span>
+						{:else if $gameTournamentContext?.bracketType === 'silver'}
+							<span class="bracket-type silver">{$t('silver')}</span>
+						{/if}
+					{/if}
 				</span>
+				{#if tournamentMatchFormat}
+					<span class="header-format">{tournamentMatchFormat}</span>
+				{/if}
 				{#if $gameSettings.showTimer}
 					<Timer size="small" />
 				{/if}
@@ -1282,6 +1343,7 @@
 			on:changeColor={() => openColorPicker(1)}
 			on:roundComplete={handleRoundComplete}
 			on:tournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
+			on:extraRound={handleExtraRound}
 		/>
 
 		<!-- Tie Overlay - shown between the two cards when match ends in tie -->
@@ -1289,6 +1351,15 @@
 			<div class="tie-overlay">
 				<div class="tie-badge">
 					{$t('tie') || 'EMPATE'}
+				</div>
+			</div>
+		{/if}
+
+		<!-- Extra Round Indicator - shown in bracket mode when playing tiebreaker -->
+		{#if isInExtraRounds && !$team1.hasWon && !$team2.hasWon}
+			<div class="extra-round-indicator">
+				<div class="extra-round-badge">
+					{$t('extraRound') || 'RONDA EXTRA'}
 				</div>
 			</div>
 		{/if}
@@ -1301,6 +1372,7 @@
 			on:changeColor={() => openColorPicker(2)}
 			on:roundComplete={handleRoundComplete}
 			on:tournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
+			on:extraRound={handleExtraRound}
 		/>
 	</div>
 
@@ -1547,7 +1619,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
+		gap: 0.15rem;
 		flex: 1;
 		min-width: 0;
 	}
@@ -1620,7 +1692,7 @@
 
 	.header-title {
 		font-family: 'Lexend', sans-serif;
-		font-size: 1.1rem;
+		font-size: 1.3rem;
 		font-weight: 600;
 		color: rgba(255, 255, 255, 0.95);
 		background: none;
@@ -1653,23 +1725,51 @@
 
 	.header-phase {
 		font-family: 'Lexend', sans-serif;
-		font-size: 0.9rem;
-		font-weight: 500;
-		color: rgba(255, 255, 255, 0.7);
-		background: rgba(255, 255, 255, 0.06);
+		font-size: 1.3rem;
+		font-weight: 600;
+		color: white;
+		background: transparent;
 		border: none;
-		padding: 0.25rem 0.6rem;
-		cursor: pointer;
-		border-radius: 4px;
-		transition: all 0.15s;
+		padding: 0;
+		cursor: default;
 		white-space: nowrap;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		text-transform: capitalize;
+		letter-spacing: -0.01em;
 	}
 
-	.header-phase:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: rgba(255, 255, 255, 0.9);
+	.header-format {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.2rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.6);
+		background: transparent;
+		padding: 0;
+		white-space: nowrap;
+		margin-left: 0.5rem;
+	}
+
+	.header-format::before {
+		content: '·';
+		margin-right: 0.5rem;
+		opacity: 0.4;
+	}
+
+	.bracket-type {
+		font-size: 0.85em;
+		font-weight: 500;
+		margin-left: 0.35rem;
+		padding: 0.1rem 0.4rem;
+		border-radius: 3px;
+	}
+
+	.bracket-type.gold {
+		color: #fbbf24;
+		background: rgba(251, 191, 36, 0.15);
+	}
+
+	.bracket-type.silver {
+		color: #94a3b8;
+		background: rgba(148, 163, 184, 0.15);
 	}
 
 	.header-input {
@@ -1799,6 +1899,66 @@
 		}
 
 		.tie-badge {
+			padding: 0.4rem 0.8rem;
+			font-size: 0.8rem;
+			border-radius: 8px;
+		}
+	}
+
+	/* Extra Round Indicator - for bracket tiebreaker */
+	.extra-round-indicator {
+		position: absolute;
+		top: 28%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		z-index: 100;
+		pointer-events: none;
+	}
+
+	.extra-round-badge {
+		background: linear-gradient(135deg, rgba(245, 158, 11, 0.95) 0%, rgba(217, 119, 6, 0.95) 100%);
+		backdrop-filter: blur(12px);
+		border: 2px solid rgba(255, 255, 255, 0.4);
+		color: white;
+		padding: 0.6rem 1.25rem;
+		border-radius: 10px;
+		font-family: 'Lexend', sans-serif;
+		font-weight: 700;
+		font-size: 1rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		box-shadow: 0 8px 32px rgba(245, 158, 11, 0.4);
+		animation: extra-round-pulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes extra-round-pulse {
+		0%, 100% {
+			transform: scale(1);
+			box-shadow: 0 8px 32px rgba(245, 158, 11, 0.4);
+		}
+		50% {
+			transform: scale(1.05);
+			box-shadow: 0 12px 40px rgba(245, 158, 11, 0.6);
+		}
+	}
+
+	@media (max-width: 768px) and (orientation: portrait) {
+		.extra-round-indicator {
+			top: 22%;
+		}
+
+		.extra-round-badge {
+			padding: 0.5rem 1rem;
+			font-size: 0.9rem;
+		}
+	}
+
+	@media (orientation: landscape) and (max-height: 600px) {
+		.extra-round-indicator {
+			top: 25%;
+		}
+
+		.extra-round-badge {
 			padding: 0.4rem 0.8rem;
 			font-size: 0.8rem;
 			border-radius: 8px;
@@ -1951,11 +2111,15 @@
 
 		/* Simplify header in portrait */
 		.header-title {
-			max-width: 160px;
+			max-width: 220px;
 		}
 
 		.header-phase {
-			display: none;
+			font-size: 0.95rem;
+		}
+
+		.header-format {
+			font-size: 0.85rem;
 		}
 
 		.header-separator {
@@ -2002,11 +2166,15 @@
 
 		.header-title {
 			font-size: 0.75rem;
-			max-width: 140px;
+			max-width: 180px;
 		}
 
 		.header-phase {
-			font-size: 0.65rem;
+			font-size: 0.85rem;
+		}
+
+		.header-format {
+			font-size: 0.75rem;
 		}
 
 		.header-btn {
@@ -2035,7 +2203,11 @@
 		}
 
 		.header-phase {
-			font-size: 0.65rem;
+			font-size: 0.85rem;
+		}
+
+		.header-format {
+			font-size: 0.75rem;
 		}
 
 		.header-btn {

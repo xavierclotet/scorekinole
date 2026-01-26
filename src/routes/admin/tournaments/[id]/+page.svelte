@@ -42,6 +42,12 @@
 
   $: tournamentId = $page.params.id;
 
+  // Fallback for consolationEnabled - check multiple locations due to migration
+  $: consolationEnabled = tournament?.finalStage?.consolationEnabled
+    ?? (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled ']  // Typo with trailing space
+    ?? tournament?.finalStage?.goldBracket?.config?.consolationEnabled
+    ?? false;
+
   onMount(async () => {
     await loadTournament();
   });
@@ -540,6 +546,21 @@
                     {tournament.finalStage.mode === 'SPLIT_DIVISIONS'
                       ? $t('goldSilverDivisions')
                       : $t('singleBracket')}
+                  </span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">{$t('consolationRounds')}:</span>
+                  <span class="config-value">
+                    {#if consolationEnabled}
+                      <span class="consolation-badge enabled">
+                        <svg class="badge-check" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        {$t('enabled')}
+                      </span>
+                    {:else}
+                      <span class="consolation-badge disabled">{$t('disabled')}</span>
+                    {/if}
                   </span>
                 </div>
 
@@ -1219,6 +1240,44 @@
 
   .config-item.phase-config .config-value {
     font-size: 0.75rem;
+  }
+
+  /* Consolation badge */
+  .consolation-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .consolation-badge.enabled {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    color: #166534;
+    border: 1px solid #22c55e;
+  }
+
+  .tournament-page[data-theme='dark'] .consolation-badge.enabled {
+    background: linear-gradient(135deg, #14532d 0%, #166534 100%);
+    color: #dcfce7;
+    border-color: #22c55e;
+  }
+
+  .consolation-badge.disabled {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+
+  .tournament-page[data-theme='dark'] .consolation-badge.disabled {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  .consolation-badge .badge-check {
+    width: 14px;
+    height: 14px;
   }
 
   /* Responsive */

@@ -321,7 +321,7 @@
                             on:click={() => handleMatchClick(match, false)}
                           >
                             {#if match.tableNumber}
-                              <span class="table-badge">M{match.tableNumber}</span>
+                              <span class="table-badge">{$t('tableShort')}{match.tableNumber}</span>
                             {/if}
                             <span class="participant" class:winner={match.winner === match.participantA}>
                               {getParticipantName(match.participantA)}

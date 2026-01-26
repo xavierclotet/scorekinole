@@ -529,6 +529,7 @@
                     showElo={tournament.rankingConfig?.enabled}
                     {isSwiss}
                     {rankingSystem}
+                    enableTiebreaker={false}
                   />
                 {/if}
               </div>

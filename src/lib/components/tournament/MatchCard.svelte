@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { GroupMatch, TournamentParticipant } from '$lib/types/tournament';
+  import { t } from '$lib/stores/language';
 
   export let match: GroupMatch;
   export let participants: TournamentParticipant[];
@@ -50,7 +51,7 @@
 >
   <!-- Compact single-row layout -->
   <div class="match-row">
-    <span class="table-num">M{match.tableNumber}</span>
+    <span class="table-num">{$t('tableShort')}{match.tableNumber}</span>
 
     <div class="participant left" class:winner={match.winner === match.participantA} class:tie={isTie}>
       <span class="name">{getParticipantName(match.participantA)}</span>

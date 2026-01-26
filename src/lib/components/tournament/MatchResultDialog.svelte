@@ -74,7 +74,10 @@
     console.log('📋 isRoundsMode:', isRoundsMode);
     console.log('📋 tournament.finalStage:', tournament.finalStage);
   }
-  $: numRounds = isRoundsMode ? (gameConfig.roundsToPlay || 4) : gameConfig.matchesToWin;
+  $: baseNumRounds = isRoundsMode ? (gameConfig.roundsToPlay || 4) : gameConfig.matchesToWin;
+  // Track extra rounds added for tiebreaker
+  let extraRoundsCount = 0;
+  $: numRounds = baseNumRounds + extraRoundsCount;
 
   // Round-by-round data
   interface RoundData {
@@ -114,9 +117,13 @@
         twentiesB: r.twentiesB || 0
       }));
 
-      // For rounds mode: ensure we have all required rounds (pad with empty if needed)
-      if (isRoundsMode && rounds.length < numRounds) {
-        const missingRounds = numRounds - rounds.length;
+      // For rounds mode: check if there were extra rounds (tiebreaker)
+      if (isRoundsMode && rounds.length > baseNumRounds) {
+        extraRoundsCount = rounds.length - baseNumRounds;
+        console.log('📊 Restored extra rounds count:', extraRoundsCount);
+      } else if (isRoundsMode && rounds.length < baseNumRounds) {
+        // Pad with empty rounds if needed
+        const missingRounds = baseNumRounds - rounds.length;
         for (let i = 0; i < missingRounds; i++) {
           rounds.push({
             gameNumber: 1,
@@ -127,7 +134,7 @@
             twentiesB: 0
           });
         }
-        console.log('📊 Padded rounds to match numRounds:', numRounds);
+        console.log('📊 Padded rounds to match baseNumRounds:', baseNumRounds);
       }
 
       // For bracket points mode, restore game tracking state
@@ -180,7 +187,8 @@
         }
       } else {
         // Rounds mode (groups & brackets): initialize fixed rounds
-        rounds = Array.from({ length: numRounds }, (_, i) => ({
+        extraRoundsCount = 0;
+        rounds = Array.from({ length: baseNumRounds }, (_, i) => ({
           gameNumber: 1,
           roundInGame: i + 1,
           pointsA: null,
@@ -203,6 +211,7 @@
     gamesWonA = 0;
     gamesWonB = 0;
     currentGameComplete = false;
+    extraRoundsCount = 0;
   }
 
   // Reinicializar cuando match.rounds cambia (actualización de Firebase)
@@ -263,6 +272,12 @@
     }
   }
 
+  // Detect tiebreak situation in bracket rounds mode
+  $: allBaseRoundsComplete = isRoundsMode && rounds.length >= baseNumRounds &&
+    rounds.slice(0, baseNumRounds).every(r => r.pointsA !== null && r.pointsB !== null);
+  $: isBracketTiebreak = isBracket && isRoundsMode && allBaseRoundsComplete && gamesWonA === gamesWonB;
+  $: needsExtraRound = isBracketTiebreak && rounds.every(r => r.pointsA !== null && r.pointsB !== null);
+
   // Validation
   $: {
     if (isBracket && !isRoundsMode) {
@@ -273,7 +288,7 @@
       // Rounds mode: All rounds must be complete
       const allRoundsPlayed = rounds.every(r => r.pointsA !== null && r.pointsB !== null);
       if (isBracket) {
-        // Bracket in rounds mode: no ties
+        // Bracket in rounds mode: no ties allowed - must have a winner
         canSave = allRoundsPlayed && gamesWonA !== gamesWonB;
       } else {
         // Groups in rounds mode: ties allowed
@@ -322,6 +337,30 @@
       {
         gameNumber: currentGameNumber,
         roundInGame: nextRoundInGame,
+        pointsA: null,
+        pointsB: null,
+        twentiesA: 0,
+        twentiesB: 0
+      }
+    ];
+  }
+
+  /**
+   * Add extra round for tiebreaker (rounds mode brackets only)
+   * Used when match ends in a tie and needs extra rounds until someone wins
+   */
+  function addExtraRound() {
+    if (!isBracket || !isRoundsMode) return;
+    if (!needsExtraRound) return;
+
+    extraRoundsCount++;
+    const nextRoundNum = rounds.length + 1;
+
+    rounds = [
+      ...rounds,
+      {
+        gameNumber: 1,
+        roundInGame: nextRoundNum,
         pointsA: null,
         pointsB: null,
         twentiesA: 0,
@@ -1110,8 +1149,21 @@
               </table>
             </div>
 
-            <!-- Validation messages (only for rounds mode) -->
-            {#if isRoundsMode && !canSave && (totalPointsA > 0 || totalPointsB > 0)}
+            <!-- Tiebreak section for bracket rounds mode -->
+            {#if needsExtraRound}
+              <div class="tiebreak-section">
+                <div class="tiebreak-notice">
+                  ⚖️ {$t('tiebreakNeeded') || 'Empate! Se necesita ronda extra para desempatar.'}
+                </div>
+                <div class="tiebreak-score">
+                  {participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name}
+                </div>
+                <button class="extra-round-btn" on:click={addExtraRound} type="button">
+                  + {$t('addExtraRound') || 'Añadir Ronda Extra'} (R{rounds.length + 1})
+                </button>
+              </div>
+            {:else if isRoundsMode && !canSave && (totalPointsA > 0 || totalPointsB > 0)}
+              <!-- Validation messages (only for rounds mode) -->
               <div class="validation-error">
                 {#if isBracket && gamesWonA === gamesWonB}
                   ⚠️ {$t('tiesNotAllowedInElimination')}
@@ -1904,6 +1956,61 @@
     font-size: 0.9rem;
     font-weight: 600;
     text-align: center;
+  }
+
+  /* Tiebreak section */
+  .tiebreak-section {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 2px solid #f59e0b;
+    border-radius: 12px;
+    text-align: center;
+  }
+
+  .tiebreak-notice {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #92400e;
+    margin-bottom: 0.75rem;
+  }
+
+  .tiebreak-score {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #1a1a1a;
+    margin-bottom: 1rem;
+  }
+
+  .extra-round-btn {
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+  }
+
+  .extra-round-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
+  }
+
+  .dialog-backdrop[data-theme='dark'] .tiebreak-section {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%);
+    border-color: #f59e0b;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .tiebreak-notice {
+    color: #fbbf24;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .tiebreak-score {
+    color: #e1e8ed;
   }
 
   .noshow-section {

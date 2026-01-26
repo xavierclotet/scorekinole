@@ -478,6 +478,7 @@ export interface PendingMatchInfo {
   isInProgress?: boolean;  // True if match is IN_PROGRESS (for resume functionality)
   tableNumber?: number;    // Table number for display (e.g., M1, M2)
   isSilverBracket?: boolean;  // True if match is in the silver bracket (for SPLIT_DIVISIONS mode)
+  isConsolation?: boolean;  // True if match is in a consolation bracket
 }
 
 /**
@@ -787,6 +788,12 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
   if (tournament.finalStage && !tournament.finalStage.isComplete) {
     console.log('🔍 getAllPendingMatches - Checking final stage brackets');
 
+    // Check if consolation is enabled
+    const consolationEnabled = Boolean(
+      tournament.finalStage?.consolationEnabled ??
+      (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
+    );
+
     // Gold bracket
     const goldBracket = tournament.finalStage.goldBracket;
     if (goldBracket?.rounds) {
@@ -840,6 +847,65 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
             inProgressMatches.push(matchInfo);
           } else {
             pendingMatches.push(matchInfo);
+          }
+        }
+      }
+
+      // Consolation brackets (Gold) - only if consolation is enabled
+      if (consolationEnabled && goldBracket.consolationBrackets) {
+        console.log('🎯 Gold consolation brackets:', goldBracket.consolationBrackets.length);
+        for (const consolation of goldBracket.consolationBrackets) {
+          const { startPosition, totalRounds } = consolation;
+          const numParticipants = Math.pow(2, totalRounds);
+          const posEnd = startPosition + numParticipants - 1;
+
+          for (let roundIdx = 0; roundIdx < consolation.rounds.length; roundIdx++) {
+            const round = consolation.rounds[roundIdx];
+            const isFinalRound = roundIdx === totalRounds - 1;
+
+            for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
+              const match = round.matches[matchIdx];
+              if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
+                // Calculate position label for this match
+                let bracketRoundName: string;
+                if (isFinalRound) {
+                  // Final round - specific positions
+                  const numFinals = Math.ceil(round.matches.length / 2);
+                  if (matchIdx < numFinals) {
+                    const posA = startPosition + matchIdx * 2;
+                    const posB = posA + 1;
+                    bracketRoundName = `${posA}º-${posB}º`;
+                  } else {
+                    const loserMatchIdx = matchIdx - numFinals;
+                    const posA = startPosition + numFinals * 2 + loserMatchIdx * 2;
+                    const posB = posA + 1;
+                    bracketRoundName = `${posA}º-${posB}º`;
+                  }
+                } else {
+                  // Earlier rounds - show range
+                  bracketRoundName = `${startPosition}º-${posEnd}º`;
+                }
+
+                const matchInfo: PendingMatchInfo = {
+                  match,
+                  phase: 'FINAL',
+                  roundNumber: round.roundNumber,
+                  bracketRoundName,
+                  participantAName: getParticipantName(tournament, match.participantA),
+                  participantBName: getParticipantName(tournament, match.participantB),
+                  gameConfig: getGameConfigForMatch(tournament, 'FINAL', bracketRoundName, false),
+                  isInProgress: isInProgress(match.status),
+                  isSilverBracket: false,
+                  tableNumber: match.tableNumber,
+                  isConsolation: true
+                };
+                if (isInProgress(match.status)) {
+                  inProgressMatches.push(matchInfo);
+                } else {
+                  pendingMatches.push(matchInfo);
+                }
+              }
+            }
           }
         }
       }
@@ -897,6 +963,65 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
             inProgressMatches.push(matchInfo);
           } else {
             pendingMatches.push(matchInfo);
+          }
+        }
+      }
+
+      // Consolation brackets (Silver) - only if consolation is enabled
+      if (consolationEnabled && tournament.finalStage.silverBracket.consolationBrackets) {
+        console.log('🎯 Silver consolation brackets:', tournament.finalStage.silverBracket.consolationBrackets.length);
+        for (const consolation of tournament.finalStage.silverBracket.consolationBrackets) {
+          const { startPosition, totalRounds } = consolation;
+          const numParticipants = Math.pow(2, totalRounds);
+          const posEnd = startPosition + numParticipants - 1;
+
+          for (let roundIdx = 0; roundIdx < consolation.rounds.length; roundIdx++) {
+            const round = consolation.rounds[roundIdx];
+            const isFinalRound = roundIdx === totalRounds - 1;
+
+            for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
+              const match = round.matches[matchIdx];
+              if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
+                // Calculate position label for this match
+                let bracketRoundName: string;
+                if (isFinalRound) {
+                  // Final round - specific positions
+                  const numFinals = Math.ceil(round.matches.length / 2);
+                  if (matchIdx < numFinals) {
+                    const posA = startPosition + matchIdx * 2;
+                    const posB = posA + 1;
+                    bracketRoundName = `${posA}º-${posB}º`;
+                  } else {
+                    const loserMatchIdx = matchIdx - numFinals;
+                    const posA = startPosition + numFinals * 2 + loserMatchIdx * 2;
+                    const posB = posA + 1;
+                    bracketRoundName = `${posA}º-${posB}º`;
+                  }
+                } else {
+                  // Earlier rounds - show range
+                  bracketRoundName = `${startPosition}º-${posEnd}º`;
+                }
+
+                const matchInfo: PendingMatchInfo = {
+                  match,
+                  phase: 'FINAL',
+                  roundNumber: round.roundNumber,
+                  bracketRoundName,
+                  participantAName: getParticipantName(tournament, match.participantA),
+                  participantBName: getParticipantName(tournament, match.participantB),
+                  gameConfig: getGameConfigForMatch(tournament, 'FINAL', bracketRoundName, true),
+                  isInProgress: isInProgress(match.status),
+                  isSilverBracket: true,
+                  tableNumber: match.tableNumber,
+                  isConsolation: true
+                };
+                if (isInProgress(match.status)) {
+                  inProgressMatches.push(matchInfo);
+                } else {
+                  pendingMatches.push(matchInfo);
+                }
+              }
+            }
           }
         }
       }
@@ -1004,6 +1129,12 @@ export async function startTournamentMatch(
         });
       }
     } else if (phase === 'FINAL' && tournament.finalStage) {
+      // Check consolationEnabled
+      const consolationEnabled = Boolean(
+        tournament.finalStage.consolationEnabled ??
+        (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
+      );
+
       // Find match in bracket
       // Returns: 'found' | 'in_progress' | 'completed' | 'not_found'
       const findAndUpdateMatch = (bracket: any): 'found' | 'in_progress' | 'completed' | 'not_found' => {
@@ -1035,6 +1166,27 @@ export async function startTournamentMatch(
             return 'found';
           }
         }
+
+        // Check consolation brackets (only if consolationEnabled)
+        if (consolationEnabled && bracket.consolationBrackets) {
+          for (const consolation of bracket.consolationBrackets) {
+            for (const round of consolation.rounds) {
+              const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
+              if (matchIndex !== -1) {
+                currentStatus = round.matches[matchIndex].status;
+                if (currentStatus === 'IN_PROGRESS' && !forceResume) return 'in_progress';
+                if (currentStatus === 'COMPLETED' || currentStatus === 'WALKOVER') return 'completed';
+                // Only update startedAt if this is a new start (not a resume)
+                if (currentStatus !== 'IN_PROGRESS') {
+                  round.matches[matchIndex].status = 'IN_PROGRESS';
+                  round.matches[matchIndex].startedAt = Date.now();
+                }
+                return 'found';
+              }
+            }
+          }
+        }
+
         return 'not_found';
       };
 
@@ -1123,6 +1275,12 @@ export async function resumeTournamentMatch(
         if (foundMatch) break;
       }
     } else if (phase === 'FINAL' && tournament.finalStage) {
+      // Check consolationEnabled
+      const consolationEnabled = Boolean(
+        tournament.finalStage.consolationEnabled ??
+        (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
+      );
+
       // Check gold bracket
       if (tournament.finalStage.goldBracket?.rounds) {
         for (const round of tournament.finalStage.goldBracket.rounds) {
@@ -1151,6 +1309,34 @@ export async function resumeTournamentMatch(
 
         if (!foundMatch && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
           foundMatch = tournament.finalStage.silverBracket.thirdPlaceMatch;
+        }
+      }
+
+      // Check consolation brackets in gold bracket (only if consolationEnabled)
+      if (!foundMatch && consolationEnabled && tournament.finalStage.goldBracket?.consolationBrackets) {
+        for (const consolation of tournament.finalStage.goldBracket.consolationBrackets) {
+          for (const round of consolation.rounds) {
+            const match = round.matches.find((m: any) => m.id === matchId);
+            if (match) {
+              foundMatch = match;
+              break;
+            }
+          }
+          if (foundMatch) break;
+        }
+      }
+
+      // Check consolation brackets in silver bracket (only if consolationEnabled)
+      if (!foundMatch && consolationEnabled && tournament.finalStage.silverBracket?.consolationBrackets) {
+        for (const consolation of tournament.finalStage.silverBracket.consolationBrackets) {
+          for (const round of consolation.rounds) {
+            const match = round.matches.find((m: any) => m.id === matchId);
+            if (match) {
+              foundMatch = match;
+              break;
+            }
+          }
+          if (foundMatch) break;
         }
       }
     }
@@ -1232,6 +1418,12 @@ export async function abandonTournamentMatch(
         });
       }
     } else if (phase === 'FINAL' && tournament.finalStage) {
+      // Check consolationEnabled
+      const consolationEnabled = Boolean(
+        tournament.finalStage.consolationEnabled ??
+        (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
+      );
+
       const resetMatch = (match: any) => {
         match.status = 'PENDING';
         match.startedAt = undefined;
@@ -1272,6 +1464,36 @@ export async function abandonTournamentMatch(
         if (!matchFound && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
           resetMatch(tournament.finalStage.silverBracket.thirdPlaceMatch);
           matchFound = true;
+        }
+      }
+
+      // Check consolation brackets in gold bracket (only if consolationEnabled)
+      if (!matchFound && consolationEnabled && tournament.finalStage.goldBracket?.consolationBrackets) {
+        for (const consolation of tournament.finalStage.goldBracket.consolationBrackets) {
+          for (const round of consolation.rounds) {
+            const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
+            if (matchIndex !== -1) {
+              resetMatch(round.matches[matchIndex]);
+              matchFound = true;
+              break;
+            }
+          }
+          if (matchFound) break;
+        }
+      }
+
+      // Check consolation brackets in silver bracket (only if consolationEnabled)
+      if (!matchFound && consolationEnabled && tournament.finalStage.silverBracket?.consolationBrackets) {
+        for (const consolation of tournament.finalStage.silverBracket.consolationBrackets) {
+          for (const round of consolation.rounds) {
+            const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
+            if (matchIndex !== -1) {
+              resetMatch(round.matches[matchIndex]);
+              matchFound = true;
+              break;
+            }
+          }
+          if (matchFound) break;
         }
       }
 
@@ -1330,6 +1552,12 @@ export async function updateTournamentMatchRounds(
     const totalPointsA = rounds.reduce((sum, r) => sum + (r.pointsA || 0), 0);
     const totalPointsB = rounds.reduce((sum, r) => sum + (r.pointsB || 0), 0);
 
+    // Check consolationEnabled
+    const consolationEnabled = Boolean(
+      tournament.finalStage?.consolationEnabled ??
+      (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
+    );
+
     console.log('🔄 updateTournamentMatchRounds:', {
       matchId,
       phase,
@@ -1340,7 +1568,10 @@ export async function updateTournamentMatchRounds(
       totalPointsA,
       totalPointsB,
       currentGameData,
-      hasSilverBracket: !!tournament.finalStage?.silverBracket
+      hasSilverBracket: !!tournament.finalStage?.silverBracket,
+      consolationEnabled,
+      hasGoldConsolation: !!tournament.finalStage?.goldBracket?.consolationBrackets?.length,
+      hasSilverConsolation: !!tournament.finalStage?.silverBracket?.consolationBrackets?.length
     });
 
     if (phase === 'GROUP' && tournament.groupStage) {
@@ -1442,6 +1673,56 @@ export async function updateTournamentMatchRounds(
         }
       }
 
+      // Check consolation brackets in gold bracket (only if consolationEnabled)
+      if (!matchFound && consolationEnabled && tournament.finalStage.goldBracket?.consolationBrackets) {
+        console.log('🔍 [GOLD CONSOLATION] Searching for matchId:', matchId);
+        console.log('🔍 [GOLD CONSOLATION] Number of brackets:', tournament.finalStage.goldBracket.consolationBrackets.length);
+        for (const consolation of tournament.finalStage.goldBracket.consolationBrackets) {
+          console.log('🔍 [GOLD CONSOLATION] Bracket source:', consolation.source, '- rounds:', consolation.rounds.length);
+          for (let ri = 0; ri < consolation.rounds.length; ri++) {
+            const round = consolation.rounds[ri];
+            const matchIds = round.matches.map((m: any) => m.id);
+            console.log(`🔍 [GOLD CONSOLATION] Round ${ri + 1} matches:`, matchIds);
+            const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
+            if (matchIndex !== -1) {
+              console.log('✅ [GOLD CONSOLATION] Found match! Updating rounds...');
+              updateMatchRounds(round.matches[matchIndex]);
+              matchFound = true;
+              break;
+            }
+          }
+          if (matchFound) break;
+        }
+        if (!matchFound) {
+          console.log('⚠️ [GOLD CONSOLATION] Match NOT found in any consolation bracket');
+        }
+      }
+
+      // Check consolation brackets in silver bracket (only if consolationEnabled)
+      if (!matchFound && consolationEnabled && tournament.finalStage.silverBracket?.consolationBrackets) {
+        console.log('🔍 [SILVER CONSOLATION] Searching for matchId:', matchId);
+        console.log('🔍 [SILVER CONSOLATION] Number of brackets:', tournament.finalStage.silverBracket.consolationBrackets.length);
+        for (const consolation of tournament.finalStage.silverBracket.consolationBrackets) {
+          console.log('🔍 [SILVER CONSOLATION] Bracket source:', consolation.source, '- rounds:', consolation.rounds.length);
+          for (let ri = 0; ri < consolation.rounds.length; ri++) {
+            const round = consolation.rounds[ri];
+            const matchIds = round.matches.map((m: any) => m.id);
+            console.log(`🔍 [SILVER CONSOLATION] Round ${ri + 1} matches:`, matchIds);
+            const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
+            if (matchIndex !== -1) {
+              console.log('✅ [SILVER CONSOLATION] Found match! Updating rounds...');
+              updateMatchRounds(round.matches[matchIndex]);
+              matchFound = true;
+              break;
+            }
+          }
+          if (matchFound) break;
+        }
+        if (!matchFound) {
+          console.log('⚠️ [SILVER CONSOLATION] Match NOT found in any consolation bracket');
+        }
+      }
+
       if (matchFound) {
         console.log('✅ Match found in bracket, updating Firebase...');
         const cleanedFinalStage = cleanUndefined(tournament.finalStage);
@@ -1507,17 +1788,65 @@ export async function completeTournamentMatch(
       return success;
     } else {
       // For bracket matches, use updateBracketMatch and advanceWinner
-      const { updateBracketMatch, advanceWinner, updateSilverBracketMatch, advanceSilverWinner } = await import('./tournamentBracket');
+      const { updateBracketMatch, advanceWinner, updateSilverBracketMatch, advanceSilverWinner, advanceConsolationWinner } = await import('./tournamentBracket');
 
-      // First, determine if this is a silver bracket match
+      // First, determine if this is a silver bracket match or consolation match
       const tournament = await getTournament(tournamentId);
       if (!tournament || !tournament.finalStage) {
         return false;
       }
 
+      // Check consolationEnabled
+      const consolationEnabled = Boolean(
+        tournament.finalStage.consolationEnabled ??
+        (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
+      );
+
       let isSilverBracket = false;
-      if (tournament.finalStage.silverBracket) {
-        // Check if match is in silver bracket
+      let isConsolationMatch = false;
+      let consolationBracketType: 'gold' | 'silver' = 'gold';
+      let loserId: string | undefined;
+
+      // Check if match is in gold bracket consolation (only if consolationEnabled)
+      if (consolationEnabled && tournament.finalStage.goldBracket?.consolationBrackets) {
+        for (const consolation of tournament.finalStage.goldBracket.consolationBrackets) {
+          for (const round of consolation.rounds) {
+            const match = round.matches.find(m => m.id === matchId);
+            if (match) {
+              isConsolationMatch = true;
+              consolationBracketType = 'gold';
+              // Find loser for 3rd place match advancement
+              if (result.winner && match.participantA && match.participantB) {
+                loserId = result.winner === match.participantA ? match.participantB : match.participantA;
+              }
+              break;
+            }
+          }
+          if (isConsolationMatch) break;
+        }
+      }
+
+      // Check if match is in silver bracket consolation (only if consolationEnabled)
+      if (!isConsolationMatch && consolationEnabled && tournament.finalStage.silverBracket?.consolationBrackets) {
+        for (const consolation of tournament.finalStage.silverBracket.consolationBrackets) {
+          for (const round of consolation.rounds) {
+            const match = round.matches.find(m => m.id === matchId);
+            if (match) {
+              isConsolationMatch = true;
+              consolationBracketType = 'silver';
+              // Find loser for 3rd place match advancement
+              if (result.winner && match.participantA && match.participantB) {
+                loserId = result.winner === match.participantA ? match.participantB : match.participantA;
+              }
+              break;
+            }
+          }
+          if (isConsolationMatch) break;
+        }
+      }
+
+      // Check if match is in silver bracket main rounds
+      if (!isConsolationMatch && tournament.finalStage.silverBracket) {
         for (const round of tournament.finalStage.silverBracket.rounds) {
           if (round.matches.some(m => m.id === matchId)) {
             isSilverBracket = true;
@@ -1550,8 +1879,13 @@ export async function completeTournamentMatch(
       // Only advance winner if there is one (not a tie)
       // In bracket matches, ties shouldn't normally happen, but handle gracefully
       if (result.winner) {
-        const advanceFn = isSilverBracket ? advanceSilverWinner : advanceWinner;
-        return await advanceFn(tournamentId, matchId, result.winner);
+        if (isConsolationMatch) {
+          // Use consolation-specific advancement (also advances loser to 3rd place matches)
+          return await advanceConsolationWinner(tournamentId, matchId, result.winner, consolationBracketType, loserId);
+        } else {
+          const advanceFn = isSilverBracket ? advanceSilverWinner : advanceWinner;
+          return await advanceFn(tournamentId, matchId, result.winner);
+        }
       }
 
       return true; // Match completed but no winner to advance (tie)

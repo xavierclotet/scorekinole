@@ -14,6 +14,11 @@ export const isAdminUser = writable<boolean>(false);
 export const isSuperAdminUser = writable<boolean>(false);
 
 /**
+ * Can use autofill buttons in groups/bracket pages
+ */
+export const canAutofillUser = writable<boolean>(false);
+
+/**
  * Loading state for admin check
  */
 export const adminCheckLoading = writable<boolean>(true);
@@ -30,9 +35,11 @@ if (browser) {
       const profile = await getUserProfile();
       isAdminUser.set(profile?.isAdmin === true);
       isSuperAdminUser.set(profile?.isSuperAdmin === true);
+      canAutofillUser.set(profile?.canAutofill === true);
     } else {
       isAdminUser.set(false);
       isSuperAdminUser.set(false);
+      canAutofillUser.set(false);
     }
 
     adminCheckLoading.set(false);
