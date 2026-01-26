@@ -9,7 +9,7 @@
 
 <button
   class="theme-toggle"
-  on:click={toggleTheme}
+  onclick={toggleTheme}
   title={$adminTheme === 'light' ? $t('darkMode') : $t('lightMode')}
 >
   {#if $adminTheme === 'light'}

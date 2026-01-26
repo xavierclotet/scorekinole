@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { team1, team2, saveTeams } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
-	import { createEventDispatcher } from 'svelte';
 	import { getContrastColor } from '$lib/utils/colors';
 
-	export let isOpen: boolean = false;
+	interface Props {
+		isOpen?: boolean;
+		onclose?: () => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let { isOpen = $bindable(false), onclose }: Props = $props();
 
 	// Preset colors (same as ColorPickerModal)
 	const presetColors: string[] = [
@@ -29,8 +31,8 @@
 		team2Color: string;
 	}
 
-	let selectedFirstColor: string | null = null;
-	let combinations: ColorCombination[] = [];
+	let selectedFirstColor = $state<string | null>(null);
+	let combinations = $state<ColorCombination[]>([]);
 
 	function selectFirstColor(color: string) {
 		selectedFirstColor = color;
@@ -59,17 +61,20 @@
 		selectedFirstColor = null;
 		combinations = [];
 		isOpen = false;
-		dispatch('close');
+		onclose?.();
 	}
 
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
+	}
 </script>
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={close} role="button" tabindex="-1">
-		<div class="modal" on:click|stopPropagation role="dialog">
+	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
+		<div class="modal" onclick={stopPropagation} role="dialog">
 			<div class="modal-header">
 				<span class="modal-title">{$t('presetColors')}</span>
-				<button class="close-btn" on:click={close} aria-label="Close">×</button>
+				<button class="close-btn" onclick={close} aria-label="Close">×</button>
 			</div>
 			<div class="modal-content">
 				{#if !selectedFirstColor}
@@ -80,21 +85,21 @@
 							<button
 								class="color-swatch"
 								style="background-color: {color}"
-								on:click={() => selectFirstColor(color)}
+								onclick={() => selectFirstColor(color)}
 								aria-label="Select color {color}"
 							/>
 						{/each}
 					</div>
 				{:else}
 					<!-- Step 2: Select combination -->
-					<button class="back-btn" on:click={back}>
+					<button class="back-btn" onclick={back}>
 						← {$t('back')}
 					</button>
 					<div class="combinations-grid">
 						{#each combinations as combo}
 							<button
 								class="combination"
-								on:click={() => selectCombination(combo)}
+								onclick={() => selectCombination(combo)}
 							>
 								<div
 									class="team-preview"

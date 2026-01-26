@@ -20,47 +20,53 @@
 		saveCurrentMatch
 	} from '$lib/stores/history';
 	import type { HistoryTab, MatchHistory } from '$lib/types/history';
-	import { onDestroy } from 'svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import { syncLocalMatchesToCloud, getMatchesFromCloud } from '$lib/firebase/firestore';
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
+	import type { Snippet } from 'svelte';
 
-	export let isOpen: boolean = false;
-	export let onClose: () => void = () => {};
-
-	// Sync state
-	let isSyncing = false;
-	let showSyncConfirm = false;
-	let matchesToSync: MatchHistory[] = [];
-
-	// Toast state
-	let showToast = false;
-	let toastMessage = '';
-	let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
-
-	// Force re-render for duration updates
-	let now = Date.now();
-	let interval: ReturnType<typeof setInterval> | null = null;
-
-	// Update every second when modal is open
-	$: if (isOpen && $currentMatch) {
-		if (!interval) {
-			interval = setInterval(() => {
-				now = Date.now();
-			}, 1000);
-		}
-	} else {
-		if (interval) {
-			clearInterval(interval);
-			interval = null;
-		}
+	interface Props {
+		isOpen?: boolean;
+		onClose?: () => void;
 	}
 
-	onDestroy(() => {
-		if (interval) {
-			clearInterval(interval);
+	let { isOpen = false, onClose = () => {} }: Props = $props();
+
+	// Sync state
+	let isSyncing = $state(false);
+	let showSyncConfirm = $state(false);
+	let matchesToSync = $state<MatchHistory[]>([]);
+
+	// Toast state
+	let showToast = $state(false);
+	let toastMessage = $state('');
+	let toastType = $state<'success' | 'error' | 'info' | 'warning'>('info');
+
+	// Force re-render for duration updates
+	let now = $state(Date.now());
+	let interval = $state<ReturnType<typeof setInterval> | null>(null);
+
+	// Update every second when modal is open
+	$effect(() => {
+		if (isOpen && $currentMatch) {
+			if (!interval) {
+				interval = setInterval(() => {
+					now = Date.now();
+				}, 1000);
+			}
+		} else {
+			if (interval) {
+				clearInterval(interval);
+				interval = null;
+			}
 		}
+
+		return () => {
+			if (interval) {
+				clearInterval(interval);
+			}
+		};
 	});
 
 	function handleTabChange(tab: HistoryTab) {
@@ -84,44 +90,44 @@
 	}
 
 	// Calculate total games won by each team
-	$: team1GamesWon = $currentMatch?.games.filter(g => g.winner === 1).length ?? 0;
-	$: team2GamesWon = $currentMatch?.games.filter(g => g.winner === 2).length ?? 0;
+	let team1GamesWon = $derived($currentMatch?.games.filter(g => g.winner === 1).length ?? 0);
+	let team2GamesWon = $derived($currentMatch?.games.filter(g => g.winner === 2).length ?? 0);
 
 	// Check if match is complete (someone reached matchesToWin)
-	$: isMatchComplete = team1GamesWon >= $gameSettings.matchesToWin || team2GamesWon >= $gameSettings.matchesToWin;
+	let isMatchComplete = $derived(team1GamesWon >= $gameSettings.matchesToWin || team2GamesWon >= $gameSettings.matchesToWin);
 
 	// Calculate current game score (from rounds)
-	$: currentGameScore = $currentMatch?.rounds.reduce(
+	let currentGameScore = $derived($currentMatch?.rounds.reduce(
 		(acc, round) => ({
 			team1: acc.team1 + round.team1Points,
 			team2: acc.team2 + round.team2Points
 		}),
 		{ team1: 0, team2: 0 }
-	) ?? { team1: 0, team2: 0 };
+	) ?? { team1: 0, team2: 0 });
 
 	// Calculate total 20s for current game
-	$: currentGame20s = $currentMatch?.rounds.reduce(
+	let currentGame20s = $derived($currentMatch?.rounds.reduce(
 		(acc, round) => ({
 			team1: acc.team1 + round.team1Twenty,
 			team2: acc.team2 + round.team2Twenty
 		}),
 		{ team1: 0, team2: 0 }
-	) ?? { team1: 0, team2: 0 };
+	) ?? { team1: 0, team2: 0 });
 
 	// Format date
-	$: matchDate = $currentMatch ? new Date($currentMatch.startTime).toLocaleDateString($gameSettings.language, {
+	let matchDate = $derived($currentMatch ? new Date($currentMatch.startTime).toLocaleDateString($gameSettings.language, {
 		day: '2-digit',
 		month: '2-digit',
 		year: '2-digit'
-	}) : '';
+	}) : '');
 
-	$: matchTime = $currentMatch ? new Date($currentMatch.startTime).toLocaleTimeString($gameSettings.language, {
+	let matchTime = $derived($currentMatch ? new Date($currentMatch.startTime).toLocaleTimeString($gameSettings.language, {
 		hour: '2-digit',
 		minute: '2-digit'
-	}) : '';
+	}) : '');
 
 	// Build complete match configuration badges for current match
-	$: currentMatchConfigBadges = (() => {
+	let currentMatchConfigBadges = $derived((() => {
 		const badges = [];
 
 		// Game type
@@ -143,18 +149,18 @@
 		if ($gameSettings.show20s) badges.push('⭐ 20s');
 
 		return badges;
-	})();
+	})());
 
 	// Calculate actual match duration (uses 'now' to trigger updates)
-	$: matchDurationMs = $currentMatch ? (now - $currentMatch.startTime) : 0;
-	$: durationMinutes = Math.floor(matchDurationMs / 60000);
-	$: durationSeconds = Math.floor((matchDurationMs / 1000) % 60);
-	$: durationText = `${durationMinutes}${$t('minuteShort')} ${durationSeconds}${$t('secondShort')}`;
+	let matchDurationMs = $derived($currentMatch ? (now - $currentMatch.startTime) : 0);
+	let durationMinutes = $derived(Math.floor(matchDurationMs / 60000));
+	let durationSeconds = $derived(Math.floor((matchDurationMs / 1000) % 60));
+	let durationText = $derived(`${durationMinutes}${$t('minuteShort')} ${durationSeconds}${$t('secondShort')}`);
 
 
 	// Get all games including the current in-progress game
-	$: allGames = $currentMatch?.games ?? [];
-	$: hasCurrentGame = $currentMatch?.rounds && $currentMatch.rounds.length > 0;
+	let allGames = $derived($currentMatch?.games ?? []);
+	let hasCurrentGame = $derived($currentMatch?.rounds && $currentMatch.rounds.length > 0);
 
 	// Editing state for current game rounds
 	type EditingField = {
@@ -163,9 +169,9 @@
 		field: 'points' | 'twenty';
 		gameIndex?: number; // undefined = current in-progress game, number = completed game
 	};
-	let editingField: EditingField | null = null;
-	let editInputValue: string = '';
-	let editInputElement: HTMLInputElement | null = null;
+	let editingField = $state<EditingField | null>(null);
+	let editInputValue = $state('');
+	let editInputElement = $state<HTMLInputElement | null>(null);
 
 	function startEditing(roundIndex: number, team: 1 | 2, field: 'points' | 'twenty', currentValue: number) {
 		editingField = { roundIndex, team, field };
@@ -330,8 +336,8 @@
 	}
 
 	// Handle sync confirmation with team selections
-	async function handleSyncConfirm(event: CustomEvent<{ selections: Map<string, 1 | 2 | null> }>) {
-		const selections = event.detail.selections;
+	async function handleSyncConfirm(data: { selections: Map<string, 1 | 2 | null> }) {
+		const selections = data.selections;
 		isSyncing = true;
 
 		try {
@@ -433,31 +439,32 @@
 	}
 </script>
 
-<Modal {isOpen} title={$t('matchHistory')} onClose={onClose}>
-	<svelte:fragment slot="headerActions">
-		{#if $currentUser}
-			<button
-				class="sync-button"
-				on:click={handleSync}
-				disabled={isSyncing}
-				type="button"
-			>
-				{#if isSyncing}
-					<span class="syncing">⟳</span>
-				{:else}
-					<span class="sync-icon">☁️</span>
-				{/if}
-				<span class="sync-text">{$t('syncAll')}</span>
-			</button>
-		{/if}
-	</svelte:fragment>
+{#snippet headerActions()}
+	{#if $currentUser}
+		<button
+			class="sync-button"
+			onclick={handleSync}
+			disabled={isSyncing}
+			type="button"
+		>
+			{#if isSyncing}
+				<span class="syncing">⟳</span>
+			{:else}
+				<span class="sync-icon">☁️</span>
+			{/if}
+			<span class="sync-text">{$t('syncAll')}</span>
+		</button>
+	{/if}
+{/snippet}
+
+<Modal {isOpen} title={$t('matchHistory')} onClose={onClose} {headerActions}>
 	<div class="history-modal">
 		<!-- Tabs Navigation -->
 		<div class="tabs">
 			<button
 				class="tab"
 				class:active={$activeHistoryTab === 'current'}
-				on:click={() => handleTabChange('current')}
+				onclick={() => handleTabChange('current')}
 				type="button"
 			>
 				{$t('currentMatch')}
@@ -465,7 +472,7 @@
 			<button
 				class="tab"
 				class:active={$activeHistoryTab === 'history'}
-				on:click={() => handleTabChange('history')}
+				onclick={() => handleTabChange('history')}
 				type="button"
 			>
 				{$t('matchHistory')}{#if $matchHistory && $matchHistory.length > 0} ({$matchHistory.length}){/if}
@@ -473,7 +480,7 @@
 			<button
 				class="tab"
 				class:active={$activeHistoryTab === 'deleted'}
-				on:click={() => handleTabChange('deleted')}
+				onclick={() => handleTabChange('deleted')}
 				type="button"
 			>
 				{$t('deleted')}{#if $deletedMatches && $deletedMatches.length > 0} ({$deletedMatches.length}){/if}
@@ -577,8 +584,8 @@
 																<input
 																	bind:this={editInputElement}
 																	bind:value={editInputValue}
-																	on:keydown={handleEditKeydown}
-																	on:blur={saveEdit}
+																	onkeydown={handleEditKeydown}
+																	onblur={saveEdit}
 																	type="number"
 																	min="0"
 																	class="edit-input"
@@ -586,7 +593,7 @@
 															{:else}
 																<button
 																	class="editable-value"
-																	on:click={() => startEditingCompletedGame(gameIndex, roundIndex, 1, 'points', round.team1Points)}
+																	onclick={() => startEditingCompletedGame(gameIndex, roundIndex, 1, 'points', round.team1Points)}
 																	type="button"
 																>
 																	{round.team1Points}
@@ -598,8 +605,8 @@
 																<input
 																	bind:this={editInputElement}
 																	bind:value={editInputValue}
-																	on:keydown={handleEditKeydown}
-																	on:blur={saveEdit}
+																	onkeydown={handleEditKeydown}
+																	onblur={saveEdit}
 																	type="number"
 																	min="0"
 																	class="edit-input edit-input-twenty"
@@ -607,7 +614,7 @@
 															{:else}
 																<button
 																	class="twenty-indicator editable-twenty"
-																	on:click={() => startEditingCompletedGame(gameIndex, roundIndex, 1, 'twenty', round.team1Twenty)}
+																	onclick={() => startEditingCompletedGame(gameIndex, roundIndex, 1, 'twenty', round.team1Twenty)}
 																	type="button"
 																>
 																	⭐{round.team1Twenty}
@@ -642,8 +649,8 @@
 																<input
 																	bind:this={editInputElement}
 																	bind:value={editInputValue}
-																	on:keydown={handleEditKeydown}
-																	on:blur={saveEdit}
+																	onkeydown={handleEditKeydown}
+																	onblur={saveEdit}
 																	type="number"
 																	min="0"
 																	class="edit-input"
@@ -651,7 +658,7 @@
 															{:else}
 																<button
 																	class="editable-value"
-																	on:click={() => startEditingCompletedGame(gameIndex, roundIndex, 2, 'points', round.team2Points)}
+																	onclick={() => startEditingCompletedGame(gameIndex, roundIndex, 2, 'points', round.team2Points)}
 																	type="button"
 																>
 																	{round.team2Points}
@@ -663,8 +670,8 @@
 																<input
 																	bind:this={editInputElement}
 																	bind:value={editInputValue}
-																	on:keydown={handleEditKeydown}
-																	on:blur={saveEdit}
+																	onkeydown={handleEditKeydown}
+																	onblur={saveEdit}
 																	type="number"
 																	min="0"
 																	class="edit-input edit-input-twenty"
@@ -672,7 +679,7 @@
 															{:else}
 																<button
 																	class="twenty-indicator editable-twenty"
-																	on:click={() => startEditingCompletedGame(gameIndex, roundIndex, 2, 'twenty', round.team2Twenty)}
+																	onclick={() => startEditingCompletedGame(gameIndex, roundIndex, 2, 'twenty', round.team2Twenty)}
 																	type="button"
 																>
 																	⭐{round.team2Twenty}
@@ -723,8 +730,8 @@
 																<input
 																	bind:this={editInputElement}
 																	bind:value={editInputValue}
-																	on:keydown={handleEditKeydown}
-																	on:blur={saveEdit}
+																	onkeydown={handleEditKeydown}
+																	onblur={saveEdit}
 																	type="number"
 																	min="0"
 																	class="edit-input"
@@ -732,7 +739,7 @@
 															{:else}
 																<button
 																	class="editable-value"
-																	on:click={() => startEditing(roundIndex, 1, 'points', round.team1Points)}
+																	onclick={() => startEditing(roundIndex, 1, 'points', round.team1Points)}
 																	type="button"
 																>
 																	{round.team1Points}
@@ -744,8 +751,8 @@
 																<input
 																	bind:this={editInputElement}
 																	bind:value={editInputValue}
-																	on:keydown={handleEditKeydown}
-																	on:blur={saveEdit}
+																	onkeydown={handleEditKeydown}
+																	onblur={saveEdit}
 																	type="number"
 																	min="0"
 																	class="edit-input edit-input-twenty"
@@ -753,7 +760,7 @@
 															{:else}
 																<button
 																	class="twenty-indicator editable-twenty"
-																	on:click={() => startEditing(roundIndex, 1, 'twenty', round.team1Twenty)}
+																	onclick={() => startEditing(roundIndex, 1, 'twenty', round.team1Twenty)}
 																	type="button"
 																>
 																	⭐{round.team1Twenty}
@@ -785,8 +792,8 @@
 																<input
 																	bind:this={editInputElement}
 																	bind:value={editInputValue}
-																	on:keydown={handleEditKeydown}
-																	on:blur={saveEdit}
+																	onkeydown={handleEditKeydown}
+																	onblur={saveEdit}
 																	type="number"
 																	min="0"
 																	class="edit-input"
@@ -794,7 +801,7 @@
 															{:else}
 																<button
 																	class="editable-value"
-																	on:click={() => startEditing(roundIndex, 2, 'points', round.team2Points)}
+																	onclick={() => startEditing(roundIndex, 2, 'points', round.team2Points)}
 																	type="button"
 																>
 																	{round.team2Points}
@@ -806,8 +813,8 @@
 																<input
 																	bind:this={editInputElement}
 																	bind:value={editInputValue}
-																	on:keydown={handleEditKeydown}
-																	on:blur={saveEdit}
+																	onkeydown={handleEditKeydown}
+																	onblur={saveEdit}
 																	type="number"
 																	min="0"
 																	class="edit-input edit-input-twenty"
@@ -815,7 +822,7 @@
 															{:else}
 																<button
 																	class="twenty-indicator editable-twenty"
-																	on:click={() => startEditing(roundIndex, 2, 'twenty', round.team2Twenty)}
+																	onclick={() => startEditing(roundIndex, 2, 'twenty', round.team2Twenty)}
 																	type="button"
 																>
 																	⭐{round.team2Twenty}
@@ -866,7 +873,7 @@
 				<div class="deleted-tab">
 					{#if $deletedMatches.length > 0}
 						<div class="deleted-actions">
-							<Button variant="danger" size="small" on:click={handleClearDeleted}>
+							<Button variant="danger" size="small" onclick={handleClearDeleted}>
 								{$t('permanentDelete')}
 							</Button>
 						</div>
@@ -894,8 +901,8 @@
 <SyncConfirmModal
 	isOpen={showSyncConfirm}
 	matches={matchesToSync}
-	on:confirm={handleSyncConfirm}
-	on:close={() => showSyncConfirm = false}
+	onconfirm={handleSyncConfirm}
+	onclose={() => showSyncConfirm = false}
 />
 
 <!-- Toast Notification -->

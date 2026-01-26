@@ -1,27 +1,39 @@
 <script lang="ts">
-	export let message: string = '';
-	export let visible: boolean = false;
-	export let duration: number = 3000;
-	export let type: 'success' | 'error' | 'info' | 'warning' = 'info';
-	export let onClose: () => void = () => {};
+	interface Props {
+		message?: string;
+		visible?: boolean;
+		duration?: number;
+		type?: 'success' | 'error' | 'info' | 'warning';
+		onClose?: () => void;
+	}
+
+	let {
+		message = '',
+		visible = $bindable(false),
+		duration = 3000,
+		type = 'info',
+		onClose = () => {}
+	}: Props = $props();
 
 	let timeoutId: ReturnType<typeof setTimeout> | null = null;
-	let isExiting = false;
+	let isExiting = $state(false);
 
-	$: if (visible) {
-		isExiting = false;
-		if (timeoutId) {
-			clearTimeout(timeoutId);
+	$effect(() => {
+		if (visible) {
+			isExiting = false;
+			if (timeoutId) {
+				clearTimeout(timeoutId);
+			}
+			timeoutId = setTimeout(() => {
+				isExiting = true;
+				setTimeout(() => {
+					visible = false;
+					isExiting = false;
+					onClose();
+				}, 200);
+			}, duration);
 		}
-		timeoutId = setTimeout(() => {
-			isExiting = true;
-			setTimeout(() => {
-				visible = false;
-				isExiting = false;
-				onClose();
-			}, 200);
-		}, duration);
-	}
+	});
 
 	function handleDismiss() {
 		if (timeoutId) {
@@ -59,7 +71,7 @@
 			<span class="toast-message">{message}</span>
 			<button
 				class="toast-close"
-				on:click={handleDismiss}
+				onclick={handleDismiss}
 				aria-label="Cerrar notificación"
 			>
 				<svg width="12" height="12" viewBox="0 0 14 14" fill="none">

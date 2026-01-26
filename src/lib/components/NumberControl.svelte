@@ -1,36 +1,47 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
+	interface Props {
+		value?: number;
+		min?: number;
+		max?: number;
+		step?: number;
+		label?: string;
+		disabled?: boolean;
+		onchange?: (value: number) => void;
+	}
 
-	export let value: number = 0;
-	export let min: number = 0;
-	export let max: number = 100;
-	export let step: number = 1;
-	export let label: string = '';
-	export let disabled: boolean = false;
+	let {
+		value = $bindable(0),
+		min = 0,
+		max = 100,
+		step = 1,
+		label = '',
+		disabled = false,
+		onchange
+	}: Props = $props();
 
-	const dispatch = createEventDispatcher<{ change: number }>();
-
-	function increment() {
+	function increment(e: MouseEvent) {
+		e.stopPropagation();
 		if (disabled) return;
 		const newValue = Math.min(value + step, max);
 		if (newValue !== value) {
 			value = newValue;
-			dispatch('change', value);
+			onchange?.(value);
 		}
 	}
 
-	function decrement() {
+	function decrement(e: MouseEvent) {
+		e.stopPropagation();
 		if (disabled) return;
 		const newValue = Math.max(value - step, min);
 		if (newValue !== value) {
 			value = newValue;
-			dispatch('change', value);
+			onchange?.(value);
 		}
 	}
 
-	// Reactive statements for button states
-	$: canIncrement = value < max && !disabled;
-	$: canDecrement = value > min && !disabled;
+	// Derived values for button states
+	let canIncrement = $derived(value < max && !disabled);
+	let canDecrement = $derived(value > min && !disabled);
 </script>
 
 <div class="number-control">
@@ -40,7 +51,7 @@
 	<div class="controls">
 		<button
 			class="control-btn"
-			on:click|stopPropagation={decrement}
+			onclick={decrement}
 			disabled={!canDecrement}
 			aria-label="Decrease"
 			type="button"
@@ -50,7 +61,7 @@
 		<span class="value">{value}</span>
 		<button
 			class="control-btn"
-			on:click|stopPropagation={increment}
+			onclick={increment}
 			disabled={!canIncrement}
 			aria-label="Increase"
 			type="button"

@@ -2,10 +2,6 @@
   import { t } from '$lib/stores/language';
   import { adminTheme } from '$lib/stores/theme';
   import { savingParticipantResults } from '$lib/stores/tournament';
-
-  $: if ($savingParticipantResults) {
-    console.log('🔄 SavingOverlay: showing overlay');
-  }
 </script>
 
 {#if $savingParticipantResults}

@@ -1,19 +1,22 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 	import { t } from '$lib/stores/language';
 	import { gameTournamentContext, clearTournamentContext } from '$lib/stores/tournamentContext';
 	import { abandonTournamentMatch } from '$lib/firebase/tournamentMatches';
 	import Button from './Button.svelte';
 
-	const dispatch = createEventDispatcher();
+	interface Props {
+		onexit?: (data: { action: 'pause' | 'abandon' }) => void;
+	}
 
-	let showExitDialog = false;
-	let isExiting = false;
+	let { onexit }: Props = $props();
 
-	$: context = $gameTournamentContext;
-	$: phaseText = context?.phase === 'GROUP'
+	let showExitDialog = $state(false);
+	let isExiting = $state(false);
+
+	let context = $derived($gameTournamentContext);
+	let phaseText = $derived(context?.phase === 'GROUP'
 		? ($t('groupStage') || 'Fase de Grupos')
-		: (context?.bracketRoundName || 'Bracket');
+		: (context?.bracketRoundName || 'Bracket'));
 
 	function handleExitClick() {
 		showExitDialog = true;
@@ -27,7 +30,7 @@
 		// Keep IN_PROGRESS in Firebase, save local progress
 		showExitDialog = false;
 		clearTournamentContext();
-		dispatch('exit', { action: 'pause' });
+		onexit?.({ action: 'pause' });
 	}
 
 	async function abandonMatch() {
@@ -46,7 +49,7 @@
 
 			showExitDialog = false;
 			clearTournamentContext();
-			dispatch('exit', { action: 'abandon' });
+			onexit?.({ action: 'abandon' });
 		} catch (error) {
 			console.error('Error abandoning match:', error);
 		} finally {
@@ -67,20 +70,22 @@
 			</div>
 		</div>
 
-		<button class="exit-btn" on:click={handleExitClick} title={$t('exitTournamentMode') || 'Salir del modo torneo'}>
+		<button class="exit-btn" onclick={handleExitClick} title={$t('exitTournamentMode') || 'Salir del modo torneo'}>
 			<span class="exit-icon">X</span>
 		</button>
 	</div>
 
 	<!-- Exit Confirmation Dialog -->
 	{#if showExitDialog}
-		<div class="dialog-overlay" on:click={cancelExit} on:keydown={(e) => e.key === 'Escape' && cancelExit()} role="button" tabindex="-1">
-			<div class="dialog" on:click|stopPropagation on:keydown|stopPropagation role="dialog">
+		<div class="dialog-overlay" onclick={cancelExit} onkeydown={(e) => e.key === 'Escape' && cancelExit()} role="button" tabindex="-1">
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="dialog" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog">
 				<h3 class="dialog-title">{$t('exitTournamentMode') || 'Salir del Modo Torneo'}</h3>
 				<p class="dialog-message">{$t('exitTournamentMessage') || '¿Que quieres hacer con este partido?'}</p>
 
 				<div class="dialog-options">
-					<button class="option-btn pause" on:click={pauseMatch} disabled={isExiting}>
+					<button class="option-btn pause" onclick={pauseMatch} disabled={isExiting}>
 						<span class="option-icon">II</span>
 						<div class="option-text">
 							<span class="option-title">{$t('pauseMatch') || 'Pausar partido'}</span>
@@ -88,7 +93,7 @@
 						</div>
 					</button>
 
-					<button class="option-btn abandon" on:click={abandonMatch} disabled={isExiting}>
+					<button class="option-btn abandon" onclick={abandonMatch} disabled={isExiting}>
 						<span class="option-icon">!</span>
 						<div class="option-text">
 							<span class="option-title">{$t('abandonMatch') || 'Abandonar partido'}</span>
@@ -97,7 +102,7 @@
 					</button>
 				</div>
 
-				<Button variant="secondary" fullWidth on:click={cancelExit} disabled={isExiting}>
+				<Button variant="secondary" fullWidth onclick={cancelExit} disabled={isExiting}>
 					{$t('cancel') || 'Cancelar'}
 				</Button>
 			</div>

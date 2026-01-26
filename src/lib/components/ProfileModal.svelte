@@ -1,22 +1,27 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
-	import { createEventDispatcher, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { getUserProfile } from '$lib/firebase/userProfile';
 
-	export let isOpen: boolean = false;
-	export let user: any = null;
+	interface Props {
+		isOpen?: boolean;
+		user?: any;
+		onclose?: () => void;
+		onupdate?: (data: { playerName: string }) => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let { isOpen = $bindable(false), user = null, onclose, onupdate }: Props = $props();
 
-	let playerNameInput = '';
-	let rankingPoints = 0;
-	let isLoading = false;
+	let playerNameInput = $state('');
+	let rankingPoints = $state(0);
+	let isLoading = $state(false);
 
 	// Load player data from Firestore when modal opens
-	$: if (isOpen && user) {
-		loadPlayerData();
-	}
+	$effect(() => {
+		if (isOpen && user) {
+			loadPlayerData();
+		}
+	});
 
 	async function loadPlayerData() {
 		isLoading = true;
@@ -35,12 +40,12 @@
 
 	function close() {
 		isOpen = false;
-		dispatch('close');
+		onclose?.();
 	}
 
 	function updateProfile() {
 		if (playerNameInput.trim()) {
-			dispatch('update', { playerName: playerNameInput.trim() });
+			onupdate?.({ playerName: playerNameInput.trim() });
 		}
 	}
 
@@ -56,15 +61,19 @@
 			updateProfile();
 		}
 	}
+
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
+	}
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={close} role="button" tabindex="-1">
-		<div class="modal" on:click|stopPropagation role="dialog">
+	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
+		<div class="modal" onclick={stopPropagation} role="dialog">
 			<!-- Close button -->
-			<button class="close-btn" on:click={close} aria-label="Close">
+			<button class="close-btn" onclick={close} aria-label="Close">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<line x1="18" y1="6" x2="6" y2="18"/>
 					<line x1="6" y1="6" x2="18" y2="18"/>
@@ -92,7 +101,7 @@
 						<span class="info-label">{$t('email')}</span>
 						<span class="info-value">{user.email || '-'}</span>
 					</div>
-					<button class="info-item ranking-link" on:click={goToRankings}>
+					<button class="info-item ranking-link" onclick={goToRankings}>
 						<span class="info-label">{$t('rankingPoints2026')}</span>
 						<span class="info-value ranking">
 							<span class="ranking-badge">{rankingPoints}</span>
@@ -124,8 +133,8 @@
 
 				<!-- Actions -->
 				<div class="actions">
-					<button class="btn-cancel" on:click={close}>{$t('cancel')}</button>
-					<button class="btn-save" on:click={updateProfile} disabled={!playerNameInput.trim()}>
+					<button class="btn-cancel" onclick={close}>{$t('cancel')}</button>
+					<button class="btn-save" onclick={updateProfile} disabled={!playerNameInput.trim()}>
 						{$t('save')}
 					</button>
 				</div>

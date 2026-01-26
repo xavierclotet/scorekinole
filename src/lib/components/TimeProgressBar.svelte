@@ -1,37 +1,45 @@
 <script lang="ts">
-  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import { t } from '$lib/stores/language';
 
-  export let percentComplete: number = 0;
-  export let remainingMinutes: number | null = null;
-  export let showEstimatedEnd: boolean = false;
-  export let compact: boolean = false;
-  export let clickable: boolean = false;
+  interface Props {
+    percentComplete?: number;
+    remainingMinutes?: number | null;
+    showEstimatedEnd?: boolean;
+    compact?: boolean;
+    clickable?: boolean;
+    onclick?: () => void;
+  }
 
-  const dispatch = createEventDispatcher();
+  let {
+    percentComplete = 0,
+    remainingMinutes = null,
+    showEstimatedEnd = false,
+    compact = false,
+    clickable = false,
+    onclick
+  }: Props = $props();
 
   // Reactive current time that updates every minute
-  let now = Date.now();
-  let interval: ReturnType<typeof setInterval>;
+  let now = $state(Date.now());
 
-  onMount(() => {
-    interval = setInterval(() => {
+  $effect(() => {
+    const interval = setInterval(() => {
       now = Date.now();
     }, 60000); // Update every minute
-  });
 
-  onDestroy(() => {
-    if (interval) clearInterval(interval);
+    return () => clearInterval(interval);
   });
 
   // ETA calculated reactively based on current time + remaining minutes
-  $: estimatedEndTime = remainingMinutes !== null
-    ? new Date(now + remainingMinutes * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : null;
+  let estimatedEndTime = $derived(
+    remainingMinutes !== null
+      ? new Date(now + remainingMinutes * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : null
+  );
 
   // Use white text with strong dark outline for visibility on any background
-  $: textColor = 'white';
-  $: textShadow = '0 0 4px rgba(0,0,0,1), 0 0 4px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 1px 1px 2px rgba(0,0,0,1)';
+  const textColor = 'white';
+  const textShadow = '0 0 4px rgba(0,0,0,1), 0 0 4px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9), 1px 1px 2px rgba(0,0,0,1)';
 
   function formatRemainingTime(minutes: number): string {
     if (minutes < 60) {
@@ -44,7 +52,7 @@
 
   function handleClick() {
     if (clickable) {
-      dispatch('click');
+      onclick?.();
     }
   }
 </script>
@@ -53,8 +61,8 @@
   class="time-progress"
   class:compact
   class:clickable
-  on:click={handleClick}
-  on:keydown={(e) => e.key === 'Enter' && handleClick()}
+  onclick={handleClick}
+  onkeydown={(e) => e.key === 'Enter' && handleClick()}
   role={clickable ? 'button' : undefined}
   tabindex={clickable ? 0 : undefined}
 >

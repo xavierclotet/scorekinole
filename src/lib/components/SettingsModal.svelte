@@ -9,12 +9,16 @@
 	import type { Language } from '$lib/i18n/translations';
 	import type { GameSettings } from '$lib/types/settings';
 
-	export let isOpen: boolean = false;
-	export let onClose: () => void = () => {};
+	interface Props {
+		isOpen?: boolean;
+		onClose?: () => void;
+	}
+
+	let { isOpen = false, onClose = () => {} }: Props = $props();
 
 	// Tournament mode detection
-	$: inTournamentMode = !!$gameTournamentContext;
-	$: tournamentName = $gameTournamentContext?.tournamentName || '';
+	let inTournamentMode = $derived(!!$gameTournamentContext);
+	let tournamentName = $derived($gameTournamentContext?.tournamentName || '');
 
 	// Auto-save: directly update the store on every change
 	function handleLanguageChange(lang: Language) {
@@ -77,7 +81,7 @@
 					<button
 						class="mode-button"
 						class:active={$gameSettings.gameType === 'singles'}
-						on:click={() => !inTournamentMode && handleGameTypeChange('singles')}
+						onclick={() => !inTournamentMode && handleGameTypeChange('singles')}
 						type="button"
 						disabled={inTournamentMode}
 					>
@@ -86,7 +90,7 @@
 					<button
 						class="mode-button"
 						class:active={$gameSettings.gameType === 'doubles'}
-						on:click={() => !inTournamentMode && handleGameTypeChange('doubles')}
+						onclick={() => !inTournamentMode && handleGameTypeChange('doubles')}
 						type="button"
 						disabled={inTournamentMode}
 					>
@@ -102,7 +106,7 @@
 					<button
 						class="mode-button"
 						class:active={$gameSettings.gameMode === 'points'}
-						on:click={() => !inTournamentMode && handleGameModeChange('points')}
+						onclick={() => !inTournamentMode && handleGameModeChange('points')}
 						type="button"
 						disabled={inTournamentMode}
 					>
@@ -111,7 +115,7 @@
 					<button
 						class="mode-button"
 						class:active={$gameSettings.gameMode === 'rounds'}
-						on:click={() => !inTournamentMode && handleGameModeChange('rounds')}
+						onclick={() => !inTournamentMode && handleGameModeChange('rounds')}
 						type="button"
 						disabled={inTournamentMode}
 					>
@@ -127,7 +131,7 @@
 				{#if $gameSettings.gameMode === 'points'}
 					<NumberControl
 						value={$gameSettings.pointsToWin}
-						on:change={(e) => !inTournamentMode && handleNumberChange('pointsToWin', e.detail)}
+						onchange={(value) => !inTournamentMode && handleNumberChange('pointsToWin', value)}
 						min={1}
 						max={200}
 						step={1}
@@ -136,7 +140,7 @@
 					/>
 					<NumberControl
 						value={$gameSettings.matchesToWin}
-						on:change={(e) => !inTournamentMode && handleNumberChange('matchesToWin', e.detail)}
+						onchange={(value) => !inTournamentMode && handleNumberChange('matchesToWin', value)}
 						min={1}
 						max={10}
 						step={1}
@@ -146,7 +150,7 @@
 				{:else}
 					<NumberControl
 						value={$gameSettings.roundsToPlay}
-						on:change={(e) => !inTournamentMode && handleNumberChange('roundsToPlay', e.detail)}
+						onchange={(value) => !inTournamentMode && handleNumberChange('roundsToPlay', value)}
 						min={1}
 						max={20}
 						step={1}
@@ -161,19 +165,19 @@
 		<section class="settings-section" class:disabled={inTournamentMode}>
 			<h3>{$t('features')}</h3>
 			<div class="toggle-grid">
-				<label class="toggle-item" class:disabled={inTournamentMode} on:click|preventDefault={() => !inTournamentMode && handleToggle('show20s')}>
+				<label class="toggle-item" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('show20s'); }}>
 					<span class="toggle-label">{$t('track20s')}</span>
 					<input type="checkbox" checked={$gameSettings.show20s} readonly disabled={inTournamentMode} />
 					<span class="toggle-switch"></span>
 				</label>
 
-				<label class="toggle-item" class:disabled={inTournamentMode} on:click|preventDefault={() => !inTournamentMode && handleToggle('showHammer')}>
+				<label class="toggle-item" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('showHammer'); }}>
 					<span class="toggle-label">{$t('hammer')}</span>
 					<input type="checkbox" checked={$gameSettings.showHammer} readonly disabled={inTournamentMode} />
 					<span class="toggle-switch"></span>
 				</label>
 
-				<label class="toggle-item" on:click|preventDefault={() => handleToggle('showTimer')}>
+				<label class="toggle-item" onclick={(e) => { e.preventDefault(); handleToggle('showTimer'); }}>
 					<span class="toggle-label">{$t('showTimer')}</span>
 					<input type="checkbox" checked={$gameSettings.showTimer} readonly />
 					<span class="toggle-switch"></span>
@@ -188,7 +192,7 @@
 				<div class="timer-controls">
 					<NumberControl
 						value={$gameSettings.timerMinutes}
-						on:change={(e) => handleNumberChange('timerMinutes', e.detail)}
+						onchange={(value) => handleNumberChange('timerMinutes', value)}
 						min={0}
 						max={60}
 						step={1}
@@ -196,7 +200,7 @@
 					/>
 					<NumberControl
 						value={$gameSettings.timerSeconds}
-						on:change={(e) => handleNumberChange('timerSeconds', e.detail)}
+						onchange={(value) => handleNumberChange('timerSeconds', value)}
 						min={0}
 						max={45}
 						step={15}
@@ -210,11 +214,11 @@
 		<section class="settings-section advanced-section">
 			<h3>{$t('actions')}</h3>
 			<div class="action-buttons">
-				<button class="action-button" on:click={handleSwitchSides} type="button">
+				<button class="action-button" onclick={handleSwitchSides} type="button">
 					<span class="icon">⇄</span>
 					<span>{$t('switchSides')}</span>
 				</button>
-				<button class="action-button" on:click={handleSwitchColors} type="button">
+				<button class="action-button" onclick={handleSwitchColors} type="button">
 					<span class="icon">🎨</span>
 					<span>{$t('switchColors')}</span>
 				</button>
@@ -228,7 +232,7 @@
 				<button
 					class="mode-button"
 					class:active={$gameSettings.language === 'es'}
-					on:click={() => handleLanguageChange('es')}
+					onclick={() => handleLanguageChange('es')}
 					type="button"
 				>
 					Español
@@ -236,7 +240,7 @@
 				<button
 					class="mode-button"
 					class:active={$gameSettings.language === 'ca'}
-					on:click={() => handleLanguageChange('ca')}
+					onclick={() => handleLanguageChange('ca')}
 					type="button"
 				>
 					Català
@@ -244,7 +248,7 @@
 				<button
 					class="mode-button"
 					class:active={$gameSettings.language === 'en'}
-					on:click={() => handleLanguageChange('en')}
+					onclick={() => handleLanguageChange('en')}
 					type="button"
 				>
 					English

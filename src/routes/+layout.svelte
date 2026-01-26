@@ -20,8 +20,7 @@
 		initAuthListener();
 	});
 
-	async function handleProfileComplete(event: CustomEvent<string>) {
-		const playerName = event.detail;
+	async function handleProfileComplete(playerName: string) {
 		try {
 			const result = await saveUserProfile(playerName);
 			if (result) {
@@ -40,5 +39,5 @@
 
 <CompleteProfileModal
 	isOpen={$needsProfileSetup}
-	on:save={handleProfileComplete}
+	onsave={handleProfileComplete}
 />

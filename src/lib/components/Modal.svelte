@@ -1,7 +1,21 @@
 <script lang="ts">
-	export let isOpen: boolean = false;
-	export let title: string = '';
-	export let onClose: () => void = () => {};
+	import type { Snippet } from 'svelte';
+
+	interface Props {
+		isOpen?: boolean;
+		title?: string;
+		onClose?: () => void;
+		headerActions?: Snippet;
+		children?: Snippet;
+	}
+
+	let {
+		isOpen = false,
+		title = '',
+		onClose = () => {},
+		headerActions,
+		children
+	}: Props = $props();
 
 	function handleOverlayClick() {
 		onClose();
@@ -12,22 +26,26 @@
 			onClose();
 		}
 	}
+
+	function stopPropagation(event: Event) {
+		event.stopPropagation();
+	}
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
 	<div
 		class="modal-overlay"
-		on:click={handleOverlayClick}
-		on:keydown={handleKeydown}
+		onclick={handleOverlayClick}
+		onkeydown={handleKeydown}
 		role="button"
 		tabindex="-1"
 	>
 		<div
 			class="modal-content"
-			on:click|stopPropagation
-			on:keydown|stopPropagation
+			onclick={stopPropagation}
+			onkeydown={stopPropagation}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="modal-title"
@@ -38,12 +56,12 @@
 				{/if}
 
 				<div class="header-actions">
-					{#if $$slots.headerActions}
-						<slot name="headerActions" />
+					{#if headerActions}
+						{@render headerActions()}
 					{/if}
 					<button
 						class="close-btn"
-						on:click={onClose}
+						onclick={onClose}
 						aria-label="Close"
 						type="button"
 					>
@@ -53,7 +71,7 @@
 			</div>
 
 			<div class="modal-body">
-				<slot />
+				{@render children?.()}
 			</div>
 		</div>
 	</div>

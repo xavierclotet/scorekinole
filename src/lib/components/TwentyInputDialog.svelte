@@ -2,29 +2,33 @@
 	import { team1, team2 } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { t } from '$lib/stores/language';
-	import { createEventDispatcher } from 'svelte';
 
-	export let isOpen: boolean = false;
+	interface Props {
+		isOpen?: boolean;
+		onclose?: () => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let { isOpen = $bindable(false), onclose }: Props = $props();
 
-	$: team1Name = $team1.name || 'Team 1';
-	$: team2Name = $team2.name || 'Team 2';
+	let team1Name = $derived($team1.name || 'Team 1');
+	let team2Name = $derived($team2.name || 'Team 2');
 
 	// Calculator buttons: max depends on game type
 	// Singles: 0-8 (8 discs per player)
 	// Doubles: 0-12 (6 discs per player × 2 players)
-	$: maxTwenty = $gameSettings.gameType === 'singles' ? 8 : 12;
-	$: numbers = Array.from({ length: maxTwenty + 1 }, (_, i) => i);
+	let maxTwenty = $derived($gameSettings.gameType === 'singles' ? 8 : 12);
+	let numbers = $derived(Array.from({ length: maxTwenty + 1 }, (_, i) => i));
 
-	let team1Twenty: number | null = null;
-	let team2Twenty: number | null = null;
+	let team1Twenty = $state<number | null>(null);
+	let team2Twenty = $state<number | null>(null);
 
 	// Reset values when dialog opens
-	$: if (isOpen) {
-		team1Twenty = null;
-		team2Twenty = null;
-	}
+	$effect(() => {
+		if (isOpen) {
+			team1Twenty = null;
+			team2Twenty = null;
+		}
+	});
 
 	// Calculate if a color is dark (returns true if dark)
 	function isDarkColor(hexColor: string): boolean {
@@ -50,21 +54,21 @@
 
 	// Color for selected buttons (solid background with team color)
 	// Use white text if team color is dark, black if light
-	$: team1SelectedTextColor = isDarkColor($team1.color) ? '#ffffff' : '#000000';
-	$: team2SelectedTextColor = isDarkColor($team2.color) ? '#ffffff' : '#000000';
+	let team1SelectedTextColor = $derived(isDarkColor($team1.color) ? '#ffffff' : '#000000');
+	let team2SelectedTextColor = $derived(isDarkColor($team2.color) ? '#ffffff' : '#000000');
 
 	// Color for unselected buttons (transparent background over dark modal)
 	// Use white if team color is dark (would be invisible), otherwise use team color
-	$: team1UnselectedTextColor = getColorForDarkBackground($team1.color);
-	$: team2UnselectedTextColor = getColorForDarkBackground($team2.color);
+	let team1UnselectedTextColor = $derived(getColorForDarkBackground($team1.color));
+	let team2UnselectedTextColor = $derived(getColorForDarkBackground($team2.color));
 
 	// Border color: use white if team color is dark, otherwise use team color
-	$: team1BorderColor = getColorForDarkBackground($team1.color);
-	$: team2BorderColor = getColorForDarkBackground($team2.color);
+	let team1BorderColor = $derived(getColorForDarkBackground($team1.color));
+	let team2BorderColor = $derived(getColorForDarkBackground($team2.color));
 
 	// Team header name color: use white if team color is dark, otherwise use team color
-	$: team1HeaderColor = getColorForDarkBackground($team1.color);
-	$: team2HeaderColor = getColorForDarkBackground($team2.color);
+	let team1HeaderColor = $derived(getColorForDarkBackground($team1.color));
+	let team2HeaderColor = $derived(getColorForDarkBackground($team2.color));
 
 	function selectTeam1Twenty(count: number) {
 		team1Twenty = count;
@@ -100,17 +104,21 @@
 		team1Twenty = null;
 		team2Twenty = null;
 		isOpen = false;
-		dispatch('close');
+		onclose?.();
+	}
+
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
 	}
 </script>
 
 {#if isOpen}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="overlay">
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="dialog" on:click|stopPropagation>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="dialog" onclick={stopPropagation}>
 			<p class="title">{$t('twentyDialogTitle')}</p>
 			<div class="teams">
 				<div class="team-column">
@@ -121,7 +129,7 @@
 								class="num-btn"
 								class:selected={team1Twenty === num}
 								style="--team-color: {$team1.color}; --text-selected: {team1SelectedTextColor}; --text-unselected: {team1UnselectedTextColor}; --border-color: {team1BorderColor};"
-								on:click={() => selectTeam1Twenty(num)}
+								onclick={() => selectTeam1Twenty(num)}
 							>
 								{num}
 							</button>
@@ -137,7 +145,7 @@
 								class="num-btn"
 								class:selected={team2Twenty === num}
 								style="--team-color: {$team2.color}; --text-selected: {team2SelectedTextColor}; --text-unselected: {team2UnselectedTextColor}; --border-color: {team2BorderColor};"
-								on:click={() => selectTeam2Twenty(num)}
+								onclick={() => selectTeam2Twenty(num)}
 							>
 								{num}
 							</button>

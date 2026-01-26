@@ -32,30 +32,30 @@
 		abandonMatch as abandonTournamentMatchSync
 	} from '$lib/firebase/tournamentSync';
 
-	let showSettings = false;
-	let showHistory = false;
-	let showColorPicker = false;
-	let colorPickerTeam: 1 | 2 = 1;
-	let showHammerDialog = false;
-	let showNewMatchConfirm = false;
-	let showTournamentModal = false;
-	let showTournamentExitConfirm = false;
-	let showTournamentResetConfirm = false;
-	let isResettingTournament = false;
+	let showSettings = $state(false);
+	let showHistory = $state(false);
+	let showColorPicker = $state(false);
+	let colorPickerTeam = $state<1 | 2>(1);
+	let showHammerDialog = $state(false);
+	let showNewMatchConfirm = $state(false);
+	let showTournamentModal = $state(false);
+	let showTournamentExitConfirm = $state(false);
+	let showTournamentResetConfirm = $state(false);
+	let isResettingTournament = $state(false);
 
 	// Tournament mode state
-	$: inTournamentMode = !!$gameTournamentContext;
+	let inTournamentMode = $derived(!!$gameTournamentContext);
 
 	// Effective settings: use tournament config when in tournament mode, otherwise gameSettings
-	$: effectiveShowHammer = inTournamentMode
+	let effectiveShowHammer = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
-		: $gameSettings.showHammer;
-	$: effectiveShow20s = inTournamentMode
+		: $gameSettings.showHammer);
+	let effectiveShow20s = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.show20s ?? $gameSettings.show20s
-		: $gameSettings.show20s;
+		: $gameSettings.show20s);
 
 	// Tournament match format string (e.g., "4R", "7p", "7p Bo3")
-	$: tournamentMatchFormat = (() => {
+	let tournamentMatchFormat = $derived((() => {
 		if (!$gameTournamentContext) return '';
 		const config = $gameTournamentContext.gameConfig;
 		if (config.gameMode === 'rounds') {
@@ -68,27 +68,27 @@
 			}
 			return `${points}p`;
 		}
-	})();
+	})());
 
 	// Track if tournament match completion has been sent
-	let tournamentMatchCompletedSent = false;
+	let tournamentMatchCompletedSent = $state(false);
 
 	// References to TeamCard components to call their methods
 	let teamCard1: any;
 	let teamCard2: any;
 
 	// Round completion data stored temporarily while 20s dialog is shown
-	let pendingRoundData: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number } | null = null;
+	let pendingRoundData = $state<{ winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number } | null>(null);
 
 	// Event info editing state
-	let editingEventTitle = false;
-	let editingMatchPhase = false;
+	let editingEventTitle = $state(false);
+	let editingMatchPhase = $state(false);
 	let eventTitleInput: HTMLInputElement;
 	let matchPhaseInput: HTMLInputElement;
 
 	// Match score indicator - swipe to cycle size
-	let swipeStartX = 0;
-	let swipeStartY = 0;
+	let swipeStartX = $state(0);
+	let swipeStartY = $state(0);
 	const SWIPE_THRESHOLD = 30; // px minimum to trigger swipe
 
 	function handleMatchScoreSwipeStart(e: TouchEvent | MouseEvent) {
@@ -137,52 +137,52 @@
 	}
 
 	// Bind showTwentyDialog to the store
-	$: showTwentyDialog = $twentyDialogPending;
+	let showTwentyDialog = $derived($twentyDialogPending);
 
 	// Calculate wins for each team based on rounds played in current game
-	$: team1Wins = $currentGameRounds.filter(round => round.team1Points > round.team2Points).length;
-	$: team2Wins = $currentGameRounds.filter(round => round.team2Points > round.team1Points).length;
+	let team1Wins = $derived($currentGameRounds.filter(round => round.team1Points > round.team2Points).length);
+	let team2Wins = $derived($currentGameRounds.filter(round => round.team2Points > round.team1Points).length);
 
 	// Calculate games won in the match (for multi-game matches)
 	// Note: currentMatchGames is updated immediately when a game ends (in saveGameAndCheckMatchComplete)
 	// so team1GamesWon/team2GamesWon already include the just-finished game
-	$: team1GamesWon = $currentMatchGames.filter(game => game.winner === 1).length;
-	$: team2GamesWon = $currentMatchGames.filter(game => game.winner === 2).length;
+	let team1GamesWon = $derived($currentMatchGames.filter(game => game.winner === 1).length);
+	let team2GamesWon = $derived($currentMatchGames.filter(game => game.winner === 2).length);
 
 	// Check if match is complete
 	// In rounds mode, match is complete after first game (includes ties)
 	// In points mode, match is complete when someone reaches the required wins
 	// matchesToWin = "best of X" format (e.g., 3 = best of 3, need 2 wins)
-	$: requiredWinsToComplete = Math.ceil($gameSettings.matchesToWin / 2);
-	$: isMatchComplete = $gameSettings.gameMode === 'rounds'
+	let requiredWinsToComplete = $derived(Math.ceil($gameSettings.matchesToWin / 2));
+	let isMatchComplete = $derived($gameSettings.gameMode === 'rounds'
 		? (team1GamesWon >= 1 || team2GamesWon >= 1 || ($currentMatchGames.length > 0 && !$team1.hasWon && !$team2.hasWon))
-		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete);
+		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete));
 
 	// Bracket tiebreaker state - when in bracket mode and tied, we play extra rounds
-	let isInExtraRounds = false;
-	$: isBracketMatch = $gameTournamentContext?.phase === 'FINAL';
+	let isInExtraRounds = $state(false);
+	let isBracketMatch = $derived($gameTournamentContext?.phase === 'FINAL');
 
 	// Handle extra round event from TeamCard (bracket tiebreaker)
-	function handleExtraRound(event: CustomEvent<{ roundNumber: number }>) {
-		console.log('🎯 Extra round triggered:', event.detail);
+	function handleExtraRound({ roundNumber }: { roundNumber: number }) {
+		console.log('🎯 Extra round triggered:', roundNumber);
 		isInExtraRounds = true;
 	}
 
 	// Check if match ended in a tie (rounds mode only)
 	// A tie occurs when the game completed but neither team won (both hasWon = false and game saved)
 	// In bracket mode, we don't show tie - instead extra rounds are played
-	$: isTieMatch = $gameSettings.gameMode === 'rounds' &&
+	let isTieMatch = $derived($gameSettings.gameMode === 'rounds' &&
 		$currentMatchGames.length > 0 &&
 		!$team1.hasWon &&
 		!$team2.hasWon &&
-		!isBracketMatch; // Don't show tie overlay in bracket mode
+		!isBracketMatch); // Don't show tie overlay in bracket mode
 
 	// Show "Next Game" button when someone won the current game AND match is not complete AND it's a multi-game match
 	// Note: We removed the "$currentMatchGames.length > 0" requirement because:
 	// 1. When the first game ends, saveGameAndCheckMatchComplete adds it to currentMatchGames
 	// 2. But on page reload, we don't restore the current completed game to currentMatchGames (to avoid double-counting)
 	// 3. The other conditions are sufficient: hasWon + !isMatchComplete + matchesToWin > 1 + points mode
-	$: showNextGameButton = ($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points';
+	let showNextGameButton = $derived(($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points');
 
 	// Handler for tournament match complete event from TeamCard
 	// This is called BEFORE currentMatch is cleared, ensuring we have all data
@@ -193,8 +193,8 @@
 	}
 
 	// Calculate points for current round in progress (subtract last round's ending points from current total)
-	$: team1CurrentRoundPoints = $team1.points - $lastRoundPoints.team1;
-	$: team2CurrentRoundPoints = $team2.points - $lastRoundPoints.team2;
+	let team1CurrentRoundPoints = $derived($team1.points - $lastRoundPoints.team1);
+	let team2CurrentRoundPoints = $derived($team2.points - $lastRoundPoints.team2);
 
 	onMount(() => {
 		gameSettings.load();
@@ -469,8 +469,7 @@
 	/**
 	 * Handle tournament match started from modal
 	 */
-	function handleTournamentMatchStarted(event: CustomEvent<TournamentMatchContext>) {
-		const context = event.detail;
+	function handleTournamentMatchStarted(context: TournamentMatchContext) {
 		applyTournamentConfig(context);
 
 		// Show hammer dialog only if enabled AND match is starting fresh (no existing rounds)
@@ -810,8 +809,7 @@
 		}
 	}
 
-	function handleRoundComplete(event: CustomEvent<{ winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number }>) {
-		const { winningTeam, team1Points, team2Points } = event.detail;
+	function handleRoundComplete({ winningTeam, team1Points, team2Points }: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number }) {
 
 		// Store the round data temporarily
 		pendingRoundData = { winningTeam, team1Points, team2Points };
@@ -1260,17 +1258,17 @@
 			</div>
 
 			<div class="header-right">
-				<button class="header-btn" on:click={handleSwitchSides} aria-label={$t('switchSides')} title={$t('switchSides')}>
+				<button class="header-btn" onclick={handleSwitchSides} aria-label={$t('switchSides')} title={$t('switchSides')}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/></svg>
 				</button>
-				<button class="header-btn header-btn-danger" on:click={handleTournamentExit} aria-label={$t('exitTournamentMode')} title={$t('exitTournamentMode')}>
+				<button class="header-btn header-btn-danger" onclick={handleTournamentExit} aria-label={$t('exitTournamentMode')} title={$t('exitTournamentMode')}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 				</button>
 			</div>
 		{:else}
 			<!-- Normal mode header - clean minimal design -->
 			<div class="header-left">
-				<button class="header-logo" on:click={handleTitleClick}>
+				<button class="header-logo" onclick={handleTitleClick}>
 					Scorekinole
 					<span class="header-logo-suffix">
 						<span class="header-logo-arena">Arena</span>
@@ -1284,13 +1282,13 @@
 					<input
 						bind:this={eventTitleInput}
 						bind:value={$gameSettings.eventTitle}
-						on:blur={saveEventTitle}
-						on:keydown={handleEventTitleKeydown}
+						onblur={saveEventTitle}
+						onkeydown={handleEventTitleKeydown}
 						class="header-input"
 						placeholder={$t('eventTitle')}
 					/>
 				{:else if $gameSettings.eventTitle && $gameSettings.eventTitle !== 'Scorekinole'}
-					<button class="header-title" on:click={startEditingEventTitle}>
+					<button class="header-title" onclick={startEditingEventTitle}>
 						{$gameSettings.eventTitle}
 					</button>
 				{/if}
@@ -1303,13 +1301,13 @@
 						<input
 							bind:this={matchPhaseInput}
 							bind:value={$gameSettings.matchPhase}
-							on:blur={saveMatchPhase}
-							on:keydown={handleMatchPhaseKeydown}
+							onblur={saveMatchPhase}
+							onkeydown={handleMatchPhaseKeydown}
 							class="header-input header-input-small"
 							placeholder={$t('matchPhase')}
 						/>
 					{:else}
-						<button class="header-phase" on:click={startEditingMatchPhase}>
+						<button class="header-phase" onclick={startEditingMatchPhase}>
 							{$gameSettings.matchPhase}
 						</button>
 					{/if}
@@ -1321,10 +1319,10 @@
 			</div>
 
 			<div class="header-right">
-				<button class="header-btn" on:click={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
+				<button class="header-btn" onclick={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 				</button>
-				<button class="header-btn" on:click={() => showSettings = true} aria-label="Settings" title={$t('settings')}>
+				<button class="header-btn" onclick={() => showSettings = true} aria-label="Settings" title={$t('settings')}>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 				</button>
 			</div>
@@ -1340,10 +1338,10 @@
 			teamNumber={1}
 			isMatchComplete={isMatchComplete}
 			currentGameNumber={$currentMatchGames.length}
-			on:changeColor={() => openColorPicker(1)}
-			on:roundComplete={handleRoundComplete}
-			on:tournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
-			on:extraRound={handleExtraRound}
+			onchangeColor={() => openColorPicker(1)}
+			onroundComplete={handleRoundComplete}
+			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
+			onextraRound={handleExtraRound}
 		/>
 
 		<!-- Tie Overlay - shown between the two cards when match ends in tie -->
@@ -1369,10 +1367,10 @@
 			teamNumber={2}
 			isMatchComplete={isMatchComplete}
 			currentGameNumber={$currentMatchGames.length}
-			on:changeColor={() => openColorPicker(2)}
-			on:roundComplete={handleRoundComplete}
-			on:tournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
-			on:extraRound={handleExtraRound}
+			onchangeColor={() => openColorPicker(2)}
+			onroundComplete={handleRoundComplete}
+			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
+			onextraRound={handleExtraRound}
 		/>
 	</div>
 
@@ -1380,19 +1378,19 @@
 	{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1}
 		<div
 			class="match-score-left match-score-{$gameSettings.matchScoreSize || 'medium'}"
-			on:mousedown={handleMatchScoreSwipeStart}
-			on:mouseup={handleMatchScoreSwipeEnd}
-			on:touchstart={handleMatchScoreSwipeStart}
-			on:touchend={handleMatchScoreSwipeEnd}
+			onmousedown={handleMatchScoreSwipeStart}
+			onmouseup={handleMatchScoreSwipeEnd}
+			ontouchstart={handleMatchScoreSwipeStart}
+			ontouchend={handleMatchScoreSwipeEnd}
 			role="status"
 			aria-label="Match score - swipe to resize"
 		>{team1GamesWon}</div>
 		<div
 			class="match-score-right match-score-{$gameSettings.matchScoreSize || 'medium'}"
-			on:mousedown={handleMatchScoreSwipeStart}
-			on:mouseup={handleMatchScoreSwipeEnd}
-			on:touchstart={handleMatchScoreSwipeStart}
-			on:touchend={handleMatchScoreSwipeEnd}
+			onmousedown={handleMatchScoreSwipeStart}
+			onmouseup={handleMatchScoreSwipeEnd}
+			ontouchstart={handleMatchScoreSwipeStart}
+			ontouchend={handleMatchScoreSwipeEnd}
 			role="status"
 			aria-label="Match score - swipe to resize"
 		>{team2GamesWon}</div>
@@ -1401,7 +1399,7 @@
 	<!-- Next Game Button -->
 	{#if showNextGameButton}
 		<div class="next-game-container">
-			<button class="next-game-button" on:click={handleNextGame}>
+			<button class="next-game-button" onclick={handleNextGame}>
 				{$t('nextGame')}
 			</button>
 		</div>
@@ -1409,14 +1407,14 @@
 
 	<!-- New Match Floating Button - hide in tournament mode -->
 	{#if !inTournamentMode}
-		<button class="floating-button new-match-button" on:click={handleNewMatchClick} aria-label={$t('newMatchButton')} title={$t('newMatchButton')}>
+		<button class="floating-button new-match-button" onclick={handleNewMatchClick} aria-label={$t('newMatchButton')} title={$t('newMatchButton')}>
 			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
 		</button>
 
 		<!-- Tournament Mode Button -->
 		<button
 			class="floating-button tournament-button"
-			on:click={() => showTournamentModal = true}
+			onclick={() => showTournamentModal = true}
 			aria-label={$t('playTournamentMatch') || 'Jugar partido de torneo'}
 			title={$t('playTournamentMatch') || 'Jugar partido de torneo'}
 		>
@@ -1426,7 +1424,7 @@
 		<!-- Tournament Reset Button - only in tournament mode -->
 		<button
 			class="floating-button reset-tournament-button"
-			on:click={handleTournamentResetClick}
+			onclick={handleTournamentResetClick}
 			aria-label={$t('resetMatch') || 'Reiniciar partido'}
 			title={$t('resetMatch') || 'Reiniciar partido'}
 			disabled={isResettingTournament}
@@ -1439,19 +1437,19 @@
 	{#if showNewMatchConfirm}
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="newmatch-overlay" on:click={cancelNewMatch}>
+		<div class="newmatch-overlay" onclick={cancelNewMatch}>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<div class="newmatch-dialog" on:click|stopPropagation>
+			<div class="newmatch-dialog" onclick={(e) => e.stopPropagation()}>
 				<div class="newmatch-icon">
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
 				</div>
 				<p class="newmatch-title">{$t('confirmNewMatch')}</p>
 				<div class="newmatch-buttons">
-					<button class="newmatch-btn cancel" on:click={cancelNewMatch}>
+					<button class="newmatch-btn cancel" onclick={cancelNewMatch}>
 						{$t('cancel')}
 					</button>
-					<button class="newmatch-btn confirm" on:click={confirmNewMatch}>
+					<button class="newmatch-btn confirm" onclick={confirmNewMatch}>
 						{$t('confirm')}
 					</button>
 				</div>
@@ -1464,17 +1462,17 @@
 		{@const hasProgress = $roundsPlayed > 0 || $currentGameRounds.length > 0 || $currentMatchGames.length > 0}
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="exit-overlay" on:click={cancelTournamentExit}>
+		<div class="exit-overlay" onclick={cancelTournamentExit}>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<div class="exit-dialog" on:click|stopPropagation>
+			<div class="exit-dialog" onclick={(e) => e.stopPropagation()}>
 				<p class="exit-title">{$t('exitTournamentMessage') || '¿Qué quieres hacer con este partido?'}</p>
 
 				{#if hasProgress}
 					<div class="exit-actions">
 						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<div class="exit-action pause" on:click={pauseTournamentMatch}>
+						<div class="exit-action pause" onclick={pauseTournamentMatch}>
 							<div class="action-icon">
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
 							</div>
@@ -1485,7 +1483,7 @@
 						</div>
 						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<div class="exit-action abandon" on:click={confirmTournamentExit}>
+						<div class="exit-action abandon" onclick={confirmTournamentExit}>
 							<div class="action-icon">
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
 							</div>
@@ -1500,11 +1498,11 @@
 				{/if}
 
 				<div class="exit-footer">
-					<button class="exit-btn cancel" on:click={cancelTournamentExit}>
+					<button class="exit-btn cancel" onclick={cancelTournamentExit}>
 						{$t('cancel')}
 					</button>
 					{#if !hasProgress}
-						<button class="exit-btn confirm" on:click={confirmTournamentExit}>
+						<button class="exit-btn confirm" onclick={confirmTournamentExit}>
 							{$t('exit') || 'Salir'}
 						</button>
 					{/if}
@@ -1517,20 +1515,20 @@
 	{#if showTournamentResetConfirm}
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="reset-overlay" on:click={cancelTournamentReset}>
+		<div class="reset-overlay" onclick={cancelTournamentReset}>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<div class="reset-dialog" on:click|stopPropagation>
+			<div class="reset-dialog" onclick={(e) => e.stopPropagation()}>
 				<div class="reset-icon">
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
 				</div>
 				<p class="reset-title">{$t('confirmResetMatch') || '¿Reiniciar partido?'}</p>
 				<p class="reset-desc">{$t('resetMatchDesc') || 'Se pondrán todos los puntos, rondas y 20s a 0'}</p>
 				<div class="reset-buttons">
-					<button class="reset-btn cancel" on:click={cancelTournamentReset} disabled={isResettingTournament}>
+					<button class="reset-btn cancel" onclick={cancelTournamentReset} disabled={isResettingTournament}>
 						{$t('cancel')}
 					</button>
-					<button class="reset-btn confirm" on:click={confirmTournamentReset} disabled={isResettingTournament}>
+					<button class="reset-btn confirm" onclick={confirmTournamentReset} disabled={isResettingTournament}>
 						{isResettingTournament ? '...' : ($t('resetMatch') || 'Reiniciar')}
 					</button>
 				</div>
@@ -1542,17 +1540,17 @@
 <SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
 <HistoryModal isOpen={showHistory} onClose={() => showHistory = false} />
 <ColorPickerModal bind:isOpen={showColorPicker} teamNumber={colorPickerTeam} />
-<HammerDialog isOpen={showHammerDialog} on:close={handleHammerSelected} />
+<HammerDialog isOpen={showHammerDialog} onclose={handleHammerSelected} />
 <TwentyInputDialog
 	isOpen={showTwentyDialog}
-	on:close={handleTwentyInputClose}
+	onclose={handleTwentyInputClose}
 />
 
 <!-- Tournament Match Modal -->
 <TournamentMatchModal
 	isOpen={showTournamentModal}
-	on:close={() => showTournamentModal = false}
-	on:matchStarted={handleTournamentMatchStarted}
+	onclose={() => showTournamentModal = false}
+	onmatchstarted={handleTournamentMatchStarted}
 />
 
 

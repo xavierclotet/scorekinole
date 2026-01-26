@@ -1,29 +1,49 @@
 <script lang="ts">
 	import { team1, team2 } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
-	import { createEventDispatcher } from 'svelte';
 	import Button from './Button.svelte';
 
-	export let isOpen: boolean = false;
-	export let roundIndex: number = 0;
-	export let roundData: any = null;
-
-	const dispatch = createEventDispatcher();
-
-	let team1Points = 0;
-	let team2Points = 0;
-	let team1Twenty = 0;
-	let team2Twenty = 0;
-
-	$: if (isOpen && roundData) {
-		team1Points = roundData.team1Points || 0;
-		team2Points = roundData.team2Points || 0;
-		team1Twenty = roundData.team1Twenty || 0;
-		team2Twenty = roundData.team2Twenty || 0;
+	interface RoundData {
+		team1Points?: number;
+		team2Points?: number;
+		team1Twenty?: number;
+		team2Twenty?: number;
 	}
 
+	interface SaveData {
+		roundIndex: number;
+		team1Points: number;
+		team2Points: number;
+		team1Twenty: number;
+		team2Twenty: number;
+	}
+
+	interface Props {
+		isOpen?: boolean;
+		roundIndex?: number;
+		roundData?: RoundData | null;
+		onclose?: () => void;
+		onsave?: (data: SaveData) => void;
+	}
+
+	let { isOpen = $bindable(false), roundIndex = 0, roundData = null, onclose, onsave }: Props = $props();
+
+	let team1Points = $state(0);
+	let team2Points = $state(0);
+	let team1Twenty = $state(0);
+	let team2Twenty = $state(0);
+
+	$effect(() => {
+		if (isOpen && roundData) {
+			team1Points = roundData.team1Points || 0;
+			team2Points = roundData.team2Points || 0;
+			team1Twenty = roundData.team1Twenty || 0;
+			team2Twenty = roundData.team2Twenty || 0;
+		}
+	});
+
 	function save() {
-		dispatch('save', {
+		onsave?.({
 			roundIndex,
 			team1Points,
 			team2Points,
@@ -35,13 +55,17 @@
 
 	function close() {
 		isOpen = false;
-		dispatch('close');
+		onclose?.();
+	}
+
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
 	}
 </script>
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={close} role="button" tabindex="-1">
-		<div class="modal" on:click|stopPropagation role="dialog">
+	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
+		<div class="modal" onclick={stopPropagation} role="dialog">
 			<div class="modal-header">
 				<span class="modal-title">{$t('edit')} {$t('round')} {roundIndex + 1}</span>
 			</div>
@@ -107,10 +131,10 @@
 				</div>
 
 				<div class="actions">
-					<Button variant="secondary" on:click={close}>
+					<Button variant="secondary" onclick={close}>
 						{$t('cancel')}
 					</Button>
-					<Button variant="primary" on:click={save}>
+					<Button variant="primary" onclick={save}>
 						{$t('save')}
 					</Button>
 				</div>

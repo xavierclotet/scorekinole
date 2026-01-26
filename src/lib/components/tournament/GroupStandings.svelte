@@ -2,31 +2,43 @@
   import type { GroupStanding, TournamentParticipant, GroupRankingSystem } from '$lib/types/tournament';
   import { t } from '$lib/stores/language';
 
-  export let standings: GroupStanding[];
-  export let participants: TournamentParticipant[];
-  // showRanking prop kept for backwards compatibility but no longer used
-  // Ranking is now shown only in the final standings
-  export let showRanking: boolean = false;
-  // Whether this is a Swiss system (affects sorting and display)
-  export let isSwiss: boolean = false;
-  // Ranking system: 'WINS' or 'POINTS' (total points scored)
-  // Supports both new rankingSystem and legacy swissRankingSystem prop
-  export let rankingSystem: GroupRankingSystem = 'WINS';
-  // @deprecated - use rankingSystem instead
-  export let swissRankingSystem: GroupRankingSystem = 'WINS';
-  // Whether to enable the mini-league tiebreaker button and modal
-  // Set to false for /groups page, true for /transition page
-  export let enableTiebreaker: boolean = true;
+  interface Props {
+    standings: GroupStanding[];
+    participants: TournamentParticipant[];
+    // showRanking prop kept for backwards compatibility but no longer used
+    // Ranking is now shown only in the final standings
+    showRanking?: boolean;
+    // Whether this is a Swiss system (affects sorting and display)
+    isSwiss?: boolean;
+    // Ranking system: 'WINS' or 'POINTS' (total points scored)
+    // Supports both new rankingSystem and legacy swissRankingSystem prop
+    rankingSystem?: GroupRankingSystem;
+    // @deprecated - use rankingSystem instead
+    swissRankingSystem?: GroupRankingSystem;
+    // Whether to enable the mini-league tiebreaker button and modal
+    // Set to false for /groups page, true for /transition page
+    enableTiebreaker?: boolean;
+  }
+
+  let {
+    standings,
+    participants,
+    showRanking = false,
+    isSwiss = false,
+    rankingSystem = 'WINS',
+    swissRankingSystem = 'WINS',
+    enableTiebreaker = true
+  }: Props = $props();
 
   // Use rankingSystem if provided, fallback to swissRankingSystem for backwards compatibility
-  $: effectiveRankingSystem = rankingSystem || swissRankingSystem || 'WINS';
+  let effectiveRankingSystem = $derived(rankingSystem || swissRankingSystem || 'WINS');
 
   // Create participant map for quick lookup
-  $: participantMap = new Map(participants.map(p => [p.id, p]));
+  let participantMap = $derived(new Map(participants.map(p => [p.id, p])));
 
   // Use pre-calculated positions from tiebreaker algorithm
   // If positions are available, sort by position; otherwise fall back to basic sorting
-  $: sortedStandings = [...standings].sort((a, b) => {
+  let sortedStandings = $derived([...standings].sort((a, b) => {
     // If positions are pre-calculated, use them
     if (a.position !== undefined && b.position !== undefined) {
       return a.position - b.position;
@@ -44,7 +56,7 @@
       if (bPoints !== aPoints) return bPoints - aPoints;
       return b.total20s - a.total20s;
     }
-  });
+  }));
 
   // Get participant name by ID
   function getParticipantName(participantId: string): string {
@@ -64,11 +76,11 @@
   }
 
   // Show Pts column when ranking by WINS
-  $: showPtsColumn = effectiveRankingSystem === 'WINS';
+  let showPtsColumn = $derived(effectiveRankingSystem === 'WINS');
 
   // Group standings by primary value (points/swissPoints) to detect ties
   // This helps show mini-league button even when ties were resolved
-  $: standingsByPrimaryValue = (() => {
+  let standingsByPrimaryValue = $derived((() => {
     const groups = new Map<number, string[]>();
     for (const s of standings) {
       const primaryValue = isSwiss
@@ -80,7 +92,7 @@
       groups.get(primaryValue)!.push(s.participantId);
     }
     return groups;
-  })();
+  })());
 
   // Check if a player is part of a 3+ player tie (same primary value)
   function isPartOfMultiTie(participantId: string): boolean {
@@ -119,13 +131,13 @@
   // ==========================================
   // Mini-league tiebreaker modal
   // ==========================================
-  let showTiebreakerModal = false;
-  let tiebreakerData: Array<{
+  let showTiebreakerModal = $state(false);
+  let tiebreakerData = $state<Array<{
     participantId: string;
     name: string;
     miniPts: number;
     mini20s: number;
-  }> = [];
+  }>>([]);
 
   // Calculate mini-league points for a participant (only matches between tied players)
   function calculateMiniLeaguePoints(standing: GroupStanding, tiedIds: Set<string>): number {
@@ -231,7 +243,7 @@
                 <!-- First player in 3+ tie group - show mini-league button -->
                 <button
                   class="tie-badge"
-                  on:click|stopPropagation={() => openTiebreakerModal(standing)}
+                  onclick={(e: MouseEvent) => { e.stopPropagation(); openTiebreakerModal(standing); }}
                   title="{$t('miniLeagueTiebreaker')}"
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -277,11 +289,14 @@
 
 <!-- Mini-league tiebreaker modal (only shown when enableTiebreaker prop is true) -->
 {#if enableTiebreaker && showTiebreakerModal}
-  <div class="modal-overlay" on:click={closeTiebreakerModal} on:keydown={(e) => e.key === 'Escape' && closeTiebreakerModal()} role="button" tabindex="0">
-    <div class="tiebreaker-modal" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={closeTiebreakerModal} onkeydown={(e) => e.key === 'Escape' && closeTiebreakerModal()} role="button" tabindex="0">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="tiebreaker-modal" onclick={(e: MouseEvent) => e.stopPropagation()} onkeydown={(e: KeyboardEvent) => e.stopPropagation()} role="dialog" aria-modal="true">
       <div class="modal-header">
         <h3>{$t('miniLeagueTiebreaker')}</h3>
-        <button class="close-btn" on:click={closeTiebreakerModal} aria-label="Close">×</button>
+        <button class="close-btn" onclick={closeTiebreakerModal} aria-label="Close">×</button>
       </div>
       <div class="modal-body">
         <p class="modal-description">{$t('miniLeagueDescription')}</p>

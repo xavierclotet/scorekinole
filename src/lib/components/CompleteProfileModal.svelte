@@ -1,21 +1,25 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
-	import { createEventDispatcher } from 'svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import Button from './Button.svelte';
 
-	export let isOpen: boolean = false;
+	interface Props {
+		isOpen?: boolean;
+		onsave?: (playerName: string) => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let { isOpen = false, onsave }: Props = $props();
 
-	let playerNameInput = '';
-	let isLoading = false;
-	let error = '';
+	let playerNameInput = $state('');
+	let isLoading = $state(false);
+	let error = $state('');
 
 	// Pre-fill with Google display name when modal opens
-	$: if (isOpen && $currentUser) {
-		playerNameInput = $currentUser.name || '';
-	}
+	$effect(() => {
+		if (isOpen && $currentUser) {
+			playerNameInput = $currentUser.name || '';
+		}
+	});
 
 	async function save() {
 		if (!playerNameInput.trim()) {
@@ -27,7 +31,7 @@
 		error = '';
 
 		try {
-			dispatch('save', playerNameInput.trim());
+			onsave?.(playerNameInput.trim());
 		} catch (err: any) {
 			console.error('Error saving profile:', err);
 			error = err.message || 'Error saving profile';
@@ -76,14 +80,14 @@
 						bind:value={playerNameInput}
 						placeholder={$t('enterPlayerName')}
 						maxlength="30"
-						on:keydown={handleKeydown}
+						onkeydown={handleKeydown}
 						autofocus
 						disabled={isLoading}
 					/>
 				</div>
 
 				<div class="actions">
-					<Button variant="primary" on:click={save} disabled={isLoading || !playerNameInput.trim()}>
+					<Button variant="primary" onclick={save} disabled={isLoading || !playerNameInput.trim()}>
 						{#if isLoading}
 							{$t('saving')}...
 						{:else}

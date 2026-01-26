@@ -2,11 +2,13 @@
 	import { team1, team2 } from '$lib/stores/teams';
 	import { t } from '$lib/stores/language';
 	import { setCurrentGameStartHammer } from '$lib/stores/matchState';
-	import { createEventDispatcher } from 'svelte';
 
-	export let isOpen: boolean = false;
+	interface Props {
+		isOpen?: boolean;
+		onclose?: () => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let { isOpen = $bindable(false), onclose }: Props = $props();
 
 	function isDarkColor(hexColor: string): boolean {
 		const hex = hexColor.replace('#', '');
@@ -17,8 +19,8 @@
 		return luminance < 0.5;
 	}
 
-	$: team1TextColor = $team1.color && isDarkColor($team1.color) ? '#ffffff' : '#1a1a1a';
-	$: team2TextColor = $team2.color && isDarkColor($team2.color) ? '#ffffff' : '#1a1a1a';
+	let team1TextColor = $derived($team1.color && isDarkColor($team1.color) ? '#ffffff' : '#1a1a1a');
+	let team2TextColor = $derived($team2.color && isDarkColor($team2.color) ? '#ffffff' : '#1a1a1a');
 
 	function selectStartingTeam(teamNumber: 1 | 2) {
 		const hammerTeam = teamNumber === 1 ? 2 : 1;
@@ -37,28 +39,32 @@
 
 	function close() {
 		isOpen = false;
-		dispatch('close');
+		onclose?.();
+	}
+
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
 	}
 </script>
 
 {#if isOpen}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="overlay">
-		<div class="dialog" on:click|stopPropagation>
+		<div class="dialog" onclick={stopPropagation}>
 			<p class="question">{$t('hammerDialogTitle')}</p>
 			<div class="options">
 				<button
 					class="option"
 					style="--btn-color: {$team1.color}; --btn-text: {team1TextColor};"
-					on:click={() => selectStartingTeam(1)}
+					onclick={() => selectStartingTeam(1)}
 				>
 					<span class="name">{$team1.name || 'Team 1'}</span>
 				</button>
 				<button
 					class="option"
 					style="--btn-color: {$team2.color}; --btn-text: {team2TextColor};"
-					on:click={() => selectStartingTeam(2)}
+					onclick={() => selectStartingTeam(2)}
 				>
 					<span class="name">{$team2.name || 'Team 2'}</span>
 				</button>

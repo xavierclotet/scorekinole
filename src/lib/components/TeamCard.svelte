@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 	import { vibrate } from '$lib/utils/vibration';
 	import { getContrastColor } from '$lib/utils/colors';
 	import { gameSettings } from '$lib/stores/gameSettings';
@@ -11,41 +10,55 @@
 	import { get } from 'svelte/store';
 	import type { Team } from '$lib/types/team';
 
-	export let teamNumber: 1 | 2 = 1;
-	export let isMatchComplete: boolean = false;
-	export let currentGameNumber: number = 1;
+	interface Props {
+		teamNumber?: 1 | 2;
+		isMatchComplete?: boolean;
+		currentGameNumber?: number;
+		onroundComplete?: (data: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number }) => void;
+		onchangeColor?: () => void;
+		onextraRound?: (data: { roundNumber: number }) => void;
+		ontournamentMatchComplete?: () => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let {
+		teamNumber = 1,
+		isMatchComplete = false,
+		currentGameNumber = 1,
+		onroundComplete,
+		onchangeColor,
+		onextraRound,
+		ontournamentMatchComplete
+	}: Props = $props();
 
 	// Tournament mode detection
-	$: inTournamentMode = !!$gameTournamentContext;
+	let inTournamentMode = $derived(!!$gameTournamentContext);
 
 	// Effective settings: use tournament config when in tournament mode
-	$: effectiveShowHammer = inTournamentMode
+	let effectiveShowHammer = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
-		: $gameSettings.showHammer;
+		: $gameSettings.showHammer);
 
-	$: effectiveGameMode = inTournamentMode
+	let effectiveGameMode = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.gameMode ?? $gameSettings.gameMode
-		: $gameSettings.gameMode;
+		: $gameSettings.gameMode);
 
-	$: effectiveRoundsToPlay = inTournamentMode
+	let effectiveRoundsToPlay = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.roundsToPlay ?? $gameSettings.roundsToPlay
-		: $gameSettings.roundsToPlay;
+		: $gameSettings.roundsToPlay);
 
-	$: effectivePointsToWin = inTournamentMode
+	let effectivePointsToWin = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.pointsToWin ?? $gameSettings.pointsToWin
-		: $gameSettings.pointsToWin;
+		: $gameSettings.pointsToWin);
 
 	// Get the appropriate team store
-	$: team = teamNumber === 1 ? $team1 : $team2;
-	$: otherTeam = teamNumber === 1 ? $team2 : $team1;
+	let team = $derived(teamNumber === 1 ? $team1 : $team2);
+	let otherTeam = $derived(teamNumber === 1 ? $team2 : $team1);
 
 	// Swipe gesture state
-	let touchStartX = 0;
-	let touchStartY = 0;
-	let touchStartTime = 0;
-	let isTouchDevice = false;
+	let touchStartX = $state(0);
+	let touchStartY = $state(0);
+	let touchStartTime = $state(0);
+	let isTouchDevice = $state(false);
 
 	const SWIPE_THRESHOLD = 40; // px minimum for swipe
 	const SWIPE_TIMEOUT = 500; // ms maximum for swipe
@@ -107,10 +120,10 @@
 	}
 
 	// Mouse drag support for desktop
-	let mouseStartX = 0;
-	let mouseStartY = 0;
-	let mouseStartTime = 0;
-	let isDragging = false;
+	let mouseStartX = $state(0);
+	let mouseStartY = $state(0);
+	let mouseStartTime = $state(0);
+	let isDragging = $state(false);
 
 	function handleMouseDown(e: MouseEvent) {
 		// Ignore mouse events if this is a touch device
@@ -218,11 +231,11 @@
 			// Determine round winner
 			const roundWinner = team1Change > team2Change ? 1 : team2Change > team1Change ? 2 : 0;
 
-			// Dispatch roundComplete event BEFORE completing the round
+			// Call roundComplete callback BEFORE completing the round
 			// This will trigger the 20s dialog if enabled
 			// The actual round completion will happen when the dialog closes
 			// Pass the ROUND points (changes), not total accumulated points
-			dispatch('roundComplete', {
+			onroundComplete?.({
 				winningTeam: roundWinner as 0 | 1 | 2,
 				team1Points: team1Change,
 				team2Points: team2Change
@@ -302,7 +315,7 @@
 					// The tie overlay won't show because neither team hasWon
 					// Players will play extra round(s) until someone wins
 					console.log('🎯 Bracket tiebreaker: continuing with extra round');
-					dispatch('extraRound', { roundNumber: currentRoundsPlayed + 1 });
+					onextraRound?.({ roundNumber: currentRoundsPlayed + 1 });
 				} else {
 					// Regular match: end as tie
 					updateTeam(1, { hasWon: false });
@@ -414,11 +427,11 @@
 				updateTeam(2, { matches: t2.matches + 1 });
 			}
 
-			// IMPORTANT: Dispatch tournament match complete event BEFORE saving to history
+			// IMPORTANT: Call tournament match complete callback BEFORE saving to history
 			// This ensures the parent component can capture all data before currentMatch is cleared
 			if (inTournamentMode) {
-				console.log('🏆 Dispatching tournamentMatchComplete event');
-				dispatch('tournamentMatchComplete');
+				console.log('🏆 Calling tournamentMatchComplete callback');
+				ontournamentMatchComplete?.();
 				// En modo torneo, NO guardar en historial local (ya se sincroniza a Firebase)
 				// IMPORTANTE: NO llamar a resetMatchState() aquí - el handler en +page.svelte
 				// necesita capturar todos los datos primero y luego hará el reset
@@ -530,7 +543,7 @@
 	}
 
 	function handleChangeColor() {
-		dispatch('changeColor');
+		onchangeColor?.();
 	}
 
 </script>
@@ -543,7 +556,7 @@
 	<div class="team-header">
 		<button
 			class="color-btn"
-			on:click|stopPropagation={handleChangeColor}
+			onclick={(e) => { e.stopPropagation(); handleChangeColor(); }}
 			aria-label="Change color"
 			title={$t('chooseColor')}
 		>
@@ -552,9 +565,9 @@
 		{#if teamNumber === 2}
 			<button
 				class="name-size-btn"
-				on:click|stopPropagation={cycleNameSize}
-				on:touchend|stopPropagation
-				on:mouseup|stopPropagation
+				onclick={(e) => { e.stopPropagation(); cycleNameSize(); }}
+				ontouchend={(e) => e.stopPropagation()}
+				onmouseup={(e) => e.stopPropagation()}
 				aria-label="Change name size"
 				title="Change name size"
 			>
@@ -577,14 +590,14 @@
 					tabindex="0"
 					aria-label="Team name"
 					data-placeholder={$t('teamName')}
-					on:input={handleNameChange}
-					on:keydown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-					on:paste={handlePaste}
-					on:click|stopPropagation
-					on:touchstart|stopPropagation
-					on:touchend|stopPropagation
-					on:mousedown|stopPropagation
-					on:mouseup|stopPropagation
+					oninput={handleNameChange}
+					onkeydown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+					onpaste={handlePaste}
+					onclick={(e) => e.stopPropagation()}
+					ontouchstart={(e) => e.stopPropagation()}
+					ontouchend={(e) => e.stopPropagation()}
+					onmousedown={(e) => e.stopPropagation()}
+					onmouseup={(e) => e.stopPropagation()}
 				>{team.name}</span>
 			{/if}
 			{#if effectiveShowHammer && team.hasHammer}
@@ -597,10 +610,10 @@
 
 	<div
 		class="score-display"
-		on:touchstart={handleTouchStart}
-		on:touchend={handleTouchEnd}
-		on:mousedown={handleMouseDown}
-		on:mouseup={handleMouseUp}
+		ontouchstart={handleTouchStart}
+		ontouchend={handleTouchEnd}
+		onmousedown={handleMouseDown}
+		onmouseup={handleMouseUp}
 		role="button"
 		tabindex="0"
 		aria-label="{team.name} score: {team.points}"

@@ -19,7 +19,8 @@
     reassignTables,
     updateConsolationMatch,
     advanceConsolationWinner,
-    forceRegenerateConsolationBrackets
+    forceRegenerateConsolationBrackets,
+    completeFinalStage
   } from '$lib/firebase/tournamentBracket';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import { getUserProfile } from '$lib/firebase/userProfile';
@@ -32,82 +33,82 @@
   import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
   import { updateTournament } from '$lib/firebase/tournaments';
 
-  let tournament: Tournament | null = null;
-  let loading = true;
-  let error = false;
-  let showToast = false;
-  let toastMessage = '';
-  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
-  let showMatchDialog = false;
-  let selectedMatch: BracketMatch | null = null;
-  let selectedBracketType: 'gold' | 'silver' = 'gold';
-  let selectedRoundNumber: number = 1;
-  let selectedIsThirdPlace: boolean = false;
-  let isSuperAdminUser = false;
-  let canAutofillUser = false;
-  let isAutoFilling = false;
-  let isSavingMatch = false;
+  let tournament = $state<Tournament | null>(null);
+  let loading = $state(true);
+  let error = $state(false);
+  let showToast = $state(false);
+  let toastMessage = $state('');
+  let toastType = $state<'success' | 'error' | 'info' | 'warning'>('info');
+  let showMatchDialog = $state(false);
+  let selectedMatch = $state<BracketMatch | null>(null);
+  let selectedBracketType = $state<'gold' | 'silver'>('gold');
+  let selectedRoundNumber = $state<number>(1);
+  let selectedIsThirdPlace = $state<boolean>(false);
+  let isSuperAdminUser = $state(false);
+  let canAutofillUser = $state(false);
+  let isAutoFilling = $state(false);
+  let isSavingMatch = $state(false);
   let unsubscribe: (() => void) | null = null;
-  let showTimeBreakdown = false;
-  let timeBreakdown: TimeBreakdown | null = null;
-  let isGeneratingConsolation = false;
+  let showTimeBreakdown = $state(false);
+  let timeBreakdown = $state<TimeBreakdown | null>(null);
+  let isGeneratingConsolation = $state(false);
 
   // Current view for split divisions
-  let activeTab: 'gold' | 'silver' = 'gold';
+  let activeTab = $state<'gold' | 'silver'>('gold');
 
-  $: tournamentId = $page.params.id;
-  $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
-  $: isSplitDivisions = tournament?.finalStage?.mode === 'SPLIT_DIVISIONS';
+  let tournamentId = $derived($page.params.id);
+  let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
+  let isSplitDivisions = $derived(tournament?.finalStage?.mode === 'SPLIT_DIVISIONS');
 
   // Gold bracket
-  $: goldBracket = tournament?.finalStage?.goldBracket;
-  $: goldRounds = goldBracket?.rounds || [];
-  $: goldThirdPlaceMatch = goldBracket?.thirdPlaceMatch;
+  let goldBracket = $derived(tournament?.finalStage?.goldBracket);
+  let goldRounds = $derived(goldBracket?.rounds || []);
+  let goldThirdPlaceMatch = $derived(goldBracket?.thirdPlaceMatch);
 
   // Silver bracket
-  $: silverBracket = tournament?.finalStage?.silverBracket;
-  $: silverRounds = silverBracket?.rounds || [];
-  $: silverThirdPlaceMatch = silverBracket?.thirdPlaceMatch;
+  let silverBracket = $derived(tournament?.finalStage?.silverBracket);
+  let silverRounds = $derived(silverBracket?.rounds || []);
+  let silverThirdPlaceMatch = $derived(silverBracket?.thirdPlaceMatch);
 
   // Active bracket based on tab
-  $: bracket = activeTab === 'gold' ? goldBracket : silverBracket;
-  $: rounds = activeTab === 'gold' ? goldRounds : silverRounds;
-  $: thirdPlaceMatch = activeTab === 'gold' ? goldThirdPlaceMatch : silverThirdPlaceMatch;
+  let bracket = $derived(activeTab === 'gold' ? goldBracket : silverBracket);
+  let rounds = $derived(activeTab === 'gold' ? goldRounds : silverRounds);
+  let thirdPlaceMatch = $derived(activeTab === 'gold' ? goldThirdPlaceMatch : silverThirdPlaceMatch);
 
   // Consolation brackets
-  $: goldConsolationBrackets = goldBracket?.consolationBrackets || [];
-  $: silverConsolationBrackets = silverBracket?.consolationBrackets || [];
-  $: consolationBrackets = activeTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets;
+  let goldConsolationBrackets = $derived(goldBracket?.consolationBrackets || []);
+  let silverConsolationBrackets = $derived(silverBracket?.consolationBrackets || []);
+  let consolationBrackets = $derived(activeTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets);
   // Fallback for consolationEnabled - check multiple locations due to migration
-  $: consolationEnabledValue = tournament?.finalStage?.consolationEnabled
+  let consolationEnabledValue = $derived(tournament?.finalStage?.consolationEnabled
     ?? (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled ']  // Typo with trailing space
     ?? tournament?.finalStage?.goldBracket?.config?.consolationEnabled
-    ?? false;
-  $: hasConsolation = consolationEnabledValue && consolationBrackets.length > 0;
+    ?? false);
+  let hasConsolation = $derived(consolationEnabledValue && consolationBrackets.length > 0);
 
   // Consolation match handling
-  let selectedConsolationSource: 'QF' | 'R16' | null = null;
+  let selectedConsolationSource = $state<'QF' | 'R16' | null>(null);
 
   // View toggle: main bracket vs consolation bracket
-  let bracketView: 'main' | 'consolation' = 'main';
+  let bracketView = $state<'main' | 'consolation'>('main');
 
   // Match configuration - determines if we show games won or total points
   // Uses early rounds config as the default (most common phase)
-  $: matchesToWin = activeTab === 'gold'
+  let matchesToWin = $derived(activeTab === 'gold'
     ? (tournament?.finalStage?.goldBracket?.config?.earlyRounds?.matchesToWin || 1)
-    : (tournament?.finalStage?.silverBracket?.config?.earlyRounds?.matchesToWin || 1);
-  $: showGamesWon = matchesToWin > 1;
+    : (tournament?.finalStage?.silverBracket?.config?.earlyRounds?.matchesToWin || 1));
+  let showGamesWon = $derived(matchesToWin > 1);
 
   // Phase configuration editing
-  let savingPhaseConfig = false;
-  let configExpanded = false;
+  let savingPhaseConfig = $state(false);
+  let configExpanded = $state(false);
 
   // Table management
-  let isReassigningTables = false;
-  let editingNumTables = false;
-  let tempNumTables = 4;
+  let isReassigningTables = $state(false);
+  let editingNumTables = $state(false);
+  let tempNumTables = $state(4);
 
-  $: currentNumTables = tournament?.numTables || 4;
+  let currentNumTables = $derived(tournament?.numTables || 4);
 
   function startEditingTables() {
     tempNumTables = currentNumTables;
@@ -450,6 +451,34 @@
     return statusMap[status] || { text: status, color: '#6b7280' };
   }
 
+  function getTournamentStatusColor(status: string): string {
+    const colorMap: Record<string, string> = {
+      DRAFT: '#666',
+      GROUP_STAGE: '#fa709a',
+      TRANSITION: '#fee140',
+      FINAL_STAGE: '#30cfd0',
+      COMPLETED: '#4ade80',
+      CANCELLED: '#ef4444'
+    };
+    return colorMap[status] || '#666';
+  }
+
+  function getTournamentStatusTextColor(status: string): string {
+    const darkTextStatuses = ['TRANSITION', 'COMPLETED', 'FINAL_STAGE'];
+    return darkTextStatuses.includes(status) ? '#1f2937' : 'white';
+  }
+
+  function getTournamentStatusText(status: string): string {
+    switch (status) {
+      case 'DRAFT': return $t('draft');
+      case 'GROUP_STAGE': return $t('groupStage');
+      case 'FINAL_STAGE': return $t('finalStage');
+      case 'COMPLETED': return $t('completed');
+      case 'CANCELLED': return $t('cancelled');
+      default: return status;
+    }
+  }
+
   /**
    * Get position label for consolation match (e.g., "5º-6º", "7º-8º")
    * Only shows labels for final round where positions are definitive
@@ -536,12 +565,25 @@
   }
 
   // Loading message based on context
-  let loadingMessage = 'Guardando resultado...';
+  let loadingMessage = $state('Guardando resultado...');
 
-  async function handleSaveMatch(event: CustomEvent) {
+  async function handleSaveMatch(result: {
+    gamesWonA: number;
+    gamesWonB: number;
+    totalPointsA?: number;
+    totalPointsB?: number;
+    total20sA?: number;
+    total20sB?: number;
+    rounds?: Array<{
+      gameNumber: number;
+      roundInGame: number;
+      pointsA: number | null;
+      pointsB: number | null;
+      twentiesA: number;
+      twentiesB: number;
+    }>;
+  }) {
     if (!selectedMatch || !tournamentId || !tournament) return;
-
-    const result = event.detail;
     showMatchDialog = false;
 
     // Check if this is a consolation match
@@ -678,10 +720,8 @@
     }
   }
 
-  async function handleNoShow(event: CustomEvent) {
+  async function handleNoShow(noShowParticipantId: string) {
     if (!selectedMatch || !tournamentId) return;
-
-    const noShowParticipantId = event.detail;
 
     try {
       // Use centralized sync service (handles both gold and silver brackets)
@@ -950,12 +990,187 @@
         return bracketFilledCount;
       }
 
+      // Process consolation brackets for a main bracket
+      async function processConsolationBrackets(bracketType: 'gold' | 'silver'): Promise<number> {
+        let consolationFilledCount = 0;
+        let hasMoreMatches = true;
+
+        while (hasMoreMatches) {
+          hasMoreMatches = false;
+
+          // Reload tournament to get current state
+          tournament = await getTournament(currentTournamentId);
+          if (!tournament?.finalStage) break;
+
+          const mainBracket = bracketType === 'gold'
+            ? tournament.finalStage.goldBracket
+            : tournament.finalStage.silverBracket;
+
+          if (!mainBracket?.consolationBrackets?.length) break;
+
+          // Process each consolation bracket (R16, QF)
+          for (const consolation of mainBracket.consolationBrackets) {
+            // Get config - consolation uses same config as main bracket
+            const config = {
+              gameMode: mainBracket.config.gameMode,
+              pointsToWin: mainBracket.config.pointsToWin,
+              roundsToPlay: mainBracket.config.roundsToPlay,
+              matchesToWin: mainBracket.config.matchesToWin
+            };
+
+            for (const round of consolation.rounds) {
+              for (const match of round.matches) {
+                if (match.status !== 'PENDING' || !match.participantA || !match.participantB) {
+                  continue;
+                }
+
+                // Simulate the match using same logic as main bracket
+                const { gameMode, pointsToWin, roundsToPlay, matchesToWin } = config;
+                const isRoundsMode = gameMode === 'rounds';
+                const requiredWins = Math.ceil(matchesToWin / 2);
+
+                let gamesA = 0;
+                let gamesB = 0;
+                let totalPointsA = 0;
+                let totalPointsB = 0;
+                let total20sA = 0;
+                let total20sB = 0;
+
+                const allRounds: Array<{
+                  gameNumber: number;
+                  roundInGame: number;
+                  pointsA: number;
+                  pointsB: number;
+                  twentiesA: number;
+                  twentiesB: number;
+                }> = [];
+
+                let gameNumber = 0;
+                while (gamesA < requiredWins && gamesB < requiredWins) {
+                  gameNumber++;
+                  let gamePointsA = 0;
+                  let gamePointsB = 0;
+                  let roundInGame = 0;
+                  const maxRoundsInGame = isRoundsMode ? roundsToPlay : 100;
+
+                  while (roundInGame < maxRoundsInGame) {
+                    roundInGame++;
+                    const distribution = Math.random();
+                    let roundPointsA = 0;
+                    let roundPointsB = 0;
+                    let round20sA = 0;
+                    let round20sB = 0;
+
+                    if (distribution < 0.45) {
+                      roundPointsA = 2;
+                      roundPointsB = 0;
+                      if (Math.random() < 0.12) round20sA = 1;
+                    } else if (distribution < 0.9) {
+                      roundPointsA = 0;
+                      roundPointsB = 2;
+                      if (Math.random() < 0.12) round20sB = 1;
+                    } else {
+                      roundPointsA = 1;
+                      roundPointsB = 1;
+                    }
+
+                    gamePointsA += roundPointsA;
+                    gamePointsB += roundPointsB;
+                    total20sA += round20sA;
+                    total20sB += round20sB;
+
+                    allRounds.push({
+                      gameNumber,
+                      roundInGame,
+                      pointsA: roundPointsA,
+                      pointsB: roundPointsB,
+                      twentiesA: round20sA,
+                      twentiesB: round20sB
+                    });
+
+                    if (!isRoundsMode) {
+                      const maxPoints = Math.max(gamePointsA, gamePointsB);
+                      const diff = Math.abs(gamePointsA - gamePointsB);
+                      if (maxPoints >= pointsToWin && diff >= 2) {
+                        break;
+                      }
+                    }
+                  }
+
+                  totalPointsA += gamePointsA;
+                  totalPointsB += gamePointsB;
+
+                  if (gamePointsA > gamePointsB) {
+                    gamesA++;
+                  } else {
+                    gamesB++;
+                  }
+                }
+
+                const winner = gamesA > gamesB ? match.participantA : match.participantB;
+                const loser = gamesA > gamesB ? match.participantB : match.participantA;
+
+                await updateConsolationMatch(
+                  currentTournamentId,
+                  match.id,
+                  {
+                    status: 'COMPLETED',
+                    gamesWonA: gamesA,
+                    gamesWonB: gamesB,
+                    totalPointsA,
+                    totalPointsB,
+                    total20sA,
+                    total20sB,
+                    rounds: allRounds,
+                    winner
+                  },
+                  bracketType
+                );
+
+                await advanceConsolationWinner(
+                  currentTournamentId,
+                  match.id,
+                  winner,
+                  bracketType,
+                  loser
+                );
+
+                hasMoreMatches = true;
+                consolationFilledCount++;
+              }
+            }
+          }
+        }
+
+        return consolationFilledCount;
+      }
+
       // Process gold bracket
       filledCount += await processBracket('gold');
 
       // Process silver bracket if SPLIT_DIVISIONS
       if (tournament.finalStage.mode === 'SPLIT_DIVISIONS' && tournament.finalStage.silverBracket) {
         filledCount += await processBracket('silver');
+      }
+
+      // Process consolation brackets if enabled
+      if (tournament.finalStage.consolationEnabled) {
+        // Gold consolation brackets
+        if (tournament.finalStage.goldBracket?.consolationBrackets?.length) {
+          filledCount += await processConsolationBrackets('gold');
+        }
+
+        // Silver consolation brackets (if SPLIT_DIVISIONS)
+        if (tournament.finalStage.mode === 'SPLIT_DIVISIONS' &&
+            tournament.finalStage.silverBracket?.consolationBrackets?.length) {
+          filledCount += await processConsolationBrackets('silver');
+        }
+      }
+
+      // After all matches processed, check if tournament should be marked as complete
+      const completed = await completeFinalStage(currentTournamentId);
+      if (completed) {
+        console.log('🏆 Tournament marked as COMPLETED after autofill');
       }
 
       toastMessage = `${filledCount} ${$t('matchesFilledAutomatically')}`;
@@ -973,7 +1188,7 @@
   }
 
   // Convert BracketMatch to GroupMatch format for the dialog
-  $: dialogMatch = selectedMatch ? {
+  let dialogMatch = $derived(selectedMatch ? {
     ...selectedMatch,
     id: selectedMatch.id,
     participantA: selectedMatch.participantA!,
@@ -988,7 +1203,7 @@
     rounds: selectedMatch.rounds,
     winner: selectedMatch.winner,
     noShowParticipant: selectedMatch.noShowParticipant
-  } as GroupMatch : null;
+  } as GroupMatch : null);
 </script>
 
 <AdminGuard>
@@ -996,13 +1211,16 @@
     <header class="page-header">
       {#if tournament}
         <div class="header-row">
-          <button class="back-btn" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>←</button>
+          <button class="back-btn" onclick={() => goto(`/admin/tournaments/${tournamentId}`)}>←</button>
           <div class="header-main">
             <div class="title-section">
               <h1>{tournament.name}</h1>
               <div class="header-badges">
-                <span class="info-badge phase-badge">
-                  {isSplitDivisions ? `${$t('goldLeague')} / ${$t('silverLeague')}` : $t('eliminationBracket')}
+                <span
+                  class="tournament-status"
+                  style="background: {getTournamentStatusColor(tournament.status)}; color: {getTournamentStatusTextColor(tournament.status)};"
+                >
+                  {getTournamentStatusText(tournament.status)}
                 </span>
                 {#if tournament.status !== 'COMPLETED'}
                   <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
@@ -1016,7 +1234,7 @@
                     showEstimatedEnd={true}
                     compact={true}
                     clickable={true}
-                    on:click={openTimeBreakdown}
+                    onclick={openTimeBreakdown}
                   />
                 </div>
               {/if}
@@ -1026,7 +1244,7 @@
             {#if (isSuperAdminUser || canAutofillUser) && tournament.status !== 'COMPLETED'}
               <button
                 class="action-btn autofill"
-                on:click={autoFillAllMatches}
+                onclick={autoFillAllMatches}
                 disabled={isAutoFilling}
                 title={$t('autoFillMatchesTitle') || 'Auto-fill matches with random results'}
               >
@@ -1047,7 +1265,7 @@
           <div class="error-icon">⚠️</div>
           <h3>{$t('errorLoading')}</h3>
           <p>{$t('errorLoadingBracket')}</p>
-          <button class="primary-button" on:click={() => goto('/admin/tournaments')}>
+          <button class="primary-button" onclick={() => goto('/admin/tournaments')}>
             {$t('backToTournaments')}
           </button>
         </div>
@@ -1088,7 +1306,7 @@
               />
               <button
                 class="table-action-btn confirm"
-                on:click={saveNumTablesAndReassign}
+                onclick={saveNumTablesAndReassign}
                 disabled={isReassigningTables}
                 title="Guardar y reasignar"
               >
@@ -1102,7 +1320,7 @@
               </button>
               <button
                 class="table-action-btn cancel"
-                on:click={cancelEditingTables}
+                onclick={cancelEditingTables}
                 disabled={isReassigningTables}
                 title="Cancelar"
               >
@@ -1112,10 +1330,10 @@
                 </svg>
               </button>
             {:else}
-              <button class="table-value" on:click={startEditingTables} title="Clic para editar">{currentNumTables}</button>
+              <button class="table-value" onclick={startEditingTables} title="Clic para editar">{currentNumTables}</button>
               <button
                 class="table-action-btn sync"
-                on:click={handleReassignTables}
+                onclick={handleReassignTables}
                 disabled={isReassigningTables}
                 title="Reasignar mesas"
               >
@@ -1143,7 +1361,7 @@
                   <button
                     class="filter-btn"
                     class:active={activeTab === 'gold'}
-                    on:click={() => activeTab = 'gold'}
+                    onclick={() => activeTab = 'gold'}
                   >
                     <span class="filter-icon gold">●</span>
                     Oro
@@ -1154,7 +1372,7 @@
                   <button
                     class="filter-btn"
                     class:active={activeTab === 'silver'}
-                    on:click={() => activeTab = 'silver'}
+                    onclick={() => activeTab = 'silver'}
                   >
                     <span class="filter-icon silver">●</span>
                     Plata
@@ -1173,19 +1391,16 @@
                   <button
                     class="filter-btn"
                     class:active={bracketView === 'main'}
-                    on:click={() => bracketView = 'main'}
+                    onclick={() => bracketView = 'main'}
                   >
                     Ganadores
                   </button>
                   <button
                     class="filter-btn"
                     class:active={bracketView === 'consolation'}
-                    on:click={() => bracketView = 'consolation'}
+                    onclick={() => bracketView = 'consolation'}
                   >
                     Consolación
-                    {#if consolationBrackets.length > 0}
-                      <span class="filter-count">{consolationBrackets.length}</span>
-                    {/if}
                   </button>
                 </div>
               </div>
@@ -1195,7 +1410,7 @@
 
         <!-- Phase Configuration Accordion (specific to current bracket) -->
         <div class="config-accordion" class:expanded={configExpanded}>
-          <button class="accordion-header" on:click={() => configExpanded = !configExpanded}>
+          <button class="accordion-header" onclick={() => configExpanded = !configExpanded}>
             <div class="accordion-title">
               <svg class="accordion-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
@@ -1225,7 +1440,7 @@
                       <select
                         value={earlyConfig.gameMode}
                         disabled={earlyLocked || savingPhaseConfig}
-                        on:change={(e) => savePhaseConfig('early', isGold, parseGameMode(e.currentTarget.value), earlyConfig.value, earlyConfig.matchesToWin)}
+                        onchange={(e) => savePhaseConfig('early', isGold, parseGameMode(e.currentTarget.value), earlyConfig.value, earlyConfig.matchesToWin)}
                       >
                         <option value="rounds">Rondas</option>
                         <option value="points">Puntos</option>
@@ -1236,7 +1451,7 @@
                         max="15"
                         value={earlyConfig.value}
                         disabled={earlyLocked || savingPhaseConfig}
-                        on:change={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, parseInt(e.currentTarget.value) || 4, earlyConfig.matchesToWin)}
+                        onchange={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, parseInt(e.currentTarget.value) || 4, earlyConfig.matchesToWin)}
                       />
                       {#if earlyConfig.gameMode === 'points'}
                         <span class="bo-label">Bo</span>
@@ -1244,7 +1459,7 @@
                           class="bo-select"
                           value={earlyConfig.matchesToWin}
                           disabled={earlyLocked || savingPhaseConfig}
-                          on:change={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, earlyConfig.value, parseInt(e.currentTarget.value) || 1)}
+                          onchange={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, earlyConfig.value, parseInt(e.currentTarget.value) || 1)}
                         >
                           <option value={1}>1</option>
                           <option value={3}>3</option>
@@ -1263,7 +1478,7 @@
                       <select
                         value={semiConfig.gameMode}
                         disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
-                        on:change={(e) => savePhaseConfig('semifinal', isGold, parseGameMode(e.currentTarget.value), semiConfig.value, semiConfig.matchesToWin)}
+                        onchange={(e) => savePhaseConfig('semifinal', isGold, parseGameMode(e.currentTarget.value), semiConfig.value, semiConfig.matchesToWin)}
                       >
                         <option value="rounds">Rondas</option>
                         <option value="points">Puntos</option>
@@ -1274,7 +1489,7 @@
                         max="15"
                         value={semiConfig.value}
                         disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
-                        on:change={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, parseInt(e.currentTarget.value) || 7, semiConfig.matchesToWin)}
+                        onchange={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, parseInt(e.currentTarget.value) || 7, semiConfig.matchesToWin)}
                       />
                       {#if semiConfig.gameMode === 'points'}
                         <span class="bo-label">Bo</span>
@@ -1282,7 +1497,7 @@
                           class="bo-select"
                           value={semiConfig.matchesToWin}
                           disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
-                          on:change={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, semiConfig.value, parseInt(e.currentTarget.value) || 1)}
+                          onchange={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, semiConfig.value, parseInt(e.currentTarget.value) || 1)}
                         >
                           <option value={1}>1</option>
                           <option value={3}>3</option>
@@ -1301,7 +1516,7 @@
                       <select
                         value={finalConfig.gameMode}
                         disabled={finalLocked || savingPhaseConfig}
-                        on:change={(e) => savePhaseConfig('final', isGold, parseGameMode(e.currentTarget.value), finalConfig.value, finalConfig.matchesToWin)}
+                        onchange={(e) => savePhaseConfig('final', isGold, parseGameMode(e.currentTarget.value), finalConfig.value, finalConfig.matchesToWin)}
                       >
                         <option value="rounds">Rondas</option>
                         <option value="points">Puntos</option>
@@ -1312,7 +1527,7 @@
                         max="15"
                         value={finalConfig.value}
                         disabled={finalLocked || savingPhaseConfig}
-                        on:change={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, parseInt(e.currentTarget.value) || 9, finalConfig.matchesToWin)}
+                        onchange={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, parseInt(e.currentTarget.value) || 9, finalConfig.matchesToWin)}
                       />
                       {#if finalConfig.gameMode === 'points'}
                         <span class="bo-label">Bo</span>
@@ -1320,7 +1535,7 @@
                           class="bo-select"
                           value={finalConfig.matchesToWin}
                           disabled={finalLocked || savingPhaseConfig}
-                          on:change={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, finalConfig.value, parseInt(e.currentTarget.value) || 1)}
+                          onchange={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, finalConfig.value, parseInt(e.currentTarget.value) || 1)}
                         >
                           <option value={1}>1</option>
                           <option value={3}>3</option>
@@ -1356,8 +1571,8 @@
                     class="bracket-match"
                     class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
                     class:bye-match={isByeMatch(match)}
-                    on:click={() => !isByeMatch(match) && handleMatchClick(match, activeTab, round.roundNumber, false)}
-                    on:keydown={(e) => e.key === 'Enter' && !isByeMatch(match) && handleMatchClick(match, activeTab, round.roundNumber, false)}
+                    onclick={() => !isByeMatch(match) && handleMatchClick(match, activeTab, round.roundNumber, false)}
+                    onkeydown={(e) => e.key === 'Enter' && !isByeMatch(match) && handleMatchClick(match, activeTab, round.roundNumber, false)}
                     role="button"
                     tabindex={isByeMatch(match) ? -1 : 0}
                   >
@@ -1474,8 +1689,8 @@
                 <div
                   class="bracket-match third-place-match"
                   class:clickable={thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
-                  on:click={() => handleMatchClick(thirdPlaceMatch, activeTab, bracket?.totalRounds || 1, true)}
-                  on:keydown={(e) => e.key === 'Enter' && handleMatchClick(thirdPlaceMatch, activeTab, bracket?.totalRounds || 1, true)}
+                  onclick={() => handleMatchClick(thirdPlaceMatch, activeTab, bracket?.totalRounds || 1, true)}
+                  onkeydown={(e) => e.key === 'Enter' && handleMatchClick(thirdPlaceMatch, activeTab, bracket?.totalRounds || 1, true)}
                   role="button"
                   tabindex="0"
                 >
@@ -1568,7 +1783,7 @@
               <p>{$t('consolationPending') || 'Los partidos de consolación se generan automáticamente cuando se completa la ronda correspondiente (cuartos u octavos).'}</p>
               <button
                 class="generate-consolation-btn"
-                on:click={handleGenerateConsolation}
+                onclick={handleGenerateConsolation}
                 disabled={isGeneratingConsolation}
               >
                 {#if isGeneratingConsolation}
@@ -1578,17 +1793,6 @@
                   🔄 Generar brackets de consolación
                 {/if}
               </button>
-              <p class="debug-info">
-                {#if bracket}
-                  consolationEnabled: {consolationEnabledValue ? 'SÍ' : 'NO'}<br/>
-                  Existing brackets: {consolationBrackets.length}<br/>
-                  Rondas: {bracket.rounds?.length || 0} | Total: {bracket.totalRounds}<br/>
-                  BracketSize: {Math.pow(2, bracket.totalRounds)} | hasQF: {bracket.totalRounds >= 3 ? 'SÍ' : 'NO'} | hasR16: {bracket.totalRounds >= 4 ? 'SÍ' : 'NO'}
-                  {#each bracket.rounds || [] as round, idx}
-                    <br/>R{idx + 1} ({round.name}): {round.matches.filter(m => m.status === 'COMPLETED' || m.status === 'WALKOVER').length}/{round.matches.length}
-                  {/each}
-                {/if}
-              </p>
             </div>
           {:else if bracketView === 'consolation' && consolationBrackets.length > 0}
             {@const r16Bracket = consolationBrackets.find(c => c.source === 'R16')}
@@ -1598,7 +1802,7 @@
                 <h3 class="consolation-title">🎯 Brackets de Consolación</h3>
                 <button
                   class="regenerate-consolation-btn"
-                  on:click={handleGenerateConsolation}
+                  onclick={handleGenerateConsolation}
                   disabled={isGeneratingConsolation}
                   title="Regenerar brackets de consolación"
                 >
@@ -1641,8 +1845,8 @@
                               class:clickable={isMatchClickable}
                               class:bye-match={isMatchBye}
                               class:has-placeholder={isPlaceholderA || isPlaceholderB}
-                              on:click={() => isMatchClickable && handleConsolationMatchClick(match, 'R16', roundIndex + 1)}
-                              on:keydown={(e) => e.key === 'Enter' && isMatchClickable && handleConsolationMatchClick(match, 'R16', roundIndex + 1)}
+                              onclick={() => isMatchClickable && handleConsolationMatchClick(match, 'R16', roundIndex + 1)}
+                              onkeydown={(e) => e.key === 'Enter' && isMatchClickable && handleConsolationMatchClick(match, 'R16', roundIndex + 1)}
                               role="button"
                               tabindex={isMatchClickable ? 0 : -1}
                             >
@@ -1740,8 +1944,8 @@
                               class:clickable={isMatchClickable}
                               class:bye-match={isMatchBye}
                               class:has-placeholder={isPlaceholderA || isPlaceholderB}
-                              on:click={() => isMatchClickable && handleConsolationMatchClick(match, 'QF', roundIndex + 1)}
-                              on:keydown={(e) => e.key === 'Enter' && isMatchClickable && handleConsolationMatchClick(match, 'QF', roundIndex + 1)}
+                              onclick={() => isMatchClickable && handleConsolationMatchClick(match, 'QF', roundIndex + 1)}
+                              onkeydown={(e) => e.key === 'Enter' && isMatchClickable && handleConsolationMatchClick(match, 'QF', roundIndex + 1)}
                               role="button"
                               tabindex={isMatchClickable ? 0 : -1}
                             >
@@ -1828,9 +2032,9 @@
     bracketIsThirdPlace={selectedIsThirdPlace}
     bracketIsSilver={selectedBracketType === 'silver'}
     isAdmin={true}
-    on:close={handleCloseDialog}
-    on:save={handleSaveMatch}
-    on:noshow={handleNoShow}
+    onclose={handleCloseDialog}
+    onsave={handleSaveMatch}
+    onnoshow={handleNoShow}
   />
 {/if}
 
@@ -1849,7 +2053,7 @@
   bind:visible={showTimeBreakdown}
   breakdown={timeBreakdown}
   showRecalculate={true}
-  on:recalculate={recalculateTime}
+  onrecalculate={recalculateTime}
 />
 
 
@@ -1960,6 +2164,17 @@
   .info-badge.phase-badge {
     background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
     color: white;
+  }
+
+  .tournament-status {
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    color: white;
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
   }
 
   .header-actions {
@@ -2419,6 +2634,10 @@
     font-size: 0.6rem;
     color: #6b7280;
     margin: 0 0.3rem;
+  }
+
+  .bracket-page[data-theme='dark'] .seed {
+    color: #9ca3af;
   }
 
   .score {
@@ -3518,21 +3737,6 @@
     border-top-color: white;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
-  }
-
-  .debug-info {
-    margin-top: 1.5rem;
-    padding: 0.75rem;
-    background: rgba(0, 0, 0, 0.05);
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-family: monospace;
-    text-align: left;
-    max-width: 100%;
-  }
-
-  .consolation-empty[data-theme='dark'] .debug-info {
-    background: rgba(255, 255, 255, 0.05);
   }
 
   .consolation-section {

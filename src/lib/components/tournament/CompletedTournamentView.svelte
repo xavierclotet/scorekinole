@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import type { Tournament, GroupMatch, BracketMatch } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
@@ -8,13 +7,16 @@
   import { calculateFinalPositions, applyRankingUpdates } from '$lib/firebase/tournamentRanking';
   import { t } from '$lib/stores/language';
 
-  const dispatch = createEventDispatcher<{ updated: void }>();
+  interface Props {
+    tournament: Tournament;
+    onupdated?: () => void;
+  }
+
+  let { tournament, onupdated }: Props = $props();
 
   // Track which groups are recalculating
-  let recalculatingGroups = new Set<string>();
-  let recalculatingPositions = false;
-
-  export let tournament: Tournament;
+  let recalculatingGroups = $state(new Set<string>());
+  let recalculatingPositions = $state(false);
 
   // Translate group name based on language
   // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
@@ -35,10 +37,10 @@
     return name;
   }
 
-  let activeTab: 'groups' | 'bracket' = tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket';
-  let showMatchDialog = false;
-  let expandedResults: Set<string> = new Set(); // Track which group results are expanded
-  let selectedMatch: GroupMatch | BracketMatch | null = null;
+  let activeTab = $state<'groups' | 'bracket'>(tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket');
+  let showMatchDialog = $state(false);
+  let expandedResults = $state<Set<string>>(new Set()); // Track which group results are expanded
+  let selectedMatch = $state<GroupMatch | BracketMatch | null>(null);
 
   // Toggle results accordion for a group
   function toggleResults(groupId: string) {
@@ -50,23 +52,23 @@
     }
     expandedResults = newExpanded;
   }
-  let isBracketMatch = false;
+  let isBracketMatch = $state(false);
 
   // Check if this is a split divisions tournament
-  $: isSplitDivisions = tournament.finalStage?.mode === 'SPLIT_DIVISIONS';
-  $: goldBracket = tournament.finalStage?.goldBracket;
-  $: silverBracket = tournament.finalStage?.silverBracket;
+  let isSplitDivisions = $derived(tournament.finalStage?.mode === 'SPLIT_DIVISIONS');
+  let goldBracket = $derived(tournament.finalStage?.goldBracket);
+  let silverBracket = $derived(tournament.finalStage?.silverBracket);
 
   // Match configuration - determines if we show games won or total points
-  $: goldMatchesToWin = tournament.finalStage?.matchesToWin || 1;
-  $: silverMatchesToWin = tournament.finalStage?.silverMatchesToWin || 1;
-  $: showGoldGamesWon = goldMatchesToWin > 1;
-  $: showSilverGamesWon = silverMatchesToWin > 1;
+  let goldMatchesToWin = $derived(tournament.finalStage?.matchesToWin || 1);
+  let silverMatchesToWin = $derived(tournament.finalStage?.silverMatchesToWin || 1);
+  let showGoldGamesWon = $derived(goldMatchesToWin > 1);
+  let showSilverGamesWon = $derived(silverMatchesToWin > 1);
 
   // Sort participants by final position for the final standings
-  $: sortedParticipants = [...tournament.participants]
+  let sortedParticipants = $derived([...tournament.participants]
     .filter(p => p.status === 'ACTIVE' && p.finalPosition)
-    .sort((a, b) => (a.finalPosition || 999) - (b.finalPosition || 999));
+    .sort((a, b) => (a.finalPosition || 999) - (b.finalPosition || 999)));
 
   // Get participant name by ID
   function getParticipantName(participantId: string | undefined): string {
@@ -115,8 +117,8 @@
     try {
       const success = await recalculateStandings(tournament.id, groupId);
       if (success) {
-        // Dispatch event to parent to reload tournament data
-        dispatch('updated');
+        // Emit event to parent to reload tournament data
+        onupdated?.();
       }
     } catch (err) {
       console.error('Error recalculating standings:', err);
@@ -139,7 +141,7 @@
         if (tournament.rankingConfig?.enabled) {
           await applyRankingUpdates(tournament.id);
         }
-        dispatch('updated');
+        onupdated?.();
       }
     } catch (err) {
       console.error('Error recalculating positions:', err);
@@ -172,7 +174,7 @@
   }
 
   // Convert BracketMatch to GroupMatch for dialog
-  $: dialogMatch = selectedMatch ? {
+  let dialogMatch = $derived(selectedMatch ? {
     ...selectedMatch,
     id: selectedMatch.id,
     participantA: (selectedMatch as any).participantA || '',
@@ -187,7 +189,7 @@
     rounds: (selectedMatch as any).rounds,
     winner: (selectedMatch as any).winner,
     noShowParticipant: (selectedMatch as any).noShowParticipant
-  } as GroupMatch : null;
+  } as GroupMatch : null);
 </script>
 
 <div class="completed-view">
@@ -197,7 +199,7 @@
       <h3>{$t('finalStandings')}</h3>
       <button
         class="recalc-positions-btn"
-        on:click={handleRecalculatePositions}
+        onclick={handleRecalculatePositions}
         disabled={recalculatingPositions}
         title={$t('recalculatePositions')}
       >
@@ -213,17 +215,23 @@
       </button>
     </div>
     <div class="standings-grid" class:with-ranking={tournament.rankingConfig?.enabled}>
+      {#if tournament.rankingConfig?.enabled}
+        <div class="standings-header-row">
+          <span class="pos"></span>
+          <span class="name">{$t('name')}</span>
+          <span class="ranking">Ranking</span>
+          <span class="pts">Pts</span>
+        </div>
+      {/if}
       {#each sortedParticipants as participant (participant.id)}
-        {@const delta = getRankingDelta(participant)}
+        {@const pointsEarned = getRankingDelta(participant)}
         {@const pos = participant.finalPosition || 0}
         <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
           <span class="pos">{getPositionDisplay(pos)}</span>
           <span class="name">{participant.name}</span>
           {#if tournament.rankingConfig?.enabled}
             <span class="ranking">{participant.currentRanking}</span>
-            <span class="delta" class:positive={delta > 0} class:negative={delta < 0}>
-              {delta > 0 ? '+' : ''}{delta}
-            </span>
+            <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
           {/if}
         </div>
       {/each}
@@ -236,7 +244,7 @@
       <button
         class="tab-button"
         class:active={activeTab === 'groups'}
-        on:click={() => activeTab = 'groups'}
+        onclick={() => activeTab = 'groups'}
       >
         <span class="tab-indicator"></span>
         <span class="tab-label">Fase de Grupos</span>
@@ -245,7 +253,7 @@
     <button
       class="tab-button"
       class:active={activeTab === 'bracket'}
-      on:click={() => activeTab = 'bracket'}
+      onclick={() => activeTab = 'bracket'}
     >
       <span class="tab-indicator"></span>
       <span class="tab-label">Fase Final</span>
@@ -271,7 +279,7 @@
                 </h4>
                 <button
                   class="recalc-btn"
-                  on:click={() => handleRecalculateStandings(group.id)}
+                  onclick={() => handleRecalculateStandings(group.id)}
                   disabled={recalculatingGroups.has(group.id)}
                   title={$t('recalculateStandings')}
                 >
@@ -295,7 +303,7 @@
             <div class="matches-section">
               <button
                 class="results-accordion-header"
-                on:click={() => toggleResults(group.id)}
+                onclick={() => toggleResults(group.id)}
                 aria-expanded={expandedResults.has(group.id)}
               >
                 <span class="accordion-icon" class:expanded={expandedResults.has(group.id)}>
@@ -318,7 +326,7 @@
                         {#each round.matches as match (match.id)}
                           <button
                             class="match-row"
-                            on:click={() => handleMatchClick(match, false)}
+                            onclick={() => handleMatchClick(match, false)}
                           >
                             {#if match.tableNumber}
                               <span class="table-badge">{$t('tableShort')}{match.tableNumber}</span>
@@ -364,7 +372,7 @@
                     class="bracket-match"
                     class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
                     class:bye-match={isByeMatch(match)}
-                    on:click={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                    onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
                     disabled={!match.participantA || !match.participantB || isByeMatch(match)}
                   >
                     <div
@@ -413,7 +421,7 @@
                 <button
                   class="bracket-match third-place-match"
                   class:clickable={thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
-                  on:click={() => thirdPlaceMatch.participantA && thirdPlaceMatch.participantB && handleMatchClick(thirdPlaceMatch, true)}
+                  onclick={() => thirdPlaceMatch.participantA && thirdPlaceMatch.participantB && handleMatchClick(thirdPlaceMatch, true)}
                   disabled={!thirdPlaceMatch.participantA || !thirdPlaceMatch.participantB}
                 >
                   <div
@@ -463,7 +471,7 @@
                       class="bracket-match"
                       class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
                       class:bye-match={isByeMatch(match)}
-                      on:click={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                      onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
                       disabled={!match.participantA || !match.participantB || isByeMatch(match)}
                     >
                       <div
@@ -512,7 +520,7 @@
                   <button
                     class="bracket-match third-place-match"
                     class:clickable={silverThirdPlace.participantA && silverThirdPlace.participantB}
-                    on:click={() => silverThirdPlace.participantA && silverThirdPlace.participantB && handleMatchClick(silverThirdPlace, true)}
+                    onclick={() => silverThirdPlace.participantA && silverThirdPlace.participantB && handleMatchClick(silverThirdPlace, true)}
                     disabled={!silverThirdPlace.participantA || !silverThirdPlace.participantB}
                   >
                     <div
@@ -558,7 +566,7 @@
     {tournament}
     visible={showMatchDialog}
     isBracket={isBracketMatch}
-    on:close={handleCloseDialog}
+    onclose={handleCloseDialog}
   />
 {/if}
 
@@ -643,6 +651,43 @@
 
   .standings-grid.with-ranking {
     /* Same single column layout for ranking */
+  }
+
+  .standings-header-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 0.25rem;
+  }
+
+  .standings-header-row .pos {
+    min-width: 1.5rem;
+  }
+
+  .standings-header-row .name {
+    flex: 1;
+  }
+
+  .standings-header-row .ranking {
+    min-width: 2.5rem;
+    text-align: right;
+  }
+
+  .standings-header-row .pts {
+    min-width: 2rem;
+    text-align: center;
+  }
+
+  :global([data-theme='dark']) .standings-header-row {
+    color: #8b9bb3;
+    border-bottom-color: #2d3748;
   }
 
   .standing-row {
@@ -769,23 +814,15 @@
     text-align: right;
   }
 
-  .standing-row .delta {
+  .standing-row .pts {
     font-size: 0.7rem;
     font-weight: 700;
     padding: 0.1rem 0.3rem;
     border-radius: 3px;
     min-width: 2rem;
     text-align: center;
-  }
-
-  .standing-row .delta.positive {
     background: rgba(16, 185, 129, 0.15);
     color: #10b981;
-  }
-
-  .standing-row .delta.negative {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
   }
 
   /* Tab Navigation - Professional minimal style */

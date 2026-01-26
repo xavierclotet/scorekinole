@@ -23,26 +23,26 @@
   import { getUserProfile } from '$lib/firebase/userProfile';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
 
-  let tournament: Tournament | null = null;
-  let loading = true;
-  let error = false;
-  let showToast = false;
-  let toastMessage = '';
-  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
-  let showCompleteConfirm = false;
-  let isTransitioning = false;
-  let showMatchDialog = false;
-  let selectedMatch: GroupMatch | null = null;
-  let activeGroupId: string | null = null;
-  let isSuperAdminUser = false;
-  let canAutofillUser = false;
-  let isAutoFilling = false;
-  let unsubscribe: (() => void) | null = null;
-  let showTimeBreakdown = false;
-  let timeBreakdown: TimeBreakdown | null = null;
+  let tournament: Tournament | null = $state(null);
+  let loading = $state(true);
+  let error = $state(false);
+  let showToast = $state(false);
+  let toastMessage = $state('');
+  let toastType: 'success' | 'error' | 'info' | 'warning' = $state('info');
+  let showCompleteConfirm = $state(false);
+  let isTransitioning = $state(false);
+  let showMatchDialog = $state(false);
+  let selectedMatch: GroupMatch | null = $state(null);
+  let activeGroupId: string | null = $state(null);
+  let isSuperAdminUser = $state(false);
+  let canAutofillUser = $state(false);
+  let isAutoFilling = $state(false);
+  let unsubscribe: (() => void) | null = $state(null);
+  let showTimeBreakdown = $state(false);
+  let timeBreakdown: TimeBreakdown | null = $state(null);
 
-  $: tournamentId = $page.params.id;
-  $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
+  let tournamentId = $derived($page.params.id);
+  let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
 
   // Translate group name based on language
   // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
@@ -203,10 +203,23 @@
     }
   }
 
-  async function handleSaveResult(event: CustomEvent) {
+  async function handleSaveResult(result: {
+    gamesWonA: number;
+    gamesWonB: number;
+    totalPointsA?: number;
+    totalPointsB?: number;
+    total20sA?: number;
+    total20sB?: number;
+    rounds?: Array<{
+      gameNumber: number;
+      roundInGame: number;
+      pointsA: number | null;
+      pointsB: number | null;
+      twentiesA: number;
+      twentiesB: number;
+    }>;
+  }) {
     if (!selectedMatch || !tournamentId) return;
-
-    const result = event.detail;
 
     // Determine winner based on game mode
     const gameMode = tournament?.groupStage?.gameMode || 'rounds';
@@ -255,10 +268,8 @@
     }
   }
 
-  async function handleNoShow(event: CustomEvent) {
+  async function handleNoShow(noShowParticipantId: string) {
     if (!selectedMatch || !tournamentId) return;
-
-    const noShowParticipantId = event.detail;
     const success = await markNoShow(
       tournamentId,
       selectedMatch.id,
@@ -604,7 +615,7 @@
     <header class="page-header">
       {#if tournament}
         <div class="header-row">
-          <button class="back-btn" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>←</button>
+          <button class="back-btn" onclick={() => goto(`/admin/tournaments/${tournamentId}`)}>←</button>
           <div class="header-main">
             <div class="title-section">
               <h1>{tournament.edition ? `#${tournament.edition} ` : ''}{tournament.name}</h1>
@@ -627,7 +638,7 @@
                     showEstimatedEnd={true}
                     compact={true}
                     clickable={true}
-                    on:click={openTimeBreakdown}
+                    onclick={openTimeBreakdown}
                   />
                 </div>
               {/if}
@@ -650,7 +661,7 @@
               {#if (isSuperAdminUser || canAutofillUser) && !allMatchesComplete}
                 <button
                   class="action-btn autofill"
-                  on:click={autoFillAllMatches}
+                  onclick={autoFillAllMatches}
                   disabled={isAutoFilling}
                   title={isSwiss
                     ? `${$t('autoFillMatchesTitle')} - ${$t('round')} ${currentRound}`
@@ -666,7 +677,7 @@
               {#if allMatchesComplete}
                 <button
                   class="final-stage-btn"
-                  on:click={confirmCompleteGroups}
+                  onclick={confirmCompleteGroups}
                   disabled={isTransitioning}
                   title={$t('completeGroupStage')}
                 >
@@ -701,7 +712,7 @@
           <div class="error-icon">⚠️</div>
           <h3>{$t('errorLoading')}</h3>
           <p>{$t('couldNotLoadGroupStage')}</p>
-          <button class="primary-button" on:click={() => goto('/admin/tournaments')}>
+          <button class="primary-button" onclick={() => goto('/admin/tournaments')}>
             {$t('backToTournaments')}
           </button>
         </div>
@@ -716,11 +727,11 @@
     <div
       class="modal-backdrop"
       data-theme={$adminTheme}
-      on:click={closeCompleteModal}
-      on:keydown={(e) => e.key === 'Escape' && closeCompleteModal()}
+      onclick={closeCompleteModal}
+      onkeydown={(e) => e.key === 'Escape' && closeCompleteModal()}
       role="presentation"
     >
-      <div class="confirm-modal" on:click|stopPropagation role="dialog" aria-modal="true">
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <h2>✅ {$t('completeGroupStage')}</h2>
         <p>{$t('readyToCompleteGroups')}</p>
         <div class="tournament-info">
@@ -736,8 +747,8 @@
           {/if}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={closeCompleteModal}>{$t('cancel')}</button>
-          <button class="confirm-btn" on:click={completeGroupStage}>{$t('complete')}</button>
+          <button class="cancel-btn" onclick={closeCompleteModal}>{$t('cancel')}</button>
+          <button class="confirm-btn" onclick={completeGroupStage}>{$t('complete')}</button>
         </div>
       </div>
     </div>
@@ -751,9 +762,9 @@
       tournament={tournament}
       visible={showMatchDialog}
       isAdmin={true}
-      on:close={handleCloseDialog}
-      on:save={handleSaveResult}
-      on:noshow={handleNoShow}
+      onclose={handleCloseDialog}
+      onsave={handleSaveResult}
+      onnoshow={handleNoShow}
     />
   {/if}
 </AdminGuard>
@@ -773,7 +784,7 @@
   bind:visible={showTimeBreakdown}
   breakdown={timeBreakdown}
   showRecalculate={true}
-  on:recalculate={recalculateTime}
+  onrecalculate={recalculateTime}
 />
 
 

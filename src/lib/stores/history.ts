@@ -57,6 +57,16 @@ export function loadHistory() {
 
 // Helper function to remove duplicate matches by ID
 function deduplicateMatches(matches: MatchHistory[]): MatchHistory[] {
+    // Ensure matches is an array (localStorage may be corrupted or stored as object)
+    if (!matches || !Array.isArray(matches)) {
+        // If it's an object, try to convert to array
+        if (matches && typeof matches === 'object') {
+            matches = Object.values(matches);
+        } else {
+            return [];
+        }
+    }
+
     const seen = new Map<string, MatchHistory>();
 
     matches.forEach(match => {

@@ -43,9 +43,9 @@
   ];
 
   // Filter sections based on superAdmin status
-  $: adminSections = allAdminSections.filter(
+  let adminSections = $derived(allAdminSections.filter(
     section => !section.superAdminOnly || $isSuperAdminUser
-  );
+  ));
 
   function navigateTo(path: string) {
     goto(path);
@@ -56,7 +56,7 @@
   <div class="admin-container" data-theme={$adminTheme}>
     <header class="admin-header">
       <div class="header-top">
-        <button class="back-button" on:click={() => goto('/')}>
+        <button class="back-button" onclick={() => goto('/')}>
           ← {$t('backToHome')}
         </button>
         <div class="theme-toggle-wrapper">
@@ -74,7 +74,7 @@
       {#each adminSections as section}
         <button
           class="admin-card"
-          on:click={() => navigateTo(section.path)}
+          onclick={() => navigateTo(section.path)}
         >
           <div class="card-background" style="background: {section.gradient}"></div>
           <div class="card-content">

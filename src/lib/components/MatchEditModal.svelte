@@ -1,27 +1,29 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { t } from '$lib/stores/language';
   import { adminTheme } from '$lib/stores/theme';
-  import type { MatchHistory, MatchGame, MatchRound } from '$lib/types/history';
+  import type { MatchHistory, MatchGame } from '$lib/types/history';
   import { updateMatch } from '$lib/firebase/admin';
 
-  export let match: MatchHistory;
-  export let onClose: () => void;
+  interface Props {
+    match: MatchHistory;
+    onClose: () => void;
+    onmatchupdated?: (data: { matchId: string }) => void;
+  }
 
-  const dispatch = createEventDispatcher();
+  let { match, onClose, onmatchupdated }: Props = $props();
 
-  let team1Name = match.team1Name;
-  let team2Name = match.team2Name;
-  let eventTitle = match.eventTitle || '';
-  let matchPhase = match.matchPhase || '';
-  let gameType: 'singles' | 'doubles' = match.gameType || 'singles';
+  let team1Name = $state(match.team1Name);
+  let team2Name = $state(match.team2Name);
+  let eventTitle = $state(match.eventTitle || '');
+  let matchPhase = $state(match.matchPhase || '');
+  let gameType = $state<'singles' | 'doubles'>(match.gameType || 'singles');
 
   // Deep clone games to allow editing
-  let editableGames: MatchGame[] = JSON.parse(JSON.stringify(match.games));
+  let editableGames = $state<MatchGame[]>(JSON.parse(JSON.stringify(match.games)));
 
-  let selectedGameIndex = 0;
-  let isSaving = false;
-  let errorMessage = '';
+  let selectedGameIndex = $state(0);
+  let isSaving = $state(false);
+  let errorMessage = $state('');
 
   async function saveChanges() {
     if (!team1Name.trim() || !team2Name.trim()) {
@@ -47,7 +49,7 @@
         throw new Error('Failed to update match');
       }
 
-      dispatch('matchUpdated', { matchId: match.id });
+      onmatchupdated?.({ matchId: match.id });
       onClose();
     } catch (error) {
       console.error('Error saving match:', error);
@@ -66,13 +68,21 @@
       minute: '2-digit'
     });
   }
+
+  function stopPropagation(e: Event) {
+    e.stopPropagation();
+  }
+
+  function selectGame(index: number) {
+    selectedGameIndex = index;
+  }
 </script>
 
-<div class="modal-backdrop" on:click={onClose} data-theme={$adminTheme}>
-  <div class="modal-content" on:click|stopPropagation>
+<div class="modal-backdrop" onclick={onClose} data-theme={$adminTheme}>
+  <div class="modal-content" onclick={stopPropagation}>
     <div class="modal-header">
       <h2>✏️ {$t('editMatch')}</h2>
-      <button class="close-button" on:click={onClose}>✕</button>
+      <button class="close-button" onclick={onClose}>✕</button>
     </div>
 
     <div class="modal-body">
@@ -166,7 +176,7 @@
               <button
                 class="game-tab"
                 class:active={selectedGameIndex === index}
-                on:click={() => selectedGameIndex = index}
+                onclick={() => selectGame(index)}
               >
                 {$t('game')} {index + 1}
                 {#if game.winner}
@@ -253,10 +263,10 @@
     </div>
 
     <div class="modal-footer">
-      <button class="cancel-button" on:click={onClose} disabled={isSaving}>
+      <button class="cancel-button" onclick={onClose} disabled={isSaving}>
         {$t('cancel')}
       </button>
-      <button class="save-button" on:click={saveChanges} disabled={isSaving}>
+      <button class="save-button" onclick={saveChanges} disabled={isSaving}>
         {isSaving ? $t('savingChanges') : '💾 ' + $t('saveChangesBtn')}
       </button>
     </div>

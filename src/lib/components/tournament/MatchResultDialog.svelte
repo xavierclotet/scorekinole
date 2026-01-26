@@ -1,43 +1,65 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import type { GroupMatch, TournamentParticipant, Tournament } from '$lib/types/tournament';
   import { t } from '$lib/stores/language';
   import { adminTheme } from '$lib/stores/theme';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
 
-  export let match: GroupMatch;
-  export let participants: TournamentParticipant[];
-  export let tournament: Tournament;
-  export let visible: boolean = false;
-  export let isBracket: boolean = false;  // Whether this is a bracket match (uses final stage config)
-  // Bracket phase info (for per-phase configuration)
-  export let bracketRoundNumber: number = 1;
-  export let bracketTotalRounds: number = 1;
-  export let bracketIsThirdPlace: boolean = false;
-  export let bracketIsSilver: boolean = false;
-  export let isAdmin: boolean = false;  // Allow editing completed matches when true
-
-  const dispatch = createEventDispatcher<{
-    close: void;
-    save: {
+  interface Props {
+    match: GroupMatch;
+    participants: TournamentParticipant[];
+    tournament: Tournament;
+    visible?: boolean;
+    isBracket?: boolean;  // Whether this is a bracket match (uses final stage config)
+    // Bracket phase info (for per-phase configuration)
+    bracketRoundNumber?: number;
+    bracketTotalRounds?: number;
+    bracketIsThirdPlace?: boolean;
+    bracketIsSilver?: boolean;
+    isAdmin?: boolean;  // Allow editing completed matches when true
+    onclose?: () => void;
+    onsave?: (data: {
       gamesWonA: number;
       gamesWonB: number;
       totalPointsA?: number;
       totalPointsB?: number;
       total20sA?: number;
       total20sB?: number;
-    };
-    noshow: string;
-  }>();
+      rounds?: Array<{
+        gameNumber: number;
+        roundInGame: number;
+        pointsA: number | null;
+        pointsB: number | null;
+        twentiesA: number;
+        twentiesB: number;
+      }>;
+    }) => void;
+    onnoshow?: (participantId: string) => void;
+  }
+
+  let {
+    match,
+    participants,
+    tournament,
+    visible = false,
+    isBracket = false,
+    bracketRoundNumber = 1,
+    bracketTotalRounds = 1,
+    bracketIsThirdPlace = false,
+    bracketIsSilver = false,
+    isAdmin = false,
+    onclose,
+    onsave,
+    onnoshow
+  }: Props = $props();
 
   // Participant info
-  $: participantMap = new Map(participants.map(p => [p.id, p]));
-  $: participantA = participantMap.get(match.participantA);
-  $: participantB = participantMap.get(match.participantB);
-  $: isBye = match.participantB === 'BYE';
+  let participantMap = $derived(new Map(participants.map(p => [p.id, p])));
+  let participantA = $derived(participantMap.get(match.participantA));
+  let participantB = $derived(participantMap.get(match.participantB));
+  let isBye = $derived(match.participantB === 'BYE');
 
   // Game mode - use phase-specific config if in bracket, otherwise use group stage config
-  $: gameConfig = isBracket && tournament.finalStage
+  let gameConfig = $derived(isBracket && tournament.finalStage
     ? getPhaseConfig(
         tournament.finalStage,
         bracketRoundNumber,
@@ -58,26 +80,18 @@
         pointsToWin: 7,
         roundsToPlay: 4,
         matchesToWin: 1
-      };
+      });
 
-  $: isRoundsMode = gameConfig.gameMode === 'rounds';
+  let isRoundsMode = $derived(gameConfig.gameMode === 'rounds');
 
   // Can edit: pending matches OR admin editing completed matches
-  $: isMatchCompleted = match.status === 'COMPLETED' || match.status === 'WALKOVER';
-  $: canEdit = !isMatchCompleted || isAdmin;
+  let isMatchCompleted = $derived(match.status === 'COMPLETED' || match.status === 'WALKOVER');
+  let canEdit = $derived(!isMatchCompleted || isAdmin);
 
-  // Debug gameConfig
-  $: if (visible && match) {
-    console.log('📋 Dialog opened for match:', match.id);
-    console.log('📋 isBracket:', isBracket);
-    console.log('📋 gameConfig:', gameConfig);
-    console.log('📋 isRoundsMode:', isRoundsMode);
-    console.log('📋 tournament.finalStage:', tournament.finalStage);
-  }
-  $: baseNumRounds = isRoundsMode ? (gameConfig.roundsToPlay || 4) : gameConfig.matchesToWin;
+  let baseNumRounds = $derived(isRoundsMode ? (gameConfig.roundsToPlay || 4) : gameConfig.matchesToWin);
   // Track extra rounds added for tiebreaker
-  let extraRoundsCount = 0;
-  $: numRounds = baseNumRounds + extraRoundsCount;
+  let extraRoundsCount = $state(0);
+  let numRounds = $derived(baseNumRounds + extraRoundsCount);
 
   // Round-by-round data
   interface RoundData {
@@ -89,143 +103,149 @@
     twentiesB: number;
   }
 
-  let rounds: RoundData[] = [];
-  let initialized = false;
+  let rounds = $state<RoundData[]>([]);
+  let initialized = $state(false);
 
   // Game tracking for points mode (bracket only)
-  let currentGameNumber: number = 1;
-  let gamesWonA: number = 0;
-  let gamesWonB: number = 0;
-  let currentGameComplete: boolean = false;
+  let currentGameNumber = $state(1);
+  let gamesWonA = $state(0);
+  let gamesWonB = $state(0);
+  let currentGameComplete = $state(false);
   // Flag to prevent reactive block from double-counting gamesWon during initialization
-  let gamesWonInitialized: boolean = false;
+  let gamesWonInitialized = $state(false);
 
   // Initialize rounds only once when dialog opens
-  $: if (match && visible && !initialized) {
-    // Check if match already has saved rounds
-    const hasSavedRounds = match.rounds && match.rounds.length > 0;
+  $effect(() => {
+    if (match && visible && !initialized) {
+      // Check if match already has saved rounds
+      const hasSavedRounds = match.rounds && match.rounds.length > 0;
 
-    if (hasSavedRounds) {
-      // Load saved rounds (for any match type)
-      console.log('🔍 Loading saved rounds:', match.rounds);
-      rounds = match.rounds.map(r => ({
-        gameNumber: r.gameNumber,
-        roundInGame: r.roundInGame,
-        pointsA: r.pointsA,
-        pointsB: r.pointsB,
-        twentiesA: r.twentiesA || 0,
-        twentiesB: r.twentiesB || 0
-      }));
+      if (hasSavedRounds) {
+        // Load saved rounds (for any match type)
+        console.log('🔍 Loading saved rounds:', match.rounds);
+        rounds = match.rounds.map(r => ({
+          gameNumber: r.gameNumber,
+          roundInGame: r.roundInGame,
+          pointsA: r.pointsA,
+          pointsB: r.pointsB,
+          twentiesA: r.twentiesA || 0,
+          twentiesB: r.twentiesB || 0
+        }));
 
-      // For rounds mode: check if there were extra rounds (tiebreaker)
-      if (isRoundsMode && rounds.length > baseNumRounds) {
-        extraRoundsCount = rounds.length - baseNumRounds;
-        console.log('📊 Restored extra rounds count:', extraRoundsCount);
-      } else if (isRoundsMode && rounds.length < baseNumRounds) {
-        // Pad with empty rounds if needed
-        const missingRounds = baseNumRounds - rounds.length;
-        for (let i = 0; i < missingRounds; i++) {
-          rounds.push({
+        // For rounds mode: check if there were extra rounds (tiebreaker)
+        if (isRoundsMode && rounds.length > baseNumRounds) {
+          extraRoundsCount = rounds.length - baseNumRounds;
+          console.log('📊 Restored extra rounds count:', extraRoundsCount);
+        } else if (isRoundsMode && rounds.length < baseNumRounds) {
+          // Pad with empty rounds if needed
+          const missingRounds = baseNumRounds - rounds.length;
+          for (let i = 0; i < missingRounds; i++) {
+            rounds.push({
+              gameNumber: 1,
+              roundInGame: rounds.length + 1,
+              pointsA: null,
+              pointsB: null,
+              twentiesA: 0,
+              twentiesB: 0
+            });
+          }
+          console.log('📊 Padded rounds to match baseNumRounds:', baseNumRounds);
+        }
+
+        // For bracket points mode, restore game tracking state
+        if (isBracket && !isRoundsMode) {
+          gamesWonA = match.gamesWonA || 0;
+          gamesWonB = match.gamesWonB || 0;
+
+          // Determine current game number from rounds (highest game number found)
+          const maxGameNum = rounds.length > 0
+            ? Math.max(...rounds.map(r => r.gameNumber || 1))
+            : 1;
+          currentGameNumber = maxGameNum;
+
+          // Check if current game is already complete based on points
+          const currentRounds = rounds.filter(r => r.gameNumber === currentGameNumber);
+          const currentPtsA = currentRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0);
+          const currentPtsB = currentRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0);
+          const pointsToWin = gameConfig.pointsToWin || 7;
+          const aWon = currentPtsA >= pointsToWin && (currentPtsA - currentPtsB >= 2);
+          const bWon = currentPtsB >= pointsToWin && (currentPtsB - currentPtsA >= 2);
+
+          // Mark current game as complete if match is finished OR if current game has a winner
+          currentGameComplete = (match.status === 'COMPLETED' || match.status === 'WALKOVER') || aWon || bWon;
+
+          // Mark games won as properly initialized to prevent reactive double-counting
+          gamesWonInitialized = true;
+
+          console.log('📊 Restored bracket points mode state:', {
+            gamesWonA, gamesWonB, currentGameNumber, currentGameComplete,
+            currentPtsA, currentPtsB, pointsToWin
+          });
+        }
+
+        console.log('✅ Loaded rounds:', rounds);
+      } else {
+        // No saved rounds - initialize based on mode
+        if (isBracket && !isRoundsMode) {
+          // Points mode bracket: start with empty rounds (dynamic)
+          rounds = [];
+          currentGameNumber = 1;
+          // For completed matches without rounds, load games won from match data
+          if (match.status === 'COMPLETED' || match.status === 'WALKOVER') {
+            gamesWonA = match.gamesWonA || 0;
+            gamesWonB = match.gamesWonB || 0;
+            currentGameComplete = true;
+          } else {
+            gamesWonA = 0;
+            gamesWonB = 0;
+            currentGameComplete = false;
+          }
+        } else {
+          // Rounds mode (groups & brackets): initialize fixed rounds
+          extraRoundsCount = 0;
+          rounds = Array.from({ length: baseNumRounds }, (_, i) => ({
             gameNumber: 1,
-            roundInGame: rounds.length + 1,
+            roundInGame: i + 1,
             pointsA: null,
             pointsB: null,
             twentiesA: 0,
             twentiesB: 0
-          });
+          }));
         }
-        console.log('📊 Padded rounds to match baseNumRounds:', baseNumRounds);
+        console.log('⚠️ No saved rounds - initialized new rounds');
       }
 
-      // For bracket points mode, restore game tracking state
-      if (isBracket && !isRoundsMode) {
-        gamesWonA = match.gamesWonA || 0;
-        gamesWonB = match.gamesWonB || 0;
-
-        // Determine current game number from rounds (highest game number found)
-        const maxGameNum = rounds.length > 0
-          ? Math.max(...rounds.map(r => r.gameNumber || 1))
-          : 1;
-        currentGameNumber = maxGameNum;
-
-        // Check if current game is already complete based on points
-        const currentRounds = rounds.filter(r => r.gameNumber === currentGameNumber);
-        const currentPtsA = currentRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0);
-        const currentPtsB = currentRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0);
-        const pointsToWin = gameConfig.pointsToWin || 7;
-        const aWon = currentPtsA >= pointsToWin && (currentPtsA - currentPtsB >= 2);
-        const bWon = currentPtsB >= pointsToWin && (currentPtsB - currentPtsA >= 2);
-
-        // Mark current game as complete if match is finished OR if current game has a winner
-        currentGameComplete = (match.status === 'COMPLETED' || match.status === 'WALKOVER') || aWon || bWon;
-
-        // Mark games won as properly initialized to prevent reactive double-counting
-        gamesWonInitialized = true;
-
-        console.log('📊 Restored bracket points mode state:', {
-          gamesWonA, gamesWonB, currentGameNumber, currentGameComplete,
-          currentPtsA, currentPtsB, pointsToWin
-        });
-      }
-
-      console.log('✅ Loaded rounds:', rounds);
-    } else {
-      // No saved rounds - initialize based on mode
-      if (isBracket && !isRoundsMode) {
-        // Points mode bracket: start with empty rounds (dynamic)
-        rounds = [];
-        currentGameNumber = 1;
-        // For completed matches without rounds, load games won from match data
-        if (match.status === 'COMPLETED' || match.status === 'WALKOVER') {
-          gamesWonA = match.gamesWonA || 0;
-          gamesWonB = match.gamesWonB || 0;
-          currentGameComplete = true;
-        } else {
-          gamesWonA = 0;
-          gamesWonB = 0;
-          currentGameComplete = false;
-        }
-      } else {
-        // Rounds mode (groups & brackets): initialize fixed rounds
-        extraRoundsCount = 0;
-        rounds = Array.from({ length: baseNumRounds }, (_, i) => ({
-          gameNumber: 1,
-          roundInGame: i + 1,
-          pointsA: null,
-          pointsB: null,
-          twentiesA: 0,
-          twentiesB: 0
-        }));
-      }
-      console.log('⚠️ No saved rounds - initialized new rounds');
+      initialized = true;
     }
-
-    initialized = true;
-  }
+  });
 
   // Reset initialization flag and state when dialog closes
-  $: if (!visible) {
-    initialized = false;
-    gamesWonInitialized = false;
-    currentGameNumber = 1;
-    gamesWonA = 0;
-    gamesWonB = 0;
-    currentGameComplete = false;
-    extraRoundsCount = 0;
-  }
+  $effect(() => {
+    if (!visible) {
+      initialized = false;
+      gamesWonInitialized = false;
+      currentGameNumber = 1;
+      gamesWonA = 0;
+      gamesWonB = 0;
+      currentGameComplete = false;
+      extraRoundsCount = 0;
+    }
+  });
 
   // Reinicializar cuando match.rounds cambia (actualización de Firebase)
-  $: if (visible && match?.rounds && match.rounds.length > rounds.length) {
-    initialized = false;
-  }
+  $effect(() => {
+    if (visible && match?.rounds && match.rounds.length > rounds.length) {
+      initialized = false;
+    }
+  });
 
   // Computed values for current game (points mode brackets only)
-  $: currentGameRounds = rounds.filter(r => r.gameNumber === currentGameNumber);
-  $: currentPointsA = currentGameRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0);
-  $: currentPointsB = currentGameRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0);
+  let currentGameRounds = $derived(rounds.filter(r => r.gameNumber === currentGameNumber));
+  let currentPointsA = $derived(currentGameRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0));
+  let currentPointsB = $derived(currentGameRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0));
 
   // Game completion check (points mode brackets only)
-  $: {
+  $effect(() => {
     if (isBracket && !isRoundsMode) {
       const pointsToWin = gameConfig.pointsToWin || 7;
       const aWins = currentPointsA >= pointsToWin && (currentPointsA - currentPointsB >= 2);
@@ -252,16 +272,16 @@
     } else {
       currentGameComplete = false;
     }
-  }
+  });
 
   // Calculate totals (aggregate across all games)
-  $: totalPointsA = rounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0);
-  $: totalPointsB = rounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0);
-  $: total20sA = rounds.reduce((sum, r) => sum + r.twentiesA, 0);
-  $: total20sB = rounds.reduce((sum, r) => sum + r.twentiesB, 0);
+  let totalPointsA = $derived(rounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0));
+  let totalPointsB = $derived(rounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0));
+  let total20sA = $derived(rounds.reduce((sum, r) => sum + r.twentiesA, 0));
+  let total20sB = $derived(rounds.reduce((sum, r) => sum + r.twentiesB, 0));
 
   // Games won calculation depends on mode
-  $: {
+  $effect(() => {
     if (isBracket && !isRoundsMode) {
       // Points mode bracket: gamesWonA/B are managed by startNextGame()
       // Don't recalculate here
@@ -270,55 +290,49 @@
       gamesWonA = rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsA > r.pointsB).length;
       gamesWonB = rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsB > r.pointsA).length;
     }
-  }
+  });
 
   // Detect tiebreak situation in bracket rounds mode
-  $: allBaseRoundsComplete = isRoundsMode && rounds.length >= baseNumRounds &&
-    rounds.slice(0, baseNumRounds).every(r => r.pointsA !== null && r.pointsB !== null);
-  $: isBracketTiebreak = isBracket && isRoundsMode && allBaseRoundsComplete && gamesWonA === gamesWonB;
-  $: needsExtraRound = isBracketTiebreak && rounds.every(r => r.pointsA !== null && r.pointsB !== null);
+  let allBaseRoundsComplete = $derived(isRoundsMode && rounds.length >= baseNumRounds &&
+    rounds.slice(0, baseNumRounds).every(r => r.pointsA !== null && r.pointsB !== null));
+  let isBracketTiebreak = $derived(isBracket && isRoundsMode && allBaseRoundsComplete && gamesWonA === gamesWonB);
+  let needsExtraRound = $derived(isBracketTiebreak && rounds.every(r => r.pointsA !== null && r.pointsB !== null));
 
-  // Validation
-  $: {
+  // Validation - canSave derived from current state
+  let canSave = $derived((() => {
     if (isBracket && !isRoundsMode) {
       // Points mode (bracket): Match must be complete (someone won enough games)
       const requiredWins = Math.ceil(gameConfig.matchesToWin / 2);
-      canSave = gamesWonA >= requiredWins || gamesWonB >= requiredWins;
+      return gamesWonA >= requiredWins || gamesWonB >= requiredWins;
     } else if (isRoundsMode) {
       // Rounds mode: All rounds must be complete
       const allRoundsPlayed = rounds.every(r => r.pointsA !== null && r.pointsB !== null);
       if (isBracket) {
         // Bracket in rounds mode: no ties allowed - must have a winner
-        canSave = allRoundsPlayed && gamesWonA !== gamesWonB;
+        return allRoundsPlayed && gamesWonA !== gamesWonB;
       } else {
         // Groups in rounds mode: ties allowed
-        canSave = allRoundsPlayed;
+        return allRoundsPlayed;
       }
     } else {
-      canSave = false;
+      return false;
     }
-  }
+  })());
 
   // Check if any result has been entered (to hide no-show buttons)
-  $: hasAnyResult = rounds.some(r => r.pointsA !== null || r.pointsB !== null);
+  let hasAnyResult = $derived(rounds.some(r => r.pointsA !== null || r.pointsB !== null));
 
   // Group rounds by game number for display (completed matches)
-  $: gamesByNumber = rounds.reduce((map, round) => {
+  let gamesByNumber = $derived(rounds.reduce((map, round) => {
     if (!map.has(round.gameNumber)) {
       map.set(round.gameNumber, []);
     }
     map.get(round.gameNumber)!.push(round);
     return map;
-  }, new Map<number, typeof rounds>());
-
-  $: if (visible && rounds.length > 0) {
-    console.log('📊 Dialog - partidas:', Array.from(gamesByNumber.keys()), 'total rondas:', rounds.length);
-  }
-
-  let canSave = false;
+  }, new Map<number, RoundData[]>()));
 
   function handleClose() {
-    dispatch('close');
+    onclose?.();
   }
 
   /**
@@ -441,11 +455,11 @@
       console.log('⚠️ Not including rounds - empty rounds array');
     }
 
-    dispatch('save', result);
+    onsave?.(result);
   }
 
   function handleNoShow(participantId: string) {
-    dispatch('noshow', participantId);
+    onnoshow?.(participantId);
   }
 
   /**
@@ -503,20 +517,24 @@
 </script>
 
 {#if visible}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     class="dialog-backdrop"
     data-theme={$adminTheme}
-    on:click={handleClose}
-    on:keydown={(e) => e.key === 'Escape' && handleClose()}
+    onclick={handleClose}
+    onkeydown={(e) => e.key === 'Escape' && handleClose()}
     role="presentation"
   >
-    <div class="dialog" on:click|stopPropagation role="dialog" aria-modal="true">
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="dialog" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
       <div class="dialog-header">
         <h2>📝 {$t('matchResult')}</h2>
         {#if isAdmin && isMatchCompleted}
           <span class="admin-edit-badge">✏️ {$t('adminEditing')}</span>
         {/if}
-        <button class="close-btn" on:click={handleClose}>✕</button>
+        <button class="close-btn" onclick={handleClose}>✕</button>
       </div>
 
       <div class="dialog-content">
@@ -768,7 +786,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsA === 2}
-                            on:click={() => handlePointsChange(roundIndex, 'A', 2)}
+                            onclick={() => handlePointsChange(roundIndex, 'A', 2)}
                           >
                             2
                           </button>
@@ -776,7 +794,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsA === 1}
-                            on:click={() => handlePointsChange(roundIndex, 'A', 1)}
+                            onclick={() => handlePointsChange(roundIndex, 'A', 1)}
                           >
                             1
                           </button>
@@ -784,7 +802,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsA === 0}
-                            on:click={() => handlePointsChange(roundIndex, 'A', 0)}
+                            onclick={() => handlePointsChange(roundIndex, 'A', 0)}
                           >
                             0
                           </button>
@@ -797,7 +815,7 @@
                             min="0"
                             max={tournament.gameType === 'singles' ? 8 : 12}
                             value={round.twentiesA}
-                            on:input={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
+                            oninput={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
                             class="twenties-input"
                           />
                         </td>
@@ -822,7 +840,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsB === 2}
-                            on:click={() => handlePointsChange(roundIndex, 'B', 2)}
+                            onclick={() => handlePointsChange(roundIndex, 'B', 2)}
                           >
                             2
                           </button>
@@ -830,7 +848,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsB === 1}
-                            on:click={() => handlePointsChange(roundIndex, 'B', 1)}
+                            onclick={() => handlePointsChange(roundIndex, 'B', 1)}
                           >
                             1
                           </button>
@@ -838,7 +856,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsB === 0}
-                            on:click={() => handlePointsChange(roundIndex, 'B', 0)}
+                            onclick={() => handlePointsChange(roundIndex, 'B', 0)}
                           >
                             0
                           </button>
@@ -851,7 +869,7 @@
                             min="0"
                             max={tournament.gameType === 'singles' ? 8 : 12}
                             value={round.twentiesB}
-                            on:input={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
+                            oninput={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
                             class="twenties-input"
                           />
                         </td>
@@ -875,7 +893,7 @@
           {#if canEdit}
             <div class="game-actions">
               {#if !currentGameComplete}
-                <button class="add-round-btn" on:click={addRound} type="button">
+                <button class="add-round-btn" onclick={addRound} type="button">
                   + {$t('addRound')}
                 </button>
               {:else}
@@ -888,7 +906,7 @@
 
                 {@const requiredWins = Math.ceil(gameConfig.matchesToWin / 2)}
                 {#if gamesWonA < requiredWins && gamesWonB < requiredWins}
-                  <button class="next-game-btn" on:click={startNextGame} type="button">
+                  <button class="next-game-btn" onclick={startNextGame} type="button">
                     {$t('startGameN').replace('{n}', String(currentGameNumber + 1))}
                   </button>
                 {:else}
@@ -1040,7 +1058,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsA === 2}
-                            on:click={() => handlePointsChange(roundIndex, 'A', 2)}
+                            onclick={() => handlePointsChange(roundIndex, 'A', 2)}
                           >
                             2
                           </button>
@@ -1048,7 +1066,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsA === 1}
-                            on:click={() => handlePointsChange(roundIndex, 'A', 1)}
+                            onclick={() => handlePointsChange(roundIndex, 'A', 1)}
                           >
                             1
                           </button>
@@ -1056,7 +1074,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsA === 0}
-                            on:click={() => handlePointsChange(roundIndex, 'A', 0)}
+                            onclick={() => handlePointsChange(roundIndex, 'A', 0)}
                           >
                             0
                           </button>
@@ -1069,7 +1087,7 @@
                             min="0"
                             max={tournament.gameType === 'singles' ? 8 : 12}
                             value={round.twentiesA}
-                            on:input={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
+                            oninput={(e) => handleTwentiesChange(roundIndex, 'A', parseInt(e.currentTarget.value) || 0)}
                             class="twenties-input"
                           />
                         </td>
@@ -1098,7 +1116,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsB === 2}
-                            on:click={() => handlePointsChange(roundIndex, 'B', 2)}
+                            onclick={() => handlePointsChange(roundIndex, 'B', 2)}
                           >
                             2
                           </button>
@@ -1106,7 +1124,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsB === 1}
-                            on:click={() => handlePointsChange(roundIndex, 'B', 1)}
+                            onclick={() => handlePointsChange(roundIndex, 'B', 1)}
                           >
                             1
                           </button>
@@ -1114,7 +1132,7 @@
                             type="button"
                             class="point-btn"
                             class:selected={round.pointsB === 0}
-                            on:click={() => handlePointsChange(roundIndex, 'B', 0)}
+                            onclick={() => handlePointsChange(roundIndex, 'B', 0)}
                           >
                             0
                           </button>
@@ -1127,7 +1145,7 @@
                             min="0"
                             max={tournament.gameType === 'singles' ? 8 : 12}
                             value={round.twentiesB}
-                            on:input={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
+                            oninput={(e) => handleTwentiesChange(roundIndex, 'B', parseInt(e.currentTarget.value) || 0)}
                             class="twenties-input"
                           />
                         </td>
@@ -1158,7 +1176,7 @@
                 <div class="tiebreak-score">
                   {participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name}
                 </div>
-                <button class="extra-round-btn" on:click={addExtraRound} type="button">
+                <button class="extra-round-btn" onclick={addExtraRound} type="button">
                   + {$t('addExtraRound') || 'Añadir Ronda Extra'} (R{rounds.length + 1})
                 </button>
               </div>
@@ -1178,10 +1196,10 @@
               <div class="noshow-section">
                 <h3>⚠️ {$t('noShowLabel')}</h3>
                 <div class="noshow-buttons">
-                  <button class="noshow-btn" on:click={() => handleNoShow(match.participantA)}>
+                  <button class="noshow-btn" onclick={() => handleNoShow(match.participantA)}>
                     {$t('didNotShowUp').replace('{name}', participantA?.name || '')}
                   </button>
-                  <button class="noshow-btn" on:click={() => handleNoShow(match.participantB)}>
+                  <button class="noshow-btn" onclick={() => handleNoShow(match.participantB)}>
                     {$t('didNotShowUp').replace('{name}', participantB?.name || '')}
                   </button>
                 </div>
@@ -1193,18 +1211,18 @@
 
       {#if canEdit}
         <div class="dialog-footer">
-          <button class="cancel-btn" on:click={handleClose}>
+          <button class="cancel-btn" onclick={handleClose}>
             {$t('cancel')}
           </button>
           {#if !isBye}
-            <button class="save-btn" on:click={handleSave} disabled={!canSave}>
+            <button class="save-btn" onclick={handleSave} disabled={!canSave}>
               {isAdmin && isMatchCompleted ? ($t('updateResult') || 'Actualizar Resultado') : $t('save')}
             </button>
           {/if}
         </div>
       {:else}
         <div class="dialog-footer">
-          <button class="cancel-btn" on:click={handleClose}>
+          <button class="cancel-btn" onclick={handleClose}>
             {$t('close') || 'Cerrar'}
           </button>
         </div>

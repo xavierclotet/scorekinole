@@ -2,9 +2,12 @@
 	import { t } from '$lib/stores/language';
 	import { team1, team2 } from '$lib/stores/teams';
 
-	// Props
-	export let isOpen: boolean = false;
-	export let teamNumber: 1 | 2 = 1;
+	interface Props {
+		isOpen?: boolean;
+		teamNumber?: 1 | 2;
+	}
+
+	let { isOpen = $bindable(false), teamNumber = 1 }: Props = $props();
 
 	// Color presets (same as original app)
 	const presetColors: string[] = [
@@ -22,9 +25,9 @@
 	];
 
 	// Get current team color and name
-	$: currentTeam = teamNumber === 1 ? $team1 : $team2;
-	$: currentTeamColor = currentTeam.color;
-	$: currentTeamName = currentTeam.name;
+	let currentTeam = $derived(teamNumber === 1 ? $team1 : $team2);
+	let currentTeamColor = $derived(currentTeam.color);
+	let currentTeamName = $derived(currentTeam.name);
 
 	function selectColor(color: string) {
 		// Apply color immediately
@@ -41,13 +44,16 @@
 		isOpen = false;
 	}
 
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
+	}
 </script>
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={closeModal} role="button" tabindex="-1">
-		<div class="modal-content" on:click|stopPropagation role="dialog">
+	<div class="modal-overlay" onclick={closeModal} role="button" tabindex="-1">
+		<div class="modal-content" onclick={stopPropagation} role="dialog">
 			<h2>{$t('colorFor')} {currentTeamName}</h2>
-			<button class="close-btn" on:click={closeModal} aria-label="Close">×</button>
+			<button class="close-btn" onclick={closeModal} aria-label="Close">×</button>
 
 			<!-- Preset Colors Grid -->
 			<div class="color-grid">
@@ -56,7 +62,7 @@
 						class="color-swatch"
 						class:selected={color === currentTeamColor}
 						style="background-color: {color}"
-						on:click={() => selectColor(color)}
+						onclick={() => selectColor(color)}
 						aria-label="Select color {color}"
 					/>
 				{/each}

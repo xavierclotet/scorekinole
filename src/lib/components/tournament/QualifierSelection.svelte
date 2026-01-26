@@ -1,98 +1,115 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import type { Tournament } from '$lib/types/tournament';
   import { t } from '$lib/stores/language';
 
-  export let tournament: Tournament;
-  export let groupIndex: number;
-  export let topN: number = 2; // Controlled from parent
-  export let showTopControl: boolean = false; // Only show in first group or externally
+  interface Props {
+    tournament: Tournament;
+    groupIndex: number;
+    topN?: number; // Controlled from parent
+    showTopControl?: boolean; // Only show in first group or externally
+    onupdate?: (qualifiedIds: string[]) => void;
+    onstandingsChanged?: (data: { groupIndex: number; standings: any[] }) => void;
+    ontiesStatusChanged?: (data: { groupIndex: number; hasUnresolvedTies: boolean }) => void;
+  }
 
-  const dispatch = createEventDispatcher<{
-    update: string[]; // Array of qualified participant IDs
-    standingsChanged: { groupIndex: number; standings: any[] }; // When positions are manually swapped
-    tiesStatusChanged: { groupIndex: number; hasUnresolvedTies: boolean }; // Tie status changed
-  }>();
+  let {
+    tournament,
+    groupIndex,
+    topN = 2,
+    showTopControl = false,
+    onupdate,
+    onstandingsChanged,
+    ontiesStatusChanged
+  }: Props = $props();
 
   // Modal state for player matches
-  let showMatchesModal = false;
-  let selectedPlayerId: string | null = null;
-  let selectedPlayerMatches: Array<{
+  let showMatchesModal = $state(false);
+  let selectedPlayerId = $state<string | null>(null);
+  let selectedPlayerMatches = $state<Array<{
     opponent: string;
     opponentName: string;
     result: 'win' | 'loss' | 'tie';
     scoreA: number;
     scoreB: number;
     roundNumber: number;
-  }> = [];
+  }>>([]);
 
   // Modal state for mini-league tiebreaker
-  let showTiebreakerModal = false;
-  let tiebreakerData: Array<{
+  let showTiebreakerModal = $state(false);
+  let tiebreakerData = $state<Array<{
     participantId: string;
     name: string;
     miniPts: number;
     mini20s: number;
     total20s: number;
     hasSubTie: boolean;  // True if resolved by total20s (same miniPts and mini20s as another)
-  }> = [];
-  let hasAnySubTie = false;  // True if any player has a sub-tie
+  }>>([]);
+  let hasAnySubTie = $state(false);  // True if any player has a sub-tie
 
   // Ensure groups is an array (Firestore may return object)
-  $: groups = Array.isArray(tournament.groupStage?.groups)
+  let groups = $derived(Array.isArray(tournament.groupStage?.groups)
     ? tournament.groupStage.groups
-    : Object.values(tournament.groupStage?.groups || {});
+    : Object.values(tournament.groupStage?.groups || {}));
 
   // Get ranking configuration
-  $: isSwiss = tournament.groupStage?.type === 'SWISS';
-  $: rankingSystem = (tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS') as 'WINS' | 'POINTS';
+  // Check both groupStage.type and the presence of pairings (Swiss uses pairings, RR uses schedule)
+  let isSwiss = $derived(
+    tournament.groupStage?.type === 'SWISS' ||
+    (tournament.groupStage?.groups?.[0]?.pairings && !tournament.groupStage?.groups?.[0]?.schedule)
+  );
+  let rankingSystem = $derived((tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS') as 'WINS' | 'POINTS');
 
-  // Track previous topN to detect changes
+  // Track previous topN to detect changes (not reactive - just for comparison)
   let previousTopN = topN;
 
-  // Auto-select when topN prop changes from parent
-  $: if (topN !== previousTopN && topN >= 1 && topN <= 10 && standings.length > 0) {
-    previousTopN = topN;
-    selectTop(topN);
-  }
-
-  $: group = groups[groupIndex];
+  let group = $derived(groups[groupIndex]);
 
   // Ensure standings is an array and sort by position
-  $: standings = (() => {
+  let standings = $derived((() => {
     if (!group?.standings) return [];
     const arr = Array.isArray(group.standings) ? group.standings : Object.values(group.standings);
-    return arr.sort((a: any, b: any) => a.position - b.position);
-  })();
+    // Use spread to create a copy before sorting (sort mutates in place, forbidden in $derived)
+    return [...arr].sort((a: any, b: any) => a.position - b.position);
+  })());
 
-  $: participantMap = new Map(tournament.participants.map(p => [p.id, p]));
+  let participantMap = $derived(new Map(tournament.participants.map(p => [p.id, p])));
 
   // Local state for selection - NOT reactive to avoid overwriting manual changes
-  let selectedParticipants = new Set<string>();
-  let initialized = false;
+  let selectedParticipants = $state(new Set<string>());
+  let initialized = $state(false);
+
+  // Auto-select when topN prop changes from parent
+  $effect(() => {
+    if (topN !== previousTopN && topN >= 1 && topN <= 10 && standings.length > 0) {
+      previousTopN = topN;
+      selectTop(topN);
+    }
+  });
 
   // Initialize selection only once when standings become available
-  $: if (standings.length > 0 && !initialized) {
-    initialized = true;
-    const currentQualified = standings.filter((s: any) => s.qualifiedForFinal).map((s: any) => s.participantId);
+  $effect(() => {
+    if (standings.length > 0 && !initialized) {
+      initialized = true;
+      const currentQualified = standings.filter((s: any) => s.qualifiedForFinal).map((s: any) => s.participantId);
 
-    // If no qualifiers set yet, auto-select topN participants
-    if (currentQualified.length === 0 && standings.length >= topN) {
-      const topNList = standings
-        .sort((a: any, b: any) => a.position - b.position)
-        .slice(0, topN)
-        .map((s: any) => s.participantId);
+      // If no qualifiers set yet, auto-select topN participants
+      if (currentQualified.length === 0 && standings.length >= topN) {
+        const topNList = [...standings]
+          .sort((a: any, b: any) => a.position - b.position)
+          .slice(0, topN)
+          .map((s: any) => s.participantId);
 
-      selectedParticipants = new Set<string>(topNList);
+        selectedParticipants = new Set<string>(topNList);
 
-      // Dispatch the auto-selection
-      if (topNList.length > 0) {
-        setTimeout(() => dispatch('update', topNList), 0);
+        // Dispatch the auto-selection
+        if (topNList.length > 0) {
+          setTimeout(() => onupdate?.(topNList), 0);
+        }
+      } else {
+        selectedParticipants = new Set<string>(currentQualified);
       }
-    } else {
-      selectedParticipants = new Set<string>(currentQualified);
     }
-  }
+  });
 
   function toggleParticipant(participantId: string) {
     // Create a new Set to ensure Svelte reactivity
@@ -103,17 +120,17 @@
       newSet.add(participantId);
     }
     selectedParticipants = newSet; // Assign new Set to trigger reactivity
-    dispatch('update', Array.from(selectedParticipants));
+    onupdate?.(Array.from(selectedParticipants));
   }
 
   function selectTop(n: number) {
     selectedParticipants = new Set(
-      standings
+      [...standings]
         .sort((a: any, b: any) => a.position - b.position)
         .slice(0, n)
         .map((s: any) => s.participantId)
     );
-    dispatch('update', Array.from(selectedParticipants));
+    onupdate?.(Array.from(selectedParticipants));
   }
 
   function getParticipantName(participantId: string): string {
@@ -126,16 +143,22 @@
   }
 
   // Check if there are unresolved ties in this group
-  $: hasUnresolvedTies = standings.some((s: any) => s.tiedWith && s.tiedWith.length > 0);
+  let hasUnresolvedTies = $derived(standings.some((s: any) => s.tiedWith && s.tiedWith.length > 0));
 
-  // Emit tie status whenever it changes
-  $: if (standings.length > 0) {
-    dispatch('tiesStatusChanged', { groupIndex, hasUnresolvedTies });
-  }
+  // Track previous tie status to only emit when it changes (not reactive - just for comparison)
+  let previousTieStatus: boolean | null = null;
+
+  // Emit tie status only when it actually changes
+  $effect(() => {
+    if (standings.length > 0 && previousTieStatus !== hasUnresolvedTies) {
+      previousTieStatus = hasUnresolvedTies;
+      ontiesStatusChanged?.({ groupIndex, hasUnresolvedTies });
+    }
+  });
 
   // Group standings by primary value (points/swissPoints) to detect ties
   // This helps show mini-league button even when ties were resolved
-  $: standingsByPrimaryValue = (() => {
+  let standingsByPrimaryValue = $derived((() => {
     const groups = new Map<number, string[]>();
     for (const s of standings) {
       const primaryValue = isSwiss
@@ -147,7 +170,7 @@
       groups.get(primaryValue)!.push(s.participantId);
     }
     return groups;
-  })();
+  })());
 
   // Check if a player is part of a 3+ player tie (same primary value)
   function isPartOfMultiTie(participantId: string): boolean {
@@ -214,11 +237,8 @@
       above.tieReason = undefined;
     }
 
-    // Resort standings by position
-    standings = [...standings].sort((a: any, b: any) => a.position - b.position);
-
-    // Emit the change
-    dispatch('standingsChanged', { groupIndex, standings: [...standings] });
+    // Emit the change (standings will auto-resort via $derived when group.standings updates)
+    onstandingsChanged?.({ groupIndex, standings: [...standings] });
   }
 
   // Move a participant down (swap with the one below)
@@ -252,11 +272,8 @@
       below.tieReason = undefined;
     }
 
-    // Resort standings by position
-    standings = [...standings].sort((a: any, b: any) => a.position - b.position);
-
-    // Emit the change
-    dispatch('standingsChanged', { groupIndex, standings: [...standings] });
+    // Emit the change (standings will auto-resort via $derived when group.standings updates)
+    onstandingsChanged?.({ groupIndex, standings: [...standings] });
   }
 
   // Check if participant can move up (has a tie with the one above)
@@ -302,11 +319,8 @@
       }
     }
 
-    // Trigger reactivity
-    standings = [...standings];
-
-    // Emit the change
-    dispatch('standingsChanged', { groupIndex, standings: [...standings] });
+    // Emit the change to parent (parent updates source data, $derived recalculates)
+    onstandingsChanged?.({ groupIndex, standings: [...standings] });
   }
 
   function openPlayerMatches(participantId: string, event: MouseEvent) {
@@ -447,7 +461,7 @@
     tiebreakerData = [];
   }
 
-  $: selectedCount = selectedParticipants.size;
+  let selectedCount = $derived(selectedParticipants.size);
 </script>
 
 <div class="qualifier-selection">
@@ -485,7 +499,7 @@
             class:selected={isSelected}
             class:has-tie={hasTie}
             class:in-multi-tie={inMultiTie && !isSwiss}
-            on:click={() => toggleParticipant(standing.participantId)}
+            onclick={() => toggleParticipant(standing.participantId)}
             role="button"
             tabindex="0"
           >
@@ -493,8 +507,8 @@
               <input
                 type="checkbox"
                 checked={isSelected}
-                on:click|stopPropagation
-                on:change={() => toggleParticipant(standing.participantId)}
+                onclick={(e: MouseEvent) => e.stopPropagation()}
+                onchange={() => toggleParticipant(standing.participantId)}
               />
             </td>
             <td class="pos-col">
@@ -511,7 +525,7 @@
                   <!-- First player in 3+ tie group - show mini-league button (only for Round Robin) -->
                   <button
                     class="tie-badge"
-                    on:click={(e) => openTiebreakerModal(standing, e)}
+                    onclick={(e: MouseEvent) => openTiebreakerModal(standing, e)}
                     title="{$t('miniLeagueTiebreaker')}"
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -528,12 +542,12 @@
                     <div class="tie-actions">
                       <button
                         class="tie-btn confirm-btn"
-                        on:click={(e) => confirmOrder(standing.participantId, e)}
+                        onclick={(e: MouseEvent) => confirmOrder(standing.participantId, e)}
                         title={$t('confirmOrder')}
                       >=</button>
                       <button
                         class="tie-btn swap-btn"
-                        on:click={(e) => moveDown(standing.participantId, e)}
+                        onclick={(e: MouseEvent) => moveDown(standing.participantId, e)}
                         title={$t('swapOrder')}
                       >↓</button>
                     </div>
@@ -548,7 +562,7 @@
             {#if rankingSystem === 'WINS'}
               <td
                 class="points-col primary-col clickable-pts"
-                on:click={(e) => openPlayerMatches(standing.participantId, e)}
+                onclick={(e: MouseEvent) => openPlayerMatches(standing.participantId, e)}
                 title={$t('viewMatches')}
               >
                 <strong>{isSwiss ? swissPoints : standing.points}</strong>
@@ -567,11 +581,14 @@
 
 <!-- Mini-league Tiebreaker Modal -->
 {#if showTiebreakerModal}
-  <div class="modal-overlay" on:click={closeTiebreakerModal} on:keydown={(e) => e.key === 'Escape' && closeTiebreakerModal()} role="button" tabindex="0">
-    <div class="tiebreaker-modal" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={closeTiebreakerModal} onkeydown={(e) => e.key === 'Escape' && closeTiebreakerModal()} role="button" tabindex="0">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="tiebreaker-modal" onclick={(e: MouseEvent) => e.stopPropagation()} onkeydown={(e: KeyboardEvent) => e.stopPropagation()} role="dialog" aria-modal="true">
       <div class="modal-header tiebreaker-header">
         <h3>{$t('miniLeagueTiebreaker')}</h3>
-        <button class="close-btn" on:click={closeTiebreakerModal} aria-label="Close">×</button>
+        <button class="close-btn" onclick={closeTiebreakerModal} aria-label="Close">×</button>
       </div>
       <div class="modal-body">
         <p class="modal-description">{$t('miniLeagueDescription')}</p>
@@ -606,11 +623,14 @@
 
 <!-- Player Matches Modal -->
 {#if showMatchesModal && selectedPlayerId}
-  <div class="modal-overlay" on:click={closeMatchesModal} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeMatchesModal()}>
-    <div class="modal-content" on:click|stopPropagation role="dialog" aria-modal="true">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={closeMatchesModal} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeMatchesModal()}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-content" onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true">
       <div class="modal-header">
         <h3>{getParticipantName(selectedPlayerId)}</h3>
-        <button class="close-btn" on:click={closeMatchesModal} aria-label="Close">×</button>
+        <button class="close-btn" onclick={closeMatchesModal} aria-label="Close">×</button>
       </div>
       <div class="modal-body">
         {#if selectedPlayerMatches.length === 0}

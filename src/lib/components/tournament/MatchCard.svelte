@@ -2,15 +2,26 @@
   import type { GroupMatch, TournamentParticipant } from '$lib/types/tournament';
   import { t } from '$lib/stores/language';
 
-  export let match: GroupMatch;
-  export let participants: TournamentParticipant[];
-  export let roundNumber: number | undefined = undefined;
-  export let onMatchClick: ((match: GroupMatch) => void) | undefined = undefined;
-  export let compact: boolean = false;
-  export let gameMode: 'points' | 'rounds' = 'points'; // NEW: Game mode to determine what to display
+  interface Props {
+    match: GroupMatch;
+    participants: TournamentParticipant[];
+    roundNumber?: number;
+    onMatchClick?: (match: GroupMatch) => void;
+    compact?: boolean;
+    gameMode?: 'points' | 'rounds'; // Game mode to determine what to display
+  }
+
+  let {
+    match,
+    participants,
+    roundNumber = undefined,
+    onMatchClick,
+    compact = false,
+    gameMode = 'points'
+  }: Props = $props();
 
   // Create participant map for quick lookup
-  $: participantMap = new Map(participants.map(p => [p.id, p]));
+  let participantMap = $derived(new Map(participants.map(p => [p.id, p])));
 
   // Get participant name by ID
   function getParticipantName(participantId: string): string {
@@ -29,12 +40,12 @@
     return statusMap[status] || { text: status, color: '#6b7280' };
   }
 
-  $: statusInfo = getStatusDisplay(match.status);
-  $: isBye = match.participantB === 'BYE';
-  $: isClickable = onMatchClick !== undefined && !isBye; // Allow editing all matches except BYE
+  let statusInfo = $derived(getStatusDisplay(match.status));
+  let isBye = $derived(match.participantB === 'BYE');
+  let isClickable = $derived(onMatchClick !== undefined && !isBye); // Allow editing all matches except BYE
 
   // Check if match is a tie (no winner but match is completed)
-  $: isTie = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !match.winner;
+  let isTie = $derived((match.status === 'COMPLETED' || match.status === 'WALKOVER') && !match.winner);
 </script>
 
 <div
@@ -44,8 +55,8 @@
   class:bye={isBye}
   class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
   class:in-progress={match.status === 'IN_PROGRESS'}
-  on:click={() => isClickable && onMatchClick && onMatchClick(match)}
-  on:keydown={(e) => isClickable && e.key === 'Enter' && onMatchClick && onMatchClick(match)}
+  onclick={() => isClickable && onMatchClick && onMatchClick(match)}
+  onkeydown={(e) => isClickable && e.key === 'Enter' && onMatchClick && onMatchClick(match)}
   role={isClickable ? 'button' : 'article'}
   tabindex={isClickable ? 0 : -1}
 >

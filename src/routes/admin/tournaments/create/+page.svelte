@@ -18,160 +18,160 @@
   import { t } from '$lib/stores/language';
 
   // Edit mode
-  let editMode = false;
-  let editTournamentId: string | null = null;
+  let editMode = $state(false);
+  let editTournamentId = $state<string | null>(null);
 
   // Duplicate mode
-  let duplicateMode = false;
-  let duplicateSourceId: string | null = null;
+  let duplicateMode = $state(false);
+  let duplicateSourceId = $state<string | null>(null);
 
   // Wizard state
-  let currentStep = 1;
+  let currentStep = $state(1);
   const totalSteps = 6;
 
   // Toast state
-  let showToast = false;
-  let toastMessage = '';
-  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
+  let showToast = $state(false);
+  let toastMessage = $state('');
+  let toastType = $state<'success' | 'error' | 'info' | 'warning'>('info');
 
   // Quota state
-  let quotaInfo: { canCreate: boolean; used: number; limit: number; isSuperAdmin: boolean } | null = null;
-  let quotaLoading = true;
+  let quotaInfo = $state<{ canCreate: boolean; used: number; limit: number; isSuperAdmin: boolean } | null>(null);
+  let quotaLoading = $state(true);
 
   // Step 1: Basic Info
-  let key = '';
-  let name = '';
-  let description = '';
-  let edition: number = 1;
-  let country = 'España';
-  let city = '';
-  let tournamentDate = new Date().toISOString().split('T')[0];  // Date input string (YYYY-MM-DD), defaults to today
-  let gameType: 'singles' | 'doubles' = 'singles';
-  let show20s = true;
-  let showHammer = true;
+  let key = $state('');
+  let name = $state('');
+  let description = $state('');
+  let edition = $state<number>(1);
+  let country = $state('España');
+  let city = $state('');
+  let tournamentDate = $state(new Date().toISOString().split('T')[0]);  // Date input string (YYYY-MM-DD), defaults to today
+  let gameType = $state<'singles' | 'doubles'>('singles');
+  let show20s = $state(true);
+  let showHammer = $state(true);
 
   // Step 2: Tournament Format
-  let numTables = 4;
-  let phaseType: 'ONE_PHASE' | 'TWO_PHASE' = 'TWO_PHASE';
-  let groupStageType: 'ROUND_ROBIN' | 'SWISS' = 'ROUND_ROBIN';
-  let numGroups = 1;
-  let numSwissRounds = 5;
-  let rankingSystem: 'WINS' | 'POINTS' = 'WINS';  // WINS = 2/1/0 (both RR and Swiss), POINTS = total points scored
+  let numTables = $state(4);
+  let phaseType = $state<'ONE_PHASE' | 'TWO_PHASE'>('TWO_PHASE');
+  let groupStageType = $state<'ROUND_ROBIN' | 'SWISS'>('ROUND_ROBIN');
+  let numGroups = $state(1);
+  let numSwissRounds = $state(5);
+  let rankingSystem = $state<'WINS' | 'POINTS'>('WINS');  // WINS = 2/1/0 (both RR and Swiss), POINTS = total points scored
 
   // Group stage game config
-  let groupGameMode: 'points' | 'rounds' = 'rounds';
-  let groupPointsToWin = 7;
-  let groupRoundsToPlay = 4;
-  let groupMatchesToWin = 1;
+  let groupGameMode = $state<'points' | 'rounds'>('rounds');
+  let groupPointsToWin = $state(7);
+  let groupRoundsToPlay = $state(4);
+  let groupMatchesToWin = $state(1);
 
   // Final stage game config (only for TWO_PHASE)
-  let finalStageMode: 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' = 'SINGLE_BRACKET';
+  let finalStageMode = $state<'SINGLE_BRACKET' | 'SPLIT_DIVISIONS'>('SINGLE_BRACKET');
 
   // Consolation bracket config (for both TWO_PHASE and ONE_PHASE)
   // Auto-detects level based on bracket size: >=16 players = R16+QF, >=8 = QF only
-  let consolationEnabled = false;
+  let consolationEnabled = $state(false);
 
   // Gold bracket config (or single bracket if SINGLE_BRACKET mode)
-  let finalGameMode: 'points' | 'rounds' = 'points';
-  let finalPointsToWin = 9;
-  let finalRoundsToPlay = 4;
-  let finalMatchesToWin = 1;
+  let finalGameMode = $state<'points' | 'rounds'>('points');
+  let finalPointsToWin = $state(9);
+  let finalRoundsToPlay = $state(4);
+  let finalMatchesToWin = $state(1);
   // Silver bracket config (only for SPLIT_DIVISIONS mode) - default: 4 rounds, best of 1
-  let silverGameMode: 'points' | 'rounds' = 'rounds';
-  let silverPointsToWin = 7;
-  let silverRoundsToPlay = 4;
-  let silverMatchesToWin = 1;
+  let silverGameMode = $state<'points' | 'rounds'>('rounds');
+  let silverPointsToWin = $state(7);
+  let silverRoundsToPlay = $state(4);
+  let silverMatchesToWin = $state(1);
 
   // Advanced bracket phase configuration
-  let showAdvancedBracketConfig = false;
+  let showAdvancedBracketConfig = $state(false);
   // Early rounds (octavos, cuartos)
-  let earlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
-  let earlyRoundsPointsToWin = 7;
-  let earlyRoundsToPlay = 4;
-  let earlyRoundsMatchesToWin = 1;
+  let earlyRoundsGameMode = $state<'points' | 'rounds'>('rounds');
+  let earlyRoundsPointsToWin = $state(7);
+  let earlyRoundsToPlay = $state(4);
+  let earlyRoundsMatchesToWin = $state(1);
   // Semifinals
-  let semifinalGameMode: 'points' | 'rounds' = 'points';
-  let semifinalPointsToWin = 7;
-  let semifinalRoundsToPlay = 4;
-  let semifinalMatchesToWin = 1;
+  let semifinalGameMode = $state<'points' | 'rounds'>('points');
+  let semifinalPointsToWin = $state(7);
+  let semifinalRoundsToPlay = $state(4);
+  let semifinalMatchesToWin = $state(1);
   // Final
-  let bracketFinalGameMode: 'points' | 'rounds' = 'points';
-  let bracketFinalPointsToWin = 9;
-  let bracketFinalRoundsToPlay = 4;
-  let bracketFinalMatchesToWin = 1;
+  let bracketFinalGameMode = $state<'points' | 'rounds'>('points');
+  let bracketFinalPointsToWin = $state(9);
+  let bracketFinalRoundsToPlay = $state(4);
+  let bracketFinalMatchesToWin = $state(1);
   // Silver bracket advanced config (default: all phases to 4 rounds)
-  let silverEarlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
-  let silverEarlyRoundsPointsToWin = 7;
-  let silverEarlyRoundsToPlay = 4;
-  let silverEarlyRoundsMatchesToWin = 1;
-  let silverSemifinalGameMode: 'points' | 'rounds' = 'rounds';
-  let silverSemifinalPointsToWin = 7;
-  let silverSemifinalRoundsToPlay = 4;
-  let silverSemifinalMatchesToWin = 1;
-  let silverBracketFinalGameMode: 'points' | 'rounds' = 'rounds';
-  let silverBracketFinalPointsToWin = 7;
-  let silverBracketFinalRoundsToPlay = 4;
-  let silverBracketFinalMatchesToWin = 1;
+  let silverEarlyRoundsGameMode = $state<'points' | 'rounds'>('rounds');
+  let silverEarlyRoundsPointsToWin = $state(7);
+  let silverEarlyRoundsToPlay = $state(4);
+  let silverEarlyRoundsMatchesToWin = $state(1);
+  let silverSemifinalGameMode = $state<'points' | 'rounds'>('rounds');
+  let silverSemifinalPointsToWin = $state(7);
+  let silverSemifinalRoundsToPlay = $state(4);
+  let silverSemifinalMatchesToWin = $state(1);
+  let silverBracketFinalGameMode = $state<'points' | 'rounds'>('rounds');
+  let silverBracketFinalPointsToWin = $state(7);
+  let silverBracketFinalRoundsToPlay = $state(4);
+  let silverBracketFinalMatchesToWin = $state(1);
 
   // Backward compatibility: for ONE_PHASE tournaments
-  let gameMode: 'points' | 'rounds' = 'points';
-  let pointsToWin = 7;
-  let roundsToPlay = 4;
-  let matchesToWin = 3;
+  let gameMode = $state<'points' | 'rounds'>('points');
+  let pointsToWin = $state(7);
+  let roundsToPlay = $state(4);
+  let matchesToWin = $state(3);
 
   // Step 3: Ranking Configuration
-  let rankingEnabled = false;
-  let selectedTier: TournamentTier = 'CLUB';
+  let rankingEnabled = $state(false);
+  let selectedTier = $state<TournamentTier>('CLUB');
 
   // Step 4: Participants
-  let participants: Partial<TournamentParticipant>[] = [];
-  let searchQuery = '';
-  let searchResults: UserProfile[] = [];
-  let searchLoading = false;
-  let guestName = 'Player1';  // Input for guest player name
-  let guestNameMatchedUser: UserProfile | null = null;  // User that matches guest name
+  let participants = $state<Partial<TournamentParticipant>[]>([]);
+  let searchQuery = $state('');
+  let searchResults = $state<UserProfile[]>([]);
+  let searchLoading = $state(false);
+  let guestName = $state('Player1');  // Input for guest player name
+  let guestNameMatchedUser = $state<UserProfile | null>(null);  // User that matches guest name
 
   // Tournament name search
-  let tournamentNameResults: TournamentNameInfo[] = [];
-  let nameSearchLoading = false;
-  let showNameDropdown = false;
+  let tournamentNameResults = $state<TournamentNameInfo[]>([]);
+  let nameSearchLoading = $state(false);
+  let showNameDropdown = $state(false);
 
   // Tournament key validation
-  let keyCheckLoading = false;
-  let keyCheckResult: { exists: boolean; name?: string } | null = null;
+  let keyCheckLoading = $state(false);
+  let keyCheckResult = $state<{ exists: boolean; name?: string } | null>(null);
   let keyCheckTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Track touched fields for showing errors
-  let touchedFields: Set<string> = new Set();
+  let touchedFields = $state<Set<string>>(new Set());
 
   // Validation
-  let validationErrors: string[] = [];
-  let validationWarnings: string[] = [];
+  let validationErrors = $state<string[]>([]);
+  let validationWarnings = $state<string[]>([]);
 
   // Field-specific error checks
-  $: keyHasError = touchedFields.has('key') && (!/^[A-Z0-9]{6}$/.test(key) || keyCheckResult?.exists);
-  $: nameHasError = touchedFields.has('name') && !name.trim();
-  $: editionHasError = touchedFields.has('edition') && (!edition || edition < 1 || edition > 1000);
-  $: countryHasError = touchedFields.has('country') && !country;
-  $: cityHasError = touchedFields.has('city') && !city.trim();
+  let keyHasError = $derived(touchedFields.has('key') && (!/^[A-Z0-9]{6}$/.test(key) || keyCheckResult?.exists));
+  let nameHasError = $derived(touchedFields.has('name') && !name.trim());
+  let editionHasError = $derived(touchedFields.has('edition') && (!edition || edition < 1 || edition > 1000));
+  let countryHasError = $derived(touchedFields.has('country') && !country);
+  let cityHasError = $derived(touchedFields.has('city') && !city.trim());
 
   // Loading state
-  let creating = false;
+  let creating = $state(false);
 
   // Step 5: Time Configuration (per-tournament settings)
-  let tcMinutesPer4RoundsSingles = DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
-  let tcMinutesPer4RoundsDoubles = DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles;
-  let tcAvgRounds5pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5] || 4;
-  let tcAvgRounds7pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[7] || 6;
-  let tcAvgRounds9pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[9] || 8;
-  let tcAvgRounds11pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[11] || 10;
-  let tcBreakBetweenMatches = DEFAULT_TIME_CONFIG.breakBetweenMatches;
-  let tcBreakBetweenPhases = DEFAULT_TIME_CONFIG.breakBetweenPhases;
-  let tcParallelSemifinals = DEFAULT_TIME_CONFIG.parallelSemifinals;
-  let tcParallelFinals = DEFAULT_TIME_CONFIG.parallelFinals;
+  let tcMinutesPer4RoundsSingles = $state(DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles);
+  let tcMinutesPer4RoundsDoubles = $state(DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles);
+  let tcAvgRounds5pts = $state(DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5] || 4);
+  let tcAvgRounds7pts = $state(DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[7] || 6);
+  let tcAvgRounds9pts = $state(DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[9] || 8);
+  let tcAvgRounds11pts = $state(DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[11] || 10);
+  let tcBreakBetweenMatches = $state(DEFAULT_TIME_CONFIG.breakBetweenMatches);
+  let tcBreakBetweenPhases = $state(DEFAULT_TIME_CONFIG.breakBetweenPhases);
+  let tcParallelSemifinals = $state(DEFAULT_TIME_CONFIG.parallelSemifinals);
+  let tcParallelFinals = $state(DEFAULT_TIME_CONFIG.parallelFinals);
 
   // Computed timeConfig from local variables
-  $: timeConfig = {
+  let timeConfig = $derived({
     minutesPer4RoundsSingles: tcMinutesPer4RoundsSingles,
     minutesPer4RoundsDoubles: tcMinutesPer4RoundsDoubles,
     avgRoundsForPointsMode: {
@@ -184,7 +184,7 @@
     breakBetweenPhases: tcBreakBetweenPhases,
     parallelSemifinals: tcParallelSemifinals,
     parallelFinals: tcParallelFinals
-  } as TournamentTimeConfig;
+  } as TournamentTimeConfig);
 
   // LocalStorage key
   const STORAGE_KEY = 'tournamentWizardDraft';
@@ -262,6 +262,7 @@
       phaseType = tournament.phaseType;
       show20s = tournament.show20s;
       showHammer = tournament.showHammer;
+      consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
 
       // Load game config based on phase type
       if (tournament.phaseType === 'TWO_PHASE') {
@@ -417,6 +418,7 @@
       phaseType = tournament.phaseType;
       show20s = tournament.show20s;
       showHammer = tournament.showHammer;
+      consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
 
       // Load game config based on phase type (same logic as loadTournamentForEdit)
       if (tournament.phaseType === 'TWO_PHASE') {
@@ -1257,30 +1259,38 @@
     }
   }
 
-  $: searchQuery, handleSearch();
+  // Effect to trigger search when searchQuery changes
+  $effect(() => {
+    searchQuery;  // Track dependency
+    handleSearch();
+  });
 
   // Calculate max players based on tables and game type
-  $: playersPerTable = gameType === 'singles' ? 2 : 4;
-  $: maxPlayersForTables = numTables * playersPerTable;
+  let playersPerTable = $derived(gameType === 'singles' ? 2 : 4);
+  let maxPlayersForTables = $derived(numTables * playersPerTable);
 
   // Calculate tables needed for current participants
-  $: tablesNeeded = Math.ceil(participants.length / playersPerTable);
-  $: extraTables = numTables - tablesNeeded;
+  let tablesNeeded = $derived(Math.ceil(participants.length / playersPerTable));
+  let extraTables = $derived(numTables - tablesNeeded);
 
   // Reactive validation - re-run when any relevant field changes
-  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-  $: key, name, edition, country, city, gameType, gameMode, pointsToWin, roundsToPlay, matchesToWin,
-     groupGameMode, groupPointsToWin, groupRoundsToPlay, groupMatchesToWin,
-     finalPointsToWin, finalMatchesToWin, phaseType, numTables, numGroups,
-     numSwissRounds, participants.length, currentStep, keyCheckResult,
-     [validationErrors, validationWarnings] = getValidationForStep(currentStep);
+  $effect(() => {
+    // Track all dependencies
+    key; name; edition; country; city; gameType; gameMode; pointsToWin; roundsToPlay; matchesToWin;
+    groupGameMode; groupPointsToWin; groupRoundsToPlay; groupMatchesToWin;
+    finalPointsToWin; finalMatchesToWin; phaseType; numTables; numGroups;
+    numSwissRounds; participants.length; currentStep; keyCheckResult;
+    const result = getValidationForStep(currentStep);
+    validationErrors = result[0];
+    validationWarnings = result[1];
+  });
 </script>
 
 <AdminGuard>
   <div class="wizard-container" data-theme={$adminTheme}>
     <header class="page-header">
       <div class="header-row">
-        <button class="back-btn" on:click={() => goto(editMode && editTournamentId ? `/admin/tournaments/${editTournamentId}` : '/admin/tournaments')}>←</button>
+        <button class="back-btn" onclick={() => goto(editMode && editTournamentId ? `/admin/tournaments/${editTournamentId}` : '/admin/tournaments')}>←</button>
         <div class="header-main">
           <div class="title-section">
             <h1>
@@ -1322,7 +1332,7 @@
             class:current={i + 1 === currentStep}
             class:clickable={editMode || duplicateMode}
             disabled={!editMode && !duplicateMode}
-            on:click={() => goToStep(i + 1)}
+            onclick={() => goToStep(i + 1)}
           >
             <div class="step-number">{i + 1}</div>
             <div class="step-label">
@@ -1345,7 +1355,7 @@
         <div class="blocked-icon">⚠️</div>
         <h2>{$t('tournamentLimitReached').replace('{used}', quotaInfo.used.toString()).replace('{limit}', quotaInfo.limit.toString())}</h2>
         <p>{$t('maxTournamentsPerYearHint')}</p>
-        <button class="back-button" on:click={() => goto('/admin/tournaments')}>
+        <button class="back-button" onclick={() => goto('/admin/tournaments')}>
           ← {$t('back')}
         </button>
       </div>
@@ -1372,8 +1382,8 @@
                     class:input-error={keyHasError}
                     class:input-valid={keyCheckResult && !keyCheckResult.exists && key.length === 6}
                     maxlength="6"
-                    on:input={handleKeyInput}
-                    on:blur={() => markTouched('key')}
+                    oninput={handleKeyInput}
+                    onblur={() => markTouched('key')}
                   />
                   {#if keyCheckLoading}
                     <span class="key-status loading">...</span>
@@ -1402,7 +1412,7 @@
                   class:input-error={editionHasError}
                   min="1"
                   max="1000"
-                  on:blur={() => markTouched('edition')}
+                  onblur={() => markTouched('edition')}
                 />
               </div>
 
@@ -1416,9 +1426,9 @@
                     placeholder="Ej: Open de Catalunya"
                     class="input-field"
                     class:input-error={nameHasError}
-                    on:input={handleNameSearch}
-                    on:blur={() => { handleNameInputBlur(); markTouched('name'); }}
-                    on:focus={handleNameInputFocus}
+                    oninput={handleNameSearch}
+                    onblur={() => { handleNameInputBlur(); markTouched('name'); }}
+                    onfocus={handleNameInputFocus}
                     autocomplete="off"
                   />
                   {#if nameSearchLoading}
@@ -1430,7 +1440,7 @@
                         <button
                           type="button"
                           class="name-dropdown-item"
-                          on:click={() => selectTournamentName(info)}
+                          onclick={() => selectTournamentName(info)}
                         >
                           <span class="name-dropdown-name">{info.name}</span>
                           <span class="name-dropdown-edition">#{info.maxEdition + 1}</span>
@@ -1454,7 +1464,7 @@
                   bind:value={country}
                   class="input-field"
                   class:input-error={countryHasError}
-                  on:blur={() => markTouched('country')}
+                  onblur={() => markTouched('country')}
                 >
                   <option value="">Seleccionar...</option>
                   {#each DEVELOPED_COUNTRIES as countryOption}
@@ -1473,7 +1483,7 @@
                   class="input-field"
                   class:input-error={cityHasError}
                   maxlength="50"
-                  on:blur={() => markTouched('city')}
+                  onblur={() => markTouched('city')}
                 />
               </div>
 
@@ -1500,7 +1510,7 @@
                     type="button"
                     class="type-btn"
                     class:active={gameType === 'singles'}
-                    on:click={() => gameType = 'singles'}
+                    onclick={() => gameType = 'singles'}
                   >
                     Singles
                   </button>
@@ -1508,7 +1518,7 @@
                     type="button"
                     class="type-btn"
                     class:active={gameType === 'doubles'}
-                    on:click={() => gameType = 'doubles'}
+                    onclick={() => gameType = 'doubles'}
                   >
                     Doubles
                   </button>
@@ -1561,7 +1571,7 @@
                       type="button"
                       class="toggle-btn"
                       class:active={phaseType === 'ONE_PHASE'}
-                      on:click={() => phaseType = 'ONE_PHASE'}
+                      onclick={() => phaseType = 'ONE_PHASE'}
                     >
                       1 Fase
                     </button>
@@ -1569,7 +1579,7 @@
                       type="button"
                       class="toggle-btn"
                       class:active={phaseType === 'TWO_PHASE'}
-                      on:click={() => phaseType = 'TWO_PHASE'}
+                      onclick={() => phaseType = 'TWO_PHASE'}
                     >
                       2 Fases
                     </button>
@@ -1612,7 +1622,7 @@
                         type="button"
                         class="toggle-btn"
                         class:active={groupStageType === 'ROUND_ROBIN'}
-                        on:click={() => groupStageType = 'ROUND_ROBIN'}
+                        onclick={() => groupStageType = 'ROUND_ROBIN'}
                       >
                         {$t('roundRobin')}
                       </button>
@@ -1620,7 +1630,7 @@
                         type="button"
                         class="toggle-btn"
                         class:active={groupStageType === 'SWISS'}
-                        on:click={() => groupStageType = 'SWISS'}
+                        onclick={() => groupStageType = 'SWISS'}
                       >
                         {$t('swiss')}
                       </button>
@@ -1658,7 +1668,7 @@
                         type="button"
                         class="toggle-btn"
                         class:active={rankingSystem === 'WINS'}
-                        on:click={() => rankingSystem = 'WINS'}
+                        onclick={() => rankingSystem = 'WINS'}
                         title={groupStageType === 'ROUND_ROBIN' ? '2 pts victoria, 1 empate' : '1 pt victoria, 0.5 empate'}
                       >
                         {$t('byWins')}
@@ -1667,7 +1677,7 @@
                         type="button"
                         class="toggle-btn"
                         class:active={rankingSystem === 'POINTS'}
-                        on:click={() => rankingSystem = 'POINTS'}
+                        onclick={() => rankingSystem = 'POINTS'}
                         title="Suma de puntos anotados"
                       >
                         {$t('points')}
@@ -1684,7 +1694,7 @@
                         type="button"
                         class="toggle-btn"
                         class:active={groupGameMode === 'points'}
-                        on:click={() => groupGameMode = 'points'}
+                        onclick={() => groupGameMode = 'points'}
                       >
                         {$t('points')}
                       </button>
@@ -1692,7 +1702,7 @@
                         type="button"
                         class="toggle-btn"
                         class:active={groupGameMode === 'rounds'}
-                        on:click={() => groupGameMode = 'rounds'}
+                        onclick={() => groupGameMode = 'rounds'}
                       >
                         {$t('rounds')}
                       </button>
@@ -1751,7 +1761,7 @@
                         type="button"
                         class="toggle-btn"
                         class:active={finalStageMode === 'SINGLE_BRACKET'}
-                        on:click={() => finalStageMode = 'SINGLE_BRACKET'}
+                        onclick={() => finalStageMode = 'SINGLE_BRACKET'}
                       >
                         Bracket Único
                       </button>
@@ -1759,7 +1769,7 @@
                         type="button"
                         class="toggle-btn"
                         class:active={finalStageMode === 'SPLIT_DIVISIONS'}
-                        on:click={() => finalStageMode = 'SPLIT_DIVISIONS'}
+                        onclick={() => finalStageMode = 'SPLIT_DIVISIONS'}
                       >
                         Oro / Plata
                       </button>
@@ -1775,8 +1785,8 @@
                         <span class="phase-name">{$t('earlyRounds')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} on:click={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} on:click={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if earlyRoundsGameMode === 'rounds'}
                             <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1796,8 +1806,8 @@
                         <span class="phase-name">{$t('semifinals')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} on:click={() => semifinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} on:click={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if semifinalGameMode === 'rounds'}
                             <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1817,8 +1827,8 @@
                         <span class="phase-name">{$t('final')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} on:click={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} on:click={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if bracketFinalGameMode === 'rounds'}
                             <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1846,8 +1856,8 @@
                         <span class="phase-name">{$t('earlyRounds')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} on:click={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} on:click={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if earlyRoundsGameMode === 'rounds'}
                             <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1867,8 +1877,8 @@
                         <span class="phase-name">{$t('semifinals')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} on:click={() => semifinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} on:click={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if semifinalGameMode === 'rounds'}
                             <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1888,8 +1898,8 @@
                         <span class="phase-name">{$t('final')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} on:click={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} on:click={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if bracketFinalGameMode === 'rounds'}
                             <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1914,8 +1924,8 @@
                         <span class="phase-name">{$t('earlyRounds')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'points'} on:click={() => silverEarlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'rounds'} on:click={() => silverEarlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'points'} onclick={() => silverEarlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'rounds'} onclick={() => silverEarlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if silverEarlyRoundsGameMode === 'rounds'}
                             <input type="number" bind:value={silverEarlyRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1935,8 +1945,8 @@
                         <span class="phase-name">{$t('semifinals')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'points'} on:click={() => silverSemifinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'rounds'} on:click={() => silverSemifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'points'} onclick={() => silverSemifinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'rounds'} onclick={() => silverSemifinalGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if silverSemifinalGameMode === 'rounds'}
                             <input type="number" bind:value={silverSemifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1956,8 +1966,8 @@
                         <span class="phase-name">{$t('final')}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'points'} on:click={() => silverBracketFinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'rounds'} on:click={() => silverBracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'points'} onclick={() => silverBracketFinalGameMode = 'points'}>{$t('points')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'rounds'} onclick={() => silverBracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
                           </div>
                           {#if silverBracketFinalGameMode === 'rounds'}
                             <input type="number" bind:value={silverBracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1986,7 +1996,7 @@
                     type="button"
                     class="toggle-switch"
                     class:active={consolationEnabled}
-                    on:click={() => consolationEnabled = !consolationEnabled}
+                    onclick={() => consolationEnabled = !consolationEnabled}
                     aria-pressed={consolationEnabled}
                   >
                     <span class="toggle-track">
@@ -2010,8 +2020,8 @@
                       <span class="phase-name">{$t('earlyRounds')}</span>
                       <div class="phase-controls">
                         <div class="toggle-buttons">
-                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} on:click={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} on:click={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
+                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
                         </div>
                         {#if earlyRoundsGameMode === 'rounds'}
                           <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -2031,8 +2041,8 @@
                       <span class="phase-name">{$t('semifinals')}</span>
                       <div class="phase-controls">
                         <div class="toggle-buttons">
-                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} on:click={() => semifinalGameMode = 'points'}>{$t('points')}</button>
-                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} on:click={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{$t('points')}</button>
+                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
                         </div>
                         {#if semifinalGameMode === 'rounds'}
                           <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -2052,8 +2062,8 @@
                       <span class="phase-name">{$t('final')}</span>
                       <div class="phase-controls">
                         <div class="toggle-buttons">
-                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} on:click={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
-                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} on:click={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
+                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
                         </div>
                         {#if bracketFinalGameMode === 'rounds'}
                           <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -2081,7 +2091,7 @@
                     type="button"
                     class="toggle-switch"
                     class:active={consolationEnabled}
-                    on:click={() => consolationEnabled = !consolationEnabled}
+                    onclick={() => consolationEnabled = !consolationEnabled}
                     aria-pressed={consolationEnabled}
                   >
                     <span class="toggle-track">
@@ -2236,7 +2246,7 @@
                     {#each searchResults.slice(0, 6) as user}
                       <button
                         class="search-result-item"
-                        on:click={() => addRegisteredUser({ ...user, userId: user.userId || '' })}
+                        onclick={() => addRegisteredUser({ ...user, userId: user.userId || '' })}
                       >
                         <span class="result-name">{user.playerName}</span>
                         <span class="result-rank">{user.ranking || 0}</span>
@@ -2256,7 +2266,7 @@
                   bind:value={guestName}
                   placeholder="Nombre (mín. 3 chars)"
                   class="input-field"
-                  on:keydown={(e) => {
+                  onkeydown={(e) => {
                     if (e.key === 'Enter' && guestName.trim().length >= 3) {
                       addGuestPlayer();
                     }
@@ -2264,7 +2274,7 @@
                 />
                 <button
                   class="add-btn"
-                  on:click={addGuestPlayer}
+                  onclick={addGuestPlayer}
                   disabled={guestName.trim().length < 3}
                 >
                   +
@@ -2292,7 +2302,7 @@
                     {#if participant.type === 'REGISTERED' && participant.rankingSnapshot}
                       <span class="chip-rank">{participant.rankingSnapshot}</span>
                     {/if}
-                    <button class="chip-remove" on:click={() => removeParticipant(index)}>×</button>
+                    <button class="chip-remove" onclick={() => removeParticipant(index)}>×</button>
                   </div>
                 {/each}
               </div>
@@ -2432,7 +2442,7 @@
                       type="button"
                       class="tc-toggle"
                       class:active={tcParallelSemifinals}
-                      on:click={() => tcParallelSemifinals = !tcParallelSemifinals}
+                      onclick={() => tcParallelSemifinals = !tcParallelSemifinals}
                       aria-pressed={tcParallelSemifinals}
                     >
                       <span class="tc-toggle-track">
@@ -2454,7 +2464,7 @@
                       type="button"
                       class="tc-toggle"
                       class:active={tcParallelFinals}
-                      on:click={() => tcParallelFinals = !tcParallelFinals}
+                      onclick={() => tcParallelFinals = !tcParallelFinals}
                       aria-pressed={tcParallelFinals}
                     >
                       <span class="tc-toggle-track">
@@ -2475,7 +2485,7 @@
             <button
               type="button"
               class="tc-btn-reset"
-              on:click={() => {
+              onclick={() => {
                 tcMinutesPer4RoundsSingles = DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
                 tcMinutesPer4RoundsDoubles = DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles;
                 tcAvgRounds5pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5];
@@ -2737,16 +2747,16 @@
 
     <!-- Navigation -->
     <div class="wizard-navigation">
-      <button class="nav-button secondary" on:click={prevStep} disabled={currentStep === 1}>
+      <button class="nav-button secondary" onclick={prevStep} disabled={currentStep === 1}>
         ← Anterior
       </button>
 
       {#if currentStep < totalSteps}
-        <button class="nav-button primary" on:click={nextStep} disabled={validationErrors.length > 0}>
+        <button class="nav-button primary" onclick={nextStep} disabled={validationErrors.length > 0}>
           Siguiente →
         </button>
       {:else}
-        <button class="nav-button primary create" on:click={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
+        <button class="nav-button primary create" onclick={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
           {#if creating}
             <LoadingSpinner size="small" inline={true} message={editMode ? 'Guardando...' : 'Creando...'} />
           {:else}

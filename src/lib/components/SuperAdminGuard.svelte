@@ -36,7 +36,7 @@
   <div class="superadmin-guard-denied">
     <h1>{$t('accessDenied')}</h1>
     <p>{$t('superAdminOnly')}</p>
-    <button on:click={() => goto('/admin')}>{$t('backToAdmin')}</button>
+    <button onclick={() => goto('/admin')}>{$t('backToAdmin')}</button>
   </div>
 {/if}
 

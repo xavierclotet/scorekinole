@@ -1,23 +1,25 @@
 <script lang="ts">
 	import { timerDisplay, timerWarning, timerCritical, timerTimeout, toggleTimer, resetTimer } from '$lib/stores/timer';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { onMount } from 'svelte';
 
-	// Props
-	export let showResetButton: boolean = true;
-	export let size: 'small' | 'medium' | 'large' = 'large';
+	interface Props {
+		showResetButton?: boolean;
+		size?: 'small' | 'medium' | 'large';
+	}
 
-	let timerContainer: HTMLDivElement;
-	let isDragging = false;
-	let hasMoved = false;
-	let startX = 0;
-	let startY = 0;
-	let offsetX = 0;
-	let offsetY = 0;
+	let { showResetButton = true, size = 'large' }: Props = $props();
+
+	let timerContainer: HTMLDivElement | undefined = $state();
+	let isDragging = $state(false);
+	let hasMoved = $state(false);
+	let startX = $state(0);
+	let startY = $state(0);
+	let offsetX = $state(0);
+	let offsetY = $state(0);
 
 	// Position from settings or default (centered)
-	$: posX = $gameSettings.timerX;
-	$: posY = $gameSettings.timerY;
+	let posX = $derived($gameSettings.timerX);
+	let posY = $derived($gameSettings.timerY);
 
 	function handleTimerClick() {
 		// Only toggle if it wasn't a drag (didn't move)
@@ -32,6 +34,7 @@
 	}
 
 	function handleDragStart(e: MouseEvent | TouchEvent) {
+		if (!timerContainer) return;
 		isDragging = true;
 		hasMoved = false;
 
@@ -79,7 +82,7 @@
 		}
 	}
 
-	onMount(() => {
+	$effect(() => {
 		// Add global listeners for drag
 		const handleMouseMove = (e: MouseEvent) => handleDragMove(e);
 		const handleMouseUp = () => handleDragEnd();
@@ -109,21 +112,21 @@
 	class:dragging={isDragging}
 	class:positioned={posX !== null && posY !== null}
 	style={posX !== null && posY !== null ? `left: ${posX}px; top: ${posY}px; transform: none;` : ''}
-	on:mousedown={handleDragStart}
-	on:touchstart={handleDragStart}
+	onmousedown={handleDragStart}
+	ontouchstart={handleDragStart}
 	role="button"
 	tabindex="-1"
 >
 	<div class="timer-wrapper" class:warning={$timerWarning} class:critical={$timerCritical} class:timeout={$timerTimeout}>
 		<button
 			class="timer-display"
-			on:click={handleTimerClick}
+			onclick={handleTimerClick}
 			aria-label="Timer - Click to toggle"
 		>
 			<span class="timer-time">{$timerDisplay}</span>
 		</button>
 		{#if showResetButton}
-			<button class="timer-reset" on:click|stopPropagation={handleTimerReset} aria-label="Reset timer">
+			<button class="timer-reset" onclick={(e) => { e.stopPropagation(); handleTimerReset(); }} aria-label="Reset timer">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
 					<path d="M3 3v5h5"/>

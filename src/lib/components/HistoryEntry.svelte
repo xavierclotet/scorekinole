@@ -6,13 +6,17 @@
 	import { currentUser } from '$lib/firebase/auth';
 	import { isColorDark } from '$lib/utils/colors';
 
-	export let match: MatchHistory;
-	export let onRestore: (() => void) | null = null;
-	export let onDelete: (() => void) | null = null;
-	export let onPermanentDelete: (() => void) | null = null;
-	export let onRetrySync: (() => void) | null = null;
+	interface Props {
+		match: MatchHistory;
+		onRestore?: (() => void) | null;
+		onDelete?: (() => void) | null;
+		onPermanentDelete?: (() => void) | null;
+		onRetrySync?: (() => void) | null;
+	}
 
-	let isExpanded = false;
+	let { match, onRestore = null, onDelete = null, onPermanentDelete = null, onRetrySync = null }: Props = $props();
+
+	let isExpanded = $state(false);
 
 	function toggleExpand() {
 		isExpanded = !isExpanded;
@@ -34,7 +38,7 @@
 		return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	}
 
-	$: winnerName = match.winner === 1 ? match.team1Name : match.winner === 2 ? match.team2Name : '-';
+	let winnerName = $derived(match.winner === 1 ? match.team1Name : match.winner === 2 ? match.team2Name : '-');
 
 	// Capitalize first letter
 	function capitalize(str: string): string {
@@ -42,7 +46,7 @@
 	}
 
 	// Build complete match configuration badges
-	$: matchConfigBadges = (() => {
+	let matchConfigBadges = $derived((() => {
 		const badges = [];
 
 		// Game type
@@ -64,16 +68,26 @@
 		if (match.show20s) badges.push('⭐ 20s');
 
 		return badges;
-	})();
+	})());
 
 	// Calculate games won by each team
-	$: team1GamesWon = match.games?.filter(g => g.winner === 1).length ?? 0;
-	$: team2GamesWon = match.games?.filter(g => g.winner === 2).length ?? 0;
+	let team1GamesWon = $derived(match.games?.filter(g => g.winner === 1).length ?? 0);
+	let team2GamesWon = $derived(match.games?.filter(g => g.winner === 2).length ?? 0);
+
+	function handleRetrySync(e: MouseEvent) {
+		e.stopPropagation();
+		onRetrySync?.();
+	}
+
+	function handleDelete(e: MouseEvent) {
+		e.stopPropagation();
+		onDelete?.();
+	}
 </script>
 
 <div class="history-entry">
 	<!-- Header - Clickable to expand/collapse -->
-	<button class="entry-header" on:click={toggleExpand} type="button">
+	<button class="entry-header" onclick={toggleExpand} type="button">
 		<div class="expand-icon" class:expanded={isExpanded}>
 			▶
 		</div>
@@ -115,7 +129,7 @@
 				{:else if match.syncStatus === 'error'}
 					<button
 						class="sync-badge error clickable"
-						on:click|stopPropagation={onRetrySync}
+						onclick={handleRetrySync}
 						type="button"
 						title="Click to retry sync"
 					>
@@ -126,7 +140,7 @@
 				{/if}
 			{/if}
 			{#if onDelete}
-				<button class="delete-button" on:click|stopPropagation={onDelete} type="button">
+				<button class="delete-button" onclick={handleDelete} type="button">
 					🗑️
 				</button>
 			{/if}
@@ -253,12 +267,12 @@
 	{#if onRestore || onPermanentDelete}
 		<div class="entry-actions">
 			{#if onRestore}
-				<Button variant="primary" size="small" on:click={onRestore}>
+				<Button variant="primary" size="small" onclick={onRestore}>
 					{$t('restore')}
 				</Button>
 			{/if}
 			{#if onPermanentDelete}
-				<Button variant="danger" size="small" on:click={onPermanentDelete}>
+				<Button variant="danger" size="small" onclick={onPermanentDelete}>
 					{$t('deletePermanent')}
 				</Button>
 			{/if}

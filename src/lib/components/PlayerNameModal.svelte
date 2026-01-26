@@ -1,29 +1,34 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
-	import { createEventDispatcher } from 'svelte';
 	import Button from './Button.svelte';
 
-	export let isOpen: boolean = false;
-	export let playerName: string = '';
-
-	const dispatch = createEventDispatcher();
-
-	let inputValue = playerName;
-
-	$: if (isOpen) {
-		inputValue = playerName;
+	interface Props {
+		isOpen?: boolean;
+		playerName?: string;
+		onclose?: () => void;
+		onsave?: (name: string) => void;
 	}
+
+	let { isOpen = $bindable(false), playerName = '', onclose, onsave }: Props = $props();
+
+	let inputValue = $state(playerName);
+
+	$effect(() => {
+		if (isOpen) {
+			inputValue = playerName;
+		}
+	});
 
 	function save() {
 		if (inputValue.trim()) {
-			dispatch('save', inputValue.trim());
+			onsave?.(inputValue.trim());
 			close();
 		}
 	}
 
 	function close() {
 		isOpen = false;
-		dispatch('close');
+		onclose?.();
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -31,11 +36,15 @@
 			save();
 		}
 	}
+
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
+	}
 </script>
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={close} role="button" tabindex="-1">
-		<div class="modal" on:click|stopPropagation role="dialog">
+	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
+		<div class="modal" onclick={stopPropagation} role="dialog">
 			<div class="modal-header">
 				<span class="modal-title">{$t('setPlayerName')}</span>
 			</div>
@@ -50,11 +59,11 @@
 					bind:value={inputValue}
 					placeholder={$t('enterPlayerName')}
 					maxlength="30"
-					on:keydown={handleKeydown}
+					onkeydown={handleKeydown}
 					autofocus
 				/>
 				<div class="actions">
-					<Button variant="primary" on:click={save}>
+					<Button variant="primary" onclick={save}>
 						{$t('save')}
 					</Button>
 				</div>

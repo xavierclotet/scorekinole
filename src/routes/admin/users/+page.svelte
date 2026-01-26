@@ -10,24 +10,24 @@
   import { getUsersPaginated, deleteUser, type AdminUserInfo } from '$lib/firebase/admin';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
-  let users: AdminUserInfo[] = [];
-  let isLoading = true;
-  let isLoadingMore = false;
-  let selectedUser: AdminUserInfo | null = null;
-  let userToDelete: AdminUserInfo | null = null;
-  let isDeleting = false;
-  let searchQuery = '';
-  let filterRole: 'all' | 'admin' | 'user' = 'all';
+  let users: AdminUserInfo[] = $state([]);
+  let isLoading = $state(true);
+  let isLoadingMore = $state(false);
+  let selectedUser: AdminUserInfo | null = $state(null);
+  let userToDelete: AdminUserInfo | null = $state(null);
+  let isDeleting = $state(false);
+  let searchQuery = $state('');
+  let filterRole: 'all' | 'admin' | 'user' = $state('all');
   const pageSize = 15;
 
   // Infinite scroll state
-  let totalCount = 0;
-  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
-  let hasMore = true;
+  let totalCount = $state(0);
+  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
+  let hasMore = $state(true);
 
-  $: isSearching = searchQuery.trim().length > 0;
-  $: isFiltering = filterRole !== 'all';
-  $: filteredUsers = users.filter((user) => {
+  let isSearching = $derived(searchQuery.trim().length > 0);
+  let isFiltering = $derived(filterRole !== 'all');
+  let filteredUsers = $derived(users.filter((user) => {
     if (filterRole === 'admin' && !user.isAdmin) return false;
     if (filterRole === 'user' && user.isAdmin) return false;
 
@@ -40,10 +40,10 @@
       );
     }
     return true;
-  });
+  }));
 
-  $: displayTotal = isSearching || isFiltering ? filteredUsers.length : totalCount;
-  $: adminCount = users.filter(u => u.isAdmin).length;
+  let displayTotal = $derived(isSearching || isFiltering ? filteredUsers.length : totalCount);
+  let adminCount = $derived(users.filter(u => u.isAdmin).length);
 
   onMount(() => {
     loadInitialUsers();
@@ -146,7 +146,7 @@
   <div class="users-container" data-theme={$adminTheme}>
     <header class="page-header">
       <div class="header-row">
-        <button class="back-btn" on:click={() => goto('/admin')}>←</button>
+        <button class="back-btn" onclick={() => goto('/admin')}>←</button>
         <div class="header-main">
           <div class="title-section">
             <h1>{$t('userManagement')}</h1>
@@ -174,21 +174,21 @@
         <button
           class="filter-tab"
           class:active={filterRole === 'all'}
-          on:click={() => (filterRole = 'all')}
+          onclick={() => (filterRole = 'all')}
         >
           {$t('all')} ({users.length})
         </button>
         <button
           class="filter-tab"
           class:active={filterRole === 'admin'}
-          on:click={() => (filterRole = 'admin')}
+          onclick={() => (filterRole = 'admin')}
         >
           Admins ({adminCount})
         </button>
         <button
           class="filter-tab"
           class:active={filterRole === 'user'}
-          on:click={() => (filterRole = 'user')}
+          onclick={() => (filterRole = 'user')}
         >
           Users ({users.length - adminCount})
         </button>
@@ -208,7 +208,7 @@
         {$t('showingOf').replace('{showing}', String(filteredUsers.length)).replace('{total}', String(displayTotal))}
       </div>
 
-      <div class="table-container" on:scroll={handleScroll}>
+      <div class="table-container" onscroll={handleScroll}>
         <table class="users-table">
           <thead>
             <tr>
@@ -224,7 +224,7 @@
           </thead>
           <tbody>
             {#each filteredUsers as user (user.userId)}
-              <tr class="user-row" on:click={() => editUser(user)}>
+              <tr class="user-row" onclick={() => editUser(user)}>
                 <td class="name-cell">
                   <div class="user-info">
                     {#if user.photoURL}
@@ -273,14 +273,14 @@
                 <td class="actions-cell">
                   <button
                     class="action-btn edit-btn"
-                    on:click|stopPropagation={() => editUser(user)}
+                    onclick={(e) => { e.stopPropagation(); editUser(user); }}
                     title={$t('editUser')}
                   >
                     ✏️
                   </button>
                   <button
                     class="action-btn delete-btn"
-                    on:click|stopPropagation={() => showDeleteConfirm(user)}
+                    onclick={(e) => { e.stopPropagation(); showDeleteConfirm(user); }}
                     title={$t('delete')}
                   >
                     🗑️
@@ -310,13 +310,13 @@
     <UserEditModal
       user={selectedUser}
       onClose={closeEditModal}
-      on:userUpdated={handleUserUpdated}
+      onuserUpdated={handleUserUpdated}
     />
   {/if}
 
   {#if userToDelete}
-    <div class="delete-overlay" data-theme={$adminTheme} on:click={cancelDelete}>
-      <div class="delete-modal" on:click|stopPropagation>
+    <div class="delete-overlay" data-theme={$adminTheme} onclick={cancelDelete}>
+      <div class="delete-modal" onclick={(e) => e.stopPropagation()}>
         <h3>{$t('deleteUser')}</h3>
         <div class="user-preview">
           {#if userToDelete.photoURL}
@@ -330,10 +330,10 @@
         </div>
         <p class="delete-warning">{$t('cannotBeUndone')}</p>
         <div class="delete-actions">
-          <button class="cancel-btn" on:click={cancelDelete} disabled={isDeleting}>
+          <button class="cancel-btn" onclick={cancelDelete} disabled={isDeleting}>
             {$t('cancel')}
           </button>
-          <button class="confirm-btn" on:click={confirmDelete} disabled={isDeleting}>
+          <button class="confirm-btn" onclick={confirmDelete} disabled={isDeleting}>
             {isDeleting ? $t('deleting') : $t('delete')}
           </button>
         </div>

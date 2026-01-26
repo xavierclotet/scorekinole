@@ -53,11 +53,11 @@
 		showProfile = true;
 	}
 
-	async function handleProfileUpdate(event: CustomEvent<{ playerName: string }>) {
+	async function handleProfileUpdate({ playerName }: { playerName: string }) {
 		try {
-			const result = await saveUserProfile(event.detail.playerName);
+			const result = await saveUserProfile(playerName);
 			if (result) {
-				currentUser.update(u => u ? { ...u, name: event.detail.playerName } : null);
+				currentUser.update(u => u ? { ...u, name: playerName } : null);
 			}
 		} catch (error) {
 			console.error('Error updating profile:', error);
@@ -79,7 +79,7 @@
 	<nav class="navbar">
 		<div class="nav-left">
 			{#if $canAccessAdmin}
-				<button class="admin-btn" on:click={goToAdmin} title={$t('adminPanel')}>
+				<button class="admin-btn" onclick={goToAdmin} title={$t('adminPanel')}>
 					Admin
 				</button>
 			{/if}
@@ -87,11 +87,11 @@
 
 		<div class="nav-right">
 			<div class="lang-selector">
-				<button class:active={$gameSettings.language === 'es'} on:click={() => changeLanguage('es')}>ES</button>
-				<button class:active={$gameSettings.language === 'ca'} on:click={() => changeLanguage('ca')}>CA</button>
-				<button class:active={$gameSettings.language === 'en'} on:click={() => changeLanguage('en')}>EN</button>
+				<button class:active={$gameSettings.language === 'es'} onclick={() => changeLanguage('es')}>ES</button>
+				<button class:active={$gameSettings.language === 'ca'} onclick={() => changeLanguage('ca')}>CA</button>
+				<button class:active={$gameSettings.language === 'en'} onclick={() => changeLanguage('en')}>EN</button>
 			</div>
-			<button class="nav-btn icon-btn" on:click={toggleTheme} title={$adminTheme === 'light' ? $t('darkMode') : $t('lightMode')}>
+			<button class="nav-btn icon-btn" onclick={toggleTheme} title={$adminTheme === 'light' ? $t('darkMode') : $t('lightMode')}>
 				{#if $adminTheme === 'light'}
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
@@ -111,12 +111,12 @@
 				{/if}
 			</button>
 			<div class="profile-wrap">
-				<button class="nav-btn icon-btn profile-btn" on:click={() => quickMenuComponent?.toggleMenu()} aria-label="Profile">
+				<button class="nav-btn icon-btn profile-btn" onclick={() => quickMenuComponent?.toggleMenu()} aria-label="Profile">
 					<svg viewBox="0 0 24 24" fill="currentColor">
 						<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
 					</svg>
 				</button>
-				<QuickMenu bind:this={quickMenuComponent} on:login={handleLogin} on:profile={handleProfileOpen} />
+				<QuickMenu bind:this={quickMenuComponent} onlogin={handleLogin} onprofile={handleProfileOpen} />
 			</div>
 		</div>
 	</nav>
@@ -134,7 +134,7 @@
 			</h1>
 			<p class="hero-subtitle">{$t('appTitle')}</p>
 
-			<button class="cta-button" on:click={startScoring}>
+			<button class="cta-button" onclick={startScoring}>
 				<svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
 					<path d="M8 5v14l11-7z"/>
 				</svg>
@@ -201,7 +201,7 @@
 
 		<!-- Quick Links Section -->
 		<div class="links-section">
-			<button class="link-card" on:click={goToRankings}>
+			<button class="link-card" onclick={goToRankings}>
 				<svg viewBox="0 0 24 24" fill="currentColor">
 					<path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z"/>
 				</svg>
@@ -223,8 +223,8 @@
 	</footer>
 </main>
 
-<ProfileModal isOpen={showProfile} user={$currentUser} on:close={() => showProfile = false} on:update={handleProfileUpdate} />
-<LoginModal isOpen={showLogin} on:close={() => showLogin = false} />
+<ProfileModal isOpen={showProfile} user={$currentUser} onclose={() => showProfile = false} onupdate={handleProfileUpdate} />
+<LoginModal isOpen={showLogin} onclose={() => showLogin = false} />
 
 <style>
 	:global(body) {

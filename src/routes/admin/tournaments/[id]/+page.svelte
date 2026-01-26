@@ -18,35 +18,35 @@
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
 
-  let tournament: Tournament | null = null;
-  let loading = true;
-  let error = false;
-  let showCancelConfirm = false;
-  let showStartConfirm = false;
-  let showQuickEdit = false;
-  let showTimeBreakdown = false;
-  let timeBreakdown: TimeBreakdown | null = null;
-  let showToast = false;
-  let toastMessage = '';
-  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
-  let isStarting = false;
-  let isSavingQuickEdit = false;
+  let tournament: Tournament | null = $state(null);
+  let loading = $state(true);
+  let error = $state(false);
+  let showCancelConfirm = $state(false);
+  let showStartConfirm = $state(false);
+  let showQuickEdit = $state(false);
+  let showTimeBreakdown = $state(false);
+  let timeBreakdown: TimeBreakdown | null = $state(null);
+  let showToast = $state(false);
+  let toastMessage = $state('');
+  let toastType: 'success' | 'error' | 'info' | 'warning' = $state('info');
+  let isStarting = $state(false);
+  let isSavingQuickEdit = $state(false);
 
   // Quick edit form fields
-  let editName = '';
-  let editDate = '';
-  let editNumTables = 1;
-  let editShow20s = false;
-  let editShowHammer = false;
-  let editRankingEnabled = false;
+  let editName = $state('');
+  let editDate = $state('');
+  let editNumTables = $state(1);
+  let editShow20s = $state(false);
+  let editShowHammer = $state(false);
+  let editRankingEnabled = $state(false);
 
-  $: tournamentId = $page.params.id;
+  let tournamentId = $derived($page.params.id);
 
   // Fallback for consolationEnabled - check multiple locations due to migration
-  $: consolationEnabled = tournament?.finalStage?.consolationEnabled
+  let consolationEnabled = $derived(tournament?.finalStage?.consolationEnabled
     ?? (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled ']  // Typo with trailing space
     ?? tournament?.finalStage?.goldBracket?.config?.consolationEnabled
-    ?? false;
+    ?? false);
 
   onMount(async () => {
     await loadTournament();
@@ -292,10 +292,10 @@
   }
 
   // Check if tournament can be quick-edited (active states only)
-  $: canQuickEdit = tournament && ['GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'].includes(tournament.status);
+  let canQuickEdit = $derived(tournament && ['GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'].includes(tournament.status));
 
   // Calculate remaining time reactively
-  $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
+  let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
 </script>
 
 <AdminGuard>
@@ -304,7 +304,7 @@
     <header class="page-header">
       {#if tournament}
         <div class="header-row">
-          <button class="back-btn" on:click={() => goto('/admin/tournaments')}>
+          <button class="back-btn" onclick={() => goto('/admin/tournaments')}>
             ←
           </button>
 
@@ -330,7 +330,7 @@
                     showEstimatedEnd={true}
                     compact={true}
                     clickable={true}
-                    on:click={openTimeBreakdown}
+                    onclick={openTimeBreakdown}
                   />
                 </div>
               {/if}
@@ -339,34 +339,34 @@
 
           <div class="header-actions">
             {#if tournament.status === 'DRAFT'}
-              <button class="action-btn primary" on:click={confirmStart} disabled={isStarting}>
+              <button class="action-btn primary" onclick={confirmStart} disabled={isStarting}>
                 {isStarting ? $t('starting') + '...' : $t('start')}
               </button>
-              <button class="action-btn" on:click={() => goto(`/admin/tournaments/create?edit=${tournamentId}`)}>
+              <button class="action-btn" onclick={() => goto(`/admin/tournaments/create?edit=${tournamentId}`)}>
                 {$t('edit')}
               </button>
-              <button class="action-btn danger" on:click={confirmCancel}>
+              <button class="action-btn danger" onclick={confirmCancel}>
                 {$t('cancel')}
               </button>
             {:else if tournament.status === 'GROUP_STAGE'}
-              <button class="action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/groups`)}>
+              <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/groups`)}>
                 {$t('viewGroupStage')}
               </button>
-              <button class="action-btn" on:click={openQuickEdit}>
+              <button class="action-btn" onclick={openQuickEdit}>
                 {$t('edit')}
               </button>
             {:else if tournament.status === 'TRANSITION'}
-              <button class="action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/transition`)}>
+              <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/transition`)}>
                 {$t('selectQualified')}
               </button>
-              <button class="action-btn" on:click={openQuickEdit}>
+              <button class="action-btn" onclick={openQuickEdit}>
                 {$t('edit')}
               </button>
             {:else if tournament.status === 'FINAL_STAGE'}
-              <button class="action-btn primary" on:click={() => goto(`/admin/tournaments/${tournamentId}/bracket`)}>
+              <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/bracket`)}>
                 {$t('viewBracket')}
               </button>
-              <button class="action-btn" on:click={openQuickEdit}>
+              <button class="action-btn" onclick={openQuickEdit}>
                 {$t('edit')}
               </button>
             {/if}
@@ -375,7 +375,7 @@
         </div>
       {:else}
         <div class="header-row">
-          <button class="back-btn" on:click={() => goto('/admin/tournaments')}>
+          <button class="back-btn" onclick={() => goto('/admin/tournaments')}>
             ←
           </button>
           <div class="header-main">
@@ -397,7 +397,7 @@
           <div class="error-icon">⚠️</div>
           <h3>{$t('tournamentNotFound')}</h3>
           <p>{$t('couldNotLoadTournament')}</p>
-          <button class="primary-button" on:click={() => goto('/admin/tournaments')}>
+          <button class="primary-button" onclick={() => goto('/admin/tournaments')}>
             {$t('backToTournaments')}
           </button>
         </div>
@@ -408,7 +408,7 @@
           {#if tournament.status === 'COMPLETED'}
             <section class="dashboard-card results-card">
               <h2>📋 {$t('tournamentResults')}</h2>
-              <CompletedTournamentView {tournament} on:updated={loadTournament} />
+              <CompletedTournamentView {tournament} onupdated={loadTournament} />
             </section>
           {/if}
 
@@ -685,8 +685,8 @@
 
   <!-- Start Confirmation Modal -->
   {#if showStartConfirm && tournament}
-    <div class="modal-backdrop" data-theme={$adminTheme} on:click={closeStartModal} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeStartModal()}>
-      <div class="confirm-modal" on:click|stopPropagation role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeStartModal} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeStartModal()}>
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <h2>🚀 {$t('startTournament')}</h2>
         <p>{$t('readyToStartTournament')}</p>
         <div class="tournament-info">
@@ -706,8 +706,8 @@
             : $t('bracketWillBeGenerated')}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={closeStartModal}>{$t('cancel')}</button>
-          <button class="confirm-btn" on:click={startTournament}>{$t('startTournament')}</button>
+          <button class="cancel-btn" onclick={closeStartModal}>{$t('cancel')}</button>
+          <button class="confirm-btn" onclick={startTournament}>{$t('startTournament')}</button>
         </div>
       </div>
     </div>
@@ -715,8 +715,8 @@
 
   <!-- Cancel Confirmation Modal -->
   {#if showCancelConfirm && tournament}
-    <div class="modal-backdrop" data-theme={$adminTheme} on:click={closeCancelModal} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeCancelModal()}>
-      <div class="confirm-modal" on:click|stopPropagation role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeCancelModal} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeCancelModal()}>
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <h2>{$t('confirmCancellation')}</h2>
         <p>{$t('confirmCancelTournament')}</p>
         <div class="tournament-info">
@@ -728,8 +728,8 @@
           {$t('tournamentWillBeCancelled')}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={closeCancelModal}>{$t('back')}</button>
-          <button class="delete-btn-confirm" on:click={cancelTournament}>{$t('cancelTournament')}</button>
+          <button class="cancel-btn" onclick={closeCancelModal}>{$t('back')}</button>
+          <button class="delete-btn-confirm" onclick={cancelTournament}>{$t('cancelTournament')}</button>
         </div>
       </div>
     </div>
@@ -737,11 +737,11 @@
 
   <!-- Quick Edit Modal -->
   {#if showQuickEdit && tournament}
-    <div class="modal-backdrop" data-theme={$adminTheme} on:click={closeQuickEdit} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeQuickEdit()}>
-      <div class="quick-edit-modal" on:click|stopPropagation role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeQuickEdit} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeQuickEdit()}>
+      <div class="quick-edit-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div class="quick-edit-header">
           <h2>⚙️ {$t('tournamentSettings')}</h2>
-          <button class="close-btn" on:click={closeQuickEdit}>×</button>
+          <button class="close-btn" onclick={closeQuickEdit}>×</button>
         </div>
 
         <p class="quick-edit-subtitle">{$t('modifiableConfiguration')}</p>
@@ -829,10 +829,10 @@
         </div>
 
         <div class="quick-edit-actions">
-          <button class="cancel-btn" on:click={closeQuickEdit}>{$t('cancel')}</button>
+          <button class="cancel-btn" onclick={closeQuickEdit}>{$t('cancel')}</button>
           <button
             class="confirm-btn"
-            on:click={saveQuickEdit}
+            onclick={saveQuickEdit}
             disabled={isSavingQuickEdit || !editName.trim()}
           >
             {isSavingQuickEdit ? `⏳ ${$t('saving')}...` : `💾 ${$t('saveChanges')}`}
@@ -858,7 +858,7 @@
   bind:visible={showTimeBreakdown}
   breakdown={timeBreakdown}
   showRecalculate={true}
-  on:recalculate={recalculateTime}
+  onrecalculate={recalculateTime}
 />
 
 <style>

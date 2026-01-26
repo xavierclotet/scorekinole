@@ -1,15 +1,17 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { t } from '$lib/stores/language';
   import { adminTheme } from '$lib/stores/theme';
   import type { TimeBreakdown } from '$lib/utils/tournamentTime';
   import { formatDuration } from '$lib/utils/tournamentTime';
 
-  export let visible = false;
-  export let breakdown: TimeBreakdown | null = null;
-  export let showRecalculate: boolean = false;
+  interface Props {
+    visible?: boolean;
+    breakdown?: TimeBreakdown | null;
+    showRecalculate?: boolean;
+    onrecalculate?: () => void;
+  }
 
-  const dispatch = createEventDispatcher();
+  let { visible = $bindable(false), breakdown = null, showRecalculate = false, onrecalculate }: Props = $props();
 
   function close() {
     visible = false;
@@ -20,7 +22,11 @@
   }
 
   function handleRecalculate() {
-    dispatch('recalculate');
+    onrecalculate?.();
+  }
+
+  function stopPropagation(e: Event) {
+    e.stopPropagation();
   }
 </script>
 
@@ -28,12 +34,12 @@
   <div
     class="backdrop"
     data-theme={$adminTheme}
-    on:click={close}
-    on:keydown={handleKeydown}
+    onclick={close}
+    onkeydown={handleKeydown}
     role="button"
     tabindex="0"
   >
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
+    <div class="modal" onclick={stopPropagation} role="dialog" aria-modal="true">
       <!-- Header -->
       <header class="modal-header">
         <div class="header-top">
@@ -48,14 +54,14 @@
           </div>
           <div class="header-actions">
             {#if showRecalculate}
-              <button class="recalculate-btn" on:click={handleRecalculate} title={$t('recalculate')}>
+              <button class="recalculate-btn" onclick={handleRecalculate} title={$t('recalculate')}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
                   <path d="M21 3v5h-5"/>
                 </svg>
               </button>
             {/if}
-            <button class="close-btn" on:click={close}>
+            <button class="close-btn" onclick={close}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>

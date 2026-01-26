@@ -14,35 +14,35 @@
   import type { Tournament } from '$lib/types/tournament';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
-  let tournaments: Tournament[] = [];
-  let filteredTournaments: Tournament[] = [];
-  let searchQuery = '';
-  let statusFilter: 'all' | 'DRAFT' | 'GROUP_STAGE' | 'FINAL_STAGE' | 'COMPLETED' | 'CANCELLED' = 'all';
-  let creatorFilter = 'all'; // 'all', 'mine', or a specific creator userId
-  let loading = true;
-  let loadingMore = false;
-  let showDeleteConfirm = false;
-  let tournamentToDelete: Tournament | null = null;
-  let deleting = false;
-  let showToast = false;
-  let toastMessage = '';
-  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
+  let tournaments: Tournament[] = $state([]);
+  let filteredTournaments: Tournament[] = $state([]);
+  let searchQuery = $state('');
+  let statusFilter: 'all' | 'DRAFT' | 'GROUP_STAGE' | 'FINAL_STAGE' | 'COMPLETED' | 'CANCELLED' = $state('all');
+  let creatorFilter = $state('all'); // 'all', 'mine', or a specific creator userId
+  let loading = $state(true);
+  let loadingMore = $state(false);
+  let showDeleteConfirm = $state(false);
+  let tournamentToDelete: Tournament | null = $state(null);
+  let deleting = $state(false);
+  let showToast = $state(false);
+  let toastMessage = $state('');
+  let toastType: 'success' | 'error' | 'info' | 'warning' = $state('info');
   const pageSize = 15;
 
   // Infinite scroll state
-  let totalCount = 0;
-  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
-  let hasMore = true;
+  let totalCount = $state(0);
+  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
+  let hasMore = $state(true);
 
-  $: isSearching = searchQuery.trim().length > 0;
-  $: isFiltering = statusFilter !== 'all';
+  let isSearching = $derived(searchQuery.trim().length > 0);
+  let isFiltering = $derived(statusFilter !== 'all');
 
   // Get unique creators from tournaments (for superadmin filter), excluding current user
   interface Creator {
     userId: string;
     userName: string;
   }
-  $: uniqueCreators = tournaments.reduce((acc: Creator[], tournament) => {
+  let uniqueCreators = $derived(tournaments.reduce((acc: Creator[], tournament) => {
     const creator = tournament.createdBy;
     const userId = $currentUser?.id;
     // Exclude current user (already has "My tournaments" option)
@@ -50,7 +50,7 @@
       acc.push({ userId: creator.userId, userName: creator.userName });
     }
     return acc;
-  }, []).sort((a, b) => a.userName.localeCompare(b.userName));
+  }, []).sort((a, b) => a.userName.localeCompare(b.userName)));
 
   onMount(async () => {
     await loadInitialTournaments();
@@ -115,14 +115,15 @@
     });
   }
 
-  $: {
+  $effect(() => {
+    // Track dependencies
     searchQuery;
     statusFilter;
     creatorFilter;
     filterTournaments();
-  }
+  });
 
-  $: displayTotal = isSearching || isFiltering || creatorFilter !== 'all' ? filteredTournaments.length : totalCount;
+  let displayTotal = $derived(isSearching || isFiltering || creatorFilter !== 'all' ? filteredTournaments.length : totalCount);
 
   function getStatusText(status: string): string {
     switch (status) {
@@ -219,7 +220,7 @@
   <div class="tournaments-container" data-theme={$adminTheme}>
     <header class="page-header">
       <div class="header-row">
-        <button class="back-btn" on:click={() => goto('/admin')}>←</button>
+        <button class="back-btn" onclick={() => goto('/admin')}>←</button>
         <div class="header-main">
           <div class="title-section">
             <h1>{$t('tournamentManagement')}</h1>
@@ -227,7 +228,7 @@
           </div>
         </div>
         <div class="header-actions">
-          <button class="create-btn" on:click={createTournament}>
+          <button class="create-btn" onclick={createTournament}>
             + {$t('createTournament')}
           </button>
           <ThemeToggle />
@@ -250,21 +251,21 @@
         <button
           class="filter-tab"
           class:active={statusFilter === 'all'}
-          on:click={() => (statusFilter = 'all')}
+          onclick={() => (statusFilter = 'all')}
         >
           {$t('all')} ({tournaments.length})
         </button>
         <button
           class="filter-tab"
           class:active={statusFilter === 'DRAFT'}
-          on:click={() => (statusFilter = 'DRAFT')}
+          onclick={() => (statusFilter = 'DRAFT')}
         >
           {$t('drafts')}
         </button>
         <button
           class="filter-tab"
           class:active={statusFilter === 'COMPLETED'}
-          on:click={() => (statusFilter = 'COMPLETED')}
+          onclick={() => (statusFilter = 'COMPLETED')}
         >
           {$t('completedPlural')}
         </button>
@@ -298,7 +299,7 @@
         {$t('showingOf').replace('{showing}', String(filteredTournaments.length)).replace('{total}', String(displayTotal))}
       </div>
 
-      <div class="table-container" on:scroll={handleScroll}>
+      <div class="table-container" onscroll={handleScroll}>
         <table class="tournaments-table">
           <thead>
             <tr>
@@ -314,7 +315,7 @@
           </thead>
           <tbody>
             {#each filteredTournaments as tournament (tournament.id)}
-              <tr class="tournament-row" on:click={() => viewTournament(tournament.id)}>
+              <tr class="tournament-row" onclick={() => viewTournament(tournament.id)}>
                 <td class="name-cell">
                   <div class="tournament-name">
                     <div class="name-row">
@@ -370,14 +371,14 @@
                 <td class="actions-cell">
                   <button
                     class="action-btn duplicate-btn"
-                    on:click|stopPropagation={() => duplicateTournament(tournament)}
+                    onclick={(e) => { e.stopPropagation(); duplicateTournament(tournament); }}
                     title={$t('duplicateTournament')}
                   >
                     📋
                   </button>
                   <button
                     class="action-btn delete-btn"
-                    on:click|stopPropagation={() => confirmDelete(tournament)}
+                    onclick={(e) => { e.stopPropagation(); confirmDelete(tournament); }}
                     title={$t('delete')}
                   >
                     🗑️
@@ -405,8 +406,8 @@
 
   <!-- Delete Confirmation Modal -->
   {#if showDeleteConfirm && tournamentToDelete}
-    <div class="modal-backdrop" data-theme={$adminTheme} on:click={() => !deleting && cancelDelete()}>
-      <div class="confirm-modal" on:click|stopPropagation>
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={() => !deleting && cancelDelete()}>
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()}>
         <h2>{$t('confirmDelete')}</h2>
         <p>{$t('confirmCancelTournament')}</p>
         <div class="tournament-info">
@@ -417,8 +418,8 @@
           <span>{$t('createdAt')}: {formatDate(tournamentToDelete.createdAt)}</span>
         </div>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={cancelDelete} disabled={deleting}>{$t('cancel')}</button>
-          <button class="delete-btn-confirm" on:click={deleteTournament} disabled={deleting}>
+          <button class="cancel-btn" onclick={cancelDelete} disabled={deleting}>{$t('cancel')}</button>
+          <button class="delete-btn-confirm" onclick={deleteTournament} disabled={deleting}>
             {#if deleting}
               <LoadingSpinner size="small" inline={true} message={$t('deleting')} />
             {:else}

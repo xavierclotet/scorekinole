@@ -1,7 +1,11 @@
 <script lang="ts">
-	export let size: 'small' | 'medium' | 'large' = 'medium';
-	export let message: string = '';
-	export let inline: boolean = false;
+	interface Props {
+		size?: 'small' | 'medium' | 'large';
+		message?: string;
+		inline?: boolean;
+	}
+
+	let { size = 'medium', message = '', inline = false }: Props = $props();
 </script>
 
 <div class="loading-wrapper" class:inline class:fullpage={!inline}>

@@ -4,10 +4,14 @@
 	import type { RankedPlayer } from '$lib/firebase/rankings';
 	import type { TournamentTier } from '$lib/types/tournament';
 
-	export let isOpen: boolean = false;
-	export let player: RankedPlayer | null = null;
-	export let bestOfN: number = 2;
-	export let onClose: () => void = () => {};
+	interface Props {
+		isOpen?: boolean;
+		player?: RankedPlayer | null;
+		bestOfN?: number;
+		onClose?: () => void;
+	}
+
+	let { isOpen = false, player = null, bestOfN = 2, onClose = () => {} }: Props = $props();
 
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp).toLocaleDateString(undefined, {

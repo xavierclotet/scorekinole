@@ -15,7 +15,7 @@ import {
   nextPowerOfTwo,
   isBye
 } from '$lib/algorithms/bracket';
-import { calculateFinalPositionsForTournament } from './tournamentRanking';
+import { calculateFinalPositionsForTournament, applyRankingUpdates } from './tournamentRanking';
 import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig } from '$lib/types/tournament';
 
 /**
@@ -1238,19 +1238,27 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
     return true;
   }
 
-  // Check if gold bracket is complete
-  const isGoldComplete = isBracketComplete(tournament.finalStage.goldBracket);
+  const consolationEnabled = tournament.finalStage.consolationEnabled ?? false;
+  const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
+
+  // Check if gold bracket is complete (main + consolation)
+  const isGoldMainComplete = isBracketComplete(tournament.finalStage.goldBracket);
+  const isGoldConsolationComplete = areConsolationBracketsComplete(tournament.finalStage.goldBracket, consolationEnabled);
+  const isGoldComplete = isGoldMainComplete && isGoldConsolationComplete;
+
   if (!isGoldComplete) {
-    console.error('Gold bracket is not complete');
+    console.error('Gold bracket is not complete (main:', isGoldMainComplete, ', consolation:', isGoldConsolationComplete, ')');
     return false;
   }
 
-  // For SPLIT_DIVISIONS, also check silver bracket
-  const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
+  // For SPLIT_DIVISIONS, also check silver bracket (main + consolation)
   if (isSplitDivisions) {
-    const isSilverComplete = isBracketComplete(tournament.finalStage.silverBracket);
+    const isSilverMainComplete = isBracketComplete(tournament.finalStage.silverBracket);
+    const isSilverConsolationComplete = areConsolationBracketsComplete(tournament.finalStage.silverBracket, consolationEnabled);
+    const isSilverComplete = isSilverMainComplete && isSilverConsolationComplete;
+
     if (!isSilverComplete) {
-      console.error('Silver bracket is not complete');
+      console.error('Silver bracket is not complete (main:', isSilverMainComplete, ', consolation:', isSilverConsolationComplete, ')');
       return false;
     }
   }
@@ -1278,7 +1286,7 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
   console.log('📊 Final positions calculated and included in update.');
 
   // Mark final stage as complete and update tournament status with positions
-  return await updateTournamentPublic(tournamentId, {
+  const success = await updateTournamentPublic(tournamentId, {
     status: 'COMPLETED',
     completedAt: Date.now(),
     participants: updatedParticipants,
@@ -1289,6 +1297,15 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
       silverWinner: silverWinner
     }
   });
+
+  // Apply ranking updates if ranking is enabled
+  if (success && tournament.rankingConfig?.enabled) {
+    console.log('🏅 Applying ranking updates...');
+    await applyRankingUpdates(tournamentId);
+    console.log('🏅 Ranking updates applied.');
+  }
+
+  return success;
 }
 
 /**
@@ -1830,13 +1847,56 @@ export async function advanceConsolationWinner(
     console.log('🎯 advanceConsolationWinner: Assigning tables after match completion');
     assignTablesToConsolation(goldBracket!, silverBracket || null, numTables);
 
+    // Check if tournament is complete (main brackets + consolation brackets)
+    const consolationEnabled = tournament.finalStage.consolationEnabled ?? false;
+    const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
+
+    const updatedGoldBracket = bracketType === 'gold' ? bracket : tournament.finalStage.goldBracket;
+    const updatedSilverBracket = bracketType === 'silver' ? bracket : tournament.finalStage.silverBracket;
+
+    const isGoldMainComplete = isBracketComplete(updatedGoldBracket);
+    const isGoldConsolationComplete = areConsolationBracketsComplete(updatedGoldBracket, consolationEnabled);
+    const isGoldComplete = isGoldMainComplete && isGoldConsolationComplete;
+
+    const isSilverMainComplete = !isSplitDivisions || isBracketComplete(updatedSilverBracket);
+    const isSilverConsolationComplete = !isSplitDivisions || areConsolationBracketsComplete(updatedSilverBracket, consolationEnabled);
+    const isSilverComplete = isSilverMainComplete && isSilverConsolationComplete;
+
+    const isTournamentComplete = isGoldComplete && isSilverComplete;
+
     // Update tournament
     const updateData: any = {
       finalStage: {
         ...tournament.finalStage,
-        [bracketType === 'gold' ? 'goldBracket' : 'silverBracket']: bracket
+        [bracketType === 'gold' ? 'goldBracket' : 'silverBracket']: bracket,
+        isComplete: isTournamentComplete
       }
     };
+
+    // Check if tournament was already completed (to avoid double ranking application)
+    const wasAlreadyCompleted = tournament.status === 'COMPLETED';
+
+    // If all matches are complete, mark entire tournament as COMPLETED
+    if (isTournamentComplete && !wasAlreadyCompleted) {
+      updateData.status = 'COMPLETED';
+      updateData.completedAt = Date.now();
+      console.log('🏆 All brackets (including consolation) completed - marking tournament as COMPLETED');
+
+      // Calculate final positions and include in the same update
+      console.log('📊 Calculating final positions...');
+      const tournamentWithUpdatedBracket = {
+        ...tournament,
+        finalStage: {
+          ...tournament.finalStage,
+          [bracketType === 'gold' ? 'goldBracket' : 'silverBracket']: bracket,
+          isComplete: true
+        }
+      };
+      updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
+      console.log('📊 Final positions calculated and included in update.');
+    } else if (!isTournamentComplete) {
+      console.log('📋 Consolation check - goldComplete=' + isGoldComplete + ', silverComplete=' + isSilverComplete);
+    }
 
     await updateTournamentPublic(tournamentId, updateData);
     return true;

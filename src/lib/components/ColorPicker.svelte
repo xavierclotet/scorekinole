@@ -1,5 +1,9 @@
 <script lang="ts">
-	export let selectedColor: string = '#00ff88';
+	interface Props {
+		selectedColor?: string;
+	}
+
+	let { selectedColor = $bindable('#00ff88') }: Props = $props();
 
 	const presetColors: string[] = [
 		'#00ff88', '#ff3366', '#ffaa00', '#0088ff',
@@ -20,7 +24,7 @@
 				class="color-swatch"
 				class:selected={color === selectedColor}
 				style="background-color: {color}"
-				on:click={() => selectColor(color)}
+				onclick={() => selectColor(color)}
 				aria-label="Select color {color}"
 				type="button"
 			>

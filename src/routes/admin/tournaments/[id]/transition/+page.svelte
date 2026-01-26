@@ -27,110 +27,112 @@
   import { updateTournament, updateTournamentPublic } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';
 
-  let tournament: Tournament | null = null;
-  let loading = true;
-  let error = false;
-  let showToast = false;
-  let toastMessage = '';
-  let toastType: 'success' | 'error' | 'info' | 'warning' = 'info';
-  let isProcessing = false;
-  let isRecalculating = false;
-  let showBracketPreview = false;
-  let showTimeBreakdown = false;
-  let timeBreakdown: TimeBreakdown | null = null;
+  let tournament = $state<Tournament | null>(null);
+  let loading = $state(true);
+  let error = $state(false);
+  let showToast = $state(false);
+  let toastMessage = $state('');
+  let toastType = $state<'success' | 'error' | 'info' | 'warning'>('info');
+  let isProcessing = $state(false);
+  let isRecalculating = $state(false);
+  let showBracketPreview = $state(false);
+  let showTimeBreakdown = $state(false);
+  let timeBreakdown = $state<TimeBreakdown | null>(null);
 
   // Qualifier selections per group
-  let groupQualifiers: Map<number, string[]> = new Map();
+  let groupQualifiers = $state<Map<number, string[]>>(new Map());
 
   // For SPLIT_DIVISIONS: separate Gold and Silver selections
-  let goldParticipants: string[] = [];
-  let silverParticipants: string[] = [];
+  let goldParticipants = $state<string[]>([]);
+  let silverParticipants = $state<string[]>([]);
 
   // Final stage configuration - Early rounds (octavos, cuartos) - default: 4 rounds
-  let earlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
-  let earlyRoundsPointsToWin: number = 7;
-  let earlyRoundsToPlay: number = 4;
+  let earlyRoundsGameMode = $state<'points' | 'rounds'>('rounds');
+  let earlyRoundsPointsToWin = $state(7);
+  let earlyRoundsToPlay = $state(4);
 
   // Final stage configuration - Semifinals
-  let semifinalGameMode: 'points' | 'rounds' = 'points';
-  let semifinalPointsToWin: number = 7;
-  let semifinalRoundsToPlay: number = 4;
-  let semifinalMatchesToWin: number = 1;
+  let semifinalGameMode = $state<'points' | 'rounds'>('points');
+  let semifinalPointsToWin = $state(7);
+  let semifinalRoundsToPlay = $state(4);
+  let semifinalMatchesToWin = $state(1);
 
   // Final stage configuration - Final - default: 9 points
-  let finalGameMode: 'points' | 'rounds' = 'points';
-  let finalPointsToWin: number = 9;
-  let finalRoundsToPlay: number = 4;
-  let finalMatchesToWin: number = 1;
+  let finalGameMode = $state<'points' | 'rounds'>('points');
+  let finalPointsToWin = $state(9);
+  let finalRoundsToPlay = $state(4);
+  let finalMatchesToWin = $state(1);
 
   // Silver bracket configuration (for SPLIT_DIVISIONS) - per phase like Gold
   // Silver: all phases default to 4 rounds (less competitive than Gold)
   // Silver Early Rounds
-  let silverEarlyRoundsGameMode: 'points' | 'rounds' = 'rounds';
-  let silverEarlyRoundsPointsToWin: number = 7;
-  let silverEarlyRoundsToPlay: number = 4;
+  let silverEarlyRoundsGameMode = $state<'points' | 'rounds'>('rounds');
+  let silverEarlyRoundsPointsToWin = $state(7);
+  let silverEarlyRoundsToPlay = $state(4);
   // Silver Semifinals
-  let silverSemifinalGameMode: 'points' | 'rounds' = 'rounds';
-  let silverSemifinalPointsToWin: number = 7;
-  let silverSemifinalRoundsToPlay: number = 4;
-  let silverSemifinalMatchesToWin: number = 1;
+  let silverSemifinalGameMode = $state<'points' | 'rounds'>('rounds');
+  let silverSemifinalPointsToWin = $state(7);
+  let silverSemifinalRoundsToPlay = $state(4);
+  let silverSemifinalMatchesToWin = $state(1);
   // Silver Final
-  let silverFinalGameMode: 'points' | 'rounds' = 'rounds';
-  let silverFinalPointsToWin: number = 7;
-  let silverFinalRoundsToPlay: number = 4;
-  let silverFinalMatchesToWin: number = 1;
+  let silverFinalGameMode = $state<'points' | 'rounds'>('rounds');
+  let silverFinalPointsToWin = $state(7);
+  let silverFinalRoundsToPlay = $state(4);
+  let silverFinalMatchesToWin = $state(1);
 
   // Global top N value for all groups
-  let topNPerGroup: number = 2;
+  let topNPerGroup = $state(2);
 
   // Track unresolved ties per group
-  let groupTiesStatus = new Map<number, boolean>();
-  $: hasAnyUnresolvedTies = Array.from(groupTiesStatus.values()).some(hasTies => hasTies);
+  let groupTiesStatus = $state<Map<number, boolean>>(new Map());
+  let hasAnyUnresolvedTies = $derived(Array.from(groupTiesStatus.values()).some(hasTies => hasTies));
 
-  $: tournamentId = $page.params.id;
-  $: timeRemaining = tournament ? calculateRemainingTime(tournament) : null;
-  $: isSplitDivisions = tournament?.finalStage?.mode === 'SPLIT_DIVISIONS';
+  let tournamentId = $derived($page.params.id);
+  let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
+  let isSplitDivisions = $derived(tournament?.finalStage?.mode === 'SPLIT_DIVISIONS');
 
   // For single bracket mode
-  $: totalQualifiers = Array.from(groupQualifiers.values()).flat().length;
-  $: isValidSize = isValidBracketSize(totalQualifiers);
+  let totalQualifiers = $derived(Array.from(groupQualifiers.values()).flat().length);
+  let isValidSize = $derived(isValidBracketSize(totalQualifiers));
 
   // For split divisions mode
-  $: goldCount = goldParticipants.length;
-  $: silverCount = silverParticipants.length;
-  $: isValidGoldSize = isValidBracketSize(goldCount);
-  $: isValidSilverSize = isValidBracketSize(silverCount);
+  let goldCount = $derived(goldParticipants.length);
+  let silverCount = $derived(silverParticipants.length);
+  let isValidGoldSize = $derived(isValidBracketSize(goldCount));
+  let isValidSilverSize = $derived(isValidBracketSize(silverCount));
 
   // Can proceed logic - also check for unresolved ties
-  $: canProceed = !hasAnyUnresolvedTies && (isSplitDivisions
+  let canProceed = $derived(!hasAnyUnresolvedTies && (isSplitDivisions
     ? (goldCount >= 2 && isValidGoldSize && silverCount >= 2 && isValidSilverSize)
-    : (totalQualifiers >= 2 && isValidSize));
+    : (totalQualifiers >= 2 && isValidSize)));
 
-  $: bracketRoundNames = totalQualifiers > 0 ? getBracketRoundNames(totalQualifiers) : [];
-  $: goldBracketRoundNames = goldCount > 0 ? getBracketRoundNames(goldCount) : [];
-  $: silverBracketRoundNames = silverCount > 0 ? getBracketRoundNames(silverCount) : [];
-  $: numGroups = tournament?.groupStage?.groups?.length || 1;
-  $: suggestedQualifiers = tournament ? calculateSuggestedQualifiers(tournament.participants.length, numGroups) : { total: 4, perGroup: 2 };
+  let bracketRoundNames = $derived(totalQualifiers > 0 ? getBracketRoundNames(totalQualifiers) : []);
+  let goldBracketRoundNames = $derived(goldCount > 0 ? getBracketRoundNames(goldCount) : []);
+  let silverBracketRoundNames = $derived(silverCount > 0 ? getBracketRoundNames(silverCount) : []);
+  let numGroups = $derived(tournament?.groupStage?.groups?.length || 1);
+  let suggestedQualifiers = $derived(tournament ? calculateSuggestedQualifiers(tournament.participants.length, numGroups) : { total: 4, perGroup: 2 });
 
   // Initialize topNPerGroup based on mode
-  let topNInitialized = false;
-  $: if (!topNInitialized && tournament && suggestedQualifiers.perGroup > 0) {
-    const isSingleBracketSingleGroup = tournament.finalStage?.mode !== 'SPLIT_DIVISIONS' && numGroups === 1;
-    const isSplitDiv = tournament.finalStage?.mode === 'SPLIT_DIVISIONS';
+  let topNInitialized = $state(false);
+  $effect(() => {
+    if (!topNInitialized && tournament && suggestedQualifiers.perGroup > 0) {
+      const isSingleBracketSingleGroup = tournament.finalStage?.mode !== 'SPLIT_DIVISIONS' && numGroups === 1;
+      const isSplitDiv = tournament.finalStage?.mode === 'SPLIT_DIVISIONS';
 
-    if (isSingleBracketSingleGroup) {
-      // SINGLE_BRACKET with single group: all participants
-      topNPerGroup = tournament.participants?.length || suggestedQualifiers.perGroup;
-    } else if (isSplitDiv) {
-      // SPLIT_DIVISIONS: half participants per group
-      const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
-      topNPerGroup = Math.ceil(participantsPerGroup / 2);
-    } else {
-      // Multiple groups: use suggested
-      topNPerGroup = suggestedQualifiers.perGroup;
+      if (isSingleBracketSingleGroup) {
+        // SINGLE_BRACKET with single group: all participants
+        topNPerGroup = tournament.participants?.length || suggestedQualifiers.perGroup;
+      } else if (isSplitDiv) {
+        // SPLIT_DIVISIONS: half participants per group
+        const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
+        topNPerGroup = Math.ceil(participantsPerGroup / 2);
+      } else {
+        // Multiple groups: use suggested
+        topNPerGroup = suggestedQualifiers.perGroup;
+      }
+      topNInitialized = true;
     }
-    topNInitialized = true;
-  }
+  });
 
   // Helper to translate internal round names to display names
   function translateRoundName(name: string): string {
@@ -514,27 +516,34 @@
     }
   }
 
+  let bracketPreviewLoaded = $state(false);
+
   async function loadBracketPreview() {
-    if (!tournamentId) return;
+    if (!tournamentId || bracketPreviewLoaded) return;
+    bracketPreviewLoaded = true;
 
     try {
       await getQualifiedParticipants(tournamentId);
       showBracketPreview = true;
     } catch (err) {
       console.error('Error loading bracket preview:', err);
+      bracketPreviewLoaded = false; // Reset on error to allow retry
     }
   }
 
-  $: if (totalQualifiers > 0) {
-    loadBracketPreview();
-  }
+  // Only load bracket preview once when qualifiers are first selected
+  $effect(() => {
+    if (totalQualifiers > 0 && !bracketPreviewLoaded) {
+      loadBracketPreview();
+    }
+  });
 
   // Track if user has manually moved participants (not just changed top N)
-  let userManuallyEdited = false;
+  let userManuallyEdited = $state(false);
 
   // Compute gold/silver participants reactively based on groupQualifiers
   // This ensures the UI updates immediately when checkboxes change
-  $: computedDistribution = (() => {
+  let computedDistribution = $derived((() => {
     if (!isSplitDivisions || !tournament?.groupStage?.groups) {
       return { gold: [] as string[], silver: [] as string[] };
     }
@@ -591,13 +600,15 @@
       gold: applyCrossSeeding(qualifiedByPosition),
       silver: applyCrossSeeding(nonQualifiedByPosition)
     };
-  })();
+  })());
 
   // Update goldParticipants and silverParticipants when computed distribution changes
-  $: if (!userManuallyEdited && computedDistribution) {
-    goldParticipants = computedDistribution.gold;
-    silverParticipants = computedDistribution.silver;
-  }
+  $effect(() => {
+    if (!userManuallyEdited && computedDistribution) {
+      goldParticipants = computedDistribution.gold;
+      silverParticipants = computedDistribution.silver;
+    }
+  });
 
   // Get all participants from all groups with their info
   function getAllParticipantsFromGroups(): Array<{ id: string; name: string; position: number; groupName: string }> {
@@ -804,7 +815,7 @@
     <header class="page-header">
       {#if tournament}
         <div class="header-row">
-          <button class="back-btn" on:click={() => goto(`/admin/tournaments/${tournamentId}`)}>←</button>
+          <button class="back-btn" onclick={() => goto(`/admin/tournaments/${tournamentId}`)}>←</button>
           <div class="header-main">
             <div class="title-section">
               <h1>{tournament.name}</h1>
@@ -821,7 +832,7 @@
                     showEstimatedEnd={true}
                     compact={true}
                     clickable={true}
-                    on:click={openTimeBreakdown}
+                    onclick={openTimeBreakdown}
                   />
                 </div>
               {/if}
@@ -843,7 +854,7 @@
           <div class="error-icon">⚠️</div>
           <h3>{$t('errorLoading')}</h3>
           <p>{$t('couldNotLoadTransition')}</p>
-          <button class="primary-button" on:click={() => goto('/admin/tournaments')}>
+          <button class="primary-button" onclick={() => goto('/admin/tournaments')}>
             {$t('backToTournaments')}
           </button>
         </div>
@@ -855,33 +866,20 @@
               <span class="step-number">1</span>
               <div>
                 <h2>{$t('selectQualifiersPerGroup')}</h2>
-                <p class="help-text">{$t('totalQualifiersCount')}: <strong>{totalQualifiers}</strong> ({topNPerGroup} {$t('perGroupLabel')} × {numGroups} {$t('groups')})</p>
+                <p class="help-text">{$t('totalQualifiersCount')}: <strong>{totalQualifiers}</strong></p>
               </div>
-              <div class="top-n-control">
-                <label class="top-n-label">
-                  <span>{$t('topNLabel')}</span>
-                  <input
-                    type="number"
-                    class="top-n-input"
-                    bind:value={topNPerGroup}
-                    min="1"
-                    max="10"
-                  />
-                  <span class="top-n-hint">{$t('perGroupLabel')}</span>
-                </label>
-                <button
-                  class="recalculate-btn"
-                  on:click={handleRecalculateStandings}
-                  disabled={isRecalculating}
-                  title={$t('recalculateStandings')}
-                >
-                  {#if isRecalculating}
-                    <span class="spinner-small"></span>
-                  {:else}
-                    🔄
-                  {/if}
-                </button>
-              </div>
+              <button
+                class="recalculate-btn"
+                onclick={handleRecalculateStandings}
+                disabled={isRecalculating}
+                title={$t('recalculateStandings')}
+              >
+                {#if isRecalculating}
+                  <span class="spinner-small"></span>
+                {:else}
+                  🔄
+                {/if}
+              </button>
             </div>
 
             <div class="groups-section">
@@ -892,9 +890,9 @@
                       {tournament}
                       groupIndex={index}
                       topN={topNPerGroup}
-                      on:update={(e) => handleQualifierUpdate(index, e.detail)}
-                      on:tiesStatusChanged={(e) => handleTiesStatusChanged(e.detail.groupIndex, e.detail.hasUnresolvedTies)}
-                      on:standingsChanged={(e) => handleStandingsChanged(e.detail.groupIndex, e.detail.standings)}
+                      onupdate={(qualifiedIds) => handleQualifierUpdate(index, qualifiedIds)}
+                      ontiesStatusChanged={({ groupIndex, hasUnresolvedTies }) => handleTiesStatusChanged(groupIndex, hasUnresolvedTies)}
+                      onstandingsChanged={({ groupIndex, standings }) => handleStandingsChanged(groupIndex, standings)}
                     />
                   {/each}
                 {/if}
@@ -1263,31 +1261,18 @@
           <div class="groups-section">
             <div class="groups-header">
               <h2>{$t('selectQualifiersPerGroup')}</h2>
-              <div class="top-n-control">
-                <label class="top-n-label">
-                  <span>{$t('topNLabel')}</span>
-                  <input
-                    type="number"
-                    class="top-n-input"
-                    bind:value={topNPerGroup}
-                    min="1"
-                    max="10"
-                  />
-                  <span class="top-n-hint">{$t('perGroupLabel')}</span>
-                </label>
-                <button
-                  class="recalculate-btn"
-                  on:click={handleRecalculateStandings}
-                  disabled={isRecalculating}
-                  title={$t('recalculateStandings')}
-                >
-                  {#if isRecalculating}
-                    <span class="spinner-small"></span>
-                  {:else}
-                    🔄
-                  {/if}
-                </button>
-              </div>
+              <button
+                class="recalculate-btn"
+                onclick={handleRecalculateStandings}
+                disabled={isRecalculating}
+                title={$t('recalculateStandings')}
+              >
+                {#if isRecalculating}
+                  <span class="spinner-small"></span>
+                {:else}
+                  🔄
+                {/if}
+              </button>
             </div>
             <div class="groups-grid">
               {#if tournament.groupStage}
@@ -1296,9 +1281,9 @@
                     {tournament}
                     groupIndex={index}
                     topN={topNPerGroup}
-                    on:update={(e) => handleQualifierUpdate(index, e.detail)}
-                    on:tiesStatusChanged={(e) => handleTiesStatusChanged(e.detail.groupIndex, e.detail.hasUnresolvedTies)}
-                    on:standingsChanged={(e) => handleStandingsChanged(e.detail.groupIndex, e.detail.standings)}
+                    onupdate={(qualifiedIds) => handleQualifierUpdate(index, qualifiedIds)}
+                    ontiesStatusChanged={({ groupIndex, hasUnresolvedTies }) => handleTiesStatusChanged(groupIndex, hasUnresolvedTies)}
+                    onstandingsChanged={({ groupIndex, standings }) => handleStandingsChanged(groupIndex, standings)}
                   />
                 {/each}
               {/if}
@@ -1383,7 +1368,7 @@
         <div class="actions-section">
           <button
             class="action-btn generate"
-            on:click={handleGenerateBracket}
+            onclick={handleGenerateBracket}
             disabled={isProcessing || !canProceed}
           >
             {#if isProcessing}
@@ -1420,7 +1405,7 @@
   bind:visible={showTimeBreakdown}
   breakdown={timeBreakdown}
   showRecalculate={true}
-  on:recalculate={recalculateTime}
+  onrecalculate={recalculateTime}
 />
 
 <style>
@@ -1959,55 +1944,6 @@
     color: #e1e8ed;
   }
 
-  .top-n-control {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .top-n-label {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #1a1a1a;
-  }
-
-  .transition-page[data-theme='dark'] .top-n-label {
-    color: #e1e8ed;
-  }
-
-  .top-n-input {
-    width: 45px;
-    padding: 0.25rem 0.35rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-align: center;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    background: white;
-    color: #1a1a1a;
-    transition: all 0.2s;
-  }
-
-  .top-n-input:focus {
-    outline: none;
-    border-color: #667eea;
-  }
-
-  .transition-page[data-theme='dark'] .top-n-input {
-    background: #0f1419;
-    color: #e1e8ed;
-    border-color: #2d3748;
-  }
-
-  .top-n-hint {
-    font-size: 0.75rem;
-    color: #6b7280;
-    font-weight: 400;
-  }
-
   .recalculate-btn {
     display: flex;
     align-items: center;
@@ -2294,9 +2230,6 @@
     min-width: 150px;
   }
 
-  .step-header .top-n-control {
-    margin-left: auto;
-  }
 
   .step-number {
     display: inline-flex;

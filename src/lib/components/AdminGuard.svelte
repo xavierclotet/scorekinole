@@ -36,7 +36,7 @@
   <div class="admin-guard-denied">
     <h1>🔒 {$t('accessDenied')}</h1>
     <p>{$t('adminOnly')}</p>
-    <button on:click={() => goto('/')}>{$t('goHome')}</button>
+    <button onclick={() => goto('/')}>{$t('goHome')}</button>
   </div>
 {/if}
 

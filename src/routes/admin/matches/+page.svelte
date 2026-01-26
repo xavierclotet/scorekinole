@@ -11,27 +11,27 @@
   import type { MatchHistory } from '$lib/types/history';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
-  let matches: MatchHistory[] = [];
-  let isLoading = true;
-  let isLoadingMore = false;
-  let errorMessage = '';
-  let selectedMatch: MatchHistory | null = null;
-  let searchQuery = '';
-  let filterStatus: 'all' | 'active' | 'deleted' = 'all';
-  let showDeleteConfirm = false;
-  let matchToDelete: MatchHistory | null = null;
+  let matches: MatchHistory[] = $state([]);
+  let isLoading = $state(true);
+  let isLoadingMore = $state(false);
+  let errorMessage = $state('');
+  let selectedMatch: MatchHistory | null = $state(null);
+  let searchQuery = $state('');
+  let filterStatus: 'all' | 'active' | 'deleted' = $state('all');
+  let showDeleteConfirm = $state(false);
+  let matchToDelete: MatchHistory | null = $state(null);
   const pageSize = 15;
 
   // Infinite scroll state
-  let totalCount = 0;
-  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
-  let hasMore = true;
+  let totalCount = $state(0);
+  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
+  let hasMore = $state(true);
 
   // For search: filter locally from loaded matches
-  $: isSearching = searchQuery.trim().length > 0;
+  let isSearching = $derived(searchQuery.trim().length > 0);
 
   // Filtered matches
-  $: filteredMatches = matches.filter((match) => {
+  let filteredMatches = $derived(matches.filter((match) => {
     const query = searchQuery.toLowerCase();
     const matchesSearch =
       match.team1Name.toLowerCase().includes(query) ||
@@ -46,9 +46,9 @@
       (filterStatus === 'deleted' && match.syncStatus === 'deleted');
 
     return matchesSearch && matchesStatus;
-  });
+  }));
 
-  $: displayTotal = isSearching ? filteredMatches.length : totalCount;
+  let displayTotal = $derived(isSearching ? filteredMatches.length : totalCount);
 
   onMount(async () => {
     await loadInitialMatches();
@@ -181,7 +181,7 @@
 <SuperAdminGuard>
   <div class="matches-container" data-theme={$adminTheme}>
     <header class="matches-header">
-      <button class="back-button" on:click={() => goto('/admin')}>
+      <button class="back-button" onclick={() => goto('/admin')}>
         ← {$t('backToAdmin')}
       </button>
       <h1>🎯 {$t('matchManagement')}</h1>
@@ -208,14 +208,14 @@
     {:else if errorMessage}
       <div class="error-box">
         <p>{errorMessage}</p>
-        <button on:click={loadInitialMatches}>{$t('retry')}</button>
+        <button onclick={loadInitialMatches}>{$t('retry')}</button>
       </div>
     {:else if filteredMatches.length === 0}
       <div class="empty-state">
         <p>{$t('noMatchesFound')}</p>
       </div>
     {:else}
-      <div class="table-container" on:scroll={handleScroll}>
+      <div class="table-container" onscroll={handleScroll}>
         <table class="matches-table">
           <thead>
             <tr>
@@ -305,10 +305,10 @@
                   {match.savedBy?.userName || 'N/A'}
                 </td>
                 <td class="actions-cell">
-                  <button class="edit-btn" on:click={() => editMatch(match)}>
+                  <button class="edit-btn" onclick={() => editMatch(match)}>
                     ✏️
                   </button>
-                  <button class="delete-btn" on:click={() => confirmDelete(match)}>
+                  <button class="delete-btn" onclick={() => confirmDelete(match)}>
                     🗑️
                   </button>
                 </td>
@@ -336,13 +336,13 @@
     <MatchEditModal
       match={selectedMatch}
       onClose={closeEditModal}
-      on:matchUpdated={handleMatchUpdated}
+      onmatchupdated={handleMatchUpdated}
     />
   {/if}
 
   {#if showDeleteConfirm && matchToDelete}
-    <div class="modal-backdrop" data-theme={$adminTheme} on:click={cancelDelete}>
-      <div class="confirm-modal" on:click|stopPropagation>
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={cancelDelete}>
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()}>
         <h2>{$t('confirmDelete')}</h2>
         <p>{$t('deleteMatchWarning')}</p>
         <div class="match-info">
@@ -353,10 +353,10 @@
           <span>{formatDate(matchToDelete.startTime)}</span>
         </div>
         <div class="confirm-actions">
-          <button class="cancel-btn" on:click={cancelDelete}>
+          <button class="cancel-btn" onclick={cancelDelete}>
             {$t('cancel')}
           </button>
-          <button class="confirm-btn" on:click={deleteMatch}>
+          <button class="confirm-btn" onclick={deleteMatch}>
             {$t('deleteConfirm')}
           </button>
         </div>

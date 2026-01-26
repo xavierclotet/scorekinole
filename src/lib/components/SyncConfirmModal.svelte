@@ -3,7 +3,6 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import type { MatchHistory } from '$lib/types/history';
 	import Button from './Button.svelte';
-	import { createEventDispatcher } from 'svelte';
 
 	// Map language codes for date formatting
 	const languageMap: Record<string, string> = {
@@ -12,47 +11,60 @@
 		'en': 'en-US'
 	};
 
-	export let isOpen = false;
-	export let matches: MatchHistory[] = [];
+	interface Props {
+		isOpen?: boolean;
+		matches?: MatchHistory[];
+		onclose?: () => void;
+		onconfirm?: (data: { selections: Map<string, 1 | 2 | null> }) => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let { isOpen = false, matches = [], onclose, onconfirm }: Props = $props();
 
 	// Track team selection for each match
 	// Don't pre-initialize - only add when user clicks a button
-	let teamSelections: Map<string, 1 | 2 | null> = new Map();
+	let teamSelections = $state<Map<string, 1 | 2 | null>>(new Map());
 
 	function handleTeamSelect(matchId: string, team: 1 | 2 | null) {
 		teamSelections.set(matchId, team);
-		teamSelections = teamSelections; // Trigger reactivity
+		teamSelections = new Map(teamSelections); // Trigger reactivity
 	}
 
 	function handleConfirm() {
 		// Create map of match IDs to team selections
 		const selections = new Map(teamSelections);
-		dispatch('confirm', { selections });
+		onconfirm?.({ selections });
 		close();
 	}
 
 	function close() {
-		dispatch('close');
+		onclose?.();
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') close();
+	}
+
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
 	}
 
 	// Check if at least one match has been confirmed (has any button clicked)
-	$: atLeastOneConfirmed = matches.length > 0 &&
-		matches.some(match => teamSelections.has(match.id));
+	let atLeastOneConfirmed = $derived(
+		matches.length > 0 && matches.some(match => teamSelections.has(match.id))
+	);
 
 	// Count confirmed matches (where user clicked any button)
-	$: confirmedCount = matches.filter(match =>
-		teamSelections.has(match.id)
-	).length;
+	let confirmedCount = $derived(
+		matches.filter(match => teamSelections.has(match.id)).length
+	);
 </script>
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={close} on:keydown={(e) => e.key === 'Escape' && close()} role="button" tabindex="-1">
-		<div class="modal" on:click|stopPropagation on:keydown|stopPropagation role="dialog">
+	<div class="modal-overlay" onclick={close} onkeydown={handleKeydown} role="button" tabindex="-1">
+		<div class="modal" onclick={stopPropagation} onkeydown={stopPropagation} role="dialog">
 			<div class="modal-header">
 				<h2>{$t('confirmTeamForEachMatch')}</h2>
-				<button class="close-btn" on:click={close} aria-label="Close">×</button>
+				<button class="close-btn" onclick={close} aria-label="Close">×</button>
 			</div>
 
 			<div class="modal-content">
@@ -103,7 +115,7 @@
 								<button
 									class="team-btn"
 									class:selected={selected === 1}
-									on:click={() => handleTeamSelect(match.id, 1)}
+									onclick={() => handleTeamSelect(match.id, 1)}
 									type="button"
 								>
 									{match.team1Name}
@@ -111,7 +123,7 @@
 								<button
 									class="team-btn"
 									class:selected={selected === 2}
-									on:click={() => handleTeamSelect(match.id, 2)}
+									onclick={() => handleTeamSelect(match.id, 2)}
 									type="button"
 								>
 									{match.team2Name}
@@ -119,7 +131,7 @@
 								<button
 									class="team-btn didnt-play"
 									class:selected={selected === null && teamSelections.has(match.id)}
-									on:click={() => handleTeamSelect(match.id, null)}
+									onclick={() => handleTeamSelect(match.id, null)}
 									type="button"
 									title={$t('iDidntPlay')}
 								>
@@ -131,10 +143,10 @@
 				</div>
 
 				<div class="modal-actions">
-					<Button variant="secondary" on:click={close}>
+					<Button variant="secondary" onclick={close}>
 						{$t('cancel')}
 					</Button>
-					<Button variant="primary" on:click={handleConfirm} disabled={!atLeastOneConfirmed}>
+					<Button variant="primary" onclick={handleConfirm} disabled={!atLeastOneConfirmed}>
 						{$t('syncSelected')}
 					</Button>
 				</div>

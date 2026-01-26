@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
 	import { currentUser, signOut } from '$lib/firebase/auth';
-	import { createEventDispatcher } from 'svelte';
 
-	const dispatch = createEventDispatcher();
+	interface Props {
+		onlogin?: () => void;
+		onprofile?: () => void;
+	}
+
+	let { onlogin, onprofile }: Props = $props();
 
 	// Menu open/close state
-	let isOpen = false;
-	let justOpened = false;
+	let isOpen = $state(false);
+	let justOpened = $state(false);
 
 	export function toggleMenu() {
 		if (!isOpen) {
@@ -26,13 +30,13 @@
 	// Auth actions
 	function handleLogin(event: MouseEvent) {
 		event.stopPropagation();
-		dispatch('login');
+		onlogin?.();
 		closeMenu();
 	}
 
 	function handleProfile(event: MouseEvent) {
 		event.stopPropagation();
-		dispatch('profile');
+		onprofile?.();
 		closeMenu();
 	}
 
@@ -53,13 +57,13 @@
 	}
 </script>
 
-<svelte:window on:mousedown={handleClickOutside} />
+<svelte:window onmousedown={handleClickOutside} />
 
 <div class="quick-menu-container">
 	{#if isOpen}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="quick-menu" on:click|stopPropagation role="menu">
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="quick-menu" onclick={(e) => e.stopPropagation()} role="menu">
 			{#if $currentUser}
 				<!-- User info header -->
 				<div class="menu-header">
@@ -78,14 +82,14 @@
 
 				<!-- Menu actions -->
 				<div class="menu-actions">
-					<button class="menu-item" on:click|stopPropagation={handleProfile}>
+					<button class="menu-item" onclick={handleProfile}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
 							<circle cx="12" cy="7" r="4"/>
 						</svg>
 						<span>{$t('myProfile')}</span>
 					</button>
-					<button class="menu-item logout" on:click|stopPropagation={handleSignOut}>
+					<button class="menu-item logout" onclick={handleSignOut}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
 							<polyline points="16 17 21 12 16 7"/>
@@ -97,7 +101,7 @@
 			{:else}
 				<!-- Not logged in -->
 				<div class="menu-actions guest">
-					<button class="menu-item login" on:click|stopPropagation={handleLogin}>
+					<button class="menu-item login" onclick={handleLogin}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
 							<polyline points="10 17 15 12 10 7"/>

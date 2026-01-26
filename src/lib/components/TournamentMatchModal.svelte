@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { createEventDispatcher, tick, onMount } from 'svelte';
+	import { tick } from 'svelte';
 	import { t } from '$lib/stores/language';
 	import { currentUser } from '$lib/firebase/auth';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
@@ -16,38 +16,42 @@
 	import type { Tournament } from '$lib/types/tournament';
 	import Button from './Button.svelte';
 
-	export let isOpen: boolean = false;
+	interface Props {
+		isOpen?: boolean;
+		onclose?: () => void;
+		onmatchstarted?: (context: TournamentMatchContext) => void;
+	}
+
+	let { isOpen = $bindable(false), onclose, onmatchstarted }: Props = $props();
 
 	// LocalStorage key for saved tournament key
 	const TOURNAMENT_KEY_STORAGE = 'tournamentKey';
 
 	// Reference to key input for autofocus
-	let keyInputElement: HTMLInputElement;
-
-	const dispatch = createEventDispatcher();
+	let keyInputElement: HTMLInputElement | undefined = $state();
 
 	// State machine (simplified: removed confirmation step)
 	// For non-logged users: key_input → loading → player_selection (with inline confirmation)
 	// For logged users: key_input → loading → player_selection (auto-select match, choose side)
 	type Step = 'key_input' | 'loading' | 'player_selection' | 'error';
-	let currentStep: Step = 'key_input';
+	let currentStep = $state<Step>('key_input');
 
 	// Form state
-	let tournamentKey = '';
-	let tournament: Tournament | null = null;
-	let pendingMatches: PendingMatchInfo[] = [];
-	let selectedMatch: PendingMatchInfo | null = null;
-	let selectedSide: 'A' | 'B' | null = null;
-	let errorMessage = '';
-	let isStarting = false;
+	let tournamentKey = $state('');
+	let tournament = $state<Tournament | null>(null);
+	let pendingMatches = $state<PendingMatchInfo[]>([]);
+	let selectedMatch = $state<PendingMatchInfo | null>(null);
+	let selectedSide = $state<'A' | 'B' | null>(null);
+	let errorMessage = $state('');
+	let isStarting = $state(false);
 
 	// Matches grouped by status (for non-logged users)
 	interface MatchDisplay {
 		match: PendingMatchInfo;
 		isInProgress: boolean;
 	}
-	let pendingMatchesList: MatchDisplay[] = [];
-	let inProgressMatchesList: MatchDisplay[] = [];
+	let pendingMatchesList = $state<MatchDisplay[]>([]);
+	let inProgressMatchesList = $state<MatchDisplay[]>([]);
 
 	// Matches grouped by group (for multi-group tournaments)
 	interface GroupedMatches {
@@ -57,42 +61,46 @@
 		totalRounds: number;
 		matches: MatchDisplay[];
 	}
-	let pendingMatchesByGroup: GroupedMatches[] = [];
-	let inProgressMatchesByGroup: GroupedMatches[] = [];
-	let hasMultipleGroups = false;
-	let hasSplitDivisions = false;  // True when in FINAL_STAGE with SPLIT_DIVISIONS mode (Oro/Plata)
+	let pendingMatchesByGroup = $state<GroupedMatches[]>([]);
+	let inProgressMatchesByGroup = $state<GroupedMatches[]>([]);
+	let hasMultipleGroups = $state(false);
+	let hasSplitDivisions = $state(false);  // True when in FINAL_STAGE with SPLIT_DIVISIONS mode (Oro/Plata)
 
 	// Show/hide tournament key
-	let showKey = false;
+	let showKey = $state(false);
 
 	// Track if selected match is being resumed (IN_PROGRESS)
-	let isResumingMatch = false;
+	let isResumingMatch = $state(false);
 
 	// Accordion state for in-progress matches
-	let showInProgressMatches = false;
+	let showInProgressMatches = $state(false);
 
 	// Round Robin current round info
-	let rrCurrentRound = 0;
-	let rrTotalRounds = 0;
+	let rrCurrentRound = $state(0);
+	let rrTotalRounds = $state(0);
 
 	// Reactive: check if user is logged in
-	$: isLoggedIn = !!$currentUser;
+	let isLoggedIn = $derived(!!$currentUser);
 
 	// Track if we're checking a saved key
-	let isCheckingSavedKey = false;
+	let isCheckingSavedKey = $state(false);
 
 	// When modal opens, check for saved tournament key
-	$: if (isOpen && currentStep === 'key_input' && !isCheckingSavedKey) {
-		checkSavedTournamentKey();
-	}
+	$effect(() => {
+		if (isOpen && currentStep === 'key_input' && !isCheckingSavedKey) {
+			checkSavedTournamentKey();
+		}
+	});
 
 	// Autofocus key input when modal opens (only if not checking saved key)
-	$: if (isOpen && currentStep === 'key_input' && !isCheckingSavedKey) {
-		// Use tick to wait for DOM update, then focus
-		tick().then(() => {
-			keyInputElement?.focus();
-		});
-	}
+	$effect(() => {
+		if (isOpen && currentStep === 'key_input' && !isCheckingSavedKey) {
+			// Use tick to wait for DOM update, then focus
+			tick().then(() => {
+				keyInputElement?.focus();
+			});
+		}
+	});
 
 	function getSavedTournamentKey(): string | null {
 		if (typeof window === 'undefined') return null;
@@ -143,7 +151,7 @@
 	function close() {
 		isOpen = false;
 		resetState();
-		dispatch('close');
+		onclose?.();
 	}
 
 	function resetState() {
@@ -612,8 +620,8 @@
 
 			setTournamentContext(context);
 
-			// Dispatch event to notify game page
-			dispatch('matchStarted', context);
+			// Notify game page via callback
+			onmatchstarted?.(context);
 			close();
 		} catch (error) {
 			console.error('Error starting match:', error);
@@ -631,6 +639,18 @@
 		if (event.key === 'Enter' && currentStep === 'key_input' && tournamentKey.length === 6) {
 			searchTournament();
 		}
+	}
+
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
+	}
+
+	function toggleShowKey() {
+		showKey = !showKey;
+	}
+
+	function toggleInProgressMatches() {
+		showInProgressMatches = !showInProgressMatches;
 	}
 
 	function formatGameConfig(config: PendingMatchInfo['gameConfig']): string {
@@ -668,15 +688,15 @@
 	}
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="modal-overlay" on:click={close}>
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="modal" on:click|stopPropagation>
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="modal-overlay" onclick={close}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="modal" onclick={stopPropagation}>
 			<div class="modal-header">
 				<div class="header-icon">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -699,7 +719,7 @@
 						{$t('error')}
 					{/if}
 				</span>
-				<button class="close-btn" on:click={close} aria-label="Close">
+				<button class="close-btn" onclick={close} aria-label="Close">
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<line x1="18" y1="6" x2="6" y2="18"></line>
 						<line x1="6" y1="6" x2="18" y2="18"></line>
@@ -738,7 +758,7 @@
 								<button
 									type="button"
 									class="toggle-key-btn"
-									on:click={() => showKey = !showKey}
+									onclick={toggleShowKey}
 									aria-label={showKey ? $t('hideKey') : $t('showKey')}
 								>
 									{#if showKey}
@@ -758,7 +778,7 @@
 							<button
 								class="search-btn"
 								disabled={tournamentKey.length !== 6}
-								on:click={searchTournament}
+								onclick={searchTournament}
 							>
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 									<polyline points="9 18 15 12 9 6"></polyline>
@@ -790,7 +810,7 @@
 								</p>
 								<button
 									class="refresh-matches-btn"
-									on:click={refreshMatches}
+									onclick={refreshMatches}
 									title={$t('refreshMatches')}
 								>
 									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -832,7 +852,7 @@
 													class="match-row-btn two-rows"
 													class:no-table={!matchDisplay.match.tableNumber}
 													disabled={isStarting || !matchDisplay.match.tableNumber}
-													on:click={() => selectMatchAndStart(matchDisplay)}
+													onclick={() => selectMatchAndStart(matchDisplay)}
 												>
 													<div class="match-row-top">
 														{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
@@ -867,7 +887,7 @@
 										class="match-row-btn two-rows"
 										class:no-table={!matchDisplay.match.tableNumber}
 										disabled={isStarting || !matchDisplay.match.tableNumber}
-										on:click={() => selectMatchAndStart(matchDisplay)}
+										onclick={() => selectMatchAndStart(matchDisplay)}
 									>
 										<div class="match-row-top">
 											{#if matchDisplay.match.bracketRoundName}
@@ -899,7 +919,7 @@
 								<button
 									class="in-progress-accordion"
 									class:expanded={showInProgressMatches}
-									on:click={() => showInProgressMatches = !showInProgressMatches}
+									onclick={toggleInProgressMatches}
 								>
 									<span class="accordion-icon">
 										<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
@@ -941,7 +961,7 @@
 																<button
 																	class="match-row-btn in-progress two-rows"
 																	disabled={isStarting}
-																	on:click={() => selectMatchAndStart(matchDisplay)}
+																	onclick={() => selectMatchAndStart(matchDisplay)}
 																>
 																	<div class="match-row-top">
 																		{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
@@ -974,7 +994,7 @@
 													<button
 														class="match-row-btn in-progress two-rows"
 														disabled={isStarting}
-														on:click={() => selectMatchAndStart(matchDisplay)}
+														onclick={() => selectMatchAndStart(matchDisplay)}
 													>
 														<div class="match-row-top">
 															{#if matchDisplay.match.bracketRoundName}
@@ -1025,7 +1045,7 @@
 						</div>
 						<p class="error-message">{errorMessage}</p>
 
-						<button class="retry-btn" on:click={goBack}>
+						<button class="retry-btn" onclick={goBack}>
 							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<polyline points="1 4 1 10 7 10"></polyline>
 								<path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>

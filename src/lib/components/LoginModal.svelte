@@ -1,15 +1,17 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
 	import { signInWithGoogle } from '$lib/firebase/auth';
-	import { createEventDispatcher } from 'svelte';
 	import Button from './Button.svelte';
 
-	export let isOpen: boolean = false;
+	interface Props {
+		isOpen?: boolean;
+		onclose?: () => void;
+	}
 
-	const dispatch = createEventDispatcher();
+	let { isOpen = $bindable(false), onclose }: Props = $props();
 
-	let isLoading = false;
-	let error = '';
+	let isLoading = $state(false);
+	let error = $state('');
 
 	async function handleGoogleSignIn() {
 		isLoading = true;
@@ -30,16 +32,20 @@
 	function close() {
 		isOpen = false;
 		error = '';
-		dispatch('close');
+		onclose?.();
+	}
+
+	function stopPropagation(e: Event) {
+		e.stopPropagation();
 	}
 </script>
 
 {#if isOpen}
-	<div class="modal-overlay" on:click={close} role="button" tabindex="-1">
-		<div class="modal" on:click|stopPropagation role="dialog">
+	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
+		<div class="modal" onclick={stopPropagation} role="dialog">
 			<div class="modal-header">
 				<span class="modal-title">{$t('login')}</span>
-				<button class="close-btn" on:click={close} aria-label="Close">×</button>
+				<button class="close-btn" onclick={close} aria-label="Close">×</button>
 			</div>
 			<div class="modal-content">
 				<p class="welcome-text">{$t('loginWelcome')}</p>
@@ -54,7 +60,7 @@
 					<Button
 						variant="primary"
 						size="large"
-						on:click={handleGoogleSignIn}
+						onclick={handleGoogleSignIn}
 						disabled={isLoading}
 					>
 						{#if isLoading}

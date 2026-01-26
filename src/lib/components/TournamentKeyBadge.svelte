@@ -1,10 +1,14 @@
 <script lang="ts">
 	import { t } from '$lib/stores/language';
 
-	export let tournamentKey: string;
-	export let compact: boolean = false;
+	interface Props {
+		tournamentKey: string;
+		compact?: boolean;
+	}
 
-	let copied = false;
+	let { tournamentKey, compact = false }: Props = $props();
+
+	let copied = $state(false);
 
 	async function copyKey() {
 		if (!tournamentKey) return;
@@ -21,7 +25,7 @@
 <button
 	class="tournament-key-badge"
 	class:compact
-	on:click={copyKey}
+	onclick={copyKey}
 	title={$t('clickToCopyKey')}
 >
 	{copied ? `✓` : tournamentKey}

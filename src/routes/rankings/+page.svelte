@@ -132,7 +132,7 @@
 <div class="rankings-container">
 	<header class="page-header">
 		<div class="header-row">
-			<button class="back-btn" on:click={goBack}>
+			<button class="back-btn" onclick={goBack}>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M19 12H5M12 19l-7-7 7-7"/>
 				</svg>
@@ -161,14 +161,14 @@
 			<button
 				class="filter-tab"
 				class:active={filterType === 'all'}
-				on:click={() => (filterType = 'all')}
+				onclick={() => (filterType = 'all')}
 			>
 				{$t('allTournaments')}
 			</button>
 			<button
 				class="filter-tab"
 				class:active={filterType === 'country'}
-				on:click={() => (filterType = 'country')}
+				onclick={() => (filterType = 'country')}
 			>
 				{$t('byCountry')}
 			</button>
@@ -205,7 +205,7 @@
 			{$t('showingOf').replace('{showing}', String(visiblePlayers.length)).replace('{total}', String(rankedPlayers.length))}
 		</div>
 
-		<div class="table-container" on:scroll={handleScroll}>
+		<div class="table-container" onscroll={handleScroll}>
 			<table class="rankings-table">
 				<thead>
 					<tr>
@@ -222,7 +222,7 @@
 							class:top-1={index === 0}
 							class:top-2={index === 1}
 							class:top-3={index === 2}
-							on:click={() => handlePlayerClick(player)}
+							onclick={() => handlePlayerClick(player)}
 						>
 							<td class="pos-cell">
 								<span class="position" class:gold={index === 0} class:silver={index === 1} class:bronze={index === 2}>

@@ -1,22 +1,24 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { t } from '$lib/stores/language';
   import { adminTheme } from '$lib/stores/theme';
   import type { AdminUserInfo } from '$lib/firebase/admin';
   import { updateUserProfile, toggleAdminStatus } from '$lib/firebase/admin';
 
-  export let user: AdminUserInfo;
-  export let onClose: () => void;
+  interface Props {
+    user: AdminUserInfo;
+    onClose: () => void;
+    onuserUpdated?: (data: { userId: string }) => void;
+  }
 
-  const dispatch = createEventDispatcher();
+  let { user, onClose, onuserUpdated }: Props = $props();
 
-  let playerName = user.playerName;
-  let ranking = user.ranking ?? 0;
-  let isAdmin = user.isAdmin || false;
-  let canAutofill = user.canAutofill || false;
-  let maxTournamentsPerYear = user.maxTournamentsPerYear ?? 0;
-  let isSaving = false;
-  let errorMessage = '';
+  let playerName = $state(user.playerName);
+  let ranking = $state(user.ranking ?? 0);
+  let isAdmin = $state(user.isAdmin || false);
+  let canAutofill = $state(user.canAutofill || false);
+  let maxTournamentsPerYear = $state(user.maxTournamentsPerYear ?? 0);
+  let isSaving = $state(false);
+  let errorMessage = $state('');
 
   async function saveChanges() {
     if (!playerName.trim()) {
@@ -60,7 +62,7 @@
         }
       }
 
-      dispatch('userUpdated', { userId: user.userId });
+      onuserUpdated?.({ userId: user.userId });
       onClose();
     } catch (error) {
       console.error('Error saving user:', error);
@@ -83,16 +85,20 @@
       return '-';
     }
   }
+
+  function stopPropagation(e: Event) {
+    e.stopPropagation();
+  }
 </script>
 
 <div class="modal-overlay" data-theme={$adminTheme}>
-  <div class="modal" on:click|stopPropagation>
+  <div class="modal" onclick={stopPropagation}>
     <!-- Header -->
     <div class="modal-header">
       <div class="header-left">
         <h2>{$t('editUser')}</h2>
       </div>
-      <button class="close-btn" on:click={onClose}>×</button>
+      <button class="close-btn" onclick={onClose}>×</button>
     </div>
 
     <!-- Content -->
@@ -225,10 +231,10 @@
 
     <!-- Footer -->
     <div class="modal-footer">
-      <button class="btn btn-secondary" on:click={onClose} disabled={isSaving}>
+      <button class="btn btn-secondary" onclick={onClose} disabled={isSaving}>
         {$t('cancel')}
       </button>
-      <button class="btn btn-primary" on:click={saveChanges} disabled={isSaving}>
+      <button class="btn btn-primary" onclick={saveChanges} disabled={isSaving}>
         {#if isSaving}
           <span class="spinner"></span>
           {$t('saving')}

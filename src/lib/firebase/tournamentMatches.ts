@@ -565,10 +565,38 @@ function getGameConfigForMatch(
 }
 
 /**
+ * Special constant for loser placeholder prefix
+ * Format: LOSER:roundName:matchPosition (e.g., "LOSER:QF:0")
+ */
+const LOSER_PLACEHOLDER_PREFIX = 'LOSER:';
+
+/**
+ * Check if a participant ID is a loser placeholder
+ */
+function isLoserPlaceholder(participantId: string | undefined): boolean {
+  return participantId?.startsWith(LOSER_PLACEHOLDER_PREFIX) || false;
+}
+
+/**
+ * Check if a match has both participants resolved (not placeholders)
+ * Returns true if match is ready to be played
+ */
+function isMatchReadyToPlay(participantA: string | undefined, participantB: string | undefined): boolean {
+  if (!participantA || !participantB) return false;
+  if (participantA === 'BYE' || participantB === 'BYE') return false;
+  if (isLoserPlaceholder(participantA) || isLoserPlaceholder(participantB)) return false;
+  return true;
+}
+
+/**
  * Get participant name by ID
+ * Handles special cases: BYE participants and LOSER: placeholders
  */
 function getParticipantName(tournament: Tournament, participantId: string): string {
+  if (!participantId) return 'TBD';
   if (participantId === 'BYE') return 'BYE';
+  // Handle LOSER: placeholders (participants not yet determined from main bracket)
+  if (isLoserPlaceholder(participantId)) return 'TBD';
   const participant = tournament.participants.find(p => p.id === participantId);
   return participant?.name || 'Unknown';
 }
@@ -865,7 +893,8 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
 
             for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
               const match = round.matches[matchIdx];
-              if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
+              // Use isMatchReadyToPlay to exclude matches with LOSER: placeholders
+              if (shouldIncludeMatch(match.status) && isMatchReadyToPlay(match.participantA, match.participantB)) {
                 // Calculate position label for this match
                 let bracketRoundName: string;
                 if (isFinalRound) {
@@ -891,8 +920,8 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                   phase: 'FINAL',
                   roundNumber: round.roundNumber,
                   bracketRoundName,
-                  participantAName: getParticipantName(tournament, match.participantA),
-                  participantBName: getParticipantName(tournament, match.participantB),
+                  participantAName: getParticipantName(tournament, match.participantA!),
+                  participantBName: getParticipantName(tournament, match.participantB!),
                   gameConfig: getGameConfigForMatch(tournament, 'FINAL', bracketRoundName, false),
                   isInProgress: isInProgress(match.status),
                   isSilverBracket: false,
@@ -981,7 +1010,8 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
 
             for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
               const match = round.matches[matchIdx];
-              if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
+              // Use isMatchReadyToPlay to exclude matches with LOSER: placeholders
+              if (shouldIncludeMatch(match.status) && isMatchReadyToPlay(match.participantA, match.participantB)) {
                 // Calculate position label for this match
                 let bracketRoundName: string;
                 if (isFinalRound) {
@@ -1007,8 +1037,8 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                   phase: 'FINAL',
                   roundNumber: round.roundNumber,
                   bracketRoundName,
-                  participantAName: getParticipantName(tournament, match.participantA),
-                  participantBName: getParticipantName(tournament, match.participantB),
+                  participantAName: getParticipantName(tournament, match.participantA!),
+                  participantBName: getParticipantName(tournament, match.participantB!),
                   gameConfig: getGameConfigForMatch(tournament, 'FINAL', bracketRoundName, true),
                   isInProgress: isInProgress(match.status),
                   isSilverBracket: true,

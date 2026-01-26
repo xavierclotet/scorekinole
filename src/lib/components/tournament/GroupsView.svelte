@@ -8,20 +8,29 @@
   import MatchSchedule from './MatchSchedule.svelte';
   import { t } from '$lib/stores/language';
 
-  export let tournament: Tournament;
-  export let onMatchClick: ((match: GroupMatch) => void) | undefined = undefined;
-  export let activeGroupId: string | null = null; // Track which group had recent activity
-  export let onGenerateNextRound: (() => Promise<void>) | undefined = undefined;
+  interface Props {
+    tournament: Tournament;
+    onMatchClick?: (match: GroupMatch) => void;
+    activeGroupId?: string | null; // Track which group had recent activity
+    onGenerateNextRound?: () => Promise<void>;
+  }
 
-  let expandedGroups: Set<string> = new Set();
-  let generatingRound = false;
-  let groupViews: Record<string, 'schedule' | 'standings'> = {};
-  let groupExpandedRounds: Record<string, Set<number>> = {}; // Track expanded rounds per group
-  let filterTable: number | null = null;
-  let filterStatus: string | null = null;
-  let groupsInitialized = false; // Prevent auto-expansion after user interaction
-  let lastProcessedActiveGroupId: string | null = null; // Track which activeGroupId was already processed
-  let previousRoundCompletionState: Record<string, Record<number, boolean>> = {}; // Track previous completion state
+  let {
+    tournament,
+    onMatchClick,
+    activeGroupId = null,
+    onGenerateNextRound
+  }: Props = $props();
+
+  let expandedGroups = $state<Set<string>>(new Set());
+  let generatingRound = $state(false);
+  let groupViews = $state<Record<string, 'schedule' | 'standings'>>({});
+  let groupExpandedRounds = $state<Record<string, Set<number>>>({}); // Track expanded rounds per group
+  let filterTable = $state<number | null>(null);
+  let filterStatus = $state<string | null>(null);
+  let groupsInitialized = $state(false); // Prevent auto-expansion after user interaction
+  let lastProcessedActiveGroupId = $state<string | null>(null); // Track which activeGroupId was already processed
+  let previousRoundCompletionState = $state<Record<string, Record<number, boolean>>>({}); // Track previous completion state
 
   // Helper functions (defined before reactive statements that use them)
   function getGroupRounds(group: Group) {
@@ -63,62 +72,66 @@
   }
 
   // Ensure groups is always an array (Firestore may return object with numeric keys)
-  $: groups = ((): Group[] => {
+  let groups = $derived(((): Group[] => {
     const groupsData = tournament.groupStage?.groups;
     if (!groupsData) return [];
     if (Array.isArray(groupsData)) return groupsData as Group[];
     // Convert object to array if needed
     return Object.values(groupsData) as Group[];
-  })();
+  })());
 
-  $: currentRound = tournament.groupStage?.currentRound || 1;
-  $: isSwiss = tournament.groupStage?.type === 'SWISS';
+  let currentRound = $derived(tournament.groupStage?.currentRound || 1);
+  let isSwiss = $derived(tournament.groupStage?.type === 'SWISS');
   // Support both new rankingSystem and legacy swissRankingSystem
-  $: rankingSystem = tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS';
+  let rankingSystem = $derived(tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS');
   // @deprecated - keep for backwards compatibility
-  $: swissRankingSystem = rankingSystem;
+  let swissRankingSystem = $derived(rankingSystem);
   // For Swiss system, prefer numSwissRounds; fallback to totalRounds for round-robin
-  $: totalRounds = isSwiss
+  let totalRounds = $derived(isSwiss
     ? (tournament.groupStage?.numSwissRounds || tournament.groupStage?.totalRounds || tournament.numSwissRounds || 0)
-    : (tournament.groupStage?.totalRounds || 0);
+    : (tournament.groupStage?.totalRounds || 0));
 
   // Auto-expand all groups initially (only once) and initialize round states
-  $: if (groups.length > 0 && !groupsInitialized) {
-    // If only 1 group, expand it. Otherwise expand all for visibility
-    if (groups.length === 1) {
-      expandedGroups = new Set([groups[0].id]);
-    } else {
-      // Expand all groups by default for easy overview
-      expandedGroups = new Set(groups.map((g: Group) => g.id));
-    }
+  $effect(() => {
+    if (groups.length > 0 && !groupsInitialized) {
+      // If only 1 group, expand it. Otherwise expand all for visibility
+      if (groups.length === 1) {
+        expandedGroups = new Set([groups[0].id]);
+      } else {
+        // Expand all groups by default for easy overview
+        expandedGroups = new Set(groups.map((g: Group) => g.id));
+      }
 
-    // Initialize expanded rounds for each group - only expand incomplete rounds
-    groups.forEach((group: Group) => {
-      const rounds = getGroupRounds(group);
-      const expandedRounds = new Set<number>();
+      // Initialize expanded rounds for each group - only expand incomplete rounds
+      groups.forEach((group: Group) => {
+        const rounds = getGroupRounds(group);
+        const expandedRounds = new Set<number>();
 
-      rounds.forEach((round: any) => {
-        const progress = getRoundProgress(round.matches);
-        // Only expand rounds that are not complete
-        if (progress.percentage < 100) {
-          expandedRounds.add(round.roundNumber);
-        }
+        rounds.forEach((round: any) => {
+          const progress = getRoundProgress(round.matches);
+          // Only expand rounds that are not complete
+          if (progress.percentage < 100) {
+            expandedRounds.add(round.roundNumber);
+          }
+        });
+
+        groupExpandedRounds[group.id] = expandedRounds;
       });
+      groupExpandedRounds = groupExpandedRounds;
 
-      groupExpandedRounds[group.id] = expandedRounds;
-    });
-    groupExpandedRounds = groupExpandedRounds;
-
-    groupsInitialized = true;
-  }
+      groupsInitialized = true;
+    }
+  });
 
   // If activeGroupId changes to a new value, ensure it's expanded
-  $: if (activeGroupId && activeGroupId !== lastProcessedActiveGroupId) {
-    lastProcessedActiveGroupId = activeGroupId;
-    if (!expandedGroups.has(activeGroupId)) {
-      expandedGroups = new Set([...expandedGroups, activeGroupId]);
+  $effect(() => {
+    if (activeGroupId && activeGroupId !== lastProcessedActiveGroupId) {
+      lastProcessedActiveGroupId = activeGroupId;
+      if (!expandedGroups.has(activeGroupId)) {
+        expandedGroups = new Set([...expandedGroups, activeGroupId]);
+      }
     }
-  }
+  });
 
   // Calculate progress for a specific group
   function getGroupProgress(group: Group): { completed: number; total: number; percentage: number } {
@@ -151,7 +164,7 @@
   }
 
   // Calculate overall progress (matches)
-  $: overallProgress = (() => {
+  let overallProgress = $derived((() => {
     let totalMatches = 0;
     let completedMatches = 0;
 
@@ -166,10 +179,10 @@
       total: totalMatches,
       percentage: totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0
     };
-  })();
+  })());
 
   // Calculate rounds progress for Swiss system
-  $: roundsProgress = (() => {
+  let roundsProgress = $derived((() => {
     if (!isSwiss || totalRounds === 0) return null;
 
     // Count completed rounds (all matches in round are complete)
@@ -192,10 +205,10 @@
       total: totalRounds,
       percentage: totalRounds > 0 ? Math.round((completed / totalRounds) * 100) : 0
     };
-  })();
+  })());
 
   // Auto-collapse rounds ONLY when they transition from incomplete to complete
-  $: {
+  $effect(() => {
     groups.forEach((group: Group) => {
       const rounds = getGroupRounds(group);
       const currentExpanded = groupExpandedRounds[group.id];
@@ -230,10 +243,10 @@
         }
       }
     });
-  }
+  });
 
   // Get available tables
-  $: availableTables = Array.from({ length: tournament.numTables }, (_, i) => i + 1);
+  let availableTables = $derived(Array.from({ length: tournament.numTables }, (_, i) => i + 1));
 
   function toggleGroup(groupId: string) {
     const newExpanded = new Set(expandedGroups);
@@ -282,12 +295,12 @@
   }
 
   // Check if any round is expanded
-  $: anyRoundExpanded = Object.values(groupExpandedRounds).some(
+  let anyRoundExpanded = $derived(Object.values(groupExpandedRounds).some(
     (rounds: Set<number>) => rounds.size > 0
-  );
+  ));
 
   // Check if any group is expanded
-  $: anyGroupExpanded = expandedGroups.size > 0;
+  let anyGroupExpanded = $derived(expandedGroups.size > 0);
 
   // Wrapper to add groupId to match before calling onMatchClick
   function handleMatchClick(groupId: string, match: GroupMatch) {
@@ -298,11 +311,11 @@
   }
 
   // Check if we can generate the next Swiss round
-  $: canGenerateNextRound = isSwiss &&
+  let canGenerateNextRound = $derived(isSwiss &&
     roundsProgress &&
     overallProgress.percentage === 100 &&
     roundsProgress.completed < roundsProgress.total &&
-    onGenerateNextRound;
+    onGenerateNextRound);
 
   async function handleGenerateNextRound() {
     if (!onGenerateNextRound || generatingRound) return;
@@ -372,7 +385,7 @@
       {#if groups.length > 1}
         <button
           class="toggle-btn"
-          on:click={anyGroupExpanded ? collapseAll : expandAll}
+          onclick={anyGroupExpanded ? collapseAll : expandAll}
           title={anyGroupExpanded ? $t('collapseAllGroups') : $t('expandAllGroups')}
         >
           {#if anyGroupExpanded}
@@ -391,7 +404,7 @@
 
       <button
         class="toggle-btn"
-        on:click={anyRoundExpanded ? collapseAllRounds : expandAllRounds}
+        onclick={anyRoundExpanded ? collapseAllRounds : expandAllRounds}
         title={anyRoundExpanded ? $t('collapseAllRoundsTooltip') : $t('expandAllRounds')}
       >
         {#if anyRoundExpanded}
@@ -430,7 +443,7 @@
           <!-- Accordion Header -->
           <button
             class="accordion-header"
-            on:click={() => toggleGroup(group.id)}
+            onclick={() => toggleGroup(group.id)}
             aria-expanded={isExpanded}
           >
             <div class="header-left">
@@ -478,14 +491,14 @@
                   <button
                     class="toggle-btn"
                     class:active={(groupViews[group.id] || 'schedule') === 'schedule'}
-                    on:click|stopPropagation={() => setGroupView(group.id, 'schedule')}
+                    onclick={(e: MouseEvent) => { e.stopPropagation(); setGroupView(group.id, 'schedule'); }}
                   >
                     {$t('schedule')}
                   </button>
                   <button
                     class="toggle-btn"
                     class:active={(groupViews[group.id] || 'schedule') === 'standings'}
-                    on:click|stopPropagation={() => setGroupView(group.id, 'standings')}
+                    onclick={(e: MouseEvent) => { e.stopPropagation(); setGroupView(group.id, 'standings'); }}
                   >
                     {$t('standings')}
                   </button>
@@ -494,7 +507,7 @@
                 {#if canGenerateNextRound}
                   <button
                     class="generate-next-round-btn"
-                    on:click|stopPropagation={handleGenerateNextRound}
+                    onclick={(e: MouseEvent) => { e.stopPropagation(); handleGenerateNextRound(); }}
                     disabled={generatingRound}
                   >
                     {#if generatingRound}

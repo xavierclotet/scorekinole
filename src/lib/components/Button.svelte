@@ -1,19 +1,36 @@
 <script lang="ts">
-	export let variant: 'primary' | 'secondary' | 'danger' = 'primary';
-	export let disabled: boolean = false;
-	export let type: 'button' | 'submit' | 'reset' = 'button';
-	export let fullWidth: boolean = false;
-	export let size: 'small' | 'medium' | 'large' = 'medium';
+	import type { Snippet } from 'svelte';
+	import type { MouseEventHandler } from 'svelte/elements';
+
+	interface Props {
+		variant?: 'primary' | 'secondary' | 'danger';
+		disabled?: boolean;
+		type?: 'button' | 'submit' | 'reset';
+		fullWidth?: boolean;
+		size?: 'small' | 'medium' | 'large';
+		onclick?: MouseEventHandler<HTMLButtonElement>;
+		children?: Snippet;
+	}
+
+	let {
+		variant = 'primary',
+		disabled = false,
+		type = 'button',
+		fullWidth = false,
+		size = 'medium',
+		onclick,
+		children
+	}: Props = $props();
 </script>
 
 <button
 	class="btn btn-{variant} btn-{size}"
 	class:full-width={fullWidth}
-	on:click
+	{onclick}
 	{disabled}
 	{type}
 >
-	<slot />
+	{@render children?.()}
 </button>
 
 <style>

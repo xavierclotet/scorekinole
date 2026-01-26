@@ -8,35 +8,50 @@
   import MatchCard from './MatchCard.svelte';
   import { t } from '$lib/stores/language';
 
-  export let rounds: RoundRobinRound[] | SwissPairing[] = [];
-  export let participants: TournamentParticipant[];
-  export let currentRound: number = 1;
-  export let onMatchClick: ((match: GroupMatch) => void) | undefined = undefined;
-  export let filterTable: number | null = null;
-  export let filterStatus: string | null = null;
-  export let gameMode: 'points' | 'rounds' = 'points';
-  // External state for expanded rounds (controlled by parent)
-  export let expandedRoundsState: Set<number> | null = null;
-  export let onExpandedRoundsChange: ((expanded: Set<number>) => void) | undefined = undefined;
-  // Total rounds configured for the tournament (for Swiss system, this is numSwissRounds)
-  export let totalRounds: number | null = null;
+  interface Props {
+    rounds?: RoundRobinRound[] | SwissPairing[];
+    participants: TournamentParticipant[];
+    currentRound?: number;
+    onMatchClick?: (match: GroupMatch) => void;
+    filterTable?: number | null;
+    filterStatus?: string | null;
+    gameMode?: 'points' | 'rounds';
+    // External state for expanded rounds (controlled by parent)
+    expandedRoundsState?: Set<number> | null;
+    onExpandedRoundsChange?: (expanded: Set<number>) => void;
+    // Total rounds configured for the tournament (for Swiss system, this is numSwissRounds)
+    totalRounds?: number | null;
+  }
+
+  let {
+    rounds = [],
+    participants,
+    currentRound = 1,
+    onMatchClick,
+    filterTable = null,
+    filterStatus = null,
+    gameMode = 'points',
+    expandedRoundsState = null,
+    onExpandedRoundsChange,
+    totalRounds = null
+  }: Props = $props();
 
   // Internal state (used when no external state is provided)
-  let internalExpandedRounds: Set<number> = new Set();
-  let initialized = false;
+  let internalExpandedRounds = $state<Set<number>>(new Set());
+  let initialized = $state(false);
 
   // Use external state if provided, otherwise use internal
-  $: expandedRounds = expandedRoundsState !== null ? expandedRoundsState : internalExpandedRounds;
+  let expandedRounds = $derived(expandedRoundsState !== null ? expandedRoundsState : internalExpandedRounds);
 
   // Ensure rounds is always an array (Firestore may return object with numeric keys)
-  $: safeRounds = (() => {
+  let safeRounds = $derived((() => {
     if (!rounds) return [];
     if (Array.isArray(rounds)) return rounds;
     return Object.values(rounds);
-  })();
+  })());
 
   // Filter matches
-  $: filteredRounds = safeRounds.map(round => {
+  let filteredRounds = $derived(safeRounds.map(round => {
     // Ensure matches is an array
     const matches = Array.isArray(round.matches) ? round.matches : Object.values(round.matches || {});
 
@@ -54,23 +69,25 @@
         return true;
       })
     };
-  }).filter(round => round.matches.length > 0);
+  }).filter(round => round.matches.length > 0));
 
   // Initialize expanded state: expand rounds that are not complete
-  $: if (filteredRounds.length > 0 && !initialized && expandedRoundsState === null) {
-    const initialExpanded = new Set<number>();
-    filteredRounds.forEach(round => {
-      const progress = getRoundProgress(round.matches);
-      // Expand if not 100% complete
-      if (progress.percentage < 100) {
-        initialExpanded.add(round.roundNumber);
-      }
-    });
-    // Always expand at least current round
-    initialExpanded.add(currentRound);
-    internalExpandedRounds = initialExpanded;
-    initialized = true;
-  }
+  $effect(() => {
+    if (filteredRounds.length > 0 && !initialized && expandedRoundsState === null) {
+      const initialExpanded = new Set<number>();
+      filteredRounds.forEach(round => {
+        const progress = getRoundProgress(round.matches);
+        // Expand if not 100% complete
+        if (progress.percentage < 100) {
+          initialExpanded.add(round.roundNumber);
+        }
+      });
+      // Always expand at least current round
+      initialExpanded.add(currentRound);
+      internalExpandedRounds = initialExpanded;
+      initialized = true;
+    }
+  });
 
   // Get round progress
   function getRoundProgress(matches: GroupMatch[]): { completed: number; total: number; percentage: number } {
@@ -123,7 +140,7 @@
       >
         <button
           class="round-header"
-          on:click={() => toggleRound(round.roundNumber)}
+          onclick={() => toggleRound(round.roundNumber)}
           aria-expanded={isExpanded}
         >
           <div class="round-header-left">
