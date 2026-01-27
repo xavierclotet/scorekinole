@@ -8,7 +8,7 @@
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import QualifierSelection from '$lib/components/tournament/QualifierSelection.svelte';
   import { adminTheme } from '$lib/stores/theme';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
@@ -137,13 +137,13 @@
   // Helper to translate internal round names to display names
   function translateRoundName(name: string): string {
     const key = name.toLowerCase();
-    // Check if translation key exists
-    const translated = $t(key);
-    // If translation returns the key itself, it doesn't exist - return capitalized version
-    if (translated === key) {
-      return name.charAt(0).toUpperCase() + name.slice(1);
-    }
-    return translated;
+    const map: Record<string, () => string> = {
+      final: m.admin_final,
+      semifinal: m.admin_semifinals,
+      semifinals: m.admin_semifinals,
+    };
+    if (map[key]) return map[key]();
+    return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
   function openTimeBreakdown() {
@@ -158,7 +158,7 @@
     tournament.timeEstimate = timeEstimate;
     timeBreakdown = calculateTimeBreakdown(tournament);
     await updateTournament(tournamentId, { timeEstimate });
-    toastMessage = $t('timeRecalculated');
+    toastMessage = m.admin_timeRecalculated();
     toastType = 'success';
     showToast = true;
   }
@@ -174,7 +174,7 @@
       tournament = await getTournament(tournamentId);
       console.log('=== STANDINGS RECALCULATED ===');
       console.log('Updated groups:', tournament?.groupStage?.groups);
-      toastMessage = $t('standingsRecalculated');
+      toastMessage = m.admin_standingsRecalculated();
       toastType = 'success';
       showToast = true;
     } catch (err) {
@@ -207,7 +207,7 @@
         error = true;
       } else if (tournament.status !== 'TRANSITION') {
         // Redirect if not in transition
-        toastMessage = $t('tournamentNotInTransition');
+        toastMessage = m.admin_tournamentNotInTransition();
         toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
@@ -420,7 +420,7 @@
         const bracketSuccess = await generateBracket(tournamentId, bracketConfig);
 
         if (!bracketSuccess) {
-          toastMessage = $t('errorGeneratingBracket');
+          toastMessage = m.admin_errorGeneratingBracket();
           toastType = 'error';
           showToast = true;
           return;
@@ -482,7 +482,7 @@
         });
 
         if (!bracketSuccess) {
-          toastMessage = $t('errorGeneratingGoldSilverBrackets');
+          toastMessage = m.admin_errorGeneratingGoldSilverBrackets();
           toastType = 'error';
           showToast = true;
           return;
@@ -496,19 +496,19 @@
 
       if (success) {
         toastMessage = isSplitDivisions
-          ? $t('goldSilverBracketsGenerated')
-          : $t('bracketGeneratedAdvancing');
+          ? m.admin_goldSilverBracketsGenerated()
+          : m.admin_bracketGeneratedAdvancing();
         toastType = 'success';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}/bracket`), 1500);
       } else {
-        toastMessage = $t('errorAdvancingToFinalStage');
+        toastMessage = m.admin_errorAdvancingToFinalStage();
         toastType = 'error';
         showToast = true;
       }
     } catch (err) {
       console.error('Error generating bracket:', err);
-      toastMessage = $t('errorGeneratingBracket');
+      toastMessage = m.admin_errorGeneratingBracket();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -821,7 +821,7 @@
               <h1>{tournament.name}</h1>
               <div class="header-badges">
                 <span class="info-badge phase-badge">
-                  {$t('qualifierSelectionTitle')}
+                  {m.admin_qualifierSelectionTitle()}
                 </span>
               </div>
               {#if timeRemaining}
@@ -848,14 +848,14 @@
     <!-- Content -->
     <div class="page-content">
       {#if loading}
-        <LoadingSpinner message={$t('loadingTransition')} />
+        <LoadingSpinner message={m.admin_loadingTransition()} />
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
-          <h3>{$t('errorLoading')}</h3>
-          <p>{$t('couldNotLoadTransition')}</p>
+          <h3>{m.admin_errorLoading()}</h3>
+          <p>{m.admin_couldNotLoadTransition()}</p>
           <button class="primary-button" onclick={() => goto('/admin/tournaments')}>
-            {$t('backToTournaments')}
+            {m.admin_backToTournaments()}
           </button>
         </div>
       {:else}
@@ -865,14 +865,14 @@
             <div class="step-header">
               <span class="step-number">1</span>
               <div>
-                <h2>{$t('selectQualifiersPerGroup')}</h2>
-                <p class="help-text">{$t('totalQualifiersCount')}: <strong>{totalQualifiers}</strong></p>
+                <h2>{m.admin_selectQualifiersPerGroup()}</h2>
+                <p class="help-text">{m.admin_totalQualifiersCount()}: <strong>{totalQualifiers}</strong></p>
               </div>
               <button
                 class="recalculate-btn"
                 onclick={handleRecalculateStandings}
                 disabled={isRecalculating}
-                title={$t('recalculateStandings')}
+                title={m.time_recalculate()}
               >
                 {#if isRecalculating}
                   <span class="spinner-small"></span>
@@ -910,8 +910,8 @@
                   </svg>
                 </div>
                 <div class="banner-content">
-                  <span class="banner-title">{$t('unresolvedTiesBlockBracket')}</span>
-                  <span class="banner-hint">{$t('resolveTiesFirst')}</span>
+                  <span class="banner-title">{m.admin_unresolvedTiesBlockBracket()}</span>
+                  <span class="banner-hint">{m.admin_resolveTiesFirst()}</span>
                 </div>
               </div>
             {/if}
@@ -922,8 +922,8 @@
                 <details class="rounds-details">
                   <summary class="rounds-summary">
                     <span class="summary-icon">📋</span>
-                    <span>{$t('roundResults')}</span>
-                    <span class="rounds-count">{tournament.groupStage.groups[0].pairings.length} {$t('rounds')}</span>
+                    <span>{m.admin_roundResults()}</span>
+                    <span class="rounds-count">{tournament.groupStage.groups[0].pairings.length} {m.time_rounds()}</span>
                     <span class="chevron">▼</span>
                   </summary>
                   <div class="rounds-content">
@@ -932,7 +932,7 @@
                         <div class="round-card">
                           <div class="round-card-header">
                             <span class="round-badge">{pairing.roundNumber}</span>
-                            <span class="round-label">{$t('round')} {pairing.roundNumber}</span>
+                            <span class="round-label">{m.time_round()} {pairing.roundNumber}</span>
                           </div>
                           <div class="matches-compact">
                             {#each pairing.matches as match}
@@ -980,27 +980,27 @@
           <div class="step-header">
             <span class="step-number">2</span>
             <div>
-              <h2>{$t('matchConfiguration')}</h2>
-              <p class="help-text">{$t('configureMatchFormat')}</p>
+              <h2>{m.admin_matchConfiguration()}</h2>
+              <p class="help-text">{m.admin_configureMatchFormat()}</p>
             </div>
           </div>
 
           <div class="dual-config-section advanced">
             <!-- Gold bracket config - Per Phase -->
             <div class="bracket-config gold">
-              <h3>🥇 {$t('goldLeague')}</h3>
+              <h3>🥇 {m.admin_goldLeague()}</h3>
               <div class="phases-config-grid compact">
                 <!-- Gold Early Rounds -->
                 <div class="phase-config-card">
                   <div class="phase-config-header early">
                     <span class="phase-icon">🎯</span>
-                    <span class="phase-title">{$t('earlyRounds')}</span>
+                    <span class="phase-title">{m.admin_earlyRounds()}</span>
                   </div>
                   <div class="phase-config-body">
                     <div class="config-row">
                       <select bind:value={earlyRoundsGameMode} class="select-input mini">
-                        <option value="rounds">{$t('byRoundsOption')}</option>
-                        <option value="points">{$t('byPointsOption')}</option>
+                        <option value="rounds">{m.admin_byRoundsOption()}</option>
+                        <option value="points">{m.admin_byPointsOption()}</option>
                       </select>
                       {#if earlyRoundsGameMode === 'rounds'}
                         <input type="number" bind:value={earlyRoundsToPlay} min="1" max="12" class="number-input mini" />
@@ -1015,13 +1015,13 @@
                 <div class="phase-config-card">
                   <div class="phase-config-header semi">
                     <span class="phase-icon">⚔️</span>
-                    <span class="phase-title">{$t('semifinals')}</span>
+                    <span class="phase-title">{m.admin_semifinals()}</span>
                   </div>
                   <div class="phase-config-body">
                     <div class="config-row">
                       <select bind:value={semifinalGameMode} class="select-input mini">
-                        <option value="points">{$t('byPointsOption')}</option>
-                        <option value="rounds">{$t('byRoundsOption')}</option>
+                        <option value="points">{m.admin_byPointsOption()}</option>
+                        <option value="rounds">{m.admin_byRoundsOption()}</option>
                       </select>
                       {#if semifinalGameMode === 'rounds'}
                         <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="12" class="number-input mini" />
@@ -1041,13 +1041,13 @@
                 <div class="phase-config-card">
                   <div class="phase-config-header final">
                     <span class="phase-icon">🏆</span>
-                    <span class="phase-title">{$t('final')}</span>
+                    <span class="phase-title">{m.admin_final()}</span>
                   </div>
                   <div class="phase-config-body">
                     <div class="config-row">
                       <select bind:value={finalGameMode} class="select-input mini">
-                        <option value="points">{$t('byPointsOption')}</option>
-                        <option value="rounds">{$t('byRoundsOption')}</option>
+                        <option value="points">{m.admin_byPoints()}</option>
+                        <option value="rounds">{m.admin_byRounds()}</option>
                       </select>
                       {#if finalGameMode === 'rounds'}
                         <input type="number" bind:value={finalRoundsToPlay} min="1" max="12" class="number-input mini" />
@@ -1068,19 +1068,19 @@
 
             <!-- Silver bracket config - Per Phase -->
             <div class="bracket-config silver">
-              <h3>🥈 {$t('silverLeague')}</h3>
+              <h3>🥈 {m.admin_silverLeague()}</h3>
               <div class="phases-config-grid compact">
                 <!-- Silver Early Rounds -->
                 <div class="phase-config-card">
                   <div class="phase-config-header early">
                     <span class="phase-icon">🎯</span>
-                    <span class="phase-title">{$t('earlyRounds')}</span>
+                    <span class="phase-title">{m.admin_earlyRounds()}</span>
                   </div>
                   <div class="phase-config-body">
                     <div class="config-row">
                       <select bind:value={silverEarlyRoundsGameMode} class="select-input mini">
-                        <option value="rounds">{$t('byRoundsOption')}</option>
-                        <option value="points">{$t('byPointsOption')}</option>
+                        <option value="rounds">{m.admin_byRounds()}</option>
+                        <option value="points">{m.admin_byPoints()}</option>
                       </select>
                       {#if silverEarlyRoundsGameMode === 'rounds'}
                         <input type="number" bind:value={silverEarlyRoundsToPlay} min="1" max="12" class="number-input mini" />
@@ -1095,13 +1095,13 @@
                 <div class="phase-config-card">
                   <div class="phase-config-header semi">
                     <span class="phase-icon">⚔️</span>
-                    <span class="phase-title">{$t('semifinals')}</span>
+                    <span class="phase-title">{m.admin_semifinals()}</span>
                   </div>
                   <div class="phase-config-body">
                     <div class="config-row">
                       <select bind:value={silverSemifinalGameMode} class="select-input mini">
-                        <option value="points">{$t('byPointsOption')}</option>
-                        <option value="rounds">{$t('byRoundsOption')}</option>
+                        <option value="points">{m.admin_byPoints()}</option>
+                        <option value="rounds">{m.admin_byRounds()}</option>
                       </select>
                       {#if silverSemifinalGameMode === 'rounds'}
                         <input type="number" bind:value={silverSemifinalRoundsToPlay} min="1" max="12" class="number-input mini" />
@@ -1121,13 +1121,13 @@
                 <div class="phase-config-card">
                   <div class="phase-config-header final">
                     <span class="phase-icon">🏆</span>
-                    <span class="phase-title">{$t('final')}</span>
+                    <span class="phase-title">{m.admin_final()}</span>
                   </div>
                   <div class="phase-config-body">
                     <div class="config-row">
                       <select bind:value={silverFinalGameMode} class="select-input mini">
-                        <option value="points">{$t('byPointsOption')}</option>
-                        <option value="rounds">{$t('byRoundsOption')}</option>
+                        <option value="points">{m.admin_byPoints()}</option>
+                        <option value="rounds">{m.admin_byRounds()}</option>
                       </select>
                       {#if silverFinalGameMode === 'rounds'}
                         <input type="number" bind:value={silverFinalRoundsToPlay} min="1" max="12" class="number-input mini" />
@@ -1151,32 +1151,32 @@
         <!-- SINGLE_BRACKET: Original flow -->
           <!-- Final stage configuration - 3 phases -->
           <div class="config-section">
-            <h3 class="config-section-title">🏆 {$t('finalStageConfigTitle')}</h3>
+            <h3 class="config-section-title">🏆 {m.admin_finalStageConfigTitle()}</h3>
 
             <div class="phases-config-grid">
               <!-- Early Rounds (Octavos, Cuartos) -->
               <div class="phase-config-card">
                 <div class="phase-config-header early">
                   <span class="phase-icon">🎯</span>
-                  <span class="phase-title">{$t('earlyRounds')}</span>
-                  <span class="phase-hint">{$t('earlyRoundsHint')}</span>
+                  <span class="phase-title">{m.admin_earlyRounds()}</span>
+                  <span class="phase-hint">{m.admin_earlyRoundsHint()}</span>
                 </div>
                 <div class="phase-config-body">
                   <div class="config-field">
-                    <label>{$t('gameModeLabel')}</label>
+                    <label>{m.admin_gameMode()}</label>
                     <select bind:value={earlyRoundsGameMode} class="select-input">
-                      <option value="points">{$t('byPointsOption')}</option>
-                      <option value="rounds">{$t('byRoundsOption')}</option>
+                      <option value="points">{m.admin_byPoints()}</option>
+                      <option value="rounds">{m.admin_byRounds()}</option>
                     </select>
                   </div>
                   {#if earlyRoundsGameMode === 'points'}
                     <div class="config-field">
-                      <label>{$t('pointsToWinLabel')}</label>
+                      <label>{m.admin_pointsToWinLabel()}</label>
                       <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="15" class="number-input" />
                     </div>
                   {:else}
                     <div class="config-field">
-                      <label>{$t('roundsToPlayLabel')}</label>
+                      <label>{m.admin_roundsToPlayLabel()}</label>
                       <input type="number" bind:value={earlyRoundsToPlay} min="1" max="12" class="number-input" />
                     </div>
                   {/if}
@@ -1187,30 +1187,30 @@
               <div class="phase-config-card">
                 <div class="phase-config-header semi">
                   <span class="phase-icon">⚔️</span>
-                  <span class="phase-title">{$t('semifinals')}</span>
-                  <span class="phase-hint">{$t('finalAndThird')}</span>
+                  <span class="phase-title">{m.admin_semifinals()}</span>
+                  <span class="phase-hint">{m.admin_finalAndThird()}</span>
                 </div>
                 <div class="phase-config-body">
                   <div class="config-field">
-                    <label>{$t('gameModeLabel')}</label>
+                    <label>{m.admin_gameMode()}</label>
                     <select bind:value={semifinalGameMode} class="select-input">
-                      <option value="points">{$t('byPointsOption')}</option>
-                      <option value="rounds">{$t('byRoundsOption')}</option>
+                      <option value="points">{m.admin_byPoints()}</option>
+                      <option value="rounds">{m.admin_byRounds()}</option>
                     </select>
                   </div>
                   {#if semifinalGameMode === 'points'}
                     <div class="config-field">
-                      <label>{$t('pointsToWinLabel')}</label>
+                      <label>{m.admin_pointsToWinLabel()}</label>
                       <input type="number" bind:value={semifinalPointsToWin} min="1" max="15" class="number-input" />
                     </div>
                   {:else}
                     <div class="config-field">
-                      <label>{$t('roundsToPlayLabel')}</label>
+                      <label>{m.admin_roundsToPlayLabel()}</label>
                       <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="12" class="number-input" />
                     </div>
                   {/if}
                   <div class="config-field">
-                    <label>{$t('bestOfLabel')}</label>
+                    <label>{m.admin_matchesToWinLabel()}</label>
                     <select bind:value={semifinalMatchesToWin} class="select-input">
                       <option value={1}>1</option>
                       <option value={3}>3</option>
@@ -1223,29 +1223,29 @@
               <div class="phase-config-card">
                 <div class="phase-config-header final">
                   <span class="phase-icon">🏆</span>
-                  <span class="phase-title">{$t('final')}</span>
+                  <span class="phase-title">{m.admin_final()}</span>
                 </div>
                 <div class="phase-config-body">
                   <div class="config-field">
-                    <label>{$t('gameModeLabel')}</label>
+                    <label>{m.admin_gameMode()}</label>
                     <select bind:value={finalGameMode} class="select-input">
-                      <option value="points">{$t('byPointsOption')}</option>
-                      <option value="rounds">{$t('byRoundsOption')}</option>
+                      <option value="points">{m.admin_byPoints()}</option>
+                      <option value="rounds">{m.admin_byRounds()}</option>
                     </select>
                   </div>
                   {#if finalGameMode === 'points'}
                     <div class="config-field">
-                      <label>{$t('pointsToWinLabel')}</label>
+                      <label>{m.admin_pointsToWinLabel()}</label>
                       <input type="number" bind:value={finalPointsToWin} min="1" max="15" class="number-input" />
                     </div>
                   {:else}
                     <div class="config-field">
-                      <label>{$t('roundsToPlayLabel')}</label>
+                      <label>{m.admin_roundsToPlayLabel()}</label>
                       <input type="number" bind:value={finalRoundsToPlay} min="1" max="12" class="number-input" />
                     </div>
                   {/if}
                   <div class="config-field">
-                    <label>{$t('bestOfLabel')}</label>
+                    <label>{m.admin_bestOfLabel()}</label>
                     <select bind:value={finalMatchesToWin} class="select-input">
                       <option value={1}>1</option>
                       <option value={3}>3</option>
@@ -1260,12 +1260,12 @@
           <!-- Qualifier selections per group -->
           <div class="groups-section">
             <div class="groups-header">
-              <h2>{$t('selectQualifiersPerGroup')}</h2>
+              <h2>{m.admin_selectQualifiersPerGroup()}</h2>
               <button
                 class="recalculate-btn"
                 onclick={handleRecalculateStandings}
                 disabled={isRecalculating}
-                title={$t('recalculateStandings')}
+                title={m.time_recalculate()}
               >
                 {#if isRecalculating}
                   <span class="spinner-small"></span>
@@ -1300,8 +1300,8 @@
                   </svg>
                 </div>
                 <div class="banner-content">
-                  <span class="banner-title">{$t('unresolvedTiesBlockBracket')}</span>
-                  <span class="banner-hint">{$t('resolveTiesFirst')}</span>
+                  <span class="banner-title">{m.admin_unresolvedTiesBlockBracket()}</span>
+                  <span class="banner-hint">{m.admin_resolveTiesFirst()}</span>
                 </div>
               </div>
             {/if}
@@ -1310,20 +1310,20 @@
           <!-- Summary and validation -->
           <div class="summary-section">
             <div class="summary-card">
-              <h3>{$t('summaryTitle')}</h3>
+              <h3>{m.admin_summaryTitle()}</h3>
               <div class="summary-stats">
                 <div class="stat-item">
-                  <span class="stat-label">{$t('totalParticipantsLabel')}</span>
+                  <span class="stat-label">{m.admin_totalParticipantsLabel()}</span>
                   <span class="stat-value">{tournament.participants.length}</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-label">{$t('suggestedForBracket')}</span>
+                  <span class="stat-label">{m.admin_suggestedForBracket()}</span>
                   <span class="stat-value suggestion">
-                    {suggestedQualifiers.total} {$t('qualifiersWithPerGroup').replace('{perGroup}', String(suggestedQualifiers.perGroup))}
+                    {suggestedQualifiers.total} {m.admin_qualifiersWithPerGroup({ perGroup: String(suggestedQualifiers.perGroup) })}
                   </span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-label">{$t('totalQualifiersLabel')}</span>
+                  <span class="stat-label">{m.admin_totalQualifiersLabel()}</span>
                   <span class="stat-value" class:valid={isValidSize} class:invalid={!isValidSize && totalQualifiers > 0}>
                     {totalQualifiers}
                     {#if isValidSize}
@@ -1334,20 +1334,20 @@
                   </span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-label">{$t('bracketSizeLabel')}</span>
+                  <span class="stat-label">{m.admin_bracketSizeLabel()}</span>
                   <span class="stat-value" class:valid={isValidSize} class:invalid={!isValidSize && totalQualifiers > 0}>
                     {#if isValidSize}
-                      ✅ {totalQualifiers} {$t('participants')}
+                      ✅ {totalQualifiers} {m.admin_participants()}
                     {:else if totalQualifiers > 0}
-                      ❌ {$t('mustBePowerOf2Full')}
+                      ❌ {m.admin_mustBePowerOf2Full()}
                     {:else}
-                      {$t('selectQualifiersHint')}
+                      {m.admin_selectQualifiersHint()}
                     {/if}
                   </span>
                 </div>
                 {#if isValidSize && totalQualifiers > 0}
                   <div class="stat-item">
-                    <span class="stat-label">{$t('bracketRoundsLabel')}</span>
+                    <span class="stat-label">{m.admin_bracketRoundsLabel()}</span>
                     <span class="stat-value">{bracketRoundNames.map(translateRoundName).join(' → ')}</span>
                   </div>
                 {/if}
@@ -1355,9 +1355,9 @@
 
               {#if !isValidSize && totalQualifiers > 0}
                 <div class="validation-error">
-                  ⚠️ {$t('qualifiersMustBePowerOf2')}
+                  ⚠️ {m.admin_qualifiersMustBePowerOf2()}
                   <br />
-                  {$t('mustBePowerOf2Full')}
+                  {m.admin_mustBePowerOf2Full()}
                 </div>
               {/if}
             </div>
@@ -1373,12 +1373,12 @@
           >
             {#if isProcessing}
               <span class="btn-spinner"></span>
-              <span>{$t('generatingBracket')}</span>
+              <span>{m.admin_generatingBracket()}</span>
             {:else}
               <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
               </svg>
-              <span>{isSplitDivisions ? $t('generateGoldSilverBrackets') : $t('generateBracketAndAdvance')}</span>
+              <span>{isSplitDivisions ? m.admin_generateGoldSilverBrackets() : m.admin_generateBracketAndAdvance()}</span>
               <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
@@ -1396,7 +1396,7 @@
 {#if isProcessing}
   <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <LoadingSpinner size="large" message={isSplitDivisions ? 'Generando brackets Oro/Plata...' : 'Generando bracket...'} />
+      <LoadingSpinner size="large" message={isSplitDivisions ? m.admin_generatingGoldSilverBrackets() : m.admin_generatingBracket()} />
     </div>
   </div>
 {/if}

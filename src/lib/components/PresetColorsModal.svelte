@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { team1, team2, saveTeams } from '$lib/stores/teams';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { getContrastColor } from '$lib/utils/colors';
 
 	interface Props {
@@ -73,13 +73,13 @@
 	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
 		<div class="modal" onclick={stopPropagation} role="dialog">
 			<div class="modal-header">
-				<span class="modal-title">{$t('presetColors')}</span>
+				<span class="modal-title">{m.common_presetColors()}</span>
 				<button class="close-btn" onclick={close} aria-label="Close">×</button>
 			</div>
 			<div class="modal-content">
 				{#if !selectedFirstColor}
 					<!-- Step 1: Select first team color -->
-					<p class="instruction">{$t('chooseFirstColor')}</p>
+					<p class="instruction">{m.common_chooseColor()}</p>
 					<div class="color-grid">
 						{#each presetColors as color}
 							<button
@@ -93,7 +93,7 @@
 				{:else}
 					<!-- Step 2: Select combination -->
 					<button class="back-btn" onclick={back}>
-						← {$t('back')}
+						← {m.common_back()}
 					</button>
 					<div class="combinations-grid">
 						{#each combinations as combo}

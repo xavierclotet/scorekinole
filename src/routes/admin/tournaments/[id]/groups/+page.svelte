@@ -10,7 +10,7 @@
   import GroupsView from '$lib/components/tournament/GroupsView.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
   import { adminTheme } from '$lib/stores/theme';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
@@ -47,18 +47,18 @@
   // Translate group name based on language
   // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
   function translateGroupName(name: string): string {
-    if (name === 'Swiss') return $t('swissSystem');
+    if (name === 'Swiss') return m.admin_swissSystem();
     // New identifier format
-    if (name === 'SINGLE_GROUP') return $t('singleGroup');
+    if (name === 'SINGLE_GROUP') return m.tournament_singleGroup();
     const idMatch = name.match(/^GROUP_([A-H])$/);
     if (idMatch) {
-      return `${$t('group')} ${idMatch[1]}`;
+      return `${m.tournament_group()} ${idMatch[1]}`;
     }
     // Legacy Spanish format (for existing tournaments)
-    if (name === 'Grupo Único') return $t('singleGroup');
+    if (name === 'Grupo Único') return m.tournament_singleGroup();
     const legacyMatch = name.match(/^Grupo ([A-H])$/);
     if (legacyMatch) {
-      return `${$t('group')} ${legacyMatch[1]}`;
+      return `${m.tournament_group()} ${legacyMatch[1]}`;
     }
     return name;
   }
@@ -75,7 +75,7 @@
     tournament.timeEstimate = timeEstimate;
     timeBreakdown = calculateTimeBreakdown(tournament);
     await updateTournament(tournamentId, { timeEstimate });
-    toastMessage = $t('timeRecalculated');
+    toastMessage = m.admin_timeRecalculated();
     toastType = 'success';
     showToast = true;
   }
@@ -153,7 +153,7 @@
         error = true;
       } else if (tournament.status !== 'GROUP_STAGE') {
         // Redirect if not in group stage
-        toastMessage = $t('tournamentNotInGroupStage');
+        toastMessage = m.admin_tournamentNotInGroupStage();
         toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
@@ -169,7 +169,7 @@
   function handleMatchClick(match: GroupMatch) {
     // Allow editing both pending and completed matches
     if (match.participantB === 'BYE') {
-      toastMessage = $t('cannotEditByeMatch');
+      toastMessage = m.admin_cannotEditByeMatch();
       toastType = 'warning';
       showToast = true;
       return;
@@ -192,12 +192,12 @@
     const success = await generateSwissPairings(tournamentId, nextRound);
 
     if (success) {
-      toastMessage = $t('swissRoundGeneratedSuccess').replace('{n}', String(nextRound));
+      toastMessage = m.admin_swissRoundGeneratedSuccess({ n: nextRound });
       toastType = 'success';
       showToast = true;
       await loadTournament();
     } else {
-      toastMessage = $t('errorGeneratingSwissRound');
+      toastMessage = m.admin_errorGeneratingSwissRound();
       toastType = 'error';
       showToast = true;
     }
@@ -255,14 +255,14 @@
     );
 
     if (success) {
-      toastMessage = $t('resultSavedSuccessfully');
+      toastMessage = m.admin_resultSavedSuccessfully();
       toastType = 'success';
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
       // No need to reload - real-time subscription will update
     } else {
-      toastMessage = $t('errorSavingResult');
+      toastMessage = m.admin_errorSavingResult();
       toastType = 'error';
       showToast = true;
     }
@@ -279,14 +279,14 @@
     );
 
     if (success) {
-      toastMessage = $t('noShowRegisteredSuccessfully');
+      toastMessage = m.admin_noShowRegisteredSuccessfully();
       toastType = 'success';
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
       // No need to reload - real-time subscription will update
     } else {
-      toastMessage = $t('errorRegisteringNoShow');
+      toastMessage = m.admin_errorRegisteringNoShow();
       toastType = 'error';
       showToast = true;
     }
@@ -530,14 +530,14 @@
       }
 
       toastMessage = isSwiss
-        ? $t('matchesFilledForRound').replace('{n}', String(filledCount)).replace('{round}', String(currentRound))
-        : $t('matchesFilledAuto').replace('{n}', String(filledCount));
+        ? m.admin_matchesFilledForRound({ n: filledCount, round: currentRound })
+        : m.admin_matchesFilledAuto({ n: filledCount });
       toastType = 'success';
       showToast = true;
       await loadTournament(); // Reload to show updated results
     } catch (err) {
       console.error('Error auto-filling matches:', err);
-      toastMessage = $t('errorFillingMatchesGeneric');
+      toastMessage = m.admin_errorFillingMatchesGeneric();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -563,7 +563,7 @@
 
       if (incompleteMatches.length > 0) {
         allComplete = false;
-        toastMessage = $t('groupHasPendingMatches').replace('{group}', translateGroupName(group.name)).replace('{n}', String(incompleteMatches.length));
+        toastMessage = m.admin_groupHasPendingMatches({ group: translateGroupName(group.name), n: incompleteMatches.length });
         toastType = 'error';
         showToast = true;
         return;
@@ -589,18 +589,18 @@
       const success = await transitionTournament(tournamentId, 'TRANSITION');
 
       if (success) {
-        toastMessage = $t('groupStageCompletedTransition');
+        toastMessage = m.admin_groupStageCompletedTransition();
         toastType = 'success';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}/transition`), 1500);
       } else {
-        toastMessage = $t('errorCompletingGroupStage');
+        toastMessage = m.admin_errorCompletingGroupStage();
         toastType = 'error';
         showToast = true;
       }
     } catch (err) {
       console.error('Error completing group stage:', err);
-      toastMessage = $t('errorCompletingGroupStage');
+      toastMessage = m.admin_errorCompletingGroupStage();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -621,9 +621,9 @@
               <h1>{tournament.edition ? `#${tournament.edition} ` : ''}{tournament.name}</h1>
               <div class="header-badges">
                 <span class="info-badge phase-badge">
-                  {tournament.groupStage?.type === 'ROUND_ROBIN' ? $t('roundRobin') : $t('swissSystem')}
+                  {tournament.groupStage?.type === 'ROUND_ROBIN' ? m.admin_roundRobin() : m.tournament_swissSystem()}
                   {#if tournament.groupStage?.numGroups && tournament.groupStage.numGroups > 1}
-                    · {tournament.groupStage.numGroups} {$t('groups')}
+                    · {tournament.groupStage.numGroups} {m.tournament_groups()}
                   {/if}
                 </span>
                 {#if tournament.status !== 'COMPLETED'}
@@ -664,8 +664,8 @@
                   onclick={autoFillAllMatches}
                   disabled={isAutoFilling}
                   title={isSwiss
-                    ? `${$t('autoFillMatchesTitle')} - ${$t('round')} ${currentRound}`
-                    : $t('autoFillMatchesTitle')}
+                    ? `${m.admin_autoFillMatchesTitle()} - ${m.tournament_round()} ${currentRound}`
+                    : m.admin_autoFillMatchesTitle()}
                 >
                   {#if isAutoFilling}
                     ⏳
@@ -679,9 +679,9 @@
                   class="final-stage-btn"
                   onclick={confirmCompleteGroups}
                   disabled={isTransitioning}
-                  title={$t('completeGroupStage')}
+                  title={m.admin_completeGroupStage()}
                 >
-                  <span class="btn-text">{$t('toFinalStage')}</span>
+                  <span class="btn-text">{m.admin_toFinalStage()}</span>
                   <span class="btn-icon">
                     {#if isTransitioning}
                       <svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -706,14 +706,14 @@
     <!-- Content -->
     <div class="page-content">
       {#if loading}
-        <LoadingSpinner message={$t('loadingGroupStage')} />
+        <LoadingSpinner message={m.admin_loadingGroupStage()} />
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
-          <h3>{$t('errorLoading')}</h3>
-          <p>{$t('couldNotLoadGroupStage')}</p>
+          <h3>{m.admin_errorLoading()}</h3>
+          <p>{m.admin_couldNotLoadGroupStage()}</p>
           <button class="primary-button" onclick={() => goto('/admin/tournaments')}>
-            {$t('backToTournaments')}
+            {m.admin_backToTournaments()}
           </button>
         </div>
       {:else}
@@ -732,23 +732,23 @@
       role="presentation"
     >
       <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2>✅ {$t('completeGroupStage')}</h2>
-        <p>{$t('readyToCompleteGroups')}</p>
+        <h2>✅ {m.admin_completeGroupStage()}</h2>
+        <p>{m.admin_readyToCompleteGroups()}</p>
         <div class="tournament-info">
           <strong>{tournament.name}</strong>
           <br />
-          <span>{$t('finalStandingsWillBeCalculated')}</span>
+          <span>{m.admin_finalStandingsWillBeCalculated()}</span>
         </div>
         <p class="info-text">
           {#if tournament.phaseType === 'TWO_PHASE'}
-            {$t('selectQualifiersAfter')}
+            {m.admin_selectQualifiersAfter()}
           {:else}
-            {$t('tournamentWillAdvanceDirectly')}
+            {m.admin_tournamentWillAdvanceDirectly()}
           {/if}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" onclick={closeCompleteModal}>{$t('cancel')}</button>
-          <button class="confirm-btn" onclick={completeGroupStage}>{$t('complete')}</button>
+          <button class="cancel-btn" onclick={closeCompleteModal}>{m.common_cancel()}</button>
+          <button class="confirm-btn" onclick={completeGroupStage}>{m.admin_complete()}</button>
         </div>
       </div>
     </div>

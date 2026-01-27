@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { signInWithGoogle } from '$lib/firebase/auth';
 	import Button from './Button.svelte';
 
@@ -23,7 +23,7 @@
 			close();
 		} catch (err: any) {
 			console.error('Login error:', err);
-			error = err.message || $t('loginError');
+			error = err.message || m.auth_loginError();
 		} finally {
 			isLoading = false;
 		}
@@ -44,11 +44,11 @@
 	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
 		<div class="modal" onclick={stopPropagation} role="dialog">
 			<div class="modal-header">
-				<span class="modal-title">{$t('login')}</span>
+				<span class="modal-title">{m.auth_login()}</span>
 				<button class="close-btn" onclick={close} aria-label="Close">×</button>
 			</div>
 			<div class="modal-content">
-				<p class="welcome-text">{$t('loginWelcome')}</p>
+				<p class="welcome-text">{m.auth_loginWelcome()}</p>
 
 				{#if error}
 					<div class="error-message">
@@ -64,16 +64,16 @@
 						disabled={isLoading}
 					>
 						{#if isLoading}
-							{$t('signingIn')}
+							{m.auth_signingIn()}
 						{:else}
 							<span class="google-icon">G</span>
-							{$t('continueWithGoogle')}
+							{m.auth_continueWithGoogle()}
 						{/if}
 					</Button>
 				</div>
 
 				<p class="privacy-note">
-					{$t('loginPrivacyNote')}
+					{m.auth_loginPrivacyNote()}
 				</p>
 			</div>
 		</div>

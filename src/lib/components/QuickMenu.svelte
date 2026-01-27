@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { currentUser, signOut } from '$lib/firebase/auth';
 
 	interface Props {
@@ -87,7 +87,7 @@
 							<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
 							<circle cx="12" cy="7" r="4"/>
 						</svg>
-						<span>{$t('myProfile')}</span>
+						<span>{m.auth_myProfile()}</span>
 					</button>
 					<button class="menu-item logout" onclick={handleSignOut}>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -95,7 +95,7 @@
 							<polyline points="16 17 21 12 16 7"/>
 							<line x1="21" y1="12" x2="9" y2="12"/>
 						</svg>
-						<span>{$t('logout')}</span>
+						<span>{m.auth_logout()}</span>
 					</button>
 				</div>
 			{:else}
@@ -107,7 +107,7 @@
 							<polyline points="10 17 15 12 10 7"/>
 							<line x1="15" y1="12" x2="3" y2="12"/>
 						</svg>
-						<span>{$t('login')}</span>
+						<span>{m.auth_login()}</span>
 					</button>
 				</div>
 			{/if}

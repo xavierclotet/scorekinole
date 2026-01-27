@@ -1,11 +1,10 @@
 <script lang="ts">
   import type { GroupMatch, TournamentParticipant } from '$lib/types/tournament';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
     match: GroupMatch;
     participants: TournamentParticipant[];
-    roundNumber?: number;
     onMatchClick?: (match: GroupMatch) => void;
     compact?: boolean;
     gameMode?: 'points' | 'rounds'; // Game mode to determine what to display
@@ -14,7 +13,6 @@
   let {
     match,
     participants,
-    roundNumber = undefined,
     onMatchClick,
     compact = false,
     gameMode = 'points'
@@ -32,10 +30,10 @@
   // Get status display
   function getStatusDisplay(status: string): { text: string; color: string } {
     const statusMap: Record<string, { text: string; color: string }> = {
-      PENDING: { text: 'Pendiente', color: '#6b7280' },
-      IN_PROGRESS: { text: 'En curso', color: '#f59e0b' },
-      COMPLETED: { text: 'Finalizado', color: '#10b981' },
-      WALKOVER: { text: 'Walkover', color: '#8b5cf6' }
+      PENDING: { text: m.tournament_statusPending(), color: '#6b7280' },
+      IN_PROGRESS: { text: m.tournament_statusInProgress(), color: '#f59e0b' },
+      COMPLETED: { text: m.tournament_statusCompleted(), color: '#10b981' },
+      WALKOVER: { text: m.tournament_statusWalkover(), color: '#8b5cf6' }
     };
     return statusMap[status] || { text: status, color: '#6b7280' };
   }
@@ -62,7 +60,7 @@
 >
   <!-- Compact single-row layout -->
   <div class="match-row">
-    <span class="table-num">{$t('tableShort')}{match.tableNumber}</span>
+    <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
 
     <div class="participant left" class:winner={match.winner === match.participantA} class:tie={isTie}>
       <span class="name">{getParticipantName(match.participantA)}</span>

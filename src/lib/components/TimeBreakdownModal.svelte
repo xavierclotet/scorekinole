@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { adminTheme } from '$lib/stores/theme';
   import type { TimeBreakdown } from '$lib/utils/tournamentTime';
   import { formatDuration } from '$lib/utils/tournamentTime';
@@ -50,11 +50,11 @@
                 <polyline points="12 6 12 12 16 14"/>
               </svg>
             </div>
-            <h2>{$t('timeBreakdown')}</h2>
+            <h2>{m.time_timeBreakdown()}</h2>
           </div>
           <div class="header-actions">
             {#if showRecalculate}
-              <button class="recalculate-btn" onclick={handleRecalculate} title={$t('recalculate')}>
+              <button class="recalculate-btn" onclick={handleRecalculate} title={m.time_recalculate()}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
                   <path d="M21 3v5h-5"/>
@@ -89,13 +89,13 @@
               <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
-            <span>{breakdown.numTables} {$t('tables')}</span>
+            <span>{breakdown.numTables} {m.time_tables()}</span>
           </div>
           <div class="info-chip">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
             </svg>
-            <span>{breakdown.gameType === 'singles' ? $t('singles') : $t('doubles')}</span>
+            <span>{breakdown.gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()}</span>
           </div>
         </div>
 
@@ -113,46 +113,46 @@
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                   </svg>
                 </div>
-                <span>{$t('groupStage')}</span>
+                <span>{m.time_groupStage()}</span>
                 <span class="phase-time">{formatDuration(breakdown.groupStage.totalMinutes)}</span>
               </div>
               <div class="phase-body">
                 <div class="stat-row">
-                  <span class="stat-label">{$t('system')}</span>
+                  <span class="stat-label">{m.time_system()}</span>
                   <span class="stat-value badge">{breakdown.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : 'Swiss'}</span>
                 </div>
                 {#if breakdown.groupStage.numGroups}
                   <div class="stat-row">
-                    <span class="stat-label">{$t('groups')}</span>
+                    <span class="stat-label">{m.time_groups()}</span>
                     <span class="stat-value">{breakdown.groupStage.numGroups}</span>
                   </div>
                 {/if}
                 {#if breakdown.groupStage.numSwissRounds}
                   <div class="stat-row">
-                    <span class="stat-label">{$t('rounds')}</span>
+                    <span class="stat-label">{m.time_rounds()}</span>
                     <span class="stat-value">{breakdown.groupStage.numSwissRounds}</span>
                   </div>
                 {/if}
                 <div class="stat-row">
-                  <span class="stat-label">{$t('totalMatches')}</span>
+                  <span class="stat-label">{m.time_totalMatches()}</span>
                   <span class="stat-value">{breakdown.groupStage.totalMatches}</span>
                 </div>
                 <div class="stat-row">
-                  <span class="stat-label">{$t('matchRounds')}</span>
+                  <span class="stat-label">{m.time_matchRounds()}</span>
                   <span class="stat-value">{breakdown.groupStage.matchRounds}</span>
                 </div>
 
                 <!-- Calculation Box -->
                 <div class="calc-box">
-                  <div class="calc-box-header">{$t('matchTimeCalc')}</div>
+                  <div class="calc-box-header">{m.time_matchTimeCalc()}</div>
                   <div class="calc-box-content">
                     <div class="calc-item">
-                      <span>{$t('mode')}</span>
+                      <span>{m.time_mode()}</span>
                       <span>
                         {#if breakdown.groupStage.gameMode === 'points'}
-                          {$t('pointsMode')} ({breakdown.groupStage.pointsToWin || 7} pts)
+                          {m.time_pointsMode()} ({breakdown.groupStage.pointsToWin || 7} pts)
                         {:else}
-                          {$t('roundsMode')} ({breakdown.groupStage.roundsToPlay || 4})
+                          {m.time_roundsMode()} ({breakdown.groupStage.roundsToPlay || 4})
                         {/if}
                       </span>
                     </div>
@@ -161,11 +161,11 @@
                       <span>{breakdown.groupStage.matchesToWin}</span>
                     </div>
                     <div class="calc-formula small">
-                      <span class="formula-parts">{breakdown.groupStage.minutesPerGame} min × {breakdown.groupStage.avgGamesPlayed} {$t('games')}</span>
-                      <span class="formula-result">= {breakdown.groupStage.minutesPerMatch} min/{$t('match')}</span>
+                      <span class="formula-parts">{breakdown.groupStage.minutesPerGame} min × {breakdown.groupStage.avgGamesPlayed} {m.time_games()}</span>
+                      <span class="formula-result">= {breakdown.groupStage.minutesPerMatch} min/{m.time_match()}</span>
                     </div>
                     <div class="calc-item">
-                      <span>{$t('timePerRound')}</span>
+                      <span>{m.time_timePerRound()}</span>
                       <span>{breakdown.groupStage.minutesPerMatch} + {breakdown.groupStage.breakPerMatch} = <strong>{breakdown.groupStage.minutesPerMatch + breakdown.groupStage.breakPerMatch} min</strong></span>
                     </div>
                   </div>
@@ -173,9 +173,9 @@
 
                 <!-- Total Calculation -->
                 <div class="total-calc">
-                  <div class="total-calc-header">{$t('totalCalc')}</div>
+                  <div class="total-calc-header">{m.time_totalCalc()}</div>
                   <div class="total-calc-formula">
-                    <span class="tcf-rounds">{breakdown.groupStage.matchRounds} {$t('matchRounds').toLowerCase()}</span>
+                    <span class="tcf-rounds">{breakdown.groupStage.matchRounds} {m.time_matchRounds().toLowerCase()}</span>
                     <span class="tcf-operator">×</span>
                     <span class="tcf-time">{breakdown.groupStage.minutesPerMatch + breakdown.groupStage.breakPerMatch} min</span>
                     <span class="tcf-operator">=</span>
@@ -200,33 +200,33 @@
                     <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
                   </svg>
                 </div>
-                <span>{breakdown.phaseType === 'TWO_PHASE' ? $t('finalStage') : $t('bracket')}</span>
+                <span>{breakdown.phaseType === 'TWO_PHASE' ? m.time_finalStage() : m.time_bracket()}</span>
                 <span class="phase-time">{formatDuration(breakdown.finalStage.totalMinutes)}</span>
               </div>
               <div class="phase-body">
                 {#if breakdown.phaseType === 'TWO_PHASE'}
                   <div class="stat-row">
-                    <span class="stat-label">{$t('qualified')}</span>
-                    <span class="stat-value">{breakdown.finalStage.qualifiedCount} {$t('players').toLowerCase()}</span>
+                    <span class="stat-label">{m.time_qualified()}</span>
+                    <span class="stat-value">{breakdown.finalStage.qualifiedCount} {m.time_players().toLowerCase()}</span>
                   </div>
                 {/if}
 
                 <!-- Breakdown by bracket rounds -->
                 <div class="phase-breakdown">
                   <div class="breakdown-header four-cols">
-                    <span>{$t('round')}</span>
-                    <span>{$t('config')}</span>
-                    <span>{$t('matches')}</span>
-                    <span>{$t('time')}</span>
+                    <span>{m.time_round()}</span>
+                    <span>{m.time_config()}</span>
+                    <span>{m.time_matches()}</span>
+                    <span>{m.time_time()}</span>
                   </div>
                   {#each breakdown.finalStage.bracketRounds || [] as round}
                     <div class="breakdown-item four-cols">
                       <span class="breakdown-label">
-                        {$t(round.name) || round.name}
+                        {round.name}
                         {#if round.parallel === true}
-                          <span class="breakdown-note">({$t('parallel')})</span>
+                          <span class="breakdown-note">({m.time_parallel()})</span>
                         {:else if round.parallel === false}
-                          <span class="breakdown-note">({$t('sequential')})</span>
+                          <span class="breakdown-note">({m.time_sequential()})</span>
                         {/if}
                       </span>
                       <span class="breakdown-config">{round.config || '-'}</span>
@@ -235,7 +235,7 @@
                     </div>
                   {/each}
                   <div class="breakdown-total four-cols">
-                    <span>{$t('total')}</span>
+                    <span>{m.time_total()}</span>
                     <span></span>
                     <span>{(breakdown.finalStage.bracketRounds || []).reduce((sum, r) => sum + r.matches, 0)}</span>
                     <span>{formatDuration(breakdown.finalStage.totalMinutes)}</span>
@@ -244,15 +244,15 @@
 
                 <!-- Calculation Box -->
                 <div class="calc-box">
-                  <div class="calc-box-header">{$t('matchTimeCalc')}</div>
+                  <div class="calc-box-header">{m.time_matchTimeCalc()}</div>
                   <div class="calc-box-content">
                     <div class="calc-item">
-                      <span>{$t('mode')}</span>
+                      <span>{m.time_mode()}</span>
                       <span>
                         {#if breakdown.finalStage.gameMode === 'points'}
-                          {$t('pointsMode')} ({breakdown.finalStage.pointsToWin || 7} pts)
+                          {m.time_pointsMode()} ({breakdown.finalStage.pointsToWin || 7} pts)
                         {:else}
-                          {$t('roundsMode')} ({breakdown.finalStage.roundsToPlay || 4})
+                          {m.time_roundsMode()} ({breakdown.finalStage.roundsToPlay || 4})
                         {/if}
                       </span>
                     </div>
@@ -261,8 +261,8 @@
                       <span>{breakdown.finalStage.matchesToWin}</span>
                     </div>
                     <div class="calc-formula small">
-                      <span class="formula-parts">{breakdown.finalStage.minutesPerGame} min × {breakdown.finalStage.avgGamesPlayed} {$t('games')}</span>
-                      <span class="formula-result">= {breakdown.finalStage.minutesPerMatch} min/{$t('match')}</span>
+                      <span class="formula-parts">{breakdown.finalStage.minutesPerGame} min × {breakdown.finalStage.avgGamesPlayed} {m.time_games()}</span>
+                      <span class="formula-result">= {breakdown.finalStage.minutesPerMatch} min/{m.time_match()}</span>
                     </div>
                   </div>
                 </div>
@@ -278,7 +278,7 @@
               <rect x="6" y="4" width="4" height="16"/>
               <rect x="14" y="4" width="4" height="16"/>
             </svg>
-            <span>{$t('breakBetweenPhases')}</span>
+            <span>{m.time_breakBetweenPhases()}</span>
             <span class="transition-time">{formatDuration(breakdown.transitionMinutes)}</span>
           </div>
         {/if}
@@ -290,7 +290,7 @@
               <circle cx="12" cy="12" r="10"/>
               <polyline points="12 6 12 12 16 14"/>
             </svg>
-            <span>{$t('totalEstimatedTime')}</span>
+            <span>{m.time_totalEstimatedTime()}</span>
           </div>
           <span class="total-value">{formatDuration(breakdown.totalMinutes)}</span>
         </div>

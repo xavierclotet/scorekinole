@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Modal from './Modal.svelte';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import type { RankedPlayer } from '$lib/firebase/rankings';
 	import type { TournamentTier } from '$lib/types/tournament';
 
@@ -27,7 +27,7 @@
 	}
 </script>
 
-<Modal {isOpen} title={player ? `${$t('rankingOf')} ${player.playerName}` : ''} {onClose}>
+<Modal {isOpen} title={player ? `${m.ranking_of()} ${player.playerName}` : ''} {onClose}>
 	{#if player}
 		<div class="ranking-detail">
 			<div class="tournaments-list">
@@ -66,9 +66,9 @@
 							{player.tournaments.map((t) => t.rankingDelta).join(' + ')} =
 						</span>
 					{:else}
-						<span class="total-label">{$t('totalSum')}</span>
+						<span class="total-label">{m.ranking_totalSum()}</span>
 					{/if}
-					<span class="total-value">{player.totalPoints} {$t('pointsShort')}</span>
+					<span class="total-value">{player.totalPoints} {m.ranking_pointsShort()}</span>
 				</div>
 			{/if}
 		</div>

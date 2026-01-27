@@ -5,7 +5,7 @@
   import { BYE_PARTICIPANT, isBye } from '$lib/algorithms/bracket';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { calculateFinalPositions, applyRankingUpdates } from '$lib/firebase/tournamentRanking';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
     tournament: Tournament;
@@ -21,18 +21,18 @@
   // Translate group name based on language
   // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
   function translateGroupName(name: string): string {
-    if (name === 'Swiss') return $t('swissSystem');
+    if (name === 'Swiss') return m.tournament_swissSystem();
     // New identifier format
-    if (name === 'SINGLE_GROUP') return $t('singleGroup');
+    if (name === 'SINGLE_GROUP') return m.tournament_singleGroup();
     const idMatch = name.match(/^GROUP_([A-H])$/);
     if (idMatch) {
-      return `${$t('group')} ${idMatch[1]}`;
+      return `${m.tournament_group()} ${idMatch[1]}`;
     }
     // Legacy Spanish format (for existing tournaments)
-    if (name === 'Grupo Único') return $t('singleGroup');
+    if (name === 'Grupo Único') return m.tournament_singleGroup();
     const legacyMatch = name.match(/^Grupo ([A-H])$/);
     if (legacyMatch) {
-      return `${$t('group')} ${legacyMatch[1]}`;
+      return `${m.tournament_group()} ${legacyMatch[1]}`;
     }
     return name;
   }
@@ -60,8 +60,8 @@
   let silverBracket = $derived(tournament.finalStage?.silverBracket);
 
   // Match configuration - determines if we show games won or total points
-  let goldMatchesToWin = $derived(tournament.finalStage?.matchesToWin || 1);
-  let silverMatchesToWin = $derived(tournament.finalStage?.silverMatchesToWin || 1);
+  let goldMatchesToWin = $derived((tournament.finalStage as any)?.matchesToWin || 1);
+  let silverMatchesToWin = $derived((tournament.finalStage as any)?.silverMatchesToWin || 1);
   let showGoldGamesWon = $derived(goldMatchesToWin > 1);
   let showSilverGamesWon = $derived(silverMatchesToWin > 1);
 
@@ -196,12 +196,12 @@
   <!-- Final Standings with Ranking - Compact Grid Layout -->
   <div class="final-standings-section">
     <div class="standings-header">
-      <h3>{$t('finalStandings')}</h3>
+      <h3>{m.tournament_finalStandings()}</h3>
       <button
         class="recalc-positions-btn"
         onclick={handleRecalculatePositions}
         disabled={recalculatingPositions}
-        title={$t('recalculatePositions')}
+        title={m.tournament_recalculatePositions()}
       >
         {#if recalculatingPositions}
           <span class="spinner-small"></span>
@@ -211,14 +211,14 @@
             <path d="M21 3v5h-5"/>
           </svg>
         {/if}
-        <span>{$t('recalculate')}</span>
+        <span>{m.time_recalculate()}</span>
       </button>
     </div>
     <div class="standings-grid" class:with-ranking={tournament.rankingConfig?.enabled}>
       {#if tournament.rankingConfig?.enabled}
         <div class="standings-header-row">
           <span class="pos"></span>
-          <span class="name">{$t('name')}</span>
+          <span class="name">{m.common_name()}</span>
           <span class="ranking">Ranking</span>
           <span class="pts">Pts</span>
         </div>
@@ -247,7 +247,7 @@
         onclick={() => activeTab = 'groups'}
       >
         <span class="tab-indicator"></span>
-        <span class="tab-label">Fase de Grupos</span>
+        <span class="tab-label">{m.tournament_groupStage()}</span>
       </button>
     {/if}
     <button
@@ -256,7 +256,7 @@
       onclick={() => activeTab = 'bracket'}
     >
       <span class="tab-indicator"></span>
-      <span class="tab-label">Fase Final</span>
+      <span class="tab-label">{m.tournament_finalStage()}</span>
     </button>
   </div>
 
@@ -274,14 +274,14 @@
             <div class="standings-section">
               <div class="standings-header">
                 <h4>
-                  {$t('standings')}
-                  <span class="ranking-system-badge">{rankSystem === 'POINTS' ? $t('byPoints') : $t('byWins')}</span>
+                  {m.tournament_standings()}
+                  <span class="ranking-system-badge">{rankSystem === 'POINTS' ? m.tournament_byPoints() : m.tournament_byWins()}</span>
                 </h4>
                 <button
                   class="recalc-btn"
                   onclick={() => handleRecalculateStandings(group.id)}
                   disabled={recalculatingGroups.has(group.id)}
-                  title={$t('recalculateStandings')}
+                  title={m.tournament_recalculateStandings()}
                 >
                   {#if recalculatingGroups.has(group.id)}
                     <span class="spinner-small"></span>
@@ -293,7 +293,6 @@
               <GroupStandings
                 standings={group.standings}
                 participants={tournament.participants}
-                showElo={tournament.rankingConfig?.enabled}
                 isSwiss={tournament.groupStage?.type === 'SWISS'}
                 rankingSystem={tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
               />
@@ -311,7 +310,7 @@
                     <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
                   </svg>
                 </span>
-                <span class="accordion-title">{$t('results')}</span>
+                <span class="accordion-title">{m.tournament_results()}</span>
                 <span class="matches-count">{getGroupMatches(group).length}</span>
               </button>
 
@@ -320,7 +319,7 @@
                   {#each getGroupRounds(group) as round (round.roundNumber)}
                     <div class="round-group">
                       <div class="round-divider">
-                        <span class="round-label">{$t('round')} {round.roundNumber}</span>
+                        <span class="round-label">{m.tournament_round()} {round.roundNumber}</span>
                       </div>
                       <div class="matches-list">
                         {#each round.matches as match (match.id)}
@@ -329,7 +328,7 @@
                             onclick={() => handleMatchClick(match, false)}
                           >
                             {#if match.tableNumber}
-                              <span class="table-badge">{$t('tableShort')}{match.tableNumber}</span>
+                              <span class="table-badge">{m.tournament_tableShort()}{match.tableNumber}</span>
                             {/if}
                             <span class="participant" class:winner={match.winner === match.participantA}>
                               {getParticipantName(match.participantA)}
@@ -416,7 +415,7 @@
           {#if goldBracket.thirdPlaceMatch}
             {@const thirdPlaceMatch = goldBracket.thirdPlaceMatch}
             <div class="bracket-round third-place-round">
-              <h3 class="round-name third-place">3º y 4º Puesto</h3>
+              <h3 class="round-name third-place">{m.tournament_thirdPlace()}</h3>
               <div class="matches-column">
                 <button
                   class="bracket-match third-place-match"
@@ -515,7 +514,7 @@
             {#if silverBracket.thirdPlaceMatch}
               {@const silverThirdPlace = silverBracket.thirdPlaceMatch}
               <div class="bracket-round third-place-round">
-                <h3 class="round-name third-place silver">3º y 4º Puesto</h3>
+                <h3 class="round-name third-place silver">{m.tournament_thirdPlace()}</h3>
                 <div class="matches-column">
                   <button
                     class="bracket-match third-place-match"

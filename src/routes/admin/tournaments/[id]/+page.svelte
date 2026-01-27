@@ -13,7 +13,7 @@
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import type { Tournament } from '$lib/types/tournament';
   import Toast from '$lib/components/Toast.svelte';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { formatDuration, calculateRemainingTime, calculateTournamentTimeEstimate, calculateTimeBreakdown, type TimeBreakdown } from '$lib/utils/tournamentTime';
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
@@ -46,7 +46,7 @@
 
   // Fallback for consolationEnabled - check multiple locations due to migration
   let consolationEnabled = $derived(tournament?.finalStage?.consolationEnabled
-    ?? (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled ']  // Typo with trailing space
+    ?? (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled']
     ?? tournament?.finalStage?.goldBracket?.config?.consolationEnabled
     ?? false);
 
@@ -72,7 +72,7 @@
         // Check if tournament was created by another admin and is still active
         const isActive = !['COMPLETED', 'CANCELLED'].includes(tournament.status);
         if ($currentUser && tournament.createdBy?.userId !== $currentUser.id && isActive) {
-          toastMessage = $t('notYourTournament');
+          toastMessage = m.admin_notYourTournament();
           toastType = 'warning';
           showToast = true;
         }
@@ -96,12 +96,12 @@
 
   function getStatusText(status: string): string {
     const statusMap: Record<string, string> = {
-      DRAFT: $t('draft'),
-      GROUP_STAGE: $t('groupStage'),
-      TRANSITION: $t('transition'),
-      FINAL_STAGE: $t('finalStage'),
-      COMPLETED: $t('completed'),
-      CANCELLED: $t('cancelled')
+      DRAFT: m.admin_draft(),
+      GROUP_STAGE: m.tournament_groupStage(),
+      TRANSITION: m.admin_transition(),
+      FINAL_STAGE: m.tournament_finalStage(),
+      COMPLETED: m.admin_completed(),
+      CANCELLED: m.admin_cancelled()
     };
     return statusMap[status] || status;
   }
@@ -128,7 +128,7 @@
 
     // Validation: minimum 2 participants
     if (tournament.participants.length < 2) {
-      toastMessage = $t('minParticipantsRequired');
+      toastMessage = m.admin_minParticipantsRequired();
       toastType = 'error';
       showToast = true;
       return;
@@ -156,13 +156,13 @@
       if (success) {
         await loadTournament();
       } else {
-        toastMessage = $t('errorStartingTournament');
+        toastMessage = m.admin_errorStartingTournament();
         toastType = 'error';
         showToast = true;
       }
     } catch (err) {
       console.error('Error starting tournament:', err);
-      toastMessage = $t('errorStartingTournament');
+      toastMessage = m.admin_errorStartingTournament();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -184,12 +184,12 @@
     const success = await cancelTournamentFirebase(tournamentId);
 
     if (success) {
-      toastMessage = $t('tournamentCancelled');
+      toastMessage = m.admin_tournamentCancelled();
       toastType = 'success';
       showToast = true;
       await loadTournament();
     } else {
-      toastMessage = $t('errorCancellingTournament');
+      toastMessage = m.admin_errorCancellingTournament();
       toastType = 'error';
       showToast = true;
     }
@@ -239,7 +239,7 @@
     // Also update the breakdown if modal is open
     timeBreakdown = calculateTimeBreakdown(tournament);
     await updateTournament(tournamentId, { timeEstimate });
-    toastMessage = $t('timeRecalculated');
+    toastMessage = m.admin_timeRecalculated();
     toastType = 'success';
     showToast = true;
   }
@@ -257,7 +257,7 @@
     // Validate minimum tables
     const minTables = getMinTables();
     if (editNumTables < minTables) {
-      toastMessage = $t('minTablesRequired').replace('{min}', String(minTables)).replace('{participants}', String(tournament.participants.length));
+      toastMessage = m.admin_minTablesRequired({ min: String(minTables) });
       toastType = 'error';
       showToast = true;
       return;
@@ -289,19 +289,19 @@
       const success = await updateTournament(tournamentId, updates);
 
       if (success) {
-        toastMessage = $t('configurationUpdated');
+        toastMessage = m.admin_configurationUpdated();
         toastType = 'success';
         showToast = true;
         closeQuickEdit();
         await loadTournament();
       } else {
-        toastMessage = $t('errorSavingChanges');
+        toastMessage = m.admin_errorSavingChanges();
         toastType = 'error';
         showToast = true;
       }
     } catch (err) {
       console.error('Error saving quick edit:', err);
-      toastMessage = $t('errorSavingChanges');
+      toastMessage = m.admin_errorSavingChanges();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -309,8 +309,7 @@
     }
   }
 
-  // Check if tournament can be quick-edited (active states only)
-  let canQuickEdit = $derived(tournament && ['GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'].includes(tournament.status));
+
 
   // Calculate remaining time reactively
   let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
@@ -334,7 +333,7 @@
                   {getStatusText(tournament.status)}
                 </span>
                 <span class="info-badge participants-badge">
-                  {tournament.participants.length} {$t('participants')}
+                  {tournament.participants.length} {m.admin_participants()}
                 </span>
                 {#if tournament.status !== 'COMPLETED' && tournament.status !== 'CANCELLED'}
                   <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
@@ -358,34 +357,34 @@
           <div class="header-actions">
             {#if tournament.status === 'DRAFT'}
               <button class="action-btn primary" onclick={confirmStart} disabled={isStarting}>
-                {isStarting ? $t('starting') + '...' : $t('start')}
+                {isStarting ? m.admin_starting() + '...' : m.admin_start()}
               </button>
               <button class="action-btn" onclick={() => goto(`/admin/tournaments/create?edit=${tournamentId}`)}>
-                {$t('edit')}
+                {m.admin_edit()}
               </button>
               <button class="action-btn danger" onclick={confirmCancel}>
-                {$t('cancel')}
+                {m.common_cancel()}
               </button>
             {:else if tournament.status === 'GROUP_STAGE'}
               <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/groups`)}>
-                {$t('viewGroupStage')}
+                {m.admin_viewGroupStage()}
               </button>
               <button class="action-btn" onclick={openQuickEdit}>
-                {$t('edit')}
+                {m.admin_edit()}
               </button>
             {:else if tournament.status === 'TRANSITION'}
               <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/transition`)}>
-                {$t('selectQualified')}
+                {m.admin_selectQualified()}
               </button>
               <button class="action-btn" onclick={openQuickEdit}>
-                {$t('edit')}
+                {m.admin_edit()}
               </button>
             {:else if tournament.status === 'FINAL_STAGE'}
               <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/bracket`)}>
-                {$t('viewBracket')}
+                {m.admin_viewBracket()}
               </button>
               <button class="action-btn" onclick={openQuickEdit}>
-                {$t('edit')}
+                {m.admin_edit()}
               </button>
             {/if}
             <ThemeToggle />
@@ -397,7 +396,7 @@
             ←
           </button>
           <div class="header-main">
-            <h1>{$t('loadingTournament')}...</h1>
+            <h1>{m.admin_loadingTournament()}...</h1>
           </div>
           <div class="header-actions">
             <ThemeToggle />
@@ -409,14 +408,14 @@
     <!-- Content -->
     <div class="page-content">
       {#if loading}
-        <LoadingSpinner message={$t('loadingTournament')} />
+        <LoadingSpinner message={m.admin_loadingTournament()} />
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
-          <h3>{$t('tournamentNotFound')}</h3>
-          <p>{$t('couldNotLoadTournament')}</p>
+          <h3>{m.admin_tournamentNotFound()}</h3>
+          <p>{m.admin_couldNotLoadTournament()}</p>
           <button class="primary-button" onclick={() => goto('/admin/tournaments')}>
-            {$t('backToTournaments')}
+            {m.admin_backToTournaments()}
           </button>
         </div>
       {:else}
@@ -425,18 +424,18 @@
           <!-- Completed Tournament Results Section (at the top) -->
           {#if tournament.status === 'COMPLETED'}
             <section class="dashboard-card results-card">
-              <h2>📋 {$t('tournamentResults')}</h2>
+              <h2>📋 {m.admin_tournamentResults()}</h2>
               <CompletedTournamentView {tournament} onupdated={loadTournament} />
             </section>
           {/if}
 
           <!-- General Configuration Section -->
           <section class="dashboard-card">
-            <h2>{$t('generalConfiguration')}</h2>
+            <h2>{m.admin_generalConfiguration()}</h2>
             <div class="config-list">
               {#if tournament.tournamentDate}
                 <div class="config-item">
-                  <span class="config-label">{$t('date')}:</span>
+                  <span class="config-label">{m.admin_dateLabel()}:</span>
                   <span class="config-value">
                     {new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
                   </span>
@@ -445,7 +444,7 @@
 
               {#if tournament.city || tournament.country}
                 <div class="config-item">
-                  <span class="config-label">{$t('location')}:</span>
+                  <span class="config-label">{m.admin_location()}:</span>
                   <span class="config-value">
                     {tournament.city}{tournament.city && tournament.country ? ', ' : ''}{tournament.country || ''}
                   </span>
@@ -453,50 +452,50 @@
               {/if}
 
               <div class="config-item">
-                <span class="config-label">{$t('format')}:</span>
+                <span class="config-label">{m.admin_format()}:</span>
                 <span class="config-value">
-                  {tournament.phaseType === 'ONE_PHASE' ? $t('onePhaseFormat') : $t('twoPhaseFormat')}
+                  {tournament.phaseType === 'ONE_PHASE' ? m.admin_onePhaseFormat() : m.admin_twoPhaseFormat()}
                 </span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">{$t('modality')}:</span>
+                <span class="config-label">{m.admin_modality()}:</span>
                 <span class="config-value">
-                  {tournament.gameType === 'singles' ? $t('singles') : $t('doubles')}
+                  {tournament.gameType === 'singles' ? m.admin_singles() : m.admin_doubles()}
                 </span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">{$t('availableTables')}:</span>
+                <span class="config-label">{m.admin_availableTables()}:</span>
                 <span class="config-value">{tournament.numTables}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">{$t('track20s')}:</span>
-                <span class="config-value">{tournament.show20s ? $t('yes') : $t('no')}</span>
+                <span class="config-label">{m.admin_track20s()}:</span>
+                <span class="config-value">{tournament.show20s ? m.admin_yes() : m.admin_no()}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">{$t('showHammer')}:</span>
-                <span class="config-value">{tournament.showHammer ? $t('yes') : $t('no')}</span>
+                <span class="config-label">{m.admin_showHammer()}:</span>
+                <span class="config-value">{tournament.showHammer ? m.admin_yes() : m.admin_no()}</span>
               </div>
 
               <div class="config-item">
-                <span class="config-label">{$t('rankingSystem')}:</span>
+                <span class="config-label">{m.admin_rankingSystem()}:</span>
                 <span class="config-value">
                   {#if tournament.rankingConfig?.enabled}
-                    {tournament.rankingConfig.tier === 'MAJOR' ? `${$t('tierMajor')} (Tier 1)` :
-                        tournament.rankingConfig.tier === 'NATIONAL' ? `${$t('tierNational')} (Tier 2)` :
-                        tournament.rankingConfig.tier === 'REGIONAL' ? `${$t('tierRegional')} (Tier 3)` : `${$t('tierClub')} (Tier 4)`}
+                    {tournament.rankingConfig.tier === 'MAJOR' ? `${m.admin_tierMajor()} (Tier 1)` :
+                        tournament.rankingConfig.tier === 'NATIONAL' ? `${m.admin_tierNational()} (Tier 2)` :
+                        tournament.rankingConfig.tier === 'REGIONAL' ? `${m.admin_tierRegional()} (Tier 3)` : `${m.admin_tierClub()} (Tier 4)`}
                   {:else}
-                    {$t('disabled')}
+                    {m.admin_disabled()}
                   {/if}
                 </span>
               </div>
 
               {#if tournament.timeEstimate?.totalMinutes}
                 <div class="config-item">
-                  <span class="config-label">{$t('estimatedDuration')}:</span>
+                  <span class="config-label">{m.admin_estimatedDuration()}:</span>
                   <span class="config-value duration-value">
                     ~{formatDuration(tournament.timeEstimate.totalMinutes)}
                   </span>
@@ -504,7 +503,7 @@
               {/if}
 
               <div class="config-item">
-                <span class="config-label">{$t('createdBy')}:</span>
+                <span class="config-label">{m.admin_createdBy()}:</span>
                 <span class="config-value">{tournament.createdBy?.userName || '-'}</span>
               </div>
             </div>
@@ -513,38 +512,38 @@
           <!-- Group Stage Configuration (only for TWO_PHASE) -->
           {#if tournament.phaseType === 'TWO_PHASE' && tournament.groupStage}
             <section class="dashboard-card">
-              <h2>⚔️ {$t('groupStage')}</h2>
+              <h2>⚔️ {m.tournament_groupStage()}</h2>
               <div class="config-list">
                 <div class="config-item">
-                  <span class="config-label">{$t('system')}:</span>
+                  <span class="config-label">{m.admin_system()}:</span>
                   <span class="config-value">
-                    {tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : $t('swissSystem')}
+                    {tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : m.tournament_swissSystem()}
                   </span>
                 </div>
 
                 {#if tournament.groupStage.type === 'ROUND_ROBIN' && tournament.groupStage.numGroups}
                   <div class="config-item">
-                    <span class="config-label">{$t('numberOfGroups')}:</span>
+                    <span class="config-label">{m.admin_numberOfGroups()}:</span>
                     <span class="config-value">{tournament.groupStage.numGroups}</span>
                   </div>
                 {:else if tournament.groupStage.type === 'SWISS' && tournament.groupStage.numSwissRounds}
                   <div class="config-item">
-                    <span class="config-label">{$t('swissRounds')}:</span>
+                    <span class="config-label">{m.admin_swissRounds()}:</span>
                     <span class="config-value">{tournament.groupStage.numSwissRounds}</span>
                   </div>
                 {/if}
 
                 <div class="config-item">
-                  <span class="config-label">{$t('gameMode')}:</span>
+                  <span class="config-label">{m.admin_gameMode()}:</span>
                   <span class="config-value">
                     {tournament.groupStage.gameMode === 'points'
-                      ? `${$t('byPoints')} (${tournament.groupStage.pointsToWin})`
-                      : `${$t('byRounds')} (${tournament.groupStage.roundsToPlay})`}
+                      ? `${m.admin_byPoints()} (${tournament.groupStage.pointsToWin})`
+                      : `${m.admin_byRounds()} (${tournament.groupStage.roundsToPlay})`}
                   </span>
                 </div>
 
                 <div class="config-item">
-                  <span class="config-label">{$t('matchesToWinLabel')}:</span>
+                  <span class="config-label">{m.admin_matchesToWinLabel()}:</span>
                   <span class="config-value">Best of {tournament.groupStage.matchesToWin}</span>
                 </div>
               </div>
@@ -553,31 +552,31 @@
 
           <!-- Final Stage Configuration -->
           <section class="dashboard-card">
-            <h2>🏆 {$t('finalStage')}</h2>
+            <h2>🏆 {m.time_finalStage()}</h2>
 
             {#if tournament.finalStage}
               <!-- ONE_PHASE or active final stage: Show finalStage data -->
               <div class="config-list">
                 <div class="config-item">
-                  <span class="config-label">{$t('structure')}:</span>
+                  <span class="config-label">{m.admin_structure()}:</span>
                   <span class="config-value">
                     {tournament.finalStage.mode === 'SPLIT_DIVISIONS'
-                      ? $t('goldSilverDivisions')
-                      : $t('singleBracket')}
+                      ? m.admin_goldSilverDivisions()
+                      : m.admin_singleBracket()}
                   </span>
                 </div>
                 <div class="config-item">
-                  <span class="config-label">{$t('consolationRounds')}:</span>
+                  <span class="config-label">{m.admin_consolationRounds()}:</span>
                   <span class="config-value">
                     {#if consolationEnabled}
                       <span class="consolation-badge enabled">
                         <svg class="badge-check" viewBox="0 0 20 20" fill="currentColor">
                           <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                         </svg>
-                        {$t('enabled')}
+                        {m.admin_enabled()}
                       </span>
                     {:else}
-                      <span class="consolation-badge disabled">{$t('disabled')}</span>
+                      <span class="consolation-badge disabled">{m.admin_disabled()}</span>
                     {/if}
                   </span>
                 </div>
@@ -587,10 +586,10 @@
                   {@const silverConfig = tournament.finalStage.silverBracket?.config}
                   <!-- Gold Bracket Phases -->
                   <div class="config-item bracket-header">
-                    <span class="config-label">🥇 {$t('goldBracket')}</span>
+                    <span class="config-label">🥇 {m.admin_goldBracket()}</span>
                   </div>
                   <div class="config-item phase-config">
-                    <span class="config-label">{$t('earlyRounds')}:</span>
+                    <span class="config-label">{m.admin_earlyRounds()}:</span>
                     <span class="config-value">
                       {goldConfig.earlyRounds.gameMode === 'points'
                         ? `${goldConfig.earlyRounds.pointsToWin ?? 7}p`
@@ -598,7 +597,7 @@
                     </span>
                   </div>
                   <div class="config-item phase-config">
-                    <span class="config-label">{$t('semifinals')}:</span>
+                    <span class="config-label">{m.admin_semifinals()}:</span>
                     <span class="config-value">
                       {goldConfig.semifinal.gameMode === 'points'
                         ? `${goldConfig.semifinal.pointsToWin ?? 7}p`
@@ -607,7 +606,7 @@
                     </span>
                   </div>
                   <div class="config-item phase-config">
-                    <span class="config-label">{$t('final')}:</span>
+                    <span class="config-label">{m.admin_final()}:</span>
                     <span class="config-value">
                       {goldConfig.final.gameMode === 'points'
                         ? `${goldConfig.final.pointsToWin ?? 9}p`
@@ -619,10 +618,10 @@
                   <!-- Silver Bracket Phases -->
                   {#if silverConfig}
                     <div class="config-item bracket-header">
-                      <span class="config-label">🥈 {$t('silverBracket')}</span>
+                      <span class="config-label">🥈 {m.admin_silverBracket()}</span>
                     </div>
                     <div class="config-item phase-config">
-                      <span class="config-label">{$t('earlyRounds')}:</span>
+                      <span class="config-label">{m.admin_earlyRounds()}:</span>
                       <span class="config-value">
                         {silverConfig.earlyRounds.gameMode === 'points'
                           ? `${silverConfig.earlyRounds.pointsToWin ?? 7}p`
@@ -630,7 +629,7 @@
                       </span>
                     </div>
                     <div class="config-item phase-config">
-                      <span class="config-label">{$t('semifinals')}:</span>
+                      <span class="config-label">{m.admin_semifinals()}:</span>
                       <span class="config-value">
                         {silverConfig.semifinal.gameMode === 'points'
                           ? `${silverConfig.semifinal.pointsToWin ?? 7}p`
@@ -639,7 +638,7 @@
                       </span>
                     </div>
                     <div class="config-item phase-config">
-                      <span class="config-label">{$t('final')}:</span>
+                      <span class="config-label">{m.admin_final()}:</span>
                       <span class="config-value">
                         {silverConfig.final.gameMode === 'points'
                           ? `${silverConfig.final.pointsToWin ?? 7}p`
@@ -651,7 +650,7 @@
                 {:else if tournament.finalStage.goldBracket?.config}
                   {@const config = tournament.finalStage.goldBracket.config}
                   <div class="config-item">
-                    <span class="config-label">{$t('earlyRounds')}:</span>
+                    <span class="config-label">{m.admin_earlyRounds()}:</span>
                     <span class="config-value">
                       {config.earlyRounds.gameMode === 'points'
                         ? `${config.earlyRounds.pointsToWin ?? 7}p`
@@ -660,7 +659,7 @@
                     </span>
                   </div>
                   <div class="config-item">
-                    <span class="config-label">{$t('semifinals')}:</span>
+                    <span class="config-label">{m.admin_semifinals()}:</span>
                     <span class="config-value">
                       {config.semifinal.gameMode === 'points'
                         ? `${config.semifinal.pointsToWin ?? 7}p`
@@ -669,7 +668,7 @@
                     </span>
                   </div>
                   <div class="config-item">
-                    <span class="config-label">{$t('final')}:</span>
+                    <span class="config-label">{m.admin_final()}:</span>
                     <span class="config-value">
                       {config.final.gameMode === 'points'
                         ? `${config.final.pointsToWin ?? 7}p`
@@ -679,8 +678,8 @@
                   </div>
                 {:else}
                   <div class="config-item">
-                    <span class="config-label">{$t('status')}:</span>
-                    <span class="config-value">{$t('pendingConfiguration')}</span>
+                    <span class="config-label">{m.admin_status()}:</span>
+                    <span class="config-value">{m.admin_pendingConfiguration()}</span>
                   </div>
                 {/if}
               </div>
@@ -688,8 +687,8 @@
             {:else}
               <div class="config-list">
                 <div class="config-item">
-                  <span class="config-label">{$t('status')}:</span>
-                  <span class="config-value">{$t('pendingConfiguration')}</span>
+                  <span class="config-label">{m.admin_status()}:</span>
+                  <span class="config-value">{m.admin_pendingConfiguration()}</span>
                 </div>
               </div>
             {/if}
@@ -705,27 +704,27 @@
   {#if showStartConfirm && tournament}
     <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeStartModal} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeStartModal()}>
       <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2>🚀 {$t('startTournament')}</h2>
-        <p>{$t('readyToStartTournament')}</p>
+        <h2>🚀 {m.admin_startTournament()}</h2>
+        <p>{m.admin_readyToStartTournament()}</p>
         <div class="tournament-info">
           <strong>{tournament.edition ? `${tournament.edition}º ` : ''}{tournament.name}</strong>
           <br />
-          <span>{tournament.participants.length} {$t('participants')}</span>
+          <span>{tournament.participants.length} {m.admin_participants()}</span>
           <br />
           <span>
             {tournament.phaseType === 'TWO_PHASE' && tournament.groupStage
-              ? `${$t('groupStage')}: ${tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : $t('swissSystem')}`
-              : $t('directElimination')}
+              ? `${m.tournament_groupStage()}: ${tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : m.tournament_swissSystem()}`
+              : m.admin_directElimination()}
           </span>
         </div>
         <p class="info-text">
           {tournament.phaseType === 'TWO_PHASE'
-            ? $t('groupStageScheduleWillBeGenerated')
-            : $t('bracketWillBeGenerated')}
+            ? m.admin_groupStageScheduleWillBeGenerated()
+            : m.admin_bracketWillBeGenerated()}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" onclick={closeStartModal}>{$t('cancel')}</button>
-          <button class="confirm-btn" onclick={startTournament}>{$t('startTournament')}</button>
+          <button class="cancel-btn" onclick={closeStartModal}>{m.common_cancel()}</button>
+          <button class="confirm-btn" onclick={startTournament}>{m.admin_startTournament()}</button>
         </div>
       </div>
     </div>
@@ -735,19 +734,19 @@
   {#if showCancelConfirm && tournament}
     <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeCancelModal} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeCancelModal()}>
       <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2>{$t('confirmCancellation')}</h2>
-        <p>{$t('confirmCancelTournament')}</p>
+        <h2>{m.admin_confirmCancellation()}</h2>
+        <p>{m.admin_confirmCancelTournament()}</p>
         <div class="tournament-info">
           <strong>{tournament.edition ? `${tournament.edition}º ` : ''}{tournament.name}</strong>
           <br />
-          <span>{tournament.participants.length} {$t('participants')}</span>
+          <span>{tournament.participants.length} {m.admin_participants()}</span>
         </div>
         <p class="warning-text">
-          {$t('tournamentWillBeCancelled')}
+          {m.admin_tournamentWillBeCancelled()}
         </p>
         <div class="confirm-actions">
-          <button class="cancel-btn" onclick={closeCancelModal}>{$t('back')}</button>
-          <button class="delete-btn-confirm" onclick={cancelTournament}>{$t('cancelTournament')}</button>
+          <button class="cancel-btn" onclick={closeCancelModal}>{m.common_back()}</button>
+          <button class="delete-btn-confirm" onclick={cancelTournament}>{m.admin_cancelTournament()}</button>
         </div>
       </div>
     </div>
@@ -759,8 +758,8 @@
       <div class="quick-edit-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div class="quick-edit-header">
           <div class="header-title">
-            <h2>⚙️ {$t('tournamentSettings')}</h2>
-            <span class="header-subtitle">{$t('modifiableConfiguration')}</span>
+            <h2>⚙️ {m.admin_tournamentSettings()}</h2>
+            <span class="header-subtitle">{m.admin_modifiableConfiguration()}</span>
           </div>
           <button class="close-btn" onclick={closeQuickEdit}>×</button>
         </div>
@@ -770,22 +769,22 @@
           <div class="edit-column">
             <div class="column-header">
               <span class="column-icon">📋</span>
-              <span>{$t('basicInfo')}</span>
+              <span>{m.admin_basicInfo()}</span>
             </div>
             
             <div class="field-group">
-              <label for="edit-name">{$t('tournamentName')}</label>
+              <label for="edit-name">{m.admin_tournamentName()}</label>
               <input
                 type="text"
                 id="edit-name"
                 bind:value={editName}
-                placeholder={$t('tournamentName')}
+                placeholder={m.admin_tournamentName()}
               />
             </div>
 
             <div class="field-row">
               <div class="field-group">
-                <label for="edit-date">{$t('date')}</label>
+                <label for="edit-date">{m.admin_dateLabel()}</label>
                 <input
                   type="date"
                   id="edit-date"
@@ -794,7 +793,7 @@
               </div>
 
               <div class="field-group">
-                <label for="edit-tables">{$t('availableTables')}</label>
+                <label for="edit-tables">{m.admin_availableTables()}</label>
                 <input
                   type="number"
                   id="edit-tables"
@@ -802,7 +801,7 @@
                   min={getMinTables()}
                   max="50"
                 />
-                <span class="field-hint">{$t('minimum')}: {getMinTables()}</span>
+                <span class="field-hint">{m.common_minimum()}: {getMinTables()}</span>
               </div>
             </div>
 
@@ -810,25 +809,25 @@
             <div class="subsection">
               <div class="subsection-header">
                 <span class="subsection-icon">📊</span>
-                <span>{$t('rankingSystem')}</span>
+                <span>{m.admin_rankingSystem()}</span>
               </div>
               
               <label class="switch-row">
                 <span class="switch-label">
                   <span class="switch-icon">📈</span>
-                  {$t('rankingSystemEnabled')}
+                  {m.admin_rankingSystemEnabled()}
                 </span>
                 <input type="checkbox" bind:checked={editRankingEnabled} class="toggle-switch" />
               </label>
 
               {#if editRankingEnabled}
                 <div class="field-group tier-field">
-                  <label for="edit-tier">{$t('category')}</label>
+                  <label for="edit-tier">{m.admin_category()}</label>
                   <select id="edit-tier" bind:value={editRankingTier}>
-                    <option value="CLUB">🏠 {$t('tierClub')} · 15p máx</option>
-                    <option value="REGIONAL">🏝️ {$t('tierRegional')} · 25p máx</option>
-                    <option value="NATIONAL">🇪🇸 {$t('tierNational')} · 40p máx</option>
-                    <option value="MAJOR">🏆 {$t('tierMajor')} · 50p máx</option>
+                    <option value="CLUB">🏠 {m.admin_tierClub()} · 15p máx</option>
+                    <option value="REGIONAL">🏝️ {m.admin_tierRegional()} · 25p máx</option>
+                    <option value="NATIONAL">🇪🇸 {m.admin_tierNational()} · 40p máx</option>
+                    <option value="MAJOR">🏆 {m.admin_tierMajor()} · 50p máx</option>
                   </select>
                 </div>
               {/if}
@@ -839,20 +838,20 @@
           <div class="edit-column">
             <div class="column-header">
               <span class="column-icon">🎮</span>
-              <span>{$t('gameOptions')}</span>
+              <span>{m.admin_gameOptions()}</span>
             </div>
 
             <div class="options-grid">
               <label class="option-card">
                 <input type="checkbox" bind:checked={editShow20s} />
                 <span class="option-icon">🎯</span>
-                <span class="option-text">{$t('track20s')}</span>
+                <span class="option-text">{m.admin_track20s()}</span>
               </label>
 
               <label class="option-card">
                 <input type="checkbox" bind:checked={editShowHammer} />
                 <span class="option-icon">🔨</span>
-                <span class="option-text">{$t('showHammer')}</span>
+                <span class="option-text">{m.admin_showHammer()}</span>
               </label>
             </div>
 
@@ -861,18 +860,18 @@
               <div class="subsection">
                 <div class="subsection-header">
                   <span class="subsection-icon">🏆</span>
-                  <span>{$t('finalStage')}</span>
+                  <span>{m.time_finalStage()}</span>
                 </div>
 
                 <label class="switch-row">
                   <span class="switch-label">
                     <span class="switch-icon">🎖️</span>
-                    {$t('consolationRounds')}
+                    {m.admin_consolationRounds()}
                   </span>
                   <input type="checkbox" bind:checked={editConsolationEnabled} class="toggle-switch" />
                 </label>
                 <p class="option-description">
-                  {$t('consolationRoundsDescription')}
+                  {m.admin_consolationRoundsDescription()}
                 </p>
               </div>
             {/if}
@@ -880,13 +879,13 @@
         </div>
 
         <div class="quick-edit-footer">
-          <button class="btn-secondary" onclick={closeQuickEdit}>{$t('cancel')}</button>
+          <button class="btn-secondary" onclick={closeQuickEdit}>{m.common_cancel()}</button>
           <button
             class="btn-primary"
             onclick={saveQuickEdit}
             disabled={isSavingQuickEdit || !editName.trim()}
           >
-            {isSavingQuickEdit ? `⏳ ${$t('saving')}...` : `💾 ${$t('saveChanges')}`}
+            {isSavingQuickEdit ? `⏳ ${m.admin_saving()}...` : `💾 ${m.admin_saveChanges()}`}
           </button>
         </div>
       </div>
@@ -900,7 +899,7 @@
 {#if isStarting || isSavingQuickEdit}
   <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <LoadingSpinner size="large" message={isStarting ? 'Iniciando torneo...' : 'Guardando cambios...'} />
+      <LoadingSpinner size="large" message={isStarting ? m.tournament_starting() : m.admin_saving()} />
     </div>
   </div>
 {/if}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import {
 		getAllUsersWithTournaments,
 		getCompletedTournaments,
@@ -125,7 +125,7 @@
 </script>
 
 <svelte:head>
-	<title>{$t('publicRankings')} - Scorekinole</title>
+	<title>{m.ranking_publicRankings()} - Scorekinole</title>
 	<meta name="description" content="Crokinole Rankings - Best-of-N tournament results" />
 </svelte:head>
 
@@ -139,7 +139,7 @@
 			</button>
 			<div class="header-main">
 				<div class="title-section">
-					<h1>{$t('publicRankings')}</h1>
+					<h1>{m.ranking_publicRankings()}</h1>
 					<span class="count-badge">{rankedPlayers.length}</span>
 				</div>
 			</div>
@@ -163,14 +163,14 @@
 				class:active={filterType === 'all'}
 				onclick={() => (filterType = 'all')}
 			>
-				{$t('allTournaments')}
+				{m.ranking_allTournaments()}
 			</button>
 			<button
 				class="filter-tab"
 				class:active={filterType === 'country'}
 				onclick={() => (filterType = 'country')}
 			>
-				{$t('byCountry')}
+				{m.ranking_byCountry()}
 			</button>
 		</div>
 
@@ -182,13 +182,13 @@
 			</select>
 		{/if}
 
-		<span class="bestof-badge">{$t('bestOfN')} {bestOfN}</span>
+		<span class="bestof-badge">{m.admin_bestOfN()} {bestOfN}</span>
 	</div>
 
 	{#if isLoading}
 		<div class="loading-state">
 			<div class="spinner"></div>
-			<p>{$t('loading')}...</p>
+			<p>{m.common_loading()}...</p>
 		</div>
 	{:else if rankedPlayers.length === 0}
 		<div class="empty-state">
@@ -198,11 +198,11 @@
 					<path d="M4 15h16v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z"/>
 				</svg>
 			</div>
-			<h3>{$t('noRankingsFound')}</h3>
+			<h3>{m.ranking_noRankingsFound()}</h3>
 		</div>
 	{:else}
 		<div class="results-info">
-			{$t('showingOf').replace('{showing}', String(visiblePlayers.length)).replace('{total}', String(rankedPlayers.length))}
+			{m.admin_showingOf({ showing: String(visiblePlayers.length), total: String(rankedPlayers.length) })}
 		</div>
 
 		<div class="table-container" onscroll={handleScroll}>
@@ -210,9 +210,9 @@
 				<thead>
 					<tr>
 						<th class="pos-col">#</th>
-						<th class="player-col">{$t('player')}</th>
-						<th class="points-col">{$t('points')}</th>
-						<th class="tournaments-col hide-mobile">{$t('tournamentsCount')}</th>
+						<th class="player-col">{m.tournament_playerColumn()}</th>
+						<th class="points-col">{m.scoring_points()}</th>
+						<th class="tournaments-col hide-mobile">{m.ranking_tournamentsCount()}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -254,11 +254,11 @@
 
 			{#if hasMore}
 				<div class="load-more-hint">
-					{$t('scrollToLoadMore')}
+					{m.admin_scrollToLoadMore()}
 				</div>
 			{:else if rankedPlayers.length > 0}
 				<div class="end-of-list">
-					{$t('endOfList')}
+					{m.admin_endOfList()}
 				</div>
 			{/if}
 		</div>

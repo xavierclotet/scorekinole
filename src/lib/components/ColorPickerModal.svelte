@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { team1, team2 } from '$lib/stores/teams';
 
 	interface Props {
@@ -52,7 +52,7 @@
 {#if isOpen}
 	<div class="modal-overlay" onclick={closeModal} role="button" tabindex="-1">
 		<div class="modal-content" onclick={stopPropagation} role="dialog">
-			<h2>{$t('colorFor')} {currentTeamName}</h2>
+			<h2>{m.scoring_colorFor()} {currentTeamName}</h2>
 			<button class="close-btn" onclick={closeModal} aria-label="Close">×</button>
 
 			<!-- Preset Colors Grid -->

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { language, t } from '$lib/stores/language';
+	import { language } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { canAccessAdmin } from '$lib/stores/admin';
 	import { APP_VERSION } from '$lib/constants';
@@ -79,7 +80,7 @@
 	<nav class="navbar">
 		<div class="nav-left">
 			{#if $canAccessAdmin}
-				<button class="admin-btn" onclick={goToAdmin} title={$t('adminPanel')}>
+				<button class="admin-btn" onclick={goToAdmin} title={m.admin_panel()}>
 					Admin
 				</button>
 			{/if}
@@ -91,7 +92,7 @@
 				<button class:active={$gameSettings.language === 'ca'} onclick={() => changeLanguage('ca')}>CA</button>
 				<button class:active={$gameSettings.language === 'en'} onclick={() => changeLanguage('en')}>EN</button>
 			</div>
-			<button class="nav-btn icon-btn" onclick={toggleTheme} title={$adminTheme === 'light' ? $t('darkMode') : $t('lightMode')}>
+			<button class="nav-btn icon-btn" onclick={toggleTheme} title={$adminTheme === 'light' ? m.common_darkMode() : m.common_lightMode()}>
 				{#if $adminTheme === 'light'}
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
@@ -132,13 +133,13 @@
 					<span class="title-version">v{APP_VERSION}</span>
 				</span>
 			</h1>
-			<p class="hero-subtitle">{$t('appTitle')}</p>
+			<p class="hero-subtitle">{m.scoring_appTitle()}</p>
 
 			<button class="cta-button" onclick={startScoring}>
 				<svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
 					<path d="M8 5v14l11-7z"/>
 				</svg>
-				<span>{$t('newGame')}</span>
+				<span>{m.common_newGame()}</span>
 			</button>
 		</div>
 
@@ -150,16 +151,16 @@
 						<path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
 					</svg>
 				</div>
-				<span class="feature-label">{$t('timer')}</span>
+				<span class="feature-label">{m.scoring_timer()}</span>
 			</div>
 
 			<div class="feature-card">
 				<div class="feature-icon">
 					<svg viewBox="0 0 24 24" fill="currentColor">
-						<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+						<path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z"/>
 					</svg>
 				</div>
-				<span class="feature-label">{$t('rounds')}</span>
+				<span class="feature-label">{m.common_rankings()}</span>
 			</div>
 
 			<div class="feature-card">
@@ -168,16 +169,14 @@
 						<path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
 					</svg>
 				</div>
-				<span class="feature-label">{$t('matchHistory')}</span>
+				<span class="feature-label">{m.common_liveTournaments()}</span>
 			</div>
 
 			<div class="feature-card">
-				<div class="feature-icon">
-					<svg viewBox="0 0 24 24" fill="currentColor">
-						<path d="M2 19.63L13.43 8.2l2.12 2.12-9.31 9.31-2.12-2.12 1.41-1.41L3.41 18l-1.41 1.63zm19.41-14.21l-2.12-2.12a1.5 1.5 0 00-2.12 0L14 6.46l4.24 4.24 3.17-3.17a1.5 1.5 0 000-2.11zM8.12 11.46l-1.41 1.41 4.24 4.24 1.41-1.41-4.24-4.24z"/>
-					</svg>
+				<div class="feature-icon emoji">
+					🔨
 				</div>
-				<span class="feature-label">{$t('hammer')}</span>
+				<span class="feature-label">{m.scoring_hammer()}</span>
 			</div>
 
 			<div class="feature-card">
@@ -186,16 +185,16 @@
 						<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
 					</svg>
 				</div>
-				<span class="feature-label">{$t('twenties')}</span>
+				<span class="feature-label">{m.scoring_twenties()}</span>
 			</div>
 
 			<div class="feature-card">
 				<div class="feature-icon">
 					<svg viewBox="0 0 24 24" fill="currentColor">
-						<path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z"/>
+						<path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
 					</svg>
 				</div>
-				<span class="feature-label">{$t('syncAll')}</span>
+				<span class="feature-label">{m.common_tournamentAdmin()}</span>
 			</div>
 		</div>
 
@@ -205,15 +204,25 @@
 				<svg viewBox="0 0 24 24" fill="currentColor">
 					<path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z"/>
 				</svg>
-				<span>{$t('viewRankings')}</span>
+				<span>{m.common_viewRankings()}</span>
 			</button>
 
-			<button class="link-card disabled" disabled title={$t('comingSoon')}>
+			<button class="link-card disabled" disabled title={m.common_comingSoon()}>
 				<svg viewBox="0 0 24 24" fill="currentColor">
 					<path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
 				</svg>
-				<span>{$t('viewTournaments')}</span>
+				<span>{m.common_viewTournaments()}</span>
 			</button>
+		</div>
+
+		<!-- Support Section -->
+		<div class="support-section">
+			<a href="https://ko-fi.com/I3I11SVYEM" target="_blank" rel="noopener noreferrer" class="kofi-btn">
+				<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+					<path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667-2.059 3.015z"/>
+				</svg>
+				<span>{m.common_giveSupport()}</span>
+			</a>
 		</div>
 	</div>
 
@@ -584,6 +593,10 @@
 		height: 20px;
 	}
 
+	.feature-icon.emoji {
+		font-size: 1.25rem;
+	}
+
 	.landing[data-theme='light'] .feature-icon {
 		color: rgba(0, 0, 0, 0.5);
 	}
@@ -641,6 +654,42 @@
 		cursor: not-allowed;
 	}
 
+	/* Support Section */
+	.support-section {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		margin-top: 0.5rem;
+	}
+
+	.kofi-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.6rem 1rem;
+		background: #10B981;
+		color: #fff;
+		border-radius: 8px;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.9rem;
+		font-weight: 500;
+		text-decoration: none;
+		transition: transform 0.2s, box-shadow 0.2s;
+	}
+
+	.kofi-btn:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+	}
+
+	.kofi-btn:active {
+		transform: translateY(0);
+	}
+
+	.kofi-btn svg {
+		flex-shrink: 0;
+	}
+
 	.landing[data-theme='light'] .link-card {
 		background: rgba(0, 0, 0, 0.03);
 		border-color: rgba(0, 0, 0, 0.1);
@@ -664,24 +713,13 @@
 		z-index: 1;
 	}
 
-	.footer-version,
 	.footer-copy {
 		font-size: 0.8rem;
 		color: rgba(255, 255, 255, 0.3);
 	}
 
-	.footer-divider {
-		font-size: 0.6rem;
-		color: rgba(255, 255, 255, 0.2);
-	}
-
-	.landing[data-theme='light'] .footer-version,
 	.landing[data-theme='light'] .footer-copy {
 		color: rgba(0, 0, 0, 0.3);
-	}
-
-	.landing[data-theme='light'] .footer-divider {
-		color: rgba(0, 0, 0, 0.2);
 	}
 
 	/* Tablet+ */
@@ -759,6 +797,10 @@
 			bottom: 0;
 			left: 0;
 			right: 0;
+		}
+
+		.support-section {
+			display: none;
 		}
 	}
 </style>

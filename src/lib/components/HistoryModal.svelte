@@ -4,7 +4,7 @@
 	import HistoryEntry from './HistoryEntry.svelte';
 	import SyncConfirmModal from './SyncConfirmModal.svelte';
 	import Toast from './Toast.svelte';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { team1, team2, saveTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import {
@@ -131,16 +131,16 @@
 		const badges = [];
 
 		// Game type
-		badges.push($gameSettings.gameType === 'singles' ? `👤 ${$t('singles')}` : `👥 ${$t('doubles')}`);
+		badges.push($gameSettings.gameType === 'singles' ? `👤 ${m.scoring_singles()}` : `👥 ${m.scoring_doubles()}`);
 
 		// Game mode
 		if ($gameSettings.gameMode === 'rounds') {
-			badges.push(`🎯 ${$gameSettings.roundsToPlay} ${$t('rounds')}`);
+			badges.push(`🎯 ${$gameSettings.roundsToPlay} ${m.scoring_rounds()}`);
 		} else {
 			if ($gameSettings.matchesToWin > 1) {
 				badges.push(`🎯 ${$gameSettings.pointsToWin}pts • Win ${$gameSettings.matchesToWin} games`);
 			} else {
-				badges.push(`🎯 ${$gameSettings.pointsToWin} ${$t('points')}`);
+				badges.push(`🎯 ${$gameSettings.pointsToWin} ${m.scoring_points()}`);
 			}
 		}
 
@@ -155,7 +155,7 @@
 	let matchDurationMs = $derived($currentMatch ? (now - $currentMatch.startTime) : 0);
 	let durationMinutes = $derived(Math.floor(matchDurationMs / 60000));
 	let durationSeconds = $derived(Math.floor((matchDurationMs / 1000) % 60));
-	let durationText = $derived(`${durationMinutes}${$t('minuteShort')} ${durationSeconds}${$t('secondShort')}`);
+	let durationText = $derived(`${durationMinutes}${m.history_minuteShort()} ${durationSeconds}${m.history_secondShort()}`);
 
 
 	// Get all games including the current in-progress game
@@ -323,7 +323,7 @@
 		if (matchesToSync.length === 0) {
 			console.log('ℹ️ All matches already synced');
 			// Show toast notification
-			toastMessage = $t('allMatchesAlreadySynced');
+			toastMessage = m.history_allMatchesAlreadySynced();
 			toastType = 'info';
 			showToast = true;
 			// Still fetch from cloud
@@ -452,12 +452,12 @@
 			{:else}
 				<span class="sync-icon">☁️</span>
 			{/if}
-			<span class="sync-text">{$t('syncAll')}</span>
+			<span class="sync-text">{m.history_syncAll()}</span>
 		</button>
 	{/if}
 {/snippet}
 
-<Modal {isOpen} title={$t('matchHistory')} onClose={onClose} {headerActions}>
+<Modal {isOpen} title={m.history_matchHistory()} onClose={onClose} {headerActions}>
 	<div class="history-modal">
 		<!-- Tabs Navigation -->
 		<div class="tabs">
@@ -467,7 +467,7 @@
 				onclick={() => handleTabChange('current')}
 				type="button"
 			>
-				{$t('currentMatch')}
+				{m.history_currentMatch()}
 			</button>
 			<button
 				class="tab"
@@ -475,7 +475,7 @@
 				onclick={() => handleTabChange('history')}
 				type="button"
 			>
-				{$t('matchHistory')}{#if $matchHistory && $matchHistory.length > 0} ({$matchHistory.length}){/if}
+				{m.history_matchHistory()}{#if $matchHistory && $matchHistory.length > 0} ({$matchHistory.length}){/if}
 			</button>
 			<button
 				class="tab"
@@ -483,7 +483,7 @@
 				onclick={() => handleTabChange('deleted')}
 				type="button"
 			>
-				{$t('deleted')}{#if $deletedMatches && $deletedMatches.length > 0} ({$deletedMatches.length}){/if}
+				{m.history_deleted()}{#if $deletedMatches && $deletedMatches.length > 0} ({$deletedMatches.length}){/if}
 			</button>
 		</div>
 
@@ -529,7 +529,7 @@
 											: (game.rounds?.reduce((sum, r) => sum + r.team2Twenty, 0) ?? 0)}
 										<div class="game-result-summary">
 											<span class="game-number">P{game.gameNumber}:</span>
-											<span class="winner-name">{winnerName} {$t('gana')}</span>
+											<span class="winner-name">{winnerName} {m.history_gana()}</span>
 											<span class="score">{winnerPoints}-{loserPoints}</span>
 											{#if $gameSettings.show20s}
 												<span class="twenties-summary">⭐ {winner20s}</span>
@@ -561,12 +561,12 @@
 											<!-- Table Header -->
 											<div class="game-row header">
 												<span class="team-name">
-													{$t('game')} {gameIndex + 1}
+													{m.history_game()} {gameIndex + 1}
 												</span>
 												{#each game.rounds as _, idx}
 													<span class="round-col">R{idx + 1}</span>
 												{/each}
-												<span class="total-col">{$t('total').toUpperCase()}</span>
+												<span class="total-col">{m.history_total().toUpperCase()}</span>
 											</div>
 
 											<!-- Team 1 Row -->
@@ -707,12 +707,12 @@
 											<!-- Table Header -->
 											<div class="game-row header">
 												<span class="team-name">
-													{$t('game')} {allGames.length + 1} <span class="in-progress-badge">({$t('inProgress')})</span>
+													{m.history_game()} {allGames.length + 1} <span class="in-progress-badge">({m.history_inProgress()})</span>
 												</span>
 												{#each $currentMatch.rounds as _, idx}
 													<span class="round-col">R{idx + 1}</span>
 												{/each}
-												<span class="total-col">{$t('total').toUpperCase()}</span>
+												<span class="total-col">{m.history_total().toUpperCase()}</span>
 											</div>
 
 											<!-- Team 1 Row -->
@@ -845,7 +845,7 @@
 						</div>
 					{:else}
 						<div class="empty-state">
-							<p>{$t('noCurrentMatch')}</p>
+							<p>{m.history_noCurrentMatch()}</p>
 						</div>
 					{/if}
 				</div>
@@ -864,7 +864,7 @@
 						</div>
 					{:else}
 						<div class="empty-state">
-							<p>{$t('noHistory')}</p>
+							<p>{m.history_noHistory()}</p>
 						</div>
 					{/if}
 				</div>
@@ -874,7 +874,7 @@
 					{#if $deletedMatches.length > 0}
 						<div class="deleted-actions">
 							<Button variant="danger" size="small" onclick={handleClearDeleted}>
-								{$t('permanentDelete')}
+								{m.history_permanentDeleteAll()}
 							</Button>
 						</div>
 						<div class="deleted-list">
@@ -888,7 +888,7 @@
 						</div>
 					{:else}
 						<div class="empty-state">
-							<p>{$t('noDeletedMatches')}</p>
+							<p>{m.history_noDeletedMatches()}</p>
 						</div>
 					{/if}
 				</div>

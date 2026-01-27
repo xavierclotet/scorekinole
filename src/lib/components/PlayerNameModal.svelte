@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import Button from './Button.svelte';
 
 	interface Props {
@@ -46,25 +46,25 @@
 	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
 		<div class="modal" onclick={stopPropagation} role="dialog">
 			<div class="modal-header">
-				<span class="modal-title">{$t('setPlayerName')}</span>
+				<span class="modal-title">{m.auth_setPlayerName()}</span>
 			</div>
 			<div class="modal-content">
 				<label for="playerNameInput" class="label">
-					{$t('playerNameDescription')}
+					{m.auth_playerNameDescription()}
 				</label>
 				<input
 					id="playerNameInput"
 					type="text"
 					class="input"
 					bind:value={inputValue}
-					placeholder={$t('enterPlayerName')}
+					placeholder={m.auth_enterPlayerName()}
 					maxlength="30"
 					onkeydown={handleKeydown}
 					autofocus
 				/>
 				<div class="actions">
 					<Button variant="primary" onclick={save}>
-						{$t('save')}
+						{m.common_save()}
 					</Button>
 				</div>
 			</div>

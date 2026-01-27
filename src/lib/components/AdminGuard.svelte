@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { currentUser } from '$lib/firebase/auth';
   import { canAccessAdmin, adminCheckLoading } from '$lib/stores/admin';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { onMount } from 'svelte';
 
   let hasChecked = false;
@@ -28,15 +28,15 @@
 {#if $adminCheckLoading}
   <div class="admin-guard-loading">
     <div class="spinner"></div>
-    <p>{$t('loading')}</p>
+    <p>{m.common_loading()}</p>
   </div>
 {:else if $canAccessAdmin}
   <slot />
 {:else}
   <div class="admin-guard-denied">
-    <h1>🔒 {$t('accessDenied')}</h1>
-    <p>{$t('adminOnly')}</p>
-    <button onclick={() => goto('/')}>{$t('goHome')}</button>
+    <h1>🔒 {m.admin_accessDenied()}</h1>
+    <p>{m.admin_adminPermissionsRequired()}</p>
+    <button onclick={() => goto('/')}>{m.common_goHome()}</button>
   </div>
 {/if}
 

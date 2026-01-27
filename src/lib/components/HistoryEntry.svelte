@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import type { MatchHistory } from '$lib/types/history';
 	import Button from './Button.svelte';
@@ -50,16 +50,16 @@
 		const badges = [];
 
 		// Game type
-		badges.push(match.gameType === 'singles' ? `👤 ${$t('singles')}` : `👥 ${$t('doubles')}`);
+		badges.push(match.gameType === 'singles' ? `👤 ${m.scoring_singles()}` : `👥 ${m.scoring_doubles()}`);
 
 		// Game mode
 		if (match.gameMode === 'rounds') {
-			badges.push(`🎯 ${match.roundsToPlay} ${$t('rounds')}`);
+			badges.push(`🎯 ${match.roundsToPlay} ${m.scoring_rounds()}`);
 		} else {
 			if (match.matchesToWin > 1) {
 				badges.push(`🎯 ${match.pointsToWin}pts • Win ${match.matchesToWin} games`);
 			} else {
-				badges.push(`🎯 ${match.pointsToWin} ${$t('points')}`);
+				badges.push(`🎯 ${match.pointsToWin} ${m.scoring_points()}`);
 			}
 		}
 
@@ -125,7 +125,7 @@
 		<div class="header-actions">
 			{#if $currentUser}
 				{#if match.syncStatus === 'synced'}
-					<span class="sync-badge synced">✅ {$t('synced')}</span>
+					<span class="sync-badge synced">✅ {m.history_synced()}</span>
 				{:else if match.syncStatus === 'error'}
 					<button
 						class="sync-badge error clickable"
@@ -136,7 +136,7 @@
 						❌ Error (retry)
 					</button>
 				{:else}
-					<span class="sync-badge pending">⏳ {$t('pending')}</span>
+					<span class="sync-badge pending">⏳ {m.history_pending()}</span>
 				{/if}
 			{/if}
 			{#if onDelete}
@@ -175,7 +175,7 @@
 					: (game.rounds?.reduce((sum, r) => sum + r.team2Twenty, 0) ?? 0)}
 				<div class="game-result-summary">
 					<span class="game-number">P{game.gameNumber}:</span>
-					<span class="winner-name">{winnerName} {$t('gana')}</span>
+					<span class="winner-name">{winnerName} {m.history_gana()}</span>
 					<span class="score">{winnerPoints}-{loserPoints}</span>
 					{#if (match.show20s ?? $gameSettings.show20s) && winner20s > 0}
 						<span class="twenties-summary">⭐ {winner20s}</span>
@@ -193,12 +193,12 @@
 					<!-- Table Header -->
 					<div class="game-row header">
 						<span class="team-name">
-							{$t('game')} {gameIndex + 1}
+							{m.history_game()} {gameIndex + 1}
 						</span>
 						{#each game.rounds as _, idx}
 							<span class="round-col">R{idx + 1}</span>
 						{/each}
-						<span class="total-col">{$t('total').toUpperCase()}</span>
+						<span class="total-col">{m.history_total().toUpperCase()}</span>
 					</div>
 
 					<!-- Team 1 Row -->
@@ -268,12 +268,12 @@
 		<div class="entry-actions">
 			{#if onRestore}
 				<Button variant="primary" size="small" onclick={onRestore}>
-					{$t('restore')}
+					{m.history_restore()}
 				</Button>
 			{/if}
 			{#if onPermanentDelete}
 				<Button variant="danger" size="small" onclick={onPermanentDelete}>
-					{$t('deletePermanent')}
+					{m.history_deletePermanent()}
 				</Button>
 			{/if}
 		</div>

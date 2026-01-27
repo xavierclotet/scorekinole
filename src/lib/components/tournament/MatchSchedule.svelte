@@ -6,7 +6,7 @@
     SwissPairing
   } from '$lib/types/tournament';
   import MatchCard from './MatchCard.svelte';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
     rounds?: RoundRobinRound[] | SwissPairing[];
@@ -51,7 +51,7 @@
   })());
 
   // Filter matches
-  let filteredRounds = $derived(safeRounds.map(round => {
+  let filteredRounds = $derived((safeRounds as any[]).map(round => {
     // Ensure matches is an array
     const matches = Array.isArray(round.matches) ? round.matches : Object.values(round.matches || {});
 
@@ -119,9 +119,9 @@
   {#if filteredRounds.length === 0}
     <div class="empty-state">
       <div class="empty-icon">📅</div>
-      <p>{$t('noMatchesToShow')}</p>
+      <p>{m.tournament_noMatchesToShow()}</p>
       {#if filterTable !== null || filterStatus !== null}
-        <p class="hint">{$t('tryChangingFilters')}</p>
+        <p class="hint">{m.tournament_tryChangingFilters()}</p>
       {/if}
     </div>
   {:else}
@@ -150,11 +150,11 @@
               </svg>
             </span>
             <div class="round-title">
-              <span class="round-number">{$t('round')} {round.roundNumber}</span>
+              <span class="round-number">{m.tournament_round()} {round.roundNumber}</span>
               {#if isComplete}
-                <span class="complete-badge">{$t('completed')}</span>
+                <span class="complete-badge">{m.tournament_completed()}</span>
               {:else if isLastRound}
-                <span class="last-round-badge">{$t('lastRound')}</span>
+                <span class="last-round-badge">{m.tournament_lastRound()}</span>
               {/if}
             </div>
           </div>
@@ -172,7 +172,6 @@
               <MatchCard
                 {match}
                 {participants}
-                roundNumber={round.roundNumber}
                 {onMatchClick}
                 {gameMode}
               />

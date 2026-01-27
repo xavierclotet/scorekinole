@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { adminTheme } from '$lib/stores/theme';
   import { savingParticipantResults } from '$lib/stores/tournament';
 </script>
@@ -8,7 +8,7 @@
   <div class="overlay" class:light={$adminTheme === 'light'}>
     <div class="loader-container">
       <div class="spinner"></div>
-      <p class="message">{$t('savingParticipantResults')}</p>
+      <p class="message">{m.common_savingParticipantResults()}</p>
     </div>
   </div>
 {/if}

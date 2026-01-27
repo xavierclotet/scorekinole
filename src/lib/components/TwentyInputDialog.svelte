@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { team1, team2 } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 
 	interface Props {
 		isOpen?: boolean;
@@ -124,7 +124,7 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="dialog" onclick={stopPropagation}>
-			<p class="title">{$t('twentyDialogTitle')}</p>
+			<p class="title">{m.scoring_twentyDialogTitle()}</p>
 			<div class="teams">
 				<div class="team-column">
 					<span class="team-name" style="color: {team1HeaderColor}">{team1Name}</span>

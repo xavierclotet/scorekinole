@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
     percentComplete?: number;
@@ -72,7 +72,7 @@
         {#if compact}
           {formatRemainingTime(remainingMinutes)}
         {:else}
-          {$t('remaining')}: {formatRemainingTime(remainingMinutes)}
+          {m.common_remaining()}: {formatRemainingTime(remainingMinutes)}
         {/if}
       </span>
       {#if showEstimatedEnd && estimatedEndTime}
@@ -80,7 +80,7 @@
           {#if compact}
             → {estimatedEndTime}
           {:else}
-            {$t('estimatedEnd')}: {estimatedEndTime}
+            {m.common_estimatedEnd()}: {estimatedEndTime}
           {/if}
         </span>
       {/if}

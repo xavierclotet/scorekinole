@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { team1, team2 } from '$lib/stores/teams';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { setCurrentGameStartHammer } from '$lib/stores/matchState';
 
 	interface Props {
@@ -52,7 +52,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="overlay">
 		<div class="dialog" onclick={stopPropagation}>
-			<p class="question">{$t('hammerDialogTitle')}</p>
+			<p class="question">{m.scoring_hammerDialogTitle()}</p>
 			<div class="options">
 				<button
 					class="option"

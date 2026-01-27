@@ -1,9 +1,8 @@
 <script lang="ts">
 	import Modal from './Modal.svelte';
-	import Button from './Button.svelte';
 	import NumberControl from './NumberControl.svelte';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { switchSides, switchColors } from '$lib/stores/teams';
 	import { gameTournamentContext, updateTournamentContext } from '$lib/stores/tournamentContext';
 	import type { Language } from '$lib/i18n/translations';
@@ -60,7 +59,7 @@
 	}
 </script>
 
-<Modal {isOpen} title={$t('settings')} onClose={onClose}>
+<Modal {isOpen} title={m.common_settings()} onClose={onClose}>
 	<div class="settings-modal">
 		<div class="settings-content">
 
@@ -68,7 +67,7 @@
 		{#if inTournamentMode}
 			<div class="tournament-banner">
 				<span class="lock-icon">🔒</span>
-				<span class="banner-text">{$t('lockedByTournament') || 'Bloqueado por torneo'}: {tournamentName}</span>
+				<span class="banner-text">{m.scoring_lockedByTournament()}: {tournamentName}</span>
 			</div>
 		{/if}
 
@@ -76,7 +75,7 @@
 		<div class="settings-row">
 			<!-- Game Type Section (Individual/Parejas) -->
 			<section class="settings-section" class:disabled={inTournamentMode}>
-				<h3>{$t('gameType')}</h3>
+				<h3>{m.scoring_gameType()}</h3>
 				<div class="button-group">
 					<button
 						class="mode-button"
@@ -85,7 +84,7 @@
 						type="button"
 						disabled={inTournamentMode}
 					>
-						{$t('singles')}
+						{m.scoring_singles()}
 					</button>
 					<button
 						class="mode-button"
@@ -94,14 +93,14 @@
 						type="button"
 						disabled={inTournamentMode}
 					>
-						{$t('doubles')}
+						{m.scoring_doubles()}
 					</button>
 				</div>
 			</section>
 
 			<!-- Game Mode Section -->
 			<section class="settings-section" class:disabled={inTournamentMode}>
-				<h3>{$t('gameMode')}</h3>
+				<h3>{m.scoring_gameMode()}</h3>
 				<div class="button-group">
 					<button
 						class="mode-button"
@@ -110,7 +109,7 @@
 						type="button"
 						disabled={inTournamentMode}
 					>
-						{$t('modePoints')}
+						{m.scoring_modePoints()}
 					</button>
 					<button
 						class="mode-button"
@@ -119,7 +118,7 @@
 						type="button"
 						disabled={inTournamentMode}
 					>
-						{$t('modeRounds')}
+						{m.scoring_modeRounds()}
 					</button>
 				</div>
 			</section>
@@ -135,7 +134,7 @@
 						min={1}
 						max={200}
 						step={1}
-						label={$t('pointsToWin')}
+						label={m.scoring_pointsToWin()}
 						disabled={inTournamentMode}
 					/>
 					<NumberControl
@@ -144,7 +143,7 @@
 						min={1}
 						max={10}
 						step={1}
-						label={$t('matchesToWin')}
+						label={m.scoring_matchesToWin()}
 						disabled={inTournamentMode}
 					/>
 				{:else}
@@ -154,11 +153,11 @@
 						min={1}
 						max={20}
 						step={1}
-						label={$t('roundsToPlay')}
+						label={m.scoring_roundsToPlay()}
 						disabled={inTournamentMode}
 					/>
 					<label class="toggle-item compact" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('allowTiesInRoundsMode'); }}>
-						<span class="toggle-label">{$t('allowTies')}</span>
+						<span class="toggle-label">{m.scoring_allowTies()}</span>
 						<input type="checkbox" checked={$gameSettings.allowTiesInRoundsMode} readonly disabled={inTournamentMode} />
 						<span class="toggle-switch"></span>
 					</label>
@@ -168,22 +167,22 @@
 
 		<!-- Feature Toggles -->
 		<section class="settings-section" class:disabled={inTournamentMode}>
-			<h3>{$t('features')}</h3>
+			<h3>{m.scoring_features()}</h3>
 			<div class="toggle-grid">
 				<label class="toggle-item" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('show20s'); }}>
-					<span class="toggle-label">{$t('track20s')}</span>
+					<span class="toggle-label">{m.scoring_track20s()}</span>
 					<input type="checkbox" checked={$gameSettings.show20s} readonly disabled={inTournamentMode} />
 					<span class="toggle-switch"></span>
 				</label>
 
 				<label class="toggle-item" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('showHammer'); }}>
-					<span class="toggle-label">{$t('hammer')}</span>
+					<span class="toggle-label">{m.scoring_hammer()}</span>
 					<input type="checkbox" checked={$gameSettings.showHammer} readonly disabled={inTournamentMode} />
 					<span class="toggle-switch"></span>
 				</label>
 
 				<label class="toggle-item" onclick={(e) => { e.preventDefault(); handleToggle('showTimer'); }}>
-					<span class="toggle-label">{$t('showTimer')}</span>
+					<span class="toggle-label">{m.scoring_showTimer()}</span>
 					<input type="checkbox" checked={$gameSettings.showTimer} readonly />
 					<span class="toggle-switch"></span>
 				</label>
@@ -193,7 +192,7 @@
 		<!-- Timer Configuration - Only shown if showTimer is true -->
 		{#if $gameSettings.showTimer}
 			<section class="settings-section">
-				<h3>{$t('timer')}</h3>
+				<h3>{m.scoring_timer()}</h3>
 				<div class="timer-controls">
 					<NumberControl
 						value={$gameSettings.timerMinutes}
@@ -201,7 +200,7 @@
 						min={0}
 						max={60}
 						step={1}
-						label="{$t('minutes')}"
+						label={m.scoring_minutes()}
 					/>
 					<NumberControl
 						value={$gameSettings.timerSeconds}
@@ -209,7 +208,7 @@
 						min={0}
 						max={45}
 						step={15}
-						label="{$t('seconds')}"
+						label={m.scoring_seconds()}
 					/>
 				</div>
 			</section>
@@ -217,22 +216,22 @@
 
 		<!-- Actions Section -->
 		<section class="settings-section advanced-section">
-			<h3>{$t('actions')}</h3>
+			<h3>{m.scoring_actions()}</h3>
 			<div class="action-buttons">
 				<button class="action-button" onclick={handleSwitchSides} type="button">
 					<span class="icon">⇄</span>
-					<span>{$t('switchSides')}</span>
+					<span>{m.scoring_switchSides()}</span>
 				</button>
 				<button class="action-button" onclick={handleSwitchColors} type="button">
 					<span class="icon">🎨</span>
-					<span>{$t('switchColors')}</span>
+					<span>{m.scoring_switchColors()}</span>
 				</button>
 			</div>
 		</section>
 
 		<!-- Language Section -->
 		<section class="settings-section">
-			<h3>{$t('language')}</h3>
+			<h3>{m.scoring_language()}</h3>
 			<div class="button-group-three">
 				<button
 					class="mode-button"

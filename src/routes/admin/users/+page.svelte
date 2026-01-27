@@ -4,7 +4,7 @@
   import UserEditModal from '$lib/components/UserEditModal.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
   import { getUsersPaginated, deleteUser, type AdminUserInfo } from '$lib/firebase/admin';
@@ -149,7 +149,7 @@
         <button class="back-btn" onclick={() => goto('/admin')}>←</button>
         <div class="header-main">
           <div class="title-section">
-            <h1>{$t('userManagement')}</h1>
+            <h1>{m.admin_userManagement()}</h1>
             <span class="count-badge">{totalCount}</span>
           </div>
         </div>
@@ -165,7 +165,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder={$t('searchUsers')}
+          placeholder={m.admin_searchUsers()}
           class="search-input"
         />
       </div>
@@ -176,7 +176,7 @@
           class:active={filterRole === 'all'}
           onclick={() => (filterRole = 'all')}
         >
-          {$t('all')} ({users.length})
+          {m.admin_all()} ({users.length})
         </button>
         <button
           class="filter-tab"
@@ -196,29 +196,29 @@
     </div>
 
     {#if isLoading}
-      <LoadingSpinner message={$t('loading')} />
+      <LoadingSpinner message={m.admin_loading()} />
     {:else if filteredUsers.length === 0}
       <div class="empty-state">
         <div class="empty-icon">👥</div>
-        <h3>{$t('noUsersFound')}</h3>
+        <h3>{m.admin_noUsersFound()}</h3>
         <p>{searchQuery || filterRole !== 'all' ? 'No hay usuarios que coincidan con los filtros' : 'No hay usuarios registrados'}</p>
       </div>
     {:else}
       <div class="results-info">
-        {$t('showingOf').replace('{showing}', String(filteredUsers.length)).replace('{total}', String(displayTotal))}
+        {m.admin_showingOf({ showing: String(filteredUsers.length), total: String(displayTotal) })}
       </div>
 
       <div class="table-container" onscroll={handleScroll}>
         <table class="users-table">
           <thead>
             <tr>
-              <th class="name-col">{$t('playerName')}</th>
-              <th class="email-col hide-mobile">{$t('email')}</th>
-              <th class="role-col">{$t('adminRole')}</th>
-              <th class="ranking-col">{$t('ranking')}</th>
-              <th class="tournaments-col hide-small">{$t('tournaments')}</th>
+              <th class="name-col">{m.admin_playerName()}</th>
+              <th class="email-col hide-mobile">{m.auth_email()}</th>
+              <th class="role-col">{m.admin_role()}</th>
+              <th class="ranking-col">{m.admin_ranking()}</th>
+              <th class="tournaments-col hide-small">{m.admin_tournaments()}</th>
               <th class="quota-col hide-small">Cuota</th>
-              <th class="created-col hide-small">{$t('createdAt')}</th>
+              <th class="created-col hide-small">{m.admin_createdAt()}</th>
               <th class="actions-col"></th>
             </tr>
           </thead>
@@ -274,14 +274,14 @@
                   <button
                     class="action-btn edit-btn"
                     onclick={(e) => { e.stopPropagation(); editUser(user); }}
-                    title={$t('editUser')}
+                    title={m.admin_editUser()}
                   >
                     ✏️
                   </button>
                   <button
                     class="action-btn delete-btn"
                     onclick={(e) => { e.stopPropagation(); showDeleteConfirm(user); }}
-                    title={$t('delete')}
+                    title={m.common_delete()}
                   >
                     🗑️
                   </button>
@@ -292,14 +292,14 @@
         </table>
 
         {#if isLoadingMore}
-          <LoadingSpinner size="small" message={$t('loadingMore')} inline={true} />
+          <LoadingSpinner size="small" message={m.admin_loadingMore()} inline={true} />
         {:else if hasMore && !isSearching && !isFiltering}
           <div class="load-more-hint">
-            {$t('scrollToLoadMore')}
+            {m.admin_scrollToLoadMore()}
           </div>
         {:else if !hasMore && filteredUsers.length > 0}
           <div class="end-of-list">
-            Fin de la lista
+            {m.admin_endOfList()}
           </div>
         {/if}
       </div>
@@ -317,7 +317,7 @@
   {#if userToDelete}
     <div class="delete-overlay" data-theme={$adminTheme} onclick={cancelDelete}>
       <div class="delete-modal" onclick={(e) => e.stopPropagation()}>
-        <h3>{$t('deleteUser')}</h3>
+        <h3>{m.admin_deleteUser()}</h3>
         <div class="user-preview">
           {#if userToDelete.photoURL}
             <img src={userToDelete.photoURL} alt="" class="preview-avatar" />
@@ -328,13 +328,13 @@
           {/if}
           <strong>{userToDelete.playerName || userToDelete.email || '?'}</strong>
         </div>
-        <p class="delete-warning">{$t('cannotBeUndone')}</p>
+        <p class="delete-warning">{m.admin_cannotBeUndone()}</p>
         <div class="delete-actions">
           <button class="cancel-btn" onclick={cancelDelete} disabled={isDeleting}>
-            {$t('cancel')}
+            {m.common_cancel()}
           </button>
           <button class="confirm-btn" onclick={confirmDelete} disabled={isDeleting}>
-            {isDeleting ? $t('deleting') : $t('delete')}
+            {isDeleting ? m.admin_deleting() : m.common_delete()}
           </button>
         </div>
       </div>

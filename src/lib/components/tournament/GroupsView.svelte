@@ -6,7 +6,7 @@
   } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchSchedule from './MatchSchedule.svelte';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
     tournament: Tournament;
@@ -55,18 +55,18 @@
   // Translate group name based on language
   // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
   function translateGroupName(name: string): string {
-    if (name === 'Swiss') return $t('swissSystem');
+    if (name === 'Swiss') return m.tournament_swissSystem();
     // New identifier format
-    if (name === 'SINGLE_GROUP') return $t('singleGroup');
+    if (name === 'SINGLE_GROUP') return m.tournament_singleGroup();
     const idMatch = name.match(/^GROUP_([A-H])$/);
     if (idMatch) {
-      return `${$t('group')} ${idMatch[1]}`;
+      return `${m.tournament_group()} ${idMatch[1]}`;
     }
     // Legacy Spanish format (for existing tournaments)
-    if (name === 'Grupo Único') return $t('singleGroup');
+    if (name === 'Grupo Único') return m.tournament_singleGroup();
     const legacyMatch = name.match(/^Grupo ([A-H])$/);
     if (legacyMatch) {
-      return `${$t('group')} ${legacyMatch[1]}`;
+      return `${m.tournament_group()} ${legacyMatch[1]}`;
     }
     return name;
   }
@@ -84,8 +84,6 @@
   let isSwiss = $derived(tournament.groupStage?.type === 'SWISS');
   // Support both new rankingSystem and legacy swissRankingSystem
   let rankingSystem = $derived(tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS');
-  // @deprecated - keep for backwards compatibility
-  let swissRankingSystem = $derived(rankingSystem);
   // For Swiss system, prefer numSwissRounds; fallback to totalRounds for round-robin
   let totalRounds = $derived(isSwiss
     ? (tournament.groupStage?.numSwissRounds || tournament.groupStage?.totalRounds || tournament.numSwissRounds || 0)
@@ -334,18 +332,18 @@
     <div class="view-header">
       <div class="header-content">
         <h2>
-          {isSwiss ? $t('swissSystem') : $t('groupStage')}
+          {isSwiss ? m.tournament_swissSystem() : m.tournament_groupStage()}
         </h2>
         <div class="round-info">
           {#if isSwiss && roundsProgress}
             <div class="overall-progress">
-              <span class="progress-text">{$t('round')} {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
+              <span class="progress-text">{m.tournament_round()} {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
               <div class="progress-bar">
                 <div class="progress-fill" style="width: {roundsProgress.percentage}%"></div>
               </div>
             </div>
           {:else}
-            <span class="round-label">{$t('nRounds').replace('{n}', String(totalRounds))}</span>
+            <span class="round-label">{m.tournament_nRounds({ n: String(totalRounds) })}</span>
             <div class="overall-progress">
               <span class="progress-text">{overallProgress.completed}/{overallProgress.total}</span>
             <div class="progress-bar">
@@ -361,23 +359,23 @@
   <!-- Filters and controls -->
   <div class="filters-bar">
     <div class="filter-group">
-      <label for="table-filter">{$t('tableLabel')}</label>
+      <label for="table-filter">{m.tournament_tableLabel()}</label>
       <select id="table-filter" bind:value={filterTable}>
-        <option value={null}>{$t('all')}</option>
+        <option value={null}>{m.tournament_all()}</option>
         {#each availableTables as table}
-          <option value={table}>{$t('tableN').replace('{n}', String(table))}</option>
+          <option value={table}>{m.tournament_tableN({ n: String(table) })}</option>
         {/each}
       </select>
     </div>
 
     <div class="filter-group">
-      <label for="status-filter">{$t('statusLabel')}</label>
+      <label for="status-filter">{m.tournament_statusLabel()}</label>
       <select id="status-filter" bind:value={filterStatus}>
-        <option value={null}>{$t('all')}</option>
-        <option value="PENDING">{$t('statusPending')}</option>
-        <option value="IN_PROGRESS">{$t('statusInProgress')}</option>
-        <option value="COMPLETED">{$t('statusCompleted')}</option>
-        <option value="WALKOVER">{$t('statusWalkover')}</option>
+        <option value={null}>{m.tournament_all()}</option>
+        <option value="PENDING">{m.tournament_statusPending()}</option>
+        <option value="IN_PROGRESS">{m.tournament_statusInProgress()}</option>
+        <option value="COMPLETED">{m.tournament_statusCompleted()}</option>
+        <option value="WALKOVER">{m.tournament_statusWalkover()}</option>
       </select>
     </div>
 
@@ -386,18 +384,18 @@
         <button
           class="toggle-btn"
           onclick={anyGroupExpanded ? collapseAll : expandAll}
-          title={anyGroupExpanded ? $t('collapseAllGroups') : $t('expandAllGroups')}
+          title={anyGroupExpanded ? m.tournament_collapseAllGroups() : m.tournament_expandAllGroups()}
         >
           {#if anyGroupExpanded}
             <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
             </svg>
-            {$t('collapseAllGroups')}
+            {m.tournament_collapseAllGroups()}
           {:else}
             <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
             </svg>
-            {$t('expandAllGroups')}
+            {m.tournament_expandAllGroups()}
           {/if}
         </button>
       {/if}
@@ -405,18 +403,18 @@
       <button
         class="toggle-btn"
         onclick={anyRoundExpanded ? collapseAllRounds : expandAllRounds}
-        title={anyRoundExpanded ? $t('collapseAllRoundsTooltip') : $t('expandAllRounds')}
+        title={anyRoundExpanded ? m.tournament_collapseAllRoundsTooltip() : m.tournament_expandAllRounds()}
       >
         {#if anyRoundExpanded}
           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M14.77 12.79a.75.75 0 01-1.06-.02L10 8.832 6.29 12.77a.75.75 0 11-1.08-1.04l4.25-4.5a.75.75 0 011.08 0l4.25 4.5a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
           </svg>
-          {$t('collapseAllRounds')}
+          {m.tournament_collapseAllRounds()}
         {:else}
           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
           </svg>
-          {$t('expandAllRounds')}
+          {m.tournament_expandAllRounds()}
         {/if}
       </button>
     </div>
@@ -425,7 +423,7 @@
   <!-- Groups as accordions -->
   {#if groups.length === 0}
     <div class="no-group-state">
-      <p>{$t('noGroupsConfigured')}</p>
+      <p>{m.tournament_noGroupsConfigured()}</p>
     </div>
   {:else}
     <div class="groups-accordions">
@@ -454,13 +452,13 @@
               </span>
               <span class="group-name">{translateGroupName(group.name)}</span>
               {#if progress.percentage === 100}
-                <span class="complete-badge">{$t('completed')}</span>
+                <span class="complete-badge">{m.tournament_completed()}</span>
               {/if}
             </div>
             <div class="header-right">
               <div class="progress-info">
                 {#if isSwiss && groups.length === 1 && roundsProgress}
-                  <span class="progress-label">{$t('round')} {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
+                  <span class="progress-label">{m.tournament_round()} {roundsProgress.completed + (overallProgress.percentage < 100 ? 1 : 0)}/{roundsProgress.total}</span>
                   <div class="mini-progress-bar">
                     <div
                       class="mini-progress-fill"
@@ -493,14 +491,14 @@
                     class:active={(groupViews[group.id] || 'schedule') === 'schedule'}
                     onclick={(e: MouseEvent) => { e.stopPropagation(); setGroupView(group.id, 'schedule'); }}
                   >
-                    {$t('schedule')}
+                    {m.tournament_schedule()}
                   </button>
                   <button
                     class="toggle-btn"
                     class:active={(groupViews[group.id] || 'schedule') === 'standings'}
                     onclick={(e: MouseEvent) => { e.stopPropagation(); setGroupView(group.id, 'standings'); }}
                   >
-                    {$t('standings')}
+                    {m.tournament_standings()}
                   </button>
                 </div>
 
@@ -512,19 +510,19 @@
                   >
                     {#if generatingRound}
                       <span class="spinner"></span>
-                      {$t('generatingRound')}
+                      {m.tournament_generatingRound()}
                     {:else}
-                      {$t('generateRound').replace('{n}', String((roundsProgress?.completed || 0) + 1))}
+                      {m.tournament_generateRound({ n: String((roundsProgress?.completed || 0) + 1) })}
                     {/if}
                   </button>
                 {/if}
               </div>
 
-              <!-- Group content -->
+            <!-- Group content -->
               <div class="group-content">
                 {#if (groupViews[group.id] || 'schedule') === 'schedule'}
                   <MatchSchedule
-                    {rounds}
+                    rounds={rounds as any}
                     participants={tournament.participants}
                     {currentRound}
                     onMatchClick={(match) => handleMatchClick(group.id, match)}
@@ -539,7 +537,6 @@
                   <GroupStandings
                     standings={group.standings}
                     participants={tournament.participants}
-                    showElo={tournament.rankingConfig?.enabled}
                     {isSwiss}
                     {rankingSystem}
                     enableTiebreaker={false}

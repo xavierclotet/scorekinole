@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import type { MatchHistory } from '$lib/types/history';
 	import Button from './Button.svelte';
@@ -63,22 +63,22 @@
 	<div class="modal-overlay" onclick={close} onkeydown={handleKeydown} role="button" tabindex="-1">
 		<div class="modal" onclick={stopPropagation} onkeydown={stopPropagation} role="dialog">
 			<div class="modal-header">
-				<h2>{$t('confirmTeamForEachMatch')}</h2>
+				<h2>{m.sync_confirmTeamForEachMatch()}</h2>
 				<button class="close-btn" onclick={close} aria-label="Close">×</button>
 			</div>
 
 			<div class="modal-content">
 				<p class="description">
-					{$t('selectTeamBeforeSyncing')}
+					{m.sync_selectTeamBeforeSyncing()}
 				</p>
 
 				{#if confirmedCount === 0}
 					<div class="status-banner warning">
-						{$t('selectAtLeastOne')}
+						{m.sync_selectAtLeastOne()}
 					</div>
 				{:else}
 					<div class="status-banner info">
-						{confirmedCount} / {matches.length} {$t('matchesSelected')}
+							{confirmedCount} / {matches.length} {m.sync_matchesSelected()}
 					</div>
 				{/if}
 
@@ -133,7 +133,7 @@
 									class:selected={selected === null && teamSelections.has(match.id)}
 									onclick={() => handleTeamSelect(match.id, null)}
 									type="button"
-									title={$t('iDidntPlay')}
+									title={m.sync_iDidntPlay()}
 								>
 									❌
 								</button>
@@ -144,10 +144,10 @@
 
 				<div class="modal-actions">
 					<Button variant="secondary" onclick={close}>
-						{$t('cancel')}
+						{m.common_cancel()}
 					</Button>
 					<Button variant="primary" onclick={handleConfirm} disabled={!atLeastOneConfirmed}>
-						{$t('syncSelected')}
+						{m.sync_syncSelected()}
 					</Button>
 				</div>
 			</div>

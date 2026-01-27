@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Tournament } from '$lib/types/tournament';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
     tournament: Tournament;
@@ -476,16 +476,16 @@
         <tr>
           <th class="checkbox-col"></th>
           <th class="pos-col">#</th>
-          <th class="name-col">{$t('participant')}</th>
-          <th class="matches-col">{$t('matchesPlayed')}</th>
-          <th class="wins-col">{$t('matchesWon')}</th>
-          <th class="losses-col">{$t('matchesLost')}</th>
-          <th class="ties-col">{$t('matchesTied')}</th>
+          <th class="name-col">{m.tournament_participant()}</th>
+          <th class="matches-col">{m.tournament_matchesPlayed()}</th>
+          <th class="wins-col">{m.tournament_matchesWon()}</th>
+          <th class="losses-col">{m.tournament_matchesLost()}</th>
+          <th class="ties-col">{m.tournament_matchesTied()}</th>
           {#if rankingSystem === 'WINS'}
-            <th class="points-col primary-col" title={$t('pointsStandard')}>{$t('pointsShort')}</th>
+            <th class="points-col primary-col" title={m.tournament_pointsStandard()}>{m.tournament_pointsShort()}</th>
           {/if}
-          <th class="twenties-col">{$t('twentiesShort')}</th>
-          <th class="scored-col" class:primary-col={rankingSystem === 'POINTS'} title={$t('totalCrokinolePoints')}>PT</th>
+          <th class="twenties-col">{m.tournament_twentiesShort()}</th>
+          <th class="scored-col" class:primary-col={rankingSystem === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>PT</th>
         </tr>
       </thead>
       <tbody>
@@ -526,7 +526,7 @@
                   <button
                     class="tie-badge"
                     onclick={(e: MouseEvent) => openTiebreakerModal(standing, e)}
-                    title="{$t('miniLeagueTiebreaker')}"
+                    title="{m.tournament_miniLeagueTiebreaker()}"
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                       <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4"/>
@@ -537,18 +537,18 @@
                 {/if}
                 {#if hasTie}
                   <!-- Unresolved tie - show warning and resolve buttons -->
-                  <span class="tie-indicator" title="{$t('tiedWith')}: {tiedNames}">⚠️</span>
+                  <span class="tie-indicator" title="{m.tournament_tiedWith()}: {tiedNames}">⚠️</span>
                   {#if canMoveDown(standing.participantId)}
                     <div class="tie-actions">
                       <button
                         class="tie-btn confirm-btn"
                         onclick={(e: MouseEvent) => confirmOrder(standing.participantId, e)}
-                        title={$t('confirmOrder')}
+                        title={m.tournament_confirmOrder()}
                       >=</button>
                       <button
                         class="tie-btn swap-btn"
                         onclick={(e: MouseEvent) => moveDown(standing.participantId, e)}
-                        title={$t('swapOrder')}
+                        title={m.tournament_swapOrder()}
                       >↓</button>
                     </div>
                   {/if}
@@ -563,7 +563,7 @@
               <td
                 class="points-col primary-col clickable-pts"
                 onclick={(e: MouseEvent) => openPlayerMatches(standing.participantId, e)}
-                title={$t('viewMatches')}
+                title={m.tournament_viewMatches()}
               >
                 <strong>{isSwiss ? swissPoints : standing.points}</strong>
               </td>
@@ -587,18 +587,18 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="tiebreaker-modal" onclick={(e: MouseEvent) => e.stopPropagation()} onkeydown={(e: KeyboardEvent) => e.stopPropagation()} role="dialog" aria-modal="true">
       <div class="modal-header tiebreaker-header">
-        <h3>{$t('miniLeagueTiebreaker')}</h3>
+        <h3>{m.tournament_miniLeagueTiebreaker()}</h3>
         <button class="close-btn" onclick={closeTiebreakerModal} aria-label="Close">×</button>
       </div>
       <div class="modal-body">
-        <p class="modal-description">{$t('miniLeagueDescription')}</p>
+        <p class="modal-description">{m.tournament_miniLeagueDescription()}</p>
         <table class="tiebreaker-table">
           <thead>
             <tr>
               <th class="pos-col">#</th>
-              <th class="name-col">{$t('participant')}</th>
-              <th class="mini-pts-col">{$t('pointsShort')}</th>
-              <th class="mini-20s-col">{$t('twentiesShort')}</th>
+              <th class="name-col">{m.tournament_participant()}</th>
+              <th class="mini-pts-col">{m.tournament_pointsShort()}</th>
+              <th class="mini-20s-col">{m.tournament_twentiesShort()}</th>
             </tr>
           </thead>
           <tbody>
@@ -634,7 +634,7 @@
       </div>
       <div class="modal-body">
         {#if selectedPlayerMatches.length === 0}
-          <p class="no-matches">{$t('noMatchesYet')}</p>
+          <p class="no-matches">{m.tournament_noMatchesYet()}</p>
         {:else}
           <div class="matches-list">
             {#each selectedPlayerMatches as match}

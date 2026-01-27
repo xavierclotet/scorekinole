@@ -1,14 +1,25 @@
-import { writable, derived } from 'svelte/store';
-import { translations, type Language, type TranslationKey } from '$lib/i18n/translations';
+import { writable } from 'svelte/store';
+import { setLocale } from '$lib/paraglide/runtime.js';
+
+export type Language = 'es' | 'ca' | 'en';
 
 // Store for current language
-export const language = writable<Language>('es');
+const _language = writable<Language>('es');
 
-// Derived store for translation function
-// This makes translations reactive automatically
-export const t = derived(
-    language,
-    ($lang) => (key: TranslationKey): string => {
-        return translations[$lang]?.[key] || key;
+// Wrapper that syncs with Paraglide
+export const language = {
+    subscribe: _language.subscribe,
+    set: (lang: Language) => {
+        _language.set(lang);
+        // Sync with Paraglide (without reload to avoid page refresh)
+        setLocale(lang);
+    },
+    update: (fn: (lang: Language) => Language) => {
+        _language.update((current) => {
+            const newLang = fn(current);
+            setLocale(newLang);
+            return newLang;
+        });
     }
-);
+};
+

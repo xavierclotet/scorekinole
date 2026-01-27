@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { adminTheme } from '$lib/stores/theme';
   import type { MatchHistory, MatchGame } from '$lib/types/history';
   import { updateMatch } from '$lib/firebase/admin';
@@ -81,85 +81,85 @@
 <div class="modal-backdrop" onclick={onClose} data-theme={$adminTheme}>
   <div class="modal-content" onclick={stopPropagation}>
     <div class="modal-header">
-      <h2>✏️ {$t('editMatch')}</h2>
+      <h2>✏️ {m.admin_editMatch()}</h2>
       <button class="close-button" onclick={onClose}>✕</button>
     </div>
 
     <div class="modal-body">
       <!-- Basic Information Section -->
       <div class="section">
-        <h3>ℹ️ {$t('basicInformation')}</h3>
+        <h3>ℹ️ {m.admin_basicInformation()}</h3>
 
         <div class="info-grid">
           <div class="info-item">
-            <span class="label">{$t('dateLabel')}</span>
+            <span class="label">{m.admin_dateLabel()}</span>
             <span class="value">{formatDate(match.startTime)}</span>
           </div>
           <div class="info-item">
-            <span class="label">{$t('modeLabel')}</span>
-            <span class="value">{match.gameMode === 'points' ? $t('toNPoints').replace('{n}', String(match.pointsToWin)) : $t('nRoundsMode').replace('{n}', String(match.roundsToPlay))}</span>
+            <span class="label">{m.admin_modeLabel()}</span>
+            <span class="value">{match.gameMode === 'points' ? m.admin_toNPoints({ n: String(match.pointsToWin) }) : m.admin_nRoundsMode({ n: String(match.roundsToPlay) })}</span>
           </div>
           <div class="info-item">
-            <span class="label">{$t('typeLabel')}</span>
-            <span class="value">{match.gameType === 'singles' ? $t('singles') : $t('doubles')}</span>
+            <span class="label">{m.admin_typeLabel()}</span>
+            <span class="value">{match.gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()}</span>
           </div>
         </div>
       </div>
 
       <!-- Team Names & Match Info -->
       <div class="section">
-        <h3>👥 {$t('teamsAndEvent')}</h3>
+        <h3>👥 {m.admin_teamsAndEvent()}</h3>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="team1Name">{$t('team1')}</label>
+            <label for="team1Name">{m.admin_team1()}</label>
             <input
               id="team1Name"
               type="text"
               bind:value={team1Name}
-              placeholder={$t('team1Placeholder')}
+              placeholder={m.admin_team1Placeholder()}
             />
           </div>
 
           <div class="form-group">
-            <label for="team2Name">{$t('team2')}</label>
+            <label for="team2Name">{m.admin_team2()}</label>
             <input
               id="team2Name"
               type="text"
               bind:value={team2Name}
-              placeholder={$t('team2Placeholder')}
+              placeholder={m.admin_team2Placeholder()}
             />
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="gameType">{$t('matchType')}</label>
+            <label for="gameType">{m.admin_matchType()}</label>
             <select id="gameType" bind:value={gameType}>
-              <option value="singles">{$t('singles')}</option>
-              <option value="doubles">{$t('doubles')}</option>
+              <option value="singles">{m.scoring_singles()}</option>
+              <option value="doubles">{m.scoring_doubles()}</option>
             </select>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="eventTitle">{$t('eventTitleLabel')}</label>
+            <label for="eventTitle">{m.admin_eventTitleLabel()}</label>
             <input
               id="eventTitle"
               type="text"
               bind:value={eventTitle}
-              placeholder={$t('eventTitleExample')}
+              placeholder={m.admin_eventTitleExample()}
             />
           </div>
 
           <div class="form-group">
-            <label for="matchPhase">{$t('phaseLabel')}</label>
+            <label for="matchPhase">{m.admin_phaseLabel()}</label>
             <input
               id="matchPhase"
               type="text"
               bind:value={matchPhase}
-              placeholder={$t('phaseExample')}
+              placeholder={m.admin_phaseExample()}
             />
           </div>
         </div>
@@ -167,7 +167,7 @@
 
       <!-- Games/Rounds Section -->
       <div class="section">
-        <h3>🎯 {$t('gamesAndRounds')}</h3>
+        <h3>🎯 {m.admin_gamesAndRounds()}</h3>
 
         <!-- Game Tabs (if multiple games) -->
         {#if editableGames.length > 1}
@@ -178,7 +178,7 @@
                 class:active={selectedGameIndex === index}
                 onclick={() => selectGame(index)}
               >
-                {$t('game')} {index + 1}
+                {m.history_game()} {index + 1}
                 {#if game.winner}
                   <span class="winner-indicator" style="color: {game.winner === 1 ? match.team1Color : match.team2Color}">
                     👑
@@ -193,7 +193,7 @@
         {#if editableGames[selectedGameIndex]}
           <div class="rounds-container">
             <div class="rounds-header">
-              <span>{$t('round')}</span>
+              <span>{m.scoring_round()}</span>
               <span style="color: {match.team1Color}">{team1Name}</span>
               <span style="color: {match.team2Color}">{team2Name}</span>
               {#if match.show20s}
@@ -245,7 +245,7 @@
             {/each}
 
             <div class="game-totals">
-              <span>{$t('total')}:</span>
+              <span>{m.history_total()}:</span>
               <span style="color: {match.team1Color}; font-weight: 700;">
                 {editableGames[selectedGameIndex].rounds.reduce((sum, r) => sum + r.team1Points, 0)} pts
               </span>
@@ -264,10 +264,10 @@
 
     <div class="modal-footer">
       <button class="cancel-button" onclick={onClose} disabled={isSaving}>
-        {$t('cancel')}
+        {m.common_cancel()}
       </button>
       <button class="save-button" onclick={saveChanges} disabled={isSaving}>
-        {isSaving ? $t('savingChanges') : '💾 ' + $t('saveChangesBtn')}
+        {isSaving ? m.admin_savingChanges() : '💾 ' + m.admin_saveChangesBtn()}
       </button>
     </div>
   </div>

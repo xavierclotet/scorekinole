@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { currentUser } from '$lib/firebase/auth';
 	import Button from './Button.svelte';
 
@@ -23,7 +23,7 @@
 
 	async function save() {
 		if (!playerNameInput.trim()) {
-			error = $t('enterPlayerName');
+			error = m.auth_enterPlayerName();
 			return;
 		}
 
@@ -50,7 +50,7 @@
 	<div class="modal-overlay" role="dialog" aria-modal="true">
 		<div class="modal">
 			<div class="modal-header">
-				<span class="modal-title">{$t('setPlayerName')}</span>
+				<span class="modal-title">{m.auth_setPlayerName()}</span>
 			</div>
 			<div class="modal-content">
 				{#if $currentUser?.photoURL}
@@ -60,7 +60,7 @@
 				{/if}
 
 				<p class="welcome-text">
-					{$t('playerNameDescription')}
+					{m.auth_playerNameDescription()}
 				</p>
 
 				{#if error}
@@ -71,14 +71,14 @@
 
 				<div class="input-group">
 					<label for="completeProfileNameInput" class="label">
-						{$t('playerName')}
+						{m.auth_playerName()}
 					</label>
 					<input
 						id="completeProfileNameInput"
 						type="text"
 						class="input"
 						bind:value={playerNameInput}
-						placeholder={$t('enterPlayerName')}
+						placeholder={m.auth_enterPlayerName()}
 						maxlength="30"
 						onkeydown={handleKeydown}
 						autofocus
@@ -89,9 +89,9 @@
 				<div class="actions">
 					<Button variant="primary" onclick={save} disabled={isLoading || !playerNameInput.trim()}>
 						{#if isLoading}
-							{$t('saving')}...
+							{m.common_saving()}...
 						{:else}
-							{$t('save')}
+							{m.common_save()}
 						{/if}
 					</Button>
 				</div>

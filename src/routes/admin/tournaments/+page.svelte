@@ -5,7 +5,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { adminTheme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
   import { getTournamentsPaginated, deleteTournament as deleteTournamentFirebase } from '$lib/firebase/tournaments';
@@ -128,15 +128,15 @@
   function getStatusText(status: string): string {
     switch (status) {
       case 'DRAFT':
-        return $t('draft');
+        return m.admin_draft();
       case 'GROUP_STAGE':
-        return $t('groupStage');
+        return m.tournament_groupStage();
       case 'FINAL_STAGE':
-        return $t('finalStage');
+        return m.tournament_finalStage();
       case 'COMPLETED':
-        return $t('completed');
+        return m.admin_completed();
       case 'CANCELLED':
-        return $t('cancelled');
+        return m.admin_cancelled();
       default:
         return status;
     }
@@ -198,14 +198,14 @@
     const success = await deleteTournamentFirebase(tournamentToDelete.id);
 
     if (success) {
-      toastMessage = $t('tournamentDeletedSuccess');
+      toastMessage = m.admin_tournamentDeletedSuccess();
       toastType = 'success';
       showToast = true;
       tournaments = tournaments.filter(t => t.id !== tournamentToDelete!.id);
       totalCount = Math.max(0, totalCount - 1);
       filterTournaments();
     } else {
-      toastMessage = $t('tournamentDeleteError');
+      toastMessage = m.admin_tournamentDeleteError();
       toastType = 'error';
       showToast = true;
     }
@@ -223,13 +223,13 @@
         <button class="back-btn" onclick={() => goto('/admin')}>←</button>
         <div class="header-main">
           <div class="title-section">
-            <h1>{$t('tournamentManagement')}</h1>
+            <h1>{m.admin_tournamentManagement()}</h1>
             <span class="count-badge">{totalCount}</span>
           </div>
         </div>
         <div class="header-actions">
           <button class="create-btn" onclick={createTournament}>
-            + {$t('createTournament')}
+            + {m.admin_createTournament()}
           </button>
           <ThemeToggle />
         </div>
@@ -242,7 +242,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder={$t('searchTournaments')}
+          placeholder={m.admin_searchTournaments()}
           class="search-input"
         />
       </div>
@@ -253,28 +253,28 @@
           class:active={statusFilter === 'all'}
           onclick={() => (statusFilter = 'all')}
         >
-          {$t('all')} ({tournaments.length})
+          {m.admin_all()} ({tournaments.length})
         </button>
         <button
           class="filter-tab"
           class:active={statusFilter === 'DRAFT'}
           onclick={() => (statusFilter = 'DRAFT')}
         >
-          {$t('drafts')}
+          {m.admin_drafts()}
         </button>
         <button
           class="filter-tab"
           class:active={statusFilter === 'COMPLETED'}
           onclick={() => (statusFilter = 'COMPLETED')}
         >
-          {$t('completedPlural')}
+          {m.admin_completedPlural()}
         </button>
       </div>
 
       {#if $isSuperAdminUser}
         <select class="creator-filter" bind:value={creatorFilter}>
-          <option value="all">{$t('allCreators')}</option>
-          <option value="mine">{$t('myTournaments')}</option>
+          <option value="all">{m.admin_allCreators()}</option>
+          <option value="mine">{m.admin_myTournaments()}</option>
           {#each uniqueCreators as creator}
             <option value={creator.userId}>{creator.userName}</option>
           {/each}
@@ -283,33 +283,33 @@
     </div>
 
     {#if loading}
-      <LoadingSpinner message={$t('loading')} />
+      <LoadingSpinner message={m.admin_loading()} />
     {:else if filteredTournaments.length === 0}
       <div class="empty-state">
         <div class="empty-icon">🏆</div>
-        <h3>{$t('noTournaments')}</h3>
+        <h3>{m.admin_noTournaments()}</h3>
         <p>
           {searchQuery || statusFilter !== 'all'
-            ? $t('noTournamentsFiltered')
-            : $t('useCreateButton')}
+            ? m.admin_noTournamentsFiltered()
+            : m.admin_useCreateButton()}
         </p>
       </div>
     {:else}
       <div class="results-info">
-        {$t('showingOf').replace('{showing}', String(filteredTournaments.length)).replace('{total}', String(displayTotal))}
+        {m.admin_showingOf({ showing: String(filteredTournaments.length), total: String(displayTotal) })}
       </div>
 
       <div class="table-container" onscroll={handleScroll}>
         <table class="tournaments-table">
           <thead>
             <tr>
-              <th class="name-col">{$t('name')}</th>
-              <th class="city-col hide-small hide-mobile">{$t('city')}</th>
-              <th class="status-col">{$t('status')}</th>
-              <th class="type-col hide-mobile">{$t('type')}</th>
-              <th class="mode-col hide-mobile">{$t('mode')}</th>
+              <th class="name-col">{m.admin_tournamentName()}</th>
+              <th class="city-col hide-small hide-mobile">{m.admin_city()}</th>
+              <th class="status-col">{m.admin_status()}</th>
+              <th class="type-col hide-mobile">{m.admin_type()}</th>
+              <th class="mode-col hide-mobile">{m.admin_mode()}</th>
               <th class="participants-col">Players</th>
-              <th class="created-col hide-small hide-mobile">{$t('createdBy')}</th>
+              <th class="created-col hide-small hide-mobile">{m.admin_createdBy()}</th>
               <th class="actions-col"></th>
             </tr>
           </thead>
@@ -349,12 +349,12 @@
                 <td class="mode-cell hide-mobile">
                   {#if tournament.groupStage?.type}
                     <span class="mode-group">
-                      {tournament.groupStage.type === 'SWISS' ? $t('swiss') : 'RR'}
+                      {tournament.groupStage.type === 'SWISS' ? m.admin_swissSystem() : 'RR'}
                     </span>
                     <span class="mode-separator">+</span>
                   {/if}
                   {#if tournament.finalStage?.mode === 'SPLIT_DIVISIONS'}
-                    <span class="mode-final split">{$t('goldSilver')}</span>
+                    <span class="mode-final split">{m.admin_goldSilverDivisions()}</span>
                   {:else}
                     <span class="mode-final">1F</span>
                   {/if}
@@ -372,14 +372,14 @@
                   <button
                     class="action-btn duplicate-btn"
                     onclick={(e) => { e.stopPropagation(); duplicateTournament(tournament); }}
-                    title={$t('duplicateTournament')}
+                    title={m.admin_duplicateTournament()}
                   >
                     📋
                   </button>
                   <button
                     class="action-btn delete-btn"
                     onclick={(e) => { e.stopPropagation(); confirmDelete(tournament); }}
-                    title={$t('delete')}
+                    title={m.common_delete()}
                   >
                     🗑️
                   </button>
@@ -390,14 +390,14 @@
         </table>
 
         {#if loadingMore}
-          <LoadingSpinner size="small" message={$t('loadingMore')} inline={true} />
+          <LoadingSpinner size="small" message={m.admin_loadingMore()} inline={true} />
         {:else if hasMore && !isSearching && !isFiltering}
           <div class="load-more-hint">
-            {$t('scrollToLoadMore')}
+            {m.admin_scrollToLoadMore()}
           </div>
         {:else if !hasMore && !isSearching && !isFiltering}
           <div class="end-of-list">
-            {$t('endOfList')}
+            {m.admin_endOfList()}
           </div>
         {/if}
       </div>
@@ -408,22 +408,22 @@
   {#if showDeleteConfirm && tournamentToDelete}
     <div class="modal-backdrop" data-theme={$adminTheme} onclick={() => !deleting && cancelDelete()}>
       <div class="confirm-modal" onclick={(e) => e.stopPropagation()}>
-        <h2>{$t('confirmDelete')}</h2>
-        <p>{$t('confirmCancelTournament')}</p>
+        <h2>{m.admin_confirmDelete()}</h2>
+        <p>{m.admin_confirmCancelTournament()}</p>
         <div class="tournament-info">
           <strong>{tournamentToDelete.name}</strong>
           <br />
-          <span>{tournamentToDelete.participants.length} {$t('participants')}</span>
+          <span>{tournamentToDelete.participants.length} {m.admin_participants()}</span>
           <br />
-          <span>{$t('createdAt')}: {formatDate(tournamentToDelete.createdAt)}</span>
+          <span>{m.admin_createdAt()}: {formatDate(tournamentToDelete.createdAt)}</span>
         </div>
         <div class="confirm-actions">
-          <button class="cancel-btn" onclick={cancelDelete} disabled={deleting}>{$t('cancel')}</button>
+          <button class="cancel-btn" onclick={cancelDelete} disabled={deleting}>{m.common_cancel()}</button>
           <button class="delete-btn-confirm" onclick={deleteTournament} disabled={deleting}>
             {#if deleting}
-              <LoadingSpinner size="small" inline={true} message={$t('deleting')} />
+              <LoadingSpinner size="small" inline={true} message={m.admin_deleting()} />
             {:else}
-              {$t('delete')}
+              {m.common_delete()}
             {/if}
           </button>
         </div>

@@ -2,7 +2,8 @@
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { get } from 'svelte/store';
 	import { goto } from '$app/navigation';
-	import { language, t } from '$lib/stores/language';
+	import { language } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, switchColors } from '$lib/stores/teams';
 	import { timeRemaining, resetTimer, cleanupTimer } from '$lib/stores/timer';
@@ -1244,13 +1245,13 @@
 			<div class="header-center">
 				<span class="header-phase">
 					{#if $gameTournamentContext?.phase === 'GROUP'}
-						{$t('groupStage') || 'Fase de Grupos'}
+						{m.tournament_groupStage() || 'Fase de Grupos'}
 					{:else}
 						{$gameTournamentContext?.bracketRoundName || 'Bracket'}
 						{#if $gameTournamentContext?.bracketType === 'gold'}
-							<span class="bracket-type gold">{$t('gold')}</span>
+							<span class="bracket-type gold">{m.scoring_gold()}</span>
 						{:else if $gameTournamentContext?.bracketType === 'silver'}
-							<span class="bracket-type silver">{$t('silver')}</span>
+							<span class="bracket-type silver">{m.scoring_silver()}</span>
 						{/if}
 					{/if}
 				</span>
@@ -1263,10 +1264,10 @@
 			</div>
 
 			<div class="header-right">
-				<button class="header-btn" onclick={handleSwitchSides} aria-label={$t('switchSides')} title={$t('switchSides')}>
+				<button class="header-btn" onclick={handleSwitchSides} aria-label={m.scoring_switchSides()} title={m.scoring_switchSides()}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/></svg>
 				</button>
-				<button class="header-btn header-btn-danger" onclick={handleTournamentExit} aria-label={$t('exitTournamentMode')} title={$t('exitTournamentMode')}>
+				<button class="header-btn header-btn-danger" onclick={handleTournamentExit} aria-label={m.tournament_exitMode()} title={m.tournament_exitMode()}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 				</button>
 			</div>
@@ -1290,7 +1291,7 @@
 						onblur={saveEventTitle}
 						onkeydown={handleEventTitleKeydown}
 						class="header-input"
-						placeholder={$t('eventTitle')}
+						placeholder={m.scoring_eventTitle()}
 					/>
 				{:else if $gameSettings.eventTitle && $gameSettings.eventTitle !== 'Scorekinole'}
 					<button class="header-title" onclick={startEditingEventTitle}>
@@ -1309,7 +1310,7 @@
 							onblur={saveMatchPhase}
 							onkeydown={handleMatchPhaseKeydown}
 							class="header-input header-input-small"
-							placeholder={$t('matchPhase')}
+							placeholder={m.scoring_matchPhase()}
 						/>
 					{:else}
 						<button class="header-phase" onclick={startEditingMatchPhase}>
@@ -1324,10 +1325,10 @@
 			</div>
 
 			<div class="header-right">
-				<button class="header-btn" onclick={() => showHistory = true} aria-label="History" title={$t('matchHistory')}>
+				<button class="header-btn" onclick={() => showHistory = true} aria-label="History" title={m.history_matchHistory()}>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 				</button>
-				<button class="header-btn" onclick={() => showSettings = true} aria-label="Settings" title={$t('settings')}>
+				<button class="header-btn" onclick={() => showSettings = true} aria-label="Settings" title={m.common_settings()}>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 				</button>
 			</div>
@@ -1353,7 +1354,7 @@
 		{#if isTieMatch}
 			<div class="tie-overlay">
 				<div class="tie-badge">
-					{$t('tie') || 'EMPATE'}
+					{m.scoring_tie() || 'EMPATE'}
 				</div>
 			</div>
 		{/if}
@@ -1362,7 +1363,7 @@
 		{#if isInExtraRounds && !$team1.hasWon && !$team2.hasWon}
 			<div class="extra-round-indicator">
 				<div class="extra-round-badge">
-					{$t('extraRound') || 'RONDA EXTRA'}
+					{m.scoring_extraRound() || 'RONDA EXTRA'}
 				</div>
 			</div>
 		{/if}
@@ -1405,14 +1406,14 @@
 	{#if showNextGameButton}
 		<div class="next-game-container">
 			<button class="next-game-button" onclick={handleNextGame}>
-				{$t('nextGame')}
+				{m.scoring_nextGame()}
 			</button>
 		</div>
 	{/if}
 
 	<!-- New Match Floating Button - hide in tournament mode -->
 	{#if !inTournamentMode}
-		<button class="floating-button new-match-button" onclick={handleNewMatchClick} aria-label={$t('newMatchButton')} title={$t('newMatchButton')}>
+		<button class="floating-button new-match-button" onclick={handleNewMatchClick} aria-label={m.scoring_newMatchButton()} title={m.scoring_newMatchButton()}>
 			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
 		</button>
 
@@ -1420,8 +1421,8 @@
 		<button
 			class="floating-button tournament-button"
 			onclick={() => showTournamentModal = true}
-			aria-label={$t('playTournamentMatch') || 'Jugar partido de torneo'}
-			title={$t('playTournamentMatch') || 'Jugar partido de torneo'}
+			aria-label={m.tournament_playMatch() || 'Jugar partido de torneo'}
+			title={m.tournament_playMatch() || 'Jugar partido de torneo'}
 		>
 			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
 		</button>
@@ -1430,8 +1431,8 @@
 		<button
 			class="floating-button reset-tournament-button"
 			onclick={handleTournamentResetClick}
-			aria-label={$t('resetMatch') || 'Reiniciar partido'}
-			title={$t('resetMatch') || 'Reiniciar partido'}
+			aria-label={m.scoring_resetMatch() || 'Reiniciar partido'}
+			title={m.scoring_resetMatch() || 'Reiniciar partido'}
 			disabled={isResettingTournament}
 		>
 			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -1449,13 +1450,13 @@
 				<div class="newmatch-icon">
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
 				</div>
-				<p class="newmatch-title">{$t('confirmNewMatch')}</p>
+				<p class="newmatch-title">{m.scoring_confirmNewMatch()}</p>
 				<div class="newmatch-buttons">
 					<button class="newmatch-btn cancel" onclick={cancelNewMatch}>
-						{$t('cancel')}
+						{m.common_cancel()}
 					</button>
 					<button class="newmatch-btn confirm" onclick={confirmNewMatch}>
-						{$t('confirm')}
+						{m.common_confirm()}
 					</button>
 				</div>
 			</div>
@@ -1471,7 +1472,7 @@
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<div class="exit-dialog" onclick={(e) => e.stopPropagation()}>
-				<p class="exit-title">{$t('exitTournamentMessage') || '¿Qué quieres hacer con este partido?'}</p>
+				<p class="exit-title">{m.tournament_exitMessage() || '¿Qué quieres hacer con este partido?'}</p>
 
 				{#if hasProgress}
 					<div class="exit-actions">
@@ -1482,8 +1483,8 @@
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
 							</div>
 							<div class="action-content">
-								<span class="action-label">{$t('pauseMatch') || 'Pausar partido'}</span>
-								<span class="action-hint">{$t('pauseMatchDesc') || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
+								<span class="action-label">{m.tournament_pauseMatch() || 'Pausar partido'}</span>
+								<span class="action-hint">{m.tournament_pauseMatchDesc() || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
 							</div>
 						</div>
 						<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -1493,22 +1494,22 @@
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
 							</div>
 							<div class="action-content">
-								<span class="action-label">{$t('abandonMatch') || 'Abandonar partido'}</span>
-								<span class="action-hint">{$t('abandonMatchDesc') || 'Se perderá el progreso y otro podrá jugarlo desde cero.'}</span>
+								<span class="action-label">{m.tournament_abandonMatch() || 'Abandonar partido'}</span>
+								<span class="action-hint">{m.tournament_abandonMatchDesc() || 'Se perderá el progreso y otro podrá jugarlo desde cero.'}</span>
 							</div>
 						</div>
 					</div>
 				{:else}
-					<p class="exit-info">{$t('noProgressWarning') || 'El partido no tiene progreso. ¿Quieres salir?'}</p>
+					<p class="exit-info">{m.scoring_noProgressWarning() || 'El partido no tiene progreso. ¿Quieres salir?'}</p>
 				{/if}
 
 				<div class="exit-footer">
 					<button class="exit-btn cancel" onclick={cancelTournamentExit}>
-						{$t('cancel')}
+						{m.common_cancel()}
 					</button>
 					{#if !hasProgress}
 						<button class="exit-btn confirm" onclick={confirmTournamentExit}>
-							{$t('exit') || 'Salir'}
+							{m.scoring_exit() || 'Salir'}
 						</button>
 					{/if}
 				</div>
@@ -1527,14 +1528,14 @@
 				<div class="reset-icon">
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
 				</div>
-				<p class="reset-title">{$t('confirmResetMatch') || '¿Reiniciar partido?'}</p>
-				<p class="reset-desc">{$t('resetMatchDesc') || 'Se pondrán todos los puntos, rondas y 20s a 0'}</p>
+				<p class="reset-title">{m.scoring_confirmResetMatch() || '¿Reiniciar partido?'}</p>
+				<p class="reset-desc">{m.scoring_resetMatchDesc() || 'Se pondrán todos los puntos, rondas y 20s a 0'}</p>
 				<div class="reset-buttons">
 					<button class="reset-btn cancel" onclick={cancelTournamentReset} disabled={isResettingTournament}>
-						{$t('cancel')}
+						{m.common_cancel()}
 					</button>
 					<button class="reset-btn confirm" onclick={confirmTournamentReset} disabled={isResettingTournament}>
-						{isResettingTournament ? '...' : ($t('resetMatch') || 'Reiniciar')}
+						{isResettingTournament ? '...' : (m.scoring_resetMatch() || 'Reiniciar')}
 					</button>
 				</div>
 			</div>

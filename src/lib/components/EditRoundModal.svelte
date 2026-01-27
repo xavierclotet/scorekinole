@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { team1, team2 } from '$lib/stores/teams';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import Button from './Button.svelte';
 
 	interface RoundData {
@@ -67,7 +67,7 @@
 	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
 		<div class="modal" onclick={stopPropagation} role="dialog">
 			<div class="modal-header">
-				<span class="modal-title">{$t('edit')} {$t('round')} {roundIndex + 1}</span>
+				<span class="modal-title">{m.common_edit()} {m.scoring_round()} {roundIndex + 1}</span>
 			</div>
 			<div class="modal-content">
 				<div class="columns">
@@ -77,7 +77,7 @@
 							<span>{$team1.name || 'Team 1'}</span>
 						</div>
 						<div class="input-group">
-							<label for="editTeam1Points" class="label">{$t('roundPoints')}:</label>
+							<label for="editTeam1Points" class="label">{m.scoring_roundPoints()}:</label>
 							<input
 								id="editTeam1Points"
 								type="number"
@@ -106,7 +106,7 @@
 							<span>{$team2.name || 'Team 2'}</span>
 						</div>
 						<div class="input-group">
-							<label for="editTeam2Points" class="label">{$t('roundPoints')}:</label>
+							<label for="editTeam2Points" class="label">{m.scoring_roundPoints()}:</label>
 							<input
 								id="editTeam2Points"
 								type="number"
@@ -132,10 +132,10 @@
 
 				<div class="actions">
 					<Button variant="secondary" onclick={close}>
-						{$t('cancel')}
+						{m.common_cancel()}
 					</Button>
 					<Button variant="primary" onclick={save}>
-						{$t('save')}
+						{m.common_save()}
 					</Button>
 				</div>
 			</div>

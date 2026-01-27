@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	// import { t } from '$lib/stores/language'; // Legacy - to remove after full migration
+	import * as m from '$lib/paraglide/messages.js';
 	import { goto } from '$app/navigation';
 	import { getUserProfile } from '$lib/firebase/userProfile';
 
@@ -92,17 +93,17 @@
 							</div>
 						{/if}
 					</div>
-					<h2 class="profile-title">{$t('myProfile')}</h2>
+					<h2 class="profile-title">{m.auth_myProfile()}</h2>
 				</div>
 
 				<!-- Info grid -->
 				<div class="info-grid">
 					<div class="info-item">
-						<span class="info-label">{$t('email')}</span>
+						<span class="info-label">{m.auth_email()}</span>
 						<span class="info-value">{user.email || '-'}</span>
 					</div>
 					<button class="info-item ranking-link" onclick={goToRankings}>
-						<span class="info-label">{$t('rankingPoints2026')}</span>
+						<span class="info-label">{m.ranking_pointsLabel()}</span>
 						<span class="info-value ranking">
 							<span class="ranking-badge">{rankingPoints}</span>
 							<span class="ranking-unit">pts</span>
@@ -116,7 +117,7 @@
 				<!-- Editable section -->
 				<div class="edit-section">
 					<label for="profilePlayerNameInput" class="edit-label">
-						{$t('playerName')}
+						{m.auth_playerName()}
 					</label>
 					<div class="input-wrapper">
 						<input
@@ -124,18 +125,18 @@
 							type="text"
 							class="input"
 							bind:value={playerNameInput}
-							placeholder={$t('enterPlayerName')}
+							placeholder={m.auth_enterPlayerName()}
 							maxlength="20"
 						/>
 					</div>
-					<p class="input-hint">{$t('playerNameDescription')}</p>
+					<p class="input-hint">{m.auth_playerNameDescription()}</p>
 				</div>
 
 				<!-- Actions -->
 				<div class="actions">
-					<button class="btn-cancel" onclick={close}>{$t('cancel')}</button>
+					<button class="btn-cancel" onclick={close}>{m.common_cancel()}</button>
 					<button class="btn-save" onclick={updateProfile} disabled={!playerNameInput.trim()}>
-						{$t('save')}
+						{m.common_save()}
 					</button>
 				</div>
 			{/if}

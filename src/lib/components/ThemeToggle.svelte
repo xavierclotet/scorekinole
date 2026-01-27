@@ -1,6 +1,6 @@
 <script lang="ts">
   import { adminTheme } from '$lib/stores/theme';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
 
   function toggleTheme() {
     adminTheme.toggle();
@@ -10,7 +10,7 @@
 <button
   class="theme-toggle"
   onclick={toggleTheme}
-  title={$adminTheme === 'light' ? $t('darkMode') : $t('lightMode')}
+  title={$adminTheme === 'light' ? m.common_darkMode() : m.common_lightMode()}
 >
   {#if $adminTheme === 'light'}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

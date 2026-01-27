@@ -4,7 +4,7 @@
   import MatchEditModal from '$lib/components/MatchEditModal.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
   import { getMatchesPaginated, adminDeleteMatch } from '$lib/firebase/admin';
@@ -168,6 +168,11 @@
     return match.gameType || 'singles';
   }
 
+  function getMatchTypeLabel(match: MatchHistory): string {
+    const type = getMatchType(match);
+    return type === 'doubles' ? m.scoring_doubles() : m.scoring_singles();
+  }
+
   function getGameModeInfo(match: MatchHistory): string {
     if (match.gameMode === 'points') {
       return `${match.pointsToWin}p (${match.matchesToWin} games)`;
@@ -182,9 +187,9 @@
   <div class="matches-container" data-theme={$adminTheme}>
     <header class="matches-header">
       <button class="back-button" onclick={() => goto('/admin')}>
-        ← {$t('backToAdmin')}
+        ← {m.admin_backToAdmin()}
       </button>
-      <h1>🎯 {$t('matchManagement')}</h1>
+      <h1>🎯 {m.admin_matchManagement()}</h1>
       <div class="theme-toggle-wrapper">
         <ThemeToggle />
       </div>
@@ -194,25 +199,25 @@
       <div class="search-bar">
         <input
           type="text"
-          placeholder={$t('searchMatches')}
+          placeholder={m.admin_searchMatches()}
           bind:value={searchQuery}
         />
       </div>
       <span class="match-count">
-        {filteredMatches.length} de {displayTotal} {$t('matches')}
+        {filteredMatches.length} de {displayTotal} {m.admin_matches()}
       </span>
     </div>
 
     {#if isLoading}
-      <LoadingSpinner message={$t('loading')} />
+      <LoadingSpinner message={m.common_loading()} />
     {:else if errorMessage}
       <div class="error-box">
         <p>{errorMessage}</p>
-        <button onclick={loadInitialMatches}>{$t('retry')}</button>
+        <button onclick={loadInitialMatches}>{m.admin_retry()}</button>
       </div>
     {:else if filteredMatches.length === 0}
       <div class="empty-state">
-        <p>{$t('noMatchesFound')}</p>
+        <p>{m.admin_noMatchesFound()}</p>
       </div>
     {:else}
       <div class="table-container" onscroll={handleScroll}>
@@ -228,7 +233,7 @@
               <th class="hide-mobile">Modo</th>
               <th class="hide-mobile">Duración</th>
               <th class="hide-mobile">Guardada por</th>
-              <th>{$t('actions')}</th>
+              <th>{m.common_actions()}</th>
             </tr>
           </thead>
           <tbody>
@@ -293,7 +298,7 @@
                   {/if}
                 </td>
                 <td class="type-cell hide-mobile">
-                  <span class="type-badge">{$t(getMatchType(match))}</span>
+                  <span class="type-badge">{getMatchTypeLabel(match)}</span>
                 </td>
                 <td class="mode-cell hide-mobile">
                   {getGameModeInfo(match)}
@@ -325,7 +330,7 @@
           </div>
         {:else if !hasMore && !isSearching}
           <div class="end-of-list">
-            Fin de la lista
+            {m.admin_endOfList()}
           </div>
         {/if}
       </div>
@@ -343,8 +348,8 @@
   {#if showDeleteConfirm && matchToDelete}
     <div class="modal-backdrop" data-theme={$adminTheme} onclick={cancelDelete}>
       <div class="confirm-modal" onclick={(e) => e.stopPropagation()}>
-        <h2>{$t('confirmDelete')}</h2>
-        <p>{$t('deleteMatchWarning')}</p>
+        <h2>{m.admin_confirmDelete()}</h2>
+        <p>{m.admin_deleteMatchWarning()}</p>
         <div class="match-info">
           <strong>
             {matchToDelete.team1Name} vs {matchToDelete.team2Name}
@@ -354,10 +359,10 @@
         </div>
         <div class="confirm-actions">
           <button class="cancel-btn" onclick={cancelDelete}>
-            {$t('cancel')}
+            {m.common_cancel()}
           </button>
           <button class="confirm-btn" onclick={deleteMatch}>
-            {$t('deleteConfirm')}
+            {m.admin_deleteConfirm()}
           </button>
         </div>
       </div>

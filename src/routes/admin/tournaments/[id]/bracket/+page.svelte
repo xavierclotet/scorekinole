@@ -27,7 +27,7 @@
   import type { Tournament, BracketMatch, GroupMatch, ConsolationBracket } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
   import { isBye, isLoserPlaceholder, parseLoserPlaceholder } from '$lib/algorithms/bracket';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
@@ -126,17 +126,17 @@
     try {
       const result = await reassignTables(tournamentId, tempNumTables);
       if (result.success) {
-        toastMessage = `Mesas actualizadas: ${result.tablesAssigned} partidos asignados`;
+        toastMessage = m.bracket_tablesAssigned({ count: String(result.tablesAssigned) });
         toastType = 'success';
         showToast = true;
         editingNumTables = false;
       } else {
-        toastMessage = result.error || 'Error al reasignar mesas';
+        toastMessage = result.error || m.bracket_errorReassignTables();
         toastType = 'error';
         showToast = true;
       }
     } catch (err) {
-      toastMessage = 'Error al reasignar mesas';
+      toastMessage = m.bracket_errorReassignTables();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -151,16 +151,16 @@
     try {
       const result = await reassignTables(tournamentId);
       if (result.success) {
-        toastMessage = `${result.tablesAssigned} partidos con mesa asignada`;
+        toastMessage = m.bracket_tablesAssigned({ count: String(result.tablesAssigned) });
         toastType = 'success';
         showToast = true;
       } else {
-        toastMessage = result.error || 'Error al reasignar mesas';
+        toastMessage = result.error || m.bracket_errorReassignTables();
         toastType = 'error';
         showToast = true;
       }
     } catch (err) {
-      toastMessage = 'Error al reasignar mesas';
+      toastMessage = m.bracket_errorReassignTables();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -256,12 +256,12 @@
       };
 
       await updateTournament(tournamentId, updates);
-      toastMessage = 'Configuración guardada';
+      toastMessage = m.bracket_configurationSaved();
       toastType = 'success';
       showToast = true;
     } catch (err) {
       console.error('Error saving phase config:', err);
-      toastMessage = 'Error al guardar configuración';
+      toastMessage = m.bracket_configurationError();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -351,13 +351,15 @@
   // Helper to translate internal round names to display names
   function translateRoundName(name: string): string {
     const key = name.toLowerCase();
-    // Check if translation key exists
-    const translated = $t(key);
-    // If translation returns the key itself, it doesn't exist - return capitalized version
-    if (translated === key) {
-      return name.charAt(0).toUpperCase() + name.slice(1);
-    }
-    return translated;
+    const roundTranslations: Record<string, string> = {
+      'final': m.tournament_final(),
+      'semifinal': m.tournament_semifinal(),
+      'quarterfinal': m.tournament_round() + ' 8',
+      'round of 16': m.tournament_round() + ' 16',
+      'round of 32': m.tournament_round() + ' 32',
+      'third place': m.tournament_thirdPlace(),
+    };
+    return roundTranslations[key] || name.charAt(0).toUpperCase() + name.slice(1);
   }
 
   function openTimeBreakdown() {
@@ -372,7 +374,7 @@
     tournament.timeEstimate = timeEstimate;
     timeBreakdown = calculateTimeBreakdown(tournament);
     await updateTournament(tournamentId, { timeEstimate });
-    toastMessage = $t('timeRecalculated');
+    toastMessage = m.admin_timeRecalculated();
     toastType = 'success';
     showToast = true;
   }
@@ -392,12 +394,12 @@
       if (!tournament) {
         error = true;
       } else if (tournament.status !== 'FINAL_STAGE') {
-        toastMessage = $t('tournamentNotInFinalStage');
+        toastMessage = m.admin_tournamentNotInFinalStage();
         toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
       } else if (!tournament.finalStage?.goldBracket) {
-        toastMessage = $t('bracketNotGenerated');
+        toastMessage = m.admin_bracketNotGenerated();
         toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
@@ -411,10 +413,10 @@
   }
 
   function getParticipantName(participantId: string | undefined): string {
-    if (!participantId) return $t('tbd');
+    if (!participantId) return m.common_tbd();
     if (isBye(participantId)) return 'BYE';
-    if (!tournament) return $t('unknown');
-    return tournament.participants.find(p => p.id === participantId)?.name || $t('unknown');
+    if (!tournament) return m.common_unknown();
+    return tournament.participants.find(p => p.id === participantId)?.name || m.common_unknown();
   }
 
   // Check if a match is a BYE match (one participant is BYE)
@@ -443,9 +445,9 @@
 
   function getStatusDisplay(status: string): { text: string; color: string } {
     const statusMap: Record<string, { text: string; color: string }> = {
-      PENDING: { text: $t('pending'), color: '#6b7280' },
-      IN_PROGRESS: { text: $t('inProgress'), color: '#f59e0b' },
-      COMPLETED: { text: $t('completed'), color: '#10b981' },
+      PENDING: { text: m.tournament_pending(), color: '#6b7280' },
+      IN_PROGRESS: { text: m.tournament_inProgress(), color: '#f59e0b' },
+      COMPLETED: { text: m.tournament_completed(), color: '#10b981' },
       WALKOVER: { text: 'Walkover', color: '#8b5cf6' }
     };
     return statusMap[status] || { text: status, color: '#6b7280' };
@@ -470,11 +472,11 @@
 
   function getTournamentStatusText(status: string): string {
     switch (status) {
-      case 'DRAFT': return $t('draft');
-      case 'GROUP_STAGE': return $t('groupStage');
-      case 'FINAL_STAGE': return $t('finalStage');
-      case 'COMPLETED': return $t('completed');
-      case 'CANCELLED': return $t('cancelled');
+      case 'DRAFT': return m.admin_draft();
+      case 'GROUP_STAGE': return m.tournament_groupStage();
+      case 'FINAL_STAGE': return m.tournament_finalStage();
+      case 'COMPLETED': return m.tournament_completed();
+      case 'CANCELLED': return m.admin_cancelled();
       default: return status;
     }
   }
@@ -565,7 +567,7 @@
   }
 
   // Loading message based on context
-  let loadingMessage = $state('Guardando resultado...');
+  let loadingMessage = $state(m.bracket_savingResult());
 
   async function handleSaveMatch(result: {
     gamesWonA: number;
@@ -588,7 +590,7 @@
 
     // Check if this is a consolation match
     if (selectedConsolationSource) {
-      loadingMessage = 'Guardando partido de clasificación...';
+      loadingMessage = m.bracket_savingQualifyingMatch();
       isSavingMatch = true;
 
       try {
@@ -631,10 +633,10 @@
             loser
           );
 
-          toastMessage = $t('resultSaved');
+          toastMessage = m.admin_resultSavedSuccessfully();
           toastType = 'success';
         } else {
-          toastMessage = $t('errorSavingResult');
+          toastMessage = m.admin_errorSavingResult();
           toastType = 'error';
         }
 
@@ -643,7 +645,7 @@
         showToast = true;
       } catch (err) {
         console.error('Error saving consolation match:', err);
-        toastMessage = $t('errorSavingResult');
+        toastMessage = m.admin_errorSavingResult();
         toastType = 'error';
         showToast = true;
       } finally {
@@ -661,13 +663,13 @@
 
     // Set appropriate loading message
     if (isFinal && !isSplitDivisions) {
-      loadingMessage = 'Finalizando torneo...';
+      loadingMessage = m.bracket_finalizingTournament();
     } else if (isGoldFinal) {
-      loadingMessage = 'Guardando final Liga Oro...';
+      loadingMessage = m.bracket_savingGoldFinal();
     } else if (isSilverFinal) {
-      loadingMessage = 'Guardando final Liga Plata...';
+      loadingMessage = m.bracket_savingSilverFinal();
     } else {
-      loadingMessage = 'Guardando resultado...';
+      loadingMessage = m.bracket_savingResult();
     }
 
     isSavingMatch = true;
@@ -700,23 +702,23 @@
       );
 
       if (success) {
-        toastMessage = $t('resultSaved');
+        toastMessage = m.admin_resultSavedSuccessfully();
         toastType = 'success';
         selectedMatch = null;
         // No need to reload - real-time subscription will update
       } else {
-        toastMessage = $t('errorSavingResult');
+        toastMessage = m.admin_errorSavingResult();
         toastType = 'error';
       }
       showToast = true;
     } catch (err) {
       console.error('Error saving match:', err);
-      toastMessage = $t('errorSavingResult');
+      toastMessage = m.admin_errorSavingResult();
       toastType = 'error';
       showToast = true;
     } finally {
       isSavingMatch = false;
-      loadingMessage = 'Guardando resultado...';
+      loadingMessage = m.bracket_savingResult();
     }
   }
 
@@ -734,19 +736,19 @@
       );
 
       if (success) {
-        toastMessage = $t('walkoverRegistered');
+        toastMessage = m.admin_walkoverRegistered();
         toastType = 'success';
         showMatchDialog = false;
         selectedMatch = null;
         // No need to reload - real-time subscription will update
       } else {
-        toastMessage = $t('errorRegisteringWalkover');
+        toastMessage = m.admin_errorRegisteringWalkover();
         toastType = 'error';
       }
       showToast = true;
     } catch (err) {
       console.error('Error handling no-show:', err);
-      toastMessage = $t('errorRegisteringWalkover');
+      toastMessage = m.admin_errorRegisteringWalkover();
       toastType = 'error';
       showToast = true;
     }
@@ -778,16 +780,16 @@
       const success = await forceRegenerateConsolationBrackets(tournamentId, activeTab);
 
       if (success) {
-        toastMessage = 'Brackets de consolación generados correctamente';
+        toastMessage = m.bracket_consolationGenerated();
         toastType = 'success';
       } else {
-        toastMessage = 'No se pudieron generar brackets - verifica que la ronda (cuartos u octavos) esté completa';
+        toastMessage = m.bracket_consolationNotGenerated();
         toastType = 'warning';
       }
       showToast = true;
     } catch (err) {
       console.error('Error generating consolation brackets:', err);
-      toastMessage = 'Error al generar brackets de consolación';
+      toastMessage = m.bracket_errorGenerateConsolation();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -1173,13 +1175,13 @@
         console.log('🏆 Tournament marked as COMPLETED after autofill');
       }
 
-      toastMessage = `${filledCount} ${$t('matchesFilledAutomatically')}`;
+      toastMessage = m.admin_matchesFilledAuto({ n: String(filledCount) });
       toastType = 'success';
       showToast = true;
       await loadTournament(); // Final reload
     } catch (err) {
       console.error('Error auto-filling bracket matches:', err);
-      toastMessage = $t('errorFillingMatches');
+      toastMessage = m.admin_errorFillingMatchesGeneric();
       toastType = 'error';
       showToast = true;
     } finally {
@@ -1246,7 +1248,7 @@
                 class="action-btn autofill"
                 onclick={autoFillAllMatches}
                 disabled={isAutoFilling}
-                title={$t('autoFillMatchesTitle') || 'Auto-fill matches with random results'}
+                title={m.admin_autoFillMatchesTitle() || 'Auto-fill matches with random results'}
               >
                 {isAutoFilling ? `⏳` : `🎲`}
               </button>
@@ -1259,14 +1261,14 @@
 
     <div class="page-content">
       {#if loading}
-        <LoadingSpinner message={$t('loadingBracket')} />
+        <LoadingSpinner message={m.admin_loadingBracket()} />
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
-          <h3>{$t('errorLoading')}</h3>
-          <p>{$t('errorLoadingBracket')}</p>
+          <h3>{m.admin_errorLoading()}</h3>
+          <p>{m.admin_errorLoadingBracket()}</p>
           <button class="primary-button" onclick={() => goto('/admin/tournaments')}>
-            {$t('backToTournaments')}
+            {m.admin_backToTournaments()}
           </button>
         </div>
       {:else if bracket}
@@ -1292,7 +1294,7 @@
               <line x1="3" y1="9" x2="21" y2="9"></line>
               <line x1="9" y1="21" x2="9" y2="9"></line>
             </svg>
-            <span>Mesas</span>
+            <span>{m.bracket_tables()}</span>
           </div>
           <div class="table-config-controls">
             {#if editingNumTables}
@@ -1308,7 +1310,7 @@
                 class="table-action-btn confirm"
                 onclick={saveNumTablesAndReassign}
                 disabled={isReassigningTables}
-                title="Guardar y reasignar"
+                title={m.bracket_saveAndReassign()}
               >
                 {#if isReassigningTables}
                   <span class="spinner"></span>
@@ -1322,7 +1324,7 @@
                 class="table-action-btn cancel"
                 onclick={cancelEditingTables}
                 disabled={isReassigningTables}
-                title="Cancelar"
+                title={m.common_cancel()}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -1330,12 +1332,12 @@
                 </svg>
               </button>
             {:else}
-              <button class="table-value" onclick={startEditingTables} title="Clic para editar">{currentNumTables}</button>
+              <button class="table-value" onclick={startEditingTables} title={m.bracket_clickToEdit()}>{currentNumTables}</button>
               <button
                 class="table-action-btn sync"
                 onclick={handleReassignTables}
                 disabled={isReassigningTables}
-                title="Reasignar mesas"
+                title={m.bracket_reassignTables()}
               >
                 {#if isReassigningTables}
                   <span class="spinner"></span>
@@ -1356,7 +1358,7 @@
           <div class="bracket-filters">
             {#if isSplitDivisions}
               <div class="filter-group">
-                <span class="filter-label">Liga</span>
+                <span class="filter-label">{m.bracket_league()}</span>
                 <div class="filter-options">
                   <button
                     class="filter-btn"
@@ -1364,7 +1366,7 @@
                     onclick={() => activeTab = 'gold'}
                   >
                     <span class="filter-icon gold">●</span>
-                    Oro
+                    {m.bracket_gold()}
                     {#if goldBracket?.thirdPlaceMatch?.winner || goldRounds[goldRounds.length - 1]?.matches[0]?.winner}
                       <span class="filter-complete">✓</span>
                     {/if}
@@ -1375,7 +1377,7 @@
                     onclick={() => activeTab = 'silver'}
                   >
                     <span class="filter-icon silver">●</span>
-                    Plata
+                    {m.bracket_silver()}
                     {#if silverBracket?.thirdPlaceMatch?.winner || silverRounds[silverRounds.length - 1]?.matches[0]?.winner}
                       <span class="filter-complete">✓</span>
                     {/if}
@@ -1386,21 +1388,21 @@
 
             {#if consolationEnabledValue}
               <div class="filter-group">
-                <span class="filter-label">Fase</span>
+                <span class="filter-label">{m.bracket_phase()}</span>
                 <div class="filter-options">
                   <button
                     class="filter-btn"
                     class:active={bracketView === 'main'}
                     onclick={() => bracketView = 'main'}
                   >
-                    Ganadores
+                    {m.bracket_winners()}
                   </button>
                   <button
                     class="filter-btn"
                     class:active={bracketView === 'consolation'}
                     onclick={() => bracketView = 'consolation'}
                   >
-                    Consolación
+                    {m.bracket_consolation()}
                   </button>
                 </div>
               </div>
@@ -1415,17 +1417,17 @@
               <svg class="accordion-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
-              <span>Configuración {isGold ? 'Oro' : 'Plata'}</span>
+              <span>{m.bracket_configuration()} {isGold ? m.scoring_gold() : m.scoring_silver()}</span>
             </div>
             <div class="accordion-summary">
               {#if hasEarlyRounds}
-                <span class="summary-badge" title="Tempranas">{earlyConfig.gameMode === 'rounds' ? `${earlyConfig.value}R` : `${earlyConfig.value}P`}</span>
+                <span class="summary-badge" title={m.bracket_earlyPhases()}>{earlyConfig.gameMode === 'rounds' ? `${earlyConfig.value}R` : `${earlyConfig.value}P`}</span>
               {/if}
               {#if semiRound}
-                <span class="summary-badge" title="Semis">{semiConfig.gameMode === 'rounds' ? `${semiConfig.value}R` : `${semiConfig.value}P`}</span>
+                <span class="summary-badge" title={m.admin_semifinals()}>{semiConfig.gameMode === 'rounds' ? `${semiConfig.value}R` : `${semiConfig.value}P`}</span>
               {/if}
               {#if finalRound}
-                <span class="summary-badge" title="Final">{finalConfig.gameMode === 'rounds' ? `${finalConfig.value}R` : `${finalConfig.value}P`}</span>
+                <span class="summary-badge" title={m.bracket_final()}>{finalConfig.gameMode === 'rounds' ? `${finalConfig.value}R` : `${finalConfig.value}P`}</span>
               {/if}
             </div>
           </button>
@@ -1435,15 +1437,15 @@
               <div class="phase-config-grid">
                 {#if hasEarlyRounds}
                   <div class="phase-config-item" class:locked={earlyLocked}>
-                    <label>Tempranas</label>
+                    <label>{m.bracket_earlyPhases()}</label>
                     <div class="config-inputs">
                       <select
                         value={earlyConfig.gameMode}
                         disabled={earlyLocked || savingPhaseConfig}
                         onchange={(e) => savePhaseConfig('early', isGold, parseGameMode(e.currentTarget.value), earlyConfig.value, earlyConfig.matchesToWin)}
                       >
-                        <option value="rounds">Rondas</option>
-                        <option value="points">Puntos</option>
+                        <option value="rounds">{m.bracket_rounds()}</option>
+                        <option value="points">{m.bracket_points()}</option>
                       </select>
                       <input
                         type="number"
@@ -1454,7 +1456,7 @@
                         onchange={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, parseInt(e.currentTarget.value) || 4, earlyConfig.matchesToWin)}
                       />
                       {#if earlyConfig.gameMode === 'points'}
-                        <span class="bo-label">Bo</span>
+                        <span class="bo-label">{m.bracket_bestOf()}</span>
                         <select
                           class="bo-select"
                           value={earlyConfig.matchesToWin}
@@ -1473,15 +1475,15 @@
 
                 {#if semiRound}
                   <div class="phase-config-item" class:locked={semiLocked || thirdPlaceLocked}>
-                    <label>Semis y 3º/4º</label>
+                    <label>{m.bracket_semisAndThird()}</label>
                     <div class="config-inputs">
                       <select
                         value={semiConfig.gameMode}
                         disabled={semiLocked || thirdPlaceLocked || savingPhaseConfig}
                         onchange={(e) => savePhaseConfig('semifinal', isGold, parseGameMode(e.currentTarget.value), semiConfig.value, semiConfig.matchesToWin)}
                       >
-                        <option value="rounds">Rondas</option>
-                        <option value="points">Puntos</option>
+                        <option value="rounds">{m.bracket_rounds()}</option>
+                        <option value="points">{m.bracket_points()}</option>
                       </select>
                       <input
                         type="number"
@@ -1492,7 +1494,7 @@
                         onchange={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, parseInt(e.currentTarget.value) || 7, semiConfig.matchesToWin)}
                       />
                       {#if semiConfig.gameMode === 'points'}
-                        <span class="bo-label">Bo</span>
+                        <span class="bo-label">{m.bracket_bestOf()}</span>
                         <select
                           class="bo-select"
                           value={semiConfig.matchesToWin}
@@ -1511,15 +1513,15 @@
 
                 {#if finalRound}
                   <div class="phase-config-item" class:locked={finalLocked}>
-                    <label>Final</label>
+                    <label>{m.bracket_final()}</label>
                     <div class="config-inputs">
                       <select
                         value={finalConfig.gameMode}
                         disabled={finalLocked || savingPhaseConfig}
                         onchange={(e) => savePhaseConfig('final', isGold, parseGameMode(e.currentTarget.value), finalConfig.value, finalConfig.matchesToWin)}
                       >
-                        <option value="rounds">Rondas</option>
-                        <option value="points">Puntos</option>
+                        <option value="rounds">{m.bracket_rounds()}</option>
+                        <option value="points">{m.bracket_points()}</option>
                       </select>
                       <input
                         type="number"
@@ -1530,7 +1532,7 @@
                         onchange={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, parseInt(e.currentTarget.value) || 9, finalConfig.matchesToWin)}
                       />
                       {#if finalConfig.gameMode === 'points'}
-                        <span class="bo-label">Bo</span>
+                        <span class="bo-label">{m.bracket_bestOf()}</span>
                         <select
                           class="bo-select"
                           value={finalConfig.matchesToWin}
@@ -1637,7 +1639,7 @@
                     <!-- Table number badge - hide for completed matches since table is released -->
                     {#if !isByeMatch(match) && match.participantA && match.participantB && match.status !== 'COMPLETED'}
                       <div class="table-badge" class:tbd={!match.tableNumber}>
-                        {match.tableNumber ? `${$t('tableShort')}${match.tableNumber}` : 'TBD'}
+                        {match.tableNumber ? `${m.tournament_tableShort()}${match.tableNumber}` : 'TBD'}
                       </div>
                     {/if}
 
@@ -1684,7 +1686,7 @@
             {@const thirdGamesLeaderA = thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonA || 0) > (thirdPlaceMatch.gamesWonB || 0)}
             {@const thirdGamesLeaderB = thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonB || 0) > (thirdPlaceMatch.gamesWonA || 0)}
             <div class="bracket-round third-place-round">
-              <h2 class="round-name third-place">{$t('thirdFourthPlace')}</h2>
+              <h2 class="round-name third-place">{m.tournament_thirdFourthPlace()}</h2>
               <div class="matches-column">
                 <div
                   class="bracket-match third-place-match"
@@ -1747,7 +1749,7 @@
                   <!-- Table number badge - hide for completed matches since table is released -->
                   {#if thirdPlaceMatch.participantA && thirdPlaceMatch.participantB && thirdPlaceMatch.status !== 'COMPLETED'}
                     <div class="table-badge" class:tbd={!thirdPlaceMatch.tableNumber}>
-                      {thirdPlaceMatch.tableNumber ? `${$t('tableShort')}${thirdPlaceMatch.tableNumber}` : 'TBD'}
+                      {thirdPlaceMatch.tableNumber ? `${m.tournament_tableShort()}${thirdPlaceMatch.tableNumber}` : 'TBD'}
                     </div>
                   {/if}
 
@@ -1779,8 +1781,8 @@
           {#if bracketView === 'consolation' && consolationBrackets.length === 0}
             <div class="consolation-empty" data-theme={$adminTheme}>
               <div class="empty-icon">🎯</div>
-              <h3>{$t('consolationRounds')}</h3>
-              <p>{$t('consolationPending') || 'Los partidos de consolación se generan automáticamente cuando se completa la ronda correspondiente (cuartos u octavos).'}</p>
+              <h3>{m.admin_consolationRounds()}</h3>
+              <p>{m.admin_consolationPending() || 'Los partidos de consolación se generan automáticamente cuando se completa la ronda correspondiente (cuartos u octavos).'}</p>
               <button
                 class="generate-consolation-btn"
                 onclick={handleGenerateConsolation}
@@ -1799,17 +1801,17 @@
             {@const qfBracket = consolationBrackets.find(c => c.source === 'QF')}
             <div class="consolation-section" data-theme={$adminTheme}>
               <div class="consolation-header">
-                <h3 class="consolation-title">🎯 Brackets de Consolación</h3>
+                <h3 class="consolation-title">🎯 {m.bracket_consolationBrackets()}</h3>
                 <button
                   class="regenerate-consolation-btn"
                   onclick={handleGenerateConsolation}
                   disabled={isGeneratingConsolation}
-                  title="Regenerar brackets de consolación"
+                  title={m.bracket_regenerateConsolation()}
                 >
                   {#if isGeneratingConsolation}
-                    <span class="spinner"></span> Regenerando...
+                    <span class="spinner"></span> {m.bracket_regenerating()}
                   {:else}
-                    🔄 Regenerar
+                    🔄 {m.bracket_regenerate()}
                   {/if}
                 </button>
               </div>
@@ -1901,7 +1903,7 @@
 
                             {#if hasRealParticipants && !isMatchBye && match.tableNumber}
                               <div class="table-badge">
-                                {$t('tableShort')}{match.tableNumber}
+                                {m.tournament_tableShort()}{match.tableNumber}
                               </div>
                             {/if}
                             </div>
@@ -2000,7 +2002,7 @@
 
                               {#if hasRealParticipants && !isMatchBye && match.tableNumber}
                                 <div class="table-badge">
-                                  {$t('tableShort')}{match.tableNumber}
+                                  {m.tournament_tableShort()}{match.tableNumber}
                                 </div>
                               {/if}
                             </div>
@@ -2044,7 +2046,7 @@
 {#if isAutoFilling || isSavingMatch}
   <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <LoadingSpinner size="large" message={isAutoFilling ? 'Rellenando resultados...' : loadingMessage} />
+      <LoadingSpinner size="large" message={isAutoFilling ? m.bracket_fillingResults() : loadingMessage} />
     </div>
   </div>
 {/if}

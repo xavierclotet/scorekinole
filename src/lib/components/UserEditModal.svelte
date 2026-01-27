@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { adminTheme } from '$lib/stores/theme';
   import type { AdminUserInfo } from '$lib/firebase/admin';
   import { updateUserProfile, toggleAdminStatus } from '$lib/firebase/admin';
@@ -96,7 +96,7 @@
     <!-- Header -->
     <div class="modal-header">
       <div class="header-left">
-        <h2>{$t('editUser')}</h2>
+        <h2>{m.admin_editUser()}</h2>
       </div>
       <button class="close-btn" onclick={onClose}>×</button>
     </div>
@@ -133,7 +133,7 @@
             <span class="meta-value mono">{user.userId}</span>
           </div>
           <div class="meta-item">
-            <span class="meta-label">{$t('createdAt')}</span>
+            <span class="meta-label">{m.admin_createdAt()}</span>
             <span class="meta-value">{formatDate(user.createdAt)}</span>
           </div>
         </div>
@@ -143,10 +143,10 @@
       <div class="form-grid">
         <!-- Left Column -->
         <div class="form-section">
-          <h3>Perfil</h3>
+          <h3>{m.admin_profileSection()}</h3>
 
           <div class="field">
-            <label for="playerName">{$t('playerName')}</label>
+            <label for="playerName">{m.auth_playerName()}</label>
             <input
               id="playerName"
               type="text"
@@ -156,7 +156,7 @@
           </div>
 
           <div class="field">
-            <label for="ranking">{$t('ranking')}</label>
+            <label for="ranking">{m.admin_ranking()}</label>
             <div class="input-with-suffix">
               <input
                 id="ranking"
@@ -172,11 +172,11 @@
 
         <!-- Right Column -->
         <div class="form-section">
-          <h3>Permisos</h3>
+          <h3>{m.admin_permissionsSection()}</h3>
 
           <div class="field">
             <label class="toggle-label">
-              <span>{$t('adminRole')}</span>
+              <span>{m.admin_role()}</span>
               <div class="toggle-switch" class:active={isAdmin}>
                 <input type="checkbox" bind:checked={isAdmin} />
                 <span class="toggle-track">
@@ -189,7 +189,7 @@
           {#if isAdmin}
             <div class="field">
               <label class="toggle-label">
-                <span>{$t('canAutofill')}</span>
+                <span>{m.admin_canAutofill()}</span>
                 <div class="toggle-switch autofill" class:active={canAutofill}>
                   <input type="checkbox" bind:checked={canAutofill} />
                   <span class="toggle-track">
@@ -197,13 +197,13 @@
                   </span>
                 </div>
               </label>
-              <span class="field-hint">{$t('canAutofillHint')}</span>
+              <span class="field-hint">{m.admin_canAutofillHint()}</span>
             </div>
           {/if}
 
           {#if isAdmin}
             <div class="field">
-              <label for="maxTournamentsPerYear">{$t('maxTournamentsPerYear')}</label>
+              <label for="maxTournamentsPerYear">{m.admin_maxTournaments()}</label>
               <div class="input-with-suffix">
                 <input
                   id="maxTournamentsPerYear"
@@ -215,7 +215,7 @@
                 />
                 <span class="suffix">/año</span>
               </div>
-              <span class="field-hint">{$t('maxTournamentsPerYearHint')}</span>
+              <span class="field-hint">{m.admin_maxTournamentsHint()}</span>
             </div>
           {/if}
         </div>
@@ -232,14 +232,14 @@
     <!-- Footer -->
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick={onClose} disabled={isSaving}>
-        {$t('cancel')}
+        {m.common_cancel()}
       </button>
       <button class="btn btn-primary" onclick={saveChanges} disabled={isSaving}>
         {#if isSaving}
           <span class="spinner"></span>
-          {$t('saving')}
+          {m.common_saving()}
         {:else}
-          {$t('save')}
+          {m.common_save()}
         {/if}
       </button>
     </div>

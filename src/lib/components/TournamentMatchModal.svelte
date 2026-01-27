@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { currentUser } from '$lib/firebase/auth';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
 	import {
@@ -14,7 +14,7 @@
 		type TournamentMatchContext
 	} from '$lib/stores/tournamentContext';
 	import type { Tournament } from '$lib/types/tournament';
-	import Button from './Button.svelte';
+	// import Button from './Button.svelte';
 
 	interface Props {
 		isOpen?: boolean;
@@ -180,18 +180,18 @@
 	// Translate group name based on language
 	// Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
 	function translateGroupName(name: string): string {
-		if (name === 'Swiss') return $t('swissSystem');
+		if (name === 'Swiss') return m.tournament_swissSystem();
 		// New identifier format
-		if (name === 'SINGLE_GROUP') return $t('singleGroup');
+		if (name === 'SINGLE_GROUP') return m.tournament_singleGroup();
 		const idMatch = name.match(/^GROUP_([A-H])$/);
 		if (idMatch) {
-			return `${$t('group')} ${idMatch[1]}`;
+			return `${m.tournament_group()} ${idMatch[1]}`;
 		}
 		// Legacy Spanish format (for existing tournaments)
-		if (name === 'Grupo Único') return $t('singleGroup');
+		if (name === 'Grupo Único') return m.tournament_singleGroup();
 		const legacyMatch = name.match(/^Grupo ([A-H])$/);
 		if (legacyMatch) {
-			return `${$t('group')} ${legacyMatch[1]}`;
+			return `${m.tournament_group()} ${legacyMatch[1]}`;
 		}
 		return name;
 	}
@@ -305,10 +305,10 @@
 				const inProgressByBracket = new Map<string, { groupName: string; currentRound: number; totalRounds: number; matches: MatchDisplay[] }>();
 
 				// Initialize Gold and Silver groups
-				pendingByBracket.set('gold', { groupName: $t('goldLeague'), currentRound: 0, totalRounds: 0, matches: [] });
-				pendingByBracket.set('silver', { groupName: $t('silverLeague'), currentRound: 0, totalRounds: 0, matches: [] });
-				inProgressByBracket.set('gold', { groupName: $t('goldLeague'), currentRound: 0, totalRounds: 0, matches: [] });
-				inProgressByBracket.set('silver', { groupName: $t('silverLeague'), currentRound: 0, totalRounds: 0, matches: [] });
+				pendingByBracket.set('gold', { groupName: m.tournament_goldLeague(), currentRound: 0, totalRounds: 0, matches: [] });
+				pendingByBracket.set('silver', { groupName: m.tournament_silverLeague(), currentRound: 0, totalRounds: 0, matches: [] });
+				inProgressByBracket.set('gold', { groupName: m.tournament_goldLeague(), currentRound: 0, totalRounds: 0, matches: [] });
+				inProgressByBracket.set('silver', { groupName: m.tournament_silverLeague(), currentRound: 0, totalRounds: 0, matches: [] });
 
 				// Distribute matches
 				for (const match of matches) {
@@ -385,7 +385,7 @@
 
 	async function searchTournament() {
 		if (tournamentKey.length !== 6) {
-			errorMessage = $t('invalidTournamentKey');
+			errorMessage = m.tournament_invalidKey();
 			currentStep = 'error';
 			return;
 		}
@@ -397,14 +397,14 @@
 			const result = await getTournamentByKey(tournamentKey.toUpperCase());
 
 			if (!result) {
-				errorMessage = $t('tournamentNotFound');
+				errorMessage = m.tournament_notFound();
 				currentStep = 'error';
 				return;
 			}
 
 			// Check tournament status
 			if (result.status === 'COMPLETED' || result.status === 'CANCELLED') {
-				errorMessage = $t('tournamentNotActive');
+				errorMessage = m.tournament_notActive();
 				currentStep = 'error';
 				return;
 			}
@@ -420,7 +420,7 @@
 				pendingMatches = await getPendingMatchesForUser(result, $currentUser.id);
 
 				if (pendingMatches.length === 0) {
-					errorMessage = $t('noPendingMatchesInTournament');
+					errorMessage = m.tournament_noPendingMatchesUser();
 					currentStep = 'error';
 					return;
 				}
@@ -434,7 +434,7 @@
 				pendingMatches = await getAllPendingMatches(result);
 
 				if (pendingMatches.length === 0) {
-					errorMessage = $t('noPendingMatchesGeneral');
+					errorMessage = m.tournament_noPendingMatchesGeneral();
 					currentStep = 'error';
 					return;
 				}
@@ -449,7 +449,7 @@
 			// Clear saved key on error so user can retry with a different key
 			localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
 			tournamentKey = '';
-			errorMessage = $t('connectionError');
+			errorMessage = m.tournament_connectionError();
 			currentStep = 'error';
 		}
 	}
@@ -536,7 +536,7 @@
 			);
 
 			if (!result.success) {
-				errorMessage = result.error || $t('errorStartingMatch');
+				errorMessage = result.error || m.tournament_errorStarting();
 				currentStep = 'error';
 				isStarting = false;
 				return;
@@ -625,7 +625,7 @@
 			close();
 		} catch (error) {
 			console.error('Error starting match:', error);
-			errorMessage = $t('connectionError');
+			errorMessage = m.tournament_connectionError();
 			currentStep = 'error';
 		} finally {
 			isStarting = false;
@@ -653,20 +653,22 @@
 		showInProgressMatches = !showInProgressMatches;
 	}
 
-	function formatGameConfig(config: PendingMatchInfo['gameConfig']): string {
-		const points = $t('points') || 'puntos';
-		const rounds = $t('rounds') || 'rondas';
-		const bestOf = $t('bestOf') || 'mejor de {games}';
+	// Unused function removed or commented out
+	/* function formatGameConfig(config: PendingMatchInfo['gameConfig']): string {
+		const points = m.scoring_points();
+		const rounds = m.scoring_rounds();
+		const bestOf = m.tournament_bestOf({ games: String(config.matchesToWin) });
 
 		if (config.gameMode === 'points') {
-			return `${config.pointsToWin} ${points}, ${bestOf.replace('{games}', config.matchesToWin.toString())}`;
+			return `${config.pointsToWin} ${points}, ${bestOf}`;
 		} else {
-			return `${config.roundsToPlay} ${rounds}, ${bestOf.replace('{games}', config.matchesToWin.toString())}`;
+			return `${config.roundsToPlay} ${rounds}, ${bestOf}`;
 		}
-	}
+	} */
 
 	// Get current phase game configuration (default final config for backward compatibility)
-	function getCurrentPhaseConfig(t: Tournament): { gameMode: 'points' | 'rounds'; pointsToWin?: number; roundsToPlay?: number; matchesToWin: number } | null {
+	// Unused function removed or commented out
+	/* function getCurrentPhaseConfig(t: Tournament): { gameMode: 'points' | 'rounds'; pointsToWin?: number; roundsToPlay?: number; matchesToWin: number } | null {
 		if (t.status === 'GROUP_STAGE' && t.groupStage) {
 			return {
 				gameMode: t.groupStage.gameMode,
@@ -685,7 +687,7 @@
 			};
 		}
 		return null;
-	}
+	} */
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -710,13 +712,13 @@
 				</div>
 				<span class="modal-title">
 					{#if currentStep === 'key_input'}
-						{$t('playTournamentMatch')}
+						{m.tournament_playMatch()}
 					{:else if currentStep === 'loading'}
-						{$t('searching')}
+						{m.tournament_searching()}
 					{:else if currentStep === 'player_selection'}
-						{$t('selectYourMatchTitle')}
+						{m.tournament_selectYourMatch()}
 					{:else if currentStep === 'error'}
-						{$t('error')}
+						{m.common_error()}
 					{/if}
 				</span>
 				<button class="close-btn" onclick={close} aria-label="Close">
@@ -739,8 +741,8 @@
 							</svg>
 						</div>
 
-						<p class="key-description">{$t('enterTournamentKey')}</p>
-						<p class="key-hint">{$t('keyHint') || 'Solicita la clave al organizador del torneo'}</p>
+						<p class="key-description">{m.tournament_enterKey()}</p>
+						<p class="key-hint">{m.tournament_keyHint()}</p>
 
 						<div class="key-input-group">
 							<div class="key-input-wrapper">
@@ -759,7 +761,7 @@
 									type="button"
 									class="toggle-key-btn"
 									onclick={toggleShowKey}
-									aria-label={showKey ? $t('hideKey') : $t('showKey')}
+									aria-label={showKey ? m.tournament_hideKey() : m.tournament_showKey()}
 								>
 									{#if showKey}
 										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -793,7 +795,7 @@
 						<div class="spinner-container">
 							<div class="spinner"></div>
 						</div>
-						<p class="loading-text">{$t('searchingTournament')}</p>
+						<p class="loading-text">{m.tournament_searchingTournament()}</p>
 					</div>
 
 				<!-- Step: Match Selection -->
@@ -811,7 +813,7 @@
 								<button
 									class="refresh-matches-btn"
 									onclick={refreshMatches}
-									title={$t('refreshMatches')}
+									title={m.tournament_refreshMatches()}
 								>
 									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 										<polyline points="23 4 23 10 17 10"></polyline>
@@ -824,7 +826,7 @@
 							<!-- Phase Badge -->
 							<div class="badges-row">
 								{#if tournament.status === 'GROUP_STAGE'}
-									<span class="phase-badge group-stage">{$t('groupStage')}</span>
+									<span class="phase-badge group-stage">{m.tournament_groupStage()}</span>
 									{#if tournament.groupStage?.type === 'SWISS'}
 										<span class="config-badge">SS · R{tournament.groupStage.currentRound}/{tournament.groupStage.totalRounds}</span>
 									{:else if tournament.groupStage?.type === 'ROUND_ROBIN' && rrCurrentRound > 0 && !hasMultipleGroups}
@@ -843,7 +845,7 @@
 										<div class="group-header" class:gold-league={group.groupId === 'gold'} class:silver-league={group.groupId === 'silver'}>
 											<span class="group-name">{group.groupName}</span>
 											{#if group.currentRound > 0}
-												<span class="group-round">{$t('round')} {group.currentRound}/{group.totalRounds}</span>
+												<span class="group-round">{m.scoring_round()} {group.currentRound}/{group.totalRounds}</span>
 											{/if}
 										</div>
 										<div class="matches-list">
@@ -858,7 +860,7 @@
 														{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
 															<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 														{/if}
-														<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${$t('tableShort')}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+														<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${m.tournament_tableShort()}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
 														<span class="match-config">
 															{#if matchDisplay.match.gameConfig.gameMode === 'points'}
 																{matchDisplay.match.gameConfig.pointsToWin}P
@@ -893,7 +895,7 @@
 											{#if matchDisplay.match.bracketRoundName}
 												<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 											{/if}
-											<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${$t('tableShort')}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+											<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${m.tournament_tableShort()}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
 											<span class="match-config">
 												{#if matchDisplay.match.gameConfig.gameMode === 'points'}
 													{matchDisplay.match.gameConfig.pointsToWin}P
@@ -931,7 +933,7 @@
 										</svg>
 									</span>
 									<span class="accordion-title">
-										{$t('matchesInProgress')} ({inProgressMatchesList.length})
+										{m.tournament_matchesInProgress()} ({inProgressMatchesList.length})
 									</span>
 									<span class="accordion-warning">
 										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -944,7 +946,7 @@
 
 								{#if showInProgressMatches}
 									<div class="in-progress-content">
-										<p class="in-progress-hint">{$t('inProgressWarning')}</p>
+										<p class="in-progress-hint">{m.tournament_inProgressWarning()}</p>
 										<!-- Multi-group in-progress display (Round Robin groups or Oro/Plata brackets) -->
 										{#if (hasMultipleGroups || hasSplitDivisions) && inProgressMatchesByGroup.length > 0}
 											<div class="groups-container in-progress">
@@ -953,7 +955,7 @@
 														<div class="group-header in-progress" class:gold-league={group.groupId === 'gold'} class:silver-league={group.groupId === 'silver'}>
 															<span class="group-name">{group.groupName}</span>
 															{#if group.currentRound > 0}
-																<span class="group-round">{$t('round')} {group.currentRound}/{group.totalRounds}</span>
+																<span class="group-round">{m.scoring_round()} {group.currentRound}/{group.totalRounds}</span>
 															{/if}
 														</div>
 														<div class="matches-list in-progress">
@@ -967,7 +969,7 @@
 																		{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
 																			<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 																		{/if}
-																		<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${$t('tableShort')}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+																		<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${m.tournament_tableShort()}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
 																		<span class="match-config">
 																			{#if matchDisplay.match.gameConfig.gameMode === 'points'}
 																				{matchDisplay.match.gameConfig.pointsToWin}P
@@ -1000,7 +1002,7 @@
 															{#if matchDisplay.match.bracketRoundName}
 																<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 															{/if}
-															<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${$t('tableShort')}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+															<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${m.tournament_tableShort()}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
 															<span class="match-config">
 																{#if matchDisplay.match.gameConfig.gameMode === 'points'}
 																	{matchDisplay.match.gameConfig.pointsToWin}P
@@ -1028,7 +1030,7 @@
 						{#if isStarting}
 							<div class="starting-indicator">
 								<div class="spinner small"></div>
-								<span>{$t('starting')}</span>
+								<span>{m.tournament_starting()}</span>
 							</div>
 						{/if}
 					</div>
@@ -1050,7 +1052,7 @@
 								<polyline points="1 4 1 10 7 10"></polyline>
 								<path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
 							</svg>
-							{$t('tryAgain')}
+							{m.tournament_tryAgain()}
 						</button>
 					</div>
 				{/if}

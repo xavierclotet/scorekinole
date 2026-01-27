@@ -15,7 +15,7 @@
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
 
   // Edit mode
   let editMode = $state(false);
@@ -1018,7 +1018,7 @@
     if (!editMode) {
       const freshQuota = await checkTournamentQuota();
       if (!freshQuota.canCreate) {
-        toastMessage = $t('tournamentLimitReached')
+        toastMessage = m.admin_tournamentLimitReached({ used: String(quotaInfo?.used || 0), limit: String(quotaInfo?.limit || 0) })
           .replace('{used}', freshQuota.used.toString())
           .replace('{limit}', freshQuota.limit.toString());
         toastType = 'error';
@@ -1307,10 +1307,10 @@
               <span class="info-badge step-badge">Paso {currentStep}/{totalSteps}</span>
               {#if !editMode && !quotaLoading && quotaInfo}
                 {#if quotaInfo.isSuperAdmin}
-                  <span class="info-badge quota-badge unlimited">{$t('unlimitedTournaments')}</span>
+                  <span class="info-badge quota-badge unlimited">{m.admin_unlimitedTournaments()}</span>
                 {:else if quotaInfo.limit > 0}
                   <span class="info-badge quota-badge" class:warning={quotaInfo.used >= quotaInfo.limit * 0.8} class:error={!quotaInfo.canCreate}>
-                    {$t('tournamentsCreatedThisYear').replace('{used}', quotaInfo.used.toString()).replace('{limit}', quotaInfo.limit.toString())}
+                    {m.admin_tournamentsCreatedThisYear({ used: String(quotaInfo.used), limit: String(quotaInfo.limit) })}
                   </span>
                 {/if}
               {/if}
@@ -1353,10 +1353,10 @@
     {#if !editMode && !quotaLoading && quotaInfo && !quotaInfo.canCreate}
       <div class="quota-blocked-message">
         <div class="blocked-icon">⚠️</div>
-        <h2>{$t('tournamentLimitReached').replace('{used}', quotaInfo.used.toString()).replace('{limit}', quotaInfo.limit.toString())}</h2>
-        <p>{$t('maxTournamentsPerYearHint')}</p>
+        <h2>{m.admin_tournamentLimitReached({ used: String(quotaInfo?.used || 0), limit: String(quotaInfo?.limit || 0) }).replace('{used}', quotaInfo.used.toString()).replace('{limit}', quotaInfo.limit.toString())}</h2>
+        <p>{m.admin_maxTournamentsPerYearHint()}</p>
         <button class="back-button" onclick={() => goto('/admin/tournaments')}>
-          ← {$t('back')}
+          ← {m.common_back()}
         </button>
       </div>
     {:else}
@@ -1565,7 +1565,7 @@
                   <span class="field-hint">{maxPlayersForTables} jugadores en paralelo</span>
                 </div>
                 <div class="config-field phase-selector">
-                  <label>{$t('structure')}</label>
+                  <label>{m.admin_structure()}</label>
                   <div class="toggle-buttons">
                     <button
                       type="button"
@@ -1616,7 +1616,7 @@
                 <!-- Sistema y configuración básica en línea -->
                 <div class="inline-config">
                   <div class="config-field">
-                    <label>{$t('system')}</label>
+                    <label>{m.admin_system()}</label>
                     <div class="toggle-buttons">
                       <button
                         type="button"
@@ -1624,7 +1624,7 @@
                         class:active={groupStageType === 'ROUND_ROBIN'}
                         onclick={() => groupStageType = 'ROUND_ROBIN'}
                       >
-                        {$t('roundRobin')}
+                        {m.admin_roundRobin()}
                       </button>
                       <button
                         type="button"
@@ -1632,13 +1632,13 @@
                         class:active={groupStageType === 'SWISS'}
                         onclick={() => groupStageType = 'SWISS'}
                       >
-                        {$t('swiss')}
+                        {m.admin_swissSystem()}
                       </button>
                     </div>
                   </div>
                   {#if groupStageType === 'ROUND_ROBIN'}
                     <div class="config-field">
-                      <label for="numGroups">{$t('groups')}</label>
+                      <label for="numGroups">{m.tournament_groups()}</label>
                       <input
                         id="numGroups"
                         type="number"
@@ -1650,7 +1650,7 @@
                     </div>
                   {:else}
                     <div class="config-field">
-                      <label for="numSwissRounds">{$t('rounds')}</label>
+                      <label for="numSwissRounds">{m.scoring_rounds()}</label>
                       <input
                         id="numSwissRounds"
                         type="number"
@@ -1662,7 +1662,7 @@
                     </div>
                   {/if}
                   <div class="config-field">
-                    <label>{$t('rankingSystem')}</label>
+                    <label>{m.admin_rankingSystem()}</label>
                     <div class="toggle-buttons">
                       <button
                         type="button"
@@ -1671,7 +1671,7 @@
                         onclick={() => rankingSystem = 'WINS'}
                         title={groupStageType === 'ROUND_ROBIN' ? '2 pts victoria, 1 empate' : '1 pt victoria, 0.5 empate'}
                       >
-                        {$t('byWins')}
+                        {m.tournament_byWins()}
                       </button>
                       <button
                         type="button"
@@ -1680,7 +1680,7 @@
                         onclick={() => rankingSystem = 'POINTS'}
                         title="Suma de puntos anotados"
                       >
-                        {$t('points')}
+                        {m.scoring_points()}
                       </button>
                     </div>
                   </div>
@@ -1696,7 +1696,7 @@
                         class:active={groupGameMode === 'points'}
                         onclick={() => groupGameMode = 'points'}
                       >
-                        {$t('points')}
+                        {m.scoring_points()}
                       </button>
                       <button
                         type="button"
@@ -1704,7 +1704,7 @@
                         class:active={groupGameMode === 'rounds'}
                         onclick={() => groupGameMode = 'rounds'}
                       >
-                        {$t('rounds')}
+                        {m.scoring_rounds()}
                       </button>
                     </div>
                     {#if groupGameMode === 'points'}
@@ -1720,7 +1720,7 @@
                         <span>pts</span>
                       </div>
                       <div class="inline-field">
-                        <span>{$t('bestOfN')}</span>
+                        <span>{m.admin_bestOfN()}</span>
                         <select bind:value={groupMatchesToWin} class="input-field mini">
                           <option value={1}>1</option>
                           <option value={3}>3</option>
@@ -1737,7 +1737,7 @@
                           max="20"
                           class="input-field mini"
                         />
-                        <span>{$t('rounds').toLowerCase()}</span>
+                        <span>{m.scoring_rounds().toLowerCase()}</span>
                       </div>
                     {/if}
                   </div>
@@ -1755,7 +1755,7 @@
                 <!-- Estructura de brackets -->
                 <div class="inline-config">
                   <div class="config-field wide">
-                    <label>{$t('structure')}</label>
+                    <label>{m.admin_structure()}</label>
                     <div class="toggle-buttons">
                       <button
                         type="button"
@@ -1782,11 +1782,11 @@
                   <div class="advanced-phases-grid">
                     <div class="advanced-bracket">
                       <div class="phase-row">
-                        <span class="phase-name">{$t('earlyRounds')}</span>
+                        <span class="phase-name">{m.admin_earlyRounds()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if earlyRoundsGameMode === 'rounds'}
                             <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1803,11 +1803,11 @@
                       </div>
 
                       <div class="phase-row">
-                        <span class="phase-name">{$t('semifinals')}</span>
+                        <span class="phase-name">{m.admin_semifinals()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if semifinalGameMode === 'rounds'}
                             <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1824,11 +1824,11 @@
                       </div>
 
                       <div class="phase-row">
-                        <span class="phase-name">{$t('final')}</span>
+                        <span class="phase-name">{m.admin_final()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if bracketFinalGameMode === 'rounds'}
                             <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1850,14 +1850,14 @@
                   <div class="advanced-phases-grid split">
                     <!-- Gold Bracket -->
                     <div class="advanced-bracket gold">
-                      <span class="advanced-bracket-title gold">{$t('gold')}</span>
+                      <span class="advanced-bracket-title gold">{m.scoring_gold()}</span>
 
                       <div class="phase-row">
-                        <span class="phase-name">{$t('earlyRounds')}</span>
+                        <span class="phase-name">{m.admin_earlyRounds()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if earlyRoundsGameMode === 'rounds'}
                             <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1874,11 +1874,11 @@
                       </div>
 
                       <div class="phase-row">
-                        <span class="phase-name">{$t('semifinals')}</span>
+                        <span class="phase-name">{m.admin_semifinals()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if semifinalGameMode === 'rounds'}
                             <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1895,11 +1895,11 @@
                       </div>
 
                       <div class="phase-row">
-                        <span class="phase-name">{$t('final')}</span>
+                        <span class="phase-name">{m.admin_final()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if bracketFinalGameMode === 'rounds'}
                             <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1918,14 +1918,14 @@
 
                     <!-- Silver Bracket -->
                     <div class="advanced-bracket silver">
-                      <span class="advanced-bracket-title silver">{$t('silver')}</span>
+                      <span class="advanced-bracket-title silver">{m.scoring_silver()}</span>
 
                       <div class="phase-row">
-                        <span class="phase-name">{$t('earlyRounds')}</span>
+                        <span class="phase-name">{m.admin_earlyRounds()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'points'} onclick={() => silverEarlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'rounds'} onclick={() => silverEarlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'points'} onclick={() => silverEarlyRoundsGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={silverEarlyRoundsGameMode === 'rounds'} onclick={() => silverEarlyRoundsGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if silverEarlyRoundsGameMode === 'rounds'}
                             <input type="number" bind:value={silverEarlyRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1942,11 +1942,11 @@
                       </div>
 
                       <div class="phase-row">
-                        <span class="phase-name">{$t('semifinals')}</span>
+                        <span class="phase-name">{m.admin_semifinals()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'points'} onclick={() => silverSemifinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'rounds'} onclick={() => silverSemifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'points'} onclick={() => silverSemifinalGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={silverSemifinalGameMode === 'rounds'} onclick={() => silverSemifinalGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if silverSemifinalGameMode === 'rounds'}
                             <input type="number" bind:value={silverSemifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -1963,11 +1963,11 @@
                       </div>
 
                       <div class="phase-row">
-                        <span class="phase-name">{$t('final')}</span>
+                        <span class="phase-name">{m.admin_final()}</span>
                         <div class="phase-controls">
                           <div class="toggle-buttons">
-                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'points'} onclick={() => silverBracketFinalGameMode = 'points'}>{$t('points')}</button>
-                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'rounds'} onclick={() => silverBracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'points'} onclick={() => silverBracketFinalGameMode = 'points'}>{m.scoring_points()}</button>
+                            <button type="button" class="toggle-btn" class:active={silverBracketFinalGameMode === 'rounds'} onclick={() => silverBracketFinalGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                           </div>
                           {#if silverBracketFinalGameMode === 'rounds'}
                             <input type="number" bind:value={silverBracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -2017,11 +2017,11 @@
                 <div class="advanced-phases-grid">
                   <div class="advanced-bracket">
                     <div class="phase-row">
-                      <span class="phase-name">{$t('earlyRounds')}</span>
+                      <span class="phase-name">{m.admin_earlyRounds()}</span>
                       <div class="phase-controls">
                         <div class="toggle-buttons">
-                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{$t('points')}</button>
-                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{$t('rounds')}</button>
+                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'points'} onclick={() => earlyRoundsGameMode = 'points'}>{m.scoring_points()}</button>
+                          <button type="button" class="toggle-btn" class:active={earlyRoundsGameMode === 'rounds'} onclick={() => earlyRoundsGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                         </div>
                         {#if earlyRoundsGameMode === 'rounds'}
                           <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -2038,11 +2038,11 @@
                     </div>
 
                     <div class="phase-row">
-                      <span class="phase-name">{$t('semifinals')}</span>
+                      <span class="phase-name">{m.admin_semifinals()}</span>
                       <div class="phase-controls">
                         <div class="toggle-buttons">
-                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{$t('points')}</button>
-                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'points'} onclick={() => semifinalGameMode = 'points'}>{m.scoring_points()}</button>
+                          <button type="button" class="toggle-btn" class:active={semifinalGameMode === 'rounds'} onclick={() => semifinalGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                         </div>
                         {#if semifinalGameMode === 'rounds'}
                           <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -2059,11 +2059,11 @@
                     </div>
 
                     <div class="phase-row">
-                      <span class="phase-name">{$t('final')}</span>
+                      <span class="phase-name">{m.admin_final()}</span>
                       <div class="phase-controls">
                         <div class="toggle-buttons">
-                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{$t('points')}</button>
-                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{$t('rounds')}</button>
+                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'points'} onclick={() => bracketFinalGameMode = 'points'}>{m.scoring_points()}</button>
+                          <button type="button" class="toggle-btn" class:active={bracketFinalGameMode === 'rounds'} onclick={() => bracketFinalGameMode = 'rounds'}>{m.scoring_rounds()}</button>
                         </div>
                         {#if bracketFinalGameMode === 'rounds'}
                           <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
@@ -2189,7 +2189,7 @@
                   </thead>
                   <tbody>
                     <tr>
-                      <td>{$t('points')}</td>
+                      <td>{m.scoring_points()}</td>
                       {#each getPointsDistribution(selectedTier) as item}
                         <td class="points">{item.points}</td>
                       {/each}
@@ -2322,8 +2322,8 @@
               </svg>
             </div>
             <div class="step-header-text">
-              <h2>{$t('timeConfigTitle')}</h2>
-              <p>{$t('timeConfigDesc')}</p>
+              <h2>{m.admin_timeConfigTitle()}</h2>
+              <p>{m.admin_timeConfigDesc()}</p>
             </div>
           </div>
 
@@ -2337,18 +2337,18 @@
                 </svg>
               </div>
               <div class="tc-card-content">
-                <h3>{$t('matchDuration')}</h3>
-                <p class="tc-card-desc">{$t('matchDurationDesc')}</p>
+                <h3>{m.admin_matchDuration()}</h3>
+                <p class="tc-card-desc">{m.admin_matchDurationDesc()}</p>
                 <div class="tc-fields">
                   <div class="tc-field">
-                    <span class="tc-field-label">{$t('singles')}</span>
+                    <span class="tc-field-label">{m.scoring_singles()}</span>
                     <div class="tc-field-input">
                       <input type="number" bind:value={tcMinutesPer4RoundsSingles} min="5" max="30" />
                       <span class="tc-unit">min</span>
                     </div>
                   </div>
                   <div class="tc-field">
-                    <span class="tc-field-label">{$t('doubles')}</span>
+                    <span class="tc-field-label">{m.scoring_doubles()}</span>
                     <div class="tc-field-input">
                       <input type="number" bind:value={tcMinutesPer4RoundsDoubles} min="5" max="30" />
                       <span class="tc-unit">min</span>
@@ -2366,18 +2366,18 @@
                 </svg>
               </div>
               <div class="tc-card-content">
-                <h3>{$t('breaks')}</h3>
-                <p class="tc-card-desc">{$t('breaksDesc')}</p>
+                <h3>{m.admin_breaks()}</h3>
+                <p class="tc-card-desc">{m.admin_breaksDesc()}</p>
                 <div class="tc-fields">
                   <div class="tc-field">
-                    <span class="tc-field-label">{$t('betweenMatches')}</span>
+                    <span class="tc-field-label">{m.admin_betweenMatches()}</span>
                     <div class="tc-field-input">
                       <input type="number" bind:value={tcBreakBetweenMatches} min="0" max="30" />
                       <span class="tc-unit">min</span>
                     </div>
                   </div>
                   <div class="tc-field">
-                    <span class="tc-field-label">{$t('betweenPhases')}</span>
+                    <span class="tc-field-label">{m.admin_betweenPhases()}</span>
                     <div class="tc-field-input">
                       <input type="number" bind:value={tcBreakBetweenPhases} min="0" max="60" />
                       <span class="tc-unit">min</span>
@@ -2395,8 +2395,8 @@
                 </svg>
               </div>
               <div class="tc-card-content">
-                <h3>{$t('avgRoundsTitle')}</h3>
-                <p class="tc-card-desc">{$t('avgRoundsDesc')}</p>
+                <h3>{m.admin_avgRoundsTitle()}</h3>
+                <p class="tc-card-desc">{m.admin_avgRoundsDesc()}</p>
                 <div class="tc-points-grid">
                   <div class="tc-point-item">
                     <span class="tc-point-badge">5</span>
@@ -2430,12 +2430,12 @@
                 </svg>
               </div>
               <div class="tc-card-content">
-                <h3>{$t('advancedOptions')}</h3>
-                <p class="tc-card-desc">{$t('advancedOptionsDesc')}</p>
+                <h3>{m.admin_advancedOptions()}</h3>
+                <p class="tc-card-desc">{m.admin_advancedOptionsDesc()}</p>
                 <div class="tc-toggle-field">
                   <div class="tc-toggle-info">
-                    <span class="tc-toggle-label">{$t('parallelSemifinals')}</span>
-                    <span class="tc-toggle-desc">{$t('parallelSemifinalsDesc')}</span>
+                    <span class="tc-toggle-label">{m.admin_parallelSemifinals()}</span>
+                    <span class="tc-toggle-desc">{m.admin_parallelSemifinalsDesc()}</span>
                   </div>
                   <div class="tc-toggle-wrapper">
                     <button
@@ -2450,14 +2450,14 @@
                       </span>
                     </button>
                     <span class="tc-toggle-status" class:active={tcParallelSemifinals}>
-                      {tcParallelSemifinals ? $t('yes') : $t('no')}
+                      {tcParallelSemifinals ? m.admin_yes() : m.admin_no()}
                     </span>
                   </div>
                 </div>
                 <div class="tc-toggle-field">
                   <div class="tc-toggle-info">
-                    <span class="tc-toggle-label">{$t('parallelFinals')}</span>
-                    <span class="tc-toggle-desc">{$t('parallelFinalsDesc')}</span>
+                    <span class="tc-toggle-label">{m.admin_parallelFinals()}</span>
+                    <span class="tc-toggle-desc">{m.admin_parallelFinalsDesc()}</span>
                   </div>
                   <div class="tc-toggle-wrapper">
                     <button
@@ -2472,7 +2472,7 @@
                       </span>
                     </button>
                     <span class="tc-toggle-status" class:active={tcParallelFinals}>
-                      {tcParallelFinals ? $t('yes') : $t('no')}
+                      {tcParallelFinals ? m.admin_yes() : m.admin_no()}
                     </span>
                   </div>
                 </div>
@@ -2502,7 +2502,7 @@
                 <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                 <path d="M3 3v5h5"/>
               </svg>
-              {$t('resetToDefaults')}
+              {m.admin_resetToDefaults()}
             </button>
           </div>
         </div>
@@ -2604,18 +2604,18 @@
                   </div>
                   {#if phaseType === 'TWO_PHASE'}
                     <div class="review-row">
-                      <span class="review-label">{$t('groups')}</span>
+                      <span class="review-label">{m.tournament_groups()}</span>
                       <span class="review-value">
-                        {groupStageType === 'ROUND_ROBIN' ? `${$t('roundRobin')} (${numGroups})` : `${$t('swiss')} (${numSwissRounds}R)`}
+                        {groupStageType === 'ROUND_ROBIN' ? `${m.admin_roundRobin()} (${numGroups})` : `${m.admin_swissSystem()} (${numSwissRounds}R)`}
                       </span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">{$t('rankingSystem')}</span>
-                      <span class="review-value">{rankingSystem === 'WINS' ? $t('byWins') : $t('byPoints')}</span>
+                      <span class="review-label">{m.admin_rankingSystem()}</span>
+                      <span class="review-value">{rankingSystem === 'WINS' ? m.tournament_byWins() : m.tournament_byPoints()}</span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">{$t('finalStage')}</span>
-                      <span class="review-value">{finalStageMode === 'SINGLE_BRACKET' ? $t('singleBracket') : $t('goldSilver')}</span>
+                      <span class="review-label">{m.tournament_finalStage()}</span>
+                      <span class="review-value">{finalStageMode === 'SINGLE_BRACKET' ? m.admin_singleBracket() : m.admin_goldSilverDivisions()}</span>
                     </div>
                   {/if}
                   <div class="review-row">
@@ -2629,12 +2629,12 @@
                 <div class="review-card">
                   <div class="review-card-header">
                     <span class="review-icon">{finalStageMode === 'SPLIT_DIVISIONS' ? '🥇' : '⚙️'}</span>
-                    <span>{finalStageMode === 'SPLIT_DIVISIONS' ? $t('goldBracket') : $t('finalStage')}</span>
+                    <span>{finalStageMode === 'SPLIT_DIVISIONS' ? m.admin_goldBracket() : m.tournament_finalStage()}</span>
                   </div>
                   <div class="review-card-body">
                     <!-- Show per-phase config -->
                     <div class="review-row">
-                      <span class="review-label">{$t('earlyRounds')}</span>
+                      <span class="review-label">{m.admin_earlyRounds()}</span>
                       <span class="review-value">
                         {(showAdvancedBracketConfig ? earlyRoundsGameMode : 'rounds') === 'points'
                           ? `${showAdvancedBracketConfig ? earlyRoundsPointsToWin : 7}p`
@@ -2642,7 +2642,7 @@
                       </span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">{$t('semifinals')}</span>
+                      <span class="review-label">{m.admin_semifinals()}</span>
                       <span class="review-value">
                         {(showAdvancedBracketConfig ? semifinalGameMode : 'points') === 'points'
                           ? `${showAdvancedBracketConfig ? semifinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? semifinalMatchesToWin : 1}`
@@ -2650,7 +2650,7 @@
                       </span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">{$t('final')}</span>
+                      <span class="review-label">{m.admin_final()}</span>
                       <span class="review-value">
                         {(showAdvancedBracketConfig ? bracketFinalGameMode : 'points') === 'points'
                           ? `${showAdvancedBracketConfig ? bracketFinalPointsToWin : 9}p · Bo${showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1}`
@@ -2664,12 +2664,12 @@
                   <div class="review-card">
                     <div class="review-card-header">
                       <span class="review-icon">🥈</span>
-                      <span>{$t('silverBracket')}</span>
+                      <span>{m.admin_silverBracket()}</span>
                     </div>
                     <div class="review-card-body">
                       <!-- Show per-phase config for silver (default: all 4 rounds) -->
                       <div class="review-row">
-                        <span class="review-label">{$t('earlyRounds')}</span>
+                        <span class="review-label">{m.admin_earlyRounds()}</span>
                         <span class="review-value">
                           {(showAdvancedBracketConfig ? silverEarlyRoundsGameMode : 'rounds') === 'points'
                             ? `${showAdvancedBracketConfig ? silverEarlyRoundsPointsToWin : 7}p`
@@ -2677,7 +2677,7 @@
                         </span>
                       </div>
                       <div class="review-row">
-                        <span class="review-label">{$t('semifinals')}</span>
+                        <span class="review-label">{m.admin_semifinals()}</span>
                         <span class="review-value">
                           {(showAdvancedBracketConfig ? silverSemifinalGameMode : 'rounds') === 'points'
                             ? `${showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1}`
@@ -2685,7 +2685,7 @@
                         </span>
                       </div>
                       <div class="review-row">
-                        <span class="review-label">{$t('final')}</span>
+                        <span class="review-label">{m.admin_final()}</span>
                         <span class="review-value">
                           {(showAdvancedBracketConfig ? silverBracketFinalGameMode : 'rounds') === 'points'
                             ? `${showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1}`
@@ -2782,7 +2782,7 @@
 {#if creating}
   <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <LoadingSpinner size="large" message={editMode ? $t('savingTournament') : $t('creatingTournament')} />
+      <LoadingSpinner size="large" message={editMode ? m.admin_savingTournament() : m.admin_creatingTournament()} />
     </div>
   </div>
 {/if}

@@ -3,7 +3,7 @@
 	import { getContrastColor } from '$lib/utils/colors';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, updateTeam, resetTeams } from '$lib/stores/teams';
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { completeCurrentMatch, startCurrentMatch, currentMatch, addGameToCurrentMatch, clearCurrentMatchRounds } from '$lib/stores/history';
 	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames, currentMatchRounds, currentGameStartHammer, setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
@@ -581,7 +581,7 @@
 			class="color-btn"
 			onclick={(e) => { e.stopPropagation(); handleChangeColor(); }}
 			aria-label="Change color"
-			title={$t('chooseColor')}
+			title={m.scoring_color()}
 		>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/></svg>
 		</button>
@@ -611,7 +611,7 @@
 					type="text"
 					class="team-name-input"
 					value={team.name}
-					placeholder={$t('teamName')}
+					placeholder={m.scoring_teamName()}
 					oninput={handleNameChange}
 					onblur={stopEditingName}
 					onkeydown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
@@ -629,11 +629,11 @@
 					onclick={startEditingName}
 					ontouchend={startEditingName}
 				>
-					{team.name || $t('teamName')}
+					{team.name || m.scoring_teamName()}
 				</span>
 			{/if}
 			{#if effectiveShowHammer && team.hasHammer}
-				<div class="hammer-indicator" title={$t('hammer')}>
+				<div class="hammer-indicator" title={m.scoring_hammer()}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12l-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L12 9"/><path d="M17.64 15L22 10.64"/><path d="M20.91 11.7l-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91"/></svg>
 				</div>
 			{/if}
@@ -653,9 +653,9 @@
 		{#if team.hasWon && currentGameNumber > 0}
 			<div class="winner-badge">
 				{#if isMatchComplete}
-					{$t('winner')}
+					{m.scoring_winner()}
 				{:else}
-					{$t('gameWin').replace('{n}', currentGameNumber.toString())}
+					{m.scoring_gameWin({ n: currentGameNumber.toString() })}
 				{/if}
 			</div>
 		{/if}

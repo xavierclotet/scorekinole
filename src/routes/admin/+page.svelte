@@ -1,15 +1,15 @@
 <script lang="ts">
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-  import { t } from '$lib/stores/language';
+  import * as m from '$lib/paraglide/messages.js';
   import { currentUser } from '$lib/firebase/auth';
   import { adminTheme } from '$lib/stores/theme';
   import { isSuperAdminUser } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
 
   interface AdminSection {
-    title: string;
-    description: string;
+    title: () => string;
+    description: () => string;
     icon: string;
     path: string;
     gradient: string;
@@ -18,24 +18,24 @@
 
   const allAdminSections: AdminSection[] = [
     {
-      title: 'userManagement',
-      description: 'manageUsersDesc',
+      title: m.admin_userManagement,
+      description: m.admin_manageUsersDesc,
       icon: '👥',
       path: '/admin/users',
       gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       superAdminOnly: true
     },
     {
-      title: 'matchManagement',
-      description: 'manageMatchesDesc',
+      title: m.admin_matchManagement,
+      description: m.admin_manageMatchesDesc,
       icon: '🎯',
       path: '/admin/matches',
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
       superAdminOnly: true
     },
     {
-      title: 'tournamentManagement',
-      description: 'manageTournamentsDesc',
+      title: m.admin_tournamentManagement,
+      description: m.admin_manageTournamentsDesc,
       icon: '🏆',
       path: '/admin/tournaments',
       gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
@@ -57,7 +57,7 @@
     <header class="admin-header">
       <div class="header-top">
         <button class="back-button" onclick={() => goto('/')}>
-          ← {$t('backToHome')}
+          ← {m.admin_backToHome()}
         </button>
         <div class="theme-toggle-wrapper">
           <ThemeToggle />
@@ -65,8 +65,8 @@
       </div>
       <div class="header-content">
         <div class="shield-icon">🛡️</div>
-        <h1>{$t('adminPanel')}</h1>
-        <p class="welcome">{$t('welcome')}, <strong>{$currentUser?.name || 'Admin'}</strong></p>
+        <h1>{m.admin_panel()}</h1>
+        <p class="welcome">{m.admin_welcome()}, <strong>{$currentUser?.name || 'Admin'}</strong></p>
       </div>
     </header>
 
@@ -79,8 +79,8 @@
           <div class="card-background" style="background: {section.gradient}"></div>
           <div class="card-content">
             <div class="icon">{section.icon}</div>
-            <h2>{$t(section.title)}</h2>
-            <p>{$t(section.description)}</p>
+            <h2>{section.title()}</h2>
+            <p>{section.description()}</p>
             <div class="arrow">→</div>
           </div>
         </button>

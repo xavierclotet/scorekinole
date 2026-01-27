@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 	import { gameTournamentContext, clearTournamentContext } from '$lib/stores/tournamentContext';
 	import { abandonTournamentMatch } from '$lib/firebase/tournamentMatches';
 	import Button from './Button.svelte';
@@ -15,7 +15,7 @@
 
 	let context = $derived($gameTournamentContext);
 	let phaseText = $derived(context?.phase === 'GROUP'
-		? ($t('groupStage') || 'Fase de Grupos')
+		? (m.tournament_groupStage())
 		: (context?.bracketRoundName || 'Bracket'));
 
 	function handleExitClick() {
@@ -70,7 +70,7 @@
 			</div>
 		</div>
 
-		<button class="exit-btn" onclick={handleExitClick} title={$t('exitTournamentMode') || 'Salir del modo torneo'}>
+		<button class="exit-btn" onclick={handleExitClick} title={m.tournament_exitMode()}>
 			<span class="exit-icon">X</span>
 		</button>
 	</div>
@@ -81,29 +81,29 @@
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="dialog" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog">
-				<h3 class="dialog-title">{$t('exitTournamentMode') || 'Salir del Modo Torneo'}</h3>
-				<p class="dialog-message">{$t('exitTournamentMessage') || '¿Que quieres hacer con este partido?'}</p>
+				<h3 class="dialog-title">{m.tournament_exitMode()}</h3>
+				<p class="dialog-message">{m.tournament_exitMessage()}</p>
 
 				<div class="dialog-options">
 					<button class="option-btn pause" onclick={pauseMatch} disabled={isExiting}>
 						<span class="option-icon">II</span>
 						<div class="option-text">
-							<span class="option-title">{$t('pauseMatch') || 'Pausar partido'}</span>
-							<span class="option-desc">{$t('pauseMatchDesc') || 'Podras retomar luego con la misma clave'}</span>
+							<span class="option-title">{m.tournament_pauseMatch()}</span>
+							<span class="option-desc">{m.tournament_pauseMatchDesc()}</span>
 						</div>
 					</button>
 
 					<button class="option-btn abandon" onclick={abandonMatch} disabled={isExiting}>
 						<span class="option-icon">!</span>
 						<div class="option-text">
-							<span class="option-title">{$t('abandonMatch') || 'Abandonar partido'}</span>
-							<span class="option-desc">{$t('abandonMatchDesc') || 'Se perdera el progreso y otro podra jugarlo'}</span>
+							<span class="option-title">{m.tournament_abandonMatch()}</span>
+							<span class="option-desc">{m.tournament_abandonMatchDesc()}</span>
 						</div>
 					</button>
 				</div>
 
 				<Button variant="secondary" fullWidth onclick={cancelExit} disabled={isExiting}>
-					{$t('cancel') || 'Cancelar'}
+					{m.common_cancel()}
 				</Button>
 			</div>
 		</div>

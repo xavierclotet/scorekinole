@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/stores/language';
+	import * as m from '$lib/paraglide/messages.js';
 
 	interface Props {
 		tournamentKey: string;
@@ -26,7 +26,7 @@
 	class="tournament-key-badge"
 	class:compact
 	onclick={copyKey}
-	title={$t('clickToCopyKey')}
+	title={m.common_clickToCopy()}
 >
 	{copied ? `✓` : tournamentKey}
 </button>
