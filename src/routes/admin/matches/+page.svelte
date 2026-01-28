@@ -26,9 +26,19 @@
   let totalCount = $state(0);
   let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
   let hasMore = $state(true);
+  let tableContainer: HTMLElement | null = $state(null);
 
   // For search: filter locally from loaded matches
   let isSearching = $derived(searchQuery.trim().length > 0);
+
+  // Auto-load more if container doesn't have scroll
+  $effect(() => {
+    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching) {
+      if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+        loadMore();
+      }
+    }
+  });
 
   // Filtered matches
   let filteredMatches = $derived(matches.filter((match) => {
@@ -220,7 +230,7 @@
         <p>{m.admin_noMatchesFound()}</p>
       </div>
     {:else}
-      <div class="table-container" onscroll={handleScroll}>
+      <div class="table-container" bind:this={tableContainer} onscroll={handleScroll}>
         <table class="matches-table">
           <thead>
             <tr>

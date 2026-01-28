@@ -24,6 +24,7 @@
   let totalCount = $state(0);
   let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
   let hasMore = $state(true);
+  let tableContainer: HTMLElement | null = $state(null);
 
   let isSearching = $derived(searchQuery.trim().length > 0);
   let isFiltering = $derived(filterRole !== 'all');
@@ -44,6 +45,15 @@
 
   let displayTotal = $derived(isSearching || isFiltering ? filteredUsers.length : totalCount);
   let adminCount = $derived(users.filter(u => u.isAdmin).length);
+
+  // Auto-load more if container doesn't have scroll
+  $effect(() => {
+    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching) {
+      if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+        loadMore();
+      }
+    }
+  });
 
   onMount(() => {
     loadInitialUsers();
@@ -208,7 +218,7 @@
         {m.admin_showingOf({ showing: String(filteredUsers.length), total: String(displayTotal) })}
       </div>
 
-      <div class="table-container" onscroll={handleScroll}>
+      <div class="table-container" bind:this={tableContainer} onscroll={handleScroll}>
         <table class="users-table">
           <thead>
             <tr>

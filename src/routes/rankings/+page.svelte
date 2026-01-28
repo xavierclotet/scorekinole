@@ -36,8 +36,19 @@
 	// Infinite scroll state
 	const ITEMS_PER_PAGE = 15;
 	let visibleCount = ITEMS_PER_PAGE;
+	let tableContainer: HTMLElement | null = null;
 	$: visiblePlayers = rankedPlayers.slice(0, visibleCount);
 	$: hasMore = visibleCount < rankedPlayers.length;
+
+	// Auto-load more if container doesn't have scroll
+	$: if (tableContainer && hasMore && !isLoading) {
+		// Use setTimeout to wait for DOM update after visiblePlayers changes
+		setTimeout(() => {
+			if (tableContainer && tableContainer.scrollHeight <= tableContainer.clientHeight) {
+				loadMore();
+			}
+		}, 0);
+	}
 
 	onMount(async () => {
 		await loadData();
@@ -205,7 +216,7 @@
 			{m.admin_showingOf({ showing: String(visiblePlayers.length), total: String(rankedPlayers.length) })}
 		</div>
 
-		<div class="table-container" onscroll={handleScroll}>
+		<div class="table-container" bind:this={tableContainer} onscroll={handleScroll}>
 			<table class="rankings-table">
 				<thead>
 					<tr>

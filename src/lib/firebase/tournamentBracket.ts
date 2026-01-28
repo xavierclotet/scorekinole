@@ -488,13 +488,13 @@ export async function generateSplitBrackets(
       if (goldAvailable.hasR16) {
         const r16ByePositions = getByePositionsInRound(tempGoldBracket, 'R16');
         console.log(`🎯 R16 BYE positions for Gold bracket: [${r16ByePositions.join(', ') || 'none'}]`);
-        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(goldBracketSize, 'R16', r16ByePositions));
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(goldBracketSize, 'R16', r16ByePositions, 'gold'));
         console.log('🎯 Generated R16 consolation structure for Gold bracket');
       }
       if (goldAvailable.hasQF) {
         const qfByePositions = getByePositionsInRound(tempGoldBracket, 'QF');
         console.log(`🎯 QF BYE positions for Gold bracket: [${qfByePositions.join(', ') || 'none'}]`);
-        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(goldBracketSize, 'QF', qfByePositions));
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(goldBracketSize, 'QF', qfByePositions, 'gold'));
         console.log('🎯 Generated QF consolation structure for Gold bracket');
       }
 
@@ -502,13 +502,13 @@ export async function generateSplitBrackets(
       if (silverAvailable.hasR16) {
         const r16ByePositions = getByePositionsInRound(tempSilverBracket, 'R16');
         console.log(`🎯 R16 BYE positions for Silver bracket: [${r16ByePositions.join(', ') || 'none'}]`);
-        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'R16', r16ByePositions));
+        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'R16', r16ByePositions, 'silver'));
         console.log('🎯 Generated R16 consolation structure for Silver bracket');
       }
       if (silverAvailable.hasQF) {
         const qfByePositions = getByePositionsInRound(tempSilverBracket, 'QF');
         console.log(`🎯 QF BYE positions for Silver bracket: [${qfByePositions.join(', ') || 'none'}]`);
-        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'QF', qfByePositions));
+        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'QF', qfByePositions, 'silver'));
         console.log('🎯 Generated QF consolation structure for Silver bracket');
       }
     }
@@ -654,13 +654,13 @@ export async function generateBracket(
       if (available.hasR16) {
         const r16ByePositions = getByePositionsInRound(tempBracket, 'R16');
         console.log(`🎯 R16 BYE positions for SINGLE_BRACKET: [${r16ByePositions.join(', ') || 'none'}]`);
-        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions));
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions, 'gold'));
         console.log('🎯 Generated R16 consolation structure for SINGLE_BRACKET');
       }
       if (available.hasQF) {
         const qfByePositions = getByePositionsInRound(tempBracket, 'QF');
         console.log(`🎯 QF BYE positions for SINGLE_BRACKET: [${qfByePositions.join(', ') || 'none'}]`);
-        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions));
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions, 'gold'));
         console.log('🎯 Generated QF consolation structure for SINGLE_BRACKET');
       }
     }
@@ -1524,7 +1524,7 @@ async function checkAndGenerateConsolation(
       const qfLosers = getLosersFromRound(bracket, 'QF');
       if (qfLosers.length === 4) {
         console.log(`🏅 Generating QF consolation bracket for ${bracketType} bracket`);
-        const consolation = generateConsolationBracket(qfLosers, 'QF');
+        const consolation = generateConsolationBracket(qfLosers, 'QF', bracketType);
         updatedBracket.consolationBrackets.push(consolation);
       }
     }
@@ -1537,7 +1537,7 @@ async function checkAndGenerateConsolation(
       const r16Losers = getLosersFromRound(bracket, 'R16');
       if (r16Losers.length === 8) {
         console.log(`🏅 Generating R16 consolation bracket for ${bracketType} bracket`);
-        const consolation = generateConsolationBracket(r16Losers, 'R16');
+        const consolation = generateConsolationBracket(r16Losers, 'R16', bracketType);
         updatedBracket.consolationBrackets.push(consolation);
       }
     }
@@ -1656,7 +1656,7 @@ export async function forceRegenerateConsolationBrackets(
   if (available.hasR16) {
     const r16ByePositions = getByePositionsInRound(updatedBracket, 'R16');
     console.log(`   R16 BYE positions: [${r16ByePositions.join(', ') || 'none'}]`);
-    const newR16Bracket = generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions);
+    const newR16Bracket = generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions, bracketType);
 
     // Restore completed matches for R16 consolation
     const r16CompletedMatches = existingMatchesMap.get('R16');
@@ -1678,7 +1678,7 @@ export async function forceRegenerateConsolationBrackets(
   if (available.hasQF) {
     const qfByePositions = getByePositionsInRound(updatedBracket, 'QF');
     console.log(`   QF BYE positions: [${qfByePositions.join(', ') || 'none'}]`);
-    const newQFBracket = generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions);
+    const newQFBracket = generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions, bracketType);
 
     // Restore completed matches for QF consolation
     const qfCompletedMatches = existingMatchesMap.get('QF');

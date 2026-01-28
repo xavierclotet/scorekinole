@@ -886,15 +886,21 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
           const { startPosition, totalRounds } = consolation;
           const numParticipants = Math.pow(2, totalRounds);
           const posEnd = startPosition + numParticipants - 1;
+          console.log(`  🏆 Gold Consolation (start=${startPosition}, rounds=${totalRounds})`);
 
           for (let roundIdx = 0; roundIdx < consolation.rounds.length; roundIdx++) {
             const round = consolation.rounds[roundIdx];
             const isFinalRound = roundIdx === totalRounds - 1;
+            console.log(`    📍 Round ${roundIdx + 1}: ${round.matches.length} matches`);
 
             for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
               const match = round.matches[matchIdx];
+              const statusOk = shouldIncludeMatch(match.status);
+              const readyToPlay = isMatchReadyToPlay(match.participantA, match.participantB);
+              const included = statusOk && readyToPlay;
+              console.log(`      🎯 Match ${match.id}: status=${match.status}, A=${match.participantA || 'NONE'}, B=${match.participantB || 'NONE'} => ${included ? '✅ INCLUDED' : '❌ EXCLUDED'} (statusOk=${statusOk}, readyToPlay=${readyToPlay})`);
               // Use isMatchReadyToPlay to exclude matches with LOSER: placeholders
-              if (shouldIncludeMatch(match.status) && isMatchReadyToPlay(match.participantA, match.participantB)) {
+              if (statusOk && readyToPlay) {
                 // Calculate position label for this match
                 let bracketRoundName: string;
                 if (isFinalRound) {
@@ -1003,15 +1009,21 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
           const { startPosition, totalRounds } = consolation;
           const numParticipants = Math.pow(2, totalRounds);
           const posEnd = startPosition + numParticipants - 1;
+          console.log(`  🥈 Silver Consolation (start=${startPosition}, rounds=${totalRounds})`);
 
           for (let roundIdx = 0; roundIdx < consolation.rounds.length; roundIdx++) {
             const round = consolation.rounds[roundIdx];
             const isFinalRound = roundIdx === totalRounds - 1;
+            console.log(`    📍 Round ${roundIdx + 1}: ${round.matches.length} matches`);
 
             for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
               const match = round.matches[matchIdx];
+              const statusOk = shouldIncludeMatch(match.status);
+              const readyToPlay = isMatchReadyToPlay(match.participantA, match.participantB);
+              const included = statusOk && readyToPlay;
+              console.log(`      🎯 Match ${match.id}: status=${match.status}, A=${match.participantA || 'NONE'}, B=${match.participantB || 'NONE'} => ${included ? '✅ INCLUDED' : '❌ EXCLUDED'} (statusOk=${statusOk}, readyToPlay=${readyToPlay})`);
               // Use isMatchReadyToPlay to exclude matches with LOSER: placeholders
-              if (shouldIncludeMatch(match.status) && isMatchReadyToPlay(match.participantA, match.participantB)) {
+              if (statusOk && readyToPlay) {
                 // Calculate position label for this match
                 let bracketRoundName: string;
                 if (isFinalRound) {
@@ -1080,6 +1092,8 @@ export async function startTournamentMatch(
   groupId?: string,
   forceResume: boolean = false  // Allow resuming IN_PROGRESS matches (for emergency recovery)
 ): Promise<{ success: boolean; error?: string }> {
+  console.log(`🚀 startTournamentMatch called: matchId=${matchId}, phase=${phase}, forceResume=${forceResume}`);
+
   if (!browser || !isFirebaseEnabled()) {
     return { success: false, error: 'Firebase disabled' };
   }
@@ -1229,9 +1243,11 @@ export async function startTournamentMatch(
       }
 
       if (result === 'in_progress') {
+        console.log(`❌ startTournamentMatch FAILED - Match ${matchId} is already in progress (status=${currentStatus})`);
         return { success: false, error: 'Match is already in progress on another device' };
       }
       if (result === 'completed') {
+        console.log(`❌ startTournamentMatch FAILED - Match ${matchId} has already been completed (status=${currentStatus})`);
         return { success: false, error: 'Match has already been completed' };
       }
       matchFound = result === 'found';

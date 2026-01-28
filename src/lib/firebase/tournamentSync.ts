@@ -347,7 +347,7 @@ export function subscribeToMatchStatus(
   matchId: string,
   phase: 'GROUP' | 'FINAL',
   groupId: string | undefined,
-  callback: (status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'WALKOVER', winner?: string | null) => void
+  callback: (status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'WALKOVER', winner?: string | null, matchParticipants?: { participantA: string | null; participantB: string | null }) => void
 ): () => void {
   if (!browser || !isFirebaseEnabled()) {
     return () => {};
@@ -394,24 +394,40 @@ export function subscribeToMatchStatus(
         }
       }
 
-      // Check consolation brackets
-      if (!match && tournament.finalStage.goldBracket?.consolationBracket?.rounds) {
-        for (const round of tournament.finalStage.goldBracket.consolationBracket.rounds) {
-          match = round.matches?.find((m: any) => m.id === matchId);
+      // Check consolation brackets (array of brackets, e.g., QF and R16)
+      if (!match && tournament.finalStage.goldBracket?.consolationBrackets) {
+        for (const consolationBracket of tournament.finalStage.goldBracket.consolationBrackets) {
+          for (const round of consolationBracket.rounds || []) {
+            match = round.matches?.find((m: any) => m.id === matchId);
+            if (match) break;
+          }
           if (match) break;
         }
       }
-      if (!match && tournament.finalStage.silverBracket?.consolationBracket?.rounds) {
-        for (const round of tournament.finalStage.silverBracket.consolationBracket.rounds) {
-          match = round.matches?.find((m: any) => m.id === matchId);
+      if (!match && tournament.finalStage.silverBracket?.consolationBrackets) {
+        for (const consolationBracket of tournament.finalStage.silverBracket.consolationBrackets) {
+          for (const round of consolationBracket.rounds || []) {
+            match = round.matches?.find((m: any) => m.id === matchId);
+            if (match) break;
+          }
           if (match) break;
         }
       }
     }
 
     if (match && match.status !== lastStatus) {
+      console.log('📡 subscribeToMatchStatus - match found:', {
+        matchId,
+        status: match.status,
+        winner: match.winner,
+        participantA: match.participantA,
+        participantB: match.participantB
+      });
       lastStatus = match.status;
-      callback(match.status, match.winner);
+      callback(match.status, match.winner, {
+        participantA: match.participantA || null,
+        participantB: match.participantB || null
+      });
     }
   });
 

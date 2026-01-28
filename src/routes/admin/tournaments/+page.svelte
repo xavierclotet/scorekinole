@@ -33,8 +33,18 @@
   let totalCount = $state(0);
   let lastDoc: QueryDocumentSnapshot<DocumentData> | null = $state(null);
   let hasMore = $state(true);
+  let tableContainer: HTMLElement | null = $state(null);
 
   let isSearching = $derived(searchQuery.trim().length > 0);
+
+  // Auto-load more if container doesn't have scroll
+  $effect(() => {
+    if (tableContainer && hasMore && !loading && !loadingMore && !isSearching) {
+      if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+        loadMore();
+      }
+    }
+  });
   let isFiltering = $derived(statusFilter !== 'all');
 
   // Get unique creators from tournaments (for superadmin filter), excluding current user
@@ -299,7 +309,7 @@
         {m.admin_showingOf({ showing: String(filteredTournaments.length), total: String(displayTotal) })}
       </div>
 
-      <div class="table-container" onscroll={handleScroll}>
+      <div class="table-container" bind:this={tableContainer} onscroll={handleScroll}>
         <table class="tournaments-table">
           <thead>
             <tr>

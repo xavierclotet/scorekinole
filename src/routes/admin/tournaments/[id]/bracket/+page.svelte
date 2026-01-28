@@ -410,7 +410,8 @@
 
   /**
    * Get a friendly display name for a loser placeholder
-   * e.g., "LOSER:QF:0" -> "Perdedor QF #1"
+   * Shows the names of the players competing in the source match
+   * e.g., "LOSER:QF:0" -> "Perd. Player1/Player2"
    */
   function getLoserPlaceholderDisplay(participantId: string | undefined): string | null {
     if (!participantId || !isLoserPlaceholder(participantId)) return null;
@@ -418,6 +419,36 @@
     const parsed = parseLoserPlaceholder(participantId);
     if (!parsed) return 'TBD';
 
+    // Try to find the source match in the main bracket to show participant names
+    const currentBracket = activeTab === 'gold' ? goldBracket : silverBracket;
+    if (currentBracket && tournament) {
+      // Find the round that matches QF or R16
+      // QF is typically the round with 4 matches (quarterfinals)
+      // R16 is the round with 8 matches (round of 16)
+      const targetMatchCount = parsed.roundName === 'QF' ? 4 : 8;
+
+      for (const round of currentBracket.rounds) {
+        if (round.matches.length === targetMatchCount) {
+          const sourceMatch = round.matches[parsed.matchPosition];
+          if (sourceMatch) {
+            const nameA = tournament.participants.find(p => p.id === sourceMatch.participantA)?.name;
+            const nameB = tournament.participants.find(p => p.id === sourceMatch.participantB)?.name;
+
+            if (nameA && nameB) {
+              // Shorten names if too long
+              const shortA = nameA.length > 10 ? nameA.substring(0, 10) + '.' : nameA;
+              const shortB = nameB.length > 10 ? nameB.substring(0, 10) + '.' : nameB;
+              return `Perd. ${shortA}/${shortB}`;
+            } else if (nameA || nameB) {
+              return `Perd. ${nameA || nameB || '?'}`;
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    // Fallback to generic display
     const roundNames: Record<string, string> = {
       'QF': 'Cuartos',
       'R16': 'Octavos'
@@ -571,6 +602,17 @@
   }) {
     if (!selectedMatch || !tournamentId || !tournament) return;
     showMatchDialog = false;
+
+    // Debug: Log match details before saving
+    console.log('🔍 handleSaveMatch - selectedMatch details:', {
+      matchId: selectedMatch.id,
+      participantA: selectedMatch.participantA,
+      participantB: selectedMatch.participantB,
+      status: selectedMatch.status,
+      gamesWonA: result.gamesWonA,
+      gamesWonB: result.gamesWonB,
+      isConsolation: !!selectedConsolationSource
+    });
 
     // Check if this is a consolation match
     if (selectedConsolationSource) {
@@ -4096,6 +4138,14 @@
 
   .consolation-section[data-theme='dark'] .consolation-match.bye-match {
     background: rgba(15, 23, 42, 0.5);
+  }
+
+  /* Hide connector lines in consolation brackets - they don't make sense there */
+  .consolation-section .bracket-match::before,
+  .consolation-section .bracket-match::after,
+  .consolation-round .bracket-match::before,
+  .consolation-round .bracket-match::after {
+    display: none !important;
   }
 
   .match-participant.bye {

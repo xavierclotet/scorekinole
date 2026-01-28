@@ -256,8 +256,8 @@
 			context.matchId,
 			context.phase,
 			context.groupId,
-			(status, winner) => {
-				console.log('📡 Match status update from Firebase:', { status, winner });
+			(status, winner, matchParticipants) => {
+				console.log('📡 Match status update from Firebase:', { status, winner, matchParticipants });
 
 				// If match was completed externally (by admin) and we haven't sent our completion
 				if ((status === 'COMPLETED' || status === 'WALKOVER') && !tournamentMatchCompletedSent) {
@@ -266,14 +266,42 @@
 					// Find winner name
 					if (winner) {
 						const ctx = get(gameTournamentContext);
+						const t1 = get(team1);
+						const t2 = get(team2);
+						console.log('🔍 Looking for winner name:', {
+							winner,
+							ctxParticipantAId: ctx?.participantAId,
+							ctxParticipantBId: ctx?.participantBId,
+							matchParticipantA: matchParticipants?.participantA,
+							matchParticipantB: matchParticipants?.participantB,
+							team1Name: t1.name,
+							team2Name: t2.name
+						});
+
+						// Match winner ID with context participant IDs
 						if (ctx) {
 							if (winner === ctx.participantAId) {
 								externalMatchWinner = ctx.participantAName;
 							} else if (winner === ctx.participantBId) {
 								externalMatchWinner = ctx.participantBName;
-							} else {
-								externalMatchWinner = winner;
 							}
+							// Fallback: Check Firebase match participant IDs (in case context IDs are stale)
+							else if (matchParticipants) {
+								if (winner === matchParticipants.participantA) {
+									externalMatchWinner = ctx.participantAName || winner;
+								} else if (winner === matchParticipants.participantB) {
+									externalMatchWinner = ctx.participantBName || winner;
+								} else {
+									// Bug: winner doesn't match any known ID
+									externalMatchWinner = ctx.participantAName || ctx.participantBName || winner;
+									console.log('⚠️ BUG: Winner ID does not match context IDs nor Firebase match IDs');
+								}
+							} else {
+								externalMatchWinner = ctx.participantAName || ctx.participantBName || winner;
+								console.log('⚠️ No matchParticipants available');
+							}
+						} else {
+							externalMatchWinner = t1.name || t2.name || winner;
 						}
 					}
 
@@ -547,6 +575,9 @@
 	 */
 	function handleTournamentMatchStarted(context: TournamentMatchContext) {
 		applyTournamentConfig(context);
+
+		// Subscribe to match status changes (detect if admin completes match externally)
+		setupMatchStatusSubscription(context);
 
 		// Show hammer dialog only if enabled AND match is starting fresh (no existing rounds)
 		// Don't show when resuming a match that already has progress

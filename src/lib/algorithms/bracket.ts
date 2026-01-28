@@ -405,7 +405,8 @@ export function getQualifiedParticipants(
  */
 export function generateConsolationBracket(
   losers: { participantId: string; seed?: number }[],
-  source: 'QF' | 'R16'
+  source: 'QF' | 'R16',
+  bracketType: 'gold' | 'silver' = 'gold'
 ): ConsolationBracket {
   const numLosers = losers.length;
   const expectedLosers = source === 'QF' ? 4 : 8;
@@ -437,8 +438,8 @@ export function generateConsolationBracket(
     const participantB = sortedLosers[seedBIdx];
 
     firstRoundMatches.push({
-      // Deterministic ID based on source, round, and position (so regeneration preserves matches)
-      id: `consolation-${source}-r1-m${i + 1}`,
+      // Deterministic ID based on bracket type, source, round, and position (so regeneration preserves matches)
+      id: `consolation-${bracketType}-${source}-r1-m${i + 1}`,
       position: i,
       participantA: participantA.participantId,
       participantB: participantB.participantId,
@@ -460,8 +461,8 @@ export function generateConsolationBracket(
     const matches: BracketMatch[] = [];
 
     for (let i = 0; i < matchesInRound; i++) {
-      // Deterministic ID based on source, round, and position (so regeneration preserves matches)
-      const matchId = `consolation-${source}-r${round}-m${i + 1}`;
+      // Deterministic ID based on bracket type, source, round, and position (so regeneration preserves matches)
+      const matchId = `consolation-${bracketType}-${source}-r${round}-m${i + 1}`;
 
       // Link previous round matches to this match
       const prevRound = rounds[round - 2];
@@ -500,23 +501,28 @@ export function generateConsolationBracket(
  * @param roundNumber Current round number (1-based)
  * @param totalRounds Total number of rounds in this consolation bracket
  * @param source Source round ('QF' or 'R16')
- * @param numLosers Number of real losers in this consolation bracket
  */
-function getConsolationRoundName(roundNumber: number, totalRounds: number, _source: 'QF' | 'R16'): string {
+function getConsolationRoundName(roundNumber: number, totalRounds: number, source: 'QF' | 'R16'): string {
+  const startPosition = source === 'QF' ? 5 : 9;
   const roundsFromEnd = totalRounds - roundNumber;
 
   if (roundsFromEnd === 0) {
-    // Final round - just label as "Finales", individual positions shown per match
-    return 'Finales';
+    // Final round - shows the top positions being decided
+    // E.g., for QF consolation: "5º-6º", for R16: "9º-10º"
+    return `${startPosition}º-${startPosition + 1}º`;
   }
 
-  if (roundsFromEnd === 1 && totalRounds >= 2) {
-    // Semifinal round
-    return 'Semi';
-  }
+  // For earlier rounds, show the position range of losers from this round
+  // Losers of this round compete for positions starting at startPosition + 2^roundsFromEnd
+  // E.g., for QF consolation (4 players, 2 rounds):
+  //   - Round 1 (roundsFromEnd=1): losers go to 7º-8º match
+  // For R16 consolation (8 players, 3 rounds):
+  //   - Round 1 (roundsFromEnd=2): losers get positions 13º-16º
+  //   - Round 2 (roundsFromEnd=1): losers go to 11º-12º match
+  const bestLoserPosition = startPosition + Math.pow(2, roundsFromEnd);
+  const worstLoserPosition = startPosition + Math.pow(2, roundsFromEnd + 1) - 1;
 
-  // Earlier rounds
-  return `R${roundNumber}`;
+  return `${bestLoserPosition}º-${worstLoserPosition}º`;
 }
 
 /**
@@ -564,7 +570,8 @@ export function createLoserPlaceholder(roundName: string, matchPosition: number)
 export function generateConsolationBracketStructure(
   _bracketSize: number,
   source: 'QF' | 'R16',
-  byePositions: number[] = []
+  byePositions: number[] = [],
+  bracketType: 'gold' | 'silver' = 'gold'
 ): ConsolationBracket {
   const sourceRoundName = source;
 
@@ -602,8 +609,8 @@ export function generateConsolationBracketStructure(
 
   for (let i = 0; i < seeding.length; i++) {
     const [seedA, seedB] = seeding[i];
-    // Deterministic ID based on source, round, and position (so regeneration preserves matches)
-    const matchId = `consolation-${source}-r1-m${i + 1}`;
+    // Deterministic ID based on bracket type, source, round, and position (so regeneration preserves matches)
+    const matchId = `consolation-${bracketType}-${source}-r1-m${i + 1}`;
 
     // Map seeds to actual loser positions
     // Seeds 1 to numRealLosers get real losers, rest get BYEs
@@ -668,8 +675,8 @@ export function generateConsolationBracketStructure(
     const totalMatchesThisRound = isFinalRound ? matchesInRound * 2 : matchesInRound;
 
     for (let i = 0; i < matchesInRound; i++) {
-      // Deterministic ID based on source, round, and position (so regeneration preserves matches)
-      const matchId = `consolation-${source}-r${round}-m${i + 1}`;
+      // Deterministic ID based on bracket type, source, round, and position (so regeneration preserves matches)
+      const matchId = `consolation-${bracketType}-${source}-r${round}-m${i + 1}`;
 
       // Link previous round matches to this match (winners go here)
       const prevRound = rounds[round - 2];
@@ -693,7 +700,7 @@ export function generateConsolationBracketStructure(
       // Create 3rd place matches - one for every 2 matches in previous round
       for (let i = 0; i < matchesInRound; i++) {
         // Deterministic ID for 3rd place match
-        const thirdPlaceMatchId = `consolation-${source}-r${round}-3rd-${i + 1}`;
+        const thirdPlaceMatchId = `consolation-${bracketType}-${source}-r${round}-3rd-${i + 1}`;
 
         // Link previous round losers to this 3rd place match
         const prevMatch1 = prevRound.matches[i * 2];
