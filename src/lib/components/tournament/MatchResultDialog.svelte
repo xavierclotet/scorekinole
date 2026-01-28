@@ -59,13 +59,19 @@
   let isBye = $derived(match.participantB === 'BYE');
 
   // Game mode - use phase-specific config if in bracket, otherwise use group stage config
-  let gameConfig = $derived(isBracket && tournament.finalStage
+  // Note: config is inside goldBracket or silverBracket, not directly in finalStage
+  let activeBracket = $derived(
+    bracketIsSilver
+      ? tournament.finalStage?.silverBracket
+      : tournament.finalStage?.goldBracket
+  );
+
+  let gameConfig = $derived(isBracket && activeBracket
     ? getPhaseConfig(
-        tournament.finalStage,
+        activeBracket,
         bracketRoundNumber,
         bracketTotalRounds,
-        bracketIsThirdPlace,
-        bracketIsSilver
+        bracketIsThirdPlace
       )
     : tournament.groupStage
     ? {
@@ -120,7 +126,7 @@
       // Check if match already has saved rounds
       const hasSavedRounds = match.rounds && match.rounds.length > 0;
 
-      if (hasSavedRounds) {
+      if (hasSavedRounds && match.rounds) {
         // Load saved rounds (for any match type)
         console.log('🔍 Loading saved rounds:', match.rounds);
         rounds = match.rounds.map(r => ({
@@ -295,7 +301,10 @@
   // Detect tiebreak situation in bracket rounds mode
   let allBaseRoundsComplete = $derived(isRoundsMode && rounds.length >= baseNumRounds &&
     rounds.slice(0, baseNumRounds).every(r => r.pointsA !== null && r.pointsB !== null));
-  let isBracketTiebreak = $derived(isBracket && isRoundsMode && allBaseRoundsComplete && gamesWonA === gamesWonB);
+  // Calculate rounds won directly to avoid $effect sync issues
+  let roundsWonAForTiebreak = $derived(rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsA > r.pointsB).length);
+  let roundsWonBForTiebreak = $derived(rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsB > r.pointsA).length);
+  let isBracketTiebreak = $derived(isBracket && isRoundsMode && allBaseRoundsComplete && roundsWonAForTiebreak === roundsWonBForTiebreak);
   let needsExtraRound = $derived(isBracketTiebreak && rounds.every(r => r.pointsA !== null && r.pointsB !== null));
 
   // Validation - canSave derived from current state
@@ -309,7 +318,10 @@
       const allRoundsPlayed = rounds.every(r => r.pointsA !== null && r.pointsB !== null);
       if (isBracket) {
         // Bracket in rounds mode: no ties allowed - must have a winner
-        return allRoundsPlayed && gamesWonA !== gamesWonB;
+        // Calculate rounds won directly here to avoid $effect sync issues
+        const roundsWonA = rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsA > r.pointsB).length;
+        const roundsWonB = rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsB > r.pointsA).length;
+        return allRoundsPlayed && roundsWonA !== roundsWonB;
       } else {
         // Groups in rounds mode: ties allowed
         return allRoundsPlayed;
@@ -321,6 +333,20 @@
 
   // Check if any result has been entered (to hide no-show buttons)
   let hasAnyResult = $derived(rounds.some(r => r.pointsA !== null || r.pointsB !== null));
+
+  // Admin force finish: allow saving when someone is winning but match isn't complete
+  let hasPartialWinner = $derived((() => {
+    if (!hasAnyResult) return false;
+    // Check if someone has more points
+    if (totalPointsA !== totalPointsB) return true;
+    // Or more rounds won
+    const roundsWonA = rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsA > r.pointsB).length;
+    const roundsWonB = rounds.filter(r => r.pointsA !== null && r.pointsB !== null && r.pointsB > r.pointsA).length;
+    return roundsWonA !== roundsWonB;
+  })());
+
+  // Can force finish: admin only, has partial winner, and can't save normally
+  let canForceFinish = $derived(isAdmin && hasPartialWinner && !canSave);
 
   // Group rounds by game number for display (completed matches)
   let gamesByNumber = $derived(rounds.reduce((map, round) => {
@@ -407,7 +433,7 @@
   }
 
   function handleSave() {
-    if (!canSave) return;
+    if (!canSave && !canForceFinish) return;
 
     // Compute aggregate totals across all games
     const result: {
@@ -440,19 +466,8 @@
     // Include round-by-round data
     // - For bracket points mode: save rounds with game tracking
     // - For groups/bracket rounds mode: save rounds for editing later
-    console.log('💾 Saving match result:', {
-      isBracket,
-      isRoundsMode,
-      roundsLength: rounds.length,
-      rounds,
-      willIncludeRounds: rounds.length > 0
-    });
-
     if (rounds.length > 0) {
       result.rounds = rounds;
-      console.log('✅ Including rounds in result:', result.rounds);
-    } else {
-      console.log('⚠️ Not including rounds - empty rounds array');
     }
 
     onsave?.(result);
@@ -528,31 +543,44 @@
   >
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="dialog" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <div class="dialog" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+      <!-- Header -->
       <div class="dialog-header">
-        <h2>📝 {m.tournament_matchResult()}</h2>
-        {#if isAdmin && isMatchCompleted}
-          <span class="admin-edit-badge">✏️ {m.tournament_adminEditing()}</span>
-        {/if}
-        <button class="close-btn" onclick={handleClose}>✕</button>
+        <div class="header-title">
+          <h2>{m.tournament_matchResult()}</h2>
+          {#if isAdmin && isMatchCompleted}
+            <span class="admin-edit-badge">{m.tournament_adminEditing()}</span>
+          {/if}
+        </div>
+        <button class="close-btn" onclick={handleClose} aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
 
       <div class="dialog-content">
-        <!-- Match Info -->
-        <div class="match-info">
-          <div class="participant-header">
-            <span class="participant-name">{participantA?.name || 'Unknown'}</span>
-            <span class="vs">VS</span>
-            <span class="participant-name">{isBye ? 'BYE' : participantB?.name || 'Unknown'}</span>
+        <!-- Match Card -->
+        <div class="match-card">
+          <div class="match-participants">
+            <div class="participant participant-a">
+              <span class="participant-name">{participantA?.name || 'Unknown'}</span>
+            </div>
+            <div class="match-center">
+              <span class="vs-badge">VS</span>
+              {#if match.tableNumber}
+                <span class="table-badge">{m.tournament_tableShort()} {match.tableNumber}</span>
+              {/if}
+            </div>
+            <div class="participant participant-b">
+              <span class="participant-name">{isBye ? 'BYE' : participantB?.name || 'Unknown'}</span>
+            </div>
           </div>
-          {#if match.tableNumber}
-            <div class="table-info">{m.tournament_tableShort()} {match.tableNumber}</div>
-          {/if}
-          <div class="mode-info">
+          <div class="match-format">
             {#if isRoundsMode}
-              {m.tournament_nRounds({ n: String(numRounds) })}
+              <span class="format-badge">{m.tournament_nRounds({ n: String(numRounds) })}</span>
             {:else}
-              {m.tournament_bestOf({ games: String(gameConfig.matchesToWin) })}
+              <span class="format-badge">{m.tournament_bestOf({ games: String(gameConfig.matchesToWin) })}</span>
             {/if}
           </div>
         </div>
@@ -1170,37 +1198,57 @@
             <!-- Tiebreak section for bracket rounds mode -->
             {#if needsExtraRound}
               <div class="tiebreak-section">
-                <div class="tiebreak-notice">
-                  ⚖️ {m.tournament_tiebreakNeeded()}
-                </div>
-                <div class="tiebreak-score">
-                  {participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name}
+                <div class="tiebreak-content">
+                  <div class="tiebreak-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 3v18M3 12h18"/>
+                    </svg>
+                  </div>
+                  <div class="tiebreak-text">
+                    <span class="tiebreak-title">{m.tournament_tiebreakNeeded()}</span>
+                    <span class="tiebreak-score">{participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name}</span>
+                  </div>
                 </div>
                 <button class="extra-round-btn" onclick={addExtraRound} type="button">
-                  + {m.tournament_addExtraRound()} (R{rounds.length + 1})
+                  {m.tournament_addExtraRound()} (R{rounds.length + 1})
                 </button>
               </div>
             {:else if isRoundsMode && !canSave && (totalPointsA > 0 || totalPointsB > 0)}
               <!-- Validation messages (only for rounds mode) -->
-              <div class="validation-error">
-                {#if isBracket && gamesWonA === gamesWonB}
-                  ⚠️ {m.tournament_tiesNotAllowedInElimination()}
-                {:else}
-                  ⚠️ {m.tournament_mustCompleteAllRounds()}
-                {/if}
+              <div class="validation-message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 8v4M12 16h.01"/>
+                </svg>
+                <span>
+                  {#if isBracket && gamesWonA === gamesWonB}
+                    {m.tournament_tiesNotAllowedInElimination()}
+                  {:else}
+                    {m.tournament_mustCompleteAllRounds()}
+                  {/if}
+                </span>
               </div>
             {/if}
 
             <!-- No-show section (only show if no results have been entered) -->
             {#if !hasAnyResult}
               <div class="noshow-section">
-                <h3>⚠️ {m.tournament_noShowLabel()}</h3>
+                <div class="noshow-header">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                  <span>{m.tournament_noShowLabel()}</span>
+                </div>
                 <div class="noshow-buttons">
                   <button class="noshow-btn" onclick={() => handleNoShow(match.participantA)}>
-                    {m.tournament_didNotShowUp({ name: participantA?.name || '' })}
+                    <span class="noshow-name">{participantA?.name || ''}</span>
+                    <span class="noshow-label">{m.tournament_didNotShowUp({ name: '' })}</span>
                   </button>
                   <button class="noshow-btn" onclick={() => handleNoShow(match.participantB)}>
-                    {m.tournament_didNotShowUp({ name: participantB?.name || '' })}
+                    <span class="noshow-name">{participantB?.name || ''}</span>
+                    <span class="noshow-label">{m.tournament_didNotShowUp({ name: '' })}</span>
                   </button>
                 </div>
               </div>
@@ -1211,18 +1259,32 @@
 
       {#if canEdit}
         <div class="dialog-footer">
-          <button class="cancel-btn" onclick={handleClose}>
+          <button class="btn btn-secondary" onclick={handleClose}>
             {m.common_cancel()}
           </button>
           {#if !isBye}
-            <button class="save-btn" onclick={handleSave} disabled={!canSave}>
+            {#if canForceFinish}
+              <button class="btn btn-warning" onclick={handleSave} title={m.tournament_forceFinishTooltip()}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                {m.tournament_forceFinish()}
+              </button>
+            {/if}
+            <button class="btn btn-primary" onclick={handleSave} disabled={!canSave}>
+              {#if canSave}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+              {/if}
               {isAdmin && isMatchCompleted ? m.tournament_updateResult() : m.common_save()}
             </button>
           {/if}
         </div>
       {:else}
         <div class="dialog-footer">
-          <button class="cancel-btn" onclick={handleClose}>
+          <button class="btn btn-secondary" onclick={handleClose}>
             {m.common_close()}
           </button>
         </div>
@@ -1258,168 +1320,153 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1.5rem;
+    padding: 0.875rem 1.25rem;
     border-bottom: 1px solid #e5e7eb;
+    background: #fafafa;
+  }
+
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
   }
 
   .dialog-header h2 {
     margin: 0;
-    font-size: 1.4rem;
-    color: #1a1a1a;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2937;
+    letter-spacing: -0.01em;
   }
 
   .admin-edit-badge {
-    background: #f59e0b;
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-left: auto;
-    margin-right: 1rem;
+    background: #fef3c7;
+    color: #b45309;
+    padding: 0.1875rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
   }
 
   .close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
-    font-size: 1.5rem;
-    color: #9ca3af;
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    color: #6b7280;
     cursor: pointer;
-    padding: 0.25rem 0.5rem;
-    transition: color 0.2s;
+    transition: all 0.15s ease;
+  }
+
+  .close-btn svg {
+    width: 18px;
+    height: 18px;
   }
 
   .close-btn:hover {
-    color: #1a1a1a;
+    background: #f3f4f6;
+    color: #1f2937;
   }
 
   .dialog-content {
     flex: 1;
     overflow-y: auto;
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 
-  .match-info {
-    background: #f9fafb;
-    border-radius: 8px;
+  /* Match Card */
+  .match-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
     padding: 1rem;
-    margin-bottom: 1.5rem;
-    text-align: center;
+    margin-bottom: 1.25rem;
   }
 
-  .participant-header {
-    display: flex;
+  .match-participants {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    margin-bottom: 0.5rem;
+    gap: 0.75rem;
+  }
+
+  .participant {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .participant-a {
+    text-align: left;
+  }
+
+  .participant-b {
+    text-align: right;
   }
 
   .participant-name {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #1a1a1a;
-  }
-
-  .vs {
-    font-size: 0.85rem;
-    font-weight: 800;
-    color: #9ca3af;
-    padding: 0.25rem 0.5rem;
-    background: white;
-    border-radius: 4px;
-  }
-
-  .table-info,
-  .mode-info {
-    font-size: 0.9rem;
-    color: #6b7280;
+    font-size: 0.9375rem;
     font-weight: 600;
+    color: #1e293b;
+    line-height: 1.3;
   }
 
-  .bye-notice {
-    background: #fef3c7;
-    color: #92400e;
-    padding: 1rem;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: 600;
-  }
-
-  /* Games Scoreboard (Points Mode) */
-  .games-scoreboard {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    color: white;
-  }
-
-  .game-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .game-number {
-    font-size: 1.1rem;
-    font-weight: 700;
-  }
-
-  .games-won-display {
-    font-size: 0.95rem;
-    font-weight: 600;
-    background: rgba(255, 255, 255, 0.2);
-    padding: 0.35rem 0.75rem;
-    border-radius: 6px;
-  }
-
-  .games-won-display strong {
-    font-size: 1.1rem;
-    font-weight: 800;
-  }
-
-  .current-game-score {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 2rem;
-    margin: 1.5rem 0;
-  }
-
-  .score-item {
+  .match-center {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
-  .player-label {
-    font-size: 0.9rem;
-    font-weight: 600;
-    opacity: 0.9;
+  .vs-badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: #64748b;
+    background: white;
+    padding: 0.1875rem 0.375rem;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+    letter-spacing: 0.05em;
   }
 
-  .points-display {
-    font-size: 3rem;
-    font-weight: 800;
-    line-height: 1;
+  .table-badge {
+    font-size: 0.625rem;
+    font-weight: 500;
+    color: #94a3b8;
   }
 
-  .score-divider {
-    font-size: 2rem;
-    font-weight: 300;
-    opacity: 0.6;
+  .match-format {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.75rem;
+    padding-top: 0.625rem;
+    border-top: 1px solid #e2e8f0;
   }
 
-  .target-info {
+  .format-badge {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: #64748b;
+    background: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .bye-notice {
+    background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+    color: #854d0e;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    border: 1px solid #fde047;
     text-align: center;
-    font-size: 0.85rem;
-    opacity: 0.9;
-    margin-top: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9375rem;
   }
 
   /* Game Actions */
@@ -1581,62 +1628,6 @@
     border: 1px solid rgba(146, 64, 14, 0.2);
   }
 
-  /* Completed game summary (in-progress matches) */
-  .completed-game-summary {
-    background: #d1fae5;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .completed-game-summary .game-header.completed {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .completed-game-summary .game-number {
-    font-weight: 600;
-    color: #065f46;
-  }
-
-  .completed-game-summary .game-result {
-    font-weight: 500;
-    color: #047857;
-  }
-
-  .completed-game-summary .winner-badge {
-    font-size: 0.85em;
-    opacity: 0.8;
-  }
-
-  .completed-game-summary .completed-rounds {
-    margin-top: 0.5rem;
-    font-size: 0.85rem;
-    width: 100%;
-  }
-
-  .completed-game-summary .completed-rounds th,
-  .completed-game-summary .completed-rounds td {
-    padding: 0.25rem 0.5rem;
-    text-align: center;
-  }
-
-  .completed-game-summary .completed-rounds th {
-    background: rgba(0, 0, 0, 0.1);
-    font-weight: 600;
-  }
-
-  .completed-game-summary .completed-rounds td {
-    background: rgba(255, 255, 255, 0.5);
-  }
-
-  .game-header.current .game-number {
-    color: #2563eb;
-  }
-
   .current-game-header {
     display: flex;
     align-items: center;
@@ -1668,18 +1659,6 @@
 
   .dialog-backdrop[data-theme='dark'] .current-game-header .game-title {
     color: #93c5fd;
-  }
-
-  .dialog-backdrop[data-theme='dark'] .completed-game-summary {
-    background: #064e3b;
-  }
-
-  .dialog-backdrop[data-theme='dark'] .completed-game-summary .game-number {
-    color: #6ee7b7;
-  }
-
-  .dialog-backdrop[data-theme='dark'] .completed-game-summary .game-result {
-    color: #a7f3d0;
   }
 
   .completed-game-header {
@@ -1719,93 +1698,6 @@
   .total-cell.readonly {
     background: rgba(209, 213, 219, 0.5);
     font-weight: 700;
-  }
-
-  /* Compact Table for Points Mode */
-  .rounds-table.compact {
-    font-size: 0.9rem;
-  }
-
-  .rounds-table.compact th,
-  .rounds-table.compact td {
-    padding: 0.5rem 0.25rem;
-  }
-
-  .round-num-col {
-    min-width: 60px;
-    text-align: center;
-  }
-
-  .player-col-compact {
-    min-width: 100px;
-    text-align: center;
-  }
-
-  .twenties-col-compact {
-    min-width: 50px;
-    text-align: center;
-  }
-
-  .round-num {
-    text-align: center;
-    font-weight: 600;
-    color: #6b7280;
-  }
-
-  /* Points and Twenties inline layout */
-  .points-twenties-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    justify-content: center;
-  }
-
-  .twenties-inline {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    background: #fffbeb;
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    border: 1px solid #fbbf24;
-  }
-
-  .twenties-label {
-    font-size: 0.9rem;
-  }
-
-  .twenties-input-inline {
-    width: 40px;
-    padding: 0.25rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    font-weight: 700;
-    text-align: center;
-    color: #1a1a1a;
-    background: white;
-  }
-
-  .twenties-input-inline:focus {
-    outline: none;
-    border-color: #fbbf24;
-    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.1);
-  }
-
-  /* Dark mode for inline twenties */
-  .dialog-backdrop[data-theme='dark'] .twenties-inline {
-    background: rgba(251, 191, 36, 0.1);
-    border-color: rgba(251, 191, 36, 0.3);
-  }
-
-  .dialog-backdrop[data-theme='dark'] .twenties-input-inline {
-    background: #0f1419;
-    border-color: #2d3748;
-    color: #e1e8ed;
-  }
-
-  .dialog-backdrop[data-theme='dark'] .twenties-input-inline:focus {
-    border-color: #fbbf24;
   }
 
   /* Rounds Table */
@@ -1965,150 +1857,256 @@
     margin-top: 0.25rem;
   }
 
-  .validation-error {
-    margin-bottom: 1rem;
-    padding: 0.75rem;
-    background: #fee;
-    color: #c00;
+  /* Validation Message */
+  .validation-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    margin: 0.75rem 0;
+    padding: 0.5rem 0.75rem;
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
     border-radius: 6px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    text-align: center;
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  .validation-message svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
   }
 
   /* Tiebreak section */
   .tiebreak-section {
-    margin: 1.5rem 0;
-    padding: 1.25rem;
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border: 2px solid #f59e0b;
-    border-radius: 12px;
-    text-align: center;
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
   }
 
-  .tiebreak-notice {
-    font-size: 1.1rem;
-    font-weight: 700;
+  .tiebreak-content {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .tiebreak-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: #fef3c7;
+    border-radius: 6px;
+    color: #b45309;
+    flex-shrink: 0;
+  }
+
+  .tiebreak-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .tiebreak-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .tiebreak-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
     color: #92400e;
-    margin-bottom: 0.75rem;
+    line-height: 1.3;
   }
 
   .tiebreak-score {
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: #1a1a1a;
-    margin-bottom: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #a16207;
   }
 
   .extra-round-btn {
-    padding: 0.75rem 2rem;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    padding: 0.5rem 0.875rem;
+    background: #f59e0b;
     color: white;
     border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 700;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .extra-round-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
+    background: #d97706;
   }
 
   .dialog-backdrop[data-theme='dark'] .tiebreak-section {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%);
-    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
   }
 
-  .dialog-backdrop[data-theme='dark'] .tiebreak-notice {
+  .dialog-backdrop[data-theme='dark'] .tiebreak-icon {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .tiebreak-title {
     color: #fbbf24;
   }
 
   .dialog-backdrop[data-theme='dark'] .tiebreak-score {
-    color: #e1e8ed;
+    color: #fcd34d;
   }
 
+  .dialog-backdrop[data-theme='dark'] .validation-message {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+  }
+
+  /* No-show section */
   .noshow-section {
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #e5e7eb;
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
   }
 
-  .noshow-section h3 {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1a1a1a;
-    margin: 0 0 0.75rem 0;
+  .noshow-header {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .noshow-header svg {
+    width: 14px;
+    height: 14px;
+    color: #9ca3af;
   }
 
   .noshow-buttons {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 0.5rem;
-    flex-wrap: wrap;
   }
 
   .noshow-btn {
-    flex: 1;
-    padding: 0.75rem 1rem;
-    background: #fef3c7;
-    border: 2px solid #fbbf24;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #92400e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
   }
 
   .noshow-btn:hover {
-    background: #fbbf24;
-    color: white;
+    background: #fef3c7;
+    border-color: #fcd34d;
+  }
+
+  .noshow-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  .noshow-label {
+    font-size: 0.625rem;
+    font-weight: 500;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
   }
 
   .dialog-footer {
     display: flex;
-    gap: 1rem;
-    padding: 1.5rem;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
     border-top: 1px solid #e5e7eb;
+    background: #fafafa;
   }
 
-  .cancel-btn,
-  .save-btn {
-    flex: 1;
-    padding: 0.75rem 1.5rem;
+  /* Button styles */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
     border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
+    border-radius: 5px;
+    font-size: 0.8125rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
   }
 
-  .cancel-btn {
-    background: #f3f4f6;
-    color: #1a1a1a;
+  .btn-secondary {
+    background: white;
+    color: #374151;
+    border: 1px solid #d1d5db;
   }
 
-  .cancel-btn:hover {
-    background: #e5e7eb;
+  .btn-secondary:hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
   }
 
-  .save-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  .btn-primary {
+    background: #2563eb;
     color: white;
   }
 
-  .save-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  .btn-primary:hover:not(:disabled) {
+    background: #1d4ed8;
   }
 
-  .save-btn:disabled {
-    opacity: 0.5;
+  .btn-primary:disabled {
+    background: #93c5fd;
     cursor: not-allowed;
+  }
+
+  .btn-primary svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .btn-warning {
+    background: #f59e0b;
+    color: white;
+  }
+
+  .btn-warning:hover {
+    background: #d97706;
+  }
+
+  .btn-warning svg {
+    width: 14px;
+    height: 14px;
   }
 
   /* Dark mode */
@@ -2117,6 +2115,7 @@
   }
 
   .dialog-backdrop[data-theme='dark'] .dialog-header {
+    background: #151b26;
     border-color: #2d3748;
   }
 
@@ -2124,28 +2123,46 @@
     color: #e1e8ed;
   }
 
+  .dialog-backdrop[data-theme='dark'] .admin-edit-badge {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+  }
+
   .dialog-backdrop[data-theme='dark'] .close-btn {
     color: #6b7280;
   }
 
   .dialog-backdrop[data-theme='dark'] .close-btn:hover {
+    background: #2d3748;
     color: #e1e8ed;
   }
 
-  .dialog-backdrop[data-theme='dark'] .match-info {
-    background: #0f1419;
+  .dialog-backdrop[data-theme='dark'] .match-card {
+    background: linear-gradient(135deg, #151b26 0%, #1a2332 100%);
+    border-color: #2d3748;
   }
 
   .dialog-backdrop[data-theme='dark'] .participant-name {
     color: #e1e8ed;
   }
 
-  .dialog-backdrop[data-theme='dark'] .vs {
+  .dialog-backdrop[data-theme='dark'] .vs-badge {
     background: #2d3748;
+    border-color: #4a5568;
+    color: #8b9bb3;
   }
 
-  .dialog-backdrop[data-theme='dark'] .table-info,
-  .dialog-backdrop[data-theme='dark'] .mode-info {
+  .dialog-backdrop[data-theme='dark'] .table-badge {
+    color: #6b7280;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .match-format {
+    border-color: #2d3748;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .format-badge {
+    background: #2d3748;
+    border-color: #4a5568;
     color: #8b9bb3;
   }
 
@@ -2206,31 +2223,65 @@
   }
 
   .dialog-backdrop[data-theme='dark'] .noshow-section {
+    background: #151b26;
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .noshow-section h3 {
-    color: #e1e8ed;
-  }
-
-  .dialog-backdrop[data-theme='dark'] .dialog-footer {
-    border-color: #2d3748;
-  }
-
-  .dialog-backdrop[data-theme='dark'] .cancel-btn {
-    background: #0f1419;
-    color: #e1e8ed;
-  }
-
-  .dialog-backdrop[data-theme='dark'] .cancel-btn:hover {
-    background: #2d3748;
-  }
-
-  /* Dark mode for Points Mode elements */
-  .dialog-backdrop[data-theme='dark'] .round-num {
+  .dialog-backdrop[data-theme='dark'] .noshow-header {
     color: #8b9bb3;
   }
 
+  .dialog-backdrop[data-theme='dark'] .noshow-header svg {
+    color: #6b7280;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .noshow-btn {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .noshow-btn:hover {
+    background: rgba(251, 191, 36, 0.1);
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  .dialog-backdrop[data-theme='dark'] .noshow-name {
+    color: #e1e8ed;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .noshow-label {
+    color: #6b7280;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .dialog-footer {
+    background: #151b26;
+    border-color: #2d3748;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .btn-secondary {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .btn-secondary:hover {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .btn-primary:disabled {
+    background: rgba(37, 99, 235, 0.3);
+  }
+
+  .dialog-backdrop[data-theme='dark'] .btn-warning {
+    background: #d97706;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .btn-warning:hover {
+    background: #b45309;
+  }
+
+  /* Dark mode for Points Mode elements */
   .dialog-backdrop[data-theme='dark'] .game-complete-notice {
     background: rgba(16, 185, 129, 0.15);
     color: #10b981;
@@ -2338,12 +2389,34 @@
       font-size: 0.7rem;
     }
 
+    .match-participants {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+      text-align: center;
+    }
+
+    .participant-a,
+    .participant-b {
+      text-align: center;
+    }
+
+    .match-center {
+      order: -1;
+      flex-direction: row;
+      gap: 0.75rem;
+    }
+
     .noshow-buttons {
-      flex-direction: column;
+      grid-template-columns: 1fr;
     }
 
     .dialog-footer {
-      flex-direction: column;
+      flex-direction: column-reverse;
+    }
+
+    .btn {
+      width: 100%;
+      justify-content: center;
     }
   }
 </style>

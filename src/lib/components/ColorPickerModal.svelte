@@ -50,8 +50,10 @@
 </script>
 
 {#if isOpen}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="modal-overlay" onclick={closeModal} role="button" tabindex="-1">
-		<div class="modal-content" onclick={stopPropagation} role="dialog">
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div class="modal-content" onclick={stopPropagation} role="dialog" tabindex="-1">
 			<h2>{m.scoring_colorFor()} {currentTeamName}</h2>
 			<button class="close-btn" onclick={closeModal} aria-label="Close">×</button>
 
@@ -64,7 +66,7 @@
 						style="background-color: {color}"
 						onclick={() => selectColor(color)}
 						aria-label="Select color {color}"
-					/>
+					></button>
 				{/each}
 			</div>
 		</div>

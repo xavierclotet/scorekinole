@@ -30,7 +30,8 @@
 	import {
 		syncMatchProgress,
 		completeMatch as completeTournamentMatchSync,
-		abandonMatch as abandonTournamentMatchSync
+		abandonMatch as abandonTournamentMatchSync,
+		subscribeToMatchStatus
 	} from '$lib/firebase/tournamentSync';
 
 	let showSettings = $state(false);
@@ -43,6 +44,11 @@
 	let showTournamentExitConfirm = $state(false);
 	let showTournamentResetConfirm = $state(false);
 	let isResettingTournament = $state(false);
+	let showMatchCompletedExternally = $state(false);
+	let externalMatchWinner = $state<string | null>(null);
+
+	// Unsubscribe function for match status listener
+	let unsubscribeMatchStatus: (() => void) | null = null;
 
 	// Tournament mode state
 	let inTournamentMode = $derived(!!$gameTournamentContext);
@@ -84,8 +90,8 @@
 	// Event info editing state
 	let editingEventTitle = $state(false);
 	let editingMatchPhase = $state(false);
-	let eventTitleInput: HTMLInputElement;
-	let matchPhaseInput: HTMLInputElement;
+	let eventTitleInput = $state<HTMLInputElement | null>(null);
+	let matchPhaseInput = $state<HTMLInputElement | null>(null);
 
 	// Match score indicator - swipe to cycle size
 	let swipeStartX = $state(0);
@@ -212,6 +218,8 @@
 		const savedContext = loadTournamentContext();
 		if (savedContext) {
 			applyTournamentConfig(savedContext);
+			// Subscribe to match status changes (detect if admin completes match externally)
+			setupMatchStatusSubscription(savedContext);
 		}
 
 		// Start current match if not already started
@@ -232,6 +240,68 @@
 			unsubSettings();
 		};
 	});
+
+	/**
+	 * Setup subscription to listen for match status changes
+	 * Detects if admin completes the match externally (e.g., force finish due to time)
+	 */
+	function setupMatchStatusSubscription(context: TournamentMatchContext) {
+		// Cleanup previous subscription if any
+		if (unsubscribeMatchStatus) {
+			unsubscribeMatchStatus();
+		}
+
+		unsubscribeMatchStatus = subscribeToMatchStatus(
+			context.tournamentId,
+			context.matchId,
+			context.phase,
+			context.groupId,
+			(status, winner) => {
+				console.log('📡 Match status update from Firebase:', { status, winner });
+
+				// If match was completed externally (by admin) and we haven't sent our completion
+				if ((status === 'COMPLETED' || status === 'WALKOVER') && !tournamentMatchCompletedSent) {
+					console.log('⚠️ Match completed externally by admin!');
+
+					// Find winner name
+					if (winner) {
+						const ctx = get(gameTournamentContext);
+						if (ctx) {
+							if (winner === ctx.participantAId) {
+								externalMatchWinner = ctx.participantAName;
+							} else if (winner === ctx.participantBId) {
+								externalMatchWinner = ctx.participantBName;
+							} else {
+								externalMatchWinner = winner;
+							}
+						}
+					}
+
+					// Show modal and prevent further scoring
+					showMatchCompletedExternally = true;
+					tournamentMatchCompletedSent = true;
+
+					// Cleanup subscription
+					if (unsubscribeMatchStatus) {
+						unsubscribeMatchStatus();
+						unsubscribeMatchStatus = null;
+					}
+				}
+			}
+		);
+	}
+
+	/**
+	 * Handle acknowledgment of externally completed match
+	 */
+	function handleExternalCompletionAck() {
+		showMatchCompletedExternally = false;
+		clearTournamentContext();
+		isInExtraRounds = false;
+		// Reset to normal game mode
+		resetTeams();
+		resetMatchState();
+	}
 
 	/**
 	 * Apply tournament configuration to game settings and teams
@@ -689,6 +759,11 @@
 
 	onDestroy(() => {
 		cleanupTimer();
+		// Cleanup match status subscription
+		if (unsubscribeMatchStatus) {
+			unsubscribeMatchStatus();
+			unsubscribeMatchStatus = null;
+		}
 	});
 
 	function handleResetRound() {
@@ -1441,11 +1516,11 @@
 
 	<!-- New Match Confirmation Modal -->
 	{#if showNewMatchConfirm}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="newmatch-overlay" onclick={cancelNewMatch}>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="newmatch-dialog" onclick={(e) => e.stopPropagation()}>
 				<div class="newmatch-icon">
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
@@ -1466,18 +1541,18 @@
 	<!-- Tournament Exit Confirmation Modal -->
 	{#if showTournamentExitConfirm}
 		{@const hasProgress = $roundsPlayed > 0 || $currentGameRounds.length > 0 || $currentMatchGames.length > 0}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="exit-overlay" onclick={cancelTournamentExit}>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="exit-dialog" onclick={(e) => e.stopPropagation()}>
 				<p class="exit-title">{m.tournament_exitMessage() || '¿Qué quieres hacer con este partido?'}</p>
 
 				{#if hasProgress}
 					<div class="exit-actions">
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div class="exit-action pause" onclick={pauseTournamentMatch}>
 							<div class="action-icon">
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
@@ -1487,8 +1562,8 @@
 								<span class="action-hint">{m.tournament_pauseMatchDesc() || 'Guarda el progreso. Tú u otro jugador podréis continuar.'}</span>
 							</div>
 						</div>
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div class="exit-action abandon" onclick={confirmTournamentExit}>
 							<div class="action-icon">
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
@@ -1519,11 +1594,11 @@
 
 	<!-- Tournament Reset Confirmation Modal -->
 	{#if showTournamentResetConfirm}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="reset-overlay" onclick={cancelTournamentReset}>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="reset-dialog" onclick={(e) => e.stopPropagation()}>
 				<div class="reset-icon">
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -1538,6 +1613,33 @@
 						{isResettingTournament ? '...' : (m.scoring_resetMatch() || 'Reiniciar')}
 					</button>
 				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Match Completed Externally Modal (admin force-finished) -->
+	{#if showMatchCompletedExternally}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="external-complete-overlay">
+			<div class="external-complete-dialog">
+				<div class="external-complete-icon">
+					<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="10"/>
+						<polyline points="12 6 12 12 16 14"/>
+					</svg>
+				</div>
+				<h3 class="external-complete-title">{m.tournament_matchCompletedByAdmin()}</h3>
+				<p class="external-complete-desc">{m.tournament_matchCompletedByAdminDesc()}</p>
+				{#if externalMatchWinner}
+					<div class="external-complete-winner">
+						<span class="winner-label">{m.tournament_winnerLabel({ name: '' })}</span>
+						<span class="winner-name">{externalMatchWinner}</span>
+					</div>
+				{/if}
+				<button class="external-complete-btn" onclick={handleExternalCompletionAck}>
+					{m.common_understood()}
+				</button>
 			</div>
 		</div>
 	{/if}
@@ -2283,13 +2385,6 @@
 		transform: none;
 	}
 
-	/* Tournament Reset Modal */
-	.tournament-reset-modal .reset-warning {
-		color: #ff6b6b;
-		font-size: 0.9rem;
-		margin-bottom: 1.5rem;
-	}
-
 	/* Confirmation Modal */
 	.confirm-overlay {
 		position: fixed;
@@ -2320,13 +2415,6 @@
 		max-width: 90%;
 		width: 400px;
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-	}
-
-	.confirm-modal h3 {
-		margin: 0 0 1.5rem 0;
-		color: #fff;
-		font-size: 1.1rem;
-		text-align: center;
 	}
 
 	.confirm-buttons {
@@ -2722,10 +2810,6 @@
 			width: 90%;
 			padding: 1.5rem;
 		}
-
-		.confirm-modal h3 {
-			font-size: 1rem;
-		}
 	}
 
 	@media (orientation: landscape) {
@@ -2757,11 +2841,6 @@
 			width: 300px;
 			max-width: 50%;
 			padding: 1rem;
-		}
-
-		.confirm-modal h3 {
-			font-size: 0.9rem;
-			margin-bottom: 1rem;
 		}
 
 		.exit-dialog {
@@ -2881,5 +2960,103 @@
 		.exit-action .action-hint {
 			font-size: 0.75rem;
 		}
+	}
+
+	/* Match completed externally modal (admin force-finished) */
+	.external-complete-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.85);
+		backdrop-filter: blur(6px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 3000;
+		animation: overlayFadeIn 0.2s ease-out;
+	}
+
+	.external-complete-dialog {
+		background: linear-gradient(145deg, #1a1d24 0%, #141620 100%);
+		border: 1px solid rgba(245, 158, 11, 0.3);
+		border-radius: 16px;
+		padding: 2rem;
+		width: min(380px, 90vw);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+		text-align: center;
+		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5),
+					0 0 60px rgba(245, 158, 11, 0.1);
+	}
+
+	.external-complete-icon {
+		width: 72px;
+		height: 72px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(245, 158, 11, 0.15);
+		border-radius: 50%;
+		color: #f59e0b;
+	}
+
+	.external-complete-title {
+		margin: 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.25rem;
+		font-weight: 600;
+		color: #f59e0b;
+	}
+
+	.external-complete-desc {
+		margin: 0;
+		font-size: 0.9rem;
+		color: rgba(255, 255, 255, 0.7);
+		line-height: 1.5;
+	}
+
+	.external-complete-winner {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		background: rgba(16, 185, 129, 0.15);
+		border: 1px solid rgba(16, 185, 129, 0.3);
+		border-radius: 10px;
+		padding: 0.75rem 1.5rem;
+		margin-top: 0.5rem;
+	}
+
+	.external-complete-winner .winner-label {
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.external-complete-winner .winner-name {
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: #10b981;
+	}
+
+	.external-complete-btn {
+		width: 100%;
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 500;
+		padding: 0.875rem 1.5rem;
+		border: none;
+		border-radius: 8px;
+		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+		color: white;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		margin-top: 0.5rem;
+	}
+
+	.external-complete-btn:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 	}
 </style>

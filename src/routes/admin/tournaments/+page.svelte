@@ -406,8 +406,10 @@
 
   <!-- Delete Confirmation Modal -->
   {#if showDeleteConfirm && tournamentToDelete}
-    <div class="modal-backdrop" data-theme={$adminTheme} onclick={() => !deleting && cancelDelete()}>
-      <div class="confirm-modal" onclick={(e) => e.stopPropagation()}>
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={() => !deleting && cancelDelete()} role="none">
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
         <h2>{m.admin_confirmDelete()}</h2>
         <p>{m.admin_confirmCancelTournament()}</p>
         <div class="tournament-info">
@@ -711,61 +713,6 @@
     color: #6b7a94;
   }
 
-  /* Tournament Grid */
-  .tournaments-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 1.5rem;
-  }
-
-  .tournament-card {
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    padding: 1.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-align: left;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .tournaments-container[data-theme='dark'] .tournament-card {
-    background: #1a2332;
-    border-color: #2d3748;
-  }
-
-  .tournament-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-    border-color: #fa709a;
-  }
-
-  .tournaments-container[data-theme='dark'] .tournament-card:hover {
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-  }
-
-  .card-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .card-header h3 {
-    font-size: 1.25rem;
-    margin: 0;
-    color: #1a1a1a;
-    font-weight: 700;
-    flex: 1;
-    transition: color 0.3s;
-  }
-
-  .tournaments-container[data-theme='dark'] .card-header h3 {
-    color: #e1e8ed;
-  }
-
   .status-badge {
     padding: 0.35rem 0.75rem;
     border-radius: 12px;
@@ -774,109 +721,6 @@
     white-space: nowrap;
   }
 
-  .badge-draft {
-    background: #e3f2fd;
-    color: #1976d2;
-  }
-
-  .badge-group {
-    background: #fff3e0;
-    color: #f57c00;
-  }
-
-  .badge-final {
-    background: #fce4ec;
-    color: #c2185b;
-  }
-
-  .badge-completed {
-    background: #e8f5e9;
-    color: #388e3c;
-  }
-
-  .badge-cancelled {
-    background: #f5f5f5;
-    color: #757575;
-  }
-
-  .description {
-    font-size: 0.9rem;
-    color: #666;
-    margin: 0;
-    line-height: 1.4;
-    transition: color 0.3s;
-  }
-
-  .tournaments-container[data-theme='dark'] .description {
-    color: #8b9bb3;
-  }
-
-  .card-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .info-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.85rem;
-  }
-
-  .info-label {
-    color: #999;
-    transition: color 0.3s;
-  }
-
-  .tournaments-container[data-theme='dark'] .info-label {
-    color: #6b7a94;
-  }
-
-  .info-value {
-    color: #333;
-    font-weight: 500;
-    transition: color 0.3s;
-  }
-
-  .tournaments-container[data-theme='dark'] .info-value {
-    color: #c5d0de;
-  }
-
-  .card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 0.75rem;
-    border-top: 1px solid #f0f0f0;
-    transition: border-color 0.3s;
-  }
-
-  .tournaments-container[data-theme='dark'] .card-footer {
-    border-top-color: #2d3748;
-  }
-
-  .creator {
-    font-size: 0.8rem;
-    color: #999;
-    transition: color 0.3s;
-  }
-
-  .tournaments-container[data-theme='dark'] .creator {
-    color: #6b7a94;
-  }
-
-  .arrow {
-    font-size: 1.25rem;
-    color: #999;
-    transition: transform 0.2s, color 0.3s;
-  }
-
-  .tournament-card:hover .arrow {
-    transform: translateX(4px);
-    color: #fa709a;
-  }
-
-  
   .load-more-hint,
   .end-of-list {
     text-align: center;
@@ -929,23 +773,6 @@
 
   .tournaments-container[data-theme='dark'] .empty-state p {
     color: #8b9bb3;
-  }
-
-  .create-button-alt {
-    padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .create-button-alt:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(250, 112, 154, 0.4);
   }
 
   /* Responsive */
@@ -1392,10 +1219,6 @@
       font-size: 0.8rem;
     }
 
-    .tournaments-grid {
-      grid-template-columns: 1fr;
-    }
-
     .controls-section {
       flex-direction: column;
       gap: 0.75rem;
@@ -1544,7 +1367,6 @@
       font-size: 0.7rem;
     }
 
-    .loading-state,
     .empty-state {
       padding: 1.5rem;
     }

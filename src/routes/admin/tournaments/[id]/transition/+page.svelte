@@ -87,6 +87,13 @@
   let groupTiesStatus = $state<Map<number, boolean>>(new Map());
   let hasAnyUnresolvedTies = $derived(Array.from(groupTiesStatus.values()).some(hasTies => hasTies));
 
+  // Get consolationEnabled from tournament's finalStage (set during creation)
+  let consolationEnabled = $derived(
+    tournament?.finalStage?.consolationEnabled ??
+    (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled '] ?? // Typo fallback
+    false
+  );
+
   let tournamentId = $derived($page.params.id);
   let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
   let isSplitDivisions = $derived(tournament?.finalStage?.mode === 'SPLIT_DIVISIONS');
@@ -417,7 +424,8 @@
           }
         };
         // Generate bracket - config will be stored inside goldBracket.config
-        const bracketSuccess = await generateBracket(tournamentId, bracketConfig);
+        // Pass consolationEnabled from tournament's finalStage (set during creation)
+        const bracketSuccess = await generateBracket(tournamentId, bracketConfig, consolationEnabled);
 
         if (!bracketSuccess) {
           toastMessage = m.admin_errorGeneratingBracket();
@@ -436,9 +444,11 @@
         }
 
         // Generate both Gold and Silver brackets with per-phase configuration (new structure)
+        // Pass consolationEnabled from tournament's finalStage (set during creation)
         const bracketSuccess = await generateSplitBrackets(tournamentId, {
           goldParticipantIds: goldParticipants,
           silverParticipantIds: silverParticipants,
+          consolationEnabled,
           goldConfig: {
             earlyRounds: {
               gameMode: earlyRoundsGameMode,

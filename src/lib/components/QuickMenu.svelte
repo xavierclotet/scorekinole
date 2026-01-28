@@ -61,9 +61,8 @@
 
 <div class="quick-menu-container">
 	{#if isOpen}
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="quick-menu" onclick={(e) => e.stopPropagation()} role="menu">
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div class="quick-menu" onclick={(e) => e.stopPropagation()} role="menu" tabindex="-1">
 			{#if $currentUser}
 				<!-- User info header -->
 				<div class="menu-header">

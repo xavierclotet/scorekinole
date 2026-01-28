@@ -38,11 +38,21 @@
 	function stopPropagation(e: Event) {
 		e.stopPropagation();
 	}
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			close();
+		}
+	}
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 {#if isOpen}
-	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
-		<div class="modal" onclick={stopPropagation} role="dialog">
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="modal-overlay" onclick={close} role="none">
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div class="modal" onclick={stopPropagation} role="dialog" tabindex="-1">
 			<div class="modal-header">
 				<span class="modal-title">{m.auth_login()}</span>
 				<button class="close-btn" onclick={close} aria-label="Close">×</button>

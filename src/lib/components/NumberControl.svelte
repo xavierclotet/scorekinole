@@ -46,7 +46,7 @@
 
 <div class="number-control">
 	{#if label}
-		<label class="label">{label}</label>
+		<span class="label">{label}</span>
 	{/if}
 	<div class="controls">
 		<button

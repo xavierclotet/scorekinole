@@ -156,6 +156,7 @@
 						label={m.scoring_roundsToPlay()}
 						disabled={inTournamentMode}
 					/>
+					<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 					<label class="toggle-item compact" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('allowTiesInRoundsMode'); }}>
 						<span class="toggle-label">{m.scoring_allowTies()}</span>
 						<input type="checkbox" checked={$gameSettings.allowTiesInRoundsMode} readonly disabled={inTournamentMode} />
@@ -169,18 +170,21 @@
 		<section class="settings-section" class:disabled={inTournamentMode}>
 			<h3>{m.scoring_features()}</h3>
 			<div class="toggle-grid">
+				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 				<label class="toggle-item" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('show20s'); }}>
 					<span class="toggle-label">{m.scoring_track20s()}</span>
 					<input type="checkbox" checked={$gameSettings.show20s} readonly disabled={inTournamentMode} />
 					<span class="toggle-switch"></span>
 				</label>
 
+				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 				<label class="toggle-item" class:disabled={inTournamentMode} onclick={(e) => { e.preventDefault(); !inTournamentMode && handleToggle('showHammer'); }}>
 					<span class="toggle-label">{m.scoring_hammer()}</span>
 					<input type="checkbox" checked={$gameSettings.showHammer} readonly disabled={inTournamentMode} />
 					<span class="toggle-switch"></span>
 				</label>
 
+				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 				<label class="toggle-item" onclick={(e) => { e.preventDefault(); handleToggle('showTimer'); }}>
 					<span class="toggle-label">{m.scoring_showTimer()}</span>
 					<input type="checkbox" checked={$gameSettings.showTimer} readonly />

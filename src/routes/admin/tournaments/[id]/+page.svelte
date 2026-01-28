@@ -702,8 +702,10 @@
 
   <!-- Start Confirmation Modal -->
   {#if showStartConfirm && tournament}
-    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeStartModal} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeStartModal()}>
-      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeStartModal} role="none" onkeydown={(e) => e.key === 'Escape' && closeStartModal()}>
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <h2>🚀 {m.admin_startTournament()}</h2>
         <p>{m.admin_readyToStartTournament()}</p>
         <div class="tournament-info">
@@ -732,8 +734,10 @@
 
   <!-- Cancel Confirmation Modal -->
   {#if showCancelConfirm && tournament}
-    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeCancelModal} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeCancelModal()}>
-      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeCancelModal} role="none" onkeydown={(e) => e.key === 'Escape' && closeCancelModal()}>
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <h2>{m.admin_confirmCancellation()}</h2>
         <p>{m.admin_confirmCancelTournament()}</p>
         <div class="tournament-info">
@@ -754,8 +758,10 @@
 
   <!-- Quick Edit Modal -->
   {#if showQuickEdit && tournament}
-    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeQuickEdit} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeQuickEdit()}>
-      <div class="quick-edit-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeQuickEdit} role="none" onkeydown={(e) => e.key === 'Escape' && closeQuickEdit()}>
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div class="quick-edit-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <div class="quick-edit-header">
           <div class="header-title">
             <h2>⚙️ {m.admin_tournamentSettings()}</h2>
@@ -2117,54 +2123,6 @@
     }
   }
 
-  /* Time estimation card */
-  .time-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.75rem;
-  }
-
-  .time-header h2 {
-    margin: 0;
-  }
-
-  .time-actions {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .details-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.25rem;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    background: #f1f5f9;
-    color: #64748b;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .details-btn:hover {
-    background: #e2e8f0;
-    color: #334155;
-  }
-
-  .tournament-page[data-theme='dark'] .details-btn {
-    background: #334155;
-    color: #94a3b8;
-  }
-
-  .tournament-page[data-theme='dark'] .details-btn:hover {
-    background: #475569;
-    color: #e2e8f0;
-  }
-
   /* Loading Overlay */
   .loading-overlay {
     position: fixed;
@@ -2190,20 +2148,6 @@
 
   .loading-overlay[data-theme='dark'] .loading-content {
     background: #1a2332;
-  }
-
-  .loading-overlay[data-theme='dark'] .loading-text {
-    color: #e1e8ed;
-  }
-
-  .loading-subtext {
-    font-size: 0.85rem;
-    color: #6b7280;
-    margin: 0;
-  }
-
-  .loading-overlay[data-theme='dark'] .loading-subtext {
-    color: #8b9bb3;
   }
 
   </style>

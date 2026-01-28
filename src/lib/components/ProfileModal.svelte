@@ -15,7 +15,6 @@
 
 	let playerNameInput = $state('');
 	let rankingPoints = $state(0);
-	let isLoading = $state(false);
 
 	// Load player data from Firestore when modal opens
 	$effect(() => {
@@ -25,7 +24,6 @@
 	});
 
 	async function loadPlayerData() {
-		isLoading = true;
 		try {
 			const profile = await getUserProfile();
 			playerNameInput = profile?.playerName || user.name || user.displayName || '';
@@ -34,8 +32,6 @@
 			console.error('Error loading player data:', error);
 			playerNameInput = user.name || user.displayName || '';
 			rankingPoints = 0;
-		} finally {
-			isLoading = false;
 		}
 	}
 
@@ -71,8 +67,10 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if isOpen}
-	<div class="modal-overlay" onclick={close} role="button" tabindex="-1">
-		<div class="modal" onclick={stopPropagation} role="dialog">
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="modal-overlay" onclick={close} role="none">
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div class="modal" onclick={stopPropagation} role="dialog" tabindex="-1">
 			<!-- Close button -->
 			<button class="close-btn" onclick={close} aria-label="Close">
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -290,12 +288,6 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.info-value.mono {
-		font-family: 'SF Mono', Monaco, monospace;
-		font-size: 0.7rem;
-		color: rgba(255, 255, 255, 0.5);
 	}
 
 	.info-value.ranking {

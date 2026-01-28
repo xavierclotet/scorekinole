@@ -1818,7 +1818,7 @@ export async function completeTournamentMatch(
       return success;
     } else {
       // For bracket matches, use updateBracketMatch and advanceWinner
-      const { updateBracketMatch, advanceWinner, updateSilverBracketMatch, advanceSilverWinner, advanceConsolationWinner } = await import('./tournamentBracket');
+      const { updateBracketMatch, advanceWinner, updateSilverBracketMatch, advanceSilverWinner, advanceConsolationWinner, updateConsolationMatch } = await import('./tournamentBracket');
 
       // First, determine if this is a silver bracket match or consolation match
       const tournament = await getTournament(tournamentId);
@@ -1889,9 +1889,9 @@ export async function completeTournamentMatch(
       }
 
       // Update match result
-      const updateFn = isSilverBracket ? updateSilverBracketMatch : updateBracketMatch;
-      const updateSuccess = await updateFn(tournamentId, matchId, {
-        status: 'COMPLETED',
+      let updateSuccess: boolean;
+      const matchData = {
+        status: 'COMPLETED' as const,
         winner: result.winner ?? undefined, // Convert null to undefined for type compatibility
         gamesWonA: result.gamesWonA,
         gamesWonB: result.gamesWonB,
@@ -1900,7 +1900,15 @@ export async function completeTournamentMatch(
         total20sA: result.total20sA,
         total20sB: result.total20sB,
         rounds: result.rounds
-      });
+      };
+
+      if (isConsolationMatch) {
+        // Use consolation-specific update function with correct bracket type
+        updateSuccess = await updateConsolationMatch(tournamentId, matchId, matchData, consolationBracketType);
+      } else {
+        const updateFn = isSilverBracket ? updateSilverBracketMatch : updateBracketMatch;
+        updateSuccess = await updateFn(tournamentId, matchId, matchData);
+      }
 
       if (!updateSuccess) {
         return false;

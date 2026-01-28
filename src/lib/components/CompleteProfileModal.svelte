@@ -73,6 +73,7 @@
 					<label for="completeProfileNameInput" class="label">
 						{m.auth_playerName()}
 					</label>
+					<!-- svelte-ignore a11y_autofocus -->
 					<input
 						id="completeProfileNameInput"
 						type="text"

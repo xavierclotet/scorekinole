@@ -781,6 +781,7 @@
 								class="search-btn"
 								disabled={tournamentKey.length !== 6}
 								onclick={searchTournament}
+								aria-label="Search tournament"
 							>
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 									<polyline points="9 18 15 12 9 6"></polyline>
@@ -1177,14 +1178,6 @@
 		font-size: 0.8rem;
 		text-align: center;
 		margin: 0 0 1.25rem;
-	}
-
-	.description {
-		font-family: 'Lexend', sans-serif;
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 0.9rem;
-		text-align: center;
-		margin: 0;
 	}
 
 	/* Key Input */
@@ -1742,10 +1735,6 @@
 		text-align: center;
 		margin: 0 0 0.75rem 0;
 		line-height: 1.4;
-	}
-
-	.matches-list-container.in-progress {
-		opacity: 0.9;
 	}
 
 	/* Starting Indicator */

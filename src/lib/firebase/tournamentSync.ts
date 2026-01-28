@@ -23,7 +23,7 @@ import {
   updateSilverBracketMatch,
   advanceSilverWinner
 } from './tournamentBracket';
-import { getTournament } from './tournaments';
+import { getTournament, subscribeTournament } from './tournaments';
 
 /**
  * Round data structure for sync
@@ -329,6 +329,93 @@ export async function abandonMatch(
   console.log('⏹️ abandonMatch:', { tournamentId, matchId, phase });
 
   return await abandonTournamentMatch(tournamentId, matchId, phase, groupId);
+}
+
+/**
+ * Subscribe to match status changes
+ * Used by /game to detect if admin completes the match externally
+ *
+ * @param tournamentId Tournament ID
+ * @param matchId Match ID
+ * @param phase GROUP or FINAL
+ * @param groupId Group ID (for group stage matches)
+ * @param callback Called when match status changes
+ * @returns Unsubscribe function
+ */
+export function subscribeToMatchStatus(
+  tournamentId: string,
+  matchId: string,
+  phase: 'GROUP' | 'FINAL',
+  groupId: string | undefined,
+  callback: (status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'WALKOVER', winner?: string | null) => void
+): () => void {
+  if (!browser || !isFirebaseEnabled()) {
+    return () => {};
+  }
+
+  let lastStatus: string | null = null;
+
+  const unsubscribe = subscribeTournament(tournamentId, (tournament: any) => {
+    if (!tournament) return;
+
+    let match: any = null;
+
+    if (phase === 'GROUP' && tournament.groupStage?.groups) {
+      // Find match in groups
+      for (const group of tournament.groupStage.groups) {
+        if (groupId && group.id !== groupId) continue;
+        for (const round of group.rounds || []) {
+          match = round.matches?.find((m: any) => m.id === matchId);
+          if (match) break;
+        }
+        if (match) break;
+      }
+    } else if (phase === 'FINAL' && tournament.finalStage) {
+      // Check gold bracket
+      if (tournament.finalStage.goldBracket?.rounds) {
+        for (const round of tournament.finalStage.goldBracket.rounds) {
+          match = round.matches?.find((m: any) => m.id === matchId);
+          if (match) break;
+        }
+        // Check 3rd place
+        if (!match && tournament.finalStage.goldBracket.thirdPlaceMatch?.id === matchId) {
+          match = tournament.finalStage.goldBracket.thirdPlaceMatch;
+        }
+      }
+
+      // Check silver bracket
+      if (!match && tournament.finalStage.silverBracket?.rounds) {
+        for (const round of tournament.finalStage.silverBracket.rounds) {
+          match = round.matches?.find((m: any) => m.id === matchId);
+          if (match) break;
+        }
+        if (!match && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
+          match = tournament.finalStage.silverBracket.thirdPlaceMatch;
+        }
+      }
+
+      // Check consolation brackets
+      if (!match && tournament.finalStage.goldBracket?.consolationBracket?.rounds) {
+        for (const round of tournament.finalStage.goldBracket.consolationBracket.rounds) {
+          match = round.matches?.find((m: any) => m.id === matchId);
+          if (match) break;
+        }
+      }
+      if (!match && tournament.finalStage.silverBracket?.consolationBracket?.rounds) {
+        for (const round of tournament.finalStage.silverBracket.consolationBracket.rounds) {
+          match = round.matches?.find((m: any) => m.id === matchId);
+          if (match) break;
+        }
+      }
+    }
+
+    if (match && match.status !== lastStatus) {
+      lastStatus = match.status;
+      callback(match.status, match.winner);
+    }
+  });
+
+  return unsubscribe;
 }
 
 // Re-export for convenience

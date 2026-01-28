@@ -57,6 +57,7 @@
   }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="time-progress"
   class:compact
@@ -64,7 +65,7 @@
   onclick={handleClick}
   onkeydown={(e) => e.key === 'Enter' && handleClick()}
   role={clickable ? 'button' : undefined}
-  tabindex={clickable ? 0 : undefined}
+  tabindex={clickable ? 0 : -1}
 >
   {#if remainingMinutes !== null}
     <div class="time-info">

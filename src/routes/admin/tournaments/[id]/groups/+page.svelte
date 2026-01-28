@@ -41,8 +41,25 @@
   let showTimeBreakdown = $state(false);
   let timeBreakdown: TimeBreakdown | null = $state(null);
 
+  // Swiss rounds configuration
+  let editedSwissRounds = $state(0);
+  let isSavingSwissRounds = $state(false);
+
   let tournamentId = $derived($page.params.id);
+
+  // Computed: whether Swiss rounds can be edited (value must be > current round)
+  let isSwissTournament = $derived(tournament?.groupStage?.type === 'SWISS');
+  let currentSwissRound = $derived(tournament?.groupStage?.currentRound || 1);
+  let totalSwissRoundsValue = $derived(tournament?.groupStage?.numSwissRounds || tournament?.numSwissRounds || 0);
+  let canSaveSwissRounds = $derived(editedSwissRounds > currentSwissRound && editedSwissRounds !== totalSwissRoundsValue);
   let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
+
+  // Initialize editedSwissRounds when tournament loads
+  $effect(() => {
+    if (totalSwissRoundsValue > 0 && editedSwissRounds === 0) {
+      editedSwissRounds = totalSwissRoundsValue;
+    }
+  });
 
   // Translate group name based on language
   // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
@@ -78,6 +95,38 @@
     toastMessage = m.admin_timeRecalculated();
     toastType = 'success';
     showToast = true;
+  }
+
+  async function saveSwissRounds() {
+    if (!tournament || !tournamentId || !tournament.groupStage) return;
+    if (editedSwissRounds <= currentSwissRound) {
+      toastMessage = m.admin_swissRoundsMinError({ n: currentSwissRound });
+      toastType = 'error';
+      showToast = true;
+      return;
+    }
+
+    isSavingSwissRounds = true;
+    try {
+      await updateTournament(tournamentId, {
+        numSwissRounds: editedSwissRounds,
+        groupStage: {
+          ...tournament.groupStage,
+          numSwissRounds: editedSwissRounds,
+          totalRounds: editedSwissRounds
+        }
+      });
+      toastMessage = m.admin_swissRoundsUpdated({ n: editedSwissRounds });
+      toastType = 'success';
+      showToast = true;
+    } catch (err) {
+      console.error('Error saving Swiss rounds:', err);
+      toastMessage = m.admin_errorSavingChanges();
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      isSavingSwissRounds = false;
+    }
   }
 
   onMount(async () => {
@@ -717,6 +766,46 @@
           </button>
         </div>
       {:else}
+        <!-- Swiss Rounds Configuration -->
+        {#if isSwissTournament}
+          <div class="swiss-config-section" data-theme={$adminTheme}>
+            <div class="swiss-config-card">
+              <div class="swiss-config-header">
+                <span class="config-icon">⚙️</span>
+                <span class="config-title">{m.admin_swissRoundsConfig()}</span>
+              </div>
+              <div class="swiss-config-content">
+                <div class="config-row">
+                  <label for="swissRoundsInput">{m.admin_swissRounds()}</label>
+                  <div class="config-input-group">
+                    <input
+                      id="swissRoundsInput"
+                      type="number"
+                      bind:value={editedSwissRounds}
+                      min={currentSwissRound + 1}
+                      max={20}
+                    />
+                    <span class="current-round-hint">
+                      ({m.tournament_round()} {currentSwissRound}/{totalSwissRoundsValue})
+                    </span>
+                  </div>
+                </div>
+                <button
+                  class="save-swiss-btn"
+                  onclick={saveSwissRounds}
+                  disabled={!canSaveSwissRounds || isSavingSwissRounds}
+                >
+                  {#if isSavingSwissRounds}
+                    {m.admin_saving()}
+                  {:else}
+                    {m.admin_saveChanges()}
+                  {/if}
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
+
         <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} onGenerateNextRound={handleGenerateNextRound} />
       {/if}
     </div>
@@ -1335,5 +1424,150 @@
 
   .loading-overlay[data-theme='dark'] .loading-subtext {
     color: #8b9bb3;
+  }
+
+  /* Swiss Config Section */
+  .swiss-config-section {
+    margin-bottom: 1rem;
+  }
+
+  .swiss-config-card {
+    background: white;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    padding: 0.75rem 1rem;
+    transition: all 0.3s;
+  }
+
+  .swiss-config-section[data-theme='dark'] .swiss-config-card {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .swiss-config-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .config-icon {
+    font-size: 1rem;
+  }
+
+  .config-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #1a1a1a;
+    transition: color 0.3s;
+  }
+
+  .swiss-config-section[data-theme='dark'] .config-title {
+    color: #e1e8ed;
+  }
+
+  .swiss-config-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .config-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .config-row label {
+    font-size: 0.8rem;
+    color: #666;
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+
+  .swiss-config-section[data-theme='dark'] .config-row label {
+    color: #8b9bb3;
+  }
+
+  .config-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .config-input-group input {
+    width: 60px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    text-align: center;
+    background: white;
+    color: #1a1a1a;
+    transition: all 0.2s;
+  }
+
+  .swiss-config-section[data-theme='dark'] .config-input-group input {
+    background: #0f1419;
+    border-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .config-input-group input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  }
+
+  .current-round-hint {
+    font-size: 0.75rem;
+    color: #888;
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+
+  .swiss-config-section[data-theme='dark'] .current-round-hint {
+    color: #6b7280;
+  }
+
+  .save-swiss-btn {
+    padding: 0.4rem 0.75rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .save-swiss-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+  }
+
+  .save-swiss-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 480px) {
+    .swiss-config-content {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .config-row {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .save-swiss-btn {
+      width: 100%;
+      margin-top: 0.5rem;
+    }
   }
 </style>

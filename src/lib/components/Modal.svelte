@@ -49,6 +49,7 @@
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="modal-title"
+			tabindex="-1"
 		>
 			<div class="modal-header">
 				{#if title}

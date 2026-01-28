@@ -61,7 +61,7 @@
 
 {#if isOpen}
 	<div class="modal-overlay" onclick={close} onkeydown={handleKeydown} role="button" tabindex="-1">
-		<div class="modal" onclick={stopPropagation} onkeydown={stopPropagation} role="dialog">
+		<div class="modal" onclick={stopPropagation} onkeydown={stopPropagation} role="dialog" tabindex="-1">
 			<div class="modal-header">
 				<h2>{m.sync_confirmTeamForEachMatch()}</h2>
 				<button class="close-btn" onclick={close} aria-label="Close">×</button>
@@ -251,12 +251,6 @@
 		color: #ffc107;
 	}
 
-	.status-banner.success {
-		background: rgba(0, 255, 136, 0.1);
-		border: 1px solid rgba(0, 255, 136, 0.3);
-		color: var(--accent-green, #00ff88);
-	}
-
 	.status-banner.info {
 		background: rgba(33, 150, 243, 0.1);
 		border: 1px solid rgba(33, 150, 243, 0.3);
@@ -319,11 +313,6 @@
 		font-weight: 700;
 		font-size: 1rem;
 		padding: 0 0.5rem;
-	}
-
-	.vs {
-		color: rgba(255, 255, 255, 0.4);
-		font-size: 0.75rem;
 	}
 
 	.team-selection {

@@ -2,7 +2,7 @@
   import type { Tournament, GroupMatch, BracketMatch } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
-  import { BYE_PARTICIPANT, isBye } from '$lib/algorithms/bracket';
+  import { isBye } from '$lib/algorithms/bracket';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { calculateFinalPositions, applyRankingUpdates } from '$lib/firebase/tournamentRanking';
   import * as m from '$lib/paraglide/messages.js';
@@ -37,7 +37,8 @@
     return name;
   }
 
-  let activeTab = $state<'groups' | 'bracket'>(tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket');
+  const initialTab = tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket';
+  let activeTab = $state<'groups' | 'bracket'>(initialTab);
   let showMatchDialog = $state(false);
   let expandedResults = $state<Set<string>>(new Set()); // Track which group results are expanded
   let selectedMatch = $state<GroupMatch | BracketMatch | null>(null);
@@ -58,6 +59,45 @@
   let isSplitDivisions = $derived(tournament.finalStage?.mode === 'SPLIT_DIVISIONS');
   let goldBracket = $derived(tournament.finalStage?.goldBracket);
   let silverBracket = $derived(tournament.finalStage?.silverBracket);
+
+  // Debug consolation matches - detailed view of each match including rounds
+  let goldConsolationMatches = $derived(
+    goldBracket?.consolationBrackets?.flatMap(cb =>
+      cb.rounds.flatMap(r => r.matches.map(m => ({
+        id: m.id,
+        participantA: getParticipantName(m.participantA),
+        participantB: getParticipantName(m.participantB),
+        totalPointsA: m.totalPointsA,
+        totalPointsB: m.totalPointsB,
+        total20sA: m.total20sA,
+        total20sB: m.total20sB,
+        roundsCount: m.rounds?.length ?? 0,
+        rounds: m.rounds, // Include full rounds detail
+        status: m.status,
+        hasData: (m.totalPointsA ?? 0) > 0 || (m.totalPointsB ?? 0) > 0 || (m.total20sA ?? 0) > 0 || (m.total20sB ?? 0) > 0
+      })))
+    ) ?? []
+  );
+  $inspect('Gold consolation matches detail:', goldConsolationMatches);
+
+  let silverConsolationMatches = $derived(
+    silverBracket?.consolationBrackets?.flatMap(cb =>
+      cb.rounds.flatMap(r => r.matches.map(m => ({
+        id: m.id,
+        participantA: getParticipantName(m.participantA),
+        participantB: getParticipantName(m.participantB),
+        totalPointsA: m.totalPointsA,
+        totalPointsB: m.totalPointsB,
+        total20sA: m.total20sA,
+        total20sB: m.total20sB,
+        roundsCount: m.rounds?.length ?? 0,
+        rounds: m.rounds,
+        status: m.status,
+        hasData: (m.totalPointsA ?? 0) > 0 || (m.totalPointsB ?? 0) > 0 || (m.total20sA ?? 0) > 0 || (m.total20sB ?? 0) > 0
+      })))
+    ) ?? []
+  );
+  $inspect('Silver consolation matches detail:', silverConsolationMatches);
 
   // Match configuration - determines if we show games won or total points
   let goldMatchesToWin = $derived((tournament.finalStage as any)?.matchesToWin || 1);
@@ -88,6 +128,38 @@
     if (position === 2) return '🥈';
     if (position === 3) return '🥉';
     return `${position}º`;
+  }
+
+  /**
+   * Calculate final position for a participant in a consolation match
+   * @param startPosition - Starting position for the bracket (5 for QF, 9 for R16)
+   * @param totalRounds - Total rounds in the consolation bracket
+   * @param roundNumber - Current round number (1-indexed)
+   * @param matchPosition - Position of match in the round (0-indexed)
+   * @param isWinner - Whether this participant won the match
+   * @returns Final position number or null if match not completed
+   */
+  function getConsolationPosition(
+    startPosition: number,
+    totalRounds: number,
+    roundNumber: number,
+    matchPosition: number,
+    isWinner: boolean
+  ): number | null {
+    const roundsFromEnd = totalRounds - roundNumber;
+
+    if (roundsFromEnd === 0) {
+      // Final round
+      return isWinner ? startPosition : startPosition + 1;
+    } else if (roundsFromEnd === 1) {
+      // Semifinal - losers get positions startPosition+2 onwards
+      return isWinner ? null : startPosition + 2 + matchPosition;
+    } else if (roundsFromEnd === 2) {
+      // Quarterfinal - losers get positions startPosition+4 onwards
+      return isWinner ? null : startPosition + 4 + matchPosition;
+    }
+    // Earlier rounds - only losers get positions, winners advance
+    return isWinner ? null : startPosition + Math.pow(2, totalRounds - roundNumber) + matchPosition;
   }
 
   // Calculate ranking delta for display
@@ -451,6 +523,88 @@
             </div>
           {/if}
           </div>
+
+          <!-- Consolation Brackets (Gold) -->
+          {#if goldBracket.consolationBrackets?.length}
+            <div class="consolation-section">
+              <div class="consolation-header">
+                <span class="consolation-icon">🏆</span>
+                <span class="consolation-label">{m.bracket_consolation()}</span>
+              </div>
+              {#each goldBracket.consolationBrackets as consolationBracket (consolationBracket.source)}
+                <div class="consolation-bracket">
+                  <div class="consolation-source-label">
+                    {m.bracket_positionsRange({ start: consolationBracket.startPosition, end: consolationBracket.startPosition + (consolationBracket.numLosers || 4) - 1 })}
+                  </div>
+                  <div class="bracket-container consolation">
+                    {#each consolationBracket.rounds as round (round.roundNumber)}
+                      <div class="bracket-round">
+                        <h3 class="round-name consolation">{round.name}</h3>
+                        <div class="matches-column">
+                          {#each round.matches as match, matchIdx (match.id)}
+                            {@const hasMatchData = (match.totalPointsA ?? 0) > 0 || (match.totalPointsB ?? 0) > 0 || (match.total20sA ?? 0) > 0 || (match.total20sB ?? 0) > 0}
+                            {@const isWalkover = !hasMatchData && (match.status === 'COMPLETED' || match.status === 'WALKOVER')}
+                            {@const isMatchComplete = match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+                            {@const positionA = isMatchComplete && match.winner ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantA) : null}
+                            {@const positionB = isMatchComplete && match.winner ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantB) : null}
+                            <button
+                              class="bracket-match"
+                              class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
+                              class:bye-match={isByeMatch(match)}
+                              onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                              disabled={!match.participantA || !match.participantB || isByeMatch(match)}
+                            >
+                              <div
+                                class="match-participant"
+                                class:winner={match.winner === match.participantA}
+                                class:tbd={!match.participantA}
+                                class:bye={isBye(match.participantA)}
+                              >
+                                {#if positionA}
+                                  <span class="final-position">{positionA}º</span>
+                                {/if}
+                                <span class="participant-name">{getParticipantName(match.participantA)}</span>
+                                {#if match.seedA}
+                                  <span class="seed">#{match.seedA}</span>
+                                {/if}
+                                {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
+                                  <span class="score">{match.totalPointsA ?? 0}</span>
+                                {/if}
+                              </div>
+
+                              {#if isWalkover}
+                                <div class="walkover-badge">W.O.</div>
+                              {:else}
+                                <div class="vs-divider"></div>
+                              {/if}
+
+                              <div
+                                class="match-participant"
+                                class:winner={match.winner === match.participantB}
+                                class:tbd={!match.participantB}
+                                class:bye={isBye(match.participantB)}
+                              >
+                                {#if positionB}
+                                  <span class="final-position">{positionB}º</span>
+                                {/if}
+                                <span class="participant-name">{getParticipantName(match.participantB)}</span>
+                                {#if match.seedB}
+                                  <span class="seed">#{match.seedB}</span>
+                                {/if}
+                                {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
+                                  <span class="score">{match.totalPointsB ?? 0}</span>
+                                {/if}
+                              </div>
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <!-- Silver Bracket (only for SPLIT_DIVISIONS) -->
@@ -550,6 +704,88 @@
               </div>
             {/if}
             </div>
+
+            <!-- Consolation Brackets (Silver) -->
+            {#if silverBracket.consolationBrackets?.length}
+              <div class="consolation-section">
+                <div class="consolation-header">
+                  <span class="consolation-icon">🏆</span>
+                  <span class="consolation-label">{m.bracket_consolation()}</span>
+                </div>
+                {#each silverBracket.consolationBrackets as consolationBracket (consolationBracket.source)}
+                  <div class="consolation-bracket">
+                    <div class="consolation-source-label">
+                      {m.bracket_positionsRange({ start: consolationBracket.startPosition, end: consolationBracket.startPosition + (consolationBracket.numLosers || 4) - 1 })}
+                    </div>
+                    <div class="bracket-container consolation">
+                      {#each consolationBracket.rounds as round (round.roundNumber)}
+                        <div class="bracket-round">
+                          <h3 class="round-name consolation">{round.name}</h3>
+                          <div class="matches-column">
+                            {#each round.matches as match, matchIdx (match.id)}
+                              {@const hasMatchData = (match.totalPointsA ?? 0) > 0 || (match.totalPointsB ?? 0) > 0 || (match.total20sA ?? 0) > 0 || (match.total20sB ?? 0) > 0}
+                              {@const isWalkover = !hasMatchData && (match.status === 'COMPLETED' || match.status === 'WALKOVER')}
+                              {@const isMatchComplete = match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+                              {@const positionA = isMatchComplete && match.winner ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantA) : null}
+                              {@const positionB = isMatchComplete && match.winner ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantB) : null}
+                              <button
+                                class="bracket-match"
+                                class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
+                                class:bye-match={isByeMatch(match)}
+                                onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                                disabled={!match.participantA || !match.participantB || isByeMatch(match)}
+                              >
+                              <div
+                                  class="match-participant"
+                                  class:winner={match.winner === match.participantA}
+                                  class:tbd={!match.participantA}
+                                  class:bye={isBye(match.participantA)}
+                                >
+                                  {#if positionA}
+                                    <span class="final-position">{positionA}º</span>
+                                  {/if}
+                                  <span class="participant-name">{getParticipantName(match.participantA)}</span>
+                                  {#if match.seedA}
+                                    <span class="seed">#{match.seedA}</span>
+                                  {/if}
+                                  {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
+                                    <span class="score">{match.totalPointsA ?? 0}</span>
+                                  {/if}
+                                </div>
+
+                                {#if isWalkover}
+                                  <div class="walkover-badge">W.O.</div>
+                                {:else}
+                                  <div class="vs-divider"></div>
+                                {/if}
+
+                                <div
+                                  class="match-participant"
+                                  class:winner={match.winner === match.participantB}
+                                  class:tbd={!match.participantB}
+                                  class:bye={isBye(match.participantB)}
+                                >
+                                  {#if positionB}
+                                    <span class="final-position">{positionB}º</span>
+                                  {/if}
+                                  <span class="participant-name">{getParticipantName(match.participantB)}</span>
+                                  {#if match.seedB}
+                                    <span class="seed">#{match.seedB}</span>
+                                  {/if}
+                                  {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
+                                    <span class="score">{match.totalPointsB ?? 0}</span>
+                                  {/if}
+                                </div>
+                              </button>
+                            {/each}
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/if}
       </div>
@@ -1702,5 +1938,139 @@
     .matches-list {
       grid-template-columns: 1fr;
     }
+
+    .consolation-section {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+    }
+
+    .consolation-header {
+      gap: 0.3rem;
+      padding-bottom: 0.4rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .consolation-label {
+      font-size: 0.65rem;
+    }
+
+    .consolation-source-label {
+      font-size: 0.6rem;
+      padding: 0.15rem 0.4rem;
+      margin-bottom: 0.4rem;
+    }
+  }
+
+  /* Consolation Brackets Section */
+  .consolation-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed #e5e7eb;
+  }
+
+  :global([data-theme='dark']) .consolation-section {
+    border-top-color: #374151;
+  }
+
+  .consolation-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  :global([data-theme='dark']) .consolation-header {
+    border-bottom-color: #374151;
+  }
+
+  .consolation-icon {
+    font-size: 0.9rem;
+    opacity: 0.7;
+  }
+
+  .consolation-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+  }
+
+  :global([data-theme='dark']) .consolation-label {
+    color: #9ca3af;
+  }
+
+  .consolation-bracket {
+    margin-bottom: 1rem;
+  }
+
+  .consolation-bracket:last-child {
+    margin-bottom: 0;
+  }
+
+  .consolation-source-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #4b5563;
+    background: #f3f4f6;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+  }
+
+  :global([data-theme='dark']) .consolation-source-label {
+    background: #2d3748;
+    color: #9ca3af;
+  }
+
+  .bracket-container.consolation {
+    padding: 0.5rem 0;
+  }
+
+  .round-name.consolation {
+    background: #fef3c7;
+    color: #92400e;
+    border-left: 2px solid #f59e0b;
+  }
+
+  :global([data-theme='dark']) .round-name.consolation {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+  }
+
+  /* Walkover badge */
+  .walkover-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #9ca3af;
+    background: #f3f4f6;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  :global([data-theme='dark']) .walkover-badge {
+    background: #374151;
+    color: #6b7280;
+  }
+
+  /* Final position badge in consolation brackets */
+  .final-position {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #059669;
+    background: #d1fae5;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    margin-right: 0.25rem;
+  }
+
+  :global([data-theme='dark']) .final-position {
+    background: rgba(5, 150, 105, 0.2);
+    color: #34d399;
   }
 </style>

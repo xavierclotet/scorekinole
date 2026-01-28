@@ -39,7 +39,8 @@
     role="button"
     tabindex="0"
   >
-    <div class="modal" onclick={stopPropagation} role="dialog" aria-modal="true">
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="modal" onclick={stopPropagation} role="dialog" aria-modal="true" tabindex="-1">
       <!-- Header -->
       <header class="modal-header">
         <div class="header-top">
@@ -61,7 +62,7 @@
                 </svg>
               </button>
             {/if}
-            <button class="close-btn" onclick={close}>
+            <button class="close-btn" onclick={close} aria-label="Close">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>

@@ -83,11 +83,19 @@
 		e.stopPropagation();
 		onDelete?.();
 	}
+
+	function handleHeaderKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			toggleExpand();
+		}
+	}
 </script>
 
 <div class="history-entry">
 	<!-- Header - Clickable to expand/collapse -->
-	<button class="entry-header" onclick={toggleExpand} type="button">
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="entry-header" onclick={toggleExpand} onkeydown={handleHeaderKeydown} role="button" tabindex="0">
 		<div class="expand-icon" class:expanded={isExpanded}>
 			▶
 		</div>
@@ -145,7 +153,7 @@
 				</button>
 			{/if}
 		</div>
-	</button>
+	</div>
 
 	<!-- Expandable Detail -->
 	{#if isExpanded}

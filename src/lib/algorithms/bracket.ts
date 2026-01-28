@@ -751,7 +751,8 @@ export function replaceLoserPlaceholder(
   consolationBracket: ConsolationBracket,
   roundName: string,
   matchPosition: number,
-  loserId: string
+  loserId: string,
+  loserSeed?: number
 ): ConsolationBracket {
   const placeholder = createLoserPlaceholder(roundName, matchPosition);
   const updated = JSON.parse(JSON.stringify(consolationBracket)) as ConsolationBracket;
@@ -762,10 +763,12 @@ export function replaceLoserPlaceholder(
 
     if (match.participantA === placeholder) {
       match.participantA = loserId;
+      match.seedA = loserSeed;
       replaced = true;
     }
     if (match.participantB === placeholder) {
       match.participantB = loserId;
+      match.seedB = loserSeed;
       replaced = true;
     }
 

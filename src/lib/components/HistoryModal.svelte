@@ -1014,11 +1014,6 @@
 		white-space: nowrap;
 	}
 
-	.duration-badge {
-		background: rgba(100, 150, 200, 0.08);
-		border-color: rgba(100, 150, 200, 0.15);
-	}
-
 	/* Match Score Summary */
 	.match-score-summary {
 		display: flex;
