@@ -480,32 +480,46 @@ export async function generateSplitBrackets(
       goldBracketWithConfig.consolationBrackets = [];
       silverBracketWithConfig.consolationBrackets = [];
 
+      // Use raw brackets to calculate BYE positions (cast is safe as we only use rounds/totalRounds)
+      const tempGoldBracket = goldBracketRaw as unknown as BracketWithConfig;
+      const tempSilverBracket = silverBracketRaw as unknown as BracketWithConfig;
+
       // Gold bracket consolation
       if (goldAvailable.hasR16) {
-        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(goldBracketSize, 'R16'));
+        const r16ByePositions = getByePositionsInRound(tempGoldBracket, 'R16');
+        console.log(`🎯 R16 BYE positions for Gold bracket: [${r16ByePositions.join(', ') || 'none'}]`);
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(goldBracketSize, 'R16', r16ByePositions));
         console.log('🎯 Generated R16 consolation structure for Gold bracket');
       }
       if (goldAvailable.hasQF) {
-        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(goldBracketSize, 'QF'));
+        const qfByePositions = getByePositionsInRound(tempGoldBracket, 'QF');
+        console.log(`🎯 QF BYE positions for Gold bracket: [${qfByePositions.join(', ') || 'none'}]`);
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(goldBracketSize, 'QF', qfByePositions));
         console.log('🎯 Generated QF consolation structure for Gold bracket');
       }
 
       // Silver bracket consolation
       if (silverAvailable.hasR16) {
-        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'R16'));
+        const r16ByePositions = getByePositionsInRound(tempSilverBracket, 'R16');
+        console.log(`🎯 R16 BYE positions for Silver bracket: [${r16ByePositions.join(', ') || 'none'}]`);
+        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'R16', r16ByePositions));
         console.log('🎯 Generated R16 consolation structure for Silver bracket');
       }
       if (silverAvailable.hasQF) {
-        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'QF'));
+        const qfByePositions = getByePositionsInRound(tempSilverBracket, 'QF');
+        console.log(`🎯 QF BYE positions for Silver bracket: [${qfByePositions.join(', ') || 'none'}]`);
+        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'QF', qfByePositions));
         console.log('🎯 Generated QF consolation structure for Silver bracket');
       }
     }
 
     // Update tournament with both brackets (config embedded in each bracket)
+    // Use spread to preserve any existing finalStage fields from tournament creation
     return await updateTournament(tournamentId, {
       finalStage: {
+        ...tournament.finalStage,
         mode: 'SPLIT_DIVISIONS',
-        consolationEnabled: consolationEnabled || false,
+        consolationEnabled: consolationEnabled ?? tournament.finalStage?.consolationEnabled ?? false,
         goldBracket: goldBracketWithConfig,
         silverBracket: silverBracketWithConfig,
         isComplete: false
@@ -634,20 +648,29 @@ export async function generateBracket(
 
       goldBracketWithConfig.consolationBrackets = [];
 
+      // Use bracketRaw to calculate BYE positions (cast is safe as we only use rounds/totalRounds)
+      const tempBracket = bracketRaw as unknown as BracketWithConfig;
+
       if (available.hasR16) {
-        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'R16'));
+        const r16ByePositions = getByePositionsInRound(tempBracket, 'R16');
+        console.log(`🎯 R16 BYE positions for SINGLE_BRACKET: [${r16ByePositions.join(', ') || 'none'}]`);
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions));
         console.log('🎯 Generated R16 consolation structure for SINGLE_BRACKET');
       }
       if (available.hasQF) {
-        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'QF'));
+        const qfByePositions = getByePositionsInRound(tempBracket, 'QF');
+        console.log(`🎯 QF BYE positions for SINGLE_BRACKET: [${qfByePositions.join(', ') || 'none'}]`);
+        goldBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions));
         console.log('🎯 Generated QF consolation structure for SINGLE_BRACKET');
       }
     }
 
+    // Use spread to preserve any existing finalStage fields from tournament creation
     return await updateTournament(tournamentId, {
       finalStage: {
+        ...tournament.finalStage,
         mode: 'SINGLE_BRACKET',
-        consolationEnabled: consolationEnabled || false,
+        consolationEnabled: consolationEnabled ?? tournament.finalStage?.consolationEnabled ?? false,
         goldBracket: goldBracketWithConfig,
         isComplete: false
       }
@@ -1424,8 +1447,8 @@ async function checkAndGenerateConsolation(
     updatedBracket.consolationBrackets = [];
   }
 
-  // Helper to get losers with their match positions
-  function getLosersWithPositions(roundType: 'QF' | 'R16'): { loserId: string; matchPosition: number }[] {
+  // Helper to get losers with their match positions and seeds
+  function getLosersWithPositions(roundType: 'QF' | 'R16'): { loserId: string; matchPosition: number; seed?: number }[] {
     const totalRounds = bracket.totalRounds;
     const targetRoundIndex = roundType === 'QF' ? totalRounds - 3 : totalRounds - 4;
 
@@ -1434,14 +1457,15 @@ async function checkAndGenerateConsolation(
     }
 
     const round = bracket.rounds[targetRoundIndex];
-    const losers: { loserId: string; matchPosition: number }[] = [];
+    const losers: { loserId: string; matchPosition: number; seed?: number }[] = [];
 
     for (let i = 0; i < round.matches.length; i++) {
       const match = round.matches[i];
       if (match.status === 'COMPLETED' && match.winner) {
         const loserId = match.participantA === match.winner ? match.participantB : match.participantA;
+        const loserSeed = match.participantA === loserId ? match.seedA : match.seedB;
         if (loserId && loserId !== 'BYE') {
-          losers.push({ loserId, matchPosition: i });
+          losers.push({ loserId, matchPosition: i, seed: loserSeed });
         }
       }
     }
@@ -1455,9 +1479,9 @@ async function checkAndGenerateConsolation(
     console.log(`📝 Updating ${consolation.source} consolation with ${losers.length} losers:`);
     losers.forEach(l => console.log(`   Position ${l.matchPosition}: ${l.loserId?.substring(0, 12)}...`));
 
-    for (const { loserId, matchPosition } of losers) {
-      // Replace placeholder with actual loser
-      const updated = replaceLoserPlaceholder(consolation, consolation.source, matchPosition, loserId);
+    for (const { loserId, matchPosition, seed } of losers) {
+      // Replace placeholder with actual loser (and their seed)
+      const updated = replaceLoserPlaceholder(consolation, consolation.source, matchPosition, loserId, seed);
       // Copy the updated rounds back
       consolation.rounds = updated.rounds;
     }

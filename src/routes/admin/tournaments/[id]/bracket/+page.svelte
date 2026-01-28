@@ -279,22 +279,6 @@
     if (tournamentId) {
       unsubscribe = subscribeTournament(tournamentId, (updated) => {
         if (updated) {
-          // Debug: Log consolation bracket updates
-          const goldConsolation = updated.finalStage?.goldBracket?.consolationBrackets;
-          if (goldConsolation && goldConsolation.length > 0) {
-            const qfBracket = goldConsolation.find((c: any) => c.source === 'QF');
-            if (qfBracket) {
-              console.log('🔄 [BRACKET PAGE] Received update - QF consolation matches:');
-              qfBracket.rounds.forEach((r: any, ri: number) => {
-                r.matches.forEach((m: any, mi: number) => {
-                  if (m.rounds?.length > 0 || m.status !== 'PENDING') {
-                    console.log(`   R${ri + 1}M${mi + 1}: status=${m.status}, rounds=${m.rounds?.length || 0}, gamesA=${m.gamesWonA || 0}, gamesB=${m.gamesWonB || 0}, pointsA=${m.totalPointsA || 0}, pointsB=${m.totalPointsB || 0}`);
-                  }
-                });
-              });
-            }
-          }
-
           // Force Svelte reactivity by creating new object reference for deep nested data
           tournament = JSON.parse(JSON.stringify(updated));
 
@@ -847,7 +831,7 @@
           let gamePointsB = 0;
           let roundInGame = 0;
 
-          // For rounds mode, play exactly roundsToPlay rounds
+          // For rounds mode, play exactly roundsToPlay rounds, then extra rounds if tied
           // For points mode, play until reaching pointsToWin with 2+ lead
           const maxRoundsInGame = isRoundsMode ? roundsToPlay : 100; // 100 is a safety limit for points mode
 
@@ -898,14 +882,52 @@
             }
           }
 
+          // In rounds mode: play extra rounds until there's a winner (no ties allowed)
+          if (isRoundsMode) {
+            while (gamePointsA === gamePointsB) {
+              roundInGame++;
+              const distribution = Math.random();
+              let roundPointsA = 0;
+              let roundPointsB = 0;
+              let round20sA = 0;
+              let round20sB = 0;
+
+              // In extra rounds, we don't allow ties (50/50 split)
+              if (distribution < 0.5) {
+                roundPointsA = 2;
+                roundPointsB = 0;
+                if (Math.random() < 0.12) round20sA = 1;
+              } else {
+                roundPointsA = 0;
+                roundPointsB = 2;
+                if (Math.random() < 0.12) round20sB = 1;
+              }
+
+              gamePointsA += roundPointsA;
+              gamePointsB += roundPointsB;
+              total20sA += round20sA;
+              total20sB += round20sB;
+
+              allRounds.push({
+                gameNumber,
+                roundInGame,
+                pointsA: roundPointsA,
+                pointsB: roundPointsB,
+                twentiesA: round20sA,
+                twentiesB: round20sB
+              });
+            }
+          }
+
           totalPointsA += gamePointsA;
           totalPointsB += gamePointsB;
 
           if (gamePointsA > gamePointsB) {
             gamesA++;
-          } else {
+          } else if (gamePointsB > gamePointsA) {
             gamesB++;
           }
+          // Note: ties should not happen after extra rounds
         }
 
         const winner = gamesA > gamesB ? match.participantA : match.participantB;
@@ -1012,12 +1034,12 @@
 
           // Process each consolation bracket (R16, QF)
           for (const consolation of mainBracket.consolationBrackets) {
-            // Get config - consolation uses same config as main bracket
+            // Get config - consolation uses earlyRounds config from main bracket
             const config = {
-              gameMode: mainBracket.config.gameMode,
-              pointsToWin: mainBracket.config.pointsToWin,
-              roundsToPlay: mainBracket.config.roundsToPlay,
-              matchesToWin: mainBracket.config.matchesToWin
+              gameMode: mainBracket.config.earlyRounds.gameMode,
+              pointsToWin: mainBracket.config.earlyRounds.pointsToWin,
+              roundsToPlay: mainBracket.config.earlyRounds.roundsToPlay,
+              matchesToWin: mainBracket.config.earlyRounds.matchesToWin
             };
 
             for (const round of consolation.rounds) {
@@ -1099,14 +1121,52 @@
                     }
                   }
 
+                  // In rounds mode: play extra rounds until there's a winner (no ties allowed)
+                  if (isRoundsMode) {
+                    while (gamePointsA === gamePointsB) {
+                      roundInGame++;
+                      const distribution = Math.random();
+                      let roundPointsA = 0;
+                      let roundPointsB = 0;
+                      let round20sA = 0;
+                      let round20sB = 0;
+
+                      // In extra rounds, we don't allow ties (50/50 split)
+                      if (distribution < 0.5) {
+                        roundPointsA = 2;
+                        roundPointsB = 0;
+                        if (Math.random() < 0.12) round20sA = 1;
+                      } else {
+                        roundPointsA = 0;
+                        roundPointsB = 2;
+                        if (Math.random() < 0.12) round20sB = 1;
+                      }
+
+                      gamePointsA += roundPointsA;
+                      gamePointsB += roundPointsB;
+                      total20sA += round20sA;
+                      total20sB += round20sB;
+
+                      allRounds.push({
+                        gameNumber,
+                        roundInGame,
+                        pointsA: roundPointsA,
+                        pointsB: roundPointsB,
+                        twentiesA: round20sA,
+                        twentiesB: round20sB
+                      });
+                    }
+                  }
+
                   totalPointsA += gamePointsA;
                   totalPointsB += gamePointsB;
 
                   if (gamePointsA > gamePointsB) {
                     gamesA++;
-                  } else {
+                  } else if (gamePointsB > gamePointsA) {
                     gamesB++;
                   }
+                  // Note: ties should not happen after extra rounds
                 }
 
                 const winner = gamesA > gamesB ? match.participantA : match.participantB;
