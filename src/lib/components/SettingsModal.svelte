@@ -5,7 +5,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { switchSides, switchColors } from '$lib/stores/teams';
 	import { gameTournamentContext, updateTournamentContext } from '$lib/stores/tournamentContext';
-	import type { Language } from '$lib/i18n/translations';
+	import type { Language } from '$lib/stores/language';
 	import type { GameSettings } from '$lib/types/settings';
 
 	interface Props {
@@ -56,6 +56,11 @@
 
 	function handleSwitchColors() {
 		switchColors();
+	}
+
+	function handleClearStorage() {
+		localStorage.clear();
+		window.location.reload();
 	}
 </script>
 
@@ -263,6 +268,11 @@
 				</button>
 			</div>
 		</section>
+
+		<!-- Clear Storage -->
+		<button class="clear-storage-btn" onclick={handleClearStorage} type="button">
+			Limpiar datos locales
+		</button>
 		</div>
 	</div>
 </Modal>
@@ -636,6 +646,23 @@
 		.toggle-item input:checked ~ .toggle-switch::before {
 			transform: translateX(14px);
 		}
+	}
+
+	/* Clear storage button - very subtle */
+	.clear-storage-btn {
+		margin-top: 1rem;
+		padding: 0.4rem 0.6rem;
+		background: transparent;
+		border: none;
+		color: rgba(255, 255, 255, 0.2);
+		font-size: 0.65rem;
+		cursor: pointer;
+		transition: color 0.15s ease;
+		align-self: center;
+	}
+
+	.clear-storage-btn:hover {
+		color: rgba(255, 255, 255, 0.4);
 	}
 
 	/* Actions Section */

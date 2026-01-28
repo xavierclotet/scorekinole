@@ -604,5 +604,6 @@
   "tournament_gamesWon": "Partides Guanyades",
   "tournament_generateBracket": "Generar Bracket",
   "tournament_matchCompletedByAdmin": "Partit finalitzat per l´organitzador",
-  "tournament_matchCompletedByAdminDesc": "L´organitzador ha finalitzat aquest partit per límit de temps. El resultat ha estat guardat."
+  "tournament_matchCompletedByAdminDesc": "L´organitzador ha finalitzat aquest partit per límit de temps. El resultat ha estat guardat.",
+  "common_clearLocalData": "Netejar dades locals"
 }

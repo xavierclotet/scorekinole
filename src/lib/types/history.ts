@@ -64,4 +64,4 @@ export interface CurrentMatch {
     rounds: MatchRound[];
 }
 
-export type HistoryTab = 'current' | 'history' | 'deleted';
+export type HistoryTab = 'current' | 'history';

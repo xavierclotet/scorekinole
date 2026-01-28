@@ -8,9 +8,6 @@ export const currentMatch = writable<CurrentMatch | null>(null);
 // Match history (completed matches)
 export const matchHistory = writable<MatchHistory[]>([]);
 
-// Deleted matches (soft delete)
-export const deletedMatches = writable<MatchHistory[]>([]);
-
 // Active tab in history modal
 export const activeHistoryTab = writable<HistoryTab>('current');
 
@@ -32,18 +29,8 @@ export function loadHistory() {
             }
         }
 
-        const savedDeleted = localStorage.getItem('crokinoleDeletedMatches');
-        if (savedDeleted) {
-            const parsed = JSON.parse(savedDeleted);
-            // Remove duplicates by ID
-            const deduped = deduplicateMatches(parsed);
-            deletedMatches.set(deduped);
-            // Save cleaned data back
-            if (deduped.length !== parsed.length) {
-                console.log(`🧹 Cleaned ${parsed.length - deduped.length} duplicate matches from deleted`);
-                localStorage.setItem('crokinoleDeletedMatches', JSON.stringify(deduped));
-            }
-        }
+        // Clean up old deleted matches key if exists
+        localStorage.removeItem('crokinoleDeletedMatches');
 
         const savedCurrent = localStorage.getItem('crokinoleCurrentMatch');
         if (savedCurrent) {
@@ -87,14 +74,6 @@ export function saveHistory() {
     })();
 }
 
-export function saveDeletedMatches() {
-    if (!browser) return;
-
-    deletedMatches.subscribe(deleted => {
-        localStorage.setItem('crokinoleDeletedMatches', JSON.stringify(deleted));
-    })();
-}
-
 export function saveCurrentMatch() {
     if (!browser) return;
 
@@ -120,57 +99,11 @@ export function addMatchToHistory(match: MatchHistory) {
     });
 }
 
-// Move match to deleted
-export function deleteMatch(matchId: string) {
-    let deletedMatch: MatchHistory | null = null;
-
+// Permanently delete match from history
+export function permanentlyDeleteMatch(matchId: string) {
     matchHistory.update(history => {
-        const match = history.find(m => m.id === matchId);
-        if (match) {
-            deletedMatch = match;
-        }
         const filtered = history.filter(m => m.id !== matchId);
         localStorage.setItem('crokinoleMatchHistory', JSON.stringify(filtered));
-        return filtered;
-    });
-
-    if (deletedMatch) {
-        deletedMatches.update(deleted => {
-            const updated = [deletedMatch!, ...deleted];
-            localStorage.setItem('crokinoleDeletedMatches', JSON.stringify(updated));
-            return updated;
-        });
-    }
-}
-
-// Restore match from deleted
-export function restoreMatch(matchId: string) {
-    let restoredMatch: MatchHistory | null = null;
-
-    deletedMatches.update(deleted => {
-        const match = deleted.find(m => m.id === matchId);
-        if (match) {
-            restoredMatch = match;
-        }
-        const filtered = deleted.filter(m => m.id !== matchId);
-        localStorage.setItem('crokinoleDeletedMatches', JSON.stringify(filtered));
-        return filtered;
-    });
-
-    if (restoredMatch) {
-        matchHistory.update(history => {
-            const updated = [restoredMatch!, ...history];
-            localStorage.setItem('crokinoleMatchHistory', JSON.stringify(updated));
-            return updated;
-        });
-    }
-}
-
-// Permanently delete match
-export function permanentlyDeleteMatch(matchId: string) {
-    deletedMatches.update(deleted => {
-        const filtered = deleted.filter(m => m.id !== matchId);
-        localStorage.setItem('crokinoleDeletedMatches', JSON.stringify(filtered));
         return filtered;
     });
 }
@@ -179,12 +112,6 @@ export function permanentlyDeleteMatch(matchId: string) {
 export function clearHistory() {
     matchHistory.set([]);
     localStorage.removeItem('crokinoleMatchHistory');
-}
-
-// Clear all deleted matches
-export function clearDeletedMatches() {
-    deletedMatches.set([]);
-    localStorage.removeItem('crokinoleDeletedMatches');
 }
 
 // Start a new current match

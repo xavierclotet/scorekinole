@@ -50,6 +50,13 @@
 		? $gameTournamentContext?.gameConfig.pointsToWin ?? $gameSettings.pointsToWin
 		: $gameSettings.pointsToWin);
 
+	// matchesToWin semantics differ:
+	// - Tournaments use "Best of X" format (e.g., 3 = best of 3 = need 2 wins)
+	// - Friendly matches use direct count (e.g., 2 = first to 2 wins)
+	let effectiveRequiredWins = $derived(inTournamentMode
+		? Math.ceil(($gameTournamentContext?.gameConfig.matchesToWin ?? 1) / 2)
+		: $gameSettings.matchesToWin);
+
 	// Get the appropriate team store
 	let team = $derived(teamNumber === 1 ? $team1 : $team2);
 	let otherTeam = $derived(teamNumber === 1 ? $team2 : $team1);
@@ -425,10 +432,10 @@
 		console.log('Game mode:', settings.gameMode);
 
 		// In rounds mode, match is complete after first game
-		// In points mode, need to reach required wins (majority for best-of format)
-		// For "best of X", you need ceil(X/2) wins (e.g., best of 3 = need 2 wins)
-		const requiredWins = Math.ceil(settings.matchesToWin / 2);
-		const matchComplete = settings.gameMode === 'rounds'
+		// In points mode, need to reach required wins
+		// effectiveRequiredWins handles the difference between tournament (best of X) and friendly (direct count)
+		const requiredWins = effectiveRequiredWins;
+		const matchComplete = effectiveGameMode === 'rounds'
 			? true
 			: (team1GamesWon >= requiredWins || team2GamesWon >= requiredWins);
 

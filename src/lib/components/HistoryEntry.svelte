@@ -22,27 +22,9 @@
 		isExpanded = !isExpanded;
 	}
 
-	function formatDuration(milliseconds: number): string {
-		const seconds = Math.floor(milliseconds / 1000);
-		const minutes = Math.floor(seconds / 60);
-		const hours = Math.floor(minutes / 60);
-
-		if (hours > 0) {
-			return `${hours}h ${minutes % 60}m`;
-		}
-		return `${minutes}m ${seconds % 60}s`;
-	}
-
 	function formatDate(timestamp: number): string {
 		const date = new Date(timestamp);
 		return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	}
-
-	let winnerName = $derived(match.winner === 1 ? match.team1Name : match.winner === 2 ? match.team2Name : '-');
-
-	// Capitalize first letter
-	function capitalize(str: string): string {
-		return str.charAt(0).toUpperCase() + str.slice(1);
 	}
 
 	// Build complete match configuration badges
@@ -74,6 +56,12 @@
 	let team1GamesWon = $derived(match.games?.filter(g => g.winner === 1).length ?? 0);
 	let team2GamesWon = $derived(match.games?.filter(g => g.winner === 2).length ?? 0);
 
+	// Calculate total 20s for each team across all games
+	let team1Total20s = $derived(match.games?.reduce((sum, g) =>
+		sum + (g.rounds?.reduce((s, r) => s + r.team1Twenty, 0) ?? 0), 0) ?? 0);
+	let team2Total20s = $derived(match.games?.reduce((sum, g) =>
+		sum + (g.rounds?.reduce((s, r) => s + r.team2Twenty, 0) ?? 0), 0) ?? 0);
+
 	function handleRetrySync(e: MouseEvent) {
 		e.stopPropagation();
 		onRetrySync?.();
@@ -101,11 +89,14 @@
 		</div>
 		<div class="entry-header-info">
 			<div class="entry-title">
-				{match.eventTitle || 'Scorekinole'}
-				{#if match.matchPhase}
-					<span class="phase">- {match.matchPhase}</span>
-				{/if}
-				<span class="entry-date"> {formatDate(match.startTime)}</span>
+				<div class="title-line">
+					<span class="title-text">{match.eventTitle || 'Scorekinole'}</span>
+					{#if match.matchPhase}
+						<span class="phase-separator">·</span>
+						<span class="phase">{match.matchPhase}</span>
+					{/if}
+				</div>
+				<span class="entry-date">{formatDate(match.startTime)}</span>
 			</div>
 			<div class="game-mode-info">
 				{#each matchConfigBadges as badge}
@@ -114,20 +105,29 @@
 			</div>
 			<div class="teams-summary">
 				<span
-				class="team-name-span"
-				class:dark-color={isColorDark(match.team1Color)}
-				style="color: {match.team1Color}"
-			>
-				{match.team1Name}
-			</span>
+					class="team-name-span"
+					class:dark-color={isColorDark(match.team1Color)}
+					style="color: {match.team1Color}"
+				>
+					{match.team1Name}
+				</span>
 				<span class="vs">vs</span>
 				<span
-				class="team-name-span"
-				class:dark-color={isColorDark(match.team2Color)}
-				style="color: {match.team2Color}"
-			>
-				{match.team2Name}
-			</span>
+					class="team-name-span"
+					class:dark-color={isColorDark(match.team2Color)}
+					style="color: {match.team2Color}"
+				>
+					{match.team2Name}
+				</span>
+				<span class="score-divider">·</span>
+				<span class="match-score-header">
+					<span class="score-value" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : 'rgba(255,255,255,0.9)'};">{team1GamesWon}</span>
+					<span class="score-separator">-</span>
+					<span class="score-value" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : 'rgba(255,255,255,0.9)'};">{team2GamesWon}</span>
+					{#if (match.show20s ?? $gameSettings.show20s) && (team1Total20s > 0 || team2Total20s > 0)}
+						<span class="twenties-header">⭐{team1Total20s}-{team2Total20s}</span>
+					{/if}
+				</span>
 			</div>
 		</div>
 		<div class="header-actions">
@@ -158,42 +158,7 @@
 	<!-- Expandable Detail -->
 	{#if isExpanded}
 	<div class="match-detail">
-	<!-- Match Score Summary -->
-	<div class="match-score-summary">
-		<!-- Match total on the left (only show for multi-game matches in points mode) -->
-		{#if match.gameMode === 'points' && match.matchesToWin > 1}
-			<div class="match-total-summary">
-				<span class="match-label">Match:</span>
-				<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : '#fff'};">{team1GamesWon}</span>
-				<span>-</span>
-				<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : '#fff'};">{team2GamesWon}</span>
-				{#if $currentUser}
-					<span class="sync-badge">☁️</span>
-				{/if}
-			</div>
-		{/if}
-		<!-- Game results on the right -->
-		<div class="games-results">
-			{#each match.games as game}
-				{@const winnerName = game.winner === 1 ? match.team1Name : match.team2Name}
-				{@const winnerPoints = game.team1Points}
-				{@const loserPoints = game.team2Points}
-				{@const winner20s = game.winner === 1
-					? (game.rounds?.reduce((sum, r) => sum + r.team1Twenty, 0) ?? 0)
-					: (game.rounds?.reduce((sum, r) => sum + r.team2Twenty, 0) ?? 0)}
-				<div class="game-result-summary">
-					<span class="game-number">P{game.gameNumber}:</span>
-					<span class="winner-name">{winnerName} {m.history_gana()}</span>
-					<span class="score">{winnerPoints}-{loserPoints}</span>
-					{#if (match.show20s ?? $gameSettings.show20s) && winner20s > 0}
-						<span class="twenties-summary">⭐ {winner20s}</span>
-					{/if}
-				</div>
-			{/each}
-		</div>
-	</div>
-
-	<!-- Games Table (same structure as HistoryModal) -->
+	<!-- Games Table -->
 	{#if match.games.length > 0}
 		<div class="games-section">
 			{#each match.games as game, gameIndex}
@@ -210,7 +175,7 @@
 					</div>
 
 					<!-- Team 1 Row -->
-					<div class="game-row">
+					<div class="game-row" class:winner-row={game.winner === 1}>
 						<span class="team-name">
 							{match.team1Name}
 						</span>
@@ -227,7 +192,7 @@
 								{/if}
 							</span>
 						{/each}
-						<span class="total-col total-score">
+						<span class="total-col total-score" class:winner={game.winner === 1}>
 							{game.team1Points}
 							{#if match.show20s ?? $gameSettings.show20s}
 								{@const total20s = game.rounds.reduce((sum, r) => sum + r.team1Twenty, 0)}
@@ -239,7 +204,7 @@
 					</div>
 
 					<!-- Team 2 Row -->
-					<div class="game-row">
+					<div class="game-row" class:winner-row={game.winner === 2}>
 						<span class="team-name">
 							{match.team2Name}
 						</span>
@@ -256,7 +221,7 @@
 								{/if}
 							</span>
 						{/each}
-						<span class="total-col total-score">
+						<span class="total-col total-score" class:winner={game.winner === 2}>
 							{game.team2Points}
 							{#if match.show20s ?? $gameSettings.show20s}
 								{@const total20s = game.rounds.reduce((sum, r) => sum + r.team2Twenty, 0)}
@@ -292,50 +257,47 @@
 
 <style>
 	.history-entry {
-		background: rgba(10, 14, 26, 0.95);
-		border: 2px solid rgba(0, 255, 136, 0.3);
-		border-radius: 12px;
-		padding: 1rem;
+		background: rgba(255, 255, 255, 0.02);
+		border-radius: 8px;
+		padding: 0.85rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.6rem;
 		transition: all 0.2s;
-		font-family: 'Orbitron', monospace;
 	}
 
 	.history-entry:hover {
-		border-color: rgba(0, 255, 136, 0.5);
-		box-shadow: 0 4px 12px rgba(0, 255, 136, 0.2);
+		background: rgba(255, 255, 255, 0.04);
 	}
 
 	.entry-header {
 		display: flex;
 		align-items: flex-start;
-		gap: 0.75rem;
+		gap: 0.5rem;
 		width: 100%;
 		background: none;
 		border: none;
 		padding: 0;
 		text-align: left;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.15s ease;
 	}
 
 	.entry-header:hover {
-		opacity: 0.8;
+		opacity: 0.85;
 	}
 
 	.expand-icon {
 		flex-shrink: 0;
-		width: 20px;
-		height: 20px;
+		width: 18px;
+		height: 18px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: #00ff88;
-		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
+		font-size: 0.65rem;
 		transition: transform 0.2s;
-		margin-top: 0.25rem;
+		margin-top: 0.15rem;
 	}
 
 	.expand-icon.expanded {
@@ -346,28 +308,44 @@
 		flex: 1;
 		display: flex;
 		flex-direction: column;
-		gap: 0.35rem;
+		gap: 0.3rem;
 	}
 
 	.entry-title {
-		font-size: 1rem;
-		color: #fff;
-		font-weight: 700;
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.title-line {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.4rem;
 		flex-wrap: wrap;
 	}
 
+	.title-text {
+		font-size: 0.95rem;
+		color: rgba(255, 255, 255, 0.9);
+		font-weight: 600;
+	}
+
+	.phase-separator {
+		color: rgba(255, 255, 255, 0.25);
+		font-size: 0.85rem;
+		font-weight: 400;
+	}
+
 	.phase {
-		color: rgba(255, 255, 255, 0.7);
+		color: rgba(255, 255, 255, 0.55);
 		font-weight: 500;
+		font-size: 0.85rem;
 	}
 
 	.header-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.4rem;
 		flex-shrink: 0;
 	}
 
@@ -375,42 +353,38 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.25rem 0.5rem;
-		border-radius: 12px;
-		font-size: 0.7rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.3px;
+		padding: 0.2rem 0.4rem;
+		border-radius: 4px;
+		font-size: 0.6rem;
+		font-weight: 500;
 		white-space: nowrap;
 	}
 
 	.sync-badge.synced {
-		background: rgba(0, 255, 136, 0.2);
-		border: 1.5px solid rgba(0, 255, 136, 0.5);
-		color: #00ff88;
+		background: rgba(76, 175, 80, 0.15);
+		border: 1px solid rgba(76, 175, 80, 0.3);
+		color: rgba(76, 175, 80, 0.9);
 	}
 
 	.sync-badge.pending {
-		background: rgba(255, 152, 0, 0.2);
-		border: 1.5px solid rgba(255, 152, 0, 0.5);
-		color: #ff9800;
+		background: rgba(255, 152, 0, 0.15);
+		border: 1px solid rgba(255, 152, 0, 0.3);
+		color: rgba(255, 152, 0, 0.9);
 	}
 
 	.sync-badge.error {
-		background: rgba(255, 59, 48, 0.2);
-		border: 1.5px solid rgba(255, 59, 48, 0.5);
-		color: #ff3b30;
+		background: rgba(244, 67, 54, 0.15);
+		border: 1px solid rgba(244, 67, 54, 0.3);
+		color: rgba(244, 67, 54, 0.9);
 	}
 
 	.sync-badge.error.clickable {
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.15s ease;
 	}
 
 	.sync-badge.error.clickable:hover {
-		background: rgba(255, 59, 48, 0.3);
-		border-color: rgba(255, 59, 48, 0.7);
-		transform: scale(1.05);
+		background: rgba(244, 67, 54, 0.25);
 	}
 
 	.sync-badge.error.clickable:active {
@@ -418,10 +392,10 @@
 	}
 
 	.entry-date {
-		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.5);
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.4);
 		font-weight: 400;
-		margin-left: 0.5rem;
+		margin-top: 0.1rem;
 	}
 
 	.game-mode-info {
@@ -433,187 +407,151 @@
 
 	.config-badge {
 		font-size: 0.65rem;
-		color: rgba(255, 255, 255, 0.85);
-		font-weight: 600;
+		color: rgba(255, 255, 255, 0.6);
+		font-weight: 500;
 		padding: 0.2rem 0.5rem;
-		background: rgba(0, 255, 136, 0.12);
-		border: 1px solid rgba(0, 255, 136, 0.3);
-		border-radius: 10px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 4px;
 		white-space: nowrap;
-		letter-spacing: 0.3px;
 	}
 
 	.teams-summary {
-		font-size: 0.9rem;
-		font-weight: 600;
+		font-size: 0.85rem;
+		font-weight: 500;
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.4rem;
 	}
 
 	.team-name-span {
-		padding: 0.15rem 0;
-		border-radius: 4px;
-		transition: all 0.2s;
+		padding: 0.1rem 0;
+		border-radius: 3px;
+		transition: all 0.15s ease;
 	}
 
 	.team-name-span.dark-color {
-		background: rgba(255, 255, 255, 0.9);
-		padding: 0.2rem 0.5rem;
+		background: rgba(255, 255, 255, 0.85);
+		padding: 0.15rem 0.4rem;
 	}
 
 	.vs {
-		color: rgba(255, 255, 255, 0.5);
+		color: rgba(255, 255, 255, 0.35);
 		font-size: 0.75rem;
+		font-weight: 400;
+	}
+
+	.score-divider {
+		color: rgba(255, 255, 255, 0.25);
+		font-size: 0.9rem;
+		margin: 0 0.1rem;
+	}
+
+	.match-score-header {
+		display: flex;
+		align-items: center;
+		gap: 0.2rem;
+		padding: 0.2rem 0.5rem;
+		background: rgba(255, 255, 255, 0.06);
+		border-radius: 4px;
+	}
+
+	.score-value {
+		font-weight: 700;
+		font-size: 0.95rem;
+		min-width: 12px;
+		text-align: center;
+	}
+
+	.score-separator {
+		color: rgba(255, 255, 255, 0.4);
+		font-size: 0.85rem;
+	}
+
+	.twenties-header {
+		color: rgba(255, 200, 0, 0.9);
+		font-size: 0.7rem;
+		font-weight: 500;
+		margin-left: 0.35rem;
+		opacity: 0.9;
 	}
 
 	.match-detail {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
-		margin-top: 0.5rem;
-		padding-top: 0.75rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		gap: 0.6rem;
+		margin-top: 0.4rem;
+		padding-top: 0.6rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
 	.delete-button {
-		background: rgba(255, 59, 48, 0.15);
-		border: 1px solid rgba(255, 59, 48, 0.3);
-		border-radius: 12px;
-		padding: 0.3rem 0.6rem;
-		font-size: 0.7rem;
-		font-weight: 600;
+		background: rgba(244, 67, 54, 0.1);
+		border: 1px solid rgba(244, 67, 54, 0.2);
+		border-radius: 4px;
+		padding: 0.25rem 0.5rem;
+		font-size: 0.65rem;
+		font-weight: 500;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: all 0.15s ease;
 		flex-shrink: 0;
-		color: #ff3b30;
-		font-family: 'Orbitron', monospace;
+		color: rgba(244, 67, 54, 0.9);
 		white-space: nowrap;
 	}
 
 	.delete-button:hover {
-		background: rgba(255, 59, 48, 0.25);
-		border-color: rgba(255, 59, 48, 0.5);
-		transform: scale(1.05);
+		background: rgba(244, 67, 54, 0.2);
 	}
 
 	.delete-button:active {
-		transform: scale(0.95);
-	}
-
-	/* Match Score Summary */
-	.match-score-summary {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 1rem;
-		padding: 0.75rem;
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 8px;
-		font-family: 'Orbitron', monospace;
-		font-weight: 700;
-	}
-
-	.match-total-summary {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 1rem;
-		flex-shrink: 0;
-	}
-
-	.match-label {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 0.85rem;
-	}
-
-	.match-result {
-		font-size: 1.2rem;
-	}
-
-	.games-results {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-		justify-content: flex-start;
-		flex: 1;
-		align-items: flex-end;
-	}
-
-	.game-result-summary {
-		display: flex;
-		align-items: center;
-		gap: 0.35rem;
-		font-size: 0.75rem;
-		white-space: nowrap;
-	}
-
-	.game-number {
-		color: rgba(255, 255, 255, 0.6);
-		font-size: 0.7rem;
-	}
-
-	.winner-name {
-		font-weight: 700;
-		color: rgba(255, 255, 255, 0.9);
-		font-size: 0.75rem;
-	}
-
-	.score {
-		color: rgba(255, 255, 255, 0.9);
-		font-size: 0.8rem;
-	}
-
-	.twenties-summary {
-		color: var(--accent-green, #00ff88);
-		font-size: 0.75rem;
+		transform: scale(0.98);
 	}
 
 	/* Games Section */
 	.games-section {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0.75rem;
 	}
 
 	.game-table {
-		background: rgba(255, 255, 255, 0.03);
-		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.02);
+		border-radius: 6px;
 		overflow: hidden;
 	}
 
 	.game-row {
 		display: flex;
-		gap: 0.5rem;
-		padding: 0.5rem;
+		gap: 0.4rem;
+		padding: 0.4rem 0.5rem;
 		align-items: center;
 	}
 
 	.game-row.header {
-		background: rgba(255, 255, 255, 0.05);
-		border-radius: 4px;
-		font-weight: 700;
-		font-size: 0.85rem;
-		color: var(--accent-green, #00ff88);
-		margin-bottom: 0.25rem;
+		background: rgba(255, 255, 255, 0.04);
+		font-weight: 600;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.6);
+		margin-bottom: 0.15rem;
 	}
 
 	.game-row .team-name {
-		width: 160px;
+		width: 140px;
 		flex-shrink: 0;
-		font-weight: 600;
+		font-weight: 500;
 		text-align: left;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		color: #f0f0f0;
+		color: rgba(255, 255, 255, 0.85);
+		font-size: 0.8rem;
 	}
 
 	.game-row .round-col {
 		flex: 1;
-		min-width: 40px;
+		min-width: 36px;
 		text-align: center;
-		font-size: 0.95rem;
+		font-size: 0.85rem;
 		color: rgba(255, 255, 255, 0.7);
 		display: flex;
 		flex-direction: column;
@@ -624,27 +562,26 @@
 	.points-with-hammer {
 		display: flex;
 		align-items: center;
-		gap: 0.2rem;
+		gap: 0.15rem;
 		justify-content: center;
 	}
 
 	.hammer-indicator {
-		font-size: 0.85rem;
-		opacity: 1;
-		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+		font-size: 0.7rem;
+		opacity: 0.9;
 	}
 
 	.twenty-indicator {
-		font-size: 0.7rem;
-		color: var(--accent-green, #00ff88);
-		font-weight: 600;
+		font-size: 0.65rem;
+		color: rgba(255, 200, 0, 0.9);
+		font-weight: 500;
 	}
 
 	.game-row .total-col {
 		text-align: center;
-		font-weight: 700;
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.6);
+		font-weight: 600;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
@@ -652,26 +589,36 @@
 	}
 
 	.game-row .total-col.total-score {
-		font-size: 1.1rem;
-		color: var(--accent-green, #00ff88);
+		font-size: 0.95rem;
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	.game-row .total-col.total-score.winner {
+		color: #00ff88;
+	}
+
+	.game-row.winner-row {
+		background: rgba(0, 255, 136, 0.06);
+		border-radius: 4px;
 	}
 
 	.entry-actions {
 		display: flex;
 		justify-content: flex-end;
-		gap: 0.5rem;
+		gap: 0.4rem;
 		padding-top: 0.5rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
 	/* Responsive */
 	@media (max-width: 600px) {
 		.history-entry {
-			padding: 0.75rem;
+			padding: 0.65rem;
 		}
 
 		.game-row .team-name {
-			width: 120px;
+			width: 100px;
+			font-size: 0.75rem;
 		}
 
 		.entry-actions {

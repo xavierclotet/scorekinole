@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Modal from './Modal.svelte';
-	import Button from './Button.svelte';
 	import HistoryEntry from './HistoryEntry.svelte';
 	import SyncConfirmModal from './SyncConfirmModal.svelte';
 	import Toast from './Toast.svelte';
@@ -9,13 +8,9 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import {
 		matchHistory,
-		deletedMatches,
 		currentMatch,
 		activeHistoryTab,
-		deleteMatch,
-		restoreMatch,
 		permanentlyDeleteMatch,
-		clearDeletedMatches,
 		updateCurrentMatchRound,
 		saveCurrentMatch
 	} from '$lib/stores/history';
@@ -74,19 +69,7 @@
 	}
 
 	function handleDelete(matchId: string) {
-		deleteMatch(matchId);
-	}
-
-	function handleRestore(matchId: string) {
-		restoreMatch(matchId);
-	}
-
-	function handlePermanentDelete(matchId: string) {
 		permanentlyDeleteMatch(matchId);
-	}
-
-	function handleClearDeleted() {
-		clearDeletedMatches();
 	}
 
 	// Calculate total games won by each team
@@ -477,14 +460,6 @@
 			>
 				{m.history_matchHistory()}{#if $matchHistory && $matchHistory.length > 0} ({$matchHistory.length}){/if}
 			</button>
-			<button
-				class="tab"
-				class:active={$activeHistoryTab === 'deleted'}
-				onclick={() => handleTabChange('deleted')}
-				type="button"
-			>
-				{m.history_deleted()}{#if $deletedMatches && $deletedMatches.length > 0} ({$deletedMatches.length}){/if}
-			</button>
 		</div>
 
 		<!-- Tab Content -->
@@ -868,30 +843,6 @@
 						</div>
 					{/if}
 				</div>
-			{:else if $activeHistoryTab === 'deleted'}
-				<!-- Deleted Tab -->
-				<div class="deleted-tab">
-					{#if $deletedMatches.length > 0}
-						<div class="deleted-actions">
-							<Button variant="danger" size="small" onclick={handleClearDeleted}>
-								{m.history_permanentDeleteAll()}
-							</Button>
-						</div>
-						<div class="deleted-list">
-							{#each $deletedMatches as match (match.id)}
-								<HistoryEntry
-									{match}
-									onRestore={() => handleRestore(match.id)}
-									onPermanentDelete={() => handlePermanentDelete(match.id)}
-								/>
-							{/each}
-						</div>
-					{:else}
-						<div class="empty-state">
-							<p>{m.history_noDeletedMatches()}</p>
-						</div>
-					{/if}
-				</div>
 			{/if}
 		</div>
 	</div>
@@ -962,8 +913,7 @@
 	}
 
 	.current-match-tab,
-	.history-tab,
-	.deleted-tab {
+	.history-tab {
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
@@ -1198,15 +1148,7 @@
 		color: rgba(255, 255, 255, 0.85);
 	}
 
-	.deleted-actions {
-		display: flex;
-		justify-content: flex-end;
-		padding-bottom: 0.75rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-
-	.history-list,
-	.deleted-list {
+	.history-list {
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;

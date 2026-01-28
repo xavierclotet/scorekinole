@@ -77,6 +77,21 @@
 		}
 	})());
 
+	// Friendly match format string (e.g., "4R", "7p", "7p ×2")
+	let friendlyMatchFormat = $derived((() => {
+		if (inTournamentMode) return '';
+		if ($gameSettings.gameMode === 'rounds') {
+			return `${$gameSettings.roundsToPlay || 4}R`;
+		} else {
+			const points = $gameSettings.pointsToWin || 7;
+			const matches = $gameSettings.matchesToWin || 1;
+			if (matches > 1) {
+				return `${points}p ×${matches}`;
+			}
+			return `${points}p`;
+		}
+	})());
+
 	// Track if tournament match completion has been sent
 	let tournamentMatchCompletedSent = $state(false);
 
@@ -159,8 +174,12 @@
 	// Check if match is complete
 	// In rounds mode, match is complete after first game (includes ties)
 	// In points mode, match is complete when someone reaches the required wins
-	// matchesToWin = "best of X" format (e.g., 3 = best of 3, need 2 wins)
-	let requiredWinsToComplete = $derived(Math.ceil($gameSettings.matchesToWin / 2));
+	// matchesToWin semantics differ:
+	// - Tournaments use "Best of X" format (e.g., 3 = best of 3 = need 2 wins)
+	// - Friendly matches use direct count (e.g., 2 = first to 2 wins)
+	let requiredWinsToComplete = $derived(inTournamentMode
+		? Math.ceil($gameSettings.matchesToWin / 2)
+		: $gameSettings.matchesToWin);
 	let isMatchComplete = $derived($gameSettings.gameMode === 'rounds'
 		? (team1GamesWon >= 1 || team2GamesWon >= 1 || ($currentMatchGames.length > 0 && !$team1.hasWon && !$team2.hasWon))
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete));
@@ -1425,6 +1444,10 @@
 					{/if}
 				{/if}
 
+				{#if friendlyMatchFormat}
+					<span class="header-format">{friendlyMatchFormat}</span>
+				{/if}
+
 				{#if $gameSettings.showTimer}
 					<Timer size="small" />
 				{/if}
@@ -1705,7 +1728,7 @@
 		display: flex;
 		flex-direction: column;
 		padding: 0.5rem;
-		padding-top: max(1rem, env(safe-area-inset-top, 1rem));
+		padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
 		background: linear-gradient(135deg, #0f1419 0%, #1a1f35 100%);
 		color: #fff;
 		overflow: hidden;
@@ -2242,10 +2265,10 @@
 
 	/* Responsive */
 
-	/* Portrait: más espacio superior */
+	/* Portrait: el env(safe-area-inset-top) maneja notches automáticamente */
 	@media (orientation: portrait) {
 		.game-page {
-			padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem));
+			padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
 		}
 
 		/* Simplify header in portrait */
@@ -2296,7 +2319,7 @@
 	@media (max-width: 480px) {
 		.game-page {
 			padding: 0.3rem;
-			padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem));
+			padding-top: max(0.3rem, env(safe-area-inset-top, 0.3rem));
 		}
 
 		.game-header {

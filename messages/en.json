@@ -604,5 +604,6 @@
   "tournament_forceFinishTooltip": "End the match with the current score (whoever has the most points wins)",
   "common_understood": "Understood",
   "tournament_matchCompletedByAdmin": "Match ended by the organizer",
-  "tournament_matchCompletedByAdminDesc": "The organizer has ended this match due to time limits. The result has been saved."
+  "tournament_matchCompletedByAdminDesc": "The organizer has ended this match due to time limits. The result has been saved.",
+  "common_clearLocalData": "Clear local data"
 }

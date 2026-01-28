@@ -2,9 +2,8 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import type { MatchHistory } from '$lib/types/history';
-	import Button from './Button.svelte';
+	import { isColorDark } from '$lib/utils/colors';
 
-	// Map language codes for date formatting
 	const languageMap: Record<string, string> = {
 		'es': 'es-ES',
 		'ca': 'ca-ES',
@@ -20,17 +19,14 @@
 
 	let { isOpen = false, matches = [], onclose, onconfirm }: Props = $props();
 
-	// Track team selection for each match
-	// Don't pre-initialize - only add when user clicks a button
 	let teamSelections = $state<Map<string, 1 | 2 | null>>(new Map());
 
 	function handleTeamSelect(matchId: string, team: 1 | 2 | null) {
 		teamSelections.set(matchId, team);
-		teamSelections = new Map(teamSelections); // Trigger reactivity
+		teamSelections = new Map(teamSelections);
 	}
 
 	function handleConfirm() {
-		// Create map of match IDs to team selections
 		const selections = new Map(teamSelections);
 		onconfirm?.({ selections });
 		close();
@@ -48,505 +44,454 @@
 		e.stopPropagation();
 	}
 
-	// Check if at least one match has been confirmed (has any button clicked)
-	let atLeastOneConfirmed = $derived(
-		matches.length > 0 && matches.some(match => teamSelections.has(match.id))
-	);
-
-	// Count confirmed matches (where user clicked any button)
 	let confirmedCount = $derived(
 		matches.filter(match => teamSelections.has(match.id)).length
 	);
+
+	let canConfirm = $derived(confirmedCount > 0);
 </script>
 
 {#if isOpen}
-	<div class="modal-overlay" onclick={close} onkeydown={handleKeydown} role="button" tabindex="-1">
+	<div class="overlay" onclick={close} onkeydown={handleKeydown} role="button" tabindex="-1">
 		<div class="modal" onclick={stopPropagation} onkeydown={stopPropagation} role="dialog" tabindex="-1">
-			<div class="modal-header">
-				<h2>{m.sync_confirmTeamForEachMatch()}</h2>
-				<button class="close-btn" onclick={close} aria-label="Close">×</button>
+			<div class="header">
+				<div class="header-title">
+					<span class="title">{m.sync_confirmTeamForEachMatch()}</span>
+					<span class="counter">{confirmedCount}/{matches.length}</span>
+				</div>
+				<button class="close-btn" onclick={close} type="button">×</button>
 			</div>
 
-			<div class="modal-content">
-				<p class="description">
-					{m.sync_selectTeamBeforeSyncing()}
-				</p>
-
-				{#if confirmedCount === 0}
-					<div class="status-banner warning">
-						{m.sync_selectAtLeastOne()}
-					</div>
-				{:else}
-					<div class="status-banner info">
-							{confirmedCount} / {matches.length} {m.sync_matchesSelected()}
-					</div>
-				{/if}
-
-				<div class="matches-list">
-					{#each matches as match (match.id)}
-						{@const selected = teamSelections.get(match.id)}
-						{@const locale = languageMap[$gameSettings.language] || 'es-ES'}
-						{@const matchDate = new Date(match.startTime).toLocaleDateString(locale, {
-							year: 'numeric',
-							month: 'short',
-							day: 'numeric',
-							hour: '2-digit',
-							minute: '2-digit'
-						})}
-						<div class="match-card" class:confirmed={selected !== null}>
-							<div class="match-info">
-								<div class="match-title">
-									{match.eventTitle || 'Scorekinole'}
-									{#if match.matchPhase}
-										<span class="phase">- {match.matchPhase}</span>
-									{/if}
-								</div>
-								<div class="match-date">
-									📅 {matchDate}
-								</div>
-								<div class="teams">
-									<span style="color: {match.team1Color}">{match.team1Name}</span>
-									<span class="score">{match.team1Score} - {match.team2Score}</span>
-									<span style="color: {match.team2Color}">{match.team2Name}</span>
-								</div>
+			<div class="content">
+				{#each matches as match (match.id)}
+					{@const selected = teamSelections.get(match.id)}
+					{@const isConfirmed = teamSelections.has(match.id)}
+					{@const locale = languageMap[$gameSettings.language] || 'es-ES'}
+					{@const matchDate = new Date(match.startTime).toLocaleDateString(locale, {
+						day: '2-digit',
+						month: '2-digit',
+						year: '2-digit',
+						hour: '2-digit',
+						minute: '2-digit'
+					})}
+					<div class="match-row" class:confirmed={isConfirmed}>
+						<div class="match-info">
+							<div class="match-header">
+								<span class="event-name">{match.eventTitle || 'Scorekinole'}</span>
+								{#if match.matchPhase}
+									<span class="phase-sep">·</span>
+									<span class="phase">{match.matchPhase}</span>
+								{/if}
 							</div>
-
-							<div class="team-selection">
-								<button
-									class="team-btn"
-									class:selected={selected === 1}
-									onclick={() => handleTeamSelect(match.id, 1)}
-									type="button"
-								>
-									{match.team1Name}
-								</button>
-								<button
-									class="team-btn"
-									class:selected={selected === 2}
-									onclick={() => handleTeamSelect(match.id, 2)}
-									type="button"
-								>
-									{match.team2Name}
-								</button>
-								<button
-									class="team-btn didnt-play"
-									class:selected={selected === null && teamSelections.has(match.id)}
-									onclick={() => handleTeamSelect(match.id, null)}
-									type="button"
-									title={m.sync_iDidntPlay()}
-								>
-									❌
-								</button>
+							<div class="match-details">
+								<span class="date">{matchDate}</span>
+								<span class="teams-display">
+									<span
+										class="team-name"
+										class:dark-color={isColorDark(match.team1Color)}
+										style="color: {match.team1Color}"
+									>{match.team1Name}</span>
+									<span class="score">{match.team1Score}-{match.team2Score}</span>
+									<span
+										class="team-name"
+										class:dark-color={isColorDark(match.team2Color)}
+										style="color: {match.team2Color}"
+									>{match.team2Name}</span>
+								</span>
 							</div>
 						</div>
-					{/each}
-				</div>
+						<div class="team-buttons">
+							<button
+								class="team-btn"
+								class:active={selected === 1}
+								onclick={() => handleTeamSelect(match.id, 1)}
+								type="button"
+								title={match.team1Name}
+							>1</button>
+							<button
+								class="team-btn"
+								class:active={selected === 2}
+								onclick={() => handleTeamSelect(match.id, 2)}
+								type="button"
+								title={match.team2Name}
+							>2</button>
+							<button
+								class="team-btn skip"
+								class:active={selected === null && isConfirmed}
+								onclick={() => handleTeamSelect(match.id, null)}
+								type="button"
+								title={m.sync_iDidntPlay()}
+							>—</button>
+						</div>
+					</div>
+				{/each}
+			</div>
 
-				<div class="modal-actions">
-					<Button variant="secondary" onclick={close}>
-						{m.common_cancel()}
-					</Button>
-					<Button variant="primary" onclick={handleConfirm} disabled={!atLeastOneConfirmed}>
-						{m.sync_syncSelected()}
-					</Button>
-				</div>
+			<div class="footer">
+				<button class="btn secondary" onclick={close} type="button">
+					{m.common_cancel()}
+				</button>
+				<button class="btn primary" onclick={handleConfirm} disabled={!canConfirm} type="button">
+					{m.sync_syncSelected()}
+				</button>
 			</div>
 		</div>
 	</div>
 {/if}
 
 <style>
-	.modal-overlay {
+	.overlay {
 		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(0, 0, 0, 0.8);
+		inset: 0;
+		background: rgba(0, 0, 0, 0.75);
+		backdrop-filter: blur(4px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 2000;
-		opacity: 0;
-		animation: fadeIn 0.2s ease-out forwards;
+		animation: fadeIn 0.15s ease-out;
 	}
 
 	@keyframes fadeIn {
-		to {
-			opacity: 1;
-		}
+		from { opacity: 0; }
+		to { opacity: 1; }
 	}
 
 	.modal {
-		background: #1a1f35;
-		border-radius: 12px;
-		border: 2px solid rgba(0, 255, 136, 0.3);
-		max-width: 90%;
-		width: 600px;
-		max-height: 90vh;
+		background: #1a1d24;
+		border-radius: 10px;
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		width: 420px;
+		max-width: 92%;
+		max-height: 80vh;
 		display: flex;
 		flex-direction: column;
-		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 	}
 
-	.modal-header {
+	.header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 1.5rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		padding: 0.85rem 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
-	.modal-header h2 {
-		margin: 0;
-		color: var(--accent-green, #00ff88);
-		font-size: 1.3rem;
-		font-weight: 700;
+	.header-title {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	.title {
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	.counter {
+		font-size: 0.7rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.4);
+		padding: 0.15rem 0.4rem;
+		background: rgba(255, 255, 255, 0.04);
+		border-radius: 4px;
 	}
 
 	.close-btn {
 		background: none;
 		border: none;
-		font-size: 2rem;
+		font-size: 1.4rem;
+		color: rgba(255, 255, 255, 0.4);
 		cursor: pointer;
-		color: #fff;
-		width: 32px;
-		height: 32px;
+		width: 28px;
+		height: 28px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border-radius: 50%;
-		transition: all 0.2s;
+		border-radius: 4px;
+		transition: all 0.15s;
 	}
 
 	.close-btn:hover {
-		background: rgba(255, 255, 255, 0.1);
-		transform: rotate(90deg);
-	}
-
-	.modal-content {
-		padding: 1.5rem;
-		overflow-y: auto;
-		flex: 1;
-	}
-
-	.description {
+		background: rgba(255, 255, 255, 0.06);
 		color: rgba(255, 255, 255, 0.8);
-		margin: 0 0 1rem 0;
-		text-align: center;
-		font-size: 0.95rem;
 	}
 
-	.status-banner {
-		padding: 0.75rem 1rem;
-		border-radius: 8px;
-		text-align: center;
-		font-weight: 600;
-		margin-bottom: 1.5rem;
+	.content {
+		flex: 1;
+		overflow-y: auto;
+		padding: 0.5rem;
 	}
 
-	.status-banner.warning {
-		background: rgba(255, 193, 7, 0.1);
-		border: 1px solid rgba(255, 193, 7, 0.3);
-		color: #ffc107;
+	.content::-webkit-scrollbar {
+		width: 4px;
 	}
 
-	.status-banner.info {
-		background: rgba(33, 150, 243, 0.1);
-		border: 1px solid rgba(33, 150, 243, 0.3);
-		color: #2196f3;
+	.content::-webkit-scrollbar-thumb {
+		background: rgba(255, 255, 255, 0.1);
+		border-radius: 2px;
 	}
 
-	.matches-list {
+	.match-row {
 		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-		margin-bottom: 1.5rem;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding: 0.6rem 0.75rem;
+		background: rgba(255, 255, 255, 0.02);
+		border-radius: 6px;
+		margin-bottom: 0.35rem;
+		transition: background 0.15s;
 	}
 
-	.match-card {
-		background: rgba(0, 0, 0, 0.2);
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		padding: 1rem;
-		transition: all 0.3s;
+	.match-row:last-child {
+		margin-bottom: 0;
 	}
 
-	.match-card.confirmed {
-		border-color: rgba(0, 255, 136, 0.4);
-		background: rgba(0, 255, 136, 0.05);
+	.match-row.confirmed {
+		background: rgba(76, 175, 80, 0.06);
 	}
 
 	.match-info {
-		margin-bottom: 1rem;
+		flex: 1;
+		min-width: 0;
 	}
 
-	.match-title {
-		font-weight: 700;
-		color: #fff;
-		margin-bottom: 0.5rem;
-		font-size: 1rem;
-	}
-
-	.phase {
-		color: rgba(255, 255, 255, 0.6);
-		font-weight: 500;
-	}
-
-	.match-date {
-		color: rgba(255, 255, 255, 0.7);
-		font-size: 0.85rem;
-		margin-bottom: 0.5rem;
-		font-weight: 500;
-	}
-
-	.teams {
+	.match-header {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.9rem;
+		gap: 0.3rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.event-name {
+		font-size: 0.8rem;
 		font-weight: 600;
-	}
-
-	.score {
-		color: rgba(255, 255, 255, 0.9);
-		font-weight: 700;
-		font-size: 1rem;
-		padding: 0 0.5rem;
-	}
-
-	.team-selection {
-		display: grid;
-		grid-template-columns: 1fr 1fr auto;
-		gap: 0.5rem;
-	}
-
-	.team-btn {
-		padding: 0.75rem 1rem;
-		border: 2px solid rgba(255, 255, 255, 0.2);
-		border-radius: 6px;
-		background: rgba(255, 255, 255, 0.05);
-		color: #fff;
-		font-weight: 600;
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.2s;
+		color: rgba(255, 255, 255, 0.85);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
+	.phase-sep {
+		color: rgba(255, 255, 255, 0.2);
+		font-size: 0.75rem;
+	}
+
+	.phase {
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.45);
+		font-weight: 500;
+	}
+
+	.match-details {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.date {
+		font-size: 0.65rem;
+		color: rgba(255, 255, 255, 0.35);
+	}
+
+	.teams-display {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-size: 0.75rem;
+	}
+
+	.team-name {
+		font-weight: 500;
+		max-width: 80px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.team-name.dark-color {
+		background: rgba(255, 255, 255, 0.85);
+		padding: 0.1rem 0.3rem;
+		border-radius: 2px;
+	}
+
+	.score {
+		color: rgba(255, 255, 255, 0.6);
+		font-weight: 600;
+		font-size: 0.7rem;
+	}
+
+	.team-buttons {
+		display: flex;
+		gap: 0.25rem;
+		flex-shrink: 0;
+	}
+
+	.team-btn {
+		width: 28px;
+		height: 28px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.03);
+		color: rgba(255, 255, 255, 0.5);
+		font-size: 0.7rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
 	.team-btn:hover {
-		background: rgba(255, 255, 255, 0.1);
-		border-color: rgba(255, 255, 255, 0.3);
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.2);
+		color: rgba(255, 255, 255, 0.8);
 	}
 
-	.team-btn.selected {
-		background: rgba(0, 255, 136, 0.2);
-		border-color: var(--accent-green, #00ff88);
-		color: var(--accent-green, #00ff88);
+	.team-btn.active {
+		background: rgba(76, 175, 80, 0.2);
+		border-color: rgba(76, 175, 80, 0.5);
+		color: #4caf50;
 	}
 
-	.team-btn.didnt-play {
-		width: 60px;
-		padding: 0.75rem 0.5rem;
+	.team-btn.skip.active {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.2);
+		color: rgba(255, 255, 255, 0.6);
 	}
 
-	.modal-actions {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1rem;
-		margin-top: 1rem;
-		padding-top: 1rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	.footer {
+		display: flex;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
-	/* Responsive */
-	@media (max-width: 600px) {
+	.btn {
+		flex: 1;
+		padding: 0.55rem 0.75rem;
+		border-radius: 6px;
+		font-size: 0.8rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.btn.secondary {
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.btn.secondary:hover {
+		background: rgba(255, 255, 255, 0.08);
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	.btn.primary {
+		background: rgba(76, 175, 80, 0.15);
+		border: 1px solid rgba(76, 175, 80, 0.3);
+		color: #4caf50;
+	}
+
+	.btn.primary:hover:not(:disabled) {
+		background: rgba(76, 175, 80, 0.25);
+		border-color: rgba(76, 175, 80, 0.5);
+	}
+
+	.btn.primary:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	/* Mobile */
+	@media (max-width: 480px) {
 		.modal {
-			width: 95%;
 			max-height: 85vh;
 		}
 
-		.modal-header {
-			padding: 1rem;
+		.header {
+			padding: 0.7rem 0.85rem;
 		}
 
-		.modal-header h2 {
-			font-size: 1rem;
-		}
-
-		.close-btn {
-			font-size: 1.6rem;
-			width: 28px;
-			height: 28px;
-		}
-
-		.modal-content {
-			padding: 1rem;
-		}
-
-		.description {
+		.title {
 			font-size: 0.85rem;
-			margin-bottom: 0.75rem;
 		}
 
-		.status-banner {
-			padding: 0.6rem 0.8rem;
-			font-size: 0.85rem;
-			margin-bottom: 1rem;
+		.content {
+			padding: 0.4rem;
 		}
 
-		.matches-list {
-			gap: 0.75rem;
-			margin-bottom: 1rem;
+		.match-row {
+			padding: 0.5rem 0.6rem;
+			gap: 0.5rem;
 		}
 
-		.match-card {
-			padding: 0.75rem;
-		}
-
-		.match-title {
-			font-size: 0.9rem;
-			margin-bottom: 0.4rem;
-		}
-
-		.match-date {
+		.event-name {
 			font-size: 0.75rem;
-			margin-bottom: 0.4rem;
 		}
 
-		.teams {
-			font-size: 0.8rem;
-		}
-
-		.score {
-			font-size: 0.9rem;
-		}
-
-		.team-selection {
-			grid-template-columns: 1fr;
-			gap: 0.4rem;
+		.team-name {
+			max-width: 60px;
 		}
 
 		.team-btn {
-			padding: 0.6rem 0.8rem;
-			font-size: 0.85rem;
+			width: 26px;
+			height: 26px;
+			font-size: 0.65rem;
 		}
 
-		.team-btn.didnt-play {
-			width: 100%;
-			padding: 0.6rem 0.8rem;
+		.footer {
+			padding: 0.6rem 0.85rem;
 		}
 
-		.modal-actions {
-			gap: 0.75rem;
-			margin-top: 0.75rem;
-			padding-top: 0.75rem;
-		}
-	}
-
-	/* Portrait mobile - maximize space */
-	@media (max-width: 600px) and (orientation: portrait) {
-		.modal {
-			max-height: 88vh;
-		}
-
-		.modal-header {
-			padding: 0.75rem;
-		}
-
-		.modal-content {
-			padding: 0.75rem;
+		.btn {
+			padding: 0.5rem 0.6rem;
+			font-size: 0.75rem;
 		}
 	}
 
-	/* Landscape mobile - compact */
-	@media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
+	/* Landscape mobile */
+	@media (orientation: landscape) and (max-height: 500px) {
 		.modal {
-			max-height: 80vh;
+			max-height: 90vh;
 		}
 
-		.modal-header {
-			padding: 0.75rem;
+		.header {
+			padding: 0.5rem 0.75rem;
 		}
 
-		.modal-header h2 {
-			font-size: 0.9rem;
+		.title {
+			font-size: 0.8rem;
 		}
 
-		.close-btn {
-			font-size: 1.4rem;
+		.match-row {
+			padding: 0.4rem 0.5rem;
+			margin-bottom: 0.25rem;
+		}
+
+		.event-name {
+			font-size: 0.7rem;
+		}
+
+		.match-details {
+			gap: 0.35rem;
+		}
+
+		.team-btn {
 			width: 24px;
 			height: 24px;
+			font-size: 0.6rem;
 		}
 
-		.modal-content {
-			padding: 0.75rem;
+		.footer {
+			padding: 0.5rem 0.75rem;
 		}
 
-		.description {
-			font-size: 0.75rem;
-			margin-bottom: 0.5rem;
-		}
-
-		.status-banner {
-			padding: 0.5rem 0.6rem;
-			font-size: 0.75rem;
-			margin-bottom: 0.75rem;
-		}
-
-		.matches-list {
-			gap: 0.5rem;
-			margin-bottom: 0.75rem;
-		}
-
-		.match-card {
-			padding: 0.5rem;
-		}
-
-		.match-info {
-			margin-bottom: 0.5rem;
-		}
-
-		.match-title {
-			font-size: 0.8rem;
-			margin-bottom: 0.3rem;
-		}
-
-		.match-date {
+		.btn {
+			padding: 0.4rem 0.5rem;
 			font-size: 0.7rem;
-			margin-bottom: 0.3rem;
-		}
-
-		.teams {
-			font-size: 0.75rem;
-		}
-
-		.score {
-			font-size: 0.85rem;
-			padding: 0 0.3rem;
-		}
-
-		.team-selection {
-			grid-template-columns: 1fr 1fr auto;
-			gap: 0.3rem;
-		}
-
-		.team-btn {
-			padding: 0.5rem 0.6rem;
-			font-size: 0.75rem;
-		}
-
-		.team-btn.didnt-play {
-			width: 50px;
-			padding: 0.5rem 0.3rem;
-		}
-
-		.modal-actions {
-			gap: 0.5rem;
-			margin-top: 0.5rem;
-			padding-top: 0.5rem;
 		}
 	}
 </style>
