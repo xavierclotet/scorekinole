@@ -502,28 +502,21 @@ export function generateConsolationBracket(
  * @param source Source round ('QF' or 'R16')
  * @param numLosers Number of real losers in this consolation bracket
  */
-function getConsolationRoundName(roundNumber: number, totalRounds: number, source: 'QF' | 'R16', numLosers?: number): string {
-  const posStart = source === 'QF' ? 5 : 9;
-  const actualLosers = numLosers || (source === 'QF' ? 4 : 8);
-  const posEnd = posStart + actualLosers - 1;
+function getConsolationRoundName(roundNumber: number, totalRounds: number, _source: 'QF' | 'R16'): string {
+  const roundsFromEnd = totalRounds - roundNumber;
 
-  // Calculate which positions are being determined in this round
-  // Round 1: all positions (e.g., 9º-12º)
-  // Round 2 (if 4+ players): winners play for top positions, losers for bottom
-  // etc.
-
-  if (totalRounds === 1) {
-    // Only one round - determines 2 positions
-    return `${posStart}º-${posStart + 1}º`;
+  if (roundsFromEnd === 0) {
+    // Final round - just label as "Finales", individual positions shown per match
+    return 'Finales';
   }
 
-  if (roundNumber === 1) {
-    // First round - full range
-    return `Ronda ${roundNumber} (${posStart}º-${posEnd}º)`;
+  if (roundsFromEnd === 1 && totalRounds >= 2) {
+    // Semifinal round
+    return 'Semi';
   }
 
-  // Subsequent rounds narrow down positions
-  return `Ronda ${roundNumber}`;
+  // Earlier rounds
+  return `R${roundNumber}`;
 }
 
 /**
@@ -659,7 +652,7 @@ export function generateConsolationBracketStructure(
 
   rounds.push({
     roundNumber: 1,
-    name: getConsolationRoundName(1, totalRounds, source, numRealLosers),
+    name: getConsolationRoundName(1, totalRounds, source),
     matches: firstRoundMatches
   });
 
@@ -720,7 +713,7 @@ export function generateConsolationBracketStructure(
 
     rounds.push({
       roundNumber: round,
-      name: getConsolationRoundName(round, totalRounds, source, numRealLosers),
+      name: getConsolationRoundName(round, totalRounds, source),
       matches
     });
   }

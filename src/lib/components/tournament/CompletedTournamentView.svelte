@@ -37,9 +37,11 @@
     return name;
   }
 
+  // svelte-ignore state_referenced_locally - intentionally capturing initial value for default tab
   let activeTab = $state<'groups' | 'bracket'>(tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket');
   let showMatchDialog = $state(false);
   let expandedResults = $state<Set<string>>(new Set()); // Track which group results are expanded
+  let expandedConsolation = $state<Set<string>>(new Set()); // Track which consolation brackets are expanded
   let selectedMatch = $state<GroupMatch | BracketMatch | null>(null);
 
   // Toggle results accordion for a group
@@ -52,6 +54,18 @@
     }
     expandedResults = newExpanded;
   }
+
+  // Toggle consolation bracket accordion
+  function toggleConsolation(bracketId: string) {
+    const newExpanded = new Set(expandedConsolation);
+    if (newExpanded.has(bracketId)) {
+      newExpanded.delete(bracketId);
+    } else {
+      newExpanded.add(bracketId);
+    }
+    expandedConsolation = newExpanded;
+  }
+
   let isBracketMatch = $state(false);
 
   // Check if this is a split divisions tournament
@@ -148,17 +162,41 @@
     const roundsFromEnd = totalRounds - roundNumber;
 
     if (roundsFromEnd === 0) {
-      // Final round
-      return isWinner ? startPosition : startPosition + 1;
-    } else if (roundsFromEnd === 1) {
-      // Semifinal - losers get positions startPosition+2 onwards
-      return isWinner ? null : startPosition + 2 + matchPosition;
-    } else if (roundsFromEnd === 2) {
-      // Quarterfinal - losers get positions startPosition+4 onwards
-      return isWinner ? null : startPosition + 4 + matchPosition;
+      // Final round - each match determines 2 consecutive positions
+      // Match 0: positions startPosition (winner) and startPosition+1 (loser) -> 5º, 6º
+      // Match 1: positions startPosition+2 (winner) and startPosition+3 (loser) -> 7º, 8º
+      const basePos = startPosition + (matchPosition * 2);
+      return isWinner ? basePos : basePos + 1;
     }
-    // Earlier rounds - only losers get positions, winners advance
-    return isWinner ? null : startPosition + Math.pow(2, totalRounds - roundNumber) + matchPosition;
+    // Earlier rounds - no positions shown (they advance or their final position is determined later)
+    return null;
+  }
+
+  /**
+   * Get label showing which positions a match determines (only for final round)
+   * @param startPosition - Starting position for the bracket (5 for QF, 9 for R16)
+   * @param totalRounds - Total rounds in the consolation bracket
+   * @param roundNumber - Current round number (1-indexed)
+   * @param matchPosition - Position of match in the round (0-indexed)
+   * @returns Label like "5º/6º" or "7º/8º" for final round matches, null otherwise
+   */
+  function getMatchPositionLabel(
+    startPosition: number,
+    totalRounds: number,
+    roundNumber: number,
+    matchPosition: number
+  ): string | null {
+    const roundsFromEnd = totalRounds - roundNumber;
+
+    // Only show label for final round matches
+    if (roundsFromEnd !== 0) return null;
+
+    // In the final round, calculate which positions this match determines
+    // Match 0 in final round: startPosition and startPosition+1 (e.g., 5º/6º)
+    // Match 1 in final round: startPosition+2 and startPosition+3 (e.g., 7º/8º)
+    const pos1 = startPosition + (matchPosition * 2);
+    const pos2 = pos1 + 1;
+    return `${pos1}º/${pos2}º`;
   }
 
   // Calculate ranking delta for display
@@ -526,15 +564,27 @@
           <!-- Consolation Brackets (Gold) -->
           {#if goldBracket.consolationBrackets?.length}
             <div class="consolation-section">
-              <div class="consolation-header">
-                <span class="consolation-icon">🏆</span>
-                <span class="consolation-label">{m.bracket_consolation()}</span>
-              </div>
-              {#each goldBracket.consolationBrackets as consolationBracket (consolationBracket.source)}
+              {#each [...goldBracket.consolationBrackets].sort((a, b) => a.startPosition - b.startPosition) as consolationBracket (consolationBracket.source)}
+                {@const posStart = consolationBracket.startPosition}
+                {@const posEnd = posStart + (consolationBracket.numLosers || 4) - 1}
+                {@const bracketId = `gold-${consolationBracket.source}`}
+                {@const isExpanded = expandedConsolation.has(bracketId)}
                 <div class="consolation-bracket">
-                  <div class="consolation-source-label">
-                    {m.bracket_positionsRange({ start: consolationBracket.startPosition, end: consolationBracket.startPosition + (consolationBracket.numLosers || 4) - 1 })}
-                  </div>
+                  <button
+                    class="consolation-header-btn"
+                    onclick={() => toggleConsolation(bracketId)}
+                    aria-expanded={isExpanded}
+                  >
+                    <span class="accordion-icon" class:expanded={isExpanded}>
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                      </svg>
+                    </span>
+                    <span class="position-range">{m.bracket_consolation()} {posStart}º - {posEnd}º</span>
+                    <span class="matches-count">{consolationBracket.rounds.reduce((acc, r) => acc + r.matches.length, 0)}</span>
+                  </button>
+                  {#if isExpanded}
+                  <div class="consolation-content">
                   <div class="bracket-container consolation">
                     {#each consolationBracket.rounds as round (round.roundNumber)}
                       <div class="bracket-round">
@@ -544,9 +594,15 @@
                             {@const hasMatchData = (match.totalPointsA ?? 0) > 0 || (match.totalPointsB ?? 0) > 0 || (match.total20sA ?? 0) > 0 || (match.total20sB ?? 0) > 0}
                             {@const isWalkover = !hasMatchData && (match.status === 'COMPLETED' || match.status === 'WALKOVER')}
                             {@const isMatchComplete = match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                            {@const positionA = isMatchComplete && match.winner ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantA) : null}
-                            {@const positionB = isMatchComplete && match.winner ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantB) : null}
-                            <button
+                            {@const isFinalRound = consolationBracket.totalRounds - round.roundNumber === 0}
+                            {@const positionA = isMatchComplete && match.winner && isFinalRound ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantA) : null}
+                            {@const positionB = isMatchComplete && match.winner && isFinalRound ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantB) : null}
+                            {@const matchLabel = getMatchPositionLabel(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx)}
+                            <div class="match-wrapper" class:with-label={matchLabel}>
+                              {#if matchLabel}
+                                <span class="match-position-label">{matchLabel}</span>
+                              {/if}
+                              <button
                               class="bracket-match"
                               class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
                               class:bye-match={isByeMatch(match)}
@@ -594,12 +650,15 @@
                                   <span class="score">{match.totalPointsB ?? 0}</span>
                                 {/if}
                               </div>
-                            </button>
+                              </button>
+                            </div>
                           {/each}
                         </div>
                       </div>
                     {/each}
                   </div>
+                  </div>
+                  {/if}
                 </div>
               {/each}
             </div>
@@ -707,15 +766,27 @@
             <!-- Consolation Brackets (Silver) -->
             {#if silverBracket.consolationBrackets?.length}
               <div class="consolation-section">
-                <div class="consolation-header">
-                  <span class="consolation-icon">🏆</span>
-                  <span class="consolation-label">{m.bracket_consolation()}</span>
-                </div>
-                {#each silverBracket.consolationBrackets as consolationBracket (consolationBracket.source)}
+                {#each [...silverBracket.consolationBrackets].sort((a, b) => a.startPosition - b.startPosition) as consolationBracket (consolationBracket.source)}
+                  {@const posStart = consolationBracket.startPosition}
+                  {@const posEnd = posStart + (consolationBracket.numLosers || 4) - 1}
+                  {@const bracketId = `silver-${consolationBracket.source}`}
+                  {@const isExpanded = expandedConsolation.has(bracketId)}
                   <div class="consolation-bracket">
-                    <div class="consolation-source-label">
-                      {m.bracket_positionsRange({ start: consolationBracket.startPosition, end: consolationBracket.startPosition + (consolationBracket.numLosers || 4) - 1 })}
-                    </div>
+                    <button
+                      class="consolation-header-btn"
+                      onclick={() => toggleConsolation(bracketId)}
+                      aria-expanded={isExpanded}
+                    >
+                      <span class="accordion-icon" class:expanded={isExpanded}>
+                        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                        </svg>
+                      </span>
+                      <span class="position-range">{m.bracket_consolation()} {posStart}º - {posEnd}º</span>
+                      <span class="matches-count">{consolationBracket.rounds.reduce((acc, r) => acc + r.matches.length, 0)}</span>
+                    </button>
+                    {#if isExpanded}
+                    <div class="consolation-content">
                     <div class="bracket-container consolation">
                       {#each consolationBracket.rounds as round (round.roundNumber)}
                         <div class="bracket-round">
@@ -725,62 +796,71 @@
                               {@const hasMatchData = (match.totalPointsA ?? 0) > 0 || (match.totalPointsB ?? 0) > 0 || (match.total20sA ?? 0) > 0 || (match.total20sB ?? 0) > 0}
                               {@const isWalkover = !hasMatchData && (match.status === 'COMPLETED' || match.status === 'WALKOVER')}
                               {@const isMatchComplete = match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-                              {@const positionA = isMatchComplete && match.winner ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantA) : null}
-                              {@const positionB = isMatchComplete && match.winner ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantB) : null}
-                              <button
-                                class="bracket-match"
-                                class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
-                                class:bye-match={isByeMatch(match)}
-                                onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
-                                disabled={!match.participantA || !match.participantB || isByeMatch(match)}
-                              >
-                              <div
-                                  class="match-participant"
-                                  class:winner={match.winner === match.participantA}
-                                  class:tbd={!match.participantA}
-                                  class:bye={isBye(match.participantA)}
-                                >
-                                  {#if positionA}
-                                    <span class="final-position">{positionA}º</span>
-                                  {/if}
-                                  <span class="participant-name">{getParticipantName(match.participantA)}</span>
-                                  {#if match.seedA}
-                                    <span class="seed">#{match.seedA}</span>
-                                  {/if}
-                                  {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
-                                    <span class="score">{match.totalPointsA ?? 0}</span>
-                                  {/if}
-                                </div>
-
-                                {#if isWalkover}
-                                  <div class="walkover-badge">W.O.</div>
-                                {:else}
-                                  <div class="vs-divider"></div>
+                              {@const isFinalRound = consolationBracket.totalRounds - round.roundNumber === 0}
+                              {@const positionA = isMatchComplete && match.winner && isFinalRound ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantA) : null}
+                              {@const positionB = isMatchComplete && match.winner && isFinalRound ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantB) : null}
+                              {@const matchLabel = getMatchPositionLabel(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx)}
+                              <div class="match-wrapper" class:with-label={matchLabel}>
+                                {#if matchLabel}
+                                  <span class="match-position-label">{matchLabel}</span>
                                 {/if}
-
-                                <div
-                                  class="match-participant"
-                                  class:winner={match.winner === match.participantB}
-                                  class:tbd={!match.participantB}
-                                  class:bye={isBye(match.participantB)}
+                                <button
+                                  class="bracket-match"
+                                  class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
+                                  class:bye-match={isByeMatch(match)}
+                                  onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                                  disabled={!match.participantA || !match.participantB || isByeMatch(match)}
                                 >
-                                  {#if positionB}
-                                    <span class="final-position">{positionB}º</span>
+                                  <div
+                                    class="match-participant"
+                                    class:winner={match.winner === match.participantA}
+                                    class:tbd={!match.participantA}
+                                    class:bye={isBye(match.participantA)}
+                                  >
+                                    {#if positionA}
+                                      <span class="final-position">{positionA}º</span>
+                                    {/if}
+                                    <span class="participant-name">{getParticipantName(match.participantA)}</span>
+                                    {#if match.seedA}
+                                      <span class="seed">#{match.seedA}</span>
+                                    {/if}
+                                    {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
+                                      <span class="score">{match.totalPointsA ?? 0}</span>
+                                    {/if}
+                                  </div>
+
+                                  {#if isWalkover}
+                                    <div class="walkover-badge">W.O.</div>
+                                  {:else}
+                                    <div class="vs-divider"></div>
                                   {/if}
-                                  <span class="participant-name">{getParticipantName(match.participantB)}</span>
-                                  {#if match.seedB}
-                                    <span class="seed">#{match.seedB}</span>
-                                  {/if}
-                                  {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
-                                    <span class="score">{match.totalPointsB ?? 0}</span>
-                                  {/if}
-                                </div>
-                              </button>
+
+                                  <div
+                                    class="match-participant"
+                                    class:winner={match.winner === match.participantB}
+                                    class:tbd={!match.participantB}
+                                    class:bye={isBye(match.participantB)}
+                                  >
+                                    {#if positionB}
+                                      <span class="final-position">{positionB}º</span>
+                                    {/if}
+                                    <span class="participant-name">{getParticipantName(match.participantB)}</span>
+                                    {#if match.seedB}
+                                      <span class="seed">#{match.seedB}</span>
+                                    {/if}
+                                    {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
+                                      <span class="score">{match.totalPointsB ?? 0}</span>
+                                    {/if}
+                                  </div>
+                                </button>
+                              </div>
                             {/each}
                           </div>
                         </div>
                       {/each}
                     </div>
+                    </div>
+                    {/if}
                   </div>
                 {/each}
               </div>
@@ -881,10 +961,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-  }
-
-  .standings-grid.with-ranking {
-    /* Same single column layout for ranking */
   }
 
   .standings-header-row {
@@ -1940,104 +2016,153 @@
 
     .consolation-section {
       margin-top: 0.75rem;
-      padding-top: 0.75rem;
     }
 
-    .consolation-header {
-      gap: 0.3rem;
-      padding-bottom: 0.4rem;
-      margin-bottom: 0.5rem;
+    .consolation-bracket {
+      padding: 0.5rem;
+      margin-bottom: 0.75rem;
     }
 
-    .consolation-label {
-      font-size: 0.65rem;
-    }
-
-    .consolation-source-label {
-      font-size: 0.6rem;
-      padding: 0.15rem 0.4rem;
-      margin-bottom: 0.4rem;
+    .consolation-header-btn .position-range {
+      font-size: 0.78rem;
     }
   }
 
   /* Consolation Brackets Section */
   .consolation-section {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px dashed #e5e7eb;
-  }
-
-  :global([data-theme='dark']) .consolation-section {
-    border-top-color: #374151;
-  }
-
-  .consolation-header {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding-bottom: 0.5rem;
-    margin-bottom: 0.75rem;
-    border-bottom: 1px solid #e5e7eb;
-  }
-
-  :global([data-theme='dark']) .consolation-header {
-    border-bottom-color: #374151;
-  }
-
-  .consolation-icon {
-    font-size: 0.9rem;
-    opacity: 0.7;
-  }
-
-  .consolation-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #6b7280;
-  }
-
-  :global([data-theme='dark']) .consolation-label {
-    color: #9ca3af;
+    margin-top: 1.25rem;
+    padding-top: 0;
   }
 
   .consolation-bracket {
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
   }
 
   .consolation-bracket:last-child {
     margin-bottom: 0;
   }
 
-  .consolation-source-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #4b5563;
-    background: #f3f4f6;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    display: inline-block;
-    margin-bottom: 0.5rem;
+  :global([data-theme='dark']) .consolation-bracket {
+    background: #111827;
+    border-color: #1f2937;
   }
 
-  :global([data-theme='dark']) .consolation-source-label {
-    background: #2d3748;
+  /* Consolation accordion header button */
+  .consolation-header-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    border-radius: 4px;
+  }
+
+  .consolation-header-btn:hover {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  :global([data-theme='dark']) .consolation-header-btn:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .consolation-header-btn .accordion-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    transition: transform 0.15s;
+  }
+
+  .consolation-header-btn .accordion-icon.expanded {
+    transform: rotate(90deg);
+  }
+
+  :global([data-theme='dark']) .consolation-header-btn .accordion-icon {
     color: #9ca3af;
   }
 
-  .bracket-container.consolation {
-    padding: 0.5rem 0;
+  .consolation-header-btn .position-range {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: -0.01em;
   }
 
+  :global([data-theme='dark']) .consolation-header-btn .position-range {
+    color: #f1f5f9;
+  }
+
+  .consolation-header-btn .matches-count {
+    margin-left: auto;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    background: #e2e8f0;
+    color: #64748b;
+    border-radius: 10px;
+  }
+
+  :global([data-theme='dark']) .consolation-header-btn .matches-count {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  /* Consolation expanded content */
+  .consolation-content {
+    padding-top: 0.5rem;
+    animation: slideDown 0.15s ease-out;
+  }
+
+  .bracket-container.consolation {
+    padding: 0.25rem 0;
+    gap: 0.75rem;
+  }
+
+  /* Compact round names for consolation */
   .round-name.consolation {
-    background: #fef3c7;
-    color: #92400e;
-    border-left: 2px solid #f59e0b;
+    background: #f1f5f9;
+    color: #475569;
+    border-left: 2px solid #94a3b8;
+    font-size: 0.68rem;
+    padding: 0.25rem 0.4rem;
   }
 
   :global([data-theme='dark']) .round-name.consolation {
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
+    background: #1e293b;
+    color: #94a3b8;
+    border-left-color: #475569;
+  }
+
+  /* Match wrapper for position labels */
+  .match-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .match-position-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #0f766e;
+    background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  :global([data-theme='dark']) .match-position-label {
+    background: linear-gradient(135deg, rgba(20, 184, 166, 0.2) 0%, rgba(45, 212, 191, 0.15) 100%);
+    color: #5eead4;
   }
 
   /* Walkover badge */
@@ -2057,19 +2182,17 @@
     color: #6b7280;
   }
 
-  /* Final position badge in consolation brackets */
+  /* Final position badge in consolation brackets - same style as standings .pos */
   .final-position {
-    font-size: 0.65rem;
+    min-width: 1.5rem;
     font-weight: 700;
-    color: #059669;
-    background: #d1fae5;
-    padding: 0.1rem 0.35rem;
-    border-radius: 3px;
+    font-size: 0.8rem;
+    color: #6b7280;
+    text-align: center;
     margin-right: 0.25rem;
   }
 
   :global([data-theme='dark']) .final-position {
-    background: rgba(5, 150, 105, 0.2);
-    color: #34d399;
+    color: #8b9bb3;
   }
 </style>
