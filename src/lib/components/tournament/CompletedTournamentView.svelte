@@ -37,8 +37,7 @@
     return name;
   }
 
-  const initialTab = tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket';
-  let activeTab = $state<'groups' | 'bracket'>(initialTab);
+  let activeTab = $state<'groups' | 'bracket'>(tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket');
   let showMatchDialog = $state(false);
   let expandedResults = $state<Set<string>>(new Set()); // Track which group results are expanded
   let selectedMatch = $state<GroupMatch | BracketMatch | null>(null);

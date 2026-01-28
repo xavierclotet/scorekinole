@@ -1457,6 +1457,7 @@
 
 	<!-- Floating Match Score Indicators - swipe horizontally to resize -->
 	{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1}
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="match-score-left match-score-{$gameSettings.matchScoreSize || 'medium'}"
 			onmousedown={handleMatchScoreSwipeStart}
@@ -1466,6 +1467,7 @@
 			role="status"
 			aria-label="Match score - swipe to resize"
 		>{team1GamesWon}</div>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="match-score-right match-score-{$gameSettings.matchScoreSize || 'medium'}"
 			onmousedown={handleMatchScoreSwipeStart}
