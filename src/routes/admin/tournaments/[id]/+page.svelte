@@ -17,6 +17,7 @@
   import { formatDuration, calculateRemainingTime, calculateTournamentTimeEstimate, calculateTimeBreakdown, type TimeBreakdown } from '$lib/utils/tournamentTime';
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
+  import TournamentRulesModal from '$lib/components/tournament/TournamentRulesModal.svelte';
 
   let tournament: Tournament | null = $state(null);
   let loading = $state(true);
@@ -25,6 +26,7 @@
   let showStartConfirm = $state(false);
   let showQuickEdit = $state(false);
   let showTimeBreakdown = $state(false);
+  let showRules = $state(false);
   let timeBreakdown: TimeBreakdown | null = $state(null);
   let showToast = $state(false);
   let toastMessage = $state('');
@@ -507,6 +509,9 @@
                 <span class="config-value">{tournament.createdBy?.userName || '-'}</span>
               </div>
             </div>
+            <button class="rules-btn" onclick={() => showRules = true}>
+              📋 {m.rules_viewRules()}
+            </button>
           </section>
 
           <!-- Group Stage Configuration (only for TWO_PHASE) -->
@@ -917,6 +922,14 @@
   onrecalculate={recalculateTime}
 />
 
+{#if showRules && tournament}
+  <TournamentRulesModal
+    {tournament}
+    theme={$adminTheme}
+    onclose={() => showRules = false}
+  />
+{/if}
+
 <style>
   .tournament-page {
     min-height: 100vh;
@@ -1218,6 +1231,36 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+  }
+
+  .rules-btn {
+    margin-top: 1rem;
+    width: 100%;
+    padding: 0.55rem 1rem;
+    background: transparent;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-family: 'Lexend', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .rules-btn:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+  }
+
+  .tournament-page[data-theme='dark'] .rules-btn {
+    border-color: #374151;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .tournament-page[data-theme='dark'] .rules-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: #4b5563;
   }
 
   .config-item {
