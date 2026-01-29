@@ -14,11 +14,12 @@
   let matches: MatchHistory[] = $state([]);
   let isLoading = $state(true);
   let isLoadingMore = $state(false);
+  let isDeleting = $state(false);
   let errorMessage = $state('');
   let selectedMatch: MatchHistory | null = $state(null);
   let searchQuery = $state('');
-  let filterStatus: 'all' | 'active' | 'deleted' = $state('all');
-  let showDeleteConfirm = $state(false);
+  let filterType: 'all' | 'singles' | 'doubles' = $state('all');
+  let playerFilter = $state('');
   let matchToDelete: MatchHistory | null = $state(null);
   const pageSize = 15;
 
@@ -28,12 +29,52 @@
   let hasMore = $state(true);
   let tableContainer: HTMLElement | null = $state(null);
 
+  // Derived counts
+  let singlesCount = $derived(matches.filter(m => (m.gameType || 'singles') === 'singles').length);
+  let doublesCount = $derived(matches.filter(m => m.gameType === 'doubles').length);
+
+  // Extract unique players from matches (by userId or name)
+  interface PlayerOption {
+    id: string; // odId or name as fallback
+    name: string;
+    isRegistered: boolean;
+  }
+  let uniquePlayers = $derived((() => {
+    const playerMap = new Map<string, PlayerOption>();
+
+    for (const match of matches) {
+      // Team 1
+      const p1Id = match.players?.team1?.userId || match.team1Name;
+      if (!playerMap.has(p1Id)) {
+        playerMap.set(p1Id, {
+          id: p1Id,
+          name: match.team1Name,
+          isRegistered: !!match.players?.team1?.userId
+        });
+      }
+
+      // Team 2
+      const p2Id = match.players?.team2?.userId || match.team2Name;
+      if (!playerMap.has(p2Id)) {
+        playerMap.set(p2Id, {
+          id: p2Id,
+          name: match.team2Name,
+          isRegistered: !!match.players?.team2?.userId
+        });
+      }
+    }
+
+    return Array.from(playerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  })());
+
   // For search: filter locally from loaded matches
   let isSearching = $derived(searchQuery.trim().length > 0);
+  let isFiltering = $derived(filterType !== 'all');
+  let isPlayerFiltering = $derived(playerFilter !== '');
 
   // Auto-load more if container doesn't have scroll
   $effect(() => {
-    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching) {
+    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching && !isPlayerFiltering) {
       if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
         loadMore();
       }
@@ -42,23 +83,31 @@
 
   // Filtered matches
   let filteredMatches = $derived(matches.filter((match) => {
-    const query = searchQuery.toLowerCase();
-    const matchesSearch =
-      match.team1Name.toLowerCase().includes(query) ||
-      match.team2Name.toLowerCase().includes(query) ||
-      match.eventTitle?.toLowerCase().includes(query) ||
-      match.matchPhase?.toLowerCase().includes(query) ||
-      match.id.toLowerCase().includes(query);
+    const matchType = match.gameType || 'singles';
+    if (filterType === 'singles' && matchType !== 'singles') return false;
+    if (filterType === 'doubles' && matchType !== 'doubles') return false;
 
-    const matchesStatus =
-      filterStatus === 'all' ||
-      (filterStatus === 'active' && match.syncStatus !== 'deleted') ||
-      (filterStatus === 'deleted' && match.syncStatus === 'deleted');
+    // Filter by player
+    if (isPlayerFiltering) {
+      const p1Id = match.players?.team1?.userId || match.team1Name;
+      const p2Id = match.players?.team2?.userId || match.team2Name;
+      if (p1Id !== playerFilter && p2Id !== playerFilter) return false;
+    }
 
-    return matchesSearch && matchesStatus;
+    if (isSearching) {
+      const query = searchQuery.toLowerCase();
+      return (
+        match.team1Name.toLowerCase().includes(query) ||
+        match.team2Name.toLowerCase().includes(query) ||
+        match.eventTitle?.toLowerCase().includes(query) ||
+        match.matchPhase?.toLowerCase().includes(query) ||
+        match.id.toLowerCase().includes(query)
+      );
+    }
+    return true;
   }));
 
-  let displayTotal = $derived(isSearching ? filteredMatches.length : totalCount);
+  let displayTotal = $derived(isSearching || isFiltering || isPlayerFiltering ? filteredMatches.length : totalCount);
 
   onMount(async () => {
     await loadInitialMatches();
@@ -105,7 +154,7 @@
     const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
 
     // Load more when 100px from bottom
-    if (scrollBottom < 100 && hasMore && !isLoadingMore && !isSearching) {
+    if (scrollBottom < 100 && hasMore && !isLoadingMore && !isSearching && !isPlayerFiltering) {
       loadMore();
     }
   }
@@ -125,24 +174,24 @@
 
   function confirmDelete(match: MatchHistory) {
     matchToDelete = match;
-    showDeleteConfirm = true;
   }
 
   async function deleteMatch() {
     if (!matchToDelete) return;
 
+    isDeleting = true;
     const success = await adminDeleteMatch(matchToDelete.id);
+
     if (success) {
       matches = matches.filter((m) => m.id !== matchToDelete!.id);
       totalCount = Math.max(0, totalCount - 1);
     }
 
-    showDeleteConfirm = false;
+    isDeleting = false;
     matchToDelete = null;
   }
 
   function cancelDelete() {
-    showDeleteConfirm = false;
     matchToDelete = null;
   }
 
@@ -195,135 +244,179 @@
 
 <SuperAdminGuard>
   <div class="matches-container" data-theme={$adminTheme}>
-    <header class="matches-header">
-      <button class="back-button" onclick={() => goto('/admin')}>
-        ← {m.admin_backToAdmin()}
-      </button>
-      <h1>🎯 {m.admin_matchManagement()}</h1>
-      <div class="theme-toggle-wrapper">
-        <ThemeToggle />
+    <header class="page-header">
+      <div class="header-row">
+        <button class="back-btn" onclick={() => goto('/admin')}>←</button>
+        <div class="header-main">
+          <div class="title-section">
+            <h1>{m.admin_matchManagement()}</h1>
+            <span class="count-badge">{totalCount}</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
 
-    <div class="controls">
-      <div class="search-bar">
+    <div class="controls-section">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
         <input
           type="text"
-          placeholder={m.admin_searchMatches()}
           bind:value={searchQuery}
+          placeholder={m.admin_searchMatches()}
+          class="search-input"
         />
       </div>
-      <span class="match-count">
-        {filteredMatches.length} de {displayTotal} {m.admin_matches()}
-      </span>
+
+      <div class="filter-tabs">
+        <button
+          class="filter-tab"
+          class:active={filterType === 'all'}
+          onclick={() => (filterType = 'all')}
+        >
+          {m.admin_all()} ({matches.length})
+        </button>
+        <button
+          class="filter-tab"
+          class:active={filterType === 'singles'}
+          onclick={() => (filterType = 'singles')}
+        >
+          {m.scoring_singles()} ({singlesCount})
+        </button>
+        <button
+          class="filter-tab"
+          class:active={filterType === 'doubles'}
+          onclick={() => (filterType = 'doubles')}
+        >
+          {m.scoring_doubles()} ({doublesCount})
+        </button>
+      </div>
+
+      <div class="player-filter">
+        <select bind:value={playerFilter} class="player-select">
+          <option value="">{m.admin_allPlayers()}</option>
+          {#each uniquePlayers as player}
+            <option value={player.id}>
+              {player.isRegistered ? '👤 ' : '🎭 '}{player.name}
+            </option>
+          {/each}
+        </select>
+      </div>
     </div>
 
     {#if isLoading}
       <LoadingSpinner message={m.common_loading()} />
     {:else if errorMessage}
       <div class="error-box">
+        <div class="error-icon">⚠️</div>
+        <h3>{m.common_error()}</h3>
         <p>{errorMessage}</p>
-        <button onclick={loadInitialMatches}>{m.admin_retry()}</button>
+        <button class="retry-btn" onclick={loadInitialMatches}>{m.admin_retry()}</button>
       </div>
     {:else if filteredMatches.length === 0}
       <div class="empty-state">
-        <p>{m.admin_noMatchesFound()}</p>
+        <div class="empty-icon">🎯</div>
+        <h3>{m.admin_noMatchesFound()}</h3>
+        <p>{searchQuery || filterType !== 'all' ? m.admin_noMatchesFilter() : m.admin_noMatchesYet()}</p>
       </div>
     {:else}
+      <div class="results-info">
+        {m.admin_showingOf({ showing: String(filteredMatches.length), total: String(displayTotal) })}
+      </div>
+
       <div class="table-container" bind:this={tableContainer} onscroll={handleScroll}>
         <table class="matches-table">
           <thead>
             <tr>
-              <th class="hide-mobile">Fecha</th>
-              <th>Evento</th>
-              <th>Fase</th>
-              <th>Jugadores</th>
-              <th>Resultado</th>
-              <th class="hide-mobile">Tipo</th>
-              <th class="hide-mobile">Modo</th>
-              <th class="hide-mobile">Duración</th>
-              <th class="hide-mobile">Guardada por</th>
-              <th>{m.common_actions()}</th>
+              <th class="players-col">{m.admin_players()}</th>
+              <th class="result-col">{m.admin_result()}</th>
+              <th class="event-col hide-small">{m.scoring_eventTitle()}</th>
+              <th class="type-col hide-mobile">{m.admin_type()}</th>
+              <th class="mode-col hide-mobile">{m.admin_mode()}</th>
+              <th class="date-col hide-mobile">{m.admin_date()}</th>
+              <th class="duration-col hide-small">{m.admin_duration()}</th>
+              <th class="actions-col"></th>
             </tr>
           </thead>
           <tbody>
             {#each filteredMatches as match (match.id)}
-              <tr>
-                <td class="date-cell hide-mobile">
-                  <div class="date-time">
-                    <span class="date">{formatDate(match.startTime)}</span>
-                    <span class="time">{formatTime(match.startTime)}</span>
-                  </div>
-                </td>
-                <td class="event-cell" class:empty={!match.eventTitle}>
-                  {match.eventTitle || '-'}
-                </td>
-                <td class="phase-cell" class:empty={!match.matchPhase}>
-                  {match.matchPhase || '-'}
-                </td>
+              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+              <tr class="match-row" onclick={() => editMatch(match)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') editMatch(match); }}>
                 <td class="players-cell">
-                  <div class="player-names">
-                    <span style="color: {match.team1Color}">{match.team1Name}</span>
-                    <span class="vs-text">vs</span>
-                    <span style="color: {match.team2Color}">{match.team2Name}</span>
+                  <div class="players-info">
+                    <div class="player-row">
+                      <span
+                        class="player-name"
+                        class:winner={match.winner === 1}
+                        style="color: {match.team1Color}; text-shadow: -1px -1px 0 rgba(0,0,0,0.3), 1px -1px 0 rgba(0,0,0,0.3), -1px 1px 0 rgba(0,0,0,0.3), 1px 1px 0 rgba(0,0,0,0.3), 0 0 6px rgba(255,255,255,0.5);"
+                      >{match.team1Name}</span>
+                      {#if match.winner === 1}<span class="winner-icon">👑</span>{/if}
+                    </div>
+                    <div class="player-row">
+                      <span
+                        class="player-name"
+                        class:winner={match.winner === 2}
+                        style="color: {match.team2Color}; text-shadow: -1px -1px 0 rgba(0,0,0,0.3), 1px -1px 0 rgba(0,0,0,0.3), -1px 1px 0 rgba(0,0,0,0.3), 1px 1px 0 rgba(0,0,0,0.3), 0 0 6px rgba(255,255,255,0.5);"
+                      >{match.team2Name}</span>
+                      {#if match.winner === 2}<span class="winner-icon">👑</span>{/if}
+                    </div>
                   </div>
                 </td>
                 <td class="result-cell">
                   {#if match.matchesToWin > 1}
-                    <!-- Best of X: show games won with crown next to winner -->
-                    <div class="score-display">
-                      <span class="game-score">
-                        <span class="game-number" style="color: {match.team1Color}">
-                          {match.games.filter(g => g.winner === 1).length}
-                          {#if match.winner === 1}
-                            <span class="crown">👑</span>
-                          {/if}
-                        </span>
-                        <span class="dash">-</span>
-                        <span class="game-number" style="color: {match.team2Color}">
-                          {match.games.filter(g => g.winner === 2).length}
-                          {#if match.winner === 2}
-                            <span class="crown">👑</span>
-                          {/if}
-                        </span>
-                      </span>
+                    <div class="score-compact">
+                      <span class="score-value" class:winner={match.winner === 1}>{match.games.filter(g => g.winner === 1).length}</span>
+                      <span class="score-sep">-</span>
+                      <span class="score-value" class:winner={match.winner === 2}>{match.games.filter(g => g.winner === 2).length}</span>
                     </div>
                   {:else}
-                    <!-- Single game: show total points with crown next to winner -->
-                    <div class="score-display">
-                      <span class="score" style="color: {match.team1Color}">
-                        {match.team1Score}
-                        {#if match.winner === 1}
-                          <span class="crown">👑</span>
-                        {/if}
-                      </span>
-                      <span class="dash">-</span>
-                      <span class="score" style="color: {match.team2Color}">
-                        {match.team2Score}
-                        {#if match.winner === 2}
-                          <span class="crown">👑</span>
-                        {/if}
-                      </span>
+                    <div class="score-compact">
+                      <span class="score-value" class:winner={match.winner === 1}>{match.team1Score}</span>
+                      <span class="score-sep">-</span>
+                      <span class="score-value" class:winner={match.winner === 2}>{match.team2Score}</span>
                     </div>
                   {/if}
                 </td>
+                <td class="event-cell hide-small">
+                  <div class="event-info">
+                    <span class="event-title">{match.eventTitle || '-'}</span>
+                    {#if match.matchPhase}
+                      <small class="event-phase">{match.matchPhase}</small>
+                    {/if}
+                  </div>
+                </td>
                 <td class="type-cell hide-mobile">
-                  <span class="type-badge">{getMatchTypeLabel(match)}</span>
+                  <span class="type-badge" class:doubles={getMatchType(match) === 'doubles'}>
+                    {getMatchTypeLabel(match)}
+                  </span>
                 </td>
                 <td class="mode-cell hide-mobile">
-                  {getGameModeInfo(match)}
+                  <span class="mode-text">{getGameModeInfo(match)}</span>
                 </td>
-                <td class="duration-cell hide-mobile">
-                  {formatDuration(match.duration)}
+                <td class="date-cell hide-mobile">
+                  <div class="date-info">
+                    <span class="date-text">{formatDate(match.startTime)}</span>
+                    <small class="time-text">{formatTime(match.startTime)}</small>
+                  </div>
                 </td>
-                <td class="savedby-cell hide-mobile">
-                  {match.savedBy?.userName || 'N/A'}
+                <td class="duration-cell hide-small">
+                  <span class="duration-text">{formatDuration(match.duration)}</span>
                 </td>
                 <td class="actions-cell">
-                  <button class="edit-btn" onclick={() => editMatch(match)}>
+                  <button
+                    class="action-btn edit-btn"
+                    onclick={(e) => { e.stopPropagation(); editMatch(match); }}
+                    title={m.admin_editMatch()}
+                  >
                     ✏️
                   </button>
-                  <button class="delete-btn" onclick={() => confirmDelete(match)}>
+                  <button
+                    class="action-btn delete-btn"
+                    onclick={(e) => { e.stopPropagation(); confirmDelete(match); }}
+                    title={m.common_delete()}
+                  >
                     🗑️
                   </button>
                 </td>
@@ -333,12 +426,12 @@
         </table>
 
         {#if isLoadingMore}
-          <LoadingSpinner size="small" message="Cargando más..." inline={true} />
-        {:else if hasMore && !isSearching}
+          <LoadingSpinner size="small" message={m.admin_loadingMore()} inline={true} />
+        {:else if hasMore && !isSearching && !isFiltering && !isPlayerFiltering}
           <div class="load-more-hint">
-            Scroll para cargar más partidas
+            {m.admin_scrollToLoadMore()}
           </div>
-        {:else if !hasMore && !isSearching}
+        {:else if !hasMore && filteredMatches.length > 0}
           <div class="end-of-list">
             {m.admin_endOfList()}
           </div>
@@ -355,24 +448,29 @@
     />
   {/if}
 
-  {#if showDeleteConfirm && matchToDelete}
-    <div class="modal-backdrop" data-theme={$adminTheme} onclick={cancelDelete}>
-      <div class="confirm-modal" onclick={(e) => e.stopPropagation()}>
-        <h2>{m.admin_confirmDelete()}</h2>
-        <p>{m.admin_deleteMatchWarning()}</p>
-        <div class="match-info">
-          <strong>
-            {matchToDelete.team1Name} vs {matchToDelete.team2Name}
-          </strong>
-          <br />
-          <span>{formatDate(matchToDelete.startTime)}</span>
+  {#if matchToDelete}
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="delete-overlay" data-theme={$adminTheme} onclick={cancelDelete} onkeydown={(e) => { if (e.key === 'Escape') cancelDelete(); }} role="presentation">
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div class="delete-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+        <h3>{m.admin_deleteMatch()}</h3>
+        <div class="match-preview">
+          <div class="preview-players">
+            <span class="preview-color" style="background: {matchToDelete.team1Color}"></span>
+            <strong>{matchToDelete.team1Name}</strong>
+            <span class="preview-vs">vs</span>
+            <strong>{matchToDelete.team2Name}</strong>
+            <span class="preview-color" style="background: {matchToDelete.team2Color}"></span>
+          </div>
+          <small class="preview-date">{formatDate(matchToDelete.startTime)}</small>
         </div>
-        <div class="confirm-actions">
-          <button class="cancel-btn" onclick={cancelDelete}>
+        <p class="delete-warning">{m.admin_cannotBeUndone()}</p>
+        <div class="delete-actions">
+          <button class="cancel-btn" onclick={cancelDelete} disabled={isDeleting}>
             {m.common_cancel()}
           </button>
-          <button class="confirm-btn" onclick={deleteMatch}>
-            {m.admin_deleteConfirm()}
+          <button class="confirm-btn" onclick={deleteMatch} disabled={isDeleting}>
+            {isDeleting ? m.admin_deleting() : m.common_delete()}
           </button>
         </div>
       </div>
@@ -382,10 +480,7 @@
 
 <style>
   .matches-container {
-    width: 95%;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 1.5rem;
+    padding: 1.5rem 2rem;
     min-height: 100vh;
     background: #fafafa;
     transition: background-color 0.3s;
@@ -395,145 +490,502 @@
     background: #0f1419;
   }
 
-  .matches-header {
+  /* Header */
+  .page-header {
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.75rem 1.5rem;
+    margin: -1.5rem -2rem 1.5rem -2rem;
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+
+  .matches-container[data-theme='dark'] .page-header {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .header-row {
     display: flex;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1.5rem;
-    position: relative;
   }
 
-  .matches-header h1 {
-    font-size: 1.75rem;
-    margin: 0;
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    color: #555;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .matches-container[data-theme='dark'] .back-btn {
+    background: #0f1419;
+    color: #8b9bb3;
+    border-color: #2d3748;
+  }
+
+  .back-btn:hover {
+    transform: translateX(-2px);
+    border-color: #667eea;
+    color: #667eea;
+  }
+
+  .header-main {
     flex: 1;
+    min-width: 0;
+  }
+
+  .title-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .title-section h1 {
+    font-size: 1.1rem;
+    margin: 0;
     color: #1a1a1a;
-    font-weight: 600;
+    font-weight: 700;
+    white-space: nowrap;
     transition: color 0.3s;
   }
 
-  .matches-container[data-theme='dark'] .matches-header h1 {
+  .matches-container[data-theme='dark'] .title-section h1 {
     color: #e1e8ed;
   }
 
-  .theme-toggle-wrapper {
-    margin-left: auto;
-  }
-
-  .matches-container[data-theme='dark'] .theme-toggle-wrapper {
-    --toggle-bg: rgba(255, 255, 255, 0.05);
-    --toggle-color: #fbbf24;
-  }
-
-  .matches-container[data-theme='light'] .theme-toggle-wrapper {
-    --toggle-bg: white;
-    --toggle-color: #3730a3;
-  }
-
-  .back-button {
-    padding: 0.6rem 1.2rem;
-    background: #ffffff;
-    color: #333;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-    font-weight: 500;
-  }
-
-  .matches-container[data-theme='dark'] .back-button {
-    background: #1a2332;
-    color: #e1e8ed;
-    border-color: #2d3748;
-  }
-
-  .back-button:hover {
-    background: #f5f5f5;
-    border-color: #999;
-  }
-
-  .matches-container[data-theme='dark'] .back-button:hover {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .search-bar {
-    flex: 1;
-  }
-
-  .search-bar input {
-    width: 100%;
-    padding: 0.7rem 1rem;
-    font-size: 0.95rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    transition: all 0.2s;
-    background: white;
-    color: #333;
-  }
-
-  .matches-container[data-theme='dark'] .search-bar input {
-    background: #1a2332;
-    border-color: #2d3748;
-    color: #e1e8ed;
-  }
-
-  .search-bar input:focus {
-    outline: none;
-    border-color: #f5576c;
-    box-shadow: 0 0 0 3px rgba(245, 87, 108, 0.1);
-  }
-
-  .matches-container[data-theme='dark'] .search-bar input::placeholder {
-    color: #6b7a94;
-  }
-
-  .match-count {
-    font-weight: 500;
-    color: #666;
-    white-space: nowrap;
-    font-size: 0.85rem;
-    padding: 0.5rem 0.75rem;
-    background: white;
-    border-radius: 6px;
-    border: 1px solid #ddd;
+  .count-badge {
+    padding: 0.2rem 0.6rem;
+    background: #f3f4f6;
+    color: #555;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
     transition: all 0.3s;
   }
 
-  .matches-container[data-theme='dark'] .match-count {
+  .matches-container[data-theme='dark'] .count-badge {
+    background: #0f1419;
+    color: #8b9bb3;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  /* Controls */
+  .controls-section {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    max-width: 300px;
+    position: relative;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1rem;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2.5rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    transition: all 0.2s;
+  }
+
+  .matches-container[data-theme='dark'] .search-input {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  }
+
+  .filter-tabs {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-tab {
+    padding: 0.4rem 0.75rem;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #555;
+  }
+
+  .matches-container[data-theme='dark'] .filter-tab {
     background: #1a2332;
     border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  .loading,
-  .error-box,
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 3rem;
-    text-align: center;
-    background: white;
-    border-radius: 8px;
-    transition: background-color 0.3s, color 0.3s;
+  .filter-tab:hover {
+    background: #f5f5f5;
+    border-color: #667eea;
   }
 
-  .matches-container[data-theme='dark'] .loading,
-  .matches-container[data-theme='dark'] .empty-state {
+  .matches-container[data-theme='dark'] .filter-tab:hover {
+    background: #2d3748;
+  }
+
+  .filter-tab.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+    font-weight: 600;
+  }
+
+  /* Player filter */
+  .player-filter {
+    min-width: 180px;
+  }
+
+  .player-select {
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .matches-container[data-theme='dark'] .player-select {
     background: #1a2332;
+    border-color: #2d3748;
     color: #e1e8ed;
   }
 
+  .player-select:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+
+  .player-select:hover {
+    border-color: #667eea;
+  }
+
+  /* Results info */
+  .results-info {
+    font-size: 0.75rem;
+    color: #999;
+    margin-bottom: 0.5rem;
+    transition: color 0.3s;
+  }
+
+  .matches-container[data-theme='dark'] .results-info {
+    color: #6b7a94;
+  }
+
+  /* Table */
+  .table-container {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s;
+  }
+
+  .matches-container[data-theme='dark'] .table-container {
+    background: #1a2332;
+  }
+
+  .matches-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .matches-table thead {
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    transition: all 0.3s;
+  }
+
+  .matches-container[data-theme='dark'] .matches-table thead {
+    background: #0f1419;
+    border-color: #2d3748;
+  }
+
+  .matches-table th {
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    color: #666;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: color 0.3s;
+  }
+
+  .matches-container[data-theme='dark'] .matches-table th {
+    color: #8b9bb3;
+  }
+
+  .match-row {
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .matches-container[data-theme='dark'] .match-row {
+    border-color: #2d3748;
+  }
+
+  .match-row:hover {
+    background: #f9fafb;
+  }
+
+  .matches-container[data-theme='dark'] .match-row:hover {
+    background: #0f1419;
+  }
+
+  .matches-table td {
+    padding: 0.6rem 0.75rem;
+    color: #1a1a1a;
+    transition: color 0.3s;
+  }
+
+  .matches-container[data-theme='dark'] .matches-table td {
+    color: #e1e8ed;
+  }
+
+  /* Players cell */
+  .players-cell {
+    max-width: 200px;
+  }
+
+  .players-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .player-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .player-name {
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .player-name.winner {
+    font-weight: 700;
+  }
+
+  .winner-icon {
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  /* Result cell */
+  .result-cell {
+    text-align: center;
+  }
+
+  .score-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .score-value {
+    color: #666;
+    transition: color 0.3s;
+  }
+
+  .score-value.winner {
+    color: #10b981;
+    font-weight: 700;
+  }
+
+  .score-sep {
+    color: #ccc;
+    font-weight: 400;
+  }
+
+  .matches-container[data-theme='dark'] .score-value {
+    color: #8b9bb3;
+  }
+
+  .matches-container[data-theme='dark'] .score-value.winner {
+    color: #34d399;
+  }
+
+  /* Event cell */
+  .event-cell {
+    max-width: 180px;
+  }
+
+  .event-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .event-title {
+    font-weight: 600;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .event-phase {
+    color: #888;
+    font-size: 0.7rem;
+  }
+
+  .matches-container[data-theme='dark'] .event-phase {
+    color: #6b7a94;
+  }
+
+  /* Type cell */
+  .type-badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: #e5e7eb;
+    color: #6b7280;
+    white-space: nowrap;
+  }
+
+  .type-badge.doubles {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+
+  .matches-container[data-theme='dark'] .type-badge {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  /* Mode cell */
+  .mode-text {
+    color: #666;
+    font-size: 0.8rem;
+  }
+
+  .matches-container[data-theme='dark'] .mode-text {
+    color: #8b9bb3;
+  }
+
+  /* Date cell */
+  .date-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .date-text {
+    font-size: 0.8rem;
+  }
+
+  .time-text {
+    color: #888;
+    font-size: 0.7rem;
+  }
+
+  .matches-container[data-theme='dark'] .time-text {
+    color: #6b7a94;
+  }
+
+  /* Duration cell */
+  .duration-text {
+    color: #666;
+    font-size: 0.8rem;
+  }
+
+  .matches-container[data-theme='dark'] .duration-text {
+    color: #8b9bb3;
+  }
+
+  /* Actions cell */
+  .actions-cell {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .action-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    background: transparent;
+  }
+
+  .action-btn:hover {
+    background: #f3f4f6;
+  }
+
+  .matches-container[data-theme='dark'] .action-btn:hover {
+    background: #2d3748;
+  }
+
+  .action-btn.delete-btn:hover {
+    background: #fee2e2;
+  }
+
+  .matches-container[data-theme='dark'] .action-btn.delete-btn:hover {
+    background: #4d1f24;
+  }
+
+  /* Load more / End of list */
   .load-more-hint,
   .end-of-list {
     text-align: center;
@@ -555,516 +1007,258 @@
     border-top-color: #2d3748;
   }
 
+  /* Error state */
   .error-box {
-    background: #fff3cd;
-    color: #856404;
-    border: 1px solid #ffeeba;
-  }
-
-  .error-box button {
-    margin-top: 1rem;
-    padding: 0.5rem 1.5rem;
-    background: #856404;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-  }
-
-  .table-container {
+    text-align: center;
+    padding: 3rem 2rem;
     background: white;
     border-radius: 8px;
-    overflow-x: auto;
-    overflow-y: auto;
-    max-height: calc(100vh - 250px);
-    border: 1px solid #e0e0e0;
     transition: all 0.3s;
-    -webkit-overflow-scrolling: touch;
   }
 
-  .matches-container[data-theme='dark'] .table-container {
+  .matches-container[data-theme='dark'] .error-box {
     background: #1a2332;
-    border-color: #2d3748;
   }
 
-  .matches-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
+  .error-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
   }
 
-  .matches-table thead {
-    background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
-    transition: background 0.3s;
+  .error-box h3 {
+    margin: 0 0 0.5rem 0;
+    color: #dc2626;
   }
 
-  .matches-container[data-theme='dark'] .matches-table thead {
-    background: linear-gradient(to bottom, #1f2937, #111827);
-  }
-
-  .matches-table th {
-    padding: 1rem 1.25rem;
-    text-align: left;
-    font-weight: 600;
-    color: #2c3e50;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 2px solid #dee2e6;
-    transition: all 0.3s;
-  }
-
-  .matches-container[data-theme='dark'] .matches-table th {
-    color: #8b9bb3;
-    border-bottom-color: #374151;
-  }
-
-  .matches-table tbody tr {
-    transition: all 0.15s ease;
-  }
-
-  .matches-table tbody tr:hover {
-    background: #f8f9fa;
-    transform: translateX(2px);
-  }
-
-  .matches-container[data-theme='dark'] .matches-table tbody tr:hover {
-    background: #212d3f;
-  }
-
-  .matches-table tbody tr:not(:last-child) {
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .matches-container[data-theme='dark'] .matches-table tbody tr:not(:last-child) {
-    border-bottom-color: #2d3748;
-  }
-
-  .matches-table td {
-    padding: 1rem 1.25rem;
-    vertical-align: middle;
-    color: #333;
-    font-size: 0.9rem;
-    transition: color 0.3s;
-  }
-
-  .matches-container[data-theme='dark'] .matches-table td {
-    color: #e1e8ed;
-  }
-
-  .event-cell {
-    font-weight: 600;
-    color: #2c3e50;
-    font-size: 0.92rem;
-    transition: color 0.3s;
-  }
-
-  .event-cell.empty {
-    text-align: center;
-    color: #999;
-    font-weight: 400;
-  }
-
-  .matches-container[data-theme='dark'] .event-cell {
-    color: #e1e8ed;
-  }
-
-  .matches-container[data-theme='dark'] .event-cell.empty {
-    color: #6b7a94;
-  }
-
-  .phase-cell {
+  .error-box p {
     color: #666;
-    font-size: 0.88rem;
-    transition: color 0.3s;
+    margin: 0 0 1rem 0;
   }
 
-  .phase-cell.empty {
-    text-align: center;
-    color: #999;
-    font-weight: 400;
-  }
-
-  .matches-container[data-theme='dark'] .phase-cell {
+  .matches-container[data-theme='dark'] .error-box p {
     color: #8b9bb3;
   }
 
-  .matches-container[data-theme='dark'] .phase-cell.empty {
-    color: #6b7a94;
-  }
-
-  .players-cell {
-    min-width: 140px;
-    max-width: 180px;
-  }
-
-  .player-names {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.88rem;
-  }
-
-  .player-names span {
-    font-weight: 600;
-  }
-
-  .vs-text {
-    color: #999 !important;
-    font-weight: 400 !important;
-    font-size: 0.75rem !important;
-    text-align: left;
-  }
-
-  .result-cell {
-    text-align: center;
-  }
-
-  .score-display {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    font-size: 1.1rem;
-    font-weight: 700;
-  }
-
-  .score {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .game-score {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 1.1rem;
-    font-weight: 700;
-  }
-
-  .game-number {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    color: #333;
-    transition: color 0.3s;
-  }
-
-  .matches-container[data-theme='dark'] .game-number {
-    color: #e1e8ed;
-  }
-
-  .crown {
-    font-size: 1rem;
-    line-height: 1;
-    vertical-align: middle;
-  }
-
-  .dash {
-    color: #999;
-    font-weight: 400;
-  }
-
-  .type-cell {
-    text-align: center;
-  }
-
-  .type-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.3rem 0.75rem;
+  .retry-btn {
+    padding: 0.5rem 1.5rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    font-size: 0.75rem;
-    font-weight: 700;
-    border-radius: 16px;
-    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
-  }
-
-  .mode-cell {
-    color: #555;
-    font-size: 0.88rem;
-    transition: color 0.3s;
-  }
-
-  .matches-container[data-theme='dark'] .mode-cell {
-    color: #8b9bb3;
-  }
-
-  .date-cell {
-    min-width: 120px;
-  }
-
-  .date-time {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-
-  .date {
-    color: #333;
-    font-size: 0.88rem;
-    font-weight: 500;
-    transition: color 0.3s;
-  }
-
-  .matches-container[data-theme='dark'] .date {
-    color: #e1e8ed;
-  }
-
-  .time {
-    color: #888;
-    font-size: 0.75rem;
-    transition: color 0.3s;
-  }
-
-  .matches-container[data-theme='dark'] .time {
-    color: #6b7a94;
-  }
-
-  .duration-cell {
-    color: #666;
-    font-size: 0.88rem;
-    transition: color 0.3s;
-  }
-
-  .matches-container[data-theme='dark'] .duration-cell {
-    color: #8b9bb3;
-  }
-
-  .savedby-cell {
-    color: #555;
-    font-size: 0.88rem;
-    transition: color 0.3s;
-  }
-
-  .matches-container[data-theme='dark'] .savedby-cell {
-    color: #8b9bb3;
-  }
-
-  .actions-cell {
-    text-align: left;
-    padding-left: 0.75rem;
-    white-space: nowrap;
-  }
-
-  .actions-cell button {
-    padding: 0.5rem 0.65rem;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.95rem;
+    font-weight: 600;
     transition: all 0.2s;
-    margin-right: 0.35rem;
   }
 
-  .actions-cell button:last-child {
-    margin-right: 0;
-  }
-
-  .edit-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
-  }
-
-  .edit-btn:hover {
+  .retry-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
   }
 
-  .delete-btn {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    box-shadow: 0 2px 4px rgba(245, 87, 108, 0.2);
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
   }
 
-  .delete-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(245, 87, 108, 0.3);
+  .empty-icon {
+    font-size: 5rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
   }
 
-  .actions-cell button:active {
-    transform: translateY(0);
+  .empty-state h3 {
+    font-size: 1.5rem;
+    margin: 0 0 0.5rem 0;
+    color: #1a1a1a;
+    transition: color 0.3s;
   }
 
-  /* Confirm Modal */
-  .modal-backdrop {
+  .matches-container[data-theme='dark'] .empty-state h3 {
+    color: #e1e8ed;
+  }
+
+  .empty-state p {
+    color: #666;
+    margin: 0;
+    transition: color 0.3s;
+  }
+
+  .matches-container[data-theme='dark'] .empty-state p {
+    color: #8b9bb3;
+  }
+
+  /* Delete modal */
+  .delete-overlay {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    right: 0;
+    bottom: 0;
     background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    padding: 1rem;
   }
 
-  .confirm-modal {
+  .delete-modal {
     background: white;
-    border-radius: 16px;
-    padding: 2rem;
-    max-width: 400px;
+    padding: 1.5rem;
+    border-radius: 12px;
+    max-width: 360px;
+    width: 90%;
     text-align: center;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   }
 
-  .confirm-modal h2 {
-    margin: 0 0 1rem;
-    color: #f5576c;
-    font-size: 1.5rem;
-  }
-
-  .confirm-modal p {
-    margin-bottom: 1rem;
-    color: #666;
-  }
-
-  .match-info {
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 1.5rem;
-  }
-
-  .confirm-actions {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .confirm-actions button {
-    flex: 1;
-    padding: 0.75rem;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: all 0.2s;
-    font-weight: 600;
-  }
-
-  .cancel-btn {
-    background: #6c757d;
-    color: white;
-  }
-
-  .cancel-btn:hover {
-    background: #5a6268;
-    transform: translateY(-1px);
-  }
-
-  .confirm-btn {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-  }
-
-  .confirm-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(245, 87, 108, 0.3);
-  }
-
-  /* Dark theme for modal */
-  .modal-backdrop[data-theme='dark'] .confirm-modal {
+  .delete-overlay[data-theme='dark'] .delete-modal {
     background: #1a2332;
-  }
-
-  .modal-backdrop[data-theme='dark'] .confirm-modal h2 {
-    color: #f5576c;
-  }
-
-  .modal-backdrop[data-theme='dark'] .confirm-modal p {
-    color: #8b9bb3;
-  }
-
-  .modal-backdrop[data-theme='dark'] .match-info {
-    background: #0f1419;
-  }
-
-  .modal-backdrop[data-theme='dark'] .match-info strong {
     color: #e1e8ed;
   }
 
-  .modal-backdrop[data-theme='dark'] .match-info span {
-    color: #8b9bb3;
+  .delete-modal h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+  }
+
+  .match-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+
+  .delete-overlay[data-theme='dark'] .match-preview {
+    background: #0f1419;
+  }
+
+  .preview-players {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .preview-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .preview-vs {
+    color: #999;
+    font-weight: 400;
+    font-size: 0.8rem;
+  }
+
+  .preview-date {
+    color: #888;
+    font-size: 0.8rem;
+  }
+
+  .delete-overlay[data-theme='dark'] .preview-date {
+    color: #6b7a94;
+  }
+
+  .delete-warning {
+    color: #dc2626;
+    font-size: 0.85rem;
+    margin: 0 0 1rem 0;
+  }
+
+  .delete-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+  }
+
+  .cancel-btn {
+    padding: 0.5rem 1rem;
+    background: #e5e7eb;
+    color: #374151;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .cancel-btn:hover:not(:disabled) {
+    background: #d1d5db;
+  }
+
+  .delete-overlay[data-theme='dark'] .cancel-btn {
+    background: #374151;
+    color: #e5e7eb;
+  }
+
+  .confirm-btn {
+    padding: 0.5rem 1rem;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .confirm-btn:hover:not(:disabled) {
+    background: #b91c1c;
+  }
+
+  .cancel-btn:disabled,
+  .confirm-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   /* Responsive */
-  @media (max-width: 1200px) {
+  @media (max-width: 768px) {
     .matches-container {
-      padding: 0.75rem;
-      width: 98%;
+      padding: 1rem;
     }
 
-    .matches-header {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      grid-template-rows: auto auto;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
+    .page-header {
+      margin: -1rem -1rem 1rem -1rem;
+      padding: 0.75rem 1rem;
     }
 
-    .back-button {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.8rem;
-      grid-column: 1;
-      grid-row: 1;
+    .controls-section {
+      flex-direction: column;
+      align-items: stretch;
     }
 
-    .theme-toggle-wrapper {
-      grid-column: 3;
-      grid-row: 1;
+    .search-box {
+      max-width: none;
     }
 
-    .matches-header h1 {
-      font-size: 1.2rem;
-      grid-column: 1 / -1;
-      grid-row: 2;
-    }
-
-    .controls {
-      flex-direction: row;
-      align-items: center;
-      width: 100%;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .search-bar input {
-      padding: 0.5rem 0.75rem;
-      font-size: 0.85rem;
-    }
-
-    .match-count {
-      padding: 0.4rem 0.75rem;
-      font-size: 0.85rem;
+    .filter-tabs {
+      justify-content: center;
     }
 
     .table-container {
-      max-height: calc(100vh - 150px);
+      max-height: calc(100vh - 220px);
     }
 
-    .matches-table {
-      min-width: 600px;
+    .hide-mobile {
+      display: none;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .hide-small {
+      display: none;
     }
 
     .matches-table th,
     .matches-table td {
-      padding: 0.7rem 0.8rem;
-      font-size: 0.8rem;
-    }
-
-    .hide-mobile {
-      display: none !important;
-    }
-
-    .actions-cell button {
-      padding: 0.45rem 0.65rem;
-      font-size: 0.9rem;
+      padding: 0.5rem;
     }
   }
 </style>

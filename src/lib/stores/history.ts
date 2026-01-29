@@ -1,6 +1,8 @@
 import { writable, get } from 'svelte/store';
 import type { MatchHistory, CurrentMatch, HistoryTab } from '$lib/types/history';
 import { browser } from '$app/environment';
+import { currentUser } from '$lib/firebase/auth';
+import { permanentlyDeleteMatchFromCloud } from '$lib/firebase/firestore';
 
 // Current match in progress
 export const currentMatch = writable<CurrentMatch | null>(null);
@@ -99,13 +101,20 @@ export function addMatchToHistory(match: MatchHistory) {
     });
 }
 
-// Permanently delete match from history
-export function permanentlyDeleteMatch(matchId: string) {
+// Permanently delete match from history (localStorage + Firebase if logged in)
+export async function permanentlyDeleteMatch(matchId: string) {
+    // Delete from localStorage
     matchHistory.update(history => {
         const filtered = history.filter(m => m.id !== matchId);
         localStorage.setItem('crokinoleMatchHistory', JSON.stringify(filtered));
         return filtered;
     });
+
+    // Delete from Firebase if user is logged in
+    const user = get(currentUser);
+    if (user) {
+        await permanentlyDeleteMatchFromCloud(matchId);
+    }
 }
 
 // Clear all history

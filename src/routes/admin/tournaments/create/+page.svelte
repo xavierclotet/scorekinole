@@ -8,7 +8,7 @@
   import { goto } from '$app/navigation';
   import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
-  import type { TournamentParticipant, RankingConfig, FinalStageMode, TournamentTier } from '$lib/types/tournament';
+  import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import { DEVELOPED_COUNTRIES } from '$lib/constants';
@@ -23,7 +23,6 @@
 
   // Duplicate mode
   let duplicateMode = $state(false);
-  let duplicateSourceId = $state<string | null>(null);
 
   // Wizard state
   let currentStep = $state(1);
@@ -126,10 +125,10 @@
   // Step 4: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
   let searchQuery = $state('');
-  let searchResults = $state<UserProfile[]>([]);
+  let searchResults = $state<(UserProfile & { userId: string })[]>([]);
   let searchLoading = $state(false);
   let guestName = $state('Player1');  // Input for guest player name
-  let guestNameMatchedUser = $state<UserProfile | null>(null);  // User that matches guest name
+  let guestNameMatchedUser = $state<(UserProfile & { userId: string }) | null>(null);  // User that matches guest name
 
   // Tournament name search
   let tournamentNameResults = $state<TournamentNameInfo[]>([]);
@@ -217,7 +216,6 @@
       await loadTournamentForEdit(editId);
     } else if (duplicateId) {
       duplicateMode = true;
-      duplicateSourceId = duplicateId;
       await loadTournamentForDuplication(duplicateId);
     } else {
       // Generate random key for new tournaments first
@@ -277,14 +275,15 @@
           numSwissRounds = tournament.groupStage.numSwissRounds || 4;
           rankingSystem = tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
         } else {
-          // Legacy fallback: read from tournament root level
-          groupStageType = tournament.groupStageType || 'ROUND_ROBIN';
-          groupGameMode = tournament.gameMode || 'rounds';
-          groupPointsToWin = tournament.pointsToWin || 7;
-          groupRoundsToPlay = tournament.roundsToPlay || 4;
-          groupMatchesToWin = tournament.matchesToWin || 1;
-          numGroups = tournament.numGroups || 2;
-          numSwissRounds = tournament.numSwissRounds || 4;
+          // Legacy fallback: read from tournament root level (old tournament format)
+          const legacyTournament = tournament as any;
+          groupStageType = legacyTournament.groupStageType || 'ROUND_ROBIN';
+          groupGameMode = legacyTournament.gameMode || 'rounds';
+          groupPointsToWin = legacyTournament.pointsToWin || 7;
+          groupRoundsToPlay = legacyTournament.roundsToPlay || 4;
+          groupMatchesToWin = legacyTournament.matchesToWin || 1;
+          numGroups = legacyTournament.numGroups || 2;
+          numSwissRounds = legacyTournament.numSwissRounds || 4;
         }
 
         // Final stage config from goldBracket.config
@@ -342,11 +341,12 @@
           roundsToPlay = config.final?.roundsToPlay || 4;
           matchesToWin = config.final?.matchesToWin || 3;
         } else {
-          // Legacy fallback
-          gameMode = tournament.gameMode || 'points';
-          pointsToWin = tournament.pointsToWin || 7;
-          roundsToPlay = tournament.roundsToPlay || 4;
-          matchesToWin = tournament.matchesToWin || 3;
+          // Legacy fallback (old tournament format)
+          const legacyTournament = tournament as any;
+          gameMode = legacyTournament.gameMode || 'points';
+          pointsToWin = legacyTournament.pointsToWin || 7;
+          roundsToPlay = legacyTournament.roundsToPlay || 4;
+          matchesToWin = legacyTournament.matchesToWin || 3;
         }
       }
 
@@ -432,13 +432,15 @@
           numSwissRounds = tournament.groupStage.numSwissRounds || 4;
           rankingSystem = tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
         } else {
-          groupStageType = tournament.groupStageType || 'ROUND_ROBIN';
-          groupGameMode = tournament.gameMode || 'rounds';
-          groupPointsToWin = tournament.pointsToWin || 7;
-          groupRoundsToPlay = tournament.roundsToPlay || 4;
-          groupMatchesToWin = tournament.matchesToWin || 1;
-          numGroups = tournament.numGroups || 2;
-          numSwissRounds = tournament.numSwissRounds || 4;
+          // Legacy fallback (old tournament format)
+          const legacyTournament = tournament as any;
+          groupStageType = legacyTournament.groupStageType || 'ROUND_ROBIN';
+          groupGameMode = legacyTournament.gameMode || 'rounds';
+          groupPointsToWin = legacyTournament.pointsToWin || 7;
+          groupRoundsToPlay = legacyTournament.roundsToPlay || 4;
+          groupMatchesToWin = legacyTournament.matchesToWin || 1;
+          numGroups = legacyTournament.numGroups || 2;
+          numSwissRounds = legacyTournament.numSwissRounds || 4;
         }
 
         if (tournament.finalStage?.goldBracket?.config) {
@@ -700,7 +702,7 @@
     }
 
     searchLoading = true;
-    const results = await searchUsers(searchQuery);
+    const results = await searchUsers(searchQuery) as (UserProfile & { userId: string })[];
     // Filter out users already added as participants
     const addedUserIds = participants
       .filter(p => p.type === 'REGISTERED' && p.userId)
@@ -824,7 +826,7 @@
     }
 
     // Search for exact name match (case-insensitive)
-    const results = await searchUsers(guestName.trim());
+    const results = await searchUsers(guestName.trim()) as (UserProfile & { userId: string })[];
     const exactMatch = results.find(
       u => u.playerName?.toLowerCase() === guestName.trim().toLowerCase()
     );
@@ -1269,10 +1271,6 @@
   let playersPerTable = $derived(gameType === 'singles' ? 2 : 4);
   let maxPlayersForTables = $derived(numTables * playersPerTable);
 
-  // Calculate tables needed for current participants
-  let tablesNeeded = $derived(Math.ceil(participants.length / playersPerTable));
-  let extraTables = $derived(numTables - tablesNeeded);
-
   // Reactive validation - re-run when any relevant field changes
   $effect(() => {
     // Track all dependencies
@@ -1287,6 +1285,11 @@
 </script>
 
 <AdminGuard>
+  {#if quotaLoading}
+    <div class="wizard-container" data-theme={$adminTheme}>
+      <LoadingSpinner message={m.common_loading()} />
+    </div>
+  {:else}
   <div class="wizard-container" data-theme={$adminTheme}>
     <header class="page-header">
       <div class="header-row">
@@ -1504,6 +1507,7 @@
             <div class="info-section-header">Configuración</div>
             <div class="info-grid config-grid">
               <div class="info-field type-field">
+                <!-- svelte-ignore a11y_label_has_associated_control -->
                 <label>Modalidad</label>
                 <div class="type-toggle">
                   <button
@@ -1565,6 +1569,7 @@
                   <span class="field-hint">{maxPlayersForTables} jugadores en paralelo</span>
                 </div>
                 <div class="config-field phase-selector">
+                  <!-- svelte-ignore a11y_label_has_associated_control -->
                   <label>{m.admin_structure()}</label>
                   <div class="toggle-buttons">
                     <button
@@ -1589,6 +1594,7 @@
                   </span>
                 </div>
                 <div class="config-field options-field">
+                  <!-- svelte-ignore a11y_label_has_associated_control -->
                   <label>Opciones</label>
                   <div class="options-inline">
                     <label class="option-check">
@@ -1616,6 +1622,7 @@
                 <!-- Sistema y configuración básica en línea -->
                 <div class="inline-config">
                   <div class="config-field">
+                    <!-- svelte-ignore a11y_label_has_associated_control -->
                     <label>{m.admin_system()}</label>
                     <div class="toggle-buttons">
                       <button
@@ -1662,6 +1669,7 @@
                     </div>
                   {/if}
                   <div class="config-field">
+                    <!-- svelte-ignore a11y_label_has_associated_control -->
                     <label>{m.admin_rankingSystem()}</label>
                     <div class="toggle-buttons">
                       <button
@@ -1723,9 +1731,8 @@
                         <span>{m.admin_bestOfN()}</span>
                         <select bind:value={groupMatchesToWin} class="input-field mini">
                           <option value={1}>1</option>
+                          <option value={2}>2</option>
                           <option value={3}>3</option>
-                          <option value={5}>5</option>
-                          <option value={7}>7</option>
                         </select>
                       </div>
                     {:else}
@@ -1755,6 +1762,7 @@
                 <!-- Estructura de brackets -->
                 <div class="inline-config">
                   <div class="config-field wide">
+                    <!-- svelte-ignore a11y_label_has_associated_control -->
                     <label>{m.admin_structure()}</label>
                     <div class="toggle-buttons">
                       <button
@@ -1792,11 +1800,11 @@
                             <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={earlyRoundsMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1813,11 +1821,11 @@
                             <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={semifinalMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1834,11 +1842,11 @@
                             <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1863,11 +1871,11 @@
                             <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={earlyRoundsMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1884,11 +1892,11 @@
                             <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={semifinalMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1905,11 +1913,11 @@
                             <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1931,11 +1939,11 @@
                             <input type="number" bind:value={silverEarlyRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={silverEarlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={silverEarlyRoundsMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1952,11 +1960,11 @@
                             <input type="number" bind:value={silverSemifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={silverSemifinalPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={silverSemifinalMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1973,11 +1981,11 @@
                             <input type="number" bind:value={silverBracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
                           {:else}
                             <input type="number" bind:value={silverBracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
-                            <span class="bo-label">Md</span>
+                            <span class="bo-label">{m.bracket_bestOf()}</span>
                             <select bind:value={silverBracketFinalMatchesToWin} class="input-field mini">
                               <option value={1}>1</option>
+                              <option value={2}>2</option>
                               <option value={3}>3</option>
-                              <option value={5}>5</option>
                             </select>
                           {/if}
                         </div>
@@ -1998,6 +2006,7 @@
                     class:active={consolationEnabled}
                     onclick={() => consolationEnabled = !consolationEnabled}
                     aria-pressed={consolationEnabled}
+                    aria-label="Activar rondas de clasificación"
                   >
                     <span class="toggle-track">
                       <span class="toggle-thumb"></span>
@@ -2027,11 +2036,11 @@
                           <input type="number" bind:value={earlyRoundsToPlay} min="1" max="20" class="input-field mini" />
                         {:else}
                           <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="20" class="input-field mini" />
-                          <span class="bo-label">Md</span>
+                          <span class="bo-label">{m.bracket_bestOf()}</span>
                           <select bind:value={earlyRoundsMatchesToWin} class="input-field mini">
                             <option value={1}>1</option>
+                            <option value={2}>2</option>
                             <option value={3}>3</option>
-                            <option value={5}>5</option>
                           </select>
                         {/if}
                       </div>
@@ -2048,11 +2057,11 @@
                           <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="20" class="input-field mini" />
                         {:else}
                           <input type="number" bind:value={semifinalPointsToWin} min="1" max="20" class="input-field mini" />
-                          <span class="bo-label">Md</span>
+                          <span class="bo-label">{m.bracket_bestOf()}</span>
                           <select bind:value={semifinalMatchesToWin} class="input-field mini">
                             <option value={1}>1</option>
+                            <option value={2}>2</option>
                             <option value={3}>3</option>
-                            <option value={5}>5</option>
                           </select>
                         {/if}
                       </div>
@@ -2069,11 +2078,11 @@
                           <input type="number" bind:value={bracketFinalRoundsToPlay} min="1" max="20" class="input-field mini" />
                         {:else}
                           <input type="number" bind:value={bracketFinalPointsToWin} min="1" max="20" class="input-field mini" />
-                          <span class="bo-label">Md</span>
+                          <span class="bo-label">{m.bracket_bestOf()}</span>
                           <select bind:value={bracketFinalMatchesToWin} class="input-field mini">
                             <option value={1}>1</option>
+                            <option value={2}>2</option>
                             <option value={3}>3</option>
-                            <option value={5}>5</option>
                           </select>
                         {/if}
                       </div>
@@ -2093,6 +2102,7 @@
                     class:active={consolationEnabled}
                     onclick={() => consolationEnabled = !consolationEnabled}
                     aria-pressed={consolationEnabled}
+                    aria-label="Activar rondas de clasificación"
                   >
                     <span class="toggle-track">
                       <span class="toggle-thumb"></span>
@@ -2225,6 +2235,7 @@
           <!-- Add section -->
           <div class="add-row">
             <div class="add-field search-field">
+              <!-- svelte-ignore a11y_label_has_associated_control -->
               <label>Buscar registrados</label>
               <div class="search-box">
                 <input
@@ -2259,6 +2270,7 @@
             </div>
 
             <div class="add-field guest-field">
+              <!-- svelte-ignore a11y_label_has_associated_control -->
               <label>Agregar invitado</label>
               <div class="guest-input-group">
                 <input
@@ -2444,6 +2456,7 @@
                       class:active={tcParallelSemifinals}
                       onclick={() => tcParallelSemifinals = !tcParallelSemifinals}
                       aria-pressed={tcParallelSemifinals}
+                      aria-label={m.admin_parallelSemifinals()}
                     >
                       <span class="tc-toggle-track">
                         <span class="tc-toggle-thumb"></span>
@@ -2466,6 +2479,7 @@
                       class:active={tcParallelFinals}
                       onclick={() => tcParallelFinals = !tcParallelFinals}
                       aria-pressed={tcParallelFinals}
+                      aria-label={m.admin_parallelFinals()}
                     >
                       <span class="tc-toggle-track">
                         <span class="tc-toggle-thumb"></span>
@@ -2767,6 +2781,7 @@
     </div>
     {/if}
   </div>
+  {/if}
 </AdminGuard>
 
 <!-- Toast Notification -->

@@ -41,6 +41,9 @@ dist/
 # SvelteKit build output
 .svelte-kit/
 
+# Paraglide auto-generated (duplicate output)
+src/paraglide/
+
 # Vite temporary files
 *.timestamp-*.mjs
 

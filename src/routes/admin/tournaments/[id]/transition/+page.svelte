@@ -1038,9 +1038,10 @@
                       {:else}
                         <input type="number" bind:value={semifinalPointsToWin} min="1" max="15" class="number-input mini" />
                       {/if}
-                      <span class="bo-label">Md</span>
+                      <span class="bo-label">{m.bracket_bestOf()}</span>
                       <select bind:value={semifinalMatchesToWin} class="select-input mini">
                         <option value={1}>1</option>
+                        <option value={2}>2</option>
                         <option value={3}>3</option>
                       </select>
                     </div>
@@ -1064,11 +1065,11 @@
                       {:else}
                         <input type="number" bind:value={finalPointsToWin} min="1" max="15" class="number-input mini" />
                       {/if}
-                      <span class="bo-label">Md</span>
+                      <span class="bo-label">{m.bracket_bestOf()}</span>
                       <select bind:value={finalMatchesToWin} class="select-input mini">
                         <option value={1}>1</option>
+                        <option value={2}>2</option>
                         <option value={3}>3</option>
-                        <option value={5}>5</option>
                       </select>
                     </div>
                   </div>
@@ -1118,9 +1119,10 @@
                       {:else}
                         <input type="number" bind:value={silverSemifinalPointsToWin} min="1" max="15" class="number-input mini" />
                       {/if}
-                      <span class="bo-label">Md</span>
+                      <span class="bo-label">{m.bracket_bestOf()}</span>
                       <select bind:value={silverSemifinalMatchesToWin} class="select-input mini">
                         <option value={1}>1</option>
+                        <option value={2}>2</option>
                         <option value={3}>3</option>
                       </select>
                     </div>
@@ -1144,11 +1146,11 @@
                       {:else}
                         <input type="number" bind:value={silverFinalPointsToWin} min="1" max="15" class="number-input mini" />
                       {/if}
-                      <span class="bo-label">Md</span>
+                      <span class="bo-label">{m.bracket_bestOf()}</span>
                       <select bind:value={silverFinalMatchesToWin} class="select-input mini">
                         <option value={1}>1</option>
+                        <option value={2}>2</option>
                         <option value={3}>3</option>
-                        <option value={5}>5</option>
                       </select>
                     </div>
                   </div>
@@ -1223,6 +1225,7 @@
                     <label>{m.admin_matchesToWinLabel()}</label>
                     <select bind:value={semifinalMatchesToWin} class="select-input">
                       <option value={1}>1</option>
+                      <option value={2}>2</option>
                       <option value={3}>3</option>
                     </select>
                   </div>
@@ -1258,8 +1261,8 @@
                     <label>{m.admin_bestOfLabel()}</label>
                     <select bind:value={finalMatchesToWin} class="select-input">
                       <option value={1}>1</option>
+                      <option value={2}>2</option>
                       <option value={3}>3</option>
-                      <option value={5}>5</option>
                     </select>
                   </div>
                 </div>

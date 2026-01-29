@@ -50,11 +50,9 @@
 		? $gameTournamentContext?.gameConfig.pointsToWin ?? $gameSettings.pointsToWin
 		: $gameSettings.pointsToWin);
 
-	// matchesToWin semantics differ:
-	// - Tournaments use "Best of X" format (e.g., 3 = best of 3 = need 2 wins)
-	// - Friendly matches use direct count (e.g., 2 = first to 2 wins)
+	// matchesToWin = "First to X wins" for both tournaments and friendly matches
 	let effectiveRequiredWins = $derived(inTournamentMode
-		? Math.ceil(($gameTournamentContext?.gameConfig.matchesToWin ?? 1) / 2)
+		? ($gameTournamentContext?.gameConfig.matchesToWin ?? 1)
 		: $gameSettings.matchesToWin);
 
 	// Get the appropriate team store

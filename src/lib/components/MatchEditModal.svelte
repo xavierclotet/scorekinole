@@ -24,6 +24,7 @@
   let selectedGameIndex = $state(0);
   let isSaving = $state(false);
   let errorMessage = $state('');
+  let activeTab: 'info' | 'rounds' = $state('info');
 
   async function saveChanges() {
     if (!team1Name.trim() || !team2Name.trim()) {
@@ -61,9 +62,9 @@
 
   function formatDate(timestamp: number): string {
     return new Date(timestamp).toLocaleString('es-ES', {
-      year: 'numeric',
+      day: '2-digit',
       month: 'short',
-      day: 'numeric',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -73,634 +74,726 @@
     e.stopPropagation();
   }
 
-  function selectGame(index: number) {
-    selectedGameIndex = index;
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') onClose();
   }
 </script>
 
-<div class="modal-backdrop" onclick={onClose} data-theme={$adminTheme}>
-  <div class="modal-content" onclick={stopPropagation}>
-    <div class="modal-header">
-      <h2>✏️ {m.admin_editMatch()}</h2>
-      <button class="close-button" onclick={onClose}>✕</button>
-    </div>
+<div
+  class="modal-overlay"
+  onclick={onClose}
+  onkeydown={handleKeydown}
+  data-theme={$adminTheme}
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+>
+  <div class="modal" onclick={stopPropagation} role="document">
+    <!-- Header -->
+    <header class="modal-header">
+      <div class="header-content">
+        <h2>{m.admin_editMatch()}</h2>
+        <div class="match-meta">
+          <span class="meta-badge">{formatDate(match.startTime)}</span>
+          <span class="meta-badge type">{match.gameType === 'doubles' ? m.scoring_doubles() : m.scoring_singles()}</span>
+        </div>
+      </div>
+      <button class="close-btn" onclick={onClose} aria-label="Close">×</button>
+    </header>
 
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button
+        class="tab"
+        class:active={activeTab === 'info'}
+        onclick={() => activeTab = 'info'}
+      >
+        {m.admin_basicInfo()}
+      </button>
+      <button
+        class="tab"
+        class:active={activeTab === 'rounds'}
+        onclick={() => activeTab = 'rounds'}
+      >
+        {m.admin_gamesAndRounds()}
+      </button>
+    </nav>
+
+    <!-- Body -->
     <div class="modal-body">
-      <!-- Basic Information Section -->
-      <div class="section">
-        <h3>ℹ️ {m.admin_basicInformation()}</h3>
-
-        <div class="info-grid">
-          <div class="info-item">
-            <span class="label">{m.admin_dateLabel()}</span>
-            <span class="value">{formatDate(match.startTime)}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">{m.admin_modeLabel()}</span>
-            <span class="value">{match.gameMode === 'points' ? m.admin_toNPoints({ n: String(match.pointsToWin) }) : m.admin_nRoundsMode({ n: String(match.roundsToPlay) })}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">{m.admin_typeLabel()}</span>
-            <span class="value">{match.gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Team Names & Match Info -->
-      <div class="section">
-        <h3>👥 {m.admin_teamsAndEvent()}</h3>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="team1Name">{m.admin_team1()}</label>
-            <input
-              id="team1Name"
-              type="text"
-              bind:value={team1Name}
-              placeholder={m.admin_team1Placeholder()}
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="team2Name">{m.admin_team2()}</label>
-            <input
-              id="team2Name"
-              type="text"
-              bind:value={team2Name}
-              placeholder={m.admin_team2Placeholder()}
-            />
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="gameType">{m.admin_matchType()}</label>
-            <select id="gameType" bind:value={gameType}>
-              <option value="singles">{m.scoring_singles()}</option>
-              <option value="doubles">{m.scoring_doubles()}</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="eventTitle">{m.admin_eventTitleLabel()}</label>
-            <input
-              id="eventTitle"
-              type="text"
-              bind:value={eventTitle}
-              placeholder={m.admin_eventTitleExample()}
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="matchPhase">{m.admin_phaseLabel()}</label>
-            <input
-              id="matchPhase"
-              type="text"
-              bind:value={matchPhase}
-              placeholder={m.admin_phaseExample()}
-            />
-          </div>
-        </div>
-      </div>
-
-      <!-- Games/Rounds Section -->
-      <div class="section">
-        <h3>🎯 {m.admin_gamesAndRounds()}</h3>
-
-        <!-- Game Tabs (if multiple games) -->
-        {#if editableGames.length > 1}
-          <div class="game-tabs">
-            {#each editableGames as game, index}
-              <button
-                class="game-tab"
-                class:active={selectedGameIndex === index}
-                onclick={() => selectGame(index)}
-              >
-                {m.history_game()} {index + 1}
-                {#if game.winner}
-                  <span class="winner-indicator" style="color: {game.winner === 1 ? match.team1Color : match.team2Color}">
-                    👑
-                  </span>
-                {/if}
-              </button>
-            {/each}
-          </div>
-        {/if}
-
-        <!-- Selected Game Rounds -->
-        {#if editableGames[selectedGameIndex]}
-          <div class="rounds-container">
-            <div class="rounds-header">
-              <span>{m.scoring_round()}</span>
-              <span style="color: {match.team1Color}">{team1Name}</span>
-              <span style="color: {match.team2Color}">{team2Name}</span>
-              {#if match.show20s}
-                <span>20s {team1Name.substring(0, 8)}</span>
-                <span>20s {team2Name.substring(0, 8)}</span>
-              {/if}
+      {#if activeTab === 'info'}
+        <!-- Info Tab -->
+        <div class="form-section">
+          <div class="players-row">
+            <div class="player-input" style="--player-color: {match.team1Color}">
+              <label>{m.admin_team1()}</label>
+              <input type="text" bind:value={team1Name} placeholder="Jugador 1" />
             </div>
+            <span class="vs">vs</span>
+            <div class="player-input" style="--player-color: {match.team2Color}">
+              <label>{m.admin_team2()}</label>
+              <input type="text" bind:value={team2Name} placeholder="Jugador 2" />
+            </div>
+          </div>
 
-            {#each editableGames[selectedGameIndex].rounds as round, roundIndex}
-              <div class="round-row">
-                <span class="round-number">{roundIndex + 1}</span>
+          <div class="form-grid">
+            <div class="form-field">
+              <label>{m.admin_eventTitleLabel()}</label>
+              <input type="text" bind:value={eventTitle} placeholder={m.admin_eventTitleExample()} />
+            </div>
+            <div class="form-field">
+              <label>{m.admin_phaseLabel()}</label>
+              <input type="text" bind:value={matchPhase} placeholder={m.admin_phaseExample()} />
+            </div>
+            <div class="form-field">
+              <label>{m.admin_matchType()}</label>
+              <select bind:value={gameType}>
+                <option value="singles">{m.scoring_singles()}</option>
+                <option value="doubles">{m.scoring_doubles()}</option>
+              </select>
+            </div>
+            <div class="form-field readonly">
+              <label>{m.admin_modeLabel()}</label>
+              <span class="readonly-value">
+                {match.gameMode === 'points' ? `${match.pointsToWin} pts` : `${match.roundsToPlay} rondas`}
+              </span>
+            </div>
+          </div>
+        </div>
 
-                <input
-                  type="number"
-                  min="0"
-                  max="2"
-                  class="score-input"
-                  bind:value={round.team1Points}
-                  style="border-color: {match.team1Color}"
-                />
+      {:else}
+        <!-- Rounds Tab -->
+        <div class="rounds-section">
+          <!-- Game selector if multiple games -->
+          {#if editableGames.length > 1}
+            <div class="game-selector">
+              {#each editableGames as game, idx}
+                <button
+                  class="game-btn"
+                  class:active={selectedGameIndex === idx}
+                  onclick={() => selectedGameIndex = idx}
+                >
+                  {m.history_game()} {idx + 1}
+                  {#if game.winner}
+                    <span class="crown" style="color: {game.winner === 1 ? match.team1Color : match.team2Color}">👑</span>
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
 
-                <input
-                  type="number"
-                  min="0"
-                  max="2"
-                  class="score-input"
-                  bind:value={round.team2Points}
-                  style="border-color: {match.team2Color}"
-                />
-
+          <!-- Rounds table -->
+          {#if editableGames[selectedGameIndex]}
+            <div class="rounds-table">
+              <div class="rounds-thead">
+                <span class="col-round">#</span>
+                <span class="col-player" style="color: {match.team1Color}">{team1Name.substring(0, 12)}</span>
+                <span class="col-player" style="color: {match.team2Color}">{team2Name.substring(0, 12)}</span>
                 {#if match.show20s}
-                  <input
-                    type="number"
-                    min="0"
-                    max="12"
-                    class="twenty-input"
-                    bind:value={round.team1Twenty}
-                  />
-
-                  <input
-                    type="number"
-                    min="0"
-                    max="12"
-                    class="twenty-input"
-                    bind:value={round.team2Twenty}
-                  />
+                  <span class="col-20s">20s</span>
+                  <span class="col-20s">20s</span>
                 {/if}
               </div>
-            {/each}
 
-            <div class="game-totals">
-              <span>{m.history_total()}:</span>
-              <span style="color: {match.team1Color}; font-weight: 700;">
-                {editableGames[selectedGameIndex].rounds.reduce((sum, r) => sum + r.team1Points, 0)} pts
-              </span>
-              <span style="color: {match.team2Color}; font-weight: 700;">
-                {editableGames[selectedGameIndex].rounds.reduce((sum, r) => sum + r.team2Points, 0)} pts
-              </span>
+              <div class="rounds-tbody">
+                {#each editableGames[selectedGameIndex].rounds as round, idx}
+                  <div class="round-row">
+                    <span class="col-round">{idx + 1}</span>
+                    <div class="col-player">
+                      <input
+                        type="number"
+                        min="0"
+                        max="2"
+                        bind:value={round.team1Points}
+                        class="pts-input"
+                        style="border-color: {match.team1Color}"
+                      />
+                    </div>
+                    <div class="col-player">
+                      <input
+                        type="number"
+                        min="0"
+                        max="2"
+                        bind:value={round.team2Points}
+                        class="pts-input"
+                        style="border-color: {match.team2Color}"
+                      />
+                    </div>
+                    {#if match.show20s}
+                      <div class="col-20s">
+                        <input type="number" min="0" max="12" bind:value={round.team1Twenty} class="twenty-input" />
+                      </div>
+                      <div class="col-20s">
+                        <input type="number" min="0" max="12" bind:value={round.team2Twenty} class="twenty-input" />
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+
+              <div class="rounds-tfoot">
+                <span class="col-round">Σ</span>
+                <span class="col-player total" style="color: {match.team1Color}">
+                  {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + r.team1Points, 0)}
+                </span>
+                <span class="col-player total" style="color: {match.team2Color}">
+                  {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + r.team2Points, 0)}
+                </span>
+                {#if match.show20s}
+                  <span class="col-20s total">
+                    {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + (r.team1Twenty || 0), 0)}
+                  </span>
+                  <span class="col-20s total">
+                    {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + (r.team2Twenty || 0), 0)}
+                  </span>
+                {/if}
+              </div>
             </div>
-          </div>
-        {/if}
-      </div>
+          {/if}
+        </div>
+      {/if}
 
       {#if errorMessage}
-        <div class="error-message">⚠️ {errorMessage}</div>
+        <div class="error">{errorMessage}</div>
       {/if}
     </div>
 
-    <div class="modal-footer">
-      <button class="cancel-button" onclick={onClose} disabled={isSaving}>
+    <!-- Footer -->
+    <footer class="modal-footer">
+      <button class="btn-cancel" onclick={onClose} disabled={isSaving}>
         {m.common_cancel()}
       </button>
-      <button class="save-button" onclick={saveChanges} disabled={isSaving}>
-        {isSaving ? m.admin_savingChanges() : '💾 ' + m.admin_saveChangesBtn()}
+      <button class="btn-save" onclick={saveChanges} disabled={isSaving}>
+        {isSaving ? m.admin_savingChanges() : m.admin_saveChangesBtn()}
       </button>
-    </div>
+    </footer>
   </div>
 </div>
 
 <style>
-  .modal-backdrop {
+  .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
     padding: 1rem;
-    backdrop-filter: blur(4px);
   }
 
-  .modal-content {
+  .modal {
     background: white;
-    border-radius: 16px;
+    border-radius: 12px;
     width: 100%;
-    max-width: 800px;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s;
+    max-width: 580px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   }
 
-  .modal-backdrop[data-theme='dark'] .modal-content {
+  .modal-overlay[data-theme='dark'] .modal {
     background: #1a2332;
     color: #e1e8ed;
   }
 
+  /* Header */
   .modal-header {
     display: flex;
+    align-items: flex-start;
     justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem 2rem;
-    border-bottom: 1px solid #e0e0e0;
-    background: linear-gradient(to bottom, #f8f9fa, #ffffff);
-    border-radius: 16px 16px 0 0;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
   }
 
-  .modal-backdrop[data-theme='dark'] .modal-header {
-    background: linear-gradient(to bottom, #1f2937, #1a2332);
-    border-bottom-color: #2d3748;
+  .modal-overlay[data-theme='dark'] .modal-header {
+    border-color: #2d3748;
   }
 
-  .modal-header h2 {
+  .header-content h2 {
     margin: 0;
-    font-size: 1.5rem;
-    color: #1a1a1a;
+    font-size: 1.1rem;
     font-weight: 700;
+    color: #1a1a1a;
   }
 
-  .modal-backdrop[data-theme='dark'] .modal-header h2 {
+  .modal-overlay[data-theme='dark'] .header-content h2 {
     color: #e1e8ed;
   }
 
-  .close-button {
-    background: none;
+  .match-meta {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+  }
+
+  .meta-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    background: #f3f4f6;
+    border-radius: 4px;
+    color: #666;
+  }
+
+  .meta-badge.type {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+
+  .modal-overlay[data-theme='dark'] .meta-badge {
+    background: #0f1419;
+    color: #8b9bb3;
+  }
+
+  .close-btn {
+    width: 28px;
+    height: 28px;
     border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
+    background: transparent;
+    font-size: 1.4rem;
     color: #999;
-    padding: 0;
-    width: 36px;
-    height: 36px;
+    cursor: pointer;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s;
+    line-height: 1;
   }
 
-  .close-button:hover {
-    background: #f0f0f0;
+  .close-btn:hover {
+    background: #f3f4f6;
     color: #333;
-    transform: rotate(90deg);
   }
 
-  .modal-backdrop[data-theme='dark'] .close-button:hover {
+  .modal-overlay[data-theme='dark'] .close-btn:hover {
     background: #2d3748;
     color: #e1e8ed;
   }
 
-  .modal-body {
-    padding: 2rem;
-  }
-
-  .section {
-    margin-bottom: 2rem;
-  }
-
-  .section h3 {
-    margin: 0 0 1rem;
-    font-size: 1.1rem;
-    color: #333;
-    font-weight: 600;
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid #f0f0f0;
-  }
-
-  .modal-backdrop[data-theme='dark'] .section h3 {
-    color: #e1e8ed;
-    border-bottom-color: #2d3748;
-  }
-
-  .info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-  }
-
-  .modal-backdrop[data-theme='dark'] .info-grid {
-    background: #0f1419;
-  }
-
-  .info-item {
+  /* Tabs */
+  .tabs {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 1.25rem;
   }
 
-  .info-item .label {
-    font-size: 0.75rem;
+  .modal-overlay[data-theme='dark'] .tabs {
+    border-color: #2d3748;
+  }
+
+  .tab {
+    padding: 0.6rem 1rem;
+    background: none;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 500;
     color: #666;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
   }
 
-  .modal-backdrop[data-theme='dark'] .info-item .label {
+  .tab:hover {
+    color: #333;
+  }
+
+  .modal-overlay[data-theme='dark'] .tab {
     color: #8b9bb3;
   }
 
-  .info-item .value {
-    font-size: 0.95rem;
-    color: #333;
-    font-weight: 500;
-  }
-
-  .modal-backdrop[data-theme='dark'] .info-item .value {
+  .modal-overlay[data-theme='dark'] .tab:hover {
     color: #e1e8ed;
   }
 
-  .form-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1rem;
+  .tab.active {
+    color: #667eea;
+    border-bottom-color: #667eea;
+    font-weight: 600;
   }
 
-  .form-group {
+  /* Body */
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem;
+  }
+
+  /* Info Tab */
+  .form-section {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 1rem;
   }
 
-  .form-group label {
+  .players-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+  }
+
+  .player-input {
+    flex: 1;
+  }
+
+  .player-input label {
+    display: block;
+    font-size: 0.75rem;
     font-weight: 600;
-    color: #333;
+    color: #666;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .modal-overlay[data-theme='dark'] .player-input label {
+    color: #8b9bb3;
+  }
+
+  .player-input input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid var(--player-color, #ddd);
+    border-radius: 6px;
     font-size: 0.9rem;
+    font-weight: 600;
+    background: white;
+    color: var(--player-color, #333);
   }
 
-  .modal-backdrop[data-theme='dark'] .form-group label {
-    color: #e1e8ed;
+  .modal-overlay[data-theme='dark'] .player-input input {
+    background: #0f1419;
   }
 
-  .form-group input,
-  .form-group select {
-    padding: 0.75rem;
+  .player-input input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  }
+
+  .vs {
+    font-size: 0.8rem;
+    color: #999;
+    font-weight: 500;
+    padding-bottom: 0.6rem;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .form-field label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .modal-overlay[data-theme='dark'] .form-field label {
+    color: #8b9bb3;
+  }
+
+  .form-field input,
+  .form-field select {
+    width: 100%;
+    padding: 0.45rem 0.6rem;
     border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: all 0.2s;
+    border-radius: 5px;
+    font-size: 0.85rem;
     background: white;
     color: #333;
   }
 
-  .modal-backdrop[data-theme='dark'] .form-group input,
-  .modal-backdrop[data-theme='dark'] .form-group select {
+  .modal-overlay[data-theme='dark'] .form-field input,
+  .modal-overlay[data-theme='dark'] .form-field select {
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
-  .form-group input:focus,
-  .form-group select:focus {
+  .form-field input:focus,
+  .form-field select:focus {
     outline: none;
     border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   }
 
-  .game-tabs {
+  .form-field.readonly .readonly-value {
+    display: block;
+    padding: 0.45rem 0.6rem;
+    background: #f9fafb;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    color: #666;
+  }
+
+  .modal-overlay[data-theme='dark'] .form-field.readonly .readonly-value {
+    background: #0f1419;
+    color: #8b9bb3;
+  }
+
+  /* Rounds Tab */
+  .rounds-section {
     display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .game-selector {
+    display: flex;
+    gap: 0.35rem;
     flex-wrap: wrap;
   }
 
-  .game-tab {
-    padding: 0.5rem 1rem;
-    background: #f0f0f0;
-    border: 2px solid transparent;
-    border-radius: 8px;
+  .game-btn {
+    padding: 0.35rem 0.65rem;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #555;
     cursor: pointer;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-    color: #666;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.3rem;
+    transition: all 0.15s;
   }
 
-  .modal-backdrop[data-theme='dark'] .game-tab {
+  .modal-overlay[data-theme='dark'] .game-btn {
     background: #0f1419;
+    border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  .game-tab:hover {
-    background: #e0e0e0;
-  }
-
-  .modal-backdrop[data-theme='dark'] .game-tab:hover {
-    background: #2d3748;
-  }
-
-  .game-tab.active {
-    background: #667eea;
-    color: white;
+  .game-btn:hover {
     border-color: #667eea;
   }
 
-  .winner-indicator {
-    font-size: 1rem;
+  .game-btn.active {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
   }
 
-  .rounds-container {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 1rem;
+  .crown {
+    font-size: 0.75rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .rounds-container {
+  /* Rounds table */
+  .rounds-table {
+    background: #f9fafb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .modal-overlay[data-theme='dark'] .rounds-table {
     background: #0f1419;
   }
 
-  .rounds-header {
+  .rounds-thead,
+  .round-row,
+  .rounds-tfoot {
     display: grid;
-    grid-template-columns: 60px repeat(2, 1fr) repeat(2, 1fr);
+    grid-template-columns: 32px 1fr 1fr;
     gap: 0.5rem;
-    padding: 0.75rem;
-    background: white;
-    border-radius: 8px;
-    margin-bottom: 0.5rem;
-    font-weight: 700;
-    font-size: 0.85rem;
-    text-align: center;
-  }
-
-  .modal-backdrop[data-theme='dark'] .rounds-header {
-    background: #1a2332;
-  }
-
-  .round-row {
-    display: grid;
-    grid-template-columns: 60px repeat(2, 1fr) repeat(2, 1fr);
-    gap: 0.5rem;
-    padding: 0.5rem;
+    padding: 0.5rem 0.75rem;
     align-items: center;
   }
 
-  .round-number {
+  .rounds-table:has(.col-20s) .rounds-thead,
+  .rounds-table:has(.col-20s) .round-row,
+  .rounds-table:has(.col-20s) .rounds-tfoot {
+    grid-template-columns: 32px 1fr 1fr 50px 50px;
+  }
+
+  .rounds-thead {
+    background: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .modal-overlay[data-theme='dark'] .rounds-thead {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .rounds-tfoot {
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    font-weight: 700;
+  }
+
+  .modal-overlay[data-theme='dark'] .rounds-tfoot {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .col-round {
     text-align: center;
+    color: #888;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .col-player {
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+
+  .col-player.total {
+    font-size: 1rem;
+  }
+
+  .col-20s {
+    text-align: center;
+    font-size: 0.75rem;
+    color: #888;
+  }
+
+  .col-20s.total {
     font-weight: 600;
     color: #666;
   }
 
-  .modal-backdrop[data-theme='dark'] .round-number {
-    color: #8b9bb3;
-  }
-
-  .score-input,
+  .pts-input,
   .twenty-input {
-    padding: 0.5rem;
+    width: 100%;
+    padding: 0.35rem;
     border: 2px solid #ddd;
-    border-radius: 6px;
-    font-size: 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 700;
     text-align: center;
-    font-weight: 600;
     background: white;
-    transition: all 0.2s;
   }
 
-  .modal-backdrop[data-theme='dark'] .score-input,
-  .modal-backdrop[data-theme='dark'] .twenty-input {
+  .modal-overlay[data-theme='dark'] .pts-input,
+  .modal-overlay[data-theme='dark'] .twenty-input {
     background: #1a2332;
     color: #e1e8ed;
     border-color: #2d3748;
   }
 
-  .score-input:focus,
+  .pts-input:focus,
   .twenty-input:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
   }
 
-  .game-totals {
-    display: grid;
-    grid-template-columns: 60px repeat(2, 1fr);
-    gap: 0.5rem;
-    padding: 0.75rem;
-    margin-top: 0.5rem;
-    background: white;
-    border-radius: 8px;
-    font-size: 1rem;
-    text-align: center;
+  .twenty-input {
+    border-color: #ccc;
+    font-weight: 500;
+    font-size: 0.8rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .game-totals {
-    background: #1a2332;
+  /* Error */
+  .error {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    background: #fef2f2;
+    color: #dc2626;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    border-left: 3px solid #dc2626;
   }
 
-  .error-message {
-    padding: 1rem;
-    background: #f8d7da;
-    color: #721c24;
-    border-radius: 8px;
-    margin-top: 1rem;
-    border-left: 4px solid #f5c6cb;
+  .modal-overlay[data-theme='dark'] .error {
+    background: #4d1f24;
+    color: #fca5a5;
   }
 
-  .modal-backdrop[data-theme='dark'] .error-message {
-    background: #4a1f1f;
-    color: #f8d7da;
-    border-left-color: #f5c6cb;
-  }
-
+  /* Footer */
   .modal-footer {
     display: flex;
-    gap: 1rem;
-    padding: 1.5rem 2rem;
-    border-top: 1px solid #e0e0e0;
-    background: #fafafa;
-    border-radius: 0 0 16px 16px;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #e5e7eb;
   }
 
-  .modal-backdrop[data-theme='dark'] .modal-footer {
-    background: #0f1419;
-    border-top-color: #2d3748;
+  .modal-overlay[data-theme='dark'] .modal-footer {
+    border-color: #2d3748;
   }
 
-  .modal-footer button {
+  .btn-cancel,
+  .btn-save {
     flex: 1;
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
+    padding: 0.55rem 1rem;
+    font-size: 0.9rem;
     font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
   }
 
-  .modal-footer button:disabled {
+  .btn-cancel {
+    background: #e5e7eb;
+    color: #374151;
+  }
+
+  .btn-cancel:hover:not(:disabled) {
+    background: #d1d5db;
+  }
+
+  .modal-overlay[data-theme='dark'] .btn-cancel {
+    background: #374151;
+    color: #e5e7eb;
+  }
+
+  .btn-save {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+
+  .btn-save:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  }
+
+  .btn-cancel:disabled,
+  .btn-save:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  .cancel-button {
-    background: #6c757d;
-    color: white;
-  }
-
-  .cancel-button:hover:not(:disabled) {
-    background: #5a6268;
-    transform: translateY(-1px);
-  }
-
-  .save-button {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-  }
-
-  .save-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-  }
-
   /* Responsive */
-  @media (max-width: 768px) {
-    .modal-content {
-      max-width: 100%;
-      border-radius: 16px 16px 0 0;
+  @media (max-width: 600px) {
+    .modal {
+      max-height: 90vh;
+      border-radius: 12px 12px 0 0;
       margin-top: auto;
-      max-height: 95vh;
     }
 
-    .modal-body {
-      padding: 1rem;
+    .players-row {
+      flex-direction: column;
+      gap: 0.5rem;
     }
 
-    .modal-header,
-    .modal-footer {
-      padding: 1rem;
-    }
-
-    .form-row {
-      grid-template-columns: 1fr;
-    }
-
-    .rounds-header,
-    .round-row {
-      grid-template-columns: 50px repeat(2, 1fr);
-      font-size: 0.8rem;
-    }
-
-    .rounds-header span:nth-child(n+4),
-    .round-row input:nth-child(n+4) {
+    .vs {
       display: none;
     }
 
-    .game-totals {
-      grid-template-columns: 50px repeat(2, 1fr);
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .rounds-thead,
+    .round-row,
+    .rounds-tfoot {
+      grid-template-columns: 28px 1fr 1fr !important;
+    }
+
+    .col-20s {
+      display: none;
     }
   }
 </style>

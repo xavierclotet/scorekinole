@@ -494,7 +494,7 @@
               twentiesB: number;
             }> = [];
 
-            const requiredWins = Math.ceil(matchesToWin / 2);
+            const requiredWins = matchesToWin;
             let gameNumber = 0;
 
             while (gamesA < requiredWins && gamesB < requiredWins) {

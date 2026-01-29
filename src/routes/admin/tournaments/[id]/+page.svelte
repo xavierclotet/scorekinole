@@ -544,7 +544,7 @@
 
                 <div class="config-item">
                   <span class="config-label">{m.admin_matchesToWinLabel()}:</span>
-                  <span class="config-value">Best of {tournament.groupStage.matchesToWin}</span>
+                  <span class="config-value">{tournament.groupStage.matchesToWin}</span>
                 </div>
               </div>
             </section>
@@ -602,7 +602,7 @@
                       {goldConfig.semifinal.gameMode === 'points'
                         ? `${goldConfig.semifinal.pointsToWin ?? 7}p`
                         : `${goldConfig.semifinal.roundsToPlay ?? 4}r`}
-                      · Bo{goldConfig.semifinal.matchesToWin ?? 1}
+                      · {m.bracket_bestOf()}{goldConfig.semifinal.matchesToWin ?? 1}
                     </span>
                   </div>
                   <div class="config-item phase-config">
@@ -611,7 +611,7 @@
                       {goldConfig.final.gameMode === 'points'
                         ? `${goldConfig.final.pointsToWin ?? 9}p`
                         : `${goldConfig.final.roundsToPlay ?? 4}r`}
-                      · Bo{goldConfig.final.matchesToWin ?? 1}
+                      · {m.bracket_bestOf()}{goldConfig.final.matchesToWin ?? 1}
                     </span>
                   </div>
 
@@ -634,7 +634,7 @@
                         {silverConfig.semifinal.gameMode === 'points'
                           ? `${silverConfig.semifinal.pointsToWin ?? 7}p`
                           : `${silverConfig.semifinal.roundsToPlay ?? 4}r`}
-                        · Bo{silverConfig.semifinal.matchesToWin ?? 1}
+                        · {m.bracket_bestOf()}{silverConfig.semifinal.matchesToWin ?? 1}
                       </span>
                     </div>
                     <div class="config-item phase-config">
@@ -643,7 +643,7 @@
                         {silverConfig.final.gameMode === 'points'
                           ? `${silverConfig.final.pointsToWin ?? 7}p`
                           : `${silverConfig.final.roundsToPlay ?? 4}r`}
-                        · Bo{silverConfig.final.matchesToWin ?? 1}
+                        · {m.bracket_bestOf()}{silverConfig.final.matchesToWin ?? 1}
                       </span>
                     </div>
                   {/if}
@@ -655,7 +655,7 @@
                       {config.earlyRounds.gameMode === 'points'
                         ? `${config.earlyRounds.pointsToWin ?? 7}p`
                         : `${config.earlyRounds.roundsToPlay ?? 4}r`}
-                      · Bo{config.earlyRounds.matchesToWin ?? 1}
+                      · {m.bracket_bestOf()}{config.earlyRounds.matchesToWin ?? 1}
                     </span>
                   </div>
                   <div class="config-item">
@@ -664,7 +664,7 @@
                       {config.semifinal.gameMode === 'points'
                         ? `${config.semifinal.pointsToWin ?? 7}p`
                         : `${config.semifinal.roundsToPlay ?? 4}r`}
-                      · Bo{config.semifinal.matchesToWin ?? 1}
+                      · {m.bracket_bestOf()}{config.semifinal.matchesToWin ?? 1}
                     </span>
                   </div>
                   <div class="config-item">
@@ -673,7 +673,7 @@
                       {config.final.gameMode === 'points'
                         ? `${config.final.pointsToWin ?? 7}p`
                         : `${config.final.roundsToPlay ?? 4}r`}
-                      · Bo{config.final.matchesToWin ?? 1}
+                      · {m.bracket_bestOf()}{config.final.matchesToWin ?? 1}
                     </span>
                   </div>
                 {:else}

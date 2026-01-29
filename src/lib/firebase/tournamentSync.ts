@@ -361,13 +361,26 @@ export function subscribeToMatchStatus(
     let match: any = null;
 
     if (phase === 'GROUP' && tournament.groupStage?.groups) {
-      // Find match in groups
+      // Find match in groups - check both schedule (Round Robin) and pairings (Swiss)
       for (const group of tournament.groupStage.groups) {
         if (groupId && group.id !== groupId) continue;
-        for (const round of group.rounds || []) {
-          match = round.matches?.find((m: any) => m.id === matchId);
-          if (match) break;
+
+        // Check in schedule (Round Robin format)
+        if (group.schedule) {
+          for (const round of group.schedule) {
+            match = round.matches?.find((m: any) => m.id === matchId);
+            if (match) break;
+          }
         }
+
+        // Check in pairings (Swiss format)
+        if (!match && group.pairings) {
+          for (const pairing of group.pairings) {
+            match = pairing.matches?.find((m: any) => m.id === matchId);
+            if (match) break;
+          }
+        }
+
         if (match) break;
       }
     } else if (phase === 'FINAL' && tournament.finalStage) {

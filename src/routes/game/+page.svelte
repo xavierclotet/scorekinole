@@ -5,9 +5,9 @@
 	import { language } from '$lib/stores/language';
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, switchColors } from '$lib/stores/teams';
+	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides } from '$lib/stores/teams';
 	import { timeRemaining, resetTimer, cleanupTimer } from '$lib/stores/timer';
-	import { loadMatchState, resetMatchState, roundsPlayed, currentGameStartHammer, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchGames, lastRoundPoints } from '$lib/stores/matchState';
+	import { loadMatchState, resetMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchGames, lastRoundPoints } from '$lib/stores/matchState';
 	import { loadHistory, startCurrentMatch, currentMatch } from '$lib/stores/history';
 	import TeamCard from '$lib/components/TeamCard.svelte';
 	import Timer from '$lib/components/Timer.svelte';
@@ -17,9 +17,7 @@
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
 	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import { isColorDark } from '$lib/utils/colors';
-	import { APP_VERSION } from '$lib/constants';
+		import { APP_VERSION } from '$lib/constants';
 	import {
 		gameTournamentContext,
 		loadTournamentContext,
@@ -57,9 +55,6 @@
 	let effectiveShowHammer = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
 		: $gameSettings.showHammer);
-	let effectiveShow20s = $derived(inTournamentMode
-		? $gameTournamentContext?.gameConfig.show20s ?? $gameSettings.show20s
-		: $gameSettings.show20s);
 
 	// Tournament match format string (e.g., "4R", "7p", "7p Bo3")
 	let tournamentMatchFormat = $derived((() => {
@@ -71,7 +66,7 @@
 			const points = config.pointsToWin || 7;
 			const matches = config.matchesToWin || 1;
 			if (matches > 1) {
-				return `${points}p Bo${matches}`;
+				return `${points}p ${m.bracket_bestOf()}${matches}`;
 			}
 			return `${points}p`;
 		}
@@ -161,10 +156,6 @@
 	// Bind showTwentyDialog to the store
 	let showTwentyDialog = $derived($twentyDialogPending);
 
-	// Calculate wins for each team based on rounds played in current game
-	let team1Wins = $derived($currentGameRounds.filter(round => round.team1Points > round.team2Points).length);
-	let team2Wins = $derived($currentGameRounds.filter(round => round.team2Points > round.team1Points).length);
-
 	// Calculate games won in the match (for multi-game matches)
 	// Note: currentMatchGames is updated immediately when a game ends (in saveGameAndCheckMatchComplete)
 	// so team1GamesWon/team2GamesWon already include the just-finished game
@@ -174,12 +165,8 @@
 	// Check if match is complete
 	// In rounds mode, match is complete after first game (includes ties)
 	// In points mode, match is complete when someone reaches the required wins
-	// matchesToWin semantics differ:
-	// - Tournaments use "Best of X" format (e.g., 3 = best of 3 = need 2 wins)
-	// - Friendly matches use direct count (e.g., 2 = first to 2 wins)
-	let requiredWinsToComplete = $derived(inTournamentMode
-		? Math.ceil($gameSettings.matchesToWin / 2)
-		: $gameSettings.matchesToWin);
+	// matchesToWin = "First to X wins" for both tournaments and friendly matches
+	let requiredWinsToComplete = $derived($gameSettings.matchesToWin);
 	let isMatchComplete = $derived($gameSettings.gameMode === 'rounds'
 		? (team1GamesWon >= 1 || team2GamesWon >= 1 || ($currentMatchGames.length > 0 && !$team1.hasWon && !$team2.hasWon))
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete));
@@ -222,10 +209,6 @@
 			handleTournamentMatchComplete();
 		}
 	}
-
-	// Calculate points for current round in progress (subtract last round's ending points from current total)
-	let team1CurrentRoundPoints = $derived($team1.points - $lastRoundPoints.team1);
-	let team2CurrentRoundPoints = $derived($team2.points - $lastRoundPoints.team2);
 
 	onMount(() => {
 		gameSettings.load();
@@ -458,9 +441,6 @@
 		let team1HasWon = false;
 		let team2HasWon = false;
 		if (config.gameMode === 'points' && context.currentGameData) {
-			const currentGameNumber = context.currentGameData.currentGameNumber || 1;
-			const currentGameRoundsData = context.existingRounds?.filter(r => r.gameNumber === currentGameNumber) || [];
-
 			// Check if current game reached winning score
 			const pointsToWin = config.pointsToWin || 7;
 			if (initialPoints1 >= pointsToWin && (initialPoints1 - initialPoints2 >= 2)) {
@@ -534,6 +514,10 @@
 				winner: 1 | 2;
 				team1Points: number;
 				team2Points: number;
+				team1Rounds: number;
+				team2Rounds: number;
+				team1Twenty: number;
+				team2Twenty: number;
 				timestamp: number;
 			}> = [];
 
@@ -543,14 +527,37 @@
 				if (gameRounds.length > 0) {
 					const gameTotalA = gameRounds.reduce((sum, r) => sum + (r.pointsA || 0), 0);
 					const gameTotalB = gameRounds.reduce((sum, r) => sum + (r.pointsB || 0), 0);
+					const gameTwentyA = gameRounds.reduce((sum, r) => sum + (r.twentiesA || 0), 0);
+					const gameTwentyB = gameRounds.reduce((sum, r) => sum + (r.twentiesB || 0), 0);
 					const team1Pts = isUserSideA ? gameTotalA : gameTotalB;
 					const team2Pts = isUserSideA ? gameTotalB : gameTotalA;
+					const team1Twenty = isUserSideA ? gameTwentyA : gameTwentyB;
+					const team2Twenty = isUserSideA ? gameTwentyB : gameTwentyA;
+
+					// Count rounds won by each team
+					let team1RoundsWon = 0;
+					let team2RoundsWon = 0;
+					gameRounds.forEach(r => {
+						const ptsA = r.pointsA || 0;
+						const ptsB = r.pointsB || 0;
+						if (isUserSideA) {
+							if (ptsA > ptsB) team1RoundsWon++;
+							else if (ptsB > ptsA) team2RoundsWon++;
+						} else {
+							if (ptsB > ptsA) team1RoundsWon++;
+							else if (ptsA > ptsB) team2RoundsWon++;
+						}
+					});
 
 					completedGames.push({
 						gameNumber: gameNum,
 						winner: team1Pts > team2Pts ? 1 : 2,
 						team1Points: team1Pts,
 						team2Points: team2Pts,
+						team1Rounds: team1RoundsWon,
+						team2Rounds: team2RoundsWon,
+						team1Twenty,
+						team2Twenty,
 						timestamp: Date.now()
 					});
 				}
@@ -815,16 +822,6 @@
 			unsubscribeMatchStatus = null;
 		}
 	});
-
-	function handleResetRound() {
-		team1.update(t => ({ ...t, points: 0, hasWon: false }));
-		team2.update(t => ({ ...t, points: 0, hasWon: false }));
-		saveTeams();
-		isInExtraRounds = false;
-
-		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
-		resetTimer(totalSeconds);
-	}
 
 	function handleResetMatch() {
 		resetTeams();
@@ -1263,7 +1260,7 @@
 		// Esto es importante porque resetForNextGame() limpia currentGameRounds
 		if (inTournamentMode) {
 			const preResetData = saveTournamentProgressToLocalStorage();
-			if (preResetData) {
+			if (preResetData && preResetData.allRounds) {
 				console.log('📦 Pre-reset tournament data:', {
 					rounds: preResetData.allRounds.length,
 					gamesWonA: preResetData.gamesWonA,

@@ -311,7 +311,7 @@
   let canSave = $derived((() => {
     if (isBracket && !isRoundsMode) {
       // Points mode (bracket): Match must be complete (someone won enough games)
-      const requiredWins = Math.ceil(gameConfig.matchesToWin / 2);
+      const requiredWins = gameConfig.matchesToWin;
       return gamesWonA >= requiredWins || gamesWonB >= requiredWins;
     } else if (isRoundsMode) {
       // Rounds mode: All rounds must be complete
@@ -420,7 +420,7 @@
 
     // Games won have already been updated by the reactive statement
     // Just need to check if match is complete and start next game if not
-    const requiredWins = Math.ceil(gameConfig.matchesToWin / 2);
+    const requiredWins = gameConfig.matchesToWin;
     if (gamesWonA >= requiredWins || gamesWonB >= requiredWins) {
       // Match complete - just reset flag for UI to show match complete
       currentGameComplete = false;
@@ -932,7 +932,7 @@
                   </div>
                 </div>
 
-                {@const requiredWins = Math.ceil(gameConfig.matchesToWin / 2)}
+                {@const requiredWins = gameConfig.matchesToWin}
                 {#if gamesWonA < requiredWins && gamesWonB < requiredWins}
                   <button class="next-game-btn" onclick={startNextGame} type="button">
                     {m.tournament_startGameN({ n: String(currentGameNumber + 1) })}

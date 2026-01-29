@@ -1,11 +1,11 @@
 import { writable } from 'svelte/store';
 import type { Team } from '$lib/types/team';
 import { browser } from '$app/environment';
-import { roundsPlayed, lastRoundPoints } from './matchState';
+import { roundsPlayed, lastRoundPoints, matchState, saveMatchState } from './matchState';
 
 const defaultTeam: Team = {
     name: '',
-    color: '#00ff88',
+    color: '#1B100E',
     points: 0,
     rounds: 0,
     autoRounds: 0,
@@ -19,13 +19,13 @@ const defaultTeam: Team = {
 export const team1 = writable<Team>({
     ...defaultTeam,
     name: 'Team 1',
-    color: '#00ff88'
+    color: '#1B100E'
 });
 
 export const team2 = writable<Team>({
     ...defaultTeam,
     name: 'Team 2',
-    color: '#ff3366'
+    color: '#BB484D'
 });
 
 // Helper functions for team management
@@ -55,10 +55,8 @@ export function resetTeams() {
     // Reset round counters
     roundsPlayed.set(0);
     lastRoundPoints.set({ team1: 0, team2: 0 });
-
-    if (browser) {
-        localStorage.setItem('crokinoleRoundsPlayed', '0');
-    }
+    matchState.update(state => ({ ...state, roundsPlayed: 0 }));
+    saveMatchState();
 
     saveTeams();
 }

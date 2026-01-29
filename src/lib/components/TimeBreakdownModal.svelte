@@ -158,7 +158,7 @@
                       </span>
                     </div>
                     <div class="calc-item">
-                      <span>Best of</span>
+                      <span>{m.admin_matchesToWinLabel()}</span>
                       <span>{breakdown.groupStage.matchesToWin}</span>
                     </div>
                     <div class="calc-formula small">
@@ -258,7 +258,7 @@
                       </span>
                     </div>
                     <div class="calc-item">
-                      <span>Best of</span>
+                      <span>{m.admin_matchesToWinLabel()}</span>
                       <span>{breakdown.finalStage.matchesToWin}</span>
                     </div>
                     <div class="calc-formula small">

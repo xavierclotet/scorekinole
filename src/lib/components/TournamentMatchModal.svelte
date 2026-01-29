@@ -196,6 +196,15 @@
 		return name;
 	}
 
+	// Translate error messages from Firebase functions
+	function translateError(error: string | undefined): string {
+		if (!error) return m.tournament_errorStarting();
+		if (error.includes('already been completed')) return m.tournament_errorMatchCompleted();
+		if (error.includes('already in progress')) return m.tournament_errorMatchInProgress();
+		if (error.includes('not found')) return m.tournament_errorMatchNotFound();
+		return m.tournament_errorStarting();
+	}
+
 	function processMatchesForDisplay(result: Tournament, matches: PendingMatchInfo[]) {
 		// Reset all lists
 		pendingMatchesList = [];
@@ -536,7 +545,7 @@
 			);
 
 			if (!result.success) {
-				errorMessage = result.error || m.tournament_errorStarting();
+				errorMessage = translateError(result.error);
 				currentStep = 'error';
 				isStarting = false;
 				return;
@@ -711,14 +720,12 @@
 					</svg>
 				</div>
 				<span class="modal-title">
-					{#if currentStep === 'key_input'}
+					{#if currentStep === 'key_input' || currentStep === 'error'}
 						{m.tournament_playMatch()}
 					{:else if currentStep === 'loading'}
 						{m.tournament_searching()}
 					{:else if currentStep === 'player_selection'}
 						{m.tournament_selectYourMatch()}
-					{:else if currentStep === 'error'}
-						{m.common_error()}
 					{/if}
 				</span>
 				<button class="close-btn" onclick={close} aria-label="Close">
@@ -868,7 +875,7 @@
 															{:else}
 																{matchDisplay.match.gameConfig.roundsToPlay}R
 															{/if}
-															Bo{matchDisplay.match.gameConfig.matchesToWin}
+															{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}
 														</span>
 													</div>
 													<div class="match-row-bottom">
@@ -903,7 +910,7 @@
 												{:else}
 													{matchDisplay.match.gameConfig.roundsToPlay}R
 												{/if}
-												Bo{matchDisplay.match.gameConfig.matchesToWin}
+												{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}
 											</span>
 										</div>
 										<div class="match-row-bottom">
@@ -977,7 +984,7 @@
 																			{:else}
 																				{matchDisplay.match.gameConfig.roundsToPlay}R
 																			{/if}
-																			Bo{matchDisplay.match.gameConfig.matchesToWin}
+																			{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}
 																		</span>
 																	</div>
 																	<div class="match-row-bottom">
@@ -1010,7 +1017,7 @@
 																{:else}
 																	{matchDisplay.match.gameConfig.roundsToPlay}R
 																{/if}
-																Bo{matchDisplay.match.gameConfig.matchesToWin}
+																{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}
 															</span>
 														</div>
 														<div class="match-row-bottom">
@@ -1759,7 +1766,8 @@
 	.step-content.error {
 		align-items: center;
 		text-align: center;
-		padding: 1rem 0;
+		padding: 1.5rem 0;
+		gap: 1rem;
 	}
 
 	.error-icon {
@@ -1779,6 +1787,8 @@
 		color: #f87171;
 		font-size: 0.95rem;
 		margin: 0;
+		padding: 0 1rem;
+		line-height: 1.4;
 	}
 
 	.retry-btn {
@@ -1786,17 +1796,17 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.5rem;
-		width: 100%;
-		padding: 0.85rem 1.25rem;
+		padding: 0.65rem 1.5rem;
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.12);
 		border-radius: 8px;
 		font-family: 'Lexend', sans-serif;
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		font-weight: 500;
 		color: rgba(255, 255, 255, 0.8);
 		cursor: pointer;
 		transition: all 0.15s ease;
+		margin-top: 0.5rem;
 	}
 
 	.retry-btn:hover {

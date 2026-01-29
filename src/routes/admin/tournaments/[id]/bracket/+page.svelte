@@ -92,11 +92,58 @@
   // View toggle: main bracket vs consolation bracket
   let bracketView = $state<'main' | 'consolation'>('main');
 
-  // Match configuration - determines if we show games won or total points
-  // Uses early rounds config as the default (most common phase)
-  let matchesToWin = $derived(activeTab === 'gold'
-    ? (tournament?.finalStage?.goldBracket?.config?.earlyRounds?.matchesToWin || 1)
-    : (tournament?.finalStage?.silverBracket?.config?.earlyRounds?.matchesToWin || 1));
+  // Helper function to get matchesToWin for a specific match based on its position
+  // - bracketType: 'gold' | 'silver'
+  // - roundIndex: 0-based index of the round
+  // - totalRounds: total number of rounds in the bracket
+  // - isConsolation: whether the match is in a consolation bracket
+  // - isThirdPlace: whether the match is the 3rd place match
+  function getMatchesToWinForMatch(
+    bracketType: 'gold' | 'silver',
+    roundIndex: number,
+    totalRounds: number,
+    isConsolation: boolean = false,
+    isThirdPlace: boolean = false
+  ): number {
+    // Consolation matches are typically single game
+    if (isConsolation) return 1;
+
+    const bracket = bracketType === 'gold'
+      ? tournament?.finalStage?.goldBracket
+      : tournament?.finalStage?.silverBracket;
+    const config = bracket?.config;
+    if (!config) return 1;
+
+    // Determine which phase this round belongs to
+    // Final is the last round, semifinal is second to last, rest are earlyRounds
+    if (isThirdPlace) {
+      // 3rd place match uses semifinal config (same as semifinal phase)
+      return config.semifinal?.matchesToWin || 1;
+    } else if (roundIndex === totalRounds - 1) {
+      // Final round
+      return config.final?.matchesToWin || 1;
+    } else if (roundIndex === totalRounds - 2 && totalRounds > 1) {
+      // Semifinal round
+      return config.semifinal?.matchesToWin || 1;
+    } else {
+      // Early rounds
+      return config.earlyRounds?.matchesToWin || 1;
+    }
+  }
+
+  // Global flag for backward compatibility (uses max of all configs)
+  let matchesToWin = $derived((() => {
+    const bracket = activeTab === 'gold'
+      ? tournament?.finalStage?.goldBracket
+      : tournament?.finalStage?.silverBracket;
+    const config = bracket?.config;
+    if (!config) return 1;
+    return Math.max(
+      config.earlyRounds?.matchesToWin || 1,
+      config.semifinal?.matchesToWin || 1,
+      config.final?.matchesToWin || 1
+    );
+  })());
   let showGamesWon = $derived(matchesToWin > 1);
 
   // Phase configuration editing
@@ -848,7 +895,7 @@
         const { gameMode, pointsToWin, roundsToPlay, matchesToWin } = config;
         const isRoundsMode = gameMode === 'rounds';
 
-        const requiredWins = Math.ceil(matchesToWin / 2);
+        const requiredWins = matchesToWin;
         let gamesA = 0;
         let gamesB = 0;
         let totalPointsA = 0;
@@ -1093,7 +1140,7 @@
                 // Simulate the match using same logic as main bracket
                 const { gameMode, pointsToWin, roundsToPlay, matchesToWin } = config;
                 const isRoundsMode = gameMode === 'rounds';
-                const requiredWins = Math.ceil(matchesToWin / 2);
+                const requiredWins = matchesToWin;
 
                 let gamesA = 0;
                 let gamesB = 0;
@@ -1566,8 +1613,8 @@
                           onchange={(e) => savePhaseConfig('early', isGold, earlyConfig.gameMode, earlyConfig.value, parseInt(e.currentTarget.value) || 1)}
                         >
                           <option value={1}>1</option>
+                          <option value={2}>2</option>
                           <option value={3}>3</option>
-                          <option value={5}>5</option>
                         </select>
                       {/if}
                     </div>
@@ -1604,8 +1651,8 @@
                           onchange={(e) => savePhaseConfig('semifinal', isGold, semiConfig.gameMode, semiConfig.value, parseInt(e.currentTarget.value) || 1)}
                         >
                           <option value={1}>1</option>
+                          <option value={2}>2</option>
                           <option value={3}>3</option>
-                          <option value={5}>5</option>
                         </select>
                       {/if}
                     </div>
@@ -1642,8 +1689,8 @@
                           onchange={(e) => savePhaseConfig('final', isGold, finalConfig.gameMode, finalConfig.value, parseInt(e.currentTarget.value) || 1)}
                         >
                           <option value={1}>1</option>
+                          <option value={2}>2</option>
                           <option value={3}>3</option>
-                          <option value={5}>5</option>
                         </select>
                       {/if}
                     </div>
@@ -1746,7 +1793,7 @@
                     {/if}
 
                     <!-- Games won badge (bottom-left) - only for multi-game matches in progress -->
-                    {#if match.status === 'IN_PROGRESS' && showGamesWon && (match.gamesWonA !== undefined || match.gamesWonB !== undefined)}
+                    {#if match.status === 'IN_PROGRESS' && getMatchesToWinForMatch(activeTab, roundIndex, rounds.length, false, false) > 1 && (match.gamesWonA !== undefined || match.gamesWonB !== undefined)}
                       {@const gA = match.gamesWonA || 0}
                       {@const gB = match.gamesWonB || 0}
                       {@const hasLeader = gA !== gB}
@@ -1856,7 +1903,7 @@
                   {/if}
 
                   <!-- Games won badge (bottom-left) - only for multi-game matches in progress -->
-                  {#if thirdPlaceMatch.status === 'IN_PROGRESS' && showGamesWon && (thirdPlaceMatch.gamesWonA !== undefined || thirdPlaceMatch.gamesWonB !== undefined)}
+                  {#if thirdPlaceMatch.status === 'IN_PROGRESS' && getMatchesToWinForMatch(activeTab, 0, 1, false, true) > 1 && (thirdPlaceMatch.gamesWonA !== undefined || thirdPlaceMatch.gamesWonB !== undefined)}
                     {@const tgA = thirdPlaceMatch.gamesWonA || 0}
                     {@const tgB = thirdPlaceMatch.gamesWonB || 0}
                     {@const tHasLeader = tgA !== tgB}

@@ -271,9 +271,8 @@ export async function markNoShow(
       : match.participantA;
 
     // Update match with walkover
-    // Get matchesToWin from groupStage
-    const matchesToWin = tournament.groupStage?.matchesToWin || 1;
-    const requiredWins = Math.ceil(matchesToWin / 2);
+    // Get matchesToWin from groupStage (First to X wins)
+    const requiredWins = tournament.groupStage?.matchesToWin || 1;
 
     // Update match in-memory
     match.status = 'WALKOVER';
