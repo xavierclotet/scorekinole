@@ -57,7 +57,7 @@
     tournament.groupStage?.type === 'SWISS' ||
     (tournament.groupStage?.groups?.[0]?.pairings && !tournament.groupStage?.groups?.[0]?.schedule)
   );
-  let rankingSystem = $derived((tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS') as 'WINS' | 'POINTS');
+  let qualificationMode = $derived((tournament.groupStage?.qualificationMode || tournament.groupStage?.qualificationMode || tournament.groupStage?.swissRankingSystem || 'WINS') as 'WINS' | 'POINTS');
 
   // Track previous topN to detect changes (not reactive - just for comparison)
   let previousTopN = topN;
@@ -481,11 +481,11 @@
           <th class="wins-col">{m.tournament_matchesWon()}</th>
           <th class="losses-col">{m.tournament_matchesLost()}</th>
           <th class="ties-col">{m.tournament_matchesTied()}</th>
-          {#if rankingSystem === 'WINS'}
+          {#if qualificationMode === 'WINS'}
             <th class="points-col primary-col" title={m.tournament_pointsStandard()}>{m.tournament_pointsShort()}</th>
           {/if}
           <th class="twenties-col">{m.tournament_twentiesShort()}</th>
-          <th class="scored-col" class:primary-col={rankingSystem === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>PT</th>
+          <th class="scored-col" class:primary-col={qualificationMode === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>PT</th>
         </tr>
       </thead>
       <tbody>
@@ -521,8 +521,8 @@
             <td class="name-col">
               <div class="name-cell">
                 <span class="player-name">{getParticipantName(standing.participantId)}</span>
-                {#if !isSwiss && isFirstInMultiTie(standing.participantId)}
-                  <!-- First player in 3+ tie group - show mini-league button (only for Round Robin) -->
+                {#if !isSwiss && qualificationMode === 'WINS' && isFirstInMultiTie(standing.participantId)}
+                  <!-- First player in 3+ tie group - show mini-league button (only for Round Robin with WINS mode) -->
                   <button
                     class="tie-badge"
                     onclick={(e: MouseEvent) => openTiebreakerModal(standing, e)}
@@ -559,7 +559,7 @@
             <td class="wins-col">{standing.matchesWon}</td>
             <td class="losses-col">{standing.matchesLost}</td>
             <td class="ties-col">{standing.matchesTied}</td>
-            {#if rankingSystem === 'WINS'}
+            {#if qualificationMode === 'WINS'}
               <td
                 class="points-col primary-col clickable-pts"
                 onclick={(e: MouseEvent) => openPlayerMatches(standing.participantId, e)}
@@ -569,8 +569,8 @@
               </td>
             {/if}
             <td class="twenties-col">{standing.total20s}</td>
-            <td class="scored-col" class:primary-col={rankingSystem === 'POINTS'}>
-              {#if rankingSystem === 'POINTS'}<strong>{standing.totalPointsScored}</strong>{:else}{standing.totalPointsScored}{/if}
+            <td class="scored-col" class:primary-col={qualificationMode === 'POINTS'}>
+              {#if qualificationMode === 'POINTS'}<strong>{standing.totalPointsScored}</strong>{:else}{standing.totalPointsScored}{/if}
             </td>
           </tr>
         {/each}
@@ -1228,14 +1228,18 @@
     color: white;
   }
 
-  /* Primary column (used for ranking) */
+  /* Primary column (used for qualification ranking) */
   .primary-col {
-    background: rgba(102, 126, 234, 0.08);
-    color: #667eea !important;
+    background: rgba(102, 126, 234, 0.12);
+    color: #4338ca !important;
+    font-weight: 700;
+    font-size: 0.9rem;
   }
 
   th.primary-col {
     background: rgba(102, 126, 234, 0.15);
+    color: #4338ca !important;
+    font-weight: 700;
   }
 
   /* Dark mode */

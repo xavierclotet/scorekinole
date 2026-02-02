@@ -17,15 +17,15 @@
  * 4. If still tied: Mark as unresolved for admin decision
  */
 
-import type { GroupStanding, TournamentParticipant, SwissRankingSystem } from '$lib/types/tournament';
+import type { GroupStanding, TournamentParticipant, QualificationMode } from '$lib/types/tournament';
 
 /**
- * Get the primary ranking value for a standing based on ranking system
+ * Get the primary ranking value for a standing based on qualification mode
  */
-function getPrimaryValue(standing: GroupStanding, isSwiss: boolean, rankingSystem: SwissRankingSystem): number {
-  if (isSwiss && rankingSystem === 'WINS') {
+function getPrimaryValue(standing: GroupStanding, isSwiss: boolean, qualificationMode: QualificationMode): number {
+  if (isSwiss && qualificationMode === 'WINS') {
     return standing.swissPoints ?? (standing.matchesWon * 2 + standing.matchesTied);
-  } else if (rankingSystem === 'POINTS') {
+  } else if (qualificationMode === 'POINTS') {
     return standing.totalPointsScored;
   } else {
     // Round Robin with WINS
@@ -58,12 +58,12 @@ function getHeadToHeadResult(standingA: GroupStanding, standingB: GroupStanding)
  */
 function resolveTwoPlayerTie(
   tiedGroup: GroupStanding[],
-  rankingSystem: SwissRankingSystem,
+  qualificationMode: QualificationMode,
   participantMap: Map<string, TournamentParticipant>
 ): GroupStanding[] {
   const [a, b] = tiedGroup;
 
-  if (rankingSystem === 'WINS') {
+  if (qualificationMode === 'WINS') {
     // WINS: head-to-head > 20s > unresolved
 
     // 1. Head-to-head (only if they played each other)
@@ -247,28 +247,34 @@ function resolveRemainingTwoPlayerTies(
  * 1. Total 20s
  * 2. If 2-player ties remain after 20s sorting: apply H2H between them
  *
- * ROUND ROBIN (3+ players) - Mini-league:
+ * ROUND ROBIN with WINS mode (3+ players) - Mini-league:
  * 1. Points only from matches between tied players (mini-league)
  * 2. 20s only from matches between tied players
  * 3. Total 20s (all matches)
  * 4. If 2-player ties remain: apply H2H
  *
+ * ROUND ROBIN with POINTS mode (3+ players):
+ * 1. Total 20s (all matches)
+ * 2. If 2-player ties remain: apply H2H
+ * (No mini-league since primary ranking is already total points)
+ *
  * Returns sorted array and marks unresolved ties
  */
 function resolveMultiPlayerTie(
   tiedGroup: GroupStanding[],
-  _rankingSystem: SwissRankingSystem,
+  qualificationMode: QualificationMode,
   participantMap: Map<string, TournamentParticipant>,
   isSwiss: boolean
 ): GroupStanding[] {
   const tiedIds = new Set(tiedGroup.map(s => s.participantId));
 
-  console.log(`[Tiebreaker] Resolving ${tiedGroup.length}-way tie (${isSwiss ? 'SWISS' : 'ROUND ROBIN'}):`);
+  const systemType = isSwiss ? 'SWISS' : `ROUND ROBIN (${qualificationMode})`;
+  console.log(`[Tiebreaker] Resolving ${tiedGroup.length}-way tie (${systemType}):`);
   tiedGroup.forEach(s => {
     const p = participantMap.get(s.participantId);
     const miniPts = calculateMiniLeaguePoints(s, tiedIds);
     const mini20s = calculateMiniLeague20s(s, tiedIds);
-    console.log(`  - ${p?.name || s.participantId}: pts=${s.points}, total20s=${s.total20s}, miniPts=${miniPts}, mini20s=${mini20s}`);
+    console.log(`  - ${p?.name || s.participantId}: pts=${s.points}, totalPoints=${s.totalPointsScored}, total20s=${s.total20s}, miniPts=${miniPts}, mini20s=${mini20s}`);
   });
 
   let sorted: GroupStanding[];
@@ -298,8 +304,34 @@ function resolveMultiPlayerTie(
     // Resolve remaining 2-player ties with H2H
     sorted = resolveRemainingTwoPlayerTies(sorted, participantMap, s => s.total20s);
 
+  } else if (qualificationMode === 'POINTS') {
+    // ROUND ROBIN with POINTS mode: Sort by total 20s only (no mini-league)
+    // Primary ranking is already totalPointsScored, so ties are resolved by 20s
+    sorted = [...tiedGroup].sort((a, b) => {
+      // 1. Total 20s (higher is better)
+      if (a.total20s !== b.total20s) {
+        return b.total20s - a.total20s;
+      }
+      // Fallback to initial ranking for stable sort
+      const pA = participantMap.get(a.participantId);
+      const pB = participantMap.get(b.participantId);
+      if (pA && pB) {
+        return pB.rankingSnapshot - pA.rankingSnapshot;
+      }
+      return 0;
+    });
+
+    console.log('[Tiebreaker] ROUND ROBIN (POINTS mode) sorted by total 20s:');
+    sorted.forEach((s, idx) => {
+      const p = participantMap.get(s.participantId);
+      console.log(`  ${idx + 1}. ${p?.name || s.participantId}: totalPoints=${s.totalPointsScored}, 20s=${s.total20s}`);
+    });
+
+    // Resolve remaining 2-player ties with H2H
+    sorted = resolveRemainingTwoPlayerTies(sorted, participantMap, s => s.total20s);
+
   } else {
-    // ROUND ROBIN: Mini-league approach
+    // ROUND ROBIN with WINS mode: Mini-league approach
     // 1. Sort by mini-league points
     sorted = [...tiedGroup].sort((a, b) => {
       const miniPtsA = calculateMiniLeaguePoints(a, tiedIds);
@@ -324,7 +356,7 @@ function resolveMultiPlayerTie(
       return 0;
     });
 
-    console.log('[Tiebreaker] ROUND ROBIN sorted by mini-league:');
+    console.log('[Tiebreaker] ROUND ROBIN (WINS mode) sorted by mini-league:');
     sorted.forEach((s, idx) => {
       const p = participantMap.get(s.participantId);
       const miniPts = calculateMiniLeaguePoints(s, tiedIds);
@@ -435,7 +467,7 @@ function resolveMultiPlayerTie(
  */
 function resolveTiedGroup(
   tiedGroup: GroupStanding[],
-  rankingSystem: SwissRankingSystem,
+  qualificationMode: QualificationMode,
   participantMap: Map<string, TournamentParticipant>,
   isSwiss: boolean
 ): GroupStanding[] {
@@ -447,10 +479,10 @@ function resolveTiedGroup(
   }
 
   if (tiedGroup.length === 2) {
-    return resolveTwoPlayerTie(tiedGroup, rankingSystem, participantMap);
+    return resolveTwoPlayerTie(tiedGroup, qualificationMode, participantMap);
   }
 
-  return resolveMultiPlayerTie(tiedGroup, rankingSystem, participantMap, isSwiss);
+  return resolveMultiPlayerTie(tiedGroup, qualificationMode, participantMap, isSwiss);
 }
 
 /**
@@ -459,16 +491,16 @@ function resolveTiedGroup(
  * @param standings Current standings
  * @param participants Tournament participants (for ranking reference)
  * @param isSwiss Whether this is a Swiss system tournament
- * @param swissRankingSystem Swiss ranking system: 'WINS' or 'POINTS'
+ * @param qualificationMode How players qualify: 'WINS' (2/1/0) or 'POINTS' (total scored)
  * @returns Sorted standings with positions and tie markers
  */
 export function resolveTiebreaker(
   standings: GroupStanding[],
   participants: TournamentParticipant[],
   isSwiss: boolean = false,
-  swissRankingSystem: SwissRankingSystem = 'WINS'
+  qualificationMode: QualificationMode = 'WINS'
 ): GroupStanding[] {
-  console.log(`[Tiebreaker] Resolving standings for ${standings.length} players (${swissRankingSystem} mode)`);
+  console.log(`[Tiebreaker] Resolving standings for ${standings.length} players (${qualificationMode} mode)`);
 
   // Create participant map for quick ranking lookup
   const participantMap = new Map<string, TournamentParticipant>();
@@ -481,7 +513,7 @@ export function resolveTiebreaker(
   const groups = new Map<number, GroupStanding[]>();
 
   for (const standing of standingsCopy) {
-    const primaryValue = getPrimaryValue(standing, isSwiss, swissRankingSystem);
+    const primaryValue = getPrimaryValue(standing, isSwiss, qualificationMode);
 
     if (!groups.has(primaryValue)) {
       groups.set(primaryValue, []);
@@ -497,7 +529,7 @@ export function resolveTiebreaker(
 
   for (const primaryValue of sortedPrimaryValues) {
     const tiedGroup = groups.get(primaryValue)!;
-    const resolvedGroup = resolveTiedGroup(tiedGroup, swissRankingSystem, participantMap, isSwiss);
+    const resolvedGroup = resolveTiedGroup(tiedGroup, qualificationMode, participantMap, isSwiss);
     result.push(...resolvedGroup);
   }
 

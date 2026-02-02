@@ -41,9 +41,10 @@ export function isBye(participantId: string | undefined): boolean {
  * - Seeds 1-4 get BYEs, seeds 5-12 play first round
  *
  * @param participants Qualified participants sorted by ranking
+ * @param thirdPlaceMatchEnabled Whether to generate 3rd/4th place match (default: true)
  * @returns Complete bracket structure with BYEs if needed
  */
-export function generateBracket(participants: TournamentParticipant[]): Bracket {
+export function generateBracket(participants: TournamentParticipant[], thirdPlaceMatchEnabled: boolean = true): Bracket {
   const numParticipants = participants.length;
 
   if (numParticipants < 2) {
@@ -149,9 +150,9 @@ export function generateBracket(participants: TournamentParticipant[]): Bracket 
     });
   }
 
-  // Create 3rd/4th place match if there are semifinals (4+ real participants)
+  // Create 3rd/4th place match if enabled and there are semifinals (4+ real participants)
   let thirdPlaceMatch: BracketMatch | undefined;
-  if (numParticipants >= 4) {
+  if (thirdPlaceMatchEnabled && numParticipants >= 4) {
     thirdPlaceMatch = {
       id: `bracket-3rd-place-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       position: 0,

@@ -363,6 +363,24 @@
     isAutoFilling = true;
     let filledCount = 0;
 
+    // Collect all matches to process for batch writing
+    const matchesToProcess: Array<{ matchId: string; result: {
+      gamesWonA: number;
+      gamesWonB: number;
+      totalPointsA: number;
+      totalPointsB: number;
+      total20sA: number;
+      total20sB: number;
+      rounds: Array<{
+        gameNumber: number;
+        roundInGame: number;
+        pointsA: number | null;
+        pointsB: number | null;
+        twentiesA: number;
+        twentiesB: number;
+      }>;
+    }}> = [];
+
     try {
       const gameMode = tournament.groupStage.gameMode || 'rounds';
       const roundsToPlay = tournament.groupStage.roundsToPlay || 4;
@@ -576,12 +594,16 @@
             };
           }
 
-          // Save the result
-          const success = await updateMatchResult(tournamentId, match.id, result);
-          if (success) {
-            filledCount++;
-          }
+          // Collect match data for batch processing
+          matchesToProcess.push({ matchId: match.id, result });
         }
+      }
+
+      // Execute writes sequentially to avoid race conditions
+      // (Each updateMatchResult reads/modifies/writes the entire groupStage)
+      for (const { matchId, result } of matchesToProcess) {
+        const success = await updateMatchResult(tournamentId, matchId, result);
+        if (success) filledCount++;
       }
 
       toastMessage = isSwiss
@@ -872,6 +894,14 @@
   <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
       <LoadingSpinner size="large" message="Completando fase de grupos..." />
+    </div>
+  </div>
+{/if}
+
+{#if isAutoFilling}
+  <div class="loading-overlay" data-theme={$adminTheme}>
+    <div class="loading-content">
+      <LoadingSpinner size="large" message={m.admin_autoFillingMatches()} />
     </div>
   </div>
 {/if}

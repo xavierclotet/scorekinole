@@ -326,9 +326,9 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
   const group = tournament.groupStage.groups[groupIndex];
   if (!group) return;
 
-  // Get ranking system configuration
-  // Supports both new rankingSystem and legacy swissRankingSystem
-  const rankingSystem = tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
+  // Get qualification mode configuration
+  // Supports qualificationMode (new) and legacy fields (rankingSystem, swissRankingSystem)
+  const qualificationMode = tournament.groupStage.qualificationMode || tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
   const isSwiss = tournament.groupStage.type === 'SWISS';
 
   // Get all matches from schedule or pairings
@@ -410,9 +410,9 @@ async function updateStandings(tournamentId: string, groupIndex: number): Promis
     if (match.totalPointsB) standingB.totalPointsScored += match.totalPointsB;
   });
 
-  // Sort standings based on ranking system
+  // Sort standings based on qualification mode
   const standings = Array.from(standingsMap.values()).sort((a, b) => {
-    if (rankingSystem === 'POINTS') {
+    if (qualificationMode === 'POINTS') {
       // Sort by total Crokinole points scored
       if (b.totalPointsScored !== a.totalPointsScored) return b.totalPointsScored - a.totalPointsScored;
       // Tiebreaker: total 20s

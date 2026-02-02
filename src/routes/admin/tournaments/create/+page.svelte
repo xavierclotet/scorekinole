@@ -56,7 +56,7 @@
   let groupStageType = $state<'ROUND_ROBIN' | 'SWISS'>('ROUND_ROBIN');
   let numGroups = $state(1);
   let numSwissRounds = $state(5);
-  let rankingSystem = $state<'WINS' | 'POINTS'>('WINS');  // WINS = 2/1/0 (both RR and Swiss), POINTS = total points scored
+  let qualificationMode = $state<'WINS' | 'POINTS'>('WINS');  // WINS = 2/1/0 (both RR and Swiss), POINTS = total points scored
 
   // Group stage game config
   let groupGameMode = $state<'points' | 'rounds'>('rounds');
@@ -70,6 +70,9 @@
   // Consolation bracket config (for both TWO_PHASE and ONE_PHASE)
   // Auto-detects level based on bracket size: >=16 players = R16+QF, >=8 = QF only
   let consolationEnabled = $state(false);
+
+  // 3rd/4th place match config (semifinal losers play for 3rd place)
+  let thirdPlaceMatchEnabled = $state(true);
 
   // Gold bracket config (or single bracket if SINGLE_BRACKET mode)
   let finalGameMode = $state<'points' | 'rounds'>('points');
@@ -275,6 +278,7 @@
       show20s = tournament.show20s;
       showHammer = tournament.showHammer;
       consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
+      thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
 
       // Load game config based on phase type
       if (tournament.phaseType === 'TWO_PHASE') {
@@ -287,7 +291,7 @@
           groupMatchesToWin = tournament.groupStage.matchesToWin || 1;
           numGroups = tournament.groupStage.numGroups || 2;
           numSwissRounds = tournament.groupStage.numSwissRounds || 4;
-          rankingSystem = tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
+          qualificationMode = tournament.groupStage.qualificationMode || tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
         } else {
           // Legacy fallback: read from tournament root level (old tournament format)
           const legacyTournament = tournament as any;
@@ -433,6 +437,7 @@
       show20s = tournament.show20s;
       showHammer = tournament.showHammer;
       consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
+      thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
 
       // Load game config based on phase type (same logic as loadTournamentForEdit)
       if (tournament.phaseType === 'TWO_PHASE') {
@@ -444,7 +449,7 @@
           groupMatchesToWin = tournament.groupStage.matchesToWin || 1;
           numGroups = tournament.groupStage.numGroups || 2;
           numSwissRounds = tournament.groupStage.numSwissRounds || 4;
-          rankingSystem = tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
+          qualificationMode = tournament.groupStage.qualificationMode || tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
         } else {
           // Legacy fallback (old tournament format)
           const legacyTournament = tournament as any;
@@ -581,7 +586,7 @@
       groupStageType = data.groupStageType || 'ROUND_ROBIN';
       numGroups = data.numGroups || 2;
       numSwissRounds = data.numSwissRounds || 4;
-      rankingSystem = data.rankingSystem || data.swissRankingSystem || 'WINS';
+      qualificationMode = data.qualificationMode || data.rankingSystem || data.swissRankingSystem || 'WINS';
       show20s = data.show20s ?? true;
       showHammer = data.showHammer ?? true;
 
@@ -658,7 +663,7 @@
         groupStageType,
         numGroups,
         numSwissRounds,
-        rankingSystem,
+        qualificationMode,
         groupGameMode,
         groupPointsToWin,
         groupRoundsToPlay,
@@ -1084,7 +1089,7 @@
           matchesToWin: groupMatchesToWin,
           numGroups: groupStageType === 'ROUND_ROBIN' ? numGroups : undefined,
           numSwissRounds: groupStageType === 'SWISS' ? numSwissRounds : undefined,
-          rankingSystem: rankingSystem
+          qualificationMode: qualificationMode
         };
 
         // Final stage configuration - stored in goldBracket.config (and silverBracket.config for SPLIT_DIVISIONS)
@@ -1144,6 +1149,7 @@
         tournamentData.finalStage = {
           mode: finalStageMode,
           consolationEnabled: consolationEnabled,
+          thirdPlaceMatchEnabled: thirdPlaceMatchEnabled,
           goldBracket: {
             rounds: [],
             totalRounds: 0,
@@ -1185,6 +1191,7 @@
         tournamentData.finalStage = {
           mode: 'SINGLE_BRACKET',
           consolationEnabled: consolationEnabled,
+          thirdPlaceMatchEnabled: thirdPlaceMatchEnabled,
           goldBracket: {
             rounds: [],
             totalRounds: 0,
@@ -1689,22 +1696,22 @@
                       <button
                         type="button"
                         class="toggle-btn"
-                        class:active={rankingSystem === 'WINS'}
-                        onclick={() => rankingSystem = 'WINS'}
+                        class:active={qualificationMode === 'WINS'}
+                        onclick={() => qualificationMode = 'WINS'}
                       >
                         {m.tournament_byWins()}
                       </button>
                       <button
                         type="button"
                         class="toggle-btn"
-                        class:active={rankingSystem === 'POINTS'}
-                        onclick={() => rankingSystem = 'POINTS'}
+                        class:active={qualificationMode === 'POINTS'}
+                        onclick={() => qualificationMode = 'POINTS'}
                       >
                         {m.scoring_points()}
                       </button>
                     </div>
                     <span class="field-hint">
-                      {rankingSystem === 'WINS' ? m.wizard_classificationWinsHint() : m.wizard_classificationPointsHint()}
+                      {qualificationMode === 'WINS' ? m.wizard_classificationWinsHint() : m.wizard_classificationPointsHint()}
                     </span>
                   </div>
                 </div>
@@ -2009,24 +2016,47 @@
                   </div>
                 {/if}
 
-                <!-- Consolation Bracket Configuration -->
-                <div class="consolation-toggle-row">
-                  <div class="consolation-toggle-info">
-                    <span class="consolation-toggle-label">{m.wizard_consolationRounds()}</span>
-                    <span class="consolation-toggle-desc">{m.wizard_consolationDesc()}</span>
+                <!-- Toggle Row Container for Third Place and Consolation -->
+                <div class="toggle-row-container">
+                  <!-- Third Place Match Configuration -->
+                  <div class="consolation-toggle-row">
+                    <div class="consolation-toggle-info">
+                      <span class="consolation-toggle-label">{m.wizard_thirdPlaceMatch()}</span>
+                      <span class="consolation-toggle-desc">{m.wizard_thirdPlaceMatchDesc()}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="toggle-switch"
+                      class:active={thirdPlaceMatchEnabled}
+                      onclick={() => thirdPlaceMatchEnabled = !thirdPlaceMatchEnabled}
+                      aria-pressed={thirdPlaceMatchEnabled}
+                      aria-label="Activar partido de tercer puesto"
+                    >
+                      <span class="toggle-track">
+                        <span class="toggle-thumb"></span>
+                      </span>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    class="toggle-switch"
-                    class:active={consolationEnabled}
-                    onclick={() => consolationEnabled = !consolationEnabled}
-                    aria-pressed={consolationEnabled}
-                    aria-label="Activar rondas de clasificación"
-                  >
-                    <span class="toggle-track">
-                      <span class="toggle-thumb"></span>
-                    </span>
-                  </button>
+
+                  <!-- Consolation Bracket Configuration -->
+                  <div class="consolation-toggle-row">
+                    <div class="consolation-toggle-info">
+                      <span class="consolation-toggle-label">{m.wizard_consolationRounds()}</span>
+                      <span class="consolation-toggle-desc">{m.wizard_consolationDesc()}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="toggle-switch"
+                      class:active={consolationEnabled}
+                      onclick={() => consolationEnabled = !consolationEnabled}
+                      aria-pressed={consolationEnabled}
+                      aria-label="Activar rondas de clasificación"
+                    >
+                      <span class="toggle-track">
+                        <span class="toggle-thumb"></span>
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2105,24 +2135,47 @@
                   </div>
                 </div>
 
-                <!-- Consolation Bracket Configuration for ONE_PHASE -->
-                <div class="consolation-toggle-row">
-                  <div class="consolation-toggle-info">
-                    <span class="consolation-toggle-label">{m.wizard_consolationRounds()}</span>
-                    <span class="consolation-toggle-desc">{m.wizard_consolationDesc()}</span>
+                <!-- Toggle Row Container for Third Place and Consolation (ONE_PHASE) -->
+                <div class="toggle-row-container">
+                  <!-- Third Place Match Configuration for ONE_PHASE -->
+                  <div class="consolation-toggle-row">
+                    <div class="consolation-toggle-info">
+                      <span class="consolation-toggle-label">{m.wizard_thirdPlaceMatch()}</span>
+                      <span class="consolation-toggle-desc">{m.wizard_thirdPlaceMatchDesc()}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="toggle-switch"
+                      class:active={thirdPlaceMatchEnabled}
+                      onclick={() => thirdPlaceMatchEnabled = !thirdPlaceMatchEnabled}
+                      aria-pressed={thirdPlaceMatchEnabled}
+                      aria-label="Activar partido de tercer puesto"
+                    >
+                      <span class="toggle-track">
+                        <span class="toggle-thumb"></span>
+                      </span>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    class="toggle-switch"
-                    class:active={consolationEnabled}
-                    onclick={() => consolationEnabled = !consolationEnabled}
-                    aria-pressed={consolationEnabled}
-                    aria-label="Activar rondas de clasificación"
-                  >
-                    <span class="toggle-track">
-                      <span class="toggle-thumb"></span>
-                    </span>
-                  </button>
+
+                  <!-- Consolation Bracket Configuration for ONE_PHASE -->
+                  <div class="consolation-toggle-row">
+                    <div class="consolation-toggle-info">
+                      <span class="consolation-toggle-label">{m.wizard_consolationRounds()}</span>
+                      <span class="consolation-toggle-desc">{m.wizard_consolationDesc()}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="toggle-switch"
+                      class:active={consolationEnabled}
+                      onclick={() => consolationEnabled = !consolationEnabled}
+                      aria-pressed={consolationEnabled}
+                      aria-label="Activar rondas de clasificación"
+                    >
+                      <span class="toggle-track">
+                        <span class="toggle-thumb"></span>
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2667,7 +2720,7 @@
                     </div>
                     <div class="review-row">
                       <span class="review-label">{m.wizard_classificationType()}</span>
-                      <span class="review-value">{rankingSystem === 'WINS' ? m.tournament_byWins() : m.tournament_byPoints()}</span>
+                      <span class="review-value">{qualificationMode === 'WINS' ? m.tournament_byWins() : m.tournament_byPoints()}</span>
                     </div>
                     <div class="review-row">
                       <span class="review-label">{m.tournament_finalStage()}</span>
@@ -2675,7 +2728,11 @@
                     </div>
                   {/if}
                   <div class="review-row">
-                    <span class="review-label">{m.wizard_classification()}</span>
+                    <span class="review-label">{m.wizard_thirdPlaceMatch()}</span>
+                    <span class="review-value">{thirdPlaceMatchEnabled ? m.admin_yes() : m.admin_no()}</span>
+                  </div>
+                  <div class="review-row">
+                    <span class="review-label">{m.wizard_consolationRounds()}</span>
                     <span class="review-value">{consolationEnabled ? m.admin_yes() : m.admin_no()}</span>
                   </div>
                 </div>
@@ -4060,6 +4117,7 @@
     border-radius: 0;
     font-size: 0.75rem;
     font-weight: 500;
+    width: 50%;
     color: #6b7280;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -4434,13 +4492,20 @@
     margin-left: 0.25rem;
   }
 
+  /* Toggle Row Container */
+  .toggle-row-container {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
   /* Consolation Toggle Row */
   .consolation-toggle-row {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0.875rem 1rem;
-    margin-top: 1rem;
     background: #f9fafb;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
@@ -4449,6 +4514,13 @@
   .wizard-container[data-theme='dark'] .consolation-toggle-row {
     background: #1f2937;
     border-color: #374151;
+  }
+
+  /* Mobile: stack vertically */
+  @media (max-width: 640px) {
+    .toggle-row-container {
+      flex-direction: column;
+    }
   }
 
   .consolation-toggle-info {

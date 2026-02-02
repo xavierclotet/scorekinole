@@ -1071,7 +1071,7 @@
 
           const totalRounds = currentBracket.totalRounds;
 
-          // Process rounds in order
+          // Process rounds in order - matches within same round are independent
           for (const round of currentBracket.rounds) {
             // Get phase-specific config for this round
             const phaseConfig = getPhaseConfig(
@@ -1081,8 +1081,15 @@
               false // not third place
             );
 
-            for (const match of round.matches) {
-              if (await simulateMatch(match, bracketType, phaseConfig)) {
+            // Process matches sequentially to avoid race conditions
+            // (Each updateBracketMatch reads/modifies/writes the entire finalStage)
+            const eligibleMatches = round.matches.filter(
+              m => m.status === 'PENDING' && m.participantA && m.participantB
+            );
+
+            for (const match of eligibleMatches) {
+              const success = await simulateMatch(match, bracketType, phaseConfig);
+              if (success) {
                 hasMoreMatches = true;
                 bracketFilledCount++;
               }

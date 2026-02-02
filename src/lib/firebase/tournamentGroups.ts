@@ -4,6 +4,44 @@
  */
 
 import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
+import type { QualificationMode } from '$lib/types/tournament';
+
+/**
+ * Fix tournament qualification mode (temporary utility)
+ * Use this to update tournaments that were created without qualificationMode set
+ *
+ * Usage from browser console:
+ * import { fixTournamentQualificationMode } from '$lib/firebase/tournamentGroups';
+ * await fixTournamentQualificationMode('tournament-id', 'POINTS');
+ */
+export async function fixTournamentQualificationMode(
+  tournamentId: string,
+  qualificationMode: QualificationMode
+): Promise<boolean> {
+  const tournament = await getTournament(tournamentId);
+  if (!tournament || !tournament.groupStage) {
+    console.error('Tournament or group stage not found');
+    return false;
+  }
+
+  console.log(`Fixing tournament ${tournamentId} qualificationMode to: ${qualificationMode}`);
+  console.log('Current qualificationMode:', tournament.groupStage.qualificationMode);
+  console.log('Current rankingSystem (legacy):', tournament.groupStage.rankingSystem);
+
+  // Update the qualificationMode
+  tournament.groupStage.qualificationMode = qualificationMode;
+
+  try {
+    await updateTournamentPublic(tournamentId, {
+      groupStage: tournament.groupStage
+    });
+    console.log('✅ Tournament qualificationMode updated successfully!');
+    return true;
+  } catch (error) {
+    console.error('❌ Error updating tournament:', error);
+    return false;
+  }
+}
 import { generateRoundRobinSchedule as generateRRScheduleAlgorithm, splitIntoGroups } from '$lib/algorithms/roundRobin';
 import { generateSwissPairings as generateSwissPairingsAlgorithm, assignTablesWithVariety } from '$lib/algorithms/swiss';
 import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from '$lib/algorithms/tiebreaker';
@@ -367,7 +405,9 @@ export async function recalculateStandings(
 
       // For Swiss: calculate swissPoints (2/1/0 - same as Round Robin)
       const isSwiss = tournament.groupStage?.type === 'SWISS';
-      const swissRankingSystem = tournament.groupStage?.swissRankingSystem || 'WINS';
+      // Support qualificationMode (new) and legacy fields (rankingSystem, swissRankingSystem)
+      const qualificationMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS';
+
       if (isSwiss) {
         standingsMap.forEach(standing => {
           standing.swissPoints = standing.matchesWon * 2 + standing.matchesTied * 1;
@@ -376,7 +416,7 @@ export async function recalculateStandings(
 
       // Apply tie-breaker and sort
       const standings = Array.from(standingsMap.values());
-      const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, swissRankingSystem);
+      const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode);
 
       // Update group standings
       group.standings = sortedStandings;

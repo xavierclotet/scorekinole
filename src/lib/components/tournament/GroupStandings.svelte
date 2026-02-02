@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { GroupStanding, TournamentParticipant, GroupRankingSystem } from '$lib/types/tournament';
+  import type { GroupStanding, TournamentParticipant, QualificationMode } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -7,9 +7,8 @@
     participants: TournamentParticipant[];
     // Whether this is a Swiss system (affects sorting and display)
     isSwiss?: boolean;
-    // Ranking system: 'WINS' or 'POINTS' (total points scored)
-    // Supports both new rankingSystem and legacy swissRankingSystem prop
-    rankingSystem?: GroupRankingSystem;
+    // Qualification mode: 'WINS' (2/1/0) or 'POINTS' (total scored)
+    qualificationMode?: QualificationMode;
     // Whether to enable the mini-league tiebreaker button and modal
     // Set to false for /groups page, true for /transition page
     enableTiebreaker?: boolean;
@@ -19,12 +18,12 @@
     standings,
     participants,
     isSwiss = false,
-    rankingSystem = 'WINS',
+    qualificationMode = 'WINS',
     enableTiebreaker = true
   }: Props = $props();
 
-  // Use rankingSystem if provided
-  let effectiveRankingSystem = $derived(rankingSystem || 'WINS');
+  // Use qualificationMode if provided
+  let effectiveQualificationMode = $derived(qualificationMode || 'WINS');
 
   // Create participant map for quick lookup
   let participantMap = $derived(new Map(participants.map(p => [p.id, p])));
@@ -38,7 +37,7 @@
     }
 
     // Fallback: basic sorting for backwards compatibility
-    if (effectiveRankingSystem === 'POINTS') {
+    if (effectiveQualificationMode === 'POINTS') {
       if (b.totalPointsScored !== a.totalPointsScored) {
         return b.totalPointsScored - a.totalPointsScored;
       }
@@ -69,7 +68,7 @@
   }
 
   // Show Pts column when ranking by WINS
-  let showPtsColumn = $derived(effectiveRankingSystem === 'WINS');
+  let showPtsColumn = $derived(effectiveQualificationMode === 'WINS');
 
   // Group standings by primary value (points/swissPoints) to detect ties
   // This helps show mini-league button even when ties were resolved
@@ -212,9 +211,9 @@
         <th class="losses-col">{m.tournament_matchesLost()}</th>
         <th class="ties-col">{m.tournament_matchesTied()}</th>
         {#if showPtsColumn}
-          <th class="points-col" title={m.tournament_pointsStandard()}>{m.ranking_pointsShort()}</th>
+          <th class="points-col" class:primary={effectiveQualificationMode === 'WINS'} title={m.tournament_pointsStandard()}>{m.ranking_pointsShort()}</th>
         {/if}
-        <th class="total-points-col" title={m.tournament_totalCrokinolePoints()}>{m.tournament_totalPointsScored()}</th>
+        <th class="total-points-col" class:primary={effectiveQualificationMode === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>{m.tournament_totalPointsScored()}</th>
         <th class="twenties-col">{m.tournament_twentiesShort()}</th>
       </tr>
     </thead>
@@ -232,8 +231,8 @@
           <td class="name-col">
             <span class="participant-name">
               {getParticipantName(standing.participantId)}
-              {#if enableTiebreaker && !isSwiss && isFirstInMultiTie(standing.participantId)}
-                <!-- First player in 3+ tie group - show mini-league button -->
+              {#if enableTiebreaker && !isSwiss && effectiveQualificationMode === 'WINS' && isFirstInMultiTie(standing.participantId)}
+                <!-- First player in 3+ tie group - show mini-league button (only for WINS mode) -->
                 <button
                   class="tie-badge"
                   onclick={(e: MouseEvent) => { e.stopPropagation(); openTiebreakerModal(standing); }}
@@ -260,11 +259,11 @@
           <td class="losses-col">{standing.matchesLost}</td>
           <td class="ties-col">{standing.matchesTied}</td>
           {#if showPtsColumn}
-            <td class="points-col" class:primary={effectiveRankingSystem === 'WINS'}>
+            <td class="points-col" class:primary={effectiveQualificationMode === 'WINS'}>
               <strong>{isSwiss ? formatSwissPoints(standing) : standing.points}</strong>
             </td>
           {/if}
-          <td class="total-points-col" class:primary={effectiveRankingSystem === 'POINTS'}>
+          <td class="total-points-col" class:primary={effectiveQualificationMode === 'POINTS'}>
             <strong>{standing.totalPointsScored}</strong>
           </td>
           <td class="twenties-col">{standing.total20s}</td>
@@ -425,7 +424,16 @@
 
   td.total-points-col.primary,
   td.points-col.primary {
-    background: rgba(102, 126, 234, 0.08);
+    background: rgba(102, 126, 234, 0.12);
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #4338ca;
+  }
+
+  th.total-points-col.primary,
+  th.points-col.primary {
+    background: rgba(102, 126, 234, 0.15);
+    color: #4338ca;
     font-weight: 700;
   }
 

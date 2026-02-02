@@ -415,6 +415,7 @@ export async function generateSplitBrackets(
     goldConfig: BracketConfig;
     silverConfig: BracketConfig;
     consolationEnabled?: boolean;
+    thirdPlaceMatchEnabled?: boolean;
   }
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
@@ -424,7 +425,7 @@ export async function generateSplitBrackets(
   }
 
   try {
-    const { goldParticipantIds, silverParticipantIds, goldConfig, silverConfig, consolationEnabled } = options;
+    const { goldParticipantIds, silverParticipantIds, goldConfig, silverConfig, consolationEnabled, thirdPlaceMatchEnabled = true } = options;
 
     // Note: Power of 2 validation removed - brackets now support BYEs for any participant count >= 2
 
@@ -444,8 +445,8 @@ export async function generateSplitBrackets(
     }
 
     // Generate both brackets using algorithm
-    const goldBracketRaw = generateBracketAlgorithm(goldParticipants);
-    const silverBracketRaw = generateBracketAlgorithm(silverParticipants);
+    const goldBracketRaw = generateBracketAlgorithm(goldParticipants, thirdPlaceMatchEnabled);
+    const silverBracketRaw = generateBracketAlgorithm(silverParticipants, thirdPlaceMatchEnabled);
 
     // Assign table numbers to brackets respecting the table limit
     // Tables are distributed fairly between gold and silver brackets
@@ -515,11 +516,13 @@ export async function generateSplitBrackets(
 
     // Update tournament with both brackets (config embedded in each bracket)
     // Use spread to preserve any existing finalStage fields from tournament creation
+    // Explicitly include thirdPlaceMatchEnabled to ensure it's not lost
     return await updateTournament(tournamentId, {
       finalStage: {
         ...tournament.finalStage,
         mode: 'SPLIT_DIVISIONS',
         consolationEnabled: consolationEnabled ?? tournament.finalStage?.consolationEnabled ?? false,
+        thirdPlaceMatchEnabled: thirdPlaceMatchEnabled ?? tournament.finalStage?.thirdPlaceMatchEnabled ?? true,
         goldBracket: goldBracketWithConfig,
         silverBracket: silverBracketWithConfig,
         isComplete: false
@@ -537,12 +540,14 @@ export async function generateSplitBrackets(
  * @param tournamentId Tournament ID
  * @param config Optional bracket configuration (per-phase settings)
  * @param consolationEnabled Optional flag to generate consolation brackets
+ * @param thirdPlaceMatchEnabled Optional flag to generate 3rd/4th place match (default: true)
  * @returns true if successful
  */
 export async function generateBracket(
   tournamentId: string,
   config?: BracketConfig,
-  consolationEnabled?: boolean
+  consolationEnabled?: boolean,
+  thirdPlaceMatchEnabled: boolean = true
 ): Promise<boolean> {
   const tournament = await getTournament(tournamentId);
   if (!tournament) {
@@ -614,7 +619,7 @@ export async function generateBracket(
     }
 
     // Generate bracket using algorithm
-    const bracketRaw = generateBracketAlgorithm(qualifiedParticipants);
+    const bracketRaw = generateBracketAlgorithm(qualifiedParticipants, thirdPlaceMatchEnabled);
 
     // Assign table numbers respecting the table limit
     const numTables = tournament.numTables || 4;
@@ -666,11 +671,13 @@ export async function generateBracket(
     }
 
     // Use spread to preserve any existing finalStage fields from tournament creation
+    // Explicitly include thirdPlaceMatchEnabled to ensure it's not lost
     return await updateTournament(tournamentId, {
       finalStage: {
         ...tournament.finalStage,
         mode: 'SINGLE_BRACKET',
         consolationEnabled: consolationEnabled ?? tournament.finalStage?.consolationEnabled ?? false,
+        thirdPlaceMatchEnabled: thirdPlaceMatchEnabled ?? tournament.finalStage?.thirdPlaceMatchEnabled ?? true,
         goldBracket: goldBracketWithConfig,
         isComplete: false
       }

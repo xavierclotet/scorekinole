@@ -82,8 +82,8 @@
 
   let currentRound = $derived(tournament.groupStage?.currentRound || 1);
   let isSwiss = $derived(tournament.groupStage?.type === 'SWISS');
-  // Support both new rankingSystem and legacy swissRankingSystem
-  let rankingSystem = $derived(tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS');
+  // Support qualificationMode (new) and legacy fields (rankingSystem, swissRankingSystem)
+  let qualificationMode = $derived(tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS');
   // For Swiss system, prefer numSwissRounds; fallback to totalRounds for round-robin
   let totalRounds = $derived(isSwiss
     ? (tournament.groupStage?.numSwissRounds || tournament.groupStage?.totalRounds || tournament.numSwissRounds || 0)
@@ -538,7 +538,7 @@
                     standings={group.standings}
                     participants={tournament.participants}
                     {isSwiss}
-                    {rankingSystem}
+                    {qualificationMode}
                     enableTiebreaker={false}
                   />
                 {/if}

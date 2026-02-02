@@ -17,13 +17,14 @@ export type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE';
 export type GroupStageType = 'ROUND_ROBIN' | 'SWISS';
 export type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS';  // Single bracket or Gold/Silver divisions
 
-// Group stage ranking system: by wins or by total points scored
+// Qualification mode: how players qualify from group stage
 // WINS: Both Round Robin and Swiss use 2/1/0 (win/tie/loss)
 // POINTS: Sum of all Crokinole points scored
-export type GroupRankingSystem = 'WINS' | 'POINTS';
+export type QualificationMode = 'WINS' | 'POINTS';
 
-// Legacy alias for backwards compatibility
-export type SwissRankingSystem = GroupRankingSystem;
+// Legacy aliases for backwards compatibility
+export type GroupRankingSystem = QualificationMode;
+export type SwissRankingSystem = QualificationMode;
 
 // Match status
 export type MatchStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'WALKOVER';
@@ -149,8 +150,9 @@ export interface GroupStage {
   // Configuration specific to group stage type
   numGroups?: number;          // For Round Robin
   numSwissRounds?: number;     // For Swiss
-  rankingSystem?: GroupRankingSystem;  // How to rank: 'WINS' (2/1/0 for both RR and Swiss) or 'POINTS' (total scored)
-  swissRankingSystem?: SwissRankingSystem;  // @deprecated - use rankingSystem instead
+  qualificationMode?: QualificationMode;  // How players qualify: 'WINS' (2/1/0) or 'POINTS' (total scored)
+  rankingSystem?: GroupRankingSystem;  // @deprecated - use qualificationMode instead
+  swissRankingSystem?: SwissRankingSystem;  // @deprecated - use qualificationMode instead
 }
 
 /**
@@ -315,6 +317,7 @@ export interface BracketWithConfig {
 export interface FinalStage {
   mode: FinalStageMode;                       // Single bracket or split divisions
   consolationEnabled?: boolean;               // Enable consolation brackets for eliminated players (applies to both brackets)
+  thirdPlaceMatchEnabled?: boolean;           // Enable 3rd/4th place match (semifinal losers play for 3rd place)
   goldBracket: BracketWithConfig;             // Gold bracket (always present)
   silverBracket?: BracketWithConfig;          // Silver bracket (only for SPLIT_DIVISIONS)
   isComplete: boolean;

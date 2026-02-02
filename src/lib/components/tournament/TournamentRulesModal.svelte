@@ -117,8 +117,8 @@
       : null
   );
 
-  // Get group ranking system
-  let groupRankingSystem = $derived(tournament.groupStage?.rankingSystem || 'WINS');
+  // Get group qualification mode
+  let groupQualificationMode = $derived(tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || 'WINS');
 
   // Check if group stage is in rounds mode (ties allowed)
   let groupAllowsTies = $derived(tournament.groupStage?.gameMode === 'rounds');
@@ -160,6 +160,9 @@
 
   // Check if tournament has split divisions (Gold/Silver)
   let hasSplitDivisions = $derived(tournament.finalStage?.mode === 'SPLIT_DIVISIONS');
+
+  // Check if 3rd place match is enabled
+  let hasThirdPlaceMatch = $derived(tournament.finalStage?.thirdPlaceMatchEnabled ?? true);
 
   // Check if any final stage phase uses rounds mode (for tiebreak note)
   let finalStageHasRoundsMode = $derived((() => {
@@ -286,7 +289,7 @@
               <!-- eslint-disable-next-line svelte/no-at-html-tags -->
               <li>{@html formatText(m.rules_groupTiesAllowed())}</li>
             {/if}
-            {#if groupRankingSystem === 'WINS'}
+            {#if groupQualificationMode === 'WINS'}
               <!-- eslint-disable-next-line svelte/no-at-html-tags -->
               <li>{@html formatText(m.rules_groupClassificationByWins())}</li>
               <!-- eslint-disable-next-line svelte/no-at-html-tags -->
@@ -385,6 +388,17 @@
         {#if finalStageHasRoundsMode}
           <!-- eslint-disable-next-line svelte/no-at-html-tags -->
           <p class="tiebreak-note">{@html formatText(m.rules_roundsModeTiebreakNote())}</p>
+        {/if}
+
+        <!-- Third place match info -->
+        {#if hasThirdPlaceMatch}
+          <p class="third-place-note">
+            🥉 {hasSplitDivisions ? m.rules_thirdPlaceMatchSplitDivisions() : m.rules_thirdPlaceMatch()}
+          </p>
+        {:else}
+          <p class="third-place-note no-third-place">
+            {m.rules_noThirdPlaceMatch()}
+          </p>
         {/if}
 
       </section>
@@ -636,6 +650,22 @@
     border-left: 2px solid rgba(250, 112, 154, 0.4);
   }
 
+  .third-place-note {
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    padding: 0.5rem 0.75rem;
+    background: rgba(205, 127, 50, 0.12);
+    border-radius: 6px;
+    border-left: 3px solid #cd7f32;
+  }
+
+  .third-place-note.no-third-place {
+    background: rgba(255, 255, 255, 0.05);
+    border-left-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.6);
+  }
+
   .brackets-row {
     display: flex;
     gap: 0.75rem;
@@ -765,6 +795,18 @@
   .modal-backdrop[data-theme='light'] .tiebreak-note {
     color: rgba(0, 0, 0, 0.6);
     border-left-color: rgba(214, 51, 132, 0.4);
+  }
+
+  .modal-backdrop[data-theme='light'] .third-place-note {
+    color: rgba(0, 0, 0, 0.75);
+    background: rgba(205, 127, 50, 0.1);
+    border-left-color: #b87333;
+  }
+
+  .modal-backdrop[data-theme='light'] .third-place-note.no-third-place {
+    background: rgba(0, 0, 0, 0.03);
+    border-left-color: rgba(0, 0, 0, 0.2);
+    color: rgba(0, 0, 0, 0.5);
   }
 
   .modal-backdrop[data-theme='light'] .phase-duration {

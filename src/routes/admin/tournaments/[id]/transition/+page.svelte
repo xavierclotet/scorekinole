@@ -81,7 +81,7 @@
   let silverFinalMatchesToWin = $state(1);
 
   // Global top N value for all groups
-  let topNPerGroup = $state(2);
+  let topNPerGroup = $state(4);
 
   // Track unresolved ties per group
   let groupTiesStatus = $state<Map<number, boolean>>(new Map());
@@ -92,6 +92,11 @@
     tournament?.finalStage?.consolationEnabled ??
     (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled '] ?? // Typo fallback
     false
+  );
+
+  // Get thirdPlaceMatchEnabled from tournament's finalStage (set during creation, default to true)
+  let thirdPlaceMatchEnabled = $derived(
+    tournament?.finalStage?.thirdPlaceMatchEnabled ?? true
   );
 
   let tournamentId = $derived($page.params.id);
@@ -134,8 +139,8 @@
         const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
         topNPerGroup = Math.ceil(participantsPerGroup / 2);
       } else {
-        // Multiple groups: use suggested
-        topNPerGroup = suggestedQualifiers.perGroup;
+        // Multiple groups: default to 4 per group
+        topNPerGroup = 4;
       }
       topNInitialized = true;
     }
@@ -424,8 +429,8 @@
           }
         };
         // Generate bracket - config will be stored inside goldBracket.config
-        // Pass consolationEnabled from tournament's finalStage (set during creation)
-        const bracketSuccess = await generateBracket(tournamentId, bracketConfig, consolationEnabled);
+        // Pass consolationEnabled and thirdPlaceMatchEnabled from tournament's finalStage (set during creation)
+        const bracketSuccess = await generateBracket(tournamentId, bracketConfig, consolationEnabled, thirdPlaceMatchEnabled);
 
         if (!bracketSuccess) {
           toastMessage = m.admin_errorGeneratingBracket();
@@ -444,11 +449,12 @@
         }
 
         // Generate both Gold and Silver brackets with per-phase configuration (new structure)
-        // Pass consolationEnabled from tournament's finalStage (set during creation)
+        // Pass consolationEnabled and thirdPlaceMatchEnabled from tournament's finalStage (set during creation)
         const bracketSuccess = await generateSplitBrackets(tournamentId, {
           goldParticipantIds: goldParticipants,
           silverParticipantIds: silverParticipants,
           consolationEnabled,
+          thirdPlaceMatchEnabled,
           goldConfig: {
             earlyRounds: {
               gameMode: earlyRoundsGameMode,

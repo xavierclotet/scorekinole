@@ -128,6 +128,9 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
   const roundsToPlay = existingGroupStage?.roundsToPlay || 4;
   const matchesToWin = existingGroupStage?.matchesToWin || 1;
 
+  // Get qualification mode (WINS = 2/1/0 points, POINTS = total crokinole points scored)
+  const qualificationMode = existingGroupStage?.qualificationMode || existingGroupStage?.rankingSystem || existingGroupStage?.swissRankingSystem || 'WINS';
+
   if (groupStageType === 'ROUND_ROBIN') {
     // Import and generate schedule
     const { splitIntoGroups, generateRoundRobinSchedule: generateRRSchedule, assignTablesGlobally } = await import('$lib/algorithms/roundRobin');
@@ -168,7 +171,8 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
       pointsToWin: gameMode === 'points' ? pointsToWin : undefined,
       roundsToPlay: gameMode === 'rounds' ? roundsToPlay : undefined,
       matchesToWin,
-      numGroups
+      numGroups,
+      qualificationMode
     };
   } else if (groupStageType === 'SWISS') {
     // For Swiss, generate first round
@@ -209,7 +213,8 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
       pointsToWin: gameMode === 'points' ? pointsToWin : undefined,
       roundsToPlay: gameMode === 'rounds' ? roundsToPlay : undefined,
       matchesToWin,
-      numSwissRounds
+      numSwissRounds,
+      qualificationMode
     };
   }
 
@@ -314,8 +319,11 @@ async function startFinalStage(tournamentId: string): Promise<boolean> {
     }
   }
 
-  // Generate bracket
-  const bracketSuccess = await generateBracket(tournamentId);
+  // Generate bracket with config from tournament's finalStage
+  const consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
+  const thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
+  const bracketConfig = tournament.finalStage?.goldBracket?.config;
+  const bracketSuccess = await generateBracket(tournamentId, bracketConfig, consolationEnabled, thirdPlaceMatchEnabled);
   if (!bracketSuccess) {
     console.error('Failed to generate bracket');
     return false;

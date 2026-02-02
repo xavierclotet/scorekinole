@@ -3,6 +3,12 @@ import type { GameSettings } from './types/settings';
 export const APP_VERSION = '2.2.8';
 export const APP_NAME = 'Scorekinole';
 
+/**
+ * Batch size for Firestore bulk writes (autofill, simulate matches)
+ * Prevents "Write stream exhausted" error when many writes are queued
+ */
+export const FIRESTORE_BATCH_SIZE = 20;
+
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
     appVersion: APP_VERSION,
     pointsToWin: 7,

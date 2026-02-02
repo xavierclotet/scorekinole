@@ -375,7 +375,7 @@
       <!-- Groups View -->
       <div class="groups-section">
         {#each tournament.groupStage.groups as group (group.id)}
-          {@const rankSystem = tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
+          {@const qualMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
           <div class="group-card">
             <h3 class="group-title">{translateGroupName(group.name)}</h3>
 
@@ -384,7 +384,7 @@
               <div class="standings-header">
                 <h4>
                   {m.tournament_standings()}
-                  <span class="ranking-system-badge">{rankSystem === 'POINTS' ? m.tournament_byPoints() : m.tournament_byWins()}</span>
+                  <span class="ranking-system-badge">{qualMode === 'POINTS' ? m.tournament_byPoints() : m.tournament_byWins()}</span>
                 </h4>
                 <button
                   class="recalc-btn"
@@ -403,7 +403,7 @@
                 standings={group.standings}
                 participants={tournament.participants}
                 isSwiss={tournament.groupStage?.type === 'SWISS'}
-                rankingSystem={tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
+                qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
               />
             </div>
 

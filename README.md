@@ -187,6 +187,25 @@ Complete tournament administration system for professional Crokinole events:
 
 ---
 
+## 📖 Scoring Terminology
+
+Crokinole scoring in this app follows a three-level hierarchy:
+
+| Level | English | Spanish | Catalan | Description |
+|-------|---------|---------|---------|-------------|
+| **Round** | round | ronda | ronda | Single exchange of discs (0-2 points) |
+| **Game** | game | partida | partida | Play to target points (e.g., first to 7) |
+| **Match** | match | encuentro | encontre | Set of games in Pg format (e.g., Pg2) |
+
+### Abbreviations
+- **Pg** (Primero que gane / First to win): Number of games needed to win the match
+  - Pg2 = First to win 2 games
+  - Pg3 = First to win 3 games
+- **p** (puntos / points): Game by points (e.g., 7p = first to 7 points)
+- **r** (rondas / rounds): Game by rounds (e.g., 4r = play 4 rounds)
+
+---
+
 ## 📞 Support & Feedback
 
 Need help or want to report a bug?
