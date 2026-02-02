@@ -117,6 +117,12 @@
       : null
   );
 
+  // Get group ranking system
+  let groupRankingSystem = $derived(tournament.groupStage?.rankingSystem || 'WINS');
+
+  // Check if group stage is in rounds mode (ties allowed)
+  let groupAllowsTies = $derived(tournament.groupStage?.gameMode === 'rounds');
+
   // Calculate tables/players info
   let tablesInfo = $derived((() => {
     const numPlayers = tournament.participants.length;
@@ -154,6 +160,15 @@
 
   // Check if tournament has split divisions (Gold/Silver)
   let hasSplitDivisions = $derived(tournament.finalStage?.mode === 'SPLIT_DIVISIONS');
+
+  // Check if any final stage phase uses rounds mode (for tiebreak note)
+  let finalStageHasRoundsMode = $derived((() => {
+    const goldConfig = tournament.finalStage?.goldBracket?.config;
+    if (!goldConfig) return false;
+    return goldConfig.earlyRounds.gameMode === 'rounds' ||
+           goldConfig.semifinal.gameMode === 'rounds' ||
+           goldConfig.final.gameMode === 'rounds';
+  })());
 
   // Helper to convert markdown bold to HTML
   function formatText(text: string): string {
@@ -266,6 +281,23 @@
             {@html formatText(groupSystemExplanation || '')}.
             {m.rules_groupGameMode({ mode: groupGameMode || '' })}.
           </p>
+          <ul class="classification-rules">
+            {#if groupAllowsTies}
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              <li>{@html formatText(m.rules_groupTiesAllowed())}</li>
+            {/if}
+            {#if groupRankingSystem === 'WINS'}
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              <li>{@html formatText(m.rules_groupClassificationByWins())}</li>
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              <li>{@html formatText(m.rules_groupTiebreakByWins())}</li>
+            {:else}
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              <li>{@html formatText(m.rules_groupClassificationByPoints())}</li>
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              <li>{@html formatText(m.rules_groupTiebreakByPoints())}</li>
+            {/if}
+          </ul>
         </section>
       {/if}
 
@@ -348,6 +380,11 @@
               </li>
             </ul>
           {/if}
+        {/if}
+
+        {#if finalStageHasRoundsMode}
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          <p class="tiebreak-note">{@html formatText(m.rules_roundsModeTiebreakNote())}</p>
         {/if}
 
       </section>
@@ -569,6 +606,36 @@
     font-weight: bold;
   }
 
+  .classification-rules {
+    margin: 0.75rem 0 0;
+    padding-left: 1.25rem;
+    list-style: none;
+  }
+
+  .classification-rules li {
+    position: relative;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+    margin-bottom: 0.35rem;
+    padding-left: 0.5rem;
+  }
+
+  .classification-rules li::before {
+    content: '•';
+    position: absolute;
+    left: -0.65rem;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .tiebreak-note {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-style: italic;
+    padding-left: 0.5rem;
+    border-left: 2px solid rgba(250, 112, 154, 0.4);
+  }
+
   .brackets-row {
     display: flex;
     gap: 0.75rem;
@@ -685,6 +752,19 @@
 
   .modal-backdrop[data-theme='light'] .phase-list li {
     color: rgba(0, 0, 0, 0.75);
+  }
+
+  .modal-backdrop[data-theme='light'] .classification-rules li {
+    color: rgba(0, 0, 0, 0.65);
+  }
+
+  .modal-backdrop[data-theme='light'] .classification-rules li::before {
+    color: rgba(0, 0, 0, 0.35);
+  }
+
+  .modal-backdrop[data-theme='light'] .tiebreak-note {
+    color: rgba(0, 0, 0, 0.6);
+    border-left-color: rgba(214, 51, 132, 0.4);
   }
 
   .modal-backdrop[data-theme='light'] .phase-duration {

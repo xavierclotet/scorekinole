@@ -656,5 +656,22 @@
   "rules_roundRobinMultiGroup": "Els participants es divideixen en ** {n} grups** on **tots juguen contra tots**",
   "rules_roundRobinSingleGroup": "**Tots juguen contra tots** en un únic grup",
   "rules_swissExplanation": "**Sistema Suís** a ** {n} rondes**: cada ronda aparella jugadors amb puntuació similar",
-  "rules_rulesOf": "Regles de"
+  "rules_rulesOf": "Regles de",
+  "update_available": "Actualització Disponible",
+  "update_currentVersion": "Versió actual",
+  "update_download": "Descarregar",
+  "update_latestVersion": "Última versió",
+  "update_newVersionAvailable": "Hi ha una nova versió disponible. Actualitza per obtenir les darreres millores i correccions.",
+  "common_later": "Més tard",
+  "common_offlineMode": "Sense connexió",
+  "sync_error": "Error de sincronització",
+  "sync_synced": "Sincronitzat",
+  "sync_syncing": "Sincronitzant...",
+  "rules_groupClassificationByPoints": "Classificació: per **punts totals de Crokinole** acumulats",
+  "rules_groupClassificationByWins": "Classificació: **2 pts** per victòria, **1 pt** per empat, **0 pts** per derrota",
+  "rules_groupTiebreakByPoints": "En cas d'empat: primer **total de 20s**, després **enfrontament directe**",
+  "rules_groupTiebreakByWins": "En cas d'empat: primer **enfrontament directe**, després **total de 20s**",
+  "rules_groupTiesAllowed": "En partits a rondes **hi pot haver empats** (punts igualats al final)",
+  "rules_roundsModeTiebreakNote": "En mode rondes, si hi ha empat al final es juguen **rondes extra** fins que un jugador guanyi per **2 punts de diferència**.",
+  "rules_legendPg": "Pg = Primer que guanyi (ex: Pg2 = primer que guanyi 2 partides)"
 }

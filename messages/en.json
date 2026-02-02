@@ -656,5 +656,22 @@
   "rules_roundRobinMultiGroup": "The participants are divided into ** {n} groups** where **everyone plays against everyone**",
   "rules_roundRobinSingleGroup": "**Everyone plays against everyone** in a single group",
   "rules_swissExplanation": "**Swiss System** in ** {n} rounds**: each round pairs players with similar scores",
-  "rules_rulesOf": "Rules of"
+  "rules_rulesOf": "Rules of",
+  "update_available": "Update Available",
+  "update_currentVersion": "Current version",
+  "update_download": "Discharge",
+  "update_latestVersion": "Latest version",
+  "update_newVersionAvailable": "A new version is available. Update to get the latest improvements and fixes.",
+  "common_later": "Later",
+  "common_offlineMode": "No connection",
+  "sync_error": "Synchronization error",
+  "sync_synced": "Synchronized",
+  "sync_syncing": "Synchronizing...",
+  "rules_groupClassificationByPoints": "Ranking: by **total Crokinole points** accumulated",
+  "rules_groupClassificationByWins": "Classification: **2 pts** for a win, **1 pt** for a draw, **0 pts** for a loss",
+  "rules_groupTiebreakByPoints": "In case of a tie: first **total of 20s**, then **head-to-head**",
+  "rules_groupTiebreakByWins": "In case of a tie: first **head-to-head**, then **total of 20s**",
+  "rules_groupTiesAllowed": "In round-robin matches, **ties may occur** (points tied at the end).",
+  "rules_roundsModeTiebreakNote": "In rounds mode, if there is a tie at the end, **extra rounds** are played until one player wins by **2 points**.",
+  "rules_legendPg": "Pg = First to win (e.g., Pg2 = first to win 2 games)"
 }

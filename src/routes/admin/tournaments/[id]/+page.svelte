@@ -688,6 +688,7 @@
                   </div>
                 {/if}
               </div>
+              <p class="legend">{m.rules_legendPg()}</p>
 
             {:else}
               <div class="config-list">
@@ -699,7 +700,7 @@
             {/if}
           </section>
 
-          
+
         </div>
       {/if}
     </div>
@@ -1339,6 +1340,18 @@
 
   .config-item.phase-config .config-value {
     font-size: 0.75rem;
+  }
+
+  .legend {
+    font-size: 0.7rem;
+    color: #888;
+    margin: 0.75rem 0 0;
+    text-align: right;
+    font-style: italic;
+  }
+
+  .tournament-page[data-theme='dark'] .legend {
+    color: #6b7a94;
   }
 
   /* Consolation badge */
