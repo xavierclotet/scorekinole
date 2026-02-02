@@ -25,12 +25,17 @@
 	// Track previous isOpen state to detect when dialog opens
 	let wasOpen = $state(false);
 
+	// Prevent click-through: track when dialog opens and ignore clicks for a short period
+	let openTime = $state(0);
+	const CLICK_THROUGH_DELAY = 150; // ms to ignore clicks after opening
+
 	// Reset values when dialog opens (using $effect.pre to run before render)
 	$effect.pre(() => {
 		if (isOpen && !wasOpen) {
-			// Dialog just opened - reset values
+			// Dialog just opened - reset values and record open time
 			team1Twenty = null;
 			team2Twenty = null;
+			openTime = Date.now();
 		}
 		wasOpen = isOpen;
 	});
@@ -76,6 +81,10 @@
 	let team2HeaderColor = $derived(getColorForDarkBackground($team2.color));
 
 	function selectTeam1Twenty(count: number) {
+		// Prevent click-through: ignore clicks that happen too soon after dialog opens
+		if (Date.now() - openTime < CLICK_THROUGH_DELAY) {
+			return;
+		}
 		team1Twenty = count;
 		// Auto-save and close when both teams have values
 		if (team2Twenty !== null) {
@@ -84,6 +93,10 @@
 	}
 
 	function selectTeam2Twenty(count: number) {
+		// Prevent click-through: ignore clicks that happen too soon after dialog opens
+		if (Date.now() - openTime < CLICK_THROUGH_DELAY) {
+			return;
+		}
 		team2Twenty = count;
 		// Auto-save and close when both teams have values
 		if (team1Twenty !== null) {
@@ -286,21 +299,21 @@
 
 	@media (max-height: 500px) and (orientation: landscape) {
 		.dialog {
-			padding: 1rem;
+			padding: 1rem 1.5rem;
 			max-height: 95vh;
 		}
 
 		.title {
 			font-size: 0.85rem;
-			margin-bottom: 0.75rem;
+			margin-bottom: 0.5rem;
 		}
 
 		.teams {
-			gap: 1.5rem;
+			gap: 2rem;
 		}
 
 		.team-column {
-			gap: 0.5rem;
+			gap: 0.4rem;
 		}
 
 		.team-name {
@@ -308,14 +321,14 @@
 		}
 
 		.number-grid {
-			grid-template-columns: repeat(5, 1fr);
-			gap: 0.35rem;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 0.4rem;
 		}
 
 		.num-btn {
-			font-size: 1.1rem;
+			font-size: 1.6rem;
 			aspect-ratio: auto;
-			padding: 0.5rem 0.4rem;
+			padding: 0.35rem 0.5rem;
 		}
 	}
 </style>

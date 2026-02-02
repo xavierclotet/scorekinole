@@ -705,7 +705,8 @@
 	}
 
 	.team-header button,
-	.team-header input {
+	.team-header input,
+	.team-header .team-name-display {
 		pointer-events: auto;
 	}
 

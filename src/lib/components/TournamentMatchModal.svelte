@@ -7,6 +7,7 @@
 		getPendingMatchesForUser,
 		getAllPendingMatches,
 		startTournamentMatch,
+		resumeTournamentMatch,
 		type PendingMatchInfo
 	} from '$lib/firebase/tournamentMatches';
 	import {
@@ -566,18 +567,53 @@
 			}
 
 			// Get existing match data (rounds, gamesWon) for resuming
-			const match = selectedMatch.match as any;
-			const existingRounds = match.rounds || [];
-			const gamesWonA = match.gamesWonA || 0;
-			const gamesWonB = match.gamesWonB || 0;
+			// IMPORTANT: When resuming, fetch fresh data from Firebase to get latest rounds
+			let existingRounds: any[] = [];
+			let gamesWonA = 0;
+			let gamesWonB = 0;
+
+			if (isResumingMatch) {
+				// Fetch fresh match data from Firebase
+				console.log('🔄 Resuming match - fetching fresh data from Firebase...');
+				const resumeResult = await resumeTournamentMatch(
+					tournament.id,
+					selectedMatch.match.id,
+					selectedMatch.phase,
+					selectedMatch.groupId
+				);
+
+				if (resumeResult.success && resumeResult.match) {
+					const freshMatch = resumeResult.match as any;
+					existingRounds = freshMatch.rounds || [];
+					gamesWonA = freshMatch.gamesWonA || 0;
+					gamesWonB = freshMatch.gamesWonB || 0;
+					console.log('✅ Fresh match data retrieved:', {
+						rounds: existingRounds.length,
+						gamesWonA,
+						gamesWonB
+					});
+				} else {
+					// Fallback to cached data if fresh fetch fails
+					console.warn('⚠️ Could not fetch fresh data, using cached match data');
+					const match = selectedMatch.match as any;
+					existingRounds = match.rounds || [];
+					gamesWonA = match.gamesWonA || 0;
+					gamesWonB = match.gamesWonB || 0;
+				}
+			} else {
+				// For new matches, use the cached data (should be empty anyway)
+				const match = selectedMatch.match as any;
+				existingRounds = match.rounds || [];
+				gamesWonA = match.gamesWonA || 0;
+				gamesWonB = match.gamesWonB || 0;
+			}
 
 			console.log('🔍 TournamentMatchModal - Datos del match:', {
-				matchId: match.id,
-				status: match.status,
-				rounds: match.rounds,
-				gamesWonA: match.gamesWonA,
-				gamesWonB: match.gamesWonB,
-				existingRoundsExtracted: existingRounds
+				matchId: selectedMatch.match.id,
+				isResumingMatch,
+				existingRoundsCount: existingRounds.length,
+				gamesWonA,
+				gamesWonB
 			});
 
 			// Calculate current game number from existing rounds
@@ -875,7 +911,7 @@
 															{:else}
 																{matchDisplay.match.gameConfig.roundsToPlay}R
 															{/if}
-															{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}
+															{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
 														</span>
 													</div>
 													<div class="match-row-bottom">
@@ -910,7 +946,7 @@
 												{:else}
 													{matchDisplay.match.gameConfig.roundsToPlay}R
 												{/if}
-												{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}
+												{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
 											</span>
 										</div>
 										<div class="match-row-bottom">
@@ -984,7 +1020,7 @@
 																			{:else}
 																				{matchDisplay.match.gameConfig.roundsToPlay}R
 																			{/if}
-																			{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}
+																			{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
 																		</span>
 																	</div>
 																	<div class="match-row-bottom">
@@ -1017,7 +1053,7 @@
 																{:else}
 																	{matchDisplay.match.gameConfig.roundsToPlay}R
 																{/if}
-																{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}
+																{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
 															</span>
 														</div>
 														<div class="match-row-bottom">

@@ -17,7 +17,9 @@
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
 	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
-		import { APP_VERSION } from '$lib/constants';
+	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
+	import { onReconnect, setSyncStatus } from '$lib/utils/networkStatus';
+	import { APP_VERSION } from '$lib/constants';
 	import {
 		gameTournamentContext,
 		loadTournamentContext,
@@ -238,8 +240,31 @@
 			}
 		});
 
+		// Auto-sync tournament data when connection is restored
+		const unsubReconnect = onReconnect(async () => {
+			const context = get(gameTournamentContext);
+			if (context && !tournamentMatchCompletedSent) {
+				console.log('🔄 Connection restored - syncing tournament data...');
+				setSyncStatus('syncing');
+				try {
+					const savedData = saveTournamentProgressToLocalStorage();
+					if (savedData) {
+						await syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB);
+						setSyncStatus('success');
+						console.log('✅ Tournament data synced after reconnect');
+					} else {
+						setSyncStatus('idle');
+					}
+				} catch (error) {
+					console.error('❌ Failed to sync after reconnect:', error);
+					setSyncStatus('error');
+				}
+			}
+		});
+
 		return () => {
 			unsubSettings();
+			unsubReconnect();
 		};
 	});
 
@@ -824,6 +849,11 @@
 	});
 
 	function handleResetMatch() {
+		// Clear any stale tournament context when starting a new friendly match
+		if ($gameTournamentContext) {
+			clearTournamentContext();
+		}
+
 		resetTeams();
 		resetMatchState();
 		isInExtraRounds = false;
@@ -1386,6 +1416,7 @@
 			</div>
 
 			<div class="header-right">
+				<OfflineIndicator />
 				<button class="header-btn" onclick={handleSwitchSides} aria-label={m.scoring_switchSides()} title={m.scoring_switchSides()}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/></svg>
 				</button>
@@ -1451,6 +1482,7 @@
 			</div>
 
 			<div class="header-right">
+				<OfflineIndicator />
 				<button class="header-btn" onclick={() => showHistory = true} aria-label="History" title={m.history_matchHistory()}>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 				</button>
@@ -1812,7 +1844,7 @@
 	.header-logo-arena {
 		font-style: italic;
 		font-weight: 700;
-		font-size: 0.65rem;
+		font-size: 0.75rem;
 		color: #e85a5a;
 		transform: rotate(-8deg);
 		letter-spacing: 0.08em;
@@ -1823,13 +1855,13 @@
 	.header-logo-version {
 		font-style: italic;
 		font-weight: 500;
-		font-size: 0.5rem;
+		font-size: 0.6rem;
 		color: rgba(255, 255, 255, 0.55);
 		transform: rotate(-8deg);
 		letter-spacing: 0.05em;
 		line-height: 1;
-		margin-top: 0.12rem;
-		margin-left: 0.1rem;
+		margin-top: 0.1rem;
+		margin-left: 0.12rem;
 	}
 
 	.header-logo:hover {

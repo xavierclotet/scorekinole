@@ -2808,7 +2808,9 @@
     margin: 0 auto;
     padding: 0;
     min-height: 100vh;
+    min-height: 100dvh;
     max-height: 100vh;
+    max-height: 100dvh;
     display: flex;
     flex-direction: column;
     background: #f5f5f5;

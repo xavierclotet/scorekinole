@@ -4,6 +4,8 @@
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
+  import { setSyncStatus } from '$lib/utils/networkStatus';
   import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
@@ -270,6 +272,8 @@
   }) {
     if (!selectedMatch || !tournamentId) return;
 
+    setSyncStatus('syncing');
+
     // Determine winner based on game mode
     const gameMode = tournament?.groupStage?.gameMode || 'rounds';
     let winner: string;
@@ -309,11 +313,13 @@
       showToast = true;
       showMatchDialog = false;
       selectedMatch = null;
+      setSyncStatus('success');
       // No need to reload - real-time subscription will update
     } else {
       toastMessage = m.admin_errorSavingResult();
       toastType = 'error';
       showToast = true;
+      setSyncStatus('error');
     }
   }
 
@@ -746,6 +752,7 @@
                 </button>
               {/if}
             {/if}
+            <OfflineIndicator />
             <ThemeToggle />
           </div>
         </div>

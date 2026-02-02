@@ -101,6 +101,27 @@
 			window.removeEventListener('touchend', handleTouchEnd);
 		};
 	});
+
+	// Reset timer position when orientation changes
+	$effect(() => {
+		let lastOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+
+		function handleOrientationChange() {
+			const currentOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+			if (currentOrientation !== lastOrientation) {
+				lastOrientation = currentOrientation;
+				// Reset timer position to center
+				gameSettings.update(s => ({ ...s, timerX: null, timerY: null }));
+				gameSettings.save();
+			}
+		}
+
+		window.addEventListener('resize', handleOrientationChange);
+
+		return () => {
+			window.removeEventListener('resize', handleOrientationChange);
+		};
+	});
 </script>
 
 <div

@@ -4,6 +4,8 @@
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
+  import { setSyncStatus } from '$lib/utils/networkStatus';
   import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
@@ -746,6 +748,7 @@
     }
 
     isSavingMatch = true;
+    setSyncStatus('syncing');
 
     try {
       // Determine winner based on games won
@@ -778,16 +781,19 @@
         toastMessage = m.admin_resultSavedSuccessfully();
         toastType = 'success';
         selectedMatch = null;
+        setSyncStatus('success');
         // No need to reload - real-time subscription will update
       } else {
         toastMessage = m.admin_errorSavingResult();
         toastType = 'error';
+        setSyncStatus('error');
       }
       showToast = true;
     } catch (err) {
       console.error('Error saving match:', err);
       toastMessage = m.admin_errorSavingResult();
       toastType = 'error';
+      setSyncStatus('error');
       showToast = true;
     } finally {
       isSavingMatch = false;
@@ -1402,6 +1408,7 @@
                 {isAutoFilling ? `⏳` : `🎲`}
               </button>
             {/if}
+            <OfflineIndicator />
             <ThemeToggle />
           </div>
         </div>

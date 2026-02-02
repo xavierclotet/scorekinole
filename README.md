@@ -60,7 +60,17 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 - **Singles & Doubles**: Different max values (8 for singles, 12 for doubles)
 - **Quick Actions**: Reset game, switch sides, swap colors instantly
 - **Edit Matches**: Modify points and 20s for any completed round
-- **Offline Mode**: Works perfectly without internet connection
+
+### 📶 **Offline Mode & Network Status**
+- **Offline-First**: Works perfectly without internet connection
+- **Connection Indicator**: Visual status icon in header shows connection state
+  - 🔶 **Offline**: WiFi-off icon when no internet
+  - 🔵 **Syncing**: Spinning icon when syncing data
+  - 🟢 **Synced**: Check icon when sync complete (auto-hides)
+  - 🔴 **Error**: Warning icon if sync fails
+- **Auto-Sync for Tournaments**: When connection is restored during a tournament match, data syncs automatically to Firebase
+- **Manual Sync for Friendly Matches**: Use "Sync All" button in History to upload pending matches
+- **Admin Sync Feedback**: Tournament admins see sync status when saving match results in Groups and Bracket pages
 
 ### 🏆 **Tournament Management (Admin)**
 
@@ -126,6 +136,7 @@ Complete tournament administration system for professional Crokinole events:
 - **20s tracking**: Optional center shot counting
 - **Hammer display**: Visual hammer indicator
 - **No-show handling**: Walkover support
+- **Network status indicator**: Visual feedback for connection state and sync status when saving results
 
 #### **Visualization**
 - **Beautiful bracket display**: Visual connectors between matches
