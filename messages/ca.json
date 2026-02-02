@@ -569,7 +569,7 @@
   "tournament_totalCrokinolePoints": "Punts totals de Crokinole",
   "tournament_totalPoints": "Punts Totals",
   "tournament_totalPointsLabel": "Punts Totals",
-  "tournament_totalPointsScored": "Punts Anotats",
+  "tournament_totalPointsScored": "Punts",
   "tournament_totalTwentiesLabel": "Total 20s",
   "tournament_tryAgain": "Torna-ho a provar",
   "tournament_tryChangingFilters": "Prova canviant els filtres",
@@ -784,5 +784,11 @@
   "wizard_showHammer": "Mostra hammer",
   "wizard_onePhase": "1 Fase",
   "wizard_twoPhases": "2 Fases",
-  "wizard_groupsElimination": "Grups + Eliminatòria"
+  "wizard_groupsElimination": "Grups + Eliminatòria",
+  "admin_autoFillingMatches": "Autoremplenant partits...",
+  "rules_thirdPlaceMatch": "Els perdedors de les semifinals juguen el partit de 3r i 4t lloc.",
+  "rules_thirdPlaceMatchSplitDivisions": "A cada quadre (Or i Plata), els perdedors de les semifinals juguen el partit de 3er i 4t lloc.",
+  "rules_noThirdPlaceMatch": "No hi ha partit de tercer lloc. Els perdedors de semifinals queden empatats en 3a-4a posició.",
+  "wizard_thirdPlaceMatch": "Partit de 3er lloc",
+  "wizard_thirdPlaceMatchDesc": "Els perdedors de semifinals juguen pel 3r i 4t lloc"
 }

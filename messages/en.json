@@ -784,5 +784,11 @@
   "wizard_showHammer": "Show hammer",
   "wizard_onePhase": "1 Phase",
   "wizard_twoPhases": "2 Phases",
-  "wizard_groupsElimination": "Groups + Elimination"
+  "wizard_groupsElimination": "Groups + Elimination",
+  "admin_autoFillingMatches": "Autofilling matches...",
+  "rules_thirdPlaceMatch": "The losers of the semi-finals play the 3rd and 4th place match.",
+  "rules_thirdPlaceMatchSplitDivisions": "In each bracket (Gold and Silver), the losers of the semi-finals play the 3rd and 4th place match.",
+  "rules_noThirdPlaceMatch": "There is no third-place match. The losers of the semi-finals are tied for 3rd-4th place.",
+  "wizard_thirdPlaceMatch": "3rd place match",
+  "wizard_thirdPlaceMatchDesc": "The losers of the semi-finals play for 3rd and 4th place"
 }
