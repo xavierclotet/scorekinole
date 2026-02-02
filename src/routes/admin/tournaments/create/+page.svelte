@@ -16,6 +16,7 @@
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
+  import { getLocale } from '$lib/paraglide/runtime.js';
 
   // Edit mode
   let editMode = $state(false);
@@ -83,6 +84,8 @@
 
   // Advanced bracket phase configuration
   let showAdvancedBracketConfig = $state(false);
+  // Review step accordion
+  let participantsExpanded = $state(false);
   // Early rounds (octavos, cuartos)
   let earlyRoundsGameMode = $state<'points' | 'rounds'>('rounds');
   let earlyRoundsPointsToWin = $state(7);
@@ -124,6 +127,17 @@
 
   // Step 4: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
+
+  // Natural sort function for names (handles "Player1" vs "Player11" correctly)
+  function naturalSort(a: string, b: string): number {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  // Sorted participants for display
+  let sortedParticipants = $derived(
+    [...participants].sort((a, b) => naturalSort(a.name || '', b.name || ''))
+  );
+
   let searchQuery = $state('');
   let searchResults = $state<(UserProfile & { userId: string })[]>([]);
   let searchLoading = $state(false);
@@ -865,30 +879,30 @@
     saveDraft(); // Save after adding guest
   }
 
-  function removeParticipant(index: number) {
-    participants = participants.filter((_, i) => i !== index);
+  function removeParticipant(participant: Partial<TournamentParticipant>) {
+    participants = participants.filter(p => p !== participant);
     saveDraft(); // Save after removing participant
   }
 
   function getStep1Errors(): string[] {
     const errors: string[] = [];
     if (!name.trim()) {
-      errors.push('El nombre del torneo es obligatorio');
+      errors.push(m.wizard_errorNameRequired());
     }
     if (!/^[A-Z0-9]{6}$/.test(key)) {
-      errors.push('La clave debe ser exactamente 6 caracteres alfanuméricos (A-Z, 0-9)');
+      errors.push(m.wizard_errorKeyFormat());
     }
     if (keyCheckResult?.exists) {
-      errors.push(`La clave "${key}" ya está en uso por otro torneo`);
+      errors.push(m.wizard_errorKeyInUse({ key }));
     }
     if (!edition || edition < 1 || edition > 1000) {
-      errors.push('La edición debe ser un número entre 1 y 1000');
+      errors.push(m.wizard_errorEditionRange());
     }
     if (!country) {
-      errors.push('El país es obligatorio');
+      errors.push(m.wizard_errorCountryRequired());
     }
     if (!city.trim()) {
-      errors.push('La ciudad es obligatoria');
+      errors.push(m.wizard_errorCityRequired());
     }
     return errors;
   }
@@ -896,13 +910,13 @@
   function getStep2Errors(): string[] {
     const errors: string[] = [];
     if (numTables < 1) {
-      errors.push('Debe haber al menos 1 mesa');
+      errors.push(m.wizard_errorMinTables());
     }
     if (phaseType === 'TWO_PHASE' && groupStageType === 'ROUND_ROBIN' && numGroups < 1) {
-      errors.push('Debe haber al menos 1 grupo');
+      errors.push(m.wizard_errorMinGroups());
     }
     if (phaseType === 'TWO_PHASE' && groupStageType === 'SWISS' && numSwissRounds < 3) {
-      errors.push('El sistema suizo requiere al menos 3 rondas');
+      errors.push(m.wizard_errorSwissMinRounds());
     }
     return errors;
   }
@@ -910,7 +924,7 @@
   function getStep3Errors(): string[] {
     const errors: string[] = [];
     if (rankingEnabled && !selectedTier) {
-      errors.push('Debes seleccionar una categoría de torneo');
+      errors.push(m.wizard_errorSelectTier());
     }
     return errors;
   }
@@ -918,7 +932,7 @@
   function getStep4Errors(): string[] {
     const errors: string[] = [];
     if (participants.length < 2) {
-      errors.push('Se requieren al menos 2 participantes');
+      errors.push(m.wizard_errorMinParticipants());
     }
     return errors;
   }
@@ -927,7 +941,7 @@
     const warnings: string[] = [];
     if (gameType === 'doubles') {
       if (participants.length % 2 !== 0) {
-        warnings.push('Para doubles, se recomienda un número par de participantes');
+        warnings.push(m.wizard_warningDoublesEven());
       }
     }
     return warnings;
@@ -1297,17 +1311,17 @@
         <div class="header-main">
           <div class="title-section">
             <h1>
-              {editMode ? 'Editar' : duplicateMode ? 'Duplicar' : 'Nuevo'}:
+              {editMode ? m.wizard_edit() : duplicateMode ? m.wizard_duplicate() : m.wizard_new()}:
               {#if edition && name}
                 #{edition} {name}
               {:else if name}
                 {name}
               {:else}
-                Torneo
+                {m.wizard_tournament()}
               {/if}
             </h1>
             <div class="header-badges">
-              <span class="info-badge step-badge">Paso {currentStep}/{totalSteps}</span>
+              <span class="info-badge step-badge">{m.wizard_step({ current: currentStep, total: totalSteps })}</span>
               {#if !editMode && !quotaLoading && quotaInfo}
                 {#if quotaInfo.isSuperAdmin}
                   <span class="info-badge quota-badge unlimited">{m.admin_unlimitedTournaments()}</span>
@@ -1339,12 +1353,12 @@
           >
             <div class="step-number">{i + 1}</div>
             <div class="step-label">
-              {#if i === 0}Info
-              {:else if i === 1}Formato
-              {:else if i === 2}Ranking
-              {:else if i === 3}Jugadores
-              {:else if i === 4}Tiempos
-              {:else}Revisar
+              {#if i === 0}{m.wizard_stepInfo()}
+              {:else if i === 1}{m.wizard_stepFormat()}
+              {:else if i === 2}{m.wizard_stepRanking()}
+              {:else if i === 3}{m.wizard_stepPlayers()}
+              {:else if i === 4}{m.wizard_stepTimes()}
+              {:else}{m.wizard_stepReview()}
               {/if}
             </div>
           </button>
@@ -1367,14 +1381,14 @@
       <!-- Step 1: Basic Info -->
       {#if currentStep === 1}
         <div class="step-container step-basic">
-          <h2>Información Básica</h2>
+          <h2>{m.wizard_basicInfo()}</h2>
 
           <!-- Identificación del Torneo -->
           <div class="info-section">
-            <div class="info-section-header">Identificación</div>
+            <div class="info-section-header">{m.wizard_identification()}</div>
             <div class="info-grid id-grid">
               <div class="info-field key-field">
-                <label for="key">Clave</label>
+                <label for="key">{m.wizard_key()}</label>
                 <div class="key-input-wrapper">
                   <input
                     id="key"
@@ -1397,16 +1411,16 @@
                   {/if}
                 </div>
                 {#if keyCheckResult?.exists}
-                  <small class="field-error">En uso</small>
+                  <small class="field-error">{m.wizard_keyInUse()}</small>
                 {:else if touchedFields.has('key') && !/^[A-Z0-9]{6}$/.test(key)}
                   <small class="field-error">6 chars A-Z 0-9</small>
                 {:else}
-                  <small class="field-hint">Código para acceso rápido</small>
+                  <small class="field-hint">{m.wizard_keyHint()}</small>
                 {/if}
               </div>
 
               <div class="info-field edition-field">
-                <label for="edition">Edición</label>
+                <label for="edition">{m.wizard_edition()}</label>
                 <input
                   id="edition"
                   type="number"
@@ -1420,7 +1434,7 @@
               </div>
 
               <div class="info-field name-field">
-                <label for="name">Nombre del Torneo</label>
+                <label for="name">{m.wizard_tournamentName()}</label>
                 <div class="name-search-wrapper">
                   <input
                     id="name"
@@ -1458,10 +1472,10 @@
 
           <!-- Ubicación y Fecha -->
           <div class="info-section">
-            <div class="info-section-header">Ubicación y Fecha</div>
+            <div class="info-section-header">{m.wizard_locationDate()}</div>
             <div class="info-grid location-grid">
               <div class="info-field">
-                <label for="country">País</label>
+                <label for="country">{m.wizard_country()}</label>
                 <select
                   id="country"
                   bind:value={country}
@@ -1469,7 +1483,7 @@
                   class:input-error={countryHasError}
                   onblur={() => markTouched('country')}
                 >
-                  <option value="">Seleccionar...</option>
+                  <option value="">{m.wizard_selectOption()}</option>
                   {#each DEVELOPED_COUNTRIES as countryOption}
                     <option value={countryOption}>{countryOption}</option>
                   {/each}
@@ -1477,7 +1491,7 @@
               </div>
 
               <div class="info-field">
-                <label for="city">Ciudad</label>
+                <label for="city">{m.wizard_city()}</label>
                 <input
                   id="city"
                   type="text"
@@ -1491,7 +1505,7 @@
               </div>
 
               <div class="info-field">
-                <label for="tournamentDate">Fecha</label>
+                <label for="tournamentDate">{m.wizard_date()}</label>
                 <input
                   id="tournamentDate"
                   type="date"
@@ -1504,11 +1518,11 @@
 
           <!-- Configuración -->
           <div class="info-section">
-            <div class="info-section-header">Configuración</div>
+            <div class="info-section-header">{m.wizard_configuration()}</div>
             <div class="info-grid config-grid">
               <div class="info-field type-field">
                 <!-- svelte-ignore a11y_label_has_associated_control -->
-                <label>Modalidad</label>
+                <label>{m.wizard_modality()}</label>
                 <div class="type-toggle">
                   <button
                     type="button"
@@ -1516,7 +1530,7 @@
                     class:active={gameType === 'singles'}
                     onclick={() => gameType = 'singles'}
                   >
-                    Singles
+                    {m.scoring_singles()}
                   </button>
                   <button
                     type="button"
@@ -1524,13 +1538,13 @@
                     class:active={gameType === 'doubles'}
                     onclick={() => gameType = 'doubles'}
                   >
-                    Doubles
+                    {m.scoring_doubles()}
                   </button>
                 </div>
               </div>
 
               <div class="info-field desc-field">
-                <label for="description">Descripción (opcional)</label>
+                <label for="description">{m.wizard_descriptionOptional()}</label>
                 <input
                   id="description"
                   type="text"
@@ -1547,17 +1561,17 @@
       <!-- Step 2: Tournament Format -->
       {#if currentStep === 2}
         <div class="step-container step-format">
-          <h2>Formato del Torneo</h2>
+          <h2>{m.wizard_tournamentFormat()}</h2>
 
           <!-- Configuración General -->
           <div class="format-section">
             <div class="section-header">
-              <span class="section-title">Configuración General</span>
+              <span class="section-title">{m.wizard_generalConfiguration()}</span>
             </div>
             <div class="section-body">
               <div class="inline-config">
                 <div class="config-field">
-                  <label for="numTables">Mesas</label>
+                  <label for="numTables">{m.wizard_tables()}</label>
                   <input
                     id="numTables"
                     type="number"
@@ -1568,42 +1582,42 @@
                   />
                   <span class="field-hint">{maxPlayersForTables} jugadores en paralelo</span>
                 </div>
-                <div class="config-field phase-selector">
+                <div class="config-field phase-selector-compact">
                   <!-- svelte-ignore a11y_label_has_associated_control -->
-                  <label>{m.admin_structure()}</label>
-                  <div class="toggle-buttons">
+                  <label>{m.wizard_phases()}</label>
+                  <div class="phase-buttons">
                     <button
                       type="button"
-                      class="toggle-btn"
+                      class="phase-btn"
                       class:active={phaseType === 'ONE_PHASE'}
                       onclick={() => phaseType = 'ONE_PHASE'}
                     >
-                      1 Fase
+                      1
                     </button>
                     <button
                       type="button"
-                      class="toggle-btn"
+                      class="phase-btn"
                       class:active={phaseType === 'TWO_PHASE'}
                       onclick={() => phaseType = 'TWO_PHASE'}
                     >
-                      2 Fases
+                      2
                     </button>
                   </div>
                   <span class="field-hint">
-                    {phaseType === 'ONE_PHASE' ? 'Eliminación directa' : 'Grupos + Eliminación'}
+                    {phaseType === 'ONE_PHASE' ? m.wizard_directElimination() : m.wizard_groupsElimination()}
                   </span>
                 </div>
                 <div class="config-field options-field">
                   <!-- svelte-ignore a11y_label_has_associated_control -->
-                  <label>Opciones</label>
+                  <label>{m.wizard_options()}</label>
                   <div class="options-inline">
                     <label class="option-check">
                       <input type="checkbox" bind:checked={show20s} />
-                      <span>20s</span>
+                      <span>{m.wizard_count20s()}</span>
                     </label>
                     <label class="option-check">
                       <input type="checkbox" bind:checked={showHammer} />
-                      <span>Hammer</span>
+                      <span>{m.wizard_showHammer()}</span>
                     </label>
                   </div>
                 </div>
@@ -1616,7 +1630,7 @@
             <div class="format-section groups-phase">
               <div class="section-header groups">
                 <span class="section-number">1</span>
-                <span class="section-title">Fase de Grupos</span>
+                <span class="section-title">{m.wizard_groupStage()}</span>
               </div>
               <div class="section-body">
                 <!-- Sistema y configuración básica en línea -->
@@ -1670,14 +1684,13 @@
                   {/if}
                   <div class="config-field">
                     <!-- svelte-ignore a11y_label_has_associated_control -->
-                    <label>{m.admin_rankingSystem()}</label>
+                    <label>{m.wizard_classificationType()}</label>
                     <div class="toggle-buttons">
                       <button
                         type="button"
                         class="toggle-btn"
                         class:active={rankingSystem === 'WINS'}
                         onclick={() => rankingSystem = 'WINS'}
-                        title={groupStageType === 'ROUND_ROBIN' ? '2 pts victoria, 1 empate' : '1 pt victoria, 0.5 empate'}
                       >
                         {m.tournament_byWins()}
                       </button>
@@ -1686,11 +1699,13 @@
                         class="toggle-btn"
                         class:active={rankingSystem === 'POINTS'}
                         onclick={() => rankingSystem = 'POINTS'}
-                        title="Suma de puntos anotados"
                       >
                         {m.scoring_points()}
                       </button>
                     </div>
+                    <span class="field-hint">
+                      {rankingSystem === 'WINS' ? m.wizard_classificationWinsHint() : m.wizard_classificationPointsHint()}
+                    </span>
                   </div>
                 </div>
 
@@ -1756,14 +1771,14 @@
             <div class="format-section finals-phase">
               <div class="section-header finals">
                 <span class="section-number">2</span>
-                <span class="section-title">Fase Final</span>
+                <span class="section-title">{m.wizard_finalStage()}</span>
               </div>
               <div class="section-body">
                 <!-- Estructura de brackets -->
                 <div class="inline-config">
                   <div class="config-field wide">
                     <!-- svelte-ignore a11y_label_has_associated_control -->
-                    <label>{m.admin_structure()}</label>
+                    <label>{m.wizard_phases()}</label>
                     <div class="toggle-buttons">
                       <button
                         type="button"
@@ -1771,7 +1786,7 @@
                         class:active={finalStageMode === 'SINGLE_BRACKET'}
                         onclick={() => finalStageMode = 'SINGLE_BRACKET'}
                       >
-                        Bracket Único
+                        {m.admin_singleBracket()}
                       </button>
                       <button
                         type="button"
@@ -1779,7 +1794,7 @@
                         class:active={finalStageMode === 'SPLIT_DIVISIONS'}
                         onclick={() => finalStageMode = 'SPLIT_DIVISIONS'}
                       >
-                        Oro / Plata
+                        {m.admin_goldSilverDivisions()}
                       </button>
                     </div>
                   </div>
@@ -1997,8 +2012,8 @@
                 <!-- Consolation Bracket Configuration -->
                 <div class="consolation-toggle-row">
                   <div class="consolation-toggle-info">
-                    <span class="consolation-toggle-label">Rondas de clasificación</span>
-                    <span class="consolation-toggle-desc">Partidos extra para posiciones 5º-16º</span>
+                    <span class="consolation-toggle-label">{m.wizard_consolationRounds()}</span>
+                    <span class="consolation-toggle-desc">{m.wizard_consolationDesc()}</span>
                   </div>
                   <button
                     type="button"
@@ -2019,7 +2034,7 @@
             <!-- ONE_PHASE: Eliminación directa -->
             <div class="format-section one-phase">
               <div class="section-header finals">
-                <span class="section-title">Configuración de Partidos</span>
+                <span class="section-title">{m.wizard_matchConfiguration()}</span>
               </div>
               <div class="section-body">
                 <!-- Configuración directa por fase para ONE_PHASE -->
@@ -2093,8 +2108,8 @@
                 <!-- Consolation Bracket Configuration for ONE_PHASE -->
                 <div class="consolation-toggle-row">
                   <div class="consolation-toggle-info">
-                    <span class="consolation-toggle-label">Rondas de clasificación</span>
-                    <span class="consolation-toggle-desc">Partidos extra para posiciones 5º-16º</span>
+                    <span class="consolation-toggle-label">{m.wizard_consolationRounds()}</span>
+                    <span class="consolation-toggle-desc">{m.wizard_consolationDesc()}</span>
                   </div>
                   <button
                     type="button"
@@ -2118,22 +2133,22 @@
       <!-- Step 3: Ranking Configuration -->
       {#if currentStep === 3}
         <div class="step-container">
-          <h2>📊 Configuración de Ranking</h2>
+          <h2>📊 {m.wizard_rankingConfiguration()}</h2>
 
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" bind:checked={rankingEnabled} />
-              <span>Habilitar sistema de ranking</span>
+              <span>{m.wizard_enableRanking()}</span>
             </label>
             <small class="help-text">
-              Permite llevar un ranking de jugadores basado en rendimiento en torneos
+              {m.wizard_rankingHelp()}
             </small>
           </div>
 
           {#if rankingEnabled}
             <div class="ranking-config">
-              <h4>🏆 Selecciona la categoría del torneo</h4>
-              <p class="tier-description">Los puntos de ranking dependen de la categoría:</p>
+              <h4>🏆 {m.wizard_selectTierTitle()}</h4>
+              <p class="tier-description">{m.wizard_tierDescription()}</p>
 
               <div class="tier-selection">
                 <label class="tier-option {selectedTier === 'CLUB' ? 'selected' : ''}">
@@ -2141,9 +2156,9 @@
                   <div class="tier-card">
                     <div class="tier-header">
                       <span class="tier-badge tier-4">Tier 4</span>
-                      <span class="tier-name">Club</span>
+                      <span class="tier-name">{m.wizard_tierClub()}</span>
                     </div>
-                    <div class="tier-desc">Torneo local de club</div>
+                    <div class="tier-desc">{m.wizard_tierClubDesc()}</div>
                     <div class="tier-points">🥇 15 pts al 1º</div>
                   </div>
                 </label>
@@ -2153,9 +2168,9 @@
                   <div class="tier-card">
                     <div class="tier-header">
                       <span class="tier-badge tier-3">Tier 3</span>
-                      <span class="tier-name">Regional</span>
+                      <span class="tier-name">{m.wizard_tierRegional()}</span>
                     </div>
-                    <div class="tier-desc">Torneo inter-clubes</div>
+                    <div class="tier-desc">{m.wizard_tierRegionalDesc()}</div>
                     <div class="tier-points">🥇 25 pts al 1º</div>
                   </div>
                 </label>
@@ -2165,9 +2180,9 @@
                   <div class="tier-card">
                     <div class="tier-header">
                       <span class="tier-badge tier-2">Tier 2</span>
-                      <span class="tier-name">Nacional</span>
+                      <span class="tier-name">{m.wizard_tierNational()}</span>
                     </div>
-                    <div class="tier-desc">Open nacional</div>
+                    <div class="tier-desc">{m.wizard_tierNationalDesc()}</div>
                     <div class="tier-points">🥇 40 pts al 1º</div>
                   </div>
                 </label>
@@ -2177,9 +2192,9 @@
                   <div class="tier-card">
                     <div class="tier-header">
                       <span class="tier-badge tier-1">Tier 1</span>
-                      <span class="tier-name">Major</span>
+                      <span class="tier-name">{m.wizard_tierMajor()}</span>
                     </div>
-                    <div class="tier-desc">Tavistock / Mundial</div>
+                    <div class="tier-desc">{m.wizard_tierMajorDesc()}</div>
                     <div class="tier-points">🥇 50 pts al 1º</div>
                   </div>
                 </label>
@@ -2187,11 +2202,11 @@
 
               <!-- Points distribution for selected tier -->
               <div class="points-distribution">
-                <h4>📊 Distribución de puntos para {getTierInfo(selectedTier).name}</h4>
+                <h4>📊 {m.wizard_pointsDistributionFor({ tier: getTierInfo(selectedTier).name })}</h4>
                 <table class="points-table">
                   <thead>
                     <tr>
-                      <th>Posición</th>
+                      <th>{m.wizard_position()}</th>
                       {#each getPointsDistribution(selectedTier) as item}
                         <th>{item.position}º</th>
                       {/each}
@@ -2206,7 +2221,7 @@
                     </tr>
                   </tbody>
                 </table>
-                <small class="help-text">A partir del 5º puesto los puntos disminuyen gradualmente (mínimo 1 punto)</small>
+                <small class="help-text">{m.wizard_pointsNote()}</small>
               </div>
             </div>
           {/if}
@@ -2216,18 +2231,18 @@
       <!-- Step 4: Participants -->
       {#if currentStep === 4}
         <div class="step-container step-participants">
-          <h2>👥 Participantes</h2>
+          <h2>👥 {m.wizard_participants()}</h2>
 
           <!-- Counter bar -->
           <div class="participants-counter" class:warning={participants.length > maxPlayersForTables}>
             <span class="counter-text">
-              {participants.length} jugadores
+              {participants.length} {participants.length === 1 ? m.wizard_playersSingular() : m.wizard_players()}
             </span>
             <span class="counter-label">
               {#if participants.length > maxPlayersForTables}
-                ⚠️ Algunos descansarán ({maxPlayersForTables} juegan a la vez)
+                ⚠️ {m.wizard_someRest({ max: maxPlayersForTables })}
               {:else}
-                {numTables} {numTables === 1 ? 'mesa' : 'mesas'} · {maxPlayersForTables} en paralelo
+                {m.wizard_tablesParallel({ tables: numTables, tableWord: numTables === 1 ? m.wizard_table() : m.wizard_tablesPl(), max: maxPlayersForTables })}
               {/if}
             </span>
           </div>
@@ -2236,7 +2251,7 @@
           <div class="add-row">
             <div class="add-field search-field">
               <!-- svelte-ignore a11y_label_has_associated_control -->
-              <label>Buscar registrados</label>
+              <label>{m.wizard_searchRegistered()}</label>
               <div class="search-box">
                 <input
                   type="text"
@@ -2271,7 +2286,7 @@
 
             <div class="add-field guest-field">
               <!-- svelte-ignore a11y_label_has_associated_control -->
-              <label>Agregar invitado</label>
+              <label>{m.wizard_addGuest()}</label>
               <div class="guest-input-group">
                 <input
                   type="text"
@@ -2298,23 +2313,23 @@
           <!-- Participants list -->
           <div class="participants-list-section">
             <div class="list-header">
-              <span>Agregados</span>
+              <span>{m.wizard_added()}</span>
               <span class="list-count">{participants.length}</span>
             </div>
 
             {#if participants.length === 0}
               <div class="empty-list">
-                Sin participantes · Mínimo 2
+                {m.wizard_noParticipants()}
               </div>
             {:else}
               <div class="participants-grid-2col">
-                {#each participants as participant, index}
+                {#each sortedParticipants as participant}
                   <div class="participant-chip" class:registered={participant.type === 'REGISTERED'}>
                     <span class="chip-name">{participant.name}</span>
                     {#if participant.type === 'REGISTERED' && participant.rankingSnapshot}
                       <span class="chip-rank">{participant.rankingSnapshot}</span>
                     {/if}
-                    <button class="chip-remove" onclick={() => removeParticipant(index)}>×</button>
+                    <button class="chip-remove" onclick={() => removeParticipant(participant)}>×</button>
                   </div>
                 {/each}
               </div>
@@ -2352,17 +2367,13 @@
                 <h3>{m.admin_matchDuration()}</h3>
                 <p class="tc-card-desc">{m.admin_matchDurationDesc()}</p>
                 <div class="tc-fields">
-                  <div class="tc-field">
-                    <span class="tc-field-label">{m.scoring_singles()}</span>
+                  <div class="tc-field single-field">
                     <div class="tc-field-input">
-                      <input type="number" bind:value={tcMinutesPer4RoundsSingles} min="5" max="30" />
-                      <span class="tc-unit">min</span>
-                    </div>
-                  </div>
-                  <div class="tc-field">
-                    <span class="tc-field-label">{m.scoring_doubles()}</span>
-                    <div class="tc-field-input">
-                      <input type="number" bind:value={tcMinutesPer4RoundsDoubles} min="5" max="30" />
+                      {#if gameType === 'doubles'}
+                        <input type="number" bind:value={tcMinutesPer4RoundsDoubles} min="5" max="30" />
+                      {:else}
+                        <input type="number" bind:value={tcMinutesPer4RoundsSingles} min="5" max="30" />
+                      {/if}
                       <span class="tc-unit">min</span>
                     </div>
                   </div>
@@ -2525,7 +2536,7 @@
       <!-- Step 6: Review -->
       {#if currentStep === 6}
         <div class="step-container">
-          <h2>Revisión Final</h2>
+          <h2>{m.wizard_finalReview()}</h2>
 
           <div class="review-grid">
             <!-- Left Column -->
@@ -2533,31 +2544,31 @@
               <div class="review-card">
                 <div class="review-card-header">
                   <span class="review-icon">📋</span>
-                  <span>Información</span>
+                  <span>{m.wizard_information()}</span>
                 </div>
                 <div class="review-card-body">
                   <div class="review-row">
-                    <span class="review-label">Clave</span>
+                    <span class="review-label">{m.wizard_key()}</span>
                     <span class="review-value highlight">{key.toUpperCase()}</span>
                   </div>
                   <div class="review-row">
-                    <span class="review-label">Nombre</span>
+                    <span class="review-label">{m.wizard_name()}</span>
                     <span class="review-value">{edition}º {name}</span>
                   </div>
                   {#if description}
                     <div class="review-row">
-                      <span class="review-label">Descripción</span>
+                      <span class="review-label">{m.wizard_description()}</span>
                       <span class="review-value">{description}</span>
                     </div>
                   {/if}
                   <div class="review-row">
-                    <span class="review-label">Ubicación</span>
+                    <span class="review-label">{m.wizard_location()}</span>
                     <span class="review-value">{city}, {country}</span>
                   </div>
                   {#if tournamentDate}
                     <div class="review-row">
-                      <span class="review-label">Fecha</span>
-                      <span class="review-value">{new Date(tournamentDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      <span class="review-label">{m.wizard_date()}</span>
+                      <span class="review-value">{new Date(tournamentDate).toLocaleDateString(getLocale() === 'en' ? 'en-US' : getLocale() === 'ca' ? 'ca-ES' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                     </div>
                   {/if}
                 </div>
@@ -2566,37 +2577,68 @@
               <div class="review-card">
                 <div class="review-card-header">
                   <span class="review-icon">🎮</span>
-                  <span>Configuración de Juego</span>
+                  <span>{m.wizard_gameConfiguration()}</span>
                 </div>
                 <div class="review-card-body">
                   <div class="review-row">
-                    <span class="review-label">Tipo</span>
-                    <span class="review-value">{gameType === 'singles' ? 'Singles' : 'Doubles'}</span>
+                    <span class="review-label">{m.wizard_type()}</span>
+                    <span class="review-value">{gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()}</span>
                   </div>
                   <div class="review-row">
-                    <span class="review-label">Modo</span>
-                    <span class="review-value">{gameMode === 'points' ? `${pointsToWin} pts` : `${roundsToPlay} rondas`}</span>
+                    <span class="review-label">{m.wizard_mode()}</span>
+                    <span class="review-value">{gameMode === 'points' ? `${pointsToWin} pts` : `${roundsToPlay} ${m.scoring_rounds().toLowerCase()}`}</span>
                   </div>
                   <div class="review-row">
-                    <span class="review-label">Mesas</span>
+                    <span class="review-label">{m.wizard_tables()}</span>
                     <span class="review-value">{numTables}</span>
                   </div>
+                  <div class="review-row">
+                    <span class="review-label">{m.wizard_participants()}</span>
+                    <span class="review-value">{participants.length}</span>
+                  </div>
                 </div>
+              </div>
+
+              <div class="review-card participants-accordion" class:expanded={participantsExpanded}>
+                <button
+                  type="button"
+                  class="accordion-header"
+                  onclick={() => participantsExpanded = !participantsExpanded}
+                >
+                  <div class="accordion-title">
+                    <span class="review-icon">👥</span>
+                    <span>{m.wizard_participants()}</span>
+                    <span class="participant-count">{participants.length}</span>
+                  </div>
+                  <span class="accordion-chevron">›</span>
+                </button>
+                {#if participantsExpanded}
+                  <div class="accordion-body">
+                    <div class="participants-grid">
+                      {#each sortedParticipants as participant, i}
+                        <div class="participant-item" class:registered={participant.type === 'REGISTERED'}>
+                          <span class="participant-number">{i + 1}</span>
+                          <span class="participant-name">{participant.name}</span>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
               </div>
 
               {#if rankingEnabled}
                 <div class="review-card compact">
                   <div class="review-card-header">
                     <span class="review-icon">🏅</span>
-                    <span>Ranking</span>
+                    <span>{m.wizard_ranking()}</span>
                   </div>
                   <div class="review-card-body">
                     <div class="review-row">
-                      <span class="review-label">Categoría</span>
+                      <span class="review-label">{m.wizard_category()}</span>
                       <span class="review-value">{getTierInfo(selectedTier).name}</span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">Puntos 1º</span>
+                      <span class="review-label">{m.wizard_firstPlacePoints()}</span>
                       <span class="review-value highlight">{getTierInfo(selectedTier).basePoints}</span>
                     </div>
                   </div>
@@ -2609,12 +2651,12 @@
               <div class="review-card">
                 <div class="review-card-header">
                   <span class="review-icon">🏆</span>
-                  <span>Formato</span>
+                  <span>{m.wizard_format()}</span>
                 </div>
                 <div class="review-card-body">
                   <div class="review-row">
-                    <span class="review-label">Fases</span>
-                    <span class="review-value">{phaseType === 'ONE_PHASE' ? 'Eliminatoria directa' : 'Grupos + Final'}</span>
+                    <span class="review-label">{m.wizard_phases()}</span>
+                    <span class="review-value">{phaseType === 'ONE_PHASE' ? m.wizard_directElimination() : m.wizard_groupsFinal()}</span>
                   </div>
                   {#if phaseType === 'TWO_PHASE'}
                     <div class="review-row">
@@ -2624,7 +2666,7 @@
                       </span>
                     </div>
                     <div class="review-row">
-                      <span class="review-label">{m.admin_rankingSystem()}</span>
+                      <span class="review-label">{m.wizard_classificationType()}</span>
                       <span class="review-value">{rankingSystem === 'WINS' ? m.tournament_byWins() : m.tournament_byPoints()}</span>
                     </div>
                     <div class="review-row">
@@ -2633,8 +2675,8 @@
                     </div>
                   {/if}
                   <div class="review-row">
-                    <span class="review-label">Clasificación</span>
-                    <span class="review-value">{consolationEnabled ? 'Sí' : 'No'}</span>
+                    <span class="review-label">{m.wizard_classification()}</span>
+                    <span class="review-value">{consolationEnabled ? m.admin_yes() : m.admin_no()}</span>
                   </div>
                 </div>
               </div>
@@ -2659,7 +2701,7 @@
                       <span class="review-label">{m.admin_semifinals()}</span>
                       <span class="review-value">
                         {(showAdvancedBracketConfig ? semifinalGameMode : 'points') === 'points'
-                          ? `${showAdvancedBracketConfig ? semifinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? semifinalMatchesToWin : 1}`
+                          ? `${showAdvancedBracketConfig ? semifinalPointsToWin : 7}p${(showAdvancedBracketConfig ? semifinalMatchesToWin : 1) > 1 ? ` · Pg${semifinalMatchesToWin}` : ''}`
                           : `${showAdvancedBracketConfig ? semifinalRoundsToPlay : 4}r`}
                       </span>
                     </div>
@@ -2667,7 +2709,7 @@
                       <span class="review-label">{m.admin_final()}</span>
                       <span class="review-value">
                         {(showAdvancedBracketConfig ? bracketFinalGameMode : 'points') === 'points'
-                          ? `${showAdvancedBracketConfig ? bracketFinalPointsToWin : 9}p · Bo${showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1}`
+                          ? `${showAdvancedBracketConfig ? bracketFinalPointsToWin : 9}p${(showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1) > 1 ? ` · Pg${bracketFinalMatchesToWin}` : ''}`
                           : `${showAdvancedBracketConfig ? bracketFinalRoundsToPlay : 4}r`}
                       </span>
                     </div>
@@ -2694,7 +2736,7 @@
                         <span class="review-label">{m.admin_semifinals()}</span>
                         <span class="review-value">
                           {(showAdvancedBracketConfig ? silverSemifinalGameMode : 'rounds') === 'points'
-                            ? `${showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1}`
+                            ? `${showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7}p${(showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1) > 1 ? ` · Pg${silverSemifinalMatchesToWin}` : ''}`
                             : `${showAdvancedBracketConfig ? silverSemifinalRoundsToPlay : 4}r`}
                         </span>
                       </div>
@@ -2702,7 +2744,7 @@
                         <span class="review-label">{m.admin_final()}</span>
                         <span class="review-value">
                           {(showAdvancedBracketConfig ? silverBracketFinalGameMode : 'rounds') === 'points'
-                            ? `${showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7}p · Bo${showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1}`
+                            ? `${showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7}p${(showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1) > 1 ? ` · Pg${silverBracketFinalMatchesToWin}` : ''}`
                             : `${showAdvancedBracketConfig ? silverBracketFinalRoundsToPlay : 4}r`}
                         </span>
                       </div>
@@ -2710,26 +2752,6 @@
                   </div>
                 {/if}
               {/if}
-
-              <div class="review-card participants-card">
-                <div class="review-card-header">
-                  <span class="review-icon">👥</span>
-                  <span>Participantes</span>
-                  <span class="participant-count">{participants.length}</span>
-                </div>
-                <div class="review-card-body">
-                  <div class="review-participants-list">
-                    {#each participants.slice(0, 12) as participant}
-                      <span class="review-participant" class:registered={participant.type === 'REGISTERED'}>
-                        {participant.name}
-                      </span>
-                    {/each}
-                    {#if participants.length > 12}
-                      <span class="review-participant more">+{participants.length - 12}</span>
-                    {/if}
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -2738,7 +2760,7 @@
       <!-- Validation Messages -->
       {#if validationErrors.length > 0}
         <div class="validation-messages errors">
-          <strong>⚠️ Errores:</strong>
+          <strong>⚠️ {m.wizard_errors()}</strong>
           <ul>
             {#each validationErrors as error}
               <li>{error}</li>
@@ -2749,7 +2771,7 @@
 
       {#if validationWarnings.length > 0}
         <div class="validation-messages warnings">
-          <strong>💡 Advertencias:</strong>
+          <strong>💡 {m.wizard_warnings()}</strong>
           <ul>
             {#each validationWarnings as warning}
               <li>{warning}</li>
@@ -2762,19 +2784,19 @@
     <!-- Navigation -->
     <div class="wizard-navigation">
       <button class="nav-button secondary" onclick={prevStep} disabled={currentStep === 1}>
-        ← Anterior
+        ← {m.wizard_previous()}
       </button>
 
       {#if currentStep < totalSteps}
         <button class="nav-button primary" onclick={nextStep} disabled={validationErrors.length > 0}>
-          Siguiente →
+          {m.wizard_next()} →
         </button>
       {:else}
         <button class="nav-button primary create" onclick={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
           {#if creating}
-            <LoadingSpinner size="small" inline={true} message={editMode ? 'Guardando...' : 'Creando...'} />
+            <LoadingSpinner size="small" inline={true} message={editMode ? m.wizard_saving() : m.wizard_creating()} />
           {:else}
-            {editMode ? '💾 Guardar Cambios' : duplicateMode ? '📋 Crear Copia' : '🏆 Crear Torneo'}
+            {editMode ? `💾 ${m.wizard_saveChanges()}` : duplicateMode ? `📋 ${m.wizard_createCopy()}` : `🏆 ${m.wizard_create()}`}
           {/if}
         </button>
       {/if}
@@ -4087,8 +4109,67 @@
 
   .wizard-container[data-theme='dark'] .toggle-btn.active {
     background: #10b981;
-    color: #ffffff;
+    color: #064e3b;
+    font-weight: bold;
     border-color: #10b981;
+  }
+
+  /* Phase Buttons - compact exclusive toggle */
+  .phase-buttons {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .phase-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #f9fafb;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #6b7280;
+    transition: all 0.15s ease;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #9ca3af;
+  }
+
+  .phase-btn:hover:not(.active) {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-btn:hover:not(.active) {
+    background: #4b5563;
+  }
+
+  .phase-btn.active {
+    background: #059669;
+    border-color: #059669;
+    color: white;
+  }
+
+  .wizard-container[data-theme='dark'] .phase-btn.active {
+    background: #10b981;
+    border-color: #10b981;
+    color: #064e3b;
+    font-weight: bold;
+  }
+
+  .phase-selector-compact {
+    min-width: auto;
+  }
+
+  .phase-selector-compact label {
+    margin-bottom: 0.35rem;
   }
 
   /* Input compact styles */
@@ -5429,45 +5510,122 @@
     font-weight: 700;
   }
 
-  .review-participants-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
+  /* Participants Accordion */
+  .participants-accordion {
+    overflow: hidden;
   }
 
-  .review-participant {
-    padding: 0.2rem 0.45rem;
-    background: #f1f5f9;
-    border-radius: 3px;
-    font-size: 0.7rem;
+  .accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+  }
+
+  .accordion-header:hover {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .wizard-container[data-theme='dark'] .accordion-header:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .accordion-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .wizard-container[data-theme='dark'] .accordion-title {
+    color: #e2e8f0;
+  }
+
+  .accordion-chevron {
+    font-size: 1.1rem;
+    color: #94a3b8;
+    transition: transform 0.2s ease;
+    font-weight: 300;
+  }
+
+  .participants-accordion.expanded .accordion-chevron {
+    transform: rotate(90deg);
+  }
+
+  .wizard-container[data-theme='dark'] .accordion-chevron {
+    color: #64748b;
+  }
+
+  .accordion-body {
+    padding: 0 0.75rem 0.75rem;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 0;
+  }
+
+  .wizard-container[data-theme='dark'] .accordion-body {
+    border-top-color: #1e293b;
+  }
+
+  .participants-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.35rem;
+    padding-top: 0.6rem;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  .participant-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.5rem;
+    background: #f8fafc;
+    border-radius: 4px;
+    font-size: 0.72rem;
+  }
+
+  .wizard-container[data-theme='dark'] .participant-item {
+    background: #0f172a;
+  }
+
+  .participant-number {
+    color: #94a3b8;
+    font-size: 0.65rem;
+    min-width: 1.2rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wizard-container[data-theme='dark'] .participant-number {
+    color: #475569;
+  }
+
+  .participant-name {
     color: #475569;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .wizard-container[data-theme='dark'] .review-participant {
-    background: #0f1419;
-    color: #8b9bb3;
+  .wizard-container[data-theme='dark'] .participant-name {
+    color: #94a3b8;
   }
 
-  .review-participant.registered {
-    background: #dbeafe;
-    color: #1d4ed8;
+  .participant-item.registered .participant-name {
+    color: #2563eb;
+    font-weight: 500;
   }
 
-  .wizard-container[data-theme='dark'] .review-participant.registered {
-    background: rgba(59, 130, 246, 0.2);
+  .wizard-container[data-theme='dark'] .participant-item.registered .participant-name {
     color: #60a5fa;
-  }
-
-  .review-participant.more {
-    background: #e2e8f0;
-    color: #64748b;
-    font-weight: 600;
-  }
-
-  .wizard-container[data-theme='dark'] .review-participant.more {
-    background: #374151;
-    color: #9ca3af;
   }
 
   @media (max-width: 600px) {
@@ -5803,12 +5961,20 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #333;
+    color: #64748b;
     font-weight: 500;
   }
 
   .wizard-container[data-theme='dark'] .chip-name {
-    color: #c5d0de;
+    color: #94a3b8;
+  }
+
+  .participant-chip.registered .chip-name {
+    color: #2563eb;
+  }
+
+  .wizard-container[data-theme='dark'] .participant-chip.registered .chip-name {
+    color: #60a5fa;
   }
 
   .chip-rank {

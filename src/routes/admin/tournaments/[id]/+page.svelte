@@ -606,8 +606,7 @@
                     <span class="config-value">
                       {goldConfig.semifinal.gameMode === 'points'
                         ? `${goldConfig.semifinal.pointsToWin ?? 7}p`
-                        : `${goldConfig.semifinal.roundsToPlay ?? 4}r`}
-                      · {m.bracket_bestOf()}{goldConfig.semifinal.matchesToWin ?? 1}
+                        : `${goldConfig.semifinal.roundsToPlay ?? 4}r`}{(goldConfig.semifinal.matchesToWin ?? 1) > 1 ? ` · Pg${goldConfig.semifinal.matchesToWin}` : ''}
                     </span>
                   </div>
                   <div class="config-item phase-config">
@@ -615,8 +614,7 @@
                     <span class="config-value">
                       {goldConfig.final.gameMode === 'points'
                         ? `${goldConfig.final.pointsToWin ?? 9}p`
-                        : `${goldConfig.final.roundsToPlay ?? 4}r`}
-                      · {m.bracket_bestOf()}{goldConfig.final.matchesToWin ?? 1}
+                        : `${goldConfig.final.roundsToPlay ?? 4}r`}{(goldConfig.final.matchesToWin ?? 1) > 1 ? ` · Pg${goldConfig.final.matchesToWin}` : ''}
                     </span>
                   </div>
 
@@ -638,8 +636,7 @@
                       <span class="config-value">
                         {silverConfig.semifinal.gameMode === 'points'
                           ? `${silverConfig.semifinal.pointsToWin ?? 7}p`
-                          : `${silverConfig.semifinal.roundsToPlay ?? 4}r`}
-                        · {m.bracket_bestOf()}{silverConfig.semifinal.matchesToWin ?? 1}
+                          : `${silverConfig.semifinal.roundsToPlay ?? 4}r`}{(silverConfig.semifinal.matchesToWin ?? 1) > 1 ? ` · Pg${silverConfig.semifinal.matchesToWin}` : ''}
                       </span>
                     </div>
                     <div class="config-item phase-config">
@@ -647,8 +644,7 @@
                       <span class="config-value">
                         {silverConfig.final.gameMode === 'points'
                           ? `${silverConfig.final.pointsToWin ?? 7}p`
-                          : `${silverConfig.final.roundsToPlay ?? 4}r`}
-                        · {m.bracket_bestOf()}{silverConfig.final.matchesToWin ?? 1}
+                          : `${silverConfig.final.roundsToPlay ?? 4}r`}{(silverConfig.final.matchesToWin ?? 1) > 1 ? ` · Pg${silverConfig.final.matchesToWin}` : ''}
                       </span>
                     </div>
                   {/if}
@@ -659,8 +655,7 @@
                     <span class="config-value">
                       {config.earlyRounds.gameMode === 'points'
                         ? `${config.earlyRounds.pointsToWin ?? 7}p`
-                        : `${config.earlyRounds.roundsToPlay ?? 4}r`}
-                      · {m.bracket_bestOf()}{config.earlyRounds.matchesToWin ?? 1}
+                        : `${config.earlyRounds.roundsToPlay ?? 4}r`}{(config.earlyRounds.matchesToWin ?? 1) > 1 ? ` · Pg${config.earlyRounds.matchesToWin}` : ''}
                     </span>
                   </div>
                   <div class="config-item">
@@ -668,8 +663,7 @@
                     <span class="config-value">
                       {config.semifinal.gameMode === 'points'
                         ? `${config.semifinal.pointsToWin ?? 7}p`
-                        : `${config.semifinal.roundsToPlay ?? 4}r`}
-                      · {m.bracket_bestOf()}{config.semifinal.matchesToWin ?? 1}
+                        : `${config.semifinal.roundsToPlay ?? 4}r`}{(config.semifinal.matchesToWin ?? 1) > 1 ? ` · Pg${config.semifinal.matchesToWin}` : ''}
                     </span>
                   </div>
                   <div class="config-item">
@@ -677,8 +671,7 @@
                     <span class="config-value">
                       {config.final.gameMode === 'points'
                         ? `${config.final.pointsToWin ?? 7}p`
-                        : `${config.final.roundsToPlay ?? 4}r`}
-                      · {m.bracket_bestOf()}{config.final.matchesToWin ?? 1}
+                        : `${config.final.roundsToPlay ?? 4}r`}{(config.final.matchesToWin ?? 1) > 1 ? ` · Pg${config.final.matchesToWin}` : ''}
                     </span>
                   </div>
                 {:else}
