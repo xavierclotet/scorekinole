@@ -5,9 +5,11 @@ import type { MatchHistory } from '$lib/types/history';
 import {
   collection,
   getDocs,
+  getDoc,
   getCountFromServer,
   doc,
   updateDoc,
+  setDoc,
   deleteDoc,
   serverTimestamp,
   query,
@@ -28,6 +30,7 @@ export interface AdminUserInfo extends UserProfile {
   userId: string;
   lastLoginAt?: any;
   matchCount?: number;
+  tournamentsCreatedCount?: number;
 }
 
 /**
@@ -317,6 +320,54 @@ export async function getUserMatchCount(userId: string): Promise<number> {
 }
 
 /**
+ * Get tournament count created by a specific user
+ */
+export async function getUserTournamentCount(userId: string): Promise<number> {
+  if (!browser || !isFirebaseEnabled()) {
+    return 0;
+  }
+
+  try {
+    const tournamentsRef = collection(db!, 'tournaments');
+    const q = query(tournamentsRef, where('createdBy.userId', '==', userId));
+    const countSnapshot = await getCountFromServer(q);
+    return countSnapshot.data().count;
+  } catch (error) {
+    console.error('❌ Error getting user tournament count:', error);
+    return 0;
+  }
+}
+
+/**
+ * Get tournament counts for multiple users (batch)
+ */
+export async function getUsersTournamentCounts(userIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+
+  if (!browser || !isFirebaseEnabled() || userIds.length === 0) {
+    return counts;
+  }
+
+  try {
+    // Fetch counts in parallel for all users
+    const promises = userIds.map(async (userId) => {
+      const count = await getUserTournamentCount(userId);
+      return { userId, count };
+    });
+
+    const results = await Promise.all(promises);
+    results.forEach(({ userId, count }) => {
+      counts.set(userId, count);
+    });
+
+    return counts;
+  } catch (error) {
+    console.error('❌ Error getting tournament counts:', error);
+    return counts;
+  }
+}
+
+/**
  * Paginated result for matches
  */
 export interface PaginatedMatchesResult {
@@ -483,5 +534,149 @@ export async function adminDeleteMatch(matchId: string): Promise<boolean> {
   } catch (error) {
     console.error('❌ Error deleting match:', error);
     return false;
+  }
+}
+
+/**
+ * Merge a GUEST user into a registered user
+ * Copies tournaments and ranking from GUEST to registered user
+ * Marks GUEST with mergedTo field (does not delete)
+ */
+export async function mergeGuestToRegistered(
+  guestUserId: string,
+  registeredUserId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!browser || !isFirebaseEnabled()) {
+    return { success: false, error: 'Firebase disabled' };
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    return { success: false, error: 'No user authenticated' };
+  }
+
+  // Check admin permission
+  const adminStatus = await isAdmin();
+  if (!adminStatus) {
+    return { success: false, error: 'Unauthorized: User is not admin' };
+  }
+
+  try {
+    // Get both user profiles
+    const guestRef = doc(db!, 'users', guestUserId);
+    const registeredRef = doc(db!, 'users', registeredUserId);
+
+    const [guestSnap, registeredSnap] = await Promise.all([
+      getDoc(guestRef),
+      getDoc(registeredRef)
+    ]);
+
+    if (!guestSnap.exists()) {
+      return { success: false, error: 'GUEST user not found' };
+    }
+    if (!registeredSnap.exists()) {
+      return { success: false, error: 'Registered user not found' };
+    }
+
+    const guestData = guestSnap.data() as UserProfile;
+    const registeredData = registeredSnap.data() as UserProfile;
+
+    // Validate GUEST is actually a guest
+    if (guestData.authProvider === 'google') {
+      return { success: false, error: 'Source user is not a GUEST (has Google auth)' };
+    }
+
+    // Validate registered user has Google auth
+    if (registeredData.authProvider !== 'google') {
+      return { success: false, error: 'Target user is not registered (no Google auth)' };
+    }
+
+    // Check if GUEST was already merged
+    if (guestData.mergedTo) {
+      return { success: false, error: 'GUEST user was already merged' };
+    }
+
+    // Check if registered user already has tournaments or ranking
+    const registeredTournaments = registeredData.tournaments || [];
+    const registeredRanking = registeredData.ranking || 0;
+    if (registeredTournaments.length > 0 || registeredRanking > 0) {
+      return { success: false, error: 'Target user already has tournaments or ranking' };
+    }
+
+    // Copy tournaments from GUEST (target is empty, no deduplication needed)
+    const guestTournaments = guestData.tournaments || [];
+    const guestRanking = guestData.ranking || 0;
+
+    // Merge mergedFrom arrays
+    const existingMergedFrom = registeredData.mergedFrom || [];
+    const newMergedFrom = [...existingMergedFrom, guestUserId];
+
+    // Update registered user
+    await setDoc(registeredRef, {
+      tournaments: guestTournaments,
+      ranking: guestRanking,
+      mergedFrom: newMergedFrom,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    // Mark GUEST as merged
+    await setDoc(guestRef, {
+      mergedTo: registeredUserId,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    console.log(`✅ Merged GUEST ${guestUserId} into registered user ${registeredUserId}`);
+    console.log(`   - Tournaments: ${guestTournaments.length}`);
+    console.log(`   - Ranking: ${guestRanking}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error merging users:', error);
+    return { success: false, error: 'Error during merge operation' };
+  }
+}
+
+/**
+ * Get registered users for merge target selection
+ * Returns users with Google auth (not GUESTs)
+ */
+export async function getRegisteredUsers(): Promise<AdminUserInfo[]> {
+  if (!browser || !isFirebaseEnabled()) {
+    return [];
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    return [];
+  }
+
+  // Check admin permission
+  const adminStatus = await isAdmin();
+  if (!adminStatus) {
+    return [];
+  }
+
+  try {
+    const usersRef = collection(db!, 'users');
+    const q = query(usersRef, where('authProvider', '==', 'google'), orderBy('playerName'));
+    const snapshot = await getDocs(q);
+
+    const users: AdminUserInfo[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as UserProfile;
+      // Skip merged users (defensive - registered users shouldn't have mergedTo)
+      if (data.mergedTo) return;
+      // Skip users that already have tournaments or ranking (can't be migration targets)
+      if ((data.tournaments && data.tournaments.length > 0) || (data.ranking && data.ranking > 0)) return;
+      users.push({
+        userId: docSnap.id,
+        ...data
+      });
+    });
+
+    return users;
+  } catch (error) {
+    console.error('❌ Error getting registered users:', error);
+    return [];
   }
 }

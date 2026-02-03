@@ -144,7 +144,7 @@
   let searchQuery = $state('');
   let searchResults = $state<(UserProfile & { userId: string })[]>([]);
   let searchLoading = $state(false);
-  let guestName = $state('Player1');  // Input for guest player name
+  let guestName = $state('');  // Input for guest player name
   let guestNameMatchedUser = $state<(UserProfile & { userId: string }) | null>(null);  // User that matches guest name
 
   // Tournament name search
@@ -4111,13 +4111,13 @@
   }
 
   .toggle-btn {
-    padding: 0.4rem 0.7rem;
+    padding: 0.4rem 0.55rem;
     border: none;
     background: transparent;
     border-radius: 0;
     font-size: 0.75rem;
     font-weight: 500;
-    width: 50%;
+    flex: 1;
     color: #6b7280;
     cursor: pointer;
     transition: all 0.15s ease;

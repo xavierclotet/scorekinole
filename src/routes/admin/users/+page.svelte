@@ -7,7 +7,7 @@
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
-  import { getUsersPaginated, deleteUser, type AdminUserInfo } from '$lib/firebase/admin';
+  import { getUsersPaginated, deleteUser, getUsersTournamentCounts, mergeGuestToRegistered, getRegisteredUsers, type AdminUserInfo } from '$lib/firebase/admin';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
   let users: AdminUserInfo[] = $state([]);
@@ -16,8 +16,16 @@
   let selectedUser: AdminUserInfo | null = $state(null);
   let userToDelete: AdminUserInfo | null = $state(null);
   let isDeleting = $state(false);
+
+  // Migration state
+  let userToMigrate: AdminUserInfo | null = $state(null);
+  let registeredUsersList: AdminUserInfo[] = $state([]);
+  let selectedTargetUserId: string = $state('');
+  let isMigrating = $state(false);
+  let migrationError: string | null = $state(null);
   let searchQuery = $state('');
-  let filterRole: 'all' | 'admin' | 'user' = $state('all');
+  let filterRole: 'all' | 'admin' = $state('all');
+  let filterType: 'all' | 'registered' | 'guest' | 'not_merged' | 'merged' = $state('all');
   const pageSize = 15;
 
   // Infinite scroll state
@@ -27,10 +35,15 @@
   let tableContainer: HTMLElement | null = $state(null);
 
   let isSearching = $derived(searchQuery.trim().length > 0);
-  let isFiltering = $derived(filterRole !== 'all');
+  let isFiltering = $derived(filterRole !== 'all' || filterType !== 'all');
   let filteredUsers = $derived(users.filter((user) => {
     if (filterRole === 'admin' && !user.isAdmin) return false;
-    if (filterRole === 'user' && user.isAdmin) return false;
+
+    // Type filter (registration + merged status)
+    if (filterType === 'registered' && user.authProvider !== 'google') return false;
+    if (filterType === 'guest' && user.authProvider === 'google') return false;
+    if (filterType === 'not_merged' && user.mergedTo) return false;
+    if (filterType === 'merged' && !user.mergedTo) return false;
 
     if (isSearching) {
       const q = searchQuery.toLowerCase();
@@ -48,7 +61,7 @@
 
   // Auto-load more if container doesn't have scroll
   $effect(() => {
-    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching) {
+    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching && !isFiltering) {
       if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
         loadMore();
       }
@@ -70,6 +83,9 @@
       hasMore = result.hasMore;
       lastDoc = result.lastDoc;
       users = result.users;
+
+      // Fetch tournament counts for admin users
+      await loadTournamentCounts(result.users);
     } catch (error) {
       console.error('Error loading users:', error);
     } finally {
@@ -85,12 +101,28 @@
       const result = await getUsersPaginated(pageSize, lastDoc);
       hasMore = result.hasMore;
       lastDoc = result.lastDoc;
+
+      // Fetch tournament counts for admin users
+      await loadTournamentCounts(result.users);
+
       users = [...users, ...result.users];
     } catch (error) {
       console.error('Error loading more users:', error);
     } finally {
       isLoadingMore = false;
     }
+  }
+
+  async function loadTournamentCounts(userList: AdminUserInfo[]) {
+    const adminUserIds = userList.filter(u => u.isAdmin).map(u => u.userId);
+    if (adminUserIds.length === 0) return;
+
+    const counts = await getUsersTournamentCounts(adminUserIds);
+    userList.forEach(user => {
+      if (counts.has(user.userId)) {
+        user.tournamentsCreatedCount = counts.get(user.userId);
+      }
+    });
   }
 
   function handleScroll(e: Event) {
@@ -150,6 +182,51 @@
       return '-';
     }
   }
+
+  // Migration functions
+  async function showMigrateModal(user: AdminUserInfo) {
+    userToMigrate = user;
+    selectedTargetUserId = '';
+    migrationError = null;
+    // Load registered users for the dropdown
+    registeredUsersList = await getRegisteredUsers();
+  }
+
+  function cancelMigrate() {
+    userToMigrate = null;
+    selectedTargetUserId = '';
+    migrationError = null;
+  }
+
+  async function confirmMigrate() {
+    if (!userToMigrate || !selectedTargetUserId) return;
+
+    isMigrating = true;
+    migrationError = null;
+
+    const result = await mergeGuestToRegistered(userToMigrate.userId, selectedTargetUserId);
+
+    if (result.success) {
+      // Update local state - mark user as merged
+      users = users.map(u => {
+        if (u.userId === userToMigrate!.userId) {
+          return { ...u, mergedTo: selectedTargetUserId };
+        }
+        return u;
+      });
+      cancelMigrate();
+      // Reload to get fresh data
+      await loadInitialUsers();
+    } else {
+      migrationError = result.error || m.admin_migrationError();
+    }
+
+    isMigrating = false;
+  }
+
+  function isGuestUser(user: AdminUserInfo): boolean {
+    return user.authProvider !== 'google' && !user.mergedTo;
+  }
 </script>
 
 <SuperAdminGuard>
@@ -180,28 +257,25 @@
         />
       </div>
 
-      <div class="filter-tabs">
-        <button
-          class="filter-tab"
-          class:active={filterRole === 'all'}
-          onclick={() => (filterRole = 'all')}
-        >
-          {m.admin_all()} ({users.length})
-        </button>
+      <div class="filter-controls">
         <button
           class="filter-tab"
           class:active={filterRole === 'admin'}
-          onclick={() => (filterRole = 'admin')}
+          onclick={() => (filterRole = filterRole === 'admin' ? 'all' : 'admin')}
         >
           Admins ({adminCount})
         </button>
-        <button
-          class="filter-tab"
-          class:active={filterRole === 'user'}
-          onclick={() => (filterRole = 'user')}
+
+        <select
+          class="filter-select"
+          bind:value={filterType}
         >
-          Users ({users.length - adminCount})
-        </button>
+          <option value="all">{m.admin_allUsers()}</option>
+          <option value="registered">{m.admin_registeredUsers()}</option>
+          <option value="guest">{m.admin_guestUsers()}</option>
+          <option value="not_merged">{m.admin_notMerged()}</option>
+          <option value="merged">{m.admin_merged()}</option>
+        </select>
       </div>
     </div>
 
@@ -211,7 +285,7 @@
       <div class="empty-state">
         <div class="empty-icon">👥</div>
         <h3>{m.admin_noUsersFound()}</h3>
-        <p>{searchQuery || filterRole !== 'all' ? 'No hay usuarios que coincidan con los filtros' : 'No hay usuarios registrados'}</p>
+        <p>{searchQuery || isFiltering ? 'No hay usuarios que coincidan con los filtros' : 'No hay usuarios registrados'}</p>
       </div>
     {:else}
       <div class="results-info">
@@ -256,8 +330,10 @@
                 <td class="role-cell">
                   {#if user.isSuperAdmin}
                     <span class="role-badge super">Super</span>
+                    <span class="tournaments-created">{user.tournamentsCreatedCount ?? 0}</span>
                   {:else if user.isAdmin}
                     <span class="role-badge admin">Admin</span>
+                    <span class="tournaments-created">{user.tournamentsCreatedCount ?? 0}</span>
                   {:else}
                     <span class="role-badge user">User</span>
                   {/if}
@@ -281,13 +357,27 @@
                   {formatDate(user.createdAt)}
                 </td>
                 <td class="actions-cell">
-                  <button
-                    class="action-btn edit-btn"
-                    onclick={(e) => { e.stopPropagation(); editUser(user); }}
-                    title={m.admin_editUser()}
-                  >
-                    ✏️
-                  </button>
+                  {#if isGuestUser(user)}
+                    <button
+                      class="action-btn migrate-btn"
+                      onclick={(e) => { e.stopPropagation(); showMigrateModal(user); }}
+                      title={m.admin_migrateUser()}
+                    >
+                      🔗
+                    </button>
+                  {/if}
+                  {#if user.mergedTo}
+                    {@const targetUser = users.find(u => u.userId === user.mergedTo)}
+                    <span class="merged-badge merged-to" title={m.admin_userAlreadyMerged()}>
+                      → {targetUser?.playerName || user.mergedTo.substring(0, 8) + '...'}
+                    </span>
+                  {/if}
+                  {#if user.mergedFrom && user.mergedFrom.length > 0}
+                    {@const sourceUsers = user.mergedFrom.map(id => users.find(u => u.userId === id)?.playerName || id.substring(0, 8) + '...')}
+                    <span class="merged-badge merged-from" title={sourceUsers.join(', ')}>
+                      ← {sourceUsers.length > 1 ? `${sourceUsers.length} usuarios` : sourceUsers[0]}
+                    </span>
+                  {/if}
                   <button
                     class="action-btn delete-btn"
                     onclick={(e) => { e.stopPropagation(); showDeleteConfirm(user); }}
@@ -319,6 +409,7 @@
   {#if selectedUser}
     <UserEditModal
       user={selectedUser}
+      allUsers={users}
       onClose={closeEditModal}
       onuserUpdated={handleUserUpdated}
     />
@@ -345,6 +436,59 @@
           </button>
           <button class="confirm-btn" onclick={confirmDelete} disabled={isDeleting}>
             {isDeleting ? m.admin_deleting() : m.common_delete()}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if userToMigrate}
+    <div class="migrate-overlay" data-theme={$adminTheme} onclick={cancelMigrate}>
+      <div class="migrate-modal" onclick={(e) => e.stopPropagation()}>
+        <h3>{m.admin_migrateUserTitle()}</h3>
+
+        <div class="migrate-source">
+          <span class="migrate-label">{m.admin_sourceUser()}</span>
+          <div class="user-preview">
+            <div class="preview-avatar-placeholder">
+              {userToMigrate.playerName?.charAt(0).toUpperCase() || '?'}
+            </div>
+            <div class="user-preview-info">
+              <strong>{userToMigrate.playerName}</strong>
+              <small>{m.admin_tournamentsToMigrate({ n: String(userToMigrate.tournaments?.length ?? 0) })}</small>
+              <small>{m.admin_rankingToMigrate({ n: String(userToMigrate.ranking ?? 0) })}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="migrate-arrow">↓</div>
+
+        <div class="migrate-target">
+          <span class="migrate-label">{m.admin_selectTargetUser()}</span>
+          <select bind:value={selectedTargetUserId} class="target-select">
+            <option value="">{m.admin_selectUser()}</option>
+            {#each registeredUsersList as regUser (regUser.userId)}
+              <option value={regUser.userId}>
+                {regUser.playerName} ({regUser.email})
+              </option>
+            {/each}
+          </select>
+        </div>
+
+        {#if migrationError}
+          <p class="migration-error">{migrationError}</p>
+        {/if}
+
+        <div class="migrate-actions">
+          <button class="cancel-btn" onclick={cancelMigrate} disabled={isMigrating}>
+            {m.common_cancel()}
+          </button>
+          <button
+            class="confirm-btn migrate-confirm-btn"
+            onclick={confirmMigrate}
+            disabled={isMigrating || !selectedTargetUserId}
+          >
+            {isMigrating ? m.admin_migrating() : m.admin_confirmMigration()}
           </button>
         </div>
       </div>
@@ -401,9 +545,15 @@
   }
 
   .users-container[data-theme='dark'] .back-btn {
-    background: #0f1419;
-    color: #8b9bb3;
-    border-color: #2d3748;
+    background: #1e293b;
+    color: #cbd5e1;
+    border-color: #334155;
+  }
+
+  .users-container[data-theme='dark'] .back-btn:hover {
+    background: #334155;
+    color: #e2e8f0;
+    border-color: #10b981;
   }
 
   .back-btn:hover {
@@ -504,13 +654,56 @@
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
   }
 
-  .filter-tabs {
+  .filter-controls {
     display: flex;
-    gap: 0.25rem;
+    gap: 0.5rem;
     flex-wrap: wrap;
+    align-items: center;
   }
 
   .filter-tab {
+    padding: 0.4rem 0.75rem;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    color: #555;
+    font-weight: 500;
+  }
+
+  .users-container[data-theme='dark'] .filter-tab {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #cbd5e1;
+  }
+
+  .filter-tab:hover:not(.active) {
+    background: #f0fdf4;
+    border-color: #10b981;
+    color: #047857;
+  }
+
+  .users-container[data-theme='dark'] .filter-tab:hover:not(.active) {
+    background: #064e3b;
+    border-color: #10b981;
+    color: #6ee7b7;
+  }
+
+  .filter-tab.active {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+    font-weight: 600;
+  }
+
+  .users-container[data-theme='dark'] .filter-tab.active {
+    background: #059669;
+    border-color: #059669;
+  }
+
+  .filter-select {
     padding: 0.4rem 0.75rem;
     background: white;
     border: 1px solid #ddd;
@@ -521,26 +714,16 @@
     color: #555;
   }
 
-  .users-container[data-theme='dark'] .filter-tab {
+  .users-container[data-theme='dark'] .filter-select {
     background: #1a2332;
     border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  .filter-tab:hover {
-    background: #f5f5f5;
+  .filter-select:focus {
+    outline: none;
     border-color: #667eea;
-  }
-
-  .users-container[data-theme='dark'] .filter-tab:hover {
-    background: #2d3748;
-  }
-
-  .filter-tab.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-color: transparent;
-    font-weight: 600;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
   }
 
   /* Results info */
@@ -725,6 +908,26 @@
   .users-container[data-theme='dark'] .role-badge.user {
     background: #374151;
     color: #9ca3af;
+  }
+
+  .tournaments-created {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 0.4rem;
+    background: #f3f4f6;
+    color: #374151;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 10px;
+    margin-left: 0.35rem;
+  }
+
+  .users-container[data-theme='dark'] .tournaments-created {
+    background: #0f1419;
+    color: #8b9bb3;
   }
 
   /* Ranking cell */
@@ -987,6 +1190,175 @@
     cursor: not-allowed;
   }
 
+  /* Migration button */
+  .action-btn.migrate-btn:hover {
+    background: #dbeafe;
+  }
+
+  .users-container[data-theme='dark'] .action-btn.migrate-btn:hover {
+    background: #1e3a5f;
+  }
+
+  .merged-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 25px;
+    cursor: help;
+  }
+
+  .merged-badge.merged-to {
+    background: #d1fae5;
+    color: #059669;
+  }
+
+  .merged-badge.merged-from {
+    background: #dbeafe;
+    color: #2563eb;
+  }
+
+  .users-container[data-theme='dark'] .merged-badge.merged-to {
+    background: #064e3b;
+    color: #6ee7b7;
+  }
+
+  .users-container[data-theme='dark'] .merged-badge.merged-from {
+    background: #1e3a5f;
+    color: #93c5fd;
+  }
+
+  /* Migration modal */
+  .migrate-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .migrate-modal {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .migrate-overlay[data-theme='dark'] .migrate-modal {
+    background: #1a2332;
+    color: #e1e8ed;
+  }
+
+  .migrate-modal h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    text-align: center;
+  }
+
+  .migrate-source,
+  .migrate-target {
+    margin-bottom: 0.75rem;
+  }
+
+  .migrate-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .migrate-overlay[data-theme='dark'] .migrate-label {
+    color: #8b9bb3;
+  }
+
+  .migrate-source .user-preview {
+    justify-content: flex-start;
+  }
+
+  .user-preview-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .user-preview-info small {
+    font-size: 0.75rem;
+    color: #666;
+  }
+
+  .migrate-overlay[data-theme='dark'] .user-preview-info small {
+    color: #8b9bb3;
+  }
+
+  .migrate-arrow {
+    text-align: center;
+    font-size: 1.5rem;
+    color: #667eea;
+    margin: 0.5rem 0;
+  }
+
+  .target-select {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: white;
+    cursor: pointer;
+  }
+
+  .migrate-overlay[data-theme='dark'] .target-select {
+    background: #0f1419;
+    border-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .target-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+  }
+
+  .migration-error {
+    color: #dc2626;
+    font-size: 0.85rem;
+    margin: 0.75rem 0;
+    text-align: center;
+  }
+
+  .migrate-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-top: 1rem;
+  }
+
+  .migrate-confirm-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .migrate-confirm-btn:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .migrate-overlay[data-theme='dark'] .user-preview {
+    background: #0f1419;
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     .users-container {
@@ -1007,7 +1379,7 @@
       max-width: none;
     }
 
-    .filter-tabs {
+    .filter-controls {
       justify-content: center;
     }
 

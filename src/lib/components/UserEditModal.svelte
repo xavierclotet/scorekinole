@@ -6,11 +6,18 @@
 
   interface Props {
     user: AdminUserInfo;
+    allUsers?: AdminUserInfo[];
     onClose: () => void;
     onuserUpdated?: (data: { userId: string }) => void;
   }
 
-  let { user, onClose, onuserUpdated }: Props = $props();
+  let { user, allUsers = [], onClose, onuserUpdated }: Props = $props();
+
+  // Helper to get playerName by userId
+  function getPlayerName(userId: string): string {
+    const found = allUsers.find(u => u.userId === userId);
+    return found?.playerName || userId.substring(0, 12) + '...';
+  }
 
   let playerName = $state(user.playerName);
   let ranking = $state(user.ranking ?? 0);
@@ -136,6 +143,20 @@
             <span class="meta-label">{m.admin_createdAt()}</span>
             <span class="meta-value">{formatDate(user.createdAt)}</span>
           </div>
+          {#if user.mergedTo}
+            <div class="meta-item">
+              <span class="meta-label">{m.admin_mergedTo()}</span>
+              <span class="meta-value merged-to-value">→ {getPlayerName(user.mergedTo)}</span>
+            </div>
+          {/if}
+          {#if user.mergedFrom && user.mergedFrom.length > 0}
+            <div class="meta-item">
+              <span class="meta-label">{m.admin_mergedFrom()}</span>
+              <span class="meta-value merged-from-value">
+                ← {user.mergedFrom.map(id => getPlayerName(id)).join(', ')}
+              </span>
+            </div>
+          {/if}
         </div>
       </div>
 
@@ -452,6 +473,32 @@
 
   .modal-overlay[data-theme='dark'] .meta-value {
     color: #c5d0de;
+  }
+
+  .meta-value.merged-to-value {
+    color: #059669;
+    background: #d1fae5;
+    padding: 0.15rem 0.5rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+  }
+
+  .meta-value.merged-from-value {
+    color: #2563eb;
+    background: #dbeafe;
+    padding: 0.15rem 0.5rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+  }
+
+  .modal-overlay[data-theme='dark'] .meta-value.merged-to-value {
+    background: #064e3b;
+    color: #6ee7b7;
+  }
+
+  .modal-overlay[data-theme='dark'] .meta-value.merged-from-value {
+    background: #1e3a5f;
+    color: #93c5fd;
   }
 
   /* Form Grid */

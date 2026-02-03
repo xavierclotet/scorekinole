@@ -18,6 +18,7 @@ export interface UserProfile {
   tournaments?: TournamentRecord[];      // Tournament history
   authProvider?: 'google' | null;        // null = GUEST without auth
   mergedFrom?: string[];                 // IDs of GUEST users merged into this one
+  mergedTo?: string;                     // ID of registered user this GUEST was merged to
   updatedAt?: any;
   createdAt?: any;
 }

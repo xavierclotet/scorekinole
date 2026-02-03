@@ -902,6 +902,12 @@ export async function searchUsers(searchQuery: string): Promise<UserProfile[]> {
 
     snapshot.forEach(docSnap => {
       const data = docSnap.data() as UserProfile;
+
+      // Skip merged users (they've been migrated to another account)
+      if (data.mergedTo) {
+        return;
+      }
+
       const nameMatch = data.playerName?.toLowerCase().includes(queryLower);
       const emailMatch = data.email?.toLowerCase().includes(queryLower);
 
