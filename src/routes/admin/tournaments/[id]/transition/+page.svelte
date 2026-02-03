@@ -94,7 +94,7 @@
     false
   );
 
-  // Get thirdPlaceMatchEnabled from tournament's finalStage (set during creation, default to true)
+  // Get thirdPlaceMatchEnabled from tournament's finalStage (default to true)
   let thirdPlaceMatchEnabled = $derived(
     tournament?.finalStage?.thirdPlaceMatchEnabled ?? true
   );
@@ -135,12 +135,12 @@
         // SINGLE_BRACKET with single group: all participants
         topNPerGroup = tournament.participants?.length || suggestedQualifiers.perGroup;
       } else if (isSplitDiv) {
-        // SPLIT_DIVISIONS: half participants per group
+        // SPLIT_DIVISIONS: top 4 per group
+        topNPerGroup = 4;
+      } else {
+        // SINGLE_BRACKET with multiple groups: half participants per group
         const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
         topNPerGroup = Math.ceil(participantsPerGroup / 2);
-      } else {
-        // Multiple groups: default to 4 per group
-        topNPerGroup = 4;
       }
       topNInitialized = true;
     }
@@ -429,7 +429,6 @@
           }
         };
         // Generate bracket - config will be stored inside goldBracket.config
-        // Pass consolationEnabled and thirdPlaceMatchEnabled from tournament's finalStage (set during creation)
         const bracketSuccess = await generateBracket(tournamentId, bracketConfig, consolationEnabled, thirdPlaceMatchEnabled);
 
         if (!bracketSuccess) {
@@ -449,7 +448,6 @@
         }
 
         // Generate both Gold and Silver brackets with per-phase configuration (new structure)
-        // Pass consolationEnabled and thirdPlaceMatchEnabled from tournament's finalStage (set during creation)
         const bracketSuccess = await generateSplitBrackets(tournamentId, {
           goldParticipantIds: goldParticipants,
           silverParticipantIds: silverParticipants,
@@ -2703,10 +2701,28 @@
 
     .actions-section {
       flex-direction: column;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.75rem;
+      background: white;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+      z-index: 100;
+      margin-bottom: 0;
+    }
+
+    .transition-page[data-theme='dark'] .actions-section {
+      background: #1a2332;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
     }
 
     .action-btn {
       width: 100%;
+    }
+
+    .page-content {
+      padding-bottom: 5rem;
     }
   }
 

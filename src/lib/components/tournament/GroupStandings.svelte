@@ -222,16 +222,17 @@
         {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
         {@const tiedNames = getTiedWithNames(standing.tiedWith)}
         {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
-        <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie} class:in-multi-tie={inMultiTie && !isSwiss}>
+        {@const showTieStyles = effectiveQualificationMode === 'WINS' && !isSwiss}
+        <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie && showTieStyles} class:in-multi-tie={inMultiTie && showTieStyles}>
           <td class="pos-col">
-            <span class="position-badge" class:qualified={standing.qualifiedForFinal} class:tied={hasTie}>
+            <span class="position-badge" class:qualified={standing.qualifiedForFinal} class:tied={hasTie && showTieStyles}>
               {i + 1}
             </span>
           </td>
           <td class="name-col">
             <span class="participant-name">
               {getParticipantName(standing.participantId)}
-              {#if enableTiebreaker && !isSwiss && effectiveQualificationMode === 'WINS' && isFirstInMultiTie(standing.participantId)}
+              {#if enableTiebreaker && showTieStyles && isFirstInMultiTie(standing.participantId)}
                 <!-- First player in 3+ tie group - show mini-league button (only for WINS mode) -->
                 <button
                   class="tie-badge"
@@ -245,8 +246,8 @@
                   </svg>
                 </button>
               {/if}
-              {#if hasTie}
-                <!-- Unresolved tie - show warning -->
+              {#if hasTie && showTieStyles}
+                <!-- Unresolved tie - show warning (only for WINS mode) -->
                 <span class="tie-indicator" title="{m.tournament_tiedWith()}: {tiedNames}">⚠️</span>
               {/if}
               {#if standing.qualifiedForFinal}
@@ -424,16 +425,16 @@
 
   td.total-points-col.primary,
   td.points-col.primary {
-    background: rgba(102, 126, 234, 0.12);
+    background: rgba(16, 185, 129, 0.12);
     font-weight: 700;
     font-size: 0.9rem;
-    color: #4338ca;
+    color: #059669;
   }
 
   th.total-points-col.primary,
   th.points-col.primary {
-    background: rgba(102, 126, 234, 0.15);
-    color: #4338ca;
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
     font-weight: 700;
   }
 
@@ -588,7 +589,7 @@
 
   :global([data-theme='dark']) td.total-points-col.primary,
   :global([data-theme='dark']) td.points-col.primary {
-    background: rgba(102, 126, 234, 0.15);
+    background: rgba(16, 185, 129, 0.15);
   }
 
   :global([data-theme='dark']) .position-badge {

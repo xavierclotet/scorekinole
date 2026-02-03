@@ -123,6 +123,10 @@
     .filter(p => p.status === 'ACTIVE' && p.finalPosition)
     .sort((a, b) => (a.finalPosition || 999) - (b.finalPosition || 999)));
 
+  // Split into two columns: first half in left column, second half in right column
+  let leftColumnParticipants = $derived(sortedParticipants.slice(0, Math.ceil(sortedParticipants.length / 2)));
+  let rightColumnParticipants = $derived(sortedParticipants.slice(Math.ceil(sortedParticipants.length / 2)));
+
   // Get participant name by ID
   function getParticipantName(participantId: string | undefined): string {
     if (!participantId) return 'TBD';
@@ -332,18 +336,36 @@
           <span class="pts">Pts</span>
         </div>
       {/if}
-      {#each sortedParticipants as participant (participant.id)}
-        {@const pointsEarned = getRankingDelta(participant)}
-        {@const pos = participant.finalPosition || 0}
-        <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
-          <span class="pos">{getPositionDisplay(pos)}</span>
-          <span class="name">{participant.name}</span>
-          {#if tournament.rankingConfig?.enabled}
-            <span class="ranking">{participant.currentRanking}</span>
-            <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
-          {/if}
-        </div>
-      {/each}
+      <!-- Left column: first half -->
+      <div class="standings-column">
+        {#each leftColumnParticipants as participant (participant.id)}
+          {@const pointsEarned = getRankingDelta(participant)}
+          {@const pos = participant.finalPosition || 0}
+          <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
+            <span class="pos">{getPositionDisplay(pos)}</span>
+            <span class="name">{participant.name}</span>
+            {#if tournament.rankingConfig?.enabled}
+              <span class="ranking">{participant.currentRanking}</span>
+              <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
+            {/if}
+          </div>
+        {/each}
+      </div>
+      <!-- Right column: second half -->
+      <div class="standings-column">
+        {#each rightColumnParticipants as participant (participant.id)}
+          {@const pointsEarned = getRankingDelta(participant)}
+          {@const pos = participant.finalPosition || 0}
+          <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
+            <span class="pos">{getPositionDisplay(pos)}</span>
+            <span class="name">{participant.name}</span>
+            {#if tournament.rankingConfig?.enabled}
+              <span class="ranking">{participant.currentRanking}</span>
+              <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
+            {/if}
+          </div>
+        {/each}
+      </div>
     </div>
   </div>
 
@@ -467,7 +489,7 @@
           {#if isSplitDivisions}
             <div class="bracket-division-header gold">
               <span class="division-icon"></span>
-              <span class="division-label">Liga Oro</span>
+              <span class="division-label">{m.admin_goldLeague()}</span>
             </div>
           {/if}
           <div class="bracket-container">
@@ -670,7 +692,7 @@
           <div class="bracket-wrapper silver">
             <div class="bracket-division-header silver">
               <span class="division-icon"></span>
-              <span class="division-label">Liga Plata</span>
+              <span class="division-label">{m.admin_silverLeague()}</span>
             </div>
             <div class="bracket-container">
             {#each silverBracket.rounds as round (round.roundNumber)}
@@ -958,9 +980,26 @@
   }
 
   .standings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 1.5rem;
+  }
+
+  .standings-column {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+  }
+
+  @media (max-width: 600px) {
+    .standings-grid {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    .standings-column {
+      margin-bottom: 0.35rem;
+    }
   }
 
   .standings-header-row {
@@ -975,6 +1014,7 @@
     letter-spacing: 0.05em;
     border-bottom: 1px solid #e5e7eb;
     margin-bottom: 0.25rem;
+    grid-column: 1 / -1;
   }
 
   .standings-header-row .pos {

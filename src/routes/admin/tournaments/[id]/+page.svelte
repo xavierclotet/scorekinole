@@ -6,7 +6,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import TournamentKeyBadge from '$lib/components/TournamentKeyBadge.svelte';
   import CompletedTournamentView from '$lib/components/tournament/CompletedTournamentView.svelte';
-  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+  import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
   import { adminTheme } from '$lib/stores/theme';
   import { currentUser } from '$lib/firebase/auth';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
@@ -43,6 +43,7 @@
   let editRankingEnabled = $state(false);
   let editRankingTier = $state<'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR'>('CLUB');
   let editConsolationEnabled = $state(false);
+  let editThirdPlaceMatchEnabled = $state(true);
 
   let tournamentId = $derived($page.params.id);
 
@@ -51,6 +52,14 @@
     ?? (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled']
     ?? tournament?.finalStage?.goldBracket?.config?.consolationEnabled
     ?? false);
+
+  // Get thirdPlaceMatchEnabled from finalStage (default true)
+  let thirdPlaceMatchEnabled = $derived(tournament?.finalStage?.thirdPlaceMatchEnabled ?? true);
+
+  // Calculate max players that can play in parallel with current table count
+  let playersPerTable = $derived(tournament?.gameType === 'doubles' ? 4 : 2);
+  let maxPlayersForTables = $derived(editNumTables * playersPerTable);
+  let tablesWarning = $derived(tournament ? tournament.participants.length > maxPlayersForTables : false);
 
   onMount(async () => {
     await loadTournament();
@@ -220,6 +229,8 @@
       tournament.finalStage?.goldBracket?.config?.consolationEnabled ??
       false
     );
+    // Initialize third place match toggle (default true)
+    editThirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
 
     showQuickEdit = true;
   }
@@ -246,23 +257,12 @@
     showToast = true;
   }
 
-  function getMinTables(): number {
-    if (!tournament) return 1;
-    // Calculate minimum tables needed based on participants
-    const numParticipants = tournament.participants.length;
-    return Math.max(1, Math.ceil(numParticipants / 2));
-  }
-
   async function saveQuickEdit() {
     if (!tournamentId || !tournament) return;
 
-    // Validate minimum tables
-    const minTables = getMinTables();
-    if (editNumTables < minTables) {
-      toastMessage = m.admin_minTablesRequired({ min: String(minTables) });
-      toastType = 'error';
-      showToast = true;
-      return;
+    // Ensure at least 1 table
+    if (editNumTables < 1) {
+      editNumTables = 1;
     }
 
     isSavingQuickEdit = true;
@@ -280,11 +280,12 @@
         }
       };
 
-      // Update consolationEnabled in finalStage if it exists
+      // Update finalStage options if it exists
       if (tournament.finalStage) {
         updates.finalStage = {
           ...tournament.finalStage,
-          consolationEnabled: editConsolationEnabled
+          consolationEnabled: editConsolationEnabled,
+          thirdPlaceMatchEnabled: editThirdPlaceMatchEnabled
         };
       }
 
@@ -397,9 +398,7 @@
           <button class="back-btn" onclick={() => goto('/admin/tournaments')}>
             ←
           </button>
-          <div class="header-main">
-            <h1>{m.admin_loadingTournament()}...</h1>
-          </div>
+          <div class="header-main"></div>
           <div class="header-actions">
             <ThemeToggle />
           </div>
@@ -407,10 +406,13 @@
       {/if}
     </header>
 
+    <!-- Loading Overlay -->
+    <LoadingOverlay show={loading} message={m.admin_loadingTournament()} />
+
     <!-- Content -->
     <div class="page-content">
       {#if loading}
-        <LoadingSpinner message={m.admin_loadingTournament()} />
+        <!-- Content hidden while loading -->
       {:else if error || !tournament}
         <div class="error-state">
           <div class="error-icon">⚠️</div>
@@ -574,6 +576,21 @@
                   <span class="config-label">{m.admin_consolationRounds()}:</span>
                   <span class="config-value">
                     {#if consolationEnabled}
+                      <span class="consolation-badge enabled">
+                        <svg class="badge-check" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        {m.admin_enabled()}
+                      </span>
+                    {:else}
+                      <span class="consolation-badge disabled">{m.admin_disabled()}</span>
+                    {/if}
+                  </span>
+                </div>
+                <div class="config-item">
+                  <span class="config-label">{m.wizard_thirdPlaceMatch()}:</span>
+                  <span class="config-value">
+                    {#if thirdPlaceMatchEnabled}
                       <span class="consolation-badge enabled">
                         <svg class="badge-check" viewBox="0 0 20 20" fill="currentColor">
                           <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
@@ -803,10 +820,16 @@
                   type="number"
                   id="edit-tables"
                   bind:value={editNumTables}
-                  min={getMinTables()}
+                  min="1"
                   max="50"
                 />
-                <span class="field-hint">{m.common_minimum()}: {getMinTables()}</span>
+                <span class="field-hint" class:warning={tablesWarning}>
+                  {#if tablesWarning}
+                    ⚠️ {m.wizard_someRest({ max: maxPlayersForTables })}
+                  {:else}
+                    {maxPlayersForTables} {m.time_parallel()}
+                  {/if}
+                </span>
               </div>
             </div>
 
@@ -878,6 +901,17 @@
                 <p class="option-description">
                   {m.admin_consolationRoundsDescription()}
                 </p>
+
+                <label class="switch-row">
+                  <span class="switch-label">
+                    <span class="switch-icon">🥉</span>
+                    {m.wizard_thirdPlaceMatch()}
+                  </span>
+                  <input type="checkbox" bind:checked={editThirdPlaceMatchEnabled} class="toggle-switch" />
+                </label>
+                <p class="option-description">
+                  {m.wizard_thirdPlaceMatchDesc()}
+                </p>
               </div>
             {/if}
           </div>
@@ -900,14 +934,8 @@
 
 <Toast bind:visible={showToast} message={toastMessage} type={toastType} />
 
-<!-- Loading Overlay -->
-{#if isStarting || isSavingQuickEdit}
-  <div class="loading-overlay" data-theme={$adminTheme}>
-    <div class="loading-content">
-      <LoadingSpinner size="large" message={isStarting ? m.tournament_starting() : m.admin_saving()} />
-    </div>
-  </div>
-{/if}
+<!-- Action Loading Overlay -->
+<LoadingOverlay show={isStarting || isSavingQuickEdit} message={isStarting ? m.tournament_starting() : m.admin_saving()} />
 
 <TimeBreakdownModal
   bind:visible={showTimeBreakdown}
@@ -1393,29 +1421,66 @@
   }
 
   @media (max-width: 768px) {
+    .page-header {
+      padding: 0.5rem 0.75rem;
+    }
+
     .header-row {
       flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .back-btn {
+      width: 32px;
+      height: 32px;
+      font-size: 1rem;
     }
 
     .header-main {
-      order: 2;
-      width: 100%;
-      margin-top: 0.5rem;
-    }
-
-    .header-actions {
-      order: 1;
-      margin-left: auto;
+      flex: 1;
+      min-width: 0;
     }
 
     .title-section {
       flex-direction: column;
       align-items: flex-start;
-      gap: 0.5rem;
+      gap: 0.3rem;
+    }
+
+    .title-section h1 {
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
 
     .header-badges {
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+
+    .status-badge,
+    .info-badge {
+      font-size: 0.6rem;
+      padding: 0.15rem 0.4rem;
+    }
+
+    .header-progress {
       width: 100%;
+      margin-left: 0;
+      margin-top: 0.2rem;
+    }
+
+    .header-actions {
+      flex-shrink: 0;
+      gap: 0.25rem;
+    }
+
+    .action-btn {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.7rem;
+      white-space: nowrap;
     }
 
     .dashboard-grid {
@@ -1423,15 +1488,28 @@
     }
   }
 
-  @media (max-width: 600px) {
+  @media (max-width: 540px) {
+    .header-row {
+      row-gap: 0.5rem;
+    }
+
+    .header-main {
+      order: 2;
+      flex-basis: 100%;
+    }
+
     .header-actions {
-      flex-wrap: wrap;
-      gap: 0.3rem;
+      order: 1;
+      margin-left: auto;
+    }
+
+    .title-section h1 {
+      font-size: 0.9rem;
     }
 
     .action-btn {
       padding: 0.35rem 0.6rem;
-      font-size: 0.75rem;
+      font-size: 0.7rem;
     }
   }
 
@@ -1874,6 +1952,15 @@
     color: #6b7a94;
   }
 
+  .field-hint.warning {
+    color: #d97706;
+    font-weight: 500;
+  }
+
+  .modal-backdrop[data-theme='dark'] .field-hint.warning {
+    color: #fbbf24;
+  }
+
   /* Subsections */
   .subsection {
     margin-top: 1.5rem;
@@ -2171,32 +2258,4 @@
       border-radius: 0;
     }
   }
-
-  /* Loading Overlay */
-  .loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    backdrop-filter: blur(4px);
-  }
-
-  .loading-content {
-    background: white;
-    padding: 2rem 3rem;
-    border-radius: 12px;
-    text-align: center;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  }
-
-  .loading-overlay[data-theme='dark'] .loading-content {
-    background: #1a2332;
-  }
-
-  </style>
+</style>

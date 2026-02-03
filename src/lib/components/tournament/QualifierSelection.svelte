@@ -495,10 +495,11 @@
           {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
           {@const tiedNames = getTiedWithNames(standing.tiedWith)}
           {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
+          {@const showTieStyles = qualificationMode === 'WINS' && !isSwiss}
           <tr
             class:selected={isSelected}
-            class:has-tie={hasTie}
-            class:in-multi-tie={inMultiTie && !isSwiss}
+            class:has-tie={hasTie && showTieStyles}
+            class:in-multi-tie={inMultiTie && showTieStyles}
             onclick={() => toggleParticipant(standing.participantId)}
             role="button"
             tabindex="0"
@@ -513,7 +514,7 @@
             </td>
             <td class="pos-col">
               <div class="position-cell">
-                <span class="position-badge" class:selected={isSelected} class:tied={hasTie}>
+                <span class="position-badge" class:selected={isSelected} class:tied={hasTie && showTieStyles}>
                   {standing.position}
                 </span>
               </div>
@@ -535,8 +536,8 @@
                     </svg>
                   </button>
                 {/if}
-                {#if hasTie}
-                  <!-- Unresolved tie - show warning and resolve buttons -->
+                {#if hasTie && showTieStyles}
+                  <!-- Unresolved tie - show warning and resolve buttons (only for WINS mode) -->
                   <span class="tie-indicator" title="{m.tournament_tiedWith()}: {tiedNames}">⚠️</span>
                   {#if canMoveDown(standing.participantId)}
                     <div class="tie-actions">
@@ -900,7 +901,7 @@
   }
 
   .clickable-pts:hover {
-    background: rgba(102, 126, 234, 0.15) !important;
+    background: rgba(16, 185, 129, 0.2) !important;
     text-decoration: underline;
   }
 
@@ -1230,15 +1231,15 @@
 
   /* Primary column (used for qualification ranking) */
   .primary-col {
-    background: rgba(102, 126, 234, 0.12);
-    color: #4338ca !important;
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669 !important;
     font-weight: 700;
     font-size: 0.9rem;
   }
 
   th.primary-col {
-    background: rgba(102, 126, 234, 0.15);
-    color: #4338ca !important;
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669 !important;
     font-weight: 700;
   }
 
