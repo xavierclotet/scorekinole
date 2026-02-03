@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { theme } from '$lib/stores/theme';
 
 	interface Props {
 		isOpen?: boolean;
@@ -37,6 +38,7 @@
 {#if isOpen}
 	<div
 		class="modal-overlay"
+		data-theme={$theme}
 		onclick={handleOverlayClick}
 		onkeydown={handleKeydown}
 		role="button"
@@ -280,5 +282,45 @@
 			width: 24px;
 			height: 24px;
 		}
+	}
+
+	/* Light theme */
+	.modal-overlay[data-theme='light'] {
+		background: rgba(0, 0, 0, 0.5);
+	}
+
+	.modal-overlay[data-theme='light'] .modal-content {
+		background: #ffffff;
+		border-color: #e2e8f0;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+	}
+
+	.modal-overlay[data-theme='light'] .modal-header {
+		border-bottom-color: #e2e8f0;
+	}
+
+	.modal-overlay[data-theme='light'] .modal-title {
+		color: #1a202c;
+	}
+
+	.modal-overlay[data-theme='light'] .close-btn {
+		color: #718096;
+	}
+
+	.modal-overlay[data-theme='light'] .close-btn:hover {
+		background: rgba(0, 0, 0, 0.05);
+		color: #1a202c;
+	}
+
+	.modal-overlay[data-theme='light'] .modal-body {
+		color: #1a202c;
+	}
+
+	.modal-overlay[data-theme='light'] .modal-body::-webkit-scrollbar-thumb {
+		background: rgba(0, 0, 0, 0.15);
+	}
+
+	.modal-overlay[data-theme='light'] .modal-body::-webkit-scrollbar-thumb:hover {
+		background: rgba(0, 0, 0, 0.25);
 	}
 </style>

@@ -14,6 +14,9 @@
 		type RankingFilters
 	} from '$lib/firebase/rankings';
 	import RankingDetailModal from '$lib/components/RankingDetailModal.svelte';
+	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { theme } from '$lib/stores/theme';
 
 	// Data state
 	let isLoading = true;
@@ -129,10 +132,6 @@
 		showDetailModal = false;
 		selectedPlayer = null;
 	}
-
-	function goBack() {
-		goto('/');
-	}
 </script>
 
 <svelte:head>
@@ -140,29 +139,20 @@
 	<meta name="description" content="Crokinole Rankings - Best-of-N tournament results" />
 </svelte:head>
 
-<div class="rankings-container">
+<div class="rankings-container" data-theme={$theme}>
 	<header class="page-header">
 		<div class="header-row">
-			<button class="back-btn" onclick={goBack}>
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M19 12H5M12 19l-7-7 7-7"/>
-				</svg>
-			</button>
-			<div class="header-main">
+			<div class="header-left">
+				<ScorekinoleLogo />
+			</div>
+			<div class="header-center">
 				<div class="title-section">
 					<h1>{m.ranking_publicRankings()}</h1>
 					<span class="count-badge">{rankedPlayers.length}</span>
 				</div>
 			</div>
-			<div class="year-select-wrapper">
-				<select class="year-select" bind:value={selectedYear}>
-					{#each availableYears as year}
-						<option value={year}>{year}</option>
-					{/each}
-					{#if availableYears.length === 0}
-						<option value={selectedYear}>{selectedYear}</option>
-					{/if}
-				</select>
+			<div class="header-right">
+				<ThemeToggle />
 			</div>
 		</div>
 	</header>
@@ -185,13 +175,24 @@
 			</button>
 		</div>
 
-		{#if filterType === 'country'}
-			<select class="filter-select" bind:value={selectedCountry}>
-				{#each availableCountries as country}
-					<option value={country}>{country}</option>
+		<div class="filter-selects">
+			<select class="filter-select year-filter" bind:value={selectedYear}>
+				{#each availableYears as year}
+					<option value={year}>{year}</option>
 				{/each}
+				{#if availableYears.length === 0}
+					<option value={selectedYear}>{selectedYear}</option>
+				{/if}
 			</select>
-		{/if}
+
+			{#if filterType === 'country'}
+				<select class="filter-select" bind:value={selectedCountry}>
+					{#each availableCountries as country}
+						<option value={country}>{country}</option>
+					{/each}
+				</select>
+			{/if}
+		</div>
 
 		<div class="bestof-control">
 			<label for="bestof-select">{m.ranking_bestOf()}</label>
@@ -232,7 +233,7 @@
 						<th class="player-col">{m.tournament_playerColumn()}</th>
 						<th class="points-col">{m.scoring_points()}</th>
 						<th class="best-col">{m.ranking_bestResult()}</th>
-						<th class="tournaments-col hide-mobile">{m.ranking_tournamentsCount()}</th>
+						<th class="tournaments-col">{m.ranking_tournamentsCount()}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -277,7 +278,7 @@
 									<span class="best-position">-</span>
 								{/if}
 							</td>
-							<td class="tournaments-cell hide-mobile">
+							<td class="tournaments-cell">
 								{player.tournamentsCount}/{bestOfN}
 							</td>
 						</tr>
@@ -328,35 +329,25 @@
 		gap: 1rem;
 	}
 
-	.back-btn {
-		width: 36px;
-		height: 36px;
-		border-radius: 8px;
-		border: 1px solid #2d3748;
-		background: #0f1419;
-		color: #8b9bb3;
-		cursor: pointer;
+	.header-left {
 		display: flex;
 		align-items: center;
-		justify-content: center;
-		transition: all 0.2s;
+		gap: 0.75rem;
 		flex-shrink: 0;
 	}
 
-	.back-btn svg {
-		width: 18px;
-		height: 18px;
-	}
-
-	.back-btn:hover {
-		transform: translateX(-2px);
-		border-color: #667eea;
-		color: #667eea;
-	}
-
-	.header-main {
+	.header-center {
 		flex: 1;
+		display: flex;
+		justify-content: left;
 		min-width: 0;
+	}
+
+	.header-right {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-shrink: 0;
 	}
 
 	.title-section {
@@ -382,37 +373,6 @@
 		font-weight: 600;
 	}
 
-	.year-select-wrapper {
-		flex-shrink: 0;
-	}
-
-	.year-select {
-		padding: 0.4rem 2rem 0.4rem 0.75rem;
-		background-color: #0f1419;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-		background-repeat: no-repeat;
-		background-position: right 0.5rem center;
-		border: 1px solid #2d3748;
-		border-radius: 6px;
-		color: #e1e8ed;
-		font-size: 0.85rem;
-		font-weight: 600;
-		cursor: pointer;
-		appearance: none;
-		-webkit-appearance: none;
-		-moz-appearance: none;
-	}
-
-	.year-select:focus {
-		outline: none;
-		border-color: #667eea;
-	}
-
-	.year-select option {
-		background: #1a2332;
-		color: #e1e8ed;
-	}
-
 	/* Controls */
 	.controls-section {
 		display: flex;
@@ -425,7 +385,11 @@
 	.filter-tabs {
 		display: flex;
 		gap: 0.25rem;
-		flex-wrap: wrap;
+	}
+
+	.filter-selects {
+		display: flex;
+		gap: 0.5rem;
 	}
 
 	.filter-tab {
@@ -608,10 +572,10 @@
 		letter-spacing: 0.5px;
 	}
 
-	.pos-col { width: 50px; }
-	.points-col { width: 90px; }
-	.best-col { width: 60px; text-align: center; }
-	.tournaments-col { width: 80px; }
+	.rankings-table .pos-col { width: 50px; text-align: center; }
+	.rankings-table .points-col { width: 90px; }
+	.rankings-table .best-col { width: 60px; }
+	.rankings-table .tournaments-col { width: 80px; }
 
 	.player-row {
 		border-bottom: 1px solid #2d3748;
@@ -788,22 +752,13 @@
 			padding: 0.75rem 1rem;
 		}
 
-		.controls-section {
-			flex-direction: column;
-			align-items: stretch;
-		}
-
-		.filter-tabs {
-			justify-content: center;
+		.filter-tabs,
+		.filter-selects {
+			display: contents;
 		}
 
 		.bestof-control {
-			margin-left: 0;
-			justify-content: center;
-		}
-
-		.hide-mobile {
-			display: none;
+			margin-left: auto;
 		}
 
 		.table-container {
@@ -811,7 +766,7 @@
 		}
 	}
 
-	@media (max-width: 480px) {
+	@media (max-width: 640px) {
 		.title-section h1 {
 			font-size: 1rem;
 		}
@@ -819,6 +774,41 @@
 		.filter-tab {
 			padding: 0.35rem 0.5rem;
 			font-size: 0.75rem;
+		}
+
+		.filter-select {
+			font-size: 0.7rem;
+			padding: 0.35rem 1.2rem 0.35rem 0.4rem;
+			background-position: right 0.3rem center;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.filter-tab,
+		.filter-select {
+			padding: 0.3rem 0.4rem;
+			font-size: 0.65rem;
+		}
+
+		.filter-select {
+			padding-right: 1rem;
+			background-position: right 0.2rem center;
+		}
+
+		.bestof-control {
+			font-size: 0.7rem;
+			gap: 0.3rem;
+		}
+
+		.bestof-control label,
+		.bestof-suffix {
+			font-size: 0.65rem;
+		}
+
+		.bestof-select {
+			padding: 0.3rem 1.2rem 0.3rem 0.4rem;
+			font-size: 0.7rem;
+			min-width: 40px;
 		}
 
 		.rankings-table th,
@@ -867,5 +857,147 @@
 		.rankings-table td {
 			padding: 0.35rem 0.5rem;
 		}
+	}
+
+	/* Light theme */
+	.rankings-container[data-theme='light'] {
+		background: #f5f7fa;
+	}
+
+	.rankings-container[data-theme='light'] .page-header {
+		background: #ffffff;
+		border-bottom-color: #e2e8f0;
+	}
+
+	.rankings-container[data-theme='light'] .title-section h1 {
+		color: #1a202c;
+	}
+
+	.rankings-container[data-theme='light'] .count-badge {
+		background: #e2e8f0;
+		color: #4a5568;
+	}
+
+	.rankings-container[data-theme='light'] .filter-tab {
+		background: #ffffff;
+		border-color: #e2e8f0;
+		color: #4a5568;
+	}
+
+	.rankings-container[data-theme='light'] .filter-tab:hover {
+		background: #f7fafc;
+		border-color: #667eea;
+	}
+
+	.rankings-container[data-theme='light'] .filter-select,
+	.rankings-container[data-theme='light'] .bestof-select {
+		background-color: #ffffff;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5568' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+		border-color: #e2e8f0;
+		color: #1a202c;
+	}
+
+	.rankings-container[data-theme='light'] .filter-select option,
+	.rankings-container[data-theme='light'] .bestof-select option {
+		background: #ffffff;
+		color: #1a202c;
+	}
+
+	.rankings-container[data-theme='light'] .bestof-control label,
+	.rankings-container[data-theme='light'] .bestof-suffix {
+		color: #4a5568;
+	}
+
+	.rankings-container[data-theme='light'] .results-info {
+		color: #718096;
+	}
+
+	.rankings-container[data-theme='light'] .spinner {
+		border-color: #e2e8f0;
+		border-top-color: #667eea;
+	}
+
+	.rankings-container[data-theme='light'] .loading-state p {
+		color: #718096;
+	}
+
+	.rankings-container[data-theme='light'] .empty-icon svg {
+		stroke: #a0aec0;
+	}
+
+	.rankings-container[data-theme='light'] .empty-state h3 {
+		color: #1a202c;
+	}
+
+	.rankings-container[data-theme='light'] .table-container {
+		background: #ffffff;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	}
+
+	.rankings-container[data-theme='light'] .rankings-table thead {
+		background: #f7fafc;
+		border-bottom-color: #e2e8f0;
+	}
+
+	.rankings-container[data-theme='light'] .rankings-table th {
+		color: #4a5568;
+	}
+
+	.rankings-container[data-theme='light'] .player-row {
+		border-bottom-color: #e2e8f0;
+	}
+
+	.rankings-container[data-theme='light'] .player-row:nth-child(even):not(.top-1):not(.top-2):not(.top-3) {
+		background: rgba(247, 250, 252, 0.5);
+	}
+
+	.rankings-container[data-theme='light'] .player-row:hover {
+		background: #f7fafc;
+	}
+
+	.rankings-container[data-theme='light'] .player-row.top-1:hover {
+		background: rgba(255, 215, 0, 0.15);
+	}
+
+	.rankings-container[data-theme='light'] .player-row.top-2:hover {
+		background: rgba(192, 192, 192, 0.15);
+	}
+
+	.rankings-container[data-theme='light'] .player-row.top-3:hover {
+		background: rgba(205, 127, 50, 0.15);
+	}
+
+	.rankings-container[data-theme='light'] .rankings-table td {
+		color: #1a202c;
+	}
+
+	.rankings-container[data-theme='light'] .position {
+		background: #e2e8f0;
+		color: #4a5568;
+	}
+
+	.rankings-container[data-theme='light'] .player-name {
+		color: #1a202c;
+	}
+
+	.rankings-container[data-theme='light'] .points-unit {
+		color: #718096;
+	}
+
+	.rankings-container[data-theme='light'] .best-position {
+		color: #4a5568;
+	}
+
+	.rankings-container[data-theme='light'] .tournaments-cell {
+		color: #4a5568;
+	}
+
+	.rankings-container[data-theme='light'] .load-more-hint,
+	.rankings-container[data-theme='light'] .end-of-list {
+		color: #718096;
+	}
+
+	.rankings-container[data-theme='light'] .end-of-list {
+		border-top-color: #e2e8f0;
 	}
 </style>

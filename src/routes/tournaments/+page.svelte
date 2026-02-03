@@ -356,6 +356,7 @@
 		margin-bottom: 1rem;
 		flex-wrap: wrap;
 		align-items: center;
+		position: relative;
 	}
 
 	.filter-tabs {
@@ -554,22 +555,15 @@
 			padding: 0.75rem 1rem;
 		}
 
-		.controls-section {
-			flex-direction: column;
-			align-items: stretch;
-		}
-
-		.filter-tabs {
-			justify-content: center;
-		}
-
+		.filter-tabs,
 		.filter-selects {
-			justify-content: center;
+			display: contents;
 		}
 
 		.clear-filters-btn {
-			margin-left: 0;
-			align-self: center;
+			position: absolute;
+			right: 0;
+			top: 0;
 		}
 
 		.grid-container {
@@ -589,8 +583,9 @@
 		}
 
 		.filter-select {
-			font-size: 0.75rem;
-			padding: 0.35rem 1.8rem 0.35rem 0.5rem;
+			font-size: 0.7rem;
+			padding: 0.35rem 1.2rem 0.35rem 0.4rem;
+			background-position: right 0.3rem center;
 		}
 	}
 
@@ -601,13 +596,15 @@
 			gap: 0.75rem;
 		}
 
-		.filter-selects {
-			flex-direction: column;
-			gap: 0.5rem;
+		.filter-tab,
+		.filter-select {
+			padding: 0.3rem 0.4rem;
+			font-size: 0.65rem;
 		}
 
 		.filter-select {
-			width: 100%;
+			padding-right: 1rem;
+			background-position: right 0.2rem center;
 		}
 	}
 

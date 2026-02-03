@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Modal from './Modal.svelte';
+	import { theme } from '$lib/stores/theme';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { RankedPlayer } from '$lib/firebase/rankings';
 	import type { TournamentTier } from '$lib/types/tournament';
@@ -29,7 +30,7 @@
 
 <Modal {isOpen} title={player ? `${m.ranking_of()} ${player.playerName}` : ''} {onClose}>
 	{#if player}
-		<div class="ranking-detail">
+		<div class="ranking-detail" data-theme={$theme}>
 			<div class="tournaments-list">
 				{#each player.tournaments as tournament, index}
 					<div class="tournament-row">
@@ -279,5 +280,79 @@
 			gap: 0.25rem;
 			text-align: center;
 		}
+	}
+
+	/* Light theme */
+	.ranking-detail[data-theme='light'] .tournament-row {
+		background: rgba(0, 0, 0, 0.03);
+	}
+
+	.ranking-detail[data-theme='light'] .position-badge {
+		background: rgba(0, 0, 0, 0.05);
+		border-color: rgba(0, 0, 0, 0.1);
+	}
+
+	.ranking-detail[data-theme='light'] .position-badge.gold {
+		background: rgba(255, 215, 0, 0.15);
+		border-color: rgba(255, 215, 0, 0.4);
+	}
+
+	.ranking-detail[data-theme='light'] .position-badge.silver {
+		background: rgba(192, 192, 192, 0.2);
+		border-color: rgba(192, 192, 192, 0.5);
+	}
+
+	.ranking-detail[data-theme='light'] .position-badge.bronze {
+		background: rgba(205, 127, 50, 0.15);
+		border-color: rgba(205, 127, 50, 0.4);
+	}
+
+	.ranking-detail[data-theme='light'] .position-number {
+		color: #1a202c;
+	}
+
+	.ranking-detail[data-theme='light'] .position-badge.gold .position-number {
+		color: #b8860b;
+	}
+
+	.ranking-detail[data-theme='light'] .position-badge.silver .position-number {
+		color: #6b7280;
+	}
+
+	.ranking-detail[data-theme='light'] .position-badge.bronze .position-number {
+		color: #a0522d;
+	}
+
+	.ranking-detail[data-theme='light'] .position-total {
+		color: rgba(0, 0, 0, 0.45);
+	}
+
+	.ranking-detail[data-theme='light'] .tournament-name {
+		color: #1a202c;
+	}
+
+	.ranking-detail[data-theme='light'] .tournament-date {
+		color: rgba(0, 0, 0, 0.5);
+	}
+
+	.ranking-detail[data-theme='light'] .tournament-points {
+		color: #059669;
+	}
+
+	.ranking-detail[data-theme='light'] .total-row {
+		background: rgba(5, 150, 105, 0.08);
+		border-color: rgba(5, 150, 105, 0.2);
+	}
+
+	.ranking-detail[data-theme='light'] .total-calculation {
+		color: rgba(0, 0, 0, 0.6);
+	}
+
+	.ranking-detail[data-theme='light'] .total-label {
+		color: rgba(0, 0, 0, 0.7);
+	}
+
+	.ranking-detail[data-theme='light'] .total-value {
+		color: #059669;
 	}
 </style>

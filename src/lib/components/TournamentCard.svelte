@@ -107,8 +107,8 @@
 			</div>
 
 			<div class="meta">
-				<a 
-					class="location" 
+				<a
+					class="location"
 					href="https://www.google.com/maps/search/?api=1&query={encodeURIComponent(tournament.city + ', ' + tournament.country)}"
 					target="_blank"
 					rel="noopener noreferrer"
@@ -126,7 +126,7 @@
 						<line x1="10" y1="14" x2="21" y2="3" />
 					</svg>
 				</a>
-				<a 
+				<a
 					class="date-link"
 					href={getGoogleCalendarUrl()}
 					target="_blank"
@@ -148,6 +148,12 @@
 					</svg>
 				</a>
 			</div>
+		</div>
+
+		<div class="chevron">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M9 18l6-6-6-6" />
+			</svg>
 		</div>
 	</div>
 
@@ -392,6 +398,37 @@
 		height: 15px;
 	}
 
+	.chevron {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+		margin-left: auto;
+		border-radius: 8px;
+		background: rgba(102, 126, 234, 0.08);
+		color: #667eea;
+		transition: all 0.2s ease;
+	}
+
+	.chevron svg {
+		width: 18px;
+		height: 18px;
+	}
+
+	.card:hover .chevron {
+		background: #667eea;
+		color: white;
+		transform: translateX(2px);
+	}
+
+	.card:active .chevron {
+		background: #667eea;
+		color: white;
+		transform: scale(0.95);
+	}
+
 	@media (max-width: 480px) {
 		.card-main {
 			padding: 0.875rem;
@@ -423,6 +460,17 @@
 		.badge {
 			font-size: 0.6rem;
 			padding: 0.15rem 0.35rem;
+		}
+
+		.chevron {
+			width: 28px;
+			height: 28px;
+			background: rgba(102, 126, 234, 0.15);
+		}
+
+		.chevron svg {
+			width: 16px;
+			height: 16px;
 		}
 	}
 
@@ -458,5 +506,21 @@
 
 	:global([data-theme='light']) .participants {
 		color: #718096;
+	}
+
+	:global([data-theme='light']) .chevron {
+		background: rgba(102, 126, 234, 0.08);
+	}
+
+	:global([data-theme='light']) .card:hover .chevron,
+	:global([data-theme='light']) .card:active .chevron {
+		background: #667eea;
+		color: white;
+	}
+
+	@media (max-width: 480px) {
+		:global([data-theme='light']) .chevron {
+			background: rgba(102, 126, 234, 0.12);
+		}
 	}
 </style>
