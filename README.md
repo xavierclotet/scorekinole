@@ -18,7 +18,7 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 Works on any device with a browser - no installation required!
 
 ### 📱 **ANDROID APP**
-### 👉 [**DOWNLOAD LATEST VERSION (v2.2.9)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
+### 👉 [**DOWNLOAD LATEST VERSION (v2.2.12)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
 
 **Installation:**
 1. Download the APK file from the link above
