@@ -110,15 +110,15 @@ Complete tournament administration system for professional Crokinole events:
 #### **Game Configuration Per Phase**
 - **By Points**: First to X points (e.g., first to 7)
 - **By Rounds**: Fixed rounds (e.g., 4 rounds)
-- **Best of X**: Configurable matches to win (Best of 1, 3, 5, etc.)
+- **Games to win X**: Configurable games to win (e.g., first to win 1, 2, 3 games)
 - **Advanced bracket config**: Different settings for early rounds, semifinals, and finals
 
 #### **Tier-Based Ranking System**
 - **4 tournament tiers** with different point distributions:
-  - Major (Tier 1): 1000-100 points
-  - National (Tier 2): 500-50 points
-  - Regional (Tier 3): 250-25 points
-  - Club (Tier 4): 100-10 points
+  - Major (Tier 1): 50 points to 1st place
+  - National (Tier 2): 40 points to 1st place
+  - Regional (Tier 3): 25 points to 1st place
+  - Club (Tier 4): 15 points to 1st place
 - **Automatic ranking updates** after tournament completion
 - **Ranking snapshots** preserved for historical records
 
@@ -132,15 +132,15 @@ Complete tournament administration system for professional Crokinole events:
 - **DRAFT**: Initial setup, editable configuration
 - **GROUP_STAGE**: Group matches in progress (Two Phase only)
 - **TRANSITION**: Select qualifiers for final bracket
-- **FINAL_STAGE**: Bracket matches in progress
+- **KNOCKOUT**: Bracket matches in progress
 - **COMPLETED**: Results finalized, rankings applied
 - **CANCELLED**: Tournament cancelled
 
 #### **Match Management**
 - **Table assignment**: Configurable number of tables
 - **Real-time scoring**: Live score entry and updates
-- **20s tracking**: Optional center shot counting
-- **Hammer display**: Visual hammer indicator
+- **20s tracking** (optional): Center shot counting
+- **Hammer display** (optional): Visual hammer indicator
 - **No-show handling**: Walkover support
 - **Network status indicator**: Visual feedback for connection state and sync status when saving results
 
@@ -158,21 +158,43 @@ Complete tournament administration system for professional Crokinole events:
 1. **Open the app** - Start ScoreCroki on your Android device
 2. **Configure settings** - Tap ⚙️ to set your game mode and preferences
 3. **Start scoring** - Swipe up/down on the screen to add/remove points
-4. **View history** - Tap 📜 to see all your past matches
+4. **View history** - Tap the **Match History** icon to see all your past matches
 
 ### First Time Setup
 1. Tap the **Settings icon (⚙️)**
-2. Choose your **Game Mode**:
+2. Choose your **Game Type**: Singles or Doubles
+3. Choose your **Game Mode**:
    - **By Points**: First to reach X points wins (e.g., first to 7)
+     - Set **Games to Win** (Pg): How many games needed to win the match
    - **By Rounds**: Play X rounds, highest score wins (e.g., 4 rounds)
-3. Select **Game Type**: Singles or Doubles
-4. Set team names and colors
-5. Choose your language (Spanish/Catalan/English)
-6. Tap **Save** and start playing!
+     - Enable **Allow Ties** if you want ties to be possible
+4. Configure **Features** (all optional):
+   - **Track 20s**: Count center shots
+   - **Hammer**: Show who shoots last
+   - **Timer**: Enable round timer with custom duration
+5. Choose your **Language** (Spanish/Catalan/English)
+6. Start playing!
+
+### 🎮 Game Modes
+
+#### **Friendly Match**
+Play casual games with friends without tournament integration:
+1. Configure your settings (⚙️) and tap the **play button (▶)** at the bottom left to start a new game
+2. Play your match - scores are saved automatically to **local storage**
+3. View your match history in the **Match History** section
+4. **Optional**: Sign in with Google and tap **"Sync All"** in History to upload your matches to the cloud
+5. Access your synced matches from any device at **/matches**
+
+#### **Tournament Match**
+Play as part of an organized tournament:
+1. A tournament admin creates the tournament and adds you as participant
+2. In **/game**, tap the **trophy button (🏆)** at the bottom right → **Play Tournament Match**
+3. Enter the **tournament key** and your match will be loaded with locked settings
+4. Play your match - results sync **automatically** to the tournament
+5. Admins can view live results in the tournament dashboard
 
 ### Optional: Sign In with Google
-- Tap **≡ menu** → **Sign In with Google**
-- Your matches will sync automatically to the cloud when completed
+- On the landing page, tap the **profile icon** at the top right → **Log In**
 - Access your complete match history from any device
 - Your profile photo will appear in the game interface
 - **Tip**: Set your team name to match your Google profile name for automatic team detection when syncing
