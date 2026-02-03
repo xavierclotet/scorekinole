@@ -24,7 +24,7 @@
 	// Filter state
 	let selectedYear = new Date().getFullYear();
 	let availableYears: number[] = [];
-	const bestOfN = 2; // Hardcoded to 2 for now
+	let bestOfN = 2;
 	let filterType: 'all' | 'country' = 'all';
 	let selectedCountry = '';
 	let availableCountries: string[] = [];
@@ -193,7 +193,15 @@
 			</select>
 		{/if}
 
-		<span class="bestof-badge">{m.admin_bestOfN()} {bestOfN}</span>
+		<div class="bestof-control">
+			<label for="bestof-select">{m.ranking_bestOf()}</label>
+			<select id="bestof-select" class="bestof-select" bind:value={bestOfN}>
+				{#each [2, 3, 4, 5, 6, 7, 8, 9, 10] as n}
+					<option value={n}>{n}</option>
+				{/each}
+			</select>
+			<span class="bestof-suffix">{m.ranking_bestOfTournaments()}</span>
+		</div>
 	</div>
 
 	{#if isLoading}
@@ -223,6 +231,7 @@
 						<th class="pos-col">#</th>
 						<th class="player-col">{m.tournament_playerColumn()}</th>
 						<th class="points-col">{m.scoring_points()}</th>
+						<th class="best-col">{m.ranking_bestResult()}</th>
 						<th class="tournaments-col hide-mobile">{m.ranking_tournamentsCount()}</th>
 					</tr>
 				</thead>
@@ -254,6 +263,19 @@
 							</td>
 							<td class="points-cell">
 								<span class="points-value">{player.totalPoints}</span><span class="points-unit">pts</span>
+							</td>
+							<td class="best-cell">
+								{#if player.bestResult === 1}
+									<span class="medal gold">🥇</span>
+								{:else if player.bestResult === 2}
+									<span class="medal silver">🥈</span>
+								{:else if player.bestResult === 3}
+									<span class="medal bronze">🥉</span>
+								{:else if player.bestResult}
+									<span class="best-position">{player.bestResult}º</span>
+								{:else}
+									<span class="best-position">-</span>
+								{/if}
 							</td>
 							<td class="tournaments-cell hide-mobile">
 								{player.tournamentsCount}/{bestOfN}
@@ -455,14 +477,47 @@
 		color: #e1e8ed;
 	}
 
-	.bestof-badge {
-		padding: 0.35rem 0.6rem;
-		background: rgba(102, 126, 234, 0.15);
-		color: #8b9bb3;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 500;
+	.bestof-control {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 		margin-left: auto;
+	}
+
+	.bestof-control label,
+	.bestof-suffix {
+		color: #8b9bb3;
+		font-size: 0.8rem;
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	.bestof-select {
+		padding: 0.35rem 1.8rem 0.35rem 0.5rem;
+		background-color: #1a2332;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 0.4rem center;
+		border: 1px solid #2d3748;
+		border-radius: 4px;
+		color: #e1e8ed;
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		appearance: none;
+		-webkit-appearance: none;
+		-moz-appearance: none;
+		min-width: 50px;
+	}
+
+	.bestof-select:focus {
+		outline: none;
+		border-color: #667eea;
+	}
+
+	.bestof-select option {
+		background: #1a2332;
+		color: #e1e8ed;
 	}
 
 	/* Results info */
@@ -555,12 +610,17 @@
 
 	.pos-col { width: 50px; }
 	.points-col { width: 90px; }
+	.best-col { width: 60px; text-align: center; }
 	.tournaments-col { width: 80px; }
 
 	.player-row {
 		border-bottom: 1px solid #2d3748;
 		cursor: pointer;
 		transition: all 0.15s;
+	}
+
+	.player-row:nth-child(even):not(.top-1):not(.top-2):not(.top-3) {
+		background: rgba(15, 20, 25, 0.5);
 	}
 
 	.player-row:hover {
@@ -682,6 +742,22 @@
 		margin-left: 0.25rem;
 	}
 
+	/* Best result cell */
+	.best-cell {
+		text-align: center;
+		vertical-align: middle;
+	}
+
+	.medal {
+		font-size: 1.1rem;
+	}
+
+	.best-position {
+		color: #8b9bb3;
+		font-size: 0.85rem;
+		font-weight: 500;
+	}
+
 	/* Tournaments cell */
 	.tournaments-cell {
 		color: #8b9bb3;
@@ -721,9 +797,9 @@
 			justify-content: center;
 		}
 
-		.bestof-badge {
+		.bestof-control {
 			margin-left: 0;
-			text-align: center;
+			justify-content: center;
 		}
 
 		.hide-mobile {

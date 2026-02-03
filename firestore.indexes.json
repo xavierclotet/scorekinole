@@ -202,6 +202,14 @@
         { "fieldPath": "createdBy.userId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "authProvider", "order": "ASCENDING" },
+        { "fieldPath": "playerName", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

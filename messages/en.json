@@ -809,5 +809,8 @@
   "admin_mergedFrom": "Received from",
   "admin_mergedTo": "Migrated to",
   "admin_notMerged": "Non-migrants",
-  "admin_targetHasData": "The target user already has tournaments or rankings"
+  "admin_targetHasData": "The target user already has tournaments or rankings",
+  "ranking_bestOfTournaments": "tournaments",
+  "ranking_bestOf": "Best of",
+  "ranking_bestResult": "Better"
 }

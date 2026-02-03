@@ -49,6 +49,7 @@ export interface RankedPlayer {
   photoURL: string | null;
   totalPoints: number;
   tournamentsCount: number;
+  bestResult: number | null;
   tournaments: TournamentRecordWithDetails[];
 }
 
@@ -214,17 +215,23 @@ export function calculateRankings(
       };
     });
 
+    // 6. Calculate best result (lowest finalPosition)
+    const bestResult = matchingTournaments.length > 0
+      ? Math.min(...matchingTournaments.map(t => t.finalPosition))
+      : null;
+
     result.push({
       odId: user.odId,
       playerName: user.playerName || 'Unknown',
       photoURL: user.photoURL || null,
       totalPoints,
       tournamentsCount: topN.length,
+      bestResult,
       tournaments: tournamentsWithDetails
     });
   }
 
-  // 6. Sort by total points descending
+  // 7. Sort by total points descending
   result.sort((a, b) => b.totalPoints - a.totalPoints);
 
   return result;

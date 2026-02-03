@@ -809,5 +809,8 @@
   "admin_mergedFrom": "Rebut de",
   "admin_mergedTo": "Migrat a",
   "admin_notMerged": "No migrats",
-  "admin_targetHasData": "L'usuari destí ja té tornejos o rànquing"
+  "admin_targetHasData": "L'usuari destí ja té tornejos o rànquing",
+  "ranking_bestOfTournaments": "torneigs",
+  "ranking_bestOf": "Millor de",
+  "ranking_bestResult": "Millor"
 }
