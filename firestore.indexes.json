@@ -210,6 +210,13 @@
         { "fieldPath": "authProvider", "order": "ASCENDING" },
         { "fieldPath": "playerName", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "tournaments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tournamentDate", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

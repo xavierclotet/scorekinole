@@ -3319,22 +3319,6 @@
     color: #f5a623;
   }
 
-  .max-participants-warning {
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 6px;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 0.75rem;
-    font-size: 0.8rem;
-    color: #856404;
-  }
-
-  .wizard-container[data-theme='dark'] .max-participants-warning {
-    background: #5c4a1a;
-    border-color: #8a6d1a;
-    color: #ffd54f;
-  }
-
   /* Step 1: Basic Info - Section Layout */
   .step-basic {
     display: flex;
@@ -3660,17 +3644,6 @@
   .wizard-container[data-theme='dark'] .input-field.input-valid:focus {
     border-color: #166534;
     background: #14261a;
-  }
-
-  .field-error-text {
-    display: block;
-    color: #b91c1c;
-    font-size: 0.75rem;
-    margin-top: 0.3rem;
-  }
-
-  .wizard-container[data-theme='dark'] .field-error-text {
-    color: #fca5a5;
   }
 
   .radio-group {
