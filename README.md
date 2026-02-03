@@ -4,7 +4,7 @@
 
 Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. Perfect for casual games and professional tournaments.
 
-![Version](https://img.shields.io/badge/version-2.2.10-blue.svg)
+![Version](https://img.shields.io/badge/version-2.2.11-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Android-brightgreen.svg)
 
