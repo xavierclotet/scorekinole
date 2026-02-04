@@ -23,6 +23,7 @@
   let ranking = $state(user.ranking ?? 0);
   let isAdmin = $state(user.isAdmin || false);
   let canAutofill = $state(user.canAutofill || false);
+  let canImportTournaments = $state(user.canImportTournaments || false);
   let maxTournamentsPerYear = $state(user.maxTournamentsPerYear ?? 0);
   let isSaving = $state(false);
   let errorMessage = $state('');
@@ -37,7 +38,7 @@
     errorMessage = '';
 
     try {
-      const updates: { playerName?: string; ranking?: number; maxTournamentsPerYear?: number; canAutofill?: boolean } = {};
+      const updates: { playerName?: string; ranking?: number; maxTournamentsPerYear?: number; canAutofill?: boolean; canImportTournaments?: boolean } = {};
 
       if (playerName !== user.playerName) {
         updates.playerName = playerName;
@@ -53,6 +54,10 @@
 
       if (canAutofill !== (user.canAutofill || false)) {
         updates.canAutofill = canAutofill;
+      }
+
+      if (canImportTournaments !== (user.canImportTournaments || false)) {
+        updates.canImportTournaments = canImportTournaments;
       }
 
       if (Object.keys(updates).length > 0) {
@@ -219,6 +224,19 @@
                 </div>
               </label>
               <span class="field-hint">{m.admin_canAutofillHint()}</span>
+            </div>
+
+            <div class="field">
+              <label class="toggle-label">
+                <span>{m.admin_canImportTournaments()}</span>
+                <div class="toggle-switch import" class:active={canImportTournaments}>
+                  <input type="checkbox" bind:checked={canImportTournaments} />
+                  <span class="toggle-track">
+                    <span class="toggle-thumb"></span>
+                  </span>
+                </div>
+              </label>
+              <span class="field-hint">{m.admin_canImportTournamentsHint()}</span>
             </div>
           {/if}
 

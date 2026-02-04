@@ -168,6 +168,10 @@
     goto('/admin/tournaments/create');
   }
 
+  function importTournament() {
+    goto('/admin/tournaments/import');
+  }
+
   function getStatusColor(status: string): string {
     const colorMap: Record<string, string> = {
       DRAFT: '#666',
@@ -238,6 +242,9 @@
           </div>
         </div>
         <div class="header-actions">
+          <button class="import-btn" onclick={importTournament}>
+            {m.import_importTournament()}
+          </button>
           <button class="create-btn" onclick={createTournament}>
             + {m.admin_createTournament()}
           </button>
@@ -580,6 +587,37 @@
   .tournaments-container[data-theme='dark'] .create-btn:hover {
     background: #f3f4f6;
     border-color: #e5e7eb;
+  }
+
+  .import-btn {
+    padding: 0.35rem 0.65rem;
+    background: transparent;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
+  .import-btn:hover {
+    background: #f3f4f6;
+    color: #374151;
+    border-color: #9ca3af;
+  }
+
+  .tournaments-container[data-theme='dark'] .import-btn {
+    color: #9ca3af;
+    border-color: #4b5563;
+  }
+
+  .tournaments-container[data-theme='dark'] .import-btn:hover {
+    background: #374151;
+    color: #e5e7eb;
+    border-color: #6b7280;
   }
 
   /* Controls */

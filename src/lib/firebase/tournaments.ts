@@ -707,6 +707,7 @@ export interface TournamentNameInfo {
   description?: string;
   country?: string;
   city?: string;
+  address?: string;
 }
 
 /**
@@ -737,7 +738,7 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
     const snapshot = await getDocs(q);
 
     // Track max edition per tournament name with additional info
-    const namesMap = new Map<string, { maxEdition: number; description?: string; country?: string; city?: string }>();
+    const namesMap = new Map<string, { maxEdition: number; description?: string; country?: string; city?: string; address?: string }>();
     const queryLower = searchQuery.toLowerCase();
 
     snapshot.forEach(docSnap => {
@@ -753,7 +754,8 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
               maxEdition: edition,
               description: data.description,
               country: data.country,
-              city: data.city
+              city: data.city,
+              address: data.address
             });
           }
         }
@@ -767,7 +769,8 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
         maxEdition: info.maxEdition,
         description: info.description,
         country: info.country,
-        city: info.city
+        city: info.city,
+        address: info.address
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
 

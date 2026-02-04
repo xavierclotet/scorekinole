@@ -9,9 +9,17 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const app_1 = require("firebase-admin/app");
 const firestore_2 = require("firebase-admin/firestore");
 const firebase_functions_1 = require("firebase-functions");
-// Initialize Firebase Admin
-(0, app_1.initializeApp)();
-const db = (0, firestore_2.getFirestore)();
+// Lazy initialization to avoid deployment timeouts
+let db = null;
+function getDb() {
+    if (!db) {
+        if ((0, app_1.getApps)().length === 0) {
+            (0, app_1.initializeApp)();
+        }
+        db = (0, firestore_2.getFirestore)();
+    }
+    return db;
+}
 // Tier base points
 const TIER_BASE_POINTS = {
     CLUB: 15,
@@ -40,7 +48,7 @@ function calculateRankingPoints(position, tier) {
  */
 async function getOrCreateUserByName(name) {
     try {
-        const usersRef = db.collection("users");
+        const usersRef = getDb().collection("users");
         const snapshot = await usersRef.where("playerName", "==", name).get();
         if (!snapshot.empty) {
             const existingDoc = snapshot.docs[0];
@@ -72,7 +80,7 @@ async function getOrCreateUserByName(name) {
  */
 async function addTournamentRecord(userId, record, newRanking) {
     try {
-        const userRef = db.collection("users").doc(userId);
+        const userRef = getDb().collection("users").doc(userId);
         const userSnap = await userRef.get();
         // Check for duplicates
         if (userSnap.exists) {
@@ -97,6 +105,51 @@ async function addTournamentRecord(userId, record, newRanking) {
     }
 }
 /**
+ * Get pair by ID
+ */
+async function getPairById(pairId) {
+    try {
+        const pairRef = getDb().collection("pairs").doc(pairId);
+        const pairSnap = await pairRef.get();
+        if (pairSnap.exists) {
+            return pairSnap.data();
+        }
+        return null;
+    }
+    catch (error) {
+        firebase_functions_1.logger.error("Error getting pair:", error);
+        return null;
+    }
+}
+/**
+ * Add tournament record to pair's history
+ */
+async function addPairTournamentRecord(pairId, record) {
+    try {
+        const pairRef = getDb().collection("pairs").doc(pairId);
+        const pairSnap = await pairRef.get();
+        // Check for duplicates
+        if (pairSnap.exists) {
+            const pair = pairSnap.data();
+            const existingRecord = pair?.tournaments?.find((t) => t.tournamentId === record.tournamentId);
+            if (existingRecord) {
+                firebase_functions_1.logger.info(`Tournament ${record.tournamentId} already in pair ${pairId} history - skipping`);
+                return true;
+            }
+        }
+        await pairRef.set({
+            tournaments: firestore_2.FieldValue.arrayUnion(record),
+            updatedAt: firestore_2.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        firebase_functions_1.logger.info(`Added tournament record to pair ${pairId}`);
+        return true;
+    }
+    catch (error) {
+        firebase_functions_1.logger.error("Error adding pair tournament record:", error);
+        return false;
+    }
+}
+/**
  * Process a single participant and add tournament record to their profile
  */
 async function processParticipant(participant, tournament, tier, totalParticipants, rankingEnabled) {
@@ -114,7 +167,54 @@ async function processParticipant(participant, tournament, tier, totalParticipan
         rankingAfter,
         rankingDelta: pointsEarned,
     };
-    // Main participant
+    // NEW: Handle pair participants
+    if (participant.participantMode === "pair" && participant.pairId) {
+        firebase_functions_1.logger.info(`Processing pair participant: ${participant.pairId}`);
+        // Add record to pair's history
+        const pairRecord = {
+            tournamentId: tournament.id,
+            tournamentName: tournament.name,
+            tournamentDate: tournament.completedAt || Date.now(),
+            finalPosition: position,
+            totalParticipants,
+            rankingDelta: pointsEarned,
+        };
+        await addPairTournamentRecord(participant.pairId, pairRecord);
+        // Get pair members and add individual records
+        const pair = await getPairById(participant.pairId);
+        if (pair) {
+            // Member 1
+            let member1UserId = null;
+            if (pair.member1Type === "REGISTERED" && pair.member1UserId && !pair.member1UserId.startsWith("pair_")) {
+                member1UserId = pair.member1UserId;
+            }
+            else {
+                const result = await getOrCreateUserByName(pair.member1Name);
+                if (result) {
+                    member1UserId = result.userId;
+                }
+            }
+            if (member1UserId) {
+                await addTournamentRecord(member1UserId, tournamentRecord, rankingAfter);
+            }
+            // Member 2
+            let member2UserId = null;
+            if (pair.member2Type === "REGISTERED" && pair.member2UserId && !pair.member2UserId.startsWith("pair_")) {
+                member2UserId = pair.member2UserId;
+            }
+            else {
+                const result = await getOrCreateUserByName(pair.member2Name);
+                if (result) {
+                    member2UserId = result.userId;
+                }
+            }
+            if (member2UserId) {
+                await addTournamentRecord(member2UserId, tournamentRecord, rankingAfter);
+            }
+        }
+        return;
+    }
+    // LEGACY: Individual participant (or old doubles with partner field)
     let userId = null;
     if (participant.type === "REGISTERED" && participant.userId) {
         userId = participant.userId;
@@ -128,7 +228,7 @@ async function processParticipant(participant, tournament, tier, totalParticipan
     if (userId) {
         await addTournamentRecord(userId, tournamentRecord, rankingAfter);
     }
-    // Partner (for doubles)
+    // Partner (for legacy doubles with partner field)
     if (tournament.gameType === "doubles" && participant.partner) {
         let partnerUserId = null;
         if (participant.partner.type === "REGISTERED" && participant.partner.userId) {
@@ -193,7 +293,7 @@ exports.onTournamentComplete = (0, firestore_1.onDocumentUpdated)({
             }
             return p;
         });
-        await db.collection("tournaments").doc(tournamentId).update({
+        await getDb().collection("tournaments").doc(tournamentId).update({
             participants: updatedParticipants,
         });
         firebase_functions_1.logger.info(`Updated participant rankings in tournament ${tournamentId}`);

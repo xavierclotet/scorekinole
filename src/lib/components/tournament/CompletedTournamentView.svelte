@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Tournament, GroupMatch, BracketMatch } from '$lib/types/tournament';
+  import type { Tournament, GroupMatch, BracketMatch, NamedBracket } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
   import { isBye } from '$lib/algorithms/bracket';
@@ -68,10 +68,15 @@
 
   let isBracketMatch = $state(false);
 
-  // Check if this is a split divisions tournament
+  // Check if this is a split divisions or parallel brackets tournament
   let isSplitDivisions = $derived(tournament.finalStage?.mode === 'SPLIT_DIVISIONS');
+  let isParallelBrackets = $derived(tournament.finalStage?.mode === 'PARALLEL_BRACKETS');
   let goldBracket = $derived(tournament.finalStage?.goldBracket);
   let silverBracket = $derived(tournament.finalStage?.silverBracket);
+  let parallelBrackets = $derived(tournament.finalStage?.parallelBrackets);
+
+  // For parallel brackets, track which bracket tab is active
+  let activeParallelBracket = $state(0);
 
   // Debug consolation matches - detailed view of each match including rounds
   let goldConsolationMatches = $derived(
@@ -480,6 +485,81 @@
             </div>
           </div>
         {/each}
+      </div>
+    {:else if activeTab === 'bracket' && isParallelBrackets && parallelBrackets?.length}
+      <!-- Parallel Brackets View (A/B/C Finals) -->
+      <div class="bracket-section">
+        <!-- Bracket Tabs -->
+        <div class="parallel-bracket-tabs">
+          {#each parallelBrackets as pb, index}
+            <button
+              class="parallel-tab"
+              class:active={activeParallelBracket === index}
+              onclick={() => activeParallelBracket = index}
+            >
+              {pb.name}
+            </button>
+          {/each}
+        </div>
+
+        <!-- Active Bracket -->
+        {#if parallelBrackets[activeParallelBracket]}
+          {@const activeBracket = parallelBrackets[activeParallelBracket]}
+          <div class="bracket-wrapper parallel" data-label={activeBracket.label}>
+            <div class="bracket-container">
+              {#each activeBracket.bracket.rounds as round (round.roundNumber)}
+                <div class="bracket-round">
+                  <h3 class="round-name">{round.name}</h3>
+                  <div class="matches-column">
+                    {#each round.matches as match (match.id)}
+                      <button
+                        class="bracket-match"
+                        class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
+                        class:bye-match={isByeMatch(match)}
+                        onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                        disabled={!match.participantA || !match.participantB || isByeMatch(match)}
+                      >
+                        <div
+                          class="match-participant"
+                          class:winner={match.winner === match.participantA}
+                          class:tbd={!match.participantA}
+                          class:bye={isBye(match.participantA)}
+                        >
+                          <span class="participant-name">{getParticipantName(match.participantA)}</span>
+                          {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
+                            <span class="score">{match.totalPointsA || 0}</span>
+                          {/if}
+                        </div>
+
+                        <div class="vs-divider"></div>
+
+                        <div
+                          class="match-participant"
+                          class:winner={match.winner === match.participantB}
+                          class:tbd={!match.participantB}
+                          class:bye={isBye(match.participantB)}
+                        >
+                          <span class="participant-name">{getParticipantName(match.participantB)}</span>
+                          {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
+                            <span class="score">{match.totalPointsB || 0}</span>
+                          {/if}
+                        </div>
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
+
+            <!-- Winner Display -->
+            {#if activeBracket.winner}
+              <div class="bracket-winner">
+                <span class="winner-label">{m.tournament_winner()}:</span>
+                <span class="winner-name">{getParticipantName(activeBracket.winner)}</span>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
     {:else if activeTab === 'bracket' && goldBracket}
       <!-- Bracket View -->
@@ -1865,6 +1945,134 @@
   :global([data-theme='dark']) .bracket-wrapper.silver {
     background: linear-gradient(180deg, rgba(107, 114, 128, 0.1) 0%, #0f1419 100%);
     border-color: #4b5563;
+  }
+
+  /* Parallel bracket styles (A/B/C Finals) */
+  .parallel-bracket-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  :global([data-theme='dark']) .parallel-bracket-tabs {
+    border-color: #2d3748;
+  }
+
+  .parallel-tab {
+    padding: 0.5rem 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #f9fafb;
+    color: #6b7280;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .parallel-tab:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+  }
+
+  .parallel-tab.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: #667eea;
+    color: white;
+  }
+
+  :global([data-theme='dark']) .parallel-tab {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #8899a6;
+  }
+
+  :global([data-theme='dark']) .parallel-tab:hover {
+    background: #243044;
+  }
+
+  :global([data-theme='dark']) .parallel-tab.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: #667eea;
+    color: white;
+  }
+
+  .bracket-wrapper.parallel {
+    background: linear-gradient(180deg, rgba(102, 126, 234, 0.08) 0%, #f9fafb 100%);
+    border-color: #667eea;
+  }
+
+  .bracket-wrapper.parallel[data-label="A"] {
+    background: linear-gradient(180deg, rgba(254, 243, 199, 0.4) 0%, #f9fafb 100%);
+    border-color: #f59e0b;
+  }
+
+  .bracket-wrapper.parallel[data-label="B"] {
+    background: linear-gradient(180deg, rgba(229, 231, 235, 0.4) 0%, #f9fafb 100%);
+    border-color: #9ca3af;
+  }
+
+  .bracket-wrapper.parallel[data-label="C"] {
+    background: linear-gradient(180deg, rgba(180, 83, 9, 0.1) 0%, #f9fafb 100%);
+    border-color: #b45309;
+  }
+
+  :global([data-theme='dark']) .bracket-wrapper.parallel {
+    background: linear-gradient(180deg, rgba(102, 126, 234, 0.1) 0%, #0f1419 100%);
+    border-color: #4c5fd5;
+  }
+
+  :global([data-theme='dark']) .bracket-wrapper.parallel[data-label="A"] {
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.1) 0%, #0f1419 100%);
+    border-color: #92400e;
+  }
+
+  :global([data-theme='dark']) .bracket-wrapper.parallel[data-label="B"] {
+    background: linear-gradient(180deg, rgba(107, 114, 128, 0.1) 0%, #0f1419 100%);
+    border-color: #4b5563;
+  }
+
+  :global([data-theme='dark']) .bracket-wrapper.parallel[data-label="C"] {
+    background: linear-gradient(180deg, rgba(180, 83, 9, 0.1) 0%, #0f1419 100%);
+    border-color: #78350f;
+  }
+
+  .bracket-winner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    margin-top: 0.75rem;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 6px;
+    border: 1px solid #10b981;
+  }
+
+  .winner-label {
+    font-size: 0.8125rem;
+    color: #059669;
+    font-weight: 500;
+  }
+
+  .winner-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #047857;
+  }
+
+  :global([data-theme='dark']) .bracket-winner {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: #059669;
+  }
+
+  :global([data-theme='dark']) .winner-label {
+    color: #34d399;
+  }
+
+  :global([data-theme='dark']) .winner-name {
+    color: #10b981;
   }
 
   /* Division headers for Gold/Silver brackets - Professional compact style */

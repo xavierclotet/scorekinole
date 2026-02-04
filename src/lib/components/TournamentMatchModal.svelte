@@ -869,6 +869,10 @@
 
 							<!-- Phase Badge -->
 							<div class="badges-row">
+								<!-- Game Type Badge (Singles/Doubles) -->
+								<span class="game-type-badge" class:doubles={tournament.gameType === 'doubles'}>
+									{tournament.gameType === 'doubles' ? m.admin_doubles() : m.admin_singles()}
+								</span>
 								{#if tournament.status === 'GROUP_STAGE'}
 									<span class="phase-badge group-stage">{m.tournament_groupStage()}</span>
 									{#if tournament.groupStage?.type === 'SWISS'}
@@ -1122,7 +1126,7 @@
 		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
 		padding: 1.5rem;
-		width: min(680px, 94vw);
+		width: min(780px, 96vw);
 		max-height: 85vh;
 		overflow-y: auto;
 	}
@@ -1453,6 +1457,25 @@
 		background: rgba(255, 255, 255, 0.06);
 		color: rgba(255, 255, 255, 0.55);
 		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.game-type-badge {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.68rem;
+		font-weight: 600;
+		background: rgba(34, 197, 94, 0.12);
+		color: #86efac;
+		border: 1px solid rgba(34, 197, 94, 0.25);
+	}
+
+	.game-type-badge.doubles {
+		background: rgba(168, 85, 247, 0.12);
+		color: #d8b4fe;
+		border-color: rgba(168, 85, 247, 0.25);
 	}
 
 	/* Groups Container */

@@ -90,7 +90,7 @@
 		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
 		padding: 1.5rem;
-		width: min(400px, 90vw);
+		width: min(520px, 94vw);
 	}
 
 	.question {
@@ -131,14 +131,14 @@
 		font-size: 1rem;
 		font-weight: 600;
 		display: block;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		word-break: break-word;
+		line-height: 1.3;
 	}
 
 	@media (max-width: 480px) {
 		.dialog {
 			padding: 1.25rem;
+			width: min(520px, 92vw);
 		}
 
 		.question {

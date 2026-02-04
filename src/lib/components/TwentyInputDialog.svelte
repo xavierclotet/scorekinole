@@ -57,9 +57,16 @@
 		return luminance < 0.5;
 	}
 
-	// Get appropriate color: use white if team color is dark, otherwise use team color
+	// Get appropriate color: use white only if team color is very dark, otherwise use team color
+	// Threshold lowered to 0.2 so vibrant colors like red (0.299 luminance) still show
 	function getColorForDarkBackground(teamColor: string): string {
-		return isDarkColor(teamColor) ? '#ffffff' : teamColor;
+		const hex = teamColor.replace('#', '');
+		const r = parseInt(hex.substring(0, 2), 16);
+		const g = parseInt(hex.substring(2, 4), 16);
+		const b = parseInt(hex.substring(4, 6), 16);
+		const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+		// Only use white for very dark colors (luminance < 0.2)
+		return luminance < 0.2 ? '#ffffff' : teamColor;
 	}
 
 	// Color for selected buttons (solid background with team color)
@@ -192,7 +199,7 @@
 		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 12px;
 		padding: 2rem;
-		width: min(700px, 94vw);
+		width: min(800px, 96vw);
 		max-height: 90vh;
 		overflow-y: auto;
 	}
@@ -223,9 +230,8 @@
 		font-size: 1rem;
 		font-weight: 600;
 		text-align: center;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		word-break: break-word;
+		line-height: 1.3;
 	}
 
 	.number-grid {
@@ -243,7 +249,7 @@
 		border: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
 		border-radius: 8px;
 		font-family: 'Lexend', sans-serif;
-		font-size: 2.5rem;
+		font-size: 3.2rem;
 		font-weight: 700;
 		color: var(--text-unselected);
 		cursor: pointer;

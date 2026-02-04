@@ -15,7 +15,7 @@ export type TournamentStatus =
 // Tournament configuration
 export type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE';
 export type GroupStageType = 'ROUND_ROBIN' | 'SWISS';
-export type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS';  // Single bracket or Gold/Silver divisions
+export type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' | 'PARALLEL_BRACKETS';  // Single bracket, Gold/Silver divisions, or A/B/C parallel brackets
 
 // Qualification mode: how players qualify from group stage
 // WINS: Both Round Robin and Swiss use 2/1/0 (win/tie/loss)
@@ -44,9 +44,10 @@ export interface Tournament {
   key: string;                  // 6-character alphanumeric identifier
   name: string;
   description?: string;
-  edition: number;              // Edition number of the tournament (e.g., 1st, 2nd, etc.)
+  edition?: number;             // Edition number of the tournament (e.g., 1st, 2nd, etc.) - optional
   country: string;              // Country where tournament takes place
   city: string;                 // City where tournament takes place
+  address?: string;             // Address/venue where tournament takes place
   tournamentDate?: number;      // Timestamp of when tournament is scheduled
   status: TournamentStatus;
   phaseType: TournamentPhaseType;
@@ -87,6 +88,15 @@ export interface Tournament {
   startedAt?: number;
   completedAt?: number;
   updatedAt: number;
+
+  // Import fields (for tournaments imported after completion)
+  isImported?: boolean;                // true for tournaments imported after completion
+  importedAt?: number;                 // Timestamp when tournament was imported
+  importedBy?: {
+    userId: string;
+    userName: string;
+  };
+  importNotes?: string;                // Notes about data source/quality
 }
 
 /**
@@ -103,22 +113,37 @@ export interface RankingConfig {
 }
 
 /**
+ * Participant mode: individual player or pair (doubles)
+ */
+export type ParticipantMode = 'individual' | 'pair';
+
+/**
  * Tournament participant (player or pair)
  */
 export interface TournamentParticipant {
   id: string;
+
+  // Mode determines if this is an individual player or a pair
+  // Defaults to 'individual' for backward compatibility
+  participantMode?: ParticipantMode;
+
+  // For individual participants (or legacy doubles with partner field)
   type: ParticipantType;
   userId?: string;         // Only for REGISTERED
   name: string;
   email?: string;
 
-  // For doubles
+  // For doubles (LEGACY - backward compatible with old tournaments)
   partner?: {
     type: ParticipantType;
     userId?: string;
     name: string;
     email?: string;
   };
+
+  // For pair participants (NEW - participantMode === 'pair')
+  pairId?: string;              // Reference to /pairs/{pairId} collection
+  pairTeamName?: string;        // Override team name for this tournament (optional)
 
   // Ranking tracking
   rankingSnapshot: number;     // Ranking at tournament start
@@ -312,14 +337,28 @@ export interface BracketWithConfig {
 }
 
 /**
+ * Named bracket for parallel brackets (A/B/C Finals)
+ * Used for historical tournament imports where groups qualify to different parallel brackets
+ */
+export interface NamedBracket {
+  id: string;
+  name: string;                               // "A Finals", "B Finals", "C Finals"
+  label: string;                              // "A", "B", "C"
+  bracket: BracketWithConfig;
+  sourcePositions: number[];                  // Group positions that qualify to this bracket (e.g., [1,2] for A Finals)
+  winner?: string;                            // Winner participant ID
+}
+
+/**
  * Final stage structure (single elimination)
  */
 export interface FinalStage {
-  mode: FinalStageMode;                       // Single bracket or split divisions
+  mode: FinalStageMode;                       // Single bracket, split divisions, or parallel brackets
   consolationEnabled?: boolean;               // Enable consolation brackets for eliminated players (applies to both brackets)
   thirdPlaceMatchEnabled?: boolean;           // Enable 3rd/4th place match (semifinal losers play for 3rd place)
   goldBracket: BracketWithConfig;             // Gold bracket (always present)
   silverBracket?: BracketWithConfig;          // Silver bracket (only for SPLIT_DIVISIONS)
+  parallelBrackets?: NamedBracket[];          // A/B/C parallel brackets (only for PARALLEL_BRACKETS mode)
   isComplete: boolean;
   winner?: string;                            // Gold bracket winner participant ID
   silverWinner?: string;                      // Silver bracket winner (only for SPLIT_DIVISIONS)

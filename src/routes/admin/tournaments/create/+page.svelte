@@ -4,6 +4,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+  import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import { adminTheme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
   import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
@@ -42,9 +43,10 @@
   let key = $state('');
   let name = $state('');
   let description = $state('');
-  let edition = $state<number>(1);
+  let edition = $state<number | undefined>(undefined);
   let country = $state('España');
   let city = $state('');
+  let address = $state('');
   let tournamentDate = $state(new Date().toISOString().split('T')[0]);  // Date input string (YYYY-MM-DD), defaults to today
   let gameType = $state<'singles' | 'doubles'>('singles');
   let show20s = $state(true);
@@ -167,7 +169,7 @@
   // Field-specific error checks
   let keyHasError = $derived(touchedFields.has('key') && (!/^[A-Z0-9]{6}$/.test(key) || keyCheckResult?.exists));
   let nameHasError = $derived(touchedFields.has('name') && !name.trim());
-  let editionHasError = $derived(touchedFields.has('edition') && (!edition || edition < 1 || edition > 1000));
+  let editionHasError = $derived(touchedFields.has('edition') && edition !== undefined && (edition < 1 || edition > 1000));
   let countryHasError = $derived(touchedFields.has('country') && !country);
   let cityHasError = $derived(touchedFields.has('city') && !city.trim());
 
@@ -269,6 +271,7 @@
       edition = tournament.edition || 1;
       country = tournament.country || '';
       city = tournament.city || '';
+      address = tournament.address || '';
       tournamentDate = tournament.tournamentDate ? new Date(tournament.tournamentDate).toISOString().split('T')[0] : '';
       gameType = tournament.gameType;
 
@@ -427,6 +430,7 @@
       edition = (tournament.edition || 1) + 1;  // Increment edition
       country = tournament.country || '';
       city = tournament.city || '';
+      address = tournament.address || '';
       // Set date to today for the new tournament
       tournamentDate = new Date().toISOString().split('T')[0];
       gameType = tournament.gameType;
@@ -796,6 +800,9 @@
     if (info.city) {
       city = info.city;
     }
+    if (info.address) {
+      address = info.address;
+    }
     showNameDropdown = false;
     tournamentNameResults = [];
   }
@@ -900,7 +907,7 @@
     if (keyCheckResult?.exists) {
       errors.push(m.wizard_errorKeyInUse({ key }));
     }
-    if (!edition || edition < 1 || edition > 1000) {
+    if (edition !== undefined && (edition < 1 || edition > 1000)) {
       errors.push(m.wizard_errorEditionRange());
     }
     if (!country) {
@@ -1064,6 +1071,7 @@
         edition: edition,
         country: country,
         city: city.trim(),
+        address: address.trim() || undefined,
         tournamentDate: tournamentDate ? new Date(tournamentDate).getTime() : undefined,
         gameType,
         show20s,
@@ -1389,6 +1397,7 @@
       {#if currentStep === 1}
         <div class="step-container step-basic">
           <h2>{m.wizard_basicInfo()}</h2>
+          <p class="wizard-intro">{m.wizard_liveHostDescription()}</p>
 
           <!-- Identificación del Torneo -->
           <div class="info-section">
@@ -1436,6 +1445,7 @@
                   class:input-error={editionHasError}
                   min="1"
                   max="1000"
+                  placeholder="—"
                   onblur={() => markTouched('edition')}
                 />
               </div>
@@ -1481,20 +1491,16 @@
           <div class="info-section">
             <div class="info-section-header">{m.wizard_locationDate()}</div>
             <div class="info-grid location-grid">
-              <div class="info-field">
-                <label for="country">{m.wizard_country()}</label>
-                <select
-                  id="country"
-                  bind:value={country}
+              <div class="info-field address-field">
+                <label for="address">{m.wizard_address()} <span class="optional-label">({m.common_optional()})</span></label>
+                <input
+                  id="address"
+                  type="text"
+                  bind:value={address}
+                  placeholder="Av. Diagonal 123, Local 5"
                   class="input-field"
-                  class:input-error={countryHasError}
-                  onblur={() => markTouched('country')}
-                >
-                  <option value="">{m.wizard_selectOption()}</option>
-                  {#each DEVELOPED_COUNTRIES as countryOption}
-                    <option value={countryOption}>{countryOption}</option>
-                  {/each}
-                </select>
+                  maxlength="100"
+                />
               </div>
 
               <div class="info-field">
@@ -1509,6 +1515,22 @@
                   maxlength="50"
                   onblur={() => markTouched('city')}
                 />
+              </div>
+
+              <div class="info-field">
+                <label for="country">{m.wizard_country()}</label>
+                <select
+                  id="country"
+                  bind:value={country}
+                  class="input-field"
+                  class:input-error={countryHasError}
+                  onblur={() => markTouched('country')}
+                >
+                  <option value="">{m.wizard_selectOption()}</option>
+                  {#each DEVELOPED_COUNTRIES as countryOption}
+                    <option value={countryOption}>{countryOption}</option>
+                  {/each}
+                </select>
               </div>
 
               <div class="info-field">
@@ -2290,6 +2312,9 @@
           <div class="participants-counter" class:warning={participants.length > maxPlayersForTables}>
             <span class="counter-text">
               {participants.length} {participants.length === 1 ? m.wizard_playersSingular() : m.wizard_players()}
+              {#if gameType === 'doubles'}
+                ({participants.length * 2} jugadores)
+              {/if}
             </span>
             <span class="counter-label">
               {#if participants.length > maxPlayersForTables}
@@ -2300,68 +2325,79 @@
             </span>
           </div>
 
-          <!-- Add section -->
-          <div class="add-row">
-            <div class="add-field search-field">
-              <!-- svelte-ignore a11y_label_has_associated_control -->
-              <label>{m.wizard_searchRegistered()}</label>
-              <div class="search-box">
-                <input
-                  type="text"
-                  bind:value={searchQuery}
-                  placeholder="Nombre o email..."
-                  class="input-field"
-                  autocomplete="off"
-                  autocorrect="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  data-form-type="other"
-                />
-                {#if searchLoading}
-                  <span class="search-loading">⏳</span>
-                {/if}
-                {#if searchResults.length > 0}
-                  <div class="search-results">
-                    {#each searchResults.slice(0, 6) as user}
-                      <button
-                        class="search-result-item"
-                        onclick={() => addRegisteredUser({ ...user, userId: user.userId || '' })}
-                      >
-                        <span class="result-name">{user.playerName}</span>
-                        <span class="result-rank">{user.ranking || 0}</span>
-                        <span class="result-add">+</span>
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
+          {#if gameType === 'doubles'}
+            <!-- Doubles: Pair selector -->
+            <PairSelector
+              onadd={(participant) => {
+                participants = [...participants, participant];
+              }}
+              existingParticipants={participants}
+              theme={$adminTheme}
+            />
+          {:else}
+            <!-- Singles: Individual player selector -->
+            <div class="add-row">
+              <div class="add-field search-field">
+                <!-- svelte-ignore a11y_label_has_associated_control -->
+                <label>{m.wizard_searchRegistered()}</label>
+                <div class="search-box">
+                  <input
+                    type="text"
+                    bind:value={searchQuery}
+                    placeholder="Nombre o email..."
+                    class="input-field"
+                    autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    data-form-type="other"
+                  />
+                  {#if searchLoading}
+                    <span class="search-loading">⏳</span>
+                  {/if}
+                  {#if searchResults.length > 0}
+                    <div class="search-results">
+                      {#each searchResults.slice(0, 6) as user}
+                        <button
+                          class="search-result-item"
+                          onclick={() => addRegisteredUser({ ...user, userId: user.userId || '' })}
+                        >
+                          <span class="result-name">{user.playerName}</span>
+                          <span class="result-rank">{user.ranking || 0}</span>
+                          <span class="result-add">+</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
               </div>
-            </div>
 
-            <div class="add-field guest-field">
-              <!-- svelte-ignore a11y_label_has_associated_control -->
-              <label>{m.wizard_addGuest()}</label>
-              <div class="guest-input-group">
-                <input
-                  type="text"
-                  bind:value={guestName}
-                  placeholder="Nombre (mín. 3 chars)"
-                  class="input-field"
-                  onkeydown={(e) => {
-                    if (e.key === 'Enter' && guestName.trim().length >= 3) {
-                      addGuestPlayer();
-                    }
-                  }}
-                />
-                <button
-                  class="add-btn"
-                  onclick={addGuestPlayer}
-                  disabled={guestName.trim().length < 3}
-                >
-                  +
-                </button>
+              <div class="add-field guest-field">
+                <!-- svelte-ignore a11y_label_has_associated_control -->
+                <label>{m.wizard_addGuest()}</label>
+                <div class="guest-input-group">
+                  <input
+                    type="text"
+                    bind:value={guestName}
+                    placeholder="Nombre (mín. 3 chars)"
+                    class="input-field"
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter' && guestName.trim().length >= 3) {
+                        addGuestPlayer();
+                      }
+                    }}
+                  />
+                  <button
+                    class="add-btn"
+                    onclick={addGuestPlayer}
+                    disabled={guestName.trim().length < 3}
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          {/if}
 
           <!-- Participants list -->
           <div class="participants-list-section">
@@ -2377,9 +2413,15 @@
             {:else}
               <div class="participants-grid-2col">
                 {#each sortedParticipants as participant}
-                  <div class="participant-chip" class:registered={participant.type === 'REGISTERED'}>
+                  <div
+                    class="participant-chip"
+                    class:registered={participant.type === 'REGISTERED'}
+                    class:pair={participant.participantMode === 'pair'}
+                  >
                     <span class="chip-name">{participant.name}</span>
-                    {#if participant.type === 'REGISTERED' && participant.rankingSnapshot}
+                    {#if participant.participantMode === 'pair'}
+                      <span class="chip-pair-badge">👥</span>
+                    {:else if participant.type === 'REGISTERED' && participant.rankingSnapshot}
                       <span class="chip-rank">{participant.rankingSnapshot}</span>
                     {/if}
                     <button class="chip-remove" onclick={() => removeParticipant(participant)}>×</button>
@@ -2393,177 +2435,65 @@
 
       <!-- Step 5: Time Configuration -->
       {#if currentStep === 5}
-        <div class="step-container step-time-config">
-          <div class="step-header-modern">
-            <div class="step-icon-circle">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-            </div>
-            <div class="step-header-text">
-              <h2>{m.admin_timeConfigTitle()}</h2>
-              <p>{m.admin_timeConfigDesc()}</p>
-            </div>
-          </div>
+        <div class="step-container step-time-compact">
+          <h2 class="step-title-compact">{m.admin_timeConfigTitle()}</h2>
 
-          <div class="time-config-grid-modern">
-            <!-- Row 1: Match Duration & Breaks -->
-            <div class="tc-card">
-              <div class="tc-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <polyline points="12 6 12 12 16 14"/>
-                </svg>
+          <div class="tc-compact">
+            <!-- Duration & Breaks Row -->
+            <div class="tc-row">
+              <div class="tc-group">
+                <label class="tc-lbl">{m.admin_matchDuration()}</label>
+                <div class="tc-input-wrap">
+                  {#if gameType === 'doubles'}
+                    <input type="number" bind:value={tcMinutesPer4RoundsDoubles} min="5" max="30" />
+                  {:else}
+                    <input type="number" bind:value={tcMinutesPer4RoundsSingles} min="5" max="30" />
+                  {/if}
+                  <span class="tc-suffix">min/4rds</span>
+                </div>
               </div>
-              <div class="tc-card-content">
-                <h3>{m.admin_matchDuration()}</h3>
-                <p class="tc-card-desc">{m.admin_matchDurationDesc()}</p>
-                <div class="tc-fields">
-                  <div class="tc-field single-field">
-                    <div class="tc-field-input">
-                      {#if gameType === 'doubles'}
-                        <input type="number" bind:value={tcMinutesPer4RoundsDoubles} min="5" max="30" />
-                      {:else}
-                        <input type="number" bind:value={tcMinutesPer4RoundsSingles} min="5" max="30" />
-                      {/if}
-                      <span class="tc-unit">min</span>
-                    </div>
-                  </div>
+              <div class="tc-group">
+                <label class="tc-lbl">{m.admin_betweenMatches()}</label>
+                <div class="tc-input-wrap">
+                  <input type="number" bind:value={tcBreakBetweenMatches} min="0" max="30" />
+                  <span class="tc-suffix">min</span>
+                </div>
+              </div>
+              <div class="tc-group">
+                <label class="tc-lbl">{m.admin_betweenPhases()}</label>
+                <div class="tc-input-wrap">
+                  <input type="number" bind:value={tcBreakBetweenPhases} min="0" max="60" />
+                  <span class="tc-suffix">min</span>
                 </div>
               </div>
             </div>
 
-            <div class="tc-card">
-              <div class="tc-card-icon pause">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="6" y="4" width="4" height="16"/>
-                  <rect x="14" y="4" width="4" height="16"/>
-                </svg>
-              </div>
-              <div class="tc-card-content">
-                <h3>{m.admin_breaks()}</h3>
-                <p class="tc-card-desc">{m.admin_breaksDesc()}</p>
-                <div class="tc-fields">
-                  <div class="tc-field">
-                    <span class="tc-field-label">{m.admin_betweenMatches()}</span>
-                    <div class="tc-field-input">
-                      <input type="number" bind:value={tcBreakBetweenMatches} min="0" max="30" />
-                      <span class="tc-unit">min</span>
-                    </div>
-                  </div>
-                  <div class="tc-field">
-                    <span class="tc-field-label">{m.admin_betweenPhases()}</span>
-                    <div class="tc-field-input">
-                      <input type="number" bind:value={tcBreakBetweenPhases} min="0" max="60" />
-                      <span class="tc-unit">min</span>
-                    </div>
-                  </div>
-                </div>
+            <!-- Average Rounds Row -->
+            <div class="tc-row tc-rounds-row">
+              <label class="tc-lbl">{m.admin_avgRoundsTitle()}</label>
+              <div class="tc-rounds-grid">
+                <div class="tc-round-item"><span class="tc-pts">5p</span><input type="number" bind:value={tcAvgRounds5pts} min="2" max="12" /><span class="tc-rds">rds</span></div>
+                <div class="tc-round-item"><span class="tc-pts">7p</span><input type="number" bind:value={tcAvgRounds7pts} min="3" max="15" /><span class="tc-rds">rds</span></div>
+                <div class="tc-round-item"><span class="tc-pts">9p</span><input type="number" bind:value={tcAvgRounds9pts} min="4" max="20" /><span class="tc-rds">rds</span></div>
+                <div class="tc-round-item"><span class="tc-pts">11p</span><input type="number" bind:value={tcAvgRounds11pts} min="5" max="25" /><span class="tc-rds">rds</span></div>
               </div>
             </div>
 
-            <!-- Row 2: Points Mode & Options -->
-            <div class="tc-card">
-              <div class="tc-card-icon points">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-                </svg>
+            <!-- Toggles Row -->
+            <div class="tc-row tc-toggles-row">
+              <div class="tc-toggle-compact">
+                <span class="tc-toggle-lbl">{m.admin_parallelSemifinals()}</span>
+                <button type="button" class="tc-switch" class:on={tcParallelSemifinals} onclick={() => tcParallelSemifinals = !tcParallelSemifinals}>
+                  <span class="tc-switch-thumb"></span>
+                </button>
               </div>
-              <div class="tc-card-content">
-                <h3>{m.admin_avgRoundsTitle()}</h3>
-                <p class="tc-card-desc">{m.admin_avgRoundsDesc()}</p>
-                <div class="tc-points-grid">
-                  <div class="tc-point-item">
-                    <span class="tc-point-badge">5</span>
-                    <input type="number" bind:value={tcAvgRounds5pts} min="2" max="12" />
-                    <span class="tc-point-suffix">rds</span>
-                  </div>
-                  <div class="tc-point-item">
-                    <span class="tc-point-badge">7</span>
-                    <input type="number" bind:value={tcAvgRounds7pts} min="3" max="15" />
-                    <span class="tc-point-suffix">rds</span>
-                  </div>
-                  <div class="tc-point-item">
-                    <span class="tc-point-badge">9</span>
-                    <input type="number" bind:value={tcAvgRounds9pts} min="4" max="20" />
-                    <span class="tc-point-suffix">rds</span>
-                  </div>
-                  <div class="tc-point-item">
-                    <span class="tc-point-badge">11</span>
-                    <input type="number" bind:value={tcAvgRounds11pts} min="5" max="25" />
-                    <span class="tc-point-suffix">rds</span>
-                  </div>
-                </div>
+              <div class="tc-toggle-compact">
+                <span class="tc-toggle-lbl">{m.admin_parallelFinals()}</span>
+                <button type="button" class="tc-switch" class:on={tcParallelFinals} onclick={() => tcParallelFinals = !tcParallelFinals}>
+                  <span class="tc-switch-thumb"></span>
+                </button>
               </div>
-            </div>
-
-            <div class="tc-card">
-              <div class="tc-card-icon options">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                </svg>
-              </div>
-              <div class="tc-card-content">
-                <h3>{m.admin_advancedOptions()}</h3>
-                <p class="tc-card-desc">{m.admin_advancedOptionsDesc()}</p>
-                <div class="tc-toggle-field">
-                  <div class="tc-toggle-info">
-                    <span class="tc-toggle-label">{m.admin_parallelSemifinals()}</span>
-                    <span class="tc-toggle-desc">{m.admin_parallelSemifinalsDesc()}</span>
-                  </div>
-                  <div class="tc-toggle-wrapper">
-                    <button
-                      type="button"
-                      class="tc-toggle"
-                      class:active={tcParallelSemifinals}
-                      onclick={() => tcParallelSemifinals = !tcParallelSemifinals}
-                      aria-pressed={tcParallelSemifinals}
-                      aria-label={m.admin_parallelSemifinals()}
-                    >
-                      <span class="tc-toggle-track">
-                        <span class="tc-toggle-thumb"></span>
-                      </span>
-                    </button>
-                    <span class="tc-toggle-status" class:active={tcParallelSemifinals}>
-                      {tcParallelSemifinals ? m.admin_yes() : m.admin_no()}
-                    </span>
-                  </div>
-                </div>
-                <div class="tc-toggle-field">
-                  <div class="tc-toggle-info">
-                    <span class="tc-toggle-label">{m.admin_parallelFinals()}</span>
-                    <span class="tc-toggle-desc">{m.admin_parallelFinalsDesc()}</span>
-                  </div>
-                  <div class="tc-toggle-wrapper">
-                    <button
-                      type="button"
-                      class="tc-toggle"
-                      class:active={tcParallelFinals}
-                      onclick={() => tcParallelFinals = !tcParallelFinals}
-                      aria-pressed={tcParallelFinals}
-                      aria-label={m.admin_parallelFinals()}
-                    >
-                      <span class="tc-toggle-track">
-                        <span class="tc-toggle-thumb"></span>
-                      </span>
-                    </button>
-                    <span class="tc-toggle-status" class:active={tcParallelFinals}>
-                      {tcParallelFinals ? m.admin_yes() : m.admin_no()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Reset Button -->
-          <div class="tc-actions">
-            <button
-              type="button"
-              class="tc-btn-reset"
-              onclick={() => {
+              <button type="button" class="tc-reset-btn" onclick={() => {
                 tcMinutesPer4RoundsSingles = DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
                 tcMinutesPer4RoundsDoubles = DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles;
                 tcAvgRounds5pts = DEFAULT_TIME_CONFIG.avgRoundsForPointsMode[5];
@@ -2574,14 +2504,8 @@
                 tcBreakBetweenPhases = DEFAULT_TIME_CONFIG.breakBetweenPhases;
                 tcParallelSemifinals = DEFAULT_TIME_CONFIG.parallelSemifinals;
                 tcParallelFinals = DEFAULT_TIME_CONFIG.parallelFinals;
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
-              </svg>
-              {m.admin_resetToDefaults()}
-            </button>
+              }}>{m.admin_resetToDefaults()}</button>
+            </div>
           </div>
         </div>
       {/if}
@@ -3293,6 +3217,23 @@
     color: #e1e8ed;
   }
 
+  .wizard-intro {
+    font-size: 0.85rem;
+    color: #4a5568;
+    margin: -0.5rem 0 1rem 0;
+    line-height: 1.5;
+    padding: 0.75rem 1rem;
+    background: #f0f7ff;
+    border-left: 3px solid #3182ce;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .wizard-container[data-theme='dark'] .wizard-intro {
+    color: #a0aec0;
+    background: #1a2a3a;
+    border-left-color: #4299e1;
+  }
+
   /* Participants limit indicators */
   .participants-limit-info {
     background: #e8f4fd;
@@ -3395,6 +3336,16 @@
 
   .wizard-container[data-theme='dark'] .info-field label {
     color: #8b9bb3;
+  }
+
+  .optional-label {
+    font-weight: 400;
+    text-transform: lowercase;
+    color: #94a3b8;
+  }
+
+  .wizard-container[data-theme='dark'] .optional-label {
+    color: #64748b;
   }
 
   .info-field .input-field {
@@ -6001,6 +5952,20 @@
     border-color: #4a5ecc;
   }
 
+  .participants-grid-2col .participant-chip.pair {
+    border-color: #10b981;
+    background: #f0fdf4;
+  }
+
+  .wizard-container[data-theme='dark'] .participants-grid-2col .participant-chip.pair {
+    background: #14332a;
+    border-color: #059669;
+  }
+
+  .chip-pair-badge {
+    font-size: 0.7rem;
+  }
+
   .chip-name {
     flex: 1;
     overflow: hidden;
@@ -6172,8 +6137,6 @@
   }
 
   .nav-button.primary.create {
-    min-height: 42px;
-    min-width: 150px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -6346,7 +6309,181 @@
     }
   }
 
-  /* Step 5: Time Configuration - Modern */
+  /* Step 5: Time Configuration - Compact */
+  .step-time-compact {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .step-title-compact {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+  .wizard-container[data-theme='dark'] .step-title-compact { color: #f1f5f9; }
+
+  .tc-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+  .wizard-container[data-theme='dark'] .tc-compact {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .tc-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .tc-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .tc-lbl {
+    font-size: 0.75rem;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  .wizard-container[data-theme='dark'] .tc-lbl { color: #94a3b8; }
+
+  .tc-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .tc-input-wrap input, .tc-round-item input {
+    width: 50px;
+    padding: 0.3rem 0.4rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    text-align: center;
+    background: #fff;
+    color: #1e293b;
+  }
+  .tc-input-wrap input:focus, .tc-round-item input:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+  .wizard-container[data-theme='dark'] .tc-input-wrap input,
+  .wizard-container[data-theme='dark'] .tc-round-item input {
+    background: #0f172a;
+    border-color: #475569;
+    color: #f1f5f9;
+  }
+
+  .tc-suffix, .tc-rds {
+    font-size: 0.7rem;
+    color: #94a3b8;
+  }
+
+  .tc-rounds-row {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 0.75rem;
+  }
+  .wizard-container[data-theme='dark'] .tc-rounds-row { border-color: #334155; }
+
+  .tc-rounds-grid {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .tc-round-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .tc-pts {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #3b82f6;
+    min-width: 20px;
+  }
+
+  .tc-toggles-row {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 0.75rem;
+    justify-content: space-between;
+  }
+  .wizard-container[data-theme='dark'] .tc-toggles-row { border-color: #334155; }
+
+  .tc-toggle-compact {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .tc-toggle-lbl {
+    font-size: 0.75rem;
+    color: #64748b;
+  }
+  .wizard-container[data-theme='dark'] .tc-toggle-lbl { color: #94a3b8; }
+
+  .tc-switch {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: #cbd5e1;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .tc-switch.on { background: #3b82f6; }
+  .tc-switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .tc-switch.on .tc-switch-thumb { transform: translateX(16px); }
+
+  .tc-reset-btn {
+    margin-left: auto;
+    padding: 0.3rem 0.6rem;
+    background: transparent;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    color: #64748b;
+    cursor: pointer;
+  }
+  .tc-reset-btn:hover { border-color: #94a3b8; color: #475569; }
+  .wizard-container[data-theme='dark'] .tc-reset-btn {
+    border-color: #475569;
+    color: #94a3b8;
+  }
+  .wizard-container[data-theme='dark'] .tc-reset-btn:hover {
+    border-color: #64748b;
+    color: #cbd5e1;
+  }
+
+  @media (max-width: 600px) {
+    .tc-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .tc-rounds-row { flex-direction: column; align-items: flex-start; }
+    .tc-toggles-row { flex-direction: column; align-items: flex-start; }
+    .tc-reset-btn { margin-left: 0; margin-top: 0.5rem; }
+  }
+
+  /* Step 5: Time Configuration - Modern (legacy) */
   .step-time-config {
     max-width: 800px;
     margin: 0 auto;
