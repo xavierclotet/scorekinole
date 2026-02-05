@@ -1513,19 +1513,19 @@
 
 	/* Dynamic vertical line height based on round index - space-around distribution */
 	.bracket-round[style*="--round-index: 0"] .bracket-match::before {
-		height: 50%;
+		height: calc(50% + 0.5rem);
 	}
 	.bracket-round[style*="--round-index: 1"] .bracket-match::before {
-		height: 100%;
+		height: calc(100% + 1rem);
 	}
 	.bracket-round[style*="--round-index: 2"] .bracket-match::before {
-		height: 200%;
+		height: calc(200% + 2rem);
 	}
 	.bracket-round[style*="--round-index: 3"] .bracket-match::before {
-		height: 400%;
+		height: calc(400% + 4rem);
 	}
 	.bracket-round[style*="--round-index: 4"] .bracket-match::before {
-		height: 800%;
+		height: calc(800% + 8rem);
 	}
 
 	/* Remove vertical connectors from final round */
