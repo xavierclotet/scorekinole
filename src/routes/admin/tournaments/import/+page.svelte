@@ -888,7 +888,7 @@
                   id="name"
                   type="text"
                   bind:value={name}
-                  placeholder="Ej: Tauron Open"
+                  placeholder="Ej: Barcelona Crokinole Open"
                   class="input-field"
                 />
               </div>
@@ -905,7 +905,7 @@
                   id="address"
                   type="text"
                   bind:value={address}
-                  placeholder="Club de Crokinole Barcelona"
+                  placeholder=""
                   class="input-field"
                 />
               </div>
