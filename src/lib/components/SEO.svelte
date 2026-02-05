@@ -11,7 +11,7 @@
 	}
 
 	const BASE_URL = 'https://scorekinole.web.app';
-	const DEFAULT_OG_IMAGE = `${BASE_URL}/icon.png`;
+	const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.jpg`;
 
 	let {
 		title,
@@ -56,7 +56,7 @@
 	<meta property="og:locale:alternate" content="ca_ES" />
 
 	<!-- Twitter Card -->
-	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:title" content={fullTitle} />
 	<meta name="twitter:description" content={description} />
 	<meta name="twitter:image" content={ogImage} />
