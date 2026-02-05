@@ -1421,9 +1421,10 @@
 
 	.bracket-container {
 		display: flex;
-		gap: 4rem;
+		gap: 5rem;
 		min-width: max-content;
 		padding-bottom: 1rem;
+		align-items: stretch;
 	}
 
 	.bracket-round {
@@ -1457,10 +1458,10 @@
 	.matches-column {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
 		justify-content: space-around;
 		flex: 1;
 		position: relative;
+		min-height: 100%;
 	}
 
 	.bracket-match {
@@ -1472,13 +1473,13 @@
 	}
 
 	/* Connector lines between rounds */
-	/* Horizontal line going right from each match - half of gap (2rem of 4rem gap) */
+	/* Horizontal line going right from each match - half of gap (2.5rem of 5rem gap) */
 	.bracket-match::after {
 		content: '';
 		position: absolute;
 		left: 100%;
 		top: 50%;
-		width: 2rem;
+		width: 2.5rem;
 		height: 2px;
 		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
 		transform: translateY(-50%);
@@ -1494,7 +1495,7 @@
 	.bracket-match::before {
 		content: '';
 		position: absolute;
-		left: calc(100% + 2rem);
+		left: calc(100% + 2.5rem);
 		width: 2px;
 		background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
 		z-index: 0;
@@ -1510,21 +1511,21 @@
 		bottom: 50%;
 	}
 
-	/* Dynamic vertical line height based on round index - adjusted for 1rem gap */
+	/* Dynamic vertical line height based on round index - space-around distribution */
 	.bracket-round[style*="--round-index: 0"] .bracket-match::before {
-		height: calc(50% + 0.5rem);
+		height: 50%;
 	}
 	.bracket-round[style*="--round-index: 1"] .bracket-match::before {
-		height: calc(100% + 1rem);
+		height: 100%;
 	}
 	.bracket-round[style*="--round-index: 2"] .bracket-match::before {
-		height: calc(200% + 2rem);
+		height: 200%;
 	}
 	.bracket-round[style*="--round-index: 3"] .bracket-match::before {
-		height: calc(400% + 4rem);
+		height: 400%;
 	}
 	.bracket-round[style*="--round-index: 4"] .bracket-match::before {
-		height: calc(800% + 8rem);
+		height: 800%;
 	}
 
 	/* Remove vertical connectors from final round */
@@ -1540,12 +1541,14 @@
 	/* Horizontal connector from the vertical line junction to next round - other half of gap */
 	.pair-connector {
 		position: absolute;
-		width: 2rem;
+		width: 2.5rem;
 		height: 2px;
 		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-		right: -4rem;
+		right: -5rem;
 		z-index: 1;
+		/* Position at midpoint between each pair of matches */
 		top: calc((var(--pair-index) * 2 + 1) / var(--total-matches) * 100%);
+		transform: translateY(-50%);
 	}
 
 	.bracket-match.completed {
