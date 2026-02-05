@@ -1,6 +1,6 @@
 import type { GameSettings } from './types/settings';
 
-export const APP_VERSION = '2.3.4';
+export const APP_VERSION = '2.3.5';
 export const APP_NAME = 'Scorekinole';
 
 /**
