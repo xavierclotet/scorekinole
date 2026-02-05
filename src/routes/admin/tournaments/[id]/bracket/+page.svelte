@@ -2318,19 +2318,6 @@
     margin-left: 0.5rem;
   }
 
-  .info-badge {
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .info-badge.phase-badge {
-    background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
-    color: white;
-  }
-
   .tournament-status {
     padding: 0.25rem 0.6rem;
     border-radius: 4px;
@@ -2406,7 +2393,6 @@
     background: #0f1419;
   }
 
-  .loading-state,
   .error-state {
     display: flex;
     flex-direction: column;
@@ -2730,22 +2716,6 @@
     font-style: italic;
   }
 
-  .match-participant.placeholder {
-    opacity: 0.6;
-    font-style: italic;
-    font-size: 0.75rem;
-    color: #6366f1;
-  }
-
-  .bracket-page[data-theme='dark'] .match-participant.placeholder {
-    color: #818cf8;
-  }
-
-  .consolation-match.has-placeholder {
-    opacity: 0.8;
-    border-style: dashed;
-  }
-
   .match-participant.winner {
     background: #f0fdf4;
     font-weight: 700;
@@ -3009,15 +2979,6 @@
     display: none !important;
   }
 
-  .bracket-pending {
-    background: #6b7280;
-    color: white;
-    padding: 0.15rem 0.5rem;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 500;
-  }
-
   /* Global Table Config */
   .global-table-config {
     display: flex;
@@ -3137,66 +3098,6 @@
     gap: 0.75rem;
   }
 
-  .config-section {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 0.75rem;
-  }
-
-  .bracket-page[data-theme='dark'] .config-section {
-    background: #0f172a;
-    border-color: #334155;
-  }
-
-  .config-section-title {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #64748b;
-    margin-bottom: 0.6rem;
-  }
-
-  .config-section-title svg {
-    opacity: 0.7;
-  }
-
-  .table-config-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  /* Phase Configuration Panel */
-  .phase-config-panel {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .bracket-page[data-theme='dark'] .phase-config-panel {
-    background: #1e293b;
-    border-color: #334155;
-  }
-
-  .phase-config-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #64748b;
-    margin-bottom: 0.75rem;
-  }
-
-  .config-icon {
-    font-size: 1rem;
-  }
-
   .phase-config-grid {
     display: flex;
     flex-wrap: wrap;
@@ -3302,59 +3203,6 @@
   .lock-icon {
     font-size: 0.7rem;
     margin-left: 0.25rem;
-  }
-
-  /* Table Configuration Panel - matches phase-config style */
-  .table-config-panel {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .bracket-page[data-theme='dark'] .table-config-panel {
-    background: #1e293b;
-    border-color: #334155;
-  }
-
-  .table-config-panel .table-config-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-  }
-
-  .bracket-page[data-theme='dark'] .table-config-panel .table-config-item {
-    background: #0f172a;
-    border-color: #334155;
-  }
-
-  .table-config-item label {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #475569;
-    min-width: 70px;
-  }
-
-  .table-config-item label svg {
-    opacity: 0.7;
-  }
-
-  .bracket-page[data-theme='dark'] .table-config-item label {
-    color: #94a3b8;
-  }
-
-  .table-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
   }
 
   .table-value {
@@ -3573,33 +3421,6 @@
     font-size: 0.75rem;
   }
 
-  .filter-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.25rem;
-    height: 1.25rem;
-    padding: 0 0.35rem;
-    background: #e2e8f0;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #64748b;
-  }
-
-  .filter-btn.active .filter-count {
-    background: #e2e8f0;
-  }
-
-  .bracket-page[data-theme='dark'] .filter-count {
-    background: #374151;
-    color: #9ca3af;
-  }
-
-  .bracket-page[data-theme='dark'] .filter-btn.active .filter-count {
-    background: #1a2332;
-  }
-
   /* Mobile optimizations for screens <= 640px */
   @media (max-width: 640px) {
     .page-header {
@@ -3626,11 +3447,6 @@
 
     .header-badges {
       gap: 0.35rem;
-    }
-
-    .info-badge {
-      font-size: 0.65rem;
-      padding: 0.15rem 0.4rem;
     }
 
     .action-btn {
@@ -3731,10 +3547,6 @@
       font-size: 0.85rem;
     }
 
-    .info-badge {
-      font-size: 0.6rem;
-    }
-
     .bracket-filters {
       gap: 0.5rem;
       padding: 0.4rem;
@@ -3785,43 +3597,6 @@
 
   .loading-overlay[data-theme='dark'] .loading-content {
     background: #1a2332;
-  }
-
-  .loading-overlay .spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid #e5e7eb;
-    border-top-color: #10b981;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 1rem;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .loading-text {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 0.5rem;
-  }
-
-  .loading-overlay[data-theme='dark'] .loading-text {
-    color: #e1e8ed;
-  }
-
-  .loading-subtext {
-    font-size: 0.85rem;
-    color: #6b7280;
-    margin: 0;
-  }
-
-  .loading-overlay[data-theme='dark'] .loading-subtext {
-    color: #8b9bb3;
   }
 
   /* Consolation Brackets Section */
@@ -3916,38 +3691,6 @@
     border-color: #334155;
   }
 
-  .consolation-bracket-group {
-    margin-bottom: 2rem;
-  }
-
-  .consolation-bracket-group:last-child {
-    margin-bottom: 0;
-  }
-
-  .consolation-group-header {
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid #e2e8f0;
-  }
-
-  .consolation-section[data-theme='dark'] .consolation-group-header {
-    border-bottom-color: #334155;
-  }
-
-  .consolation-group-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #334155;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .consolation-section[data-theme='dark'] .consolation-group-title {
-    color: #e2e8f0;
-  }
-
   .consolation-header {
     display: flex;
     align-items: center;
@@ -3966,70 +3709,6 @@
 
   .consolation-section[data-theme='dark'] .consolation-title {
     color: #e2e8f0;
-  }
-
-  .consolation-tabs {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .consolation-tab {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.5rem 1rem;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    background: white;
-    color: #64748b;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .consolation-tab:hover {
-    border-color: #3b82f6;
-    color: #3b82f6;
-  }
-
-  .consolation-tab.active {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-  }
-
-  .consolation-section[data-theme='dark'] .consolation-tab {
-    background: #0f172a;
-    border-color: #475569;
-    color: #94a3b8;
-  }
-
-  .consolation-section[data-theme='dark'] .consolation-tab:hover {
-    border-color: #60a5fa;
-    color: #60a5fa;
-  }
-
-  .consolation-section[data-theme='dark'] .consolation-tab.active {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-  }
-
-  .complete-badge {
-    color: #10b981;
-    font-size: 0.75rem;
-  }
-
-  .consolation-bracket {
-    margin-top: 0.5rem;
-  }
-
-  .consolation-rounds {
-    display: flex;
-    gap: 1.5rem;
-    overflow-x: auto;
-    padding: 0.5rem 0;
   }
 
   /* Unified horizontal layout for all consolation brackets */
@@ -4236,49 +3915,6 @@
     color: #10b981;
   }
 
-  .match-vs {
-    text-align: center;
-    font-size: 0.7rem;
-    color: #94a3b8;
-    padding: 0.15rem 0;
-  }
-
-  .games-won {
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: #3b82f6;
-  }
-
-  .consolation-positions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 1rem;
-    padding: 0.75rem 1rem;
-    background: #ecfdf5;
-    border-radius: 8px;
-  }
-
-  .consolation-section[data-theme='dark'] .consolation-positions {
-    background: rgba(16, 185, 129, 0.15);
-  }
-
-  .positions-label {
-    font-size: 0.85rem;
-    color: #047857;
-    font-weight: 500;
-  }
-
-  .positions-complete {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #10b981;
-  }
-
-  .consolation-section[data-theme='dark'] .positions-label {
-    color: #34d399;
-  }
-
   @media (max-width: 640px) {
     .consolation-section {
       padding: 1rem;
@@ -4287,10 +3923,6 @@
     .consolation-header {
       flex-direction: column;
       align-items: flex-start;
-    }
-
-    .consolation-rounds {
-      gap: 1rem;
     }
 
     .consolation-round {

@@ -12,13 +12,19 @@
 
   let { match, onClose, onmatchupdated }: Props = $props();
 
+  // svelte-ignore state_referenced_locally - Intentional: initializing editable local state from props
   let team1Name = $state(match.team1Name);
+  // svelte-ignore state_referenced_locally
   let team2Name = $state(match.team2Name);
+  // svelte-ignore state_referenced_locally
   let eventTitle = $state(match.eventTitle || '');
+  // svelte-ignore state_referenced_locally
   let matchPhase = $state(match.matchPhase || '');
+  // svelte-ignore state_referenced_locally
   let gameType = $state<'singles' | 'doubles'>(match.gameType || 'singles');
 
   // Deep clone games to allow editing
+  // svelte-ignore state_referenced_locally
   let editableGames = $state<MatchGame[]>(JSON.parse(JSON.stringify(match.games)));
 
   let selectedGameIndex = $state(0);
@@ -88,6 +94,7 @@
   aria-modal="true"
   tabindex="-1"
 >
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
   <div class="modal" onclick={stopPropagation} role="document">
     <!-- Header -->
     <header class="modal-header">
@@ -126,34 +133,38 @@
         <div class="form-section">
           <div class="players-row">
             <div class="player-input" style="--player-color: {match.team1Color}">
-              <label>{m.admin_team1()}</label>
-              <input type="text" bind:value={team1Name} placeholder="Jugador 1" />
+              <label>
+                <span class="label-text">{m.admin_team1()}</span>
+                <input type="text" bind:value={team1Name} placeholder="Jugador 1" />
+              </label>
             </div>
             <span class="vs">vs</span>
             <div class="player-input" style="--player-color: {match.team2Color}">
-              <label>{m.admin_team2()}</label>
-              <input type="text" bind:value={team2Name} placeholder="Jugador 2" />
+              <label>
+                <span class="label-text">{m.admin_team2()}</span>
+                <input type="text" bind:value={team2Name} placeholder="Jugador 2" />
+              </label>
             </div>
           </div>
 
           <div class="form-grid">
-            <div class="form-field">
-              <label>{m.admin_eventTitleLabel()}</label>
+            <label class="form-field">
+              <span class="label-text">{m.admin_eventTitleLabel()}</span>
               <input type="text" bind:value={eventTitle} placeholder={m.admin_eventTitleExample()} />
-            </div>
-            <div class="form-field">
-              <label>{m.admin_phaseLabel()}</label>
+            </label>
+            <label class="form-field">
+              <span class="label-text">{m.admin_phaseLabel()}</span>
               <input type="text" bind:value={matchPhase} placeholder={m.admin_phaseExample()} />
-            </div>
-            <div class="form-field">
-              <label>{m.admin_matchType()}</label>
+            </label>
+            <label class="form-field">
+              <span class="label-text">{m.admin_matchType()}</span>
               <select bind:value={gameType}>
                 <option value="singles">{m.scoring_singles()}</option>
                 <option value="doubles">{m.scoring_doubles()}</option>
               </select>
-            </div>
+            </label>
             <div class="form-field readonly">
-              <label>{m.admin_modeLabel()}</label>
+              <span class="label-text">{m.admin_modeLabel()}</span>
               <span class="readonly-value">
                 {match.gameMode === 'points' ? `${match.pointsToWin} pts` : `${match.roundsToPlay} rondas`}
               </span>
@@ -482,20 +493,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
-  }
-
-  .form-field label {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #666;
-    margin-bottom: 0.2rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-
-  .modal-overlay[data-theme='dark'] .form-field label {
-    color: #8b9bb3;
   }
 
   .form-field input,

@@ -175,9 +175,11 @@
 <div class="ps" data-theme={theme}>
   <!-- Row 1: Search existing pairs -->
   <div class="row">
-    <label class="lbl">{m.wizard_searchPair()}</label>
-    <div class="search-wrap">
+    <label class="lbl">
+      <span class="label-text">{m.wizard_searchPair()}</span>
       <input type="text" bind:value={pairSearch} placeholder={m.wizard_searchPairPlaceholder()} />
+    </label>
+    <div class="search-wrap">
       {#if pairLoading}<span class="spin"></span>{/if}
       {#if pairResults.length > 0}
         <div class="results">
@@ -195,7 +197,7 @@
 
   <!-- Row 2: Create new pair -->
   <div class="row new-pair">
-    <label class="lbl">{m.wizard_newPair()}</label>
+    <span class="lbl">{m.wizard_newPair()}</span>
     <div class="inline-form">
       <!-- Player 1 -->
       <div class="pfield">
@@ -280,15 +282,11 @@
 
   .search-wrap { position: relative; flex: 1; min-width: 0; }
   .pfield { position: relative; }
-  .search-wrap input {
-    width: 100%; padding: 0.4rem 0.6rem; border: 1px solid var(--border);
-    border-radius: 4px; font-size: 0.85rem; background: var(--bg); color: var(--txt); box-sizing: border-box;
-  }
   .pfield input {
     width: 100%; padding: 0.35rem 0.5rem; border: 1px solid var(--border);
     border-radius: 4px; font-size: 0.8rem; background: var(--bg); color: var(--txt); box-sizing: border-box;
   }
-  .search-wrap input:focus, .pfield input:focus { outline: none; border-color: var(--primary); }
+  .pfield input:focus { outline: none; border-color: var(--primary); }
 
   .spin { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.5s linear infinite; }
   @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }

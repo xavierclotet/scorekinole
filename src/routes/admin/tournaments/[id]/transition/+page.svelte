@@ -3125,27 +3125,6 @@
     border-color: #4b5563;
   }
 
-  .transition-page[data-theme='dark'] .division-badge.valid {
-    border-color: #059669;
-  }
-
-  .transition-page[data-theme='dark'] .division-badge.invalid {
-    border-color: #dc2626;
-  }
-
-  .transition-page[data-theme='dark'] .division-label {
-    color: #8b9bb3;
-  }
-
-  .transition-page[data-theme='dark'] .division-count {
-    color: #e1e8ed;
-  }
-
-  .transition-page[data-theme='dark'] .division-validation-hint {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: rgba(239, 68, 68, 0.3);
-    color: #f87171;
-  }
 
   /* Loading Overlay */
   .loading-overlay {
@@ -3174,40 +3153,4 @@
     background: #1a2332;
   }
 
-  .loading-overlay .spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid #e5e7eb;
-    border-top-color: #10b981;
-    border-radius: 50%;
-    animation: loadingSpin 0.8s linear infinite;
-    margin: 0 auto 1rem;
-  }
-
-  @keyframes loadingSpin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .loading-text {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 0.5rem;
-  }
-
-  .loading-overlay[data-theme='dark'] .loading-text {
-    color: #e1e8ed;
-  }
-
-  .loading-subtext {
-    font-size: 0.85rem;
-    color: #6b7280;
-    margin: 0;
-  }
-
-  .loading-overlay[data-theme='dark'] .loading-subtext {
-    color: #8b9bb3;
-  }
 </style>

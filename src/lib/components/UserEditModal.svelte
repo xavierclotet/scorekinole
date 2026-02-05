@@ -19,12 +19,17 @@
     return found?.playerName || userId.substring(0, 12) + '...';
   }
 
+  // svelte-ignore state_referenced_locally - Intentional: initializing editable local state from props
   let playerName = $state(user.playerName);
   // Ranking is calculated from tournaments, not stored
   let calculatedRanking = $derived(user.tournaments?.reduce((sum, t) => sum + (t.rankingDelta || 0), 0) || 0);
+  // svelte-ignore state_referenced_locally
   let isAdmin = $state(user.isAdmin || false);
+  // svelte-ignore state_referenced_locally
   let canAutofill = $state(user.canAutofill || false);
+  // svelte-ignore state_referenced_locally
   let canImportTournaments = $state(user.canImportTournaments || false);
+  // svelte-ignore state_referenced_locally
   let maxTournamentsPerYear = $state(user.maxTournamentsPerYear ?? 0);
   let isSaving = $state(false);
   let errorMessage = $state('');
@@ -101,7 +106,8 @@
 </script>
 
 <div class="modal-overlay" data-theme={$adminTheme}>
-  <div class="modal" onclick={stopPropagation}>
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="modal" onclick={stopPropagation} role="dialog" aria-modal="true" tabindex="-1">
     <!-- Header -->
     <div class="modal-header">
       <div class="header-left">
