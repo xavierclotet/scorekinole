@@ -60,6 +60,7 @@
   let qualificationMode = $derived((tournament.groupStage?.qualificationMode || tournament.groupStage?.qualificationMode || tournament.groupStage?.swissRankingSystem || 'WINS') as 'WINS' | 'POINTS');
 
   // Track previous topN to detect changes (not reactive - just for comparison)
+  // svelte-ignore state_referenced_locally - Intentional: storing initial value for comparison
   let previousTopN = topN;
 
   let group = $derived(groups[groupIndex]);
@@ -586,7 +587,7 @@
   <div class="modal-overlay" onclick={closeTiebreakerModal} onkeydown={(e) => e.key === 'Escape' && closeTiebreakerModal()} role="button" tabindex="0">
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="tiebreaker-modal" onclick={(e: MouseEvent) => e.stopPropagation()} onkeydown={(e: KeyboardEvent) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <div class="tiebreaker-modal" onclick={(e: MouseEvent) => e.stopPropagation()} onkeydown={(e: KeyboardEvent) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
       <div class="modal-header tiebreaker-header">
         <h3>{m.tournament_miniLeagueTiebreaker()}</h3>
         <button class="close-btn" onclick={closeTiebreakerModal} aria-label="Close">×</button>
@@ -628,7 +629,7 @@
   <div class="modal-overlay" onclick={closeMatchesModal} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && closeMatchesModal()}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-content" onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <div class="modal-content" onclick={(e: MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
       <div class="modal-header">
         <h3>{getParticipantName(selectedPlayerId)}</h3>
         <button class="close-btn" onclick={closeMatchesModal} aria-label="Close">×</button>
@@ -682,21 +683,6 @@
     font-size: 0.85rem;
     font-weight: 600;
     color: #1a1a1a;
-  }
-
-  .selection-info {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .count {
-    background: #667eea;
-    color: white;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
   }
 
   .standings-table {
@@ -1255,17 +1241,6 @@
 
   :global([data-theme='dark']) .group-header h3 {
     color: #e1e8ed;
-  }
-
-  :global([data-theme='dark']) .quick-btn {
-    background: #0f1419;
-    border-color: #2d3748;
-    color: #e1e8ed;
-  }
-
-  :global([data-theme='dark']) .quick-btn:hover {
-    background: #667eea;
-    color: white;
   }
 
   :global([data-theme='dark']) .standings-table::-webkit-scrollbar-track {

@@ -188,7 +188,7 @@
   role="none"
 >
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="rules-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+  <div class="rules-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
     <!-- Header with logo -->
     <div class="modal-header">
       <div class="logo">

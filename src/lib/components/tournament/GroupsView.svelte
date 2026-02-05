@@ -961,17 +961,6 @@
     border-color: #4b5563;
   }
 
-  :global([data-theme='dark']) .expand-btn {
-    background: #1a2332;
-    border-color: #2d3748;
-    color: #8b9bb3;
-  }
-
-  :global([data-theme='dark']) .expand-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
-  }
-
   :global([data-theme='dark']) .toggle-btn {
     background: #1a2332;
     border-color: #2d3748;
@@ -1098,11 +1087,6 @@
     .filter-group select {
       padding: 0.2rem 0.35rem;
       font-size: 0.65rem;
-    }
-
-    .expand-btn {
-      padding: 0.2rem 0.4rem;
-      font-size: 0.6rem;
     }
 
     .toggle-btn {

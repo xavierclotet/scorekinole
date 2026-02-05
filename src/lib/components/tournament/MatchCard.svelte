@@ -46,6 +46,7 @@
   let isTie = $derived((match.status === 'COMPLETED' || match.status === 'WALKOVER') && !match.winner);
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="match-card"
   class:compact
@@ -55,8 +56,8 @@
   class:in-progress={match.status === 'IN_PROGRESS'}
   onclick={() => isClickable && onMatchClick && onMatchClick(match)}
   onkeydown={(e) => isClickable && e.key === 'Enter' && onMatchClick && onMatchClick(match)}
-  role={isClickable ? 'button' : 'article'}
-  tabindex={isClickable ? 0 : -1}
+  role={isClickable ? 'button' : undefined}
+  tabindex={isClickable ? 0 : undefined}
 >
   <!-- Compact single-row layout -->
   <div class="match-row">

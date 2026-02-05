@@ -443,8 +443,10 @@
   {/if}
 
   {#if userToMigrate}
-    <div class="migrate-overlay" data-theme={$adminTheme} onclick={cancelMigrate}>
-      <div class="migrate-modal" onclick={(e) => e.stopPropagation()}>
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+    <div class="migrate-overlay" data-theme={$adminTheme} onclick={cancelMigrate} onkeydown={(e) => e.key === 'Escape' && cancelMigrate()} role="presentation">
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div class="migrate-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <h3>{m.admin_migrateUserTitle()}</h3>
 
         <div class="migrate-source">

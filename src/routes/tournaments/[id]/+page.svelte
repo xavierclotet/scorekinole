@@ -442,7 +442,7 @@
 
 			<!-- Phase Tabs (when both phases exist) -->
 		{#if hasBothPhases}
-			<nav class="phase-nav" role="tablist">
+			<div class="phase-nav" role="tablist">
 				<button
 					class="phase-tab"
 					class:active={activePhase === 'groups'}
@@ -481,7 +481,7 @@
 						<span class="tab-label">{m.tournament_finalStage()}</span>
 					</span>
 				</button>
-			</nav>
+			</div>
 		{/if}
 
 		<!-- Group Stage Section -->
@@ -1412,12 +1412,6 @@
 		-webkit-overflow-scrolling: touch;
 	}
 
-	/* When bracket-wrapper is not inside a panel */
-	.stage-section > .bracket-wrapper {
-		margin: 0 -1rem;
-		padding-left: 1rem;
-		padding-right: 1rem;
-	}
 
 	.bracket-container {
 		display: flex;
