@@ -4,15 +4,24 @@
  */
 
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { onInit } from "firebase-functions/v2/core";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue, Firestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 
-// Lazy initialization to avoid deployment timeouts
+// Deferred initialization using onInit() to avoid deployment timeouts
 let db: Firestore | null = null;
+
+onInit(() => {
+  if (getApps().length === 0) {
+    initializeApp();
+  }
+  db = getFirestore();
+});
 
 function getDb(): Firestore {
   if (!db) {
+    // Fallback in case onInit hasn't run yet
     if (getApps().length === 0) {
       initializeApp();
     }

@@ -242,11 +242,13 @@
           </div>
         </div>
         <div class="header-actions">
-          <button class="import-btn" onclick={importTournament}>
-            {m.import_importTournament()}
+          <button class="import-btn" onclick={importTournament} title={m.import_importTournament()}>
+            <span class="btn-icon">📥</span>
+            <span class="btn-text">{m.import_importTournament()}</span>
           </button>
-          <button class="create-btn" onclick={createTournament}>
-            + {m.admin_createTournament()}
+          <button class="create-btn" onclick={createTournament} title={m.admin_createTournament()}>
+            <span class="btn-icon">+</span>
+            <span class="btn-text">{m.admin_createTournament()}</span>
           </button>
           <ThemeToggle />
         </div>
@@ -264,39 +266,41 @@
         />
       </div>
 
-      <div class="filter-tabs">
-        <button
-          class="filter-tab"
-          class:active={statusFilter === 'all'}
-          onclick={() => (statusFilter = 'all')}
-        >
-          {m.admin_all()} ({tournaments.length})
-        </button>
-        <button
-          class="filter-tab"
-          class:active={statusFilter === 'DRAFT'}
-          onclick={() => (statusFilter = 'DRAFT')}
-        >
-          {m.admin_drafts()}
-        </button>
-        <button
-          class="filter-tab"
-          class:active={statusFilter === 'COMPLETED'}
-          onclick={() => (statusFilter = 'COMPLETED')}
-        >
-          {m.admin_completedPlural()}
-        </button>
-      </div>
+      <div class="filter-row">
+        <div class="filter-tabs">
+          <button
+            class="filter-tab"
+            class:active={statusFilter === 'all'}
+            onclick={() => (statusFilter = 'all')}
+          >
+            {m.admin_all()} ({tournaments.length})
+          </button>
+          <button
+            class="filter-tab"
+            class:active={statusFilter === 'DRAFT'}
+            onclick={() => (statusFilter = 'DRAFT')}
+          >
+            {m.admin_drafts()}
+          </button>
+          <button
+            class="filter-tab"
+            class:active={statusFilter === 'COMPLETED'}
+            onclick={() => (statusFilter = 'COMPLETED')}
+          >
+            {m.admin_completedPlural()}
+          </button>
+        </div>
 
-      {#if $isSuperAdminUser}
-        <select class="creator-filter" bind:value={creatorFilter}>
-          <option value="all">{m.admin_allCreators()}</option>
-          <option value="mine">{m.admin_myTournaments()}</option>
-          {#each uniqueCreators as creator}
-            <option value={creator.userId}>{creator.userName}</option>
-          {/each}
-        </select>
-      {/if}
+        {#if $isSuperAdminUser}
+          <select class="creator-filter" bind:value={creatorFilter}>
+            <option value="all">{m.admin_allCreators()}</option>
+            <option value="mine">{m.admin_myTournaments()}</option>
+            {#each uniqueCreators as creator}
+              <option value={creator.userId}>{creator.userName}</option>
+            {/each}
+          </select>
+        {/if}
+      </div>
     </div>
 
     {#if loading}
@@ -571,6 +575,17 @@
     transition: all 0.15s ease;
     white-space: nowrap;
     letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .btn-icon {
+    display: none;
+  }
+
+  .btn-text {
+    display: inline;
   }
 
   .create-btn:hover {
@@ -601,6 +616,9 @@
     transition: all 0.15s ease;
     white-space: nowrap;
     letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
   }
 
   .import-btn:hover {
@@ -666,6 +684,14 @@
     box-shadow: 0 0 0 2px rgba(250, 112, 154, 0.1);
   }
 
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+  }
+
   .filter-tabs {
     display: flex;
     gap: 0.25rem;
@@ -709,7 +735,8 @@
     cursor: pointer;
     transition: all 0.2s;
     margin-left: auto;
-    min-width: 140px;
+    min-width: 100px;
+    flex-shrink: 0;
   }
 
   .creator-filter:hover {
@@ -1253,10 +1280,6 @@
       font-size: 1rem;
     }
 
-    .title-section h1 {
-      font-size: 0.95rem;
-    }
-
     .count-badge {
       font-size: 0.7rem;
       padding: 0.15rem 0.5rem;
@@ -1268,8 +1291,16 @@
 
     .create-btn,
     .import-btn {
-      padding: 0.35rem 0.5rem;
-      font-size: 0.7rem;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.85rem;
+    }
+
+    .btn-icon {
+      display: inline;
+    }
+
+    .btn-text {
+      display: none;
     }
 
     .controls-section {
@@ -1281,18 +1312,36 @@
       max-width: none;
     }
 
+    .filter-row {
+      flex: 1;
+      min-width: 0;
+    }
+
     .filter-tabs {
-      width: 100%;
+      flex: 1;
       overflow-x: auto;
       padding-bottom: 0.25rem;
+      flex-wrap: nowrap;
     }
 
     .filter-tab {
       padding: 0.35rem 0.6rem;
       font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .creator-filter {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.75rem;
+      min-width: 80px;
     }
 
     .hide-mobile {
+      display: none;
+    }
+
+    /* Hide title text on mobile, keep only count badge */
+    .title-section h1 {
       display: none;
     }
 
@@ -1345,13 +1394,13 @@
     }
 
     .header-actions {
-      gap: 0.25rem;
+      gap: 0.35rem;
     }
 
     .create-btn,
     .import-btn {
-      padding: 0.3rem 0.4rem;
-      font-size: 0.65rem;
+      padding: 0.45rem 0.6rem;
+      font-size: 0.9rem;
     }
 
     .name-cell {
@@ -1405,13 +1454,25 @@
     }
 
     .header-actions {
-      gap: 0.25rem;
+      gap: 0.35rem;
     }
 
     .create-btn,
     .import-btn {
-      padding: 0.3rem 0.5rem;
-      font-size: 0.7rem;
+      padding: 0.4rem 0.55rem;
+      font-size: 0.85rem;
+    }
+
+    .btn-icon {
+      display: inline;
+    }
+
+    .btn-text {
+      display: none;
+    }
+
+    .title-section h1 {
+      display: none;
     }
 
     .controls-section {

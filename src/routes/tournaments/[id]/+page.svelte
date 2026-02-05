@@ -631,6 +631,12 @@
 													</div>
 												{/if}
 											{/each}
+											<!-- Horizontal connectors between pairs -->
+											{#if roundIndex < rounds.length - 1}
+												{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
+													<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
+												{/each}
+											{/if}
 										</div>
 									</div>
 								{/each}
@@ -1415,7 +1421,7 @@
 
 	.bracket-container {
 		display: flex;
-		gap: 3.5rem;
+		gap: 4rem;
 		min-width: max-content;
 		padding-bottom: 1rem;
 	}
@@ -1430,6 +1436,12 @@
 		margin-left: 2rem;
 		padding-left: 2rem;
 		border-left: 2px dashed #2d3748;
+	}
+
+	/* Hide connectors in third place match */
+	.bracket-round.third-place .bracket-match::before,
+	.bracket-round.third-place .bracket-match::after {
+		display: none;
 	}
 
 	.round-name {
@@ -1448,14 +1460,92 @@
 		gap: 1rem;
 		justify-content: space-around;
 		flex: 1;
+		position: relative;
 	}
 
 	.bracket-match {
 		background: #1a2332;
 		border: 1px solid #2d3748;
 		border-radius: 8px;
-		overflow: hidden;
 		transition: border-color 0.15s;
+		position: relative;
+	}
+
+	/* Connector lines between rounds */
+	/* Horizontal line going right from each match - half of gap (2rem of 4rem gap) */
+	.bracket-match::after {
+		content: '';
+		position: absolute;
+		left: 100%;
+		top: 50%;
+		width: 2rem;
+		height: 2px;
+		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+		transform: translateY(-50%);
+		z-index: 0;
+	}
+
+	/* Remove connector from final round */
+	.bracket-round:last-child:not(.third-place) .bracket-match::after {
+		display: none;
+	}
+
+	/* Vertical connector lines for pairs of matches */
+	.bracket-match::before {
+		content: '';
+		position: absolute;
+		left: calc(100% + 2rem);
+		width: 2px;
+		background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+		z-index: 0;
+	}
+
+	/* Top match in pair - vertical line goes down */
+	.bracket-match:nth-child(odd)::before {
+		top: 50%;
+	}
+
+	/* Bottom match in pair - vertical line goes up */
+	.bracket-match:nth-child(even)::before {
+		bottom: 50%;
+	}
+
+	/* Dynamic vertical line height based on round index - adjusted for 1rem gap */
+	.bracket-round[style*="--round-index: 0"] .bracket-match::before {
+		height: calc(50% + 0.5rem);
+	}
+	.bracket-round[style*="--round-index: 1"] .bracket-match::before {
+		height: calc(100% + 1rem);
+	}
+	.bracket-round[style*="--round-index: 2"] .bracket-match::before {
+		height: calc(200% + 2rem);
+	}
+	.bracket-round[style*="--round-index: 3"] .bracket-match::before {
+		height: calc(400% + 4rem);
+	}
+	.bracket-round[style*="--round-index: 4"] .bracket-match::before {
+		height: calc(800% + 8rem);
+	}
+
+	/* Remove vertical connectors from final round */
+	.bracket-round:last-child .bracket-match::before {
+		display: none;
+	}
+
+	/* For single match rounds (like finals), hide the vertical line */
+	.matches-column:has(> :only-child) .bracket-match::before {
+		display: none;
+	}
+
+	/* Horizontal connector from the vertical line junction to next round - other half of gap */
+	.pair-connector {
+		position: absolute;
+		width: 2rem;
+		height: 2px;
+		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+		right: -4rem;
+		z-index: 1;
+		top: calc((var(--pair-index) * 2 + 1) / var(--total-matches) * 100%);
 	}
 
 	.bracket-match.completed {
@@ -1806,5 +1896,12 @@
 
 	.detail-container[data-theme='light'] .vs-divider {
 		background: #e2e8f0;
+	}
+
+	/* Light theme connector lines - same gradient, works on both themes */
+	.detail-container[data-theme='light'] .bracket-match::after,
+	.detail-container[data-theme='light'] .bracket-match::before,
+	.detail-container[data-theme='light'] .pair-connector {
+		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
 	}
 </style>

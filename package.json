@@ -15,7 +15,7 @@
 		"release": "node scripts/create-release.js",
 		"deploy": "npm run build && firebase deploy",
 		"deploy:rules": "firebase deploy --only firestore:rules",
-		"deploy:functions": "firebase deploy --only functions",
+		"deploy:functions": "firebase deploy --only functions --force",
 		"deploy:hosting": "npm run build && firebase deploy --only hosting",
 		"functions:log": "firebase functions:log",
 		"machine-translate": "inlang machine translate --project project.inlang"

@@ -6,13 +6,21 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onTournamentComplete = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
+const core_1 = require("firebase-functions/v2/core");
 const app_1 = require("firebase-admin/app");
 const firestore_2 = require("firebase-admin/firestore");
 const firebase_functions_1 = require("firebase-functions");
-// Lazy initialization to avoid deployment timeouts
+// Deferred initialization using onInit() to avoid deployment timeouts
 let db = null;
+(0, core_1.onInit)(() => {
+    if ((0, app_1.getApps)().length === 0) {
+        (0, app_1.initializeApp)();
+    }
+    db = (0, firestore_2.getFirestore)();
+});
 function getDb() {
     if (!db) {
+        // Fallback in case onInit hasn't run yet
         if ((0, app_1.getApps)().length === 0) {
             (0, app_1.initializeApp)();
         }
