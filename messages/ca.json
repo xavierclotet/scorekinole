@@ -979,5 +979,11 @@
   "tournament_location": "Ubicació",
   "tournament_phase": "Fase",
   "tournament_transition": "Transició",
-  "tournament_winner": "Campió"
+  "tournament_winner": "Campió",
+  "admin_eventInfo": "Informació de l'esdeveniment",
+  "admin_saveSettings": "Desa",
+  "video_invalidUrl": "URL de YouTube no vàlida",
+  "video_matchVideo": "Vídeo del Partit",
+  "video_removeVideo": "Treure vídeo",
+  "video_watchVideo": "Veure vídeo"
 }

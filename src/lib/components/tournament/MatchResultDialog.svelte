@@ -3,6 +3,7 @@
   import * as m from '$lib/paraglide/messages.js';
   import { adminTheme } from '$lib/stores/theme';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
+  import { extractYouTubeId, getYouTubeThumbnail, isValidYouTubeUrl } from '$lib/utils/youtube';
 
   interface Props {
     match: GroupMatch;
@@ -24,6 +25,8 @@
       totalPointsB?: number;
       total20sA?: number;
       total20sB?: number;
+      videoUrl?: string;
+      videoId?: string;
       rounds?: Array<{
         gameNumber: number;
         roundInGame: number;
@@ -111,6 +114,12 @@
 
   let rounds = $state<RoundData[]>([]);
   let initialized = $state(false);
+
+  // Video attachment
+  let videoUrl = $state('');
+  let videoExpanded = $state(false);
+  let videoId = $derived(extractYouTubeId(videoUrl));
+  let isVideoValid = $derived(!videoUrl || isValidYouTubeUrl(videoUrl));
 
   // Game tracking for points mode (bracket only)
   let currentGameNumber = $state(1);
@@ -221,6 +230,10 @@
         console.log('⚠️ No saved rounds - initialized new rounds');
       }
 
+      // Load video URL if exists
+      videoUrl = match.videoUrl || '';
+      videoExpanded = !!match.videoUrl;
+
       initialized = true;
     }
   });
@@ -235,6 +248,8 @@
       gamesWonB = 0;
       currentGameComplete = false;
       extraRoundsCount = 0;
+      videoUrl = '';
+      videoExpanded = false;
     }
   });
 
@@ -443,6 +458,8 @@
       totalPointsB?: number;
       total20sA?: number;
       total20sB?: number;
+      videoUrl?: string;
+      videoId?: string;
       rounds?: Array<{
         gameNumber: number;
         roundInGame: number;
@@ -461,6 +478,12 @@
     if (tournament.show20s) {
       result.total20sA = total20sA;
       result.total20sB = total20sB;
+    }
+
+    // Include video if valid
+    if (videoUrl && videoId) {
+      result.videoUrl = videoUrl.trim();
+      result.videoId = videoId;
     }
 
     // Include round-by-round data
@@ -1254,6 +1277,74 @@
               </div>
             {/if}
           {/if}
+        {/if}
+
+        <!-- Video Section (admin only, completed matches) -->
+        {#if isAdmin && isMatchCompleted}
+          <div class="video-section">
+            <button
+              type="button"
+              class="video-toggle"
+              onclick={() => videoExpanded = !videoExpanded}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+              </svg>
+              <span>{m.video_matchVideo?.() ?? 'Video'}</span>
+              <svg
+                class="chevron"
+                class:expanded={videoExpanded}
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+
+            {#if videoExpanded}
+              <div class="video-content">
+                <div class="video-input-row">
+                  <input
+                    type="url"
+                    placeholder="https://youtube.com/watch?v=..."
+                    bind:value={videoUrl}
+                    class="video-input"
+                    class:invalid={videoUrl && !isVideoValid}
+                    class:valid={videoUrl && isVideoValid}
+                  />
+                  {#if videoUrl}
+                    <button
+                      type="button"
+                      class="video-clear"
+                      onclick={() => videoUrl = ''}
+                      title={m.video_removeVideo?.() ?? 'Quitar'}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  {/if}
+                </div>
+                {#if videoUrl && !isVideoValid}
+                  <span class="video-error">{m.video_invalidUrl?.() ?? 'URL no válida'}</span>
+                {:else if videoUrl && videoId}
+                  <div class="video-preview">
+                    <img
+                      src={getYouTubeThumbnail(videoId, 'default')}
+                      alt="Video thumbnail"
+                      class="video-thumb"
+                    />
+                    <span class="video-ok">YouTube</span>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
         {/if}
       </div>
 
@@ -2418,5 +2509,167 @@
       width: 100%;
       justify-content: center;
     }
+  }
+
+  /* Video Section */
+  .video-section {
+    margin-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 0.75rem;
+  }
+
+  .video-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    color: #64748b;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .video-toggle:hover {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  .video-toggle .chevron {
+    margin-left: auto;
+    transition: transform 0.2s ease;
+  }
+
+  .video-toggle .chevron.expanded {
+    transform: rotate(180deg);
+  }
+
+  .video-content {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: #fafafa;
+    border-radius: 6px;
+  }
+
+  .video-input-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .video-input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    font-size: 0.8125rem;
+    transition: border-color 0.15s ease;
+  }
+
+  .video-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
+  .video-input.valid {
+    border-color: #10b981;
+  }
+
+  .video-input.invalid {
+    border-color: #ef4444;
+  }
+
+  .video-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: #fee2e2;
+    border: none;
+    border-radius: 5px;
+    color: #dc2626;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .video-clear:hover {
+    background: #fecaca;
+  }
+
+  .video-error {
+    display: block;
+    margin-top: 0.375rem;
+    font-size: 0.75rem;
+    color: #ef4444;
+  }
+
+  .video-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding: 0.375rem;
+    background: #ecfdf5;
+    border-radius: 4px;
+  }
+
+  .video-thumb {
+    width: 48px;
+    height: 36px;
+    object-fit: cover;
+    border-radius: 3px;
+  }
+
+  .video-ok {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #059669;
+  }
+
+  /* Dark mode for video section */
+  .dialog-backdrop[data-theme='dark'] .video-section {
+    border-top-color: #374151;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .video-toggle {
+    background: #1f2937;
+    border-color: #374151;
+    color: #9ca3af;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .video-toggle:hover {
+    background: #374151;
+    color: #d1d5db;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .video-content {
+    background: #1f2937;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .video-input {
+    background: #111827;
+    border-color: #374151;
+    color: #e5e7eb;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .video-input:focus {
+    border-color: #3b82f6;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .video-clear {
+    background: rgba(220, 38, 38, 0.2);
+    color: #f87171;
+  }
+
+  .dialog-backdrop[data-theme='dark'] .video-preview {
+    background: rgba(16, 185, 129, 0.15);
+  }
+
+  .dialog-backdrop[data-theme='dark'] .video-ok {
+    color: #34d399;
   }
 </style>

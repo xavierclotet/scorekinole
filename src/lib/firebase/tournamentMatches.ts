@@ -55,6 +55,8 @@ export async function updateMatchResult(
     totalPointsB?: number;
     total20sA?: number;
     total20sB?: number;
+    videoUrl?: string;
+    videoId?: string;
     rounds?: Array<{
       gameNumber: number;
       roundInGame: number;
@@ -169,6 +171,10 @@ export async function updateMatchResult(
       match.rounds = result.rounds;
       console.log('💾 Saved rounds to match:', match.rounds);
     }
+    if (result.videoUrl !== undefined) {
+      match.videoUrl = result.videoUrl;
+      match.videoId = result.videoId;
+    }
 
     if (!db) {
       console.error('Firestore not initialized');
@@ -189,6 +195,123 @@ export async function updateMatchResult(
     return true;
   } catch (error) {
     console.error('Error updating match result:', error);
+    return false;
+  }
+}
+
+/**
+ * Update video URL for a match
+ * Works for both group stage and bracket matches
+ */
+export async function updateMatchVideo(
+  tournamentId: string,
+  matchId: string,
+  phase: 'GROUP' | 'FINAL',
+  videoUrl?: string,
+  videoId?: string
+): Promise<boolean> {
+  try {
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) {
+      console.error('Tournament not found');
+      return false;
+    }
+
+    if (phase === 'GROUP') {
+      // Find match in group stage
+      if (!tournament.groupStage) return false;
+
+      let matchFound = false;
+      for (const group of tournament.groupStage.groups) {
+        const schedule = group.schedule || group.pairings;
+        if (!schedule) continue;
+        for (const round of schedule) {
+          const match = round.matches.find((m: GroupMatch) => m.id === matchId);
+          if (match) {
+            match.videoUrl = videoUrl;
+            match.videoId = videoId;
+            matchFound = true;
+            break;
+          }
+        }
+        if (matchFound) break;
+      }
+
+      if (!matchFound) return false;
+
+      if (!db) return false;
+      await updateDoc(doc(db, 'tournaments', tournamentId), {
+        groupStage: cleanUndefined(tournament.groupStage)
+      });
+    } else {
+      // Find match in bracket
+      if (!tournament.finalStage) return false;
+
+      let matchFound = false;
+
+      // Search in gold bracket
+      if (tournament.finalStage.goldBracket) {
+        for (const round of tournament.finalStage.goldBracket.rounds) {
+          const match = round.matches.find(m => m.id === matchId);
+          if (match) {
+            match.videoUrl = videoUrl;
+            match.videoId = videoId;
+            matchFound = true;
+            break;
+          }
+        }
+        // Check third place match
+        if (!matchFound && tournament.finalStage.goldBracket.thirdPlaceMatch?.id === matchId) {
+          tournament.finalStage.goldBracket.thirdPlaceMatch.videoUrl = videoUrl;
+          tournament.finalStage.goldBracket.thirdPlaceMatch.videoId = videoId;
+          matchFound = true;
+        }
+        // Check consolation brackets
+        if (!matchFound && tournament.finalStage.goldBracket.consolationBrackets) {
+          for (const consolation of tournament.finalStage.goldBracket.consolationBrackets) {
+            for (const round of consolation.rounds) {
+              const match = round.matches.find(m => m.id === matchId);
+              if (match) {
+                match.videoUrl = videoUrl;
+                match.videoId = videoId;
+                matchFound = true;
+                break;
+              }
+            }
+            if (matchFound) break;
+          }
+        }
+      }
+
+      // Search in silver bracket if not found
+      if (!matchFound && tournament.finalStage.silverBracket) {
+        for (const round of tournament.finalStage.silverBracket.rounds) {
+          const match = round.matches.find(m => m.id === matchId);
+          if (match) {
+            match.videoUrl = videoUrl;
+            match.videoId = videoId;
+            matchFound = true;
+            break;
+          }
+        }
+        if (!matchFound && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
+          tournament.finalStage.silverBracket.thirdPlaceMatch.videoUrl = videoUrl;
+          tournament.finalStage.silverBracket.thirdPlaceMatch.videoId = videoId;
+          matchFound = true;
+        }
+      }
+
+      if (!matchFound) return false;
+
+      if (!db) return false;
+      await updateDoc(doc(db, 'tournaments', tournamentId), {
+        finalStage: cleanUndefined(tournament.finalStage)
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating match video:', error);
     return false;
   }
 }
@@ -1804,6 +1927,8 @@ export async function completeTournamentMatch(
     totalPointsB: number;
     total20sA: number;
     total20sB: number;
+    videoUrl?: string;
+    videoId?: string;
     rounds: Array<{
       gameNumber: number;
       roundInGame: number;
@@ -1828,7 +1953,9 @@ export async function completeTournamentMatch(
         totalPointsB: result.totalPointsB,
         total20sA: result.total20sA,
         total20sB: result.total20sB,
-        rounds: result.rounds
+        rounds: result.rounds,
+        videoUrl: result.videoUrl,
+        videoId: result.videoId
       });
       return success;
     } else {
@@ -1914,7 +2041,9 @@ export async function completeTournamentMatch(
         totalPointsB: result.totalPointsB,
         total20sA: result.total20sA,
         total20sB: result.total20sB,
-        rounds: result.rounds
+        rounds: result.rounds,
+        videoUrl: result.videoUrl,
+        videoId: result.videoId
       };
 
       if (isConsolationMatch) {

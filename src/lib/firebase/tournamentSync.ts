@@ -58,6 +58,8 @@ export interface MatchCompleteData {
   totalPointsB: number;
   total20sA: number;
   total20sB: number;
+  videoUrl?: string;
+  videoId?: string;
 }
 
 /**
@@ -161,7 +163,9 @@ export async function completeMatch(
         totalPointsB: data.totalPointsB,
         total20sA: data.total20sA,
         total20sB: data.total20sB,
-        rounds: data.rounds
+        rounds: data.rounds,
+        videoUrl: data.videoUrl,
+        videoId: data.videoId
       }
     );
 

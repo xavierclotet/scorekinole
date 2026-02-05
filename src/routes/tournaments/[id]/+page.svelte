@@ -13,12 +13,17 @@
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import { isSuperAdmin } from '$lib/firebase/admin';
+	import { getYouTubeEmbedUrl } from '$lib/utils/youtube';
 
 	let tournament = $state<Tournament | null>(null);
 	let canEdit = $state(false);
 	let loading = $state(true);
 	let error = $state(false);
 	let unsubscribe: (() => void) | null = null;
+
+	// Video modal state
+	let showVideoModal = $state(false);
+	let videoMatch = $state<BracketMatch | null>(null);
 
 	// Bracket view state (for SPLIT_DIVISIONS)
 	let activeTab = $state<'gold' | 'silver'>('gold');
@@ -87,6 +92,28 @@
 			: (activeTab === 'gold' ? goldBracket : silverBracket)
 	);
 	let rounds = $derived(currentBracket?.rounds || []);
+
+	// Find all matches with video (for highlighting in Final Standings)
+	let matchesWithVideo = $derived((() => {
+		const results: Array<{ match: BracketMatch; label: string }> = [];
+		if (!goldBracket?.rounds) return results;
+
+		// Check all rounds
+		for (const round of goldBracket.rounds) {
+			for (const match of round.matches) {
+				if (match.videoId) {
+					results.push({ match, label: round.name });
+				}
+			}
+		}
+
+		// Check 3rd/4th place match
+		if (goldBracket.thirdPlaceMatch?.videoId) {
+			results.push({ match: goldBracket.thirdPlaceMatch, label: '3º/4º' });
+		}
+
+		return results;
+	})());
 	let thirdPlaceMatch = $derived(currentBracket?.thirdPlaceMatch);
 
 	onMount(async () => {
@@ -438,6 +465,35 @@
 						</ol>
 					</div>
 				{/if}
+
+				<!-- Videos Section -->
+				{#if isCompleted && matchesWithVideo.length > 0}
+					<div class="videos-section">
+						<div class="videos-header">
+							<span class="videos-title">Videos</span>
+						</div>
+						<div class="videos-list">
+							{#each matchesWithVideo as { match, label }}
+								<button
+									class="video-item"
+									onclick={() => { videoMatch = match; showVideoModal = true; }}
+								>
+									<div class="video-item-icon">
+										<svg viewBox="0 0 24 24" fill="currentColor">
+											<polygon points="5 3 19 12 5 21 5 3"></polygon>
+										</svg>
+									</div>
+									<div class="video-item-info">
+										<span class="video-item-label">{label}</span>
+										<span class="video-item-players">
+											{getParticipantName(match.participantA)} vs {getParticipantName(match.participantB)}
+										</span>
+									</div>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</div>
 
 			<!-- Phase Tabs (when both phases exist) -->
@@ -606,7 +662,7 @@
 										<div class="matches-column">
 											{#each round.matches as match}
 												{#if !isByeMatch(match)}
-													<div class="bracket-match" class:completed={match.status === 'COMPLETED'}>
+													<div class="bracket-match" class:completed={match.status === 'COMPLETED'} class:has-video={match.videoId}>
 														<div
 															class="match-participant"
 															class:winner={match.winner === match.participantA}
@@ -628,6 +684,17 @@
 																<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
 															{/if}
 														</div>
+														{#if match.videoId}
+															<button
+																class="video-badge"
+																onclick={() => { videoMatch = match; showVideoModal = true; }}
+																title={m.video_watchVideo?.() ?? 'Ver video'}
+															>
+																<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+																	<polygon points="5 3 19 12 5 21 5 3"></polygon>
+																</svg>
+															</button>
+														{/if}
 													</div>
 												{/if}
 											{/each}
@@ -646,7 +713,7 @@
 									<div class="bracket-round third-place">
 										<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
 										<div class="matches-column">
-											<div class="bracket-match" class:completed={thirdPlaceMatch.status === 'COMPLETED'}>
+											<div class="bracket-match" class:completed={thirdPlaceMatch.status === 'COMPLETED'} class:has-video={thirdPlaceMatch.videoId}>
 												<div
 													class="match-participant"
 													class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
@@ -668,6 +735,17 @@
 														<span class="score">{thirdPlaceMatch.totalPointsB || thirdPlaceMatch.gamesWonB || 0}</span>
 													{/if}
 												</div>
+												{#if thirdPlaceMatch.videoId}
+													<button
+														class="video-badge"
+														onclick={() => { videoMatch = thirdPlaceMatch; showVideoModal = true; }}
+														title={m.video_watchVideo?.() ?? 'Ver video'}
+													>
+														<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+															<polygon points="5 3 19 12 5 21 5 3"></polygon>
+														</svg>
+													</button>
+												{/if}
 											</div>
 										</div>
 									</div>
@@ -681,6 +759,45 @@
 	{/if}
 	{/if}
 </div>
+
+<!-- Video Modal -->
+{#if showVideoModal && videoMatch?.videoId}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div
+		class="video-modal-overlay"
+		onclick={() => showVideoModal = false}
+		onkeydown={(e) => e.key === 'Escape' && (showVideoModal = false)}
+		role="dialog"
+		aria-modal="true"
+	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div class="video-modal" onclick={(e) => e.stopPropagation()}>
+			<button class="video-modal-close" onclick={() => showVideoModal = false}>
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M18 6L6 18M6 6l12 12"/>
+				</svg>
+			</button>
+			<div class="video-modal-content">
+				<iframe
+					src={getYouTubeEmbedUrl(videoMatch.videoId)}
+					title="Match video"
+					frameborder="0"
+					allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+					allowfullscreen
+				></iframe>
+			</div>
+			<div class="video-modal-info">
+				<span class="video-modal-teams">
+					{getParticipantName(videoMatch.participantA)} vs {getParticipantName(videoMatch.participantB)}
+				</span>
+				<span class="video-modal-score">
+					{videoMatch.totalPointsA || videoMatch.gamesWonA || 0} - {videoMatch.totalPointsB || videoMatch.gamesWonB || 0}
+				</span>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.detail-container {
@@ -951,6 +1068,9 @@
 	}
 
 	.podium-header {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
 		margin-bottom: 0.625rem;
 	}
 
@@ -960,6 +1080,90 @@
 		color: #6b7a94;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
+	}
+
+	/* Videos Section */
+	.videos-section {
+		margin-top: 1rem;
+		padding-top: 0.875rem;
+		border-top: 1px solid #2d3748;
+	}
+
+	.videos-header {
+		margin-bottom: 0.5rem;
+	}
+
+	.videos-title {
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: #6b7a94;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.videos-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.video-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.375rem 0.625rem 0.375rem 0.375rem;
+		background: rgba(30, 41, 59, 0.4);
+		border: 1px solid #374151;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: border-color 0.15s ease, background 0.15s ease;
+		text-align: left;
+	}
+
+	.video-item:hover {
+		background: rgba(30, 41, 59, 0.6);
+		border-color: #dc2626;
+	}
+
+	.video-item-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 24px;
+		height: 24px;
+		background: #dc2626;
+		border-radius: 4px;
+		color: white;
+		flex-shrink: 0;
+	}
+
+	.video-item-icon svg {
+		width: 10px;
+		height: 10px;
+		margin-left: 1px;
+	}
+
+	.video-item-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+		min-width: 0;
+	}
+
+	.video-item-label {
+		font-size: 0.65rem;
+		font-weight: 600;
+		color: #dc2626;
+		line-height: 1.2;
+	}
+
+	.video-item-players {
+		font-size: 0.7rem;
+		color: #94a3b8;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 180px;
 	}
 
 	.podium-list {
@@ -1900,5 +2104,150 @@
 	.detail-container[data-theme='light'] .bracket-match::before,
 	.detail-container[data-theme='light'] .pair-connector {
 		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+	}
+
+	/* Video Badge */
+	.video-badge {
+		position: absolute;
+		top: 50%;
+		right: -28px;
+		transform: translateY(-50%);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+		border: none;
+		border-radius: 50%;
+		color: white;
+		cursor: pointer;
+		transition: transform 0.15s ease, box-shadow 0.15s ease;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+		z-index: 5;
+	}
+
+	.video-badge svg {
+		width: 10px;
+		height: 10px;
+	}
+
+	.video-badge:hover {
+		transform: translateY(-50%) scale(1.15);
+		box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+	}
+
+	.bracket-match.has-video {
+		position: relative;
+	}
+
+	/* Video Modal */
+	.video-modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.85);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		padding: 1rem;
+	}
+
+	.video-modal {
+		background: #1a2332;
+		border-radius: 12px;
+		width: min(90vw, 900px);
+		max-height: 90vh;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		border: 1px solid #2d3748;
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+	}
+
+	.video-modal-close {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		background: rgba(0, 0, 0, 0.5);
+		border: none;
+		border-radius: 50%;
+		color: white;
+		cursor: pointer;
+		transition: background 0.15s ease;
+		z-index: 10;
+	}
+
+	.video-modal-close:hover {
+		background: rgba(0, 0, 0, 0.7);
+	}
+
+	.video-modal-content {
+		position: relative;
+		width: 100%;
+		padding-top: 56.25%; /* 16:9 aspect ratio */
+		background: #000;
+	}
+
+	.video-modal-content iframe {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		border: none;
+	}
+
+	.video-modal-info {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.875rem 1rem;
+		background: #0f1419;
+		border-top: 1px solid #2d3748;
+	}
+
+	.video-modal-teams {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: #e1e8ed;
+	}
+
+	.video-modal-score {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #667eea;
+	}
+
+	@media (max-width: 768px) {
+		.video-badge {
+			width: 28px;
+			height: 28px;
+			bottom: -14px;
+			right: 50%;
+			transform: translateX(50%);
+		}
+
+		.bracket-match.has-video {
+			margin-bottom: 18px;
+		}
+
+		.video-modal {
+			width: 100%;
+			max-width: none;
+			border-radius: 0;
+			max-height: 100vh;
+		}
+
+		.video-modal-info {
+			flex-direction: column;
+			gap: 0.25rem;
+			text-align: center;
+		}
 	}
 </style>

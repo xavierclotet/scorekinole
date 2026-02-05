@@ -5,6 +5,8 @@
   import { isBye } from '$lib/algorithms/bracket';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { calculateFinalPositions, applyRankingUpdates } from '$lib/firebase/tournamentRanking';
+  import { updateMatchVideo } from '$lib/firebase/tournamentMatches';
+  import { extractYouTubeId, isValidYouTubeUrl, getYouTubeThumbnail } from '$lib/utils/youtube';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -17,6 +19,15 @@
   // Track which groups are recalculating
   let recalculatingGroups = $state(new Set<string>());
   let recalculatingPositions = $state(false);
+
+  // Video modal state
+  let showVideoModal = $state(false);
+  let videoEditMatch = $state<GroupMatch | BracketMatch | null>(null);
+  let videoEditUrl = $state('');
+  let videoEditIsBracket = $state(false);
+  let isSavingVideo = $state(false);
+  let videoId = $derived(extractYouTubeId(videoEditUrl));
+  let isVideoValid = $derived(!videoEditUrl || isValidYouTubeUrl(videoEditUrl));
 
   // Translate group name based on language
   // Handles: identifiers (SINGLE_GROUP, GROUP_A), legacy Spanish names, and Swiss
@@ -223,6 +234,51 @@
   function handleCloseDialog() {
     showMatchDialog = false;
     selectedMatch = null;
+  }
+
+  // Video modal functions
+  function openVideoModal(match: GroupMatch | BracketMatch, isBracket: boolean, event: MouseEvent) {
+    event.stopPropagation();
+    videoEditMatch = match;
+    videoEditUrl = match.videoUrl || '';
+    videoEditIsBracket = isBracket;
+    showVideoModal = true;
+  }
+
+  function closeVideoModal() {
+    showVideoModal = false;
+    videoEditMatch = null;
+    videoEditUrl = '';
+  }
+
+  async function saveVideo() {
+    if (!videoEditMatch || !isVideoValid) return;
+
+    isSavingVideo = true;
+    try {
+      const urlToSave = videoEditUrl ? videoEditUrl.trim() : undefined;
+      const idToSave = videoId || undefined;
+
+      const success = await updateMatchVideo(
+        tournament.id,
+        videoEditMatch.id,
+        videoEditIsBracket ? 'FINAL' : 'GROUP',
+        urlToSave,
+        idToSave
+      );
+
+      if (success) {
+        // Update local match object for immediate UI feedback
+        videoEditMatch.videoUrl = urlToSave;
+        videoEditMatch.videoId = idToSave;
+        closeVideoModal();
+        onupdated?.();
+      }
+    } catch (err) {
+      console.error('Error saving video:', err);
+    } finally {
+      isSavingVideo = false;
+    }
   }
 
   // Recalculate standings for a group
@@ -584,45 +640,59 @@
               <h3 class="round-name">{round.name}</h3>
               <div class="matches-column">
                 {#each round.matches as match (match.id)}
-                  <button
-                    class="bracket-match"
-                    class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
-                    class:bye-match={isByeMatch(match)}
-                    onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
-                    disabled={!match.participantA || !match.participantB || isByeMatch(match)}
-                  >
-                    <div
-                      class="match-participant"
-                      class:winner={match.winner === match.participantA}
-                      class:tbd={!match.participantA}
-                      class:bye={isBye(match.participantA)}
+                  <div class="match-wrapper">
+                    <button
+                      class="bracket-match"
+                      class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
+                      class:bye-match={isByeMatch(match)}
+                      onclick={() => match.participantA && match.participantB && !isByeMatch(match) && handleMatchClick(match, true)}
+                      disabled={!match.participantA || !match.participantB || isByeMatch(match)}
                     >
-                      <span class="participant-name">{getParticipantName(match.participantA)}</span>
-                      {#if match.seedA}
-                        <span class="seed">#{match.seedA}</span>
-                      {/if}
-                      {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
-                        <span class="score">{showGoldGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
-                      {/if}
-                    </div>
+                      <div
+                        class="match-participant"
+                        class:winner={match.winner === match.participantA}
+                        class:tbd={!match.participantA}
+                        class:bye={isBye(match.participantA)}
+                      >
+                        <span class="participant-name">{getParticipantName(match.participantA)}</span>
+                        {#if match.seedA}
+                          <span class="seed">#{match.seedA}</span>
+                        {/if}
+                        {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
+                          <span class="score">{showGoldGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
+                        {/if}
+                      </div>
 
-                    <div class="vs-divider"></div>
+                      <div class="vs-divider"></div>
 
-                    <div
-                      class="match-participant"
-                      class:winner={match.winner === match.participantB}
-                      class:tbd={!match.participantB}
-                      class:bye={isBye(match.participantB)}
-                    >
-                      <span class="participant-name">{getParticipantName(match.participantB)}</span>
-                      {#if match.seedB}
-                        <span class="seed">#{match.seedB}</span>
-                      {/if}
-                      {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
-                        <span class="score">{showGoldGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
-                      {/if}
-                    </div>
-                  </button>
+                      <div
+                        class="match-participant"
+                        class:winner={match.winner === match.participantB}
+                        class:tbd={!match.participantB}
+                        class:bye={isBye(match.participantB)}
+                      >
+                        <span class="participant-name">{getParticipantName(match.participantB)}</span>
+                        {#if match.seedB}
+                          <span class="seed">#{match.seedB}</span>
+                        {/if}
+                        {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
+                          <span class="score">{showGoldGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
+                        {/if}
+                      </div>
+                    </button>
+                    {#if match.status === 'COMPLETED' && !isByeMatch(match)}
+                      <button
+                        class="video-btn"
+                        class:has-video={!!match.videoId}
+                        onclick={(e) => openVideoModal(match, true, e)}
+                        title={match.videoId ? m.video_watchVideo?.() ?? 'Ver video' : m.video_matchVideo?.() ?? 'Añadir video'}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                      </button>
+                    {/if}
+                  </div>
                 {/each}
               </div>
             </div>
@@ -634,36 +704,50 @@
             <div class="bracket-round third-place-round">
               <h3 class="round-name third-place">{m.tournament_thirdPlace()}</h3>
               <div class="matches-column">
-                <button
-                  class="bracket-match third-place-match"
-                  class:clickable={thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
-                  onclick={() => thirdPlaceMatch.participantA && thirdPlaceMatch.participantB && handleMatchClick(thirdPlaceMatch, true)}
-                  disabled={!thirdPlaceMatch.participantA || !thirdPlaceMatch.participantB}
-                >
-                  <div
-                    class="match-participant"
-                    class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
-                    class:tbd={!thirdPlaceMatch.participantA}
+                <div class="match-wrapper">
+                  <button
+                    class="bracket-match third-place-match"
+                    class:clickable={thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
+                    onclick={() => thirdPlaceMatch.participantA && thirdPlaceMatch.participantB && handleMatchClick(thirdPlaceMatch, true)}
+                    disabled={!thirdPlaceMatch.participantA || !thirdPlaceMatch.participantB}
                   >
-                    <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
-                    {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
-                      <span class="score">{showGoldGamesWon ? (thirdPlaceMatch.gamesWonA || 0) : (thirdPlaceMatch.totalPointsA || 0)}</span>
-                    {/if}
-                  </div>
+                    <div
+                      class="match-participant"
+                      class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
+                      class:tbd={!thirdPlaceMatch.participantA}
+                    >
+                      <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
+                      {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
+                        <span class="score">{showGoldGamesWon ? (thirdPlaceMatch.gamesWonA || 0) : (thirdPlaceMatch.totalPointsA || 0)}</span>
+                      {/if}
+                    </div>
 
-                  <div class="vs-divider"></div>
+                    <div class="vs-divider"></div>
 
-                  <div
-                    class="match-participant"
-                    class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
-                    class:tbd={!thirdPlaceMatch.participantB}
-                  >
-                    <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
-                    {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
-                      <span class="score">{showGoldGamesWon ? (thirdPlaceMatch.gamesWonB || 0) : (thirdPlaceMatch.totalPointsB || 0)}</span>
-                    {/if}
-                  </div>
-                </button>
+                    <div
+                      class="match-participant"
+                      class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
+                      class:tbd={!thirdPlaceMatch.participantB}
+                    >
+                      <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
+                      {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
+                        <span class="score">{showGoldGamesWon ? (thirdPlaceMatch.gamesWonB || 0) : (thirdPlaceMatch.totalPointsB || 0)}</span>
+                      {/if}
+                    </div>
+                  </button>
+                  {#if thirdPlaceMatch.status === 'COMPLETED'}
+                    <button
+                      class="video-btn"
+                      class:has-video={thirdPlaceMatch.videoId}
+                      onclick={(e) => openVideoModal(thirdPlaceMatch, true, e)}
+                      title={thirdPlaceMatch.videoId ? m.video_watchVideo?.() ?? 'Ver video' : m.video_matchVideo?.() ?? 'Añadir video'}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                      </svg>
+                    </button>
+                  {/if}
+                </div>
               </div>
             </div>
           {/if}
@@ -990,6 +1074,81 @@
     isBracket={isBracketMatch}
     onclose={handleCloseDialog}
   />
+{/if}
+
+<!-- Video Edit Modal -->
+{#if showVideoModal && videoEditMatch}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="video-modal-overlay"
+    onclick={closeVideoModal}
+    onkeydown={(e) => e.key === 'Escape' && closeVideoModal()}
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="video-modal" onclick={(e) => e.stopPropagation()}>
+      <div class="video-modal-header">
+        <h3>{m.video_matchVideo?.() ?? 'Video del Partido'}</h3>
+        <button class="close-btn" onclick={closeVideoModal}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="video-modal-body">
+        <div class="match-info">
+          <span>{getParticipantName((videoEditMatch as any).participantA)}</span>
+          <span class="vs">vs</span>
+          <span>{getParticipantName((videoEditMatch as any).participantB)}</span>
+        </div>
+
+        <div class="video-input-group">
+          <label>URL de YouTube</label>
+          <input
+            type="url"
+            placeholder="https://youtube.com/watch?v=..."
+            bind:value={videoEditUrl}
+            class:invalid={videoEditUrl && !isVideoValid}
+            class:valid={videoEditUrl && isVideoValid}
+          />
+          {#if videoEditUrl && !isVideoValid}
+            <span class="error-text">{m.video_invalidUrl?.() ?? 'URL no válida'}</span>
+          {/if}
+        </div>
+
+        {#if videoEditUrl && videoId}
+          <div class="video-preview">
+            <img src={getYouTubeThumbnail(videoId, 'default')} alt="Preview" />
+            <span class="preview-label">Vista previa</span>
+          </div>
+        {/if}
+      </div>
+
+      <div class="video-modal-footer">
+        {#if videoEditMatch.videoUrl}
+          <button
+            class="btn-remove"
+            onclick={() => { videoEditUrl = ''; }}
+            disabled={isSavingVideo}
+          >
+            {m.video_removeVideo?.() ?? 'Quitar'}
+          </button>
+        {/if}
+        <button class="btn-cancel" onclick={closeVideoModal} disabled={isSavingVideo}>
+          {m.common_cancel()}
+        </button>
+        <button
+          class="btn-save"
+          onclick={saveVideo}
+          disabled={isSavingVideo || (videoEditUrl && !isVideoValid)}
+        >
+          {isSavingVideo ? '...' : m.common_save()}
+        </button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -2448,5 +2607,302 @@
 
   :global([data-theme='dark']) .final-position {
     color: #8b9bb3;
+  }
+
+  /* Match wrapper for video button */
+  .match-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .video-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: #e5e7eb;
+    border: none;
+    border-radius: 4px;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .video-btn:hover {
+    background: #d1d5db;
+    color: #374151;
+  }
+
+  .video-btn.has-video {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+  }
+
+  .video-btn.has-video:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  }
+
+  :global([data-theme='dark']) .video-btn {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  :global([data-theme='dark']) .video-btn:hover {
+    background: #4b5563;
+    color: #e5e7eb;
+  }
+
+  :global([data-theme='dark']) .video-btn.has-video {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+  }
+
+  :global([data-theme='dark']) .video-btn.has-video:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  }
+
+  /* Video Modal */
+  .video-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .video-modal {
+    background: white;
+    border-radius: 10px;
+    width: min(90vw, 400px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  :global([data-theme='dark']) .video-modal {
+    background: #1a2332;
+    border: 1px solid #2d3748;
+  }
+
+  .video-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  :global([data-theme='dark']) .video-modal-header {
+    border-bottom-color: #2d3748;
+  }
+
+  .video-modal-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  :global([data-theme='dark']) .video-modal-header h3 {
+    color: #e5e7eb;
+  }
+
+  .video-modal-header .close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .video-modal-header .close-btn:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+  }
+
+  :global([data-theme='dark']) .video-modal-header .close-btn:hover {
+    background: #374151;
+    color: #e5e7eb;
+  }
+
+  .video-modal-body {
+    padding: 1rem;
+  }
+
+  .match-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #374151;
+  }
+
+  :global([data-theme='dark']) .match-info {
+    color: #d1d5db;
+  }
+
+  .match-info .vs {
+    color: #9ca3af;
+    font-size: 0.75rem;
+  }
+
+  .video-input-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .video-input-group label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+    margin-bottom: 0.375rem;
+  }
+
+  :global([data-theme='dark']) .video-input-group label {
+    color: #9ca3af;
+  }
+
+  .video-input-group input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    font-size: 0.8125rem;
+    transition: border-color 0.15s ease;
+  }
+
+  :global([data-theme='dark']) .video-input-group input {
+    background: #0f1419;
+    border-color: #374151;
+    color: #e5e7eb;
+  }
+
+  .video-input-group input:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
+  .video-input-group input.valid {
+    border-color: #10b981;
+  }
+
+  .video-input-group input.invalid {
+    border-color: #ef4444;
+  }
+
+  .video-input-group .error-text {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #ef4444;
+  }
+
+  .video-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: #f3f4f6;
+    border-radius: 5px;
+  }
+
+  :global([data-theme='dark']) .video-preview {
+    background: #0f1419;
+  }
+
+  .video-preview img {
+    width: 60px;
+    height: 45px;
+    object-fit: cover;
+    border-radius: 3px;
+  }
+
+  .video-preview .preview-label {
+    font-size: 0.75rem;
+    color: #10b981;
+    font-weight: 500;
+  }
+
+  .video-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  :global([data-theme='dark']) .video-modal-footer {
+    border-top-color: #2d3748;
+  }
+
+  .video-modal-footer button {
+    padding: 0.5rem 0.875rem;
+    border-radius: 5px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .video-modal-footer .btn-remove {
+    margin-right: auto;
+    background: #fee2e2;
+    border: none;
+    color: #dc2626;
+  }
+
+  .video-modal-footer .btn-remove:hover:not(:disabled) {
+    background: #fecaca;
+  }
+
+  :global([data-theme='dark']) .video-modal-footer .btn-remove {
+    background: rgba(220, 38, 38, 0.2);
+    color: #f87171;
+  }
+
+  .video-modal-footer .btn-cancel {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    color: #374151;
+  }
+
+  .video-modal-footer .btn-cancel:hover:not(:disabled) {
+    background: #e5e7eb;
+  }
+
+  :global([data-theme='dark']) .video-modal-footer .btn-cancel {
+    background: #1f2937;
+    border-color: #374151;
+    color: #e5e7eb;
+  }
+
+  .video-modal-footer .btn-save {
+    background: #3b82f6;
+    border: none;
+    color: white;
+  }
+
+  .video-modal-footer .btn-save:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .video-modal-footer .btn-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

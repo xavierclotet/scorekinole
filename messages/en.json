@@ -979,5 +979,11 @@
   "tournament_location": "Location",
   "tournament_phase": "Phase",
   "tournament_transition": "Transition",
-  "tournament_winner": "Champion"
+  "tournament_winner": "Champion",
+  "admin_eventInfo": "Event information",
+  "admin_saveSettings": "Save settings",
+  "video_invalidUrl": "Invalid YouTube URL",
+  "video_matchVideo": "Match Video",
+  "video_removeVideo": "Remove video",
+  "video_watchVideo": "Watch video"
 }

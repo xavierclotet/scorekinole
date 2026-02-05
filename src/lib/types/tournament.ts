@@ -97,6 +97,10 @@ export interface Tournament {
     userName: string;
   };
   importNotes?: string;                // Notes about data source/quality
+
+  // Video highlight (YouTube)
+  videoUrl?: string;                   // Full YouTube URL
+  videoId?: string;                    // Extracted video ID for embedding
 }
 
 /**
@@ -252,6 +256,10 @@ export interface GroupMatch {
   // Timestamps
   startedAt?: number;
   completedAt?: number;
+
+  // Video attachment
+  videoUrl?: string;             // Full YouTube URL
+  videoId?: string;              // Extracted video ID for embedding
 }
 
 /**
@@ -429,6 +437,10 @@ export interface BracketMatch {
 
   // Consolation bracket specific
   isThirdPlace?: boolean;       // True if this is a "loser's match" in consolation (e.g., 7-8, 11-12)
+
+  // Video attachment
+  videoUrl?: string;             // Full YouTube URL
+  videoId?: string;              // Extracted video ID for embedding
 }
 
 /**
