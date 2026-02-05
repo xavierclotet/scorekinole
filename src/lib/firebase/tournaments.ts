@@ -276,18 +276,8 @@ export async function getTournament(id: string): Promise<Tournament | null> {
 
     const data = snapshot.data();
 
-    // Check permissions: admins can only access their own tournaments
-    const user = get(currentUser);
-    if (user) {
-      const superAdminStatus = await isSuperAdmin();
-      if (!superAdminStatus) {
-        // Admin: verify ownership
-        if (data.createdBy?.userId !== user.id) {
-          console.error('Unauthorized: Admin can only access own tournaments');
-          return null;
-        }
-      }
-    }
+    // Note: getTournament is used for public viewing - no permission check needed
+    // Edit permissions are handled separately in the UI (canEdit flag)
 
     // Convert Firestore timestamps to numbers
     const tournament: Tournament = {
