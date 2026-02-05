@@ -17,6 +17,7 @@
 	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { theme } from '$lib/stores/theme';
+	import SEO from '$lib/components/SEO.svelte';
 
 	// Data state
 	let isLoading = true;
@@ -134,10 +135,12 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{m.ranking_publicRankings()} - Scorekinole</title>
-	<meta name="description" content="Crokinole Rankings - Best-of-N tournament results" />
-</svelte:head>
+<SEO
+	title="Crokinole Player Rankings"
+	description="Official crokinole player rankings based on tournament results. Track the best crokinole players, their performance history, and tournament achievements worldwide."
+	keywords="crokinole rankings, crokinole players, crokinole leaderboard, best crokinole players, tournament rankings, scorekinole rankings"
+	canonical="https://scorekinole.web.app/rankings"
+/>
 
 <div class="rankings-container" data-theme={$theme}>
 	<header class="page-header">

@@ -1379,6 +1379,10 @@
 	}
 </script>
 
+<svelte:head>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <div class="game-page">
 	<header class="game-header" class:tournament-mode={inTournamentMode}>
 		{#if inTournamentMode}

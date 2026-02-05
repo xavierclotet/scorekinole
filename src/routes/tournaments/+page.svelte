@@ -13,6 +13,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { getTranslatedCountryOptions } from '$lib/utils/countryTranslations';
+	import SEO from '$lib/components/SEO.svelte';
 
 	// Filter state
 	let selectedYear = $state<number | undefined>(undefined);
@@ -153,10 +154,12 @@
 	);
 </script>
 
-<svelte:head>
-	<title>{m.tournaments_publicTournaments()} - Scorekinole</title>
-	<meta name="description" content="Browse Crokinole tournaments" />
-</svelte:head>
+<SEO
+	title="Live Crokinole Tournaments"
+	description="Browse and follow live crokinole tournaments worldwide. Real-time scores, brackets, group standings, and results from crokinole competitions."
+	keywords="crokinole tournaments, live crokinole, crokinole competition, crokinole brackets, crokinole results, scorekinole tournaments"
+	canonical="https://scorekinole.web.app/tournaments"
+/>
 
 <div class="tournaments-container" data-theme={$theme}>
 	<header class="page-header">

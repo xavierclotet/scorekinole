@@ -12,6 +12,32 @@
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
+	import SEO from '$lib/components/SEO.svelte';
+
+	const jsonLd = [
+		{
+			"@context": "https://schema.org",
+			"@type": "Organization",
+			"name": "Scorekinole",
+			"url": "https://scorekinole.web.app",
+			"logo": "https://scorekinole.web.app/icon-512.png",
+			"description": "Professional crokinole scoring application for tournaments and casual games"
+		},
+		{
+			"@context": "https://schema.org",
+			"@type": "WebApplication",
+			"name": "Scorekinole",
+			"url": "https://scorekinole.web.app",
+			"applicationCategory": "SportsApplication",
+			"operatingSystem": "Web, Android",
+			"description": "Track crokinole scores, manage live tournaments, and view player rankings",
+			"offers": {
+				"@type": "Offer",
+				"price": "0",
+				"priceCurrency": "USD"
+			}
+		}
+	];
 
 	let showProfile = false;
 	let showLogin = false;
@@ -67,10 +93,13 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Scorekinole - Crokinole Scorer Arena App</title>
-	<meta name="description" content="Professional scoring app for Crokinole games. Track points, rounds, and matches with ease." />
-</svelte:head>
+<SEO
+	title="Scorekinole - Professional Crokinole Scoring App"
+	description="Track crokinole scores, manage live tournaments, and view player rankings. The ultimate free scoring app for crokinole players and tournament organizers worldwide."
+	keywords="crokinole, crokinole scoring, crokinole app, crokinole tournament, live scoring, scorekinole, crokinole tracker, crokinole points"
+	canonical="https://scorekinole.web.app/"
+	{jsonLd}
+/>
 
 <main class="landing" data-theme={$adminTheme}>
 	<!-- Background image -->
