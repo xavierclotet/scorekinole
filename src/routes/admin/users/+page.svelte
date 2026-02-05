@@ -339,7 +339,7 @@
                   {/if}
                 </td>
                 <td class="ranking-cell">
-                  <span class="ranking-value">{user.ranking ?? 0} <small>pts</small></span>
+                  <span class="ranking-value">{user.tournaments?.reduce((sum, t) => sum + (t.rankingDelta || 0), 0) ?? 0} <small>pts</small></span>
                 </td>
                 <td class="tournaments-cell hide-small">
                   🏆 {user.tournaments?.length ?? 0}
@@ -456,7 +456,7 @@
             <div class="user-preview-info">
               <strong>{userToMigrate.playerName}</strong>
               <small>{m.admin_tournamentsToMigrate({ n: String(userToMigrate.tournaments?.length ?? 0) })}</small>
-              <small>{m.admin_rankingToMigrate({ n: String(userToMigrate.ranking ?? 0) })}</small>
+              <small>{m.admin_rankingToMigrate({ n: String(userToMigrate.tournaments?.reduce((sum, t) => sum + (t.rankingDelta || 0), 0) ?? 0) })}</small>
             </div>
           </div>
         </div>

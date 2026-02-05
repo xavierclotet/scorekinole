@@ -315,22 +315,24 @@
   <div class="final-standings-section">
     <div class="standings-header">
       <h3>{m.tournament_finalStandings()}</h3>
-      <button
-        class="recalc-positions-btn"
-        onclick={handleRecalculatePositions}
-        disabled={recalculatingPositions}
-        title={m.tournament_recalculatePositions()}
-      >
-        {#if recalculatingPositions}
-          <span class="spinner-small"></span>
-        {:else}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-            <path d="M21 3v5h-5"/>
-          </svg>
-        {/if}
-        <span>{m.time_recalculate()}</span>
-      </button>
+      {#if !tournament.isImported}
+        <button
+          class="recalc-positions-btn"
+          onclick={handleRecalculatePositions}
+          disabled={recalculatingPositions}
+          title={m.tournament_recalculatePositions()}
+        >
+          {#if recalculatingPositions}
+            <span class="spinner-small"></span>
+          {:else}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+            </svg>
+          {/if}
+          <span>{m.time_recalculate()}</span>
+        </button>
+      {/if}
     </div>
     <div class="standings-grid" class:with-ranking={tournament.rankingConfig?.enabled}>
       {#if tournament.rankingConfig?.enabled}
@@ -413,18 +415,20 @@
                   {m.tournament_standings()}
                   <span class="ranking-system-badge">{qualMode === 'POINTS' ? m.tournament_byPoints() : m.tournament_byWins()}</span>
                 </h4>
-                <button
-                  class="recalc-btn"
-                  onclick={() => handleRecalculateStandings(group.id)}
-                  disabled={recalculatingGroups.has(group.id)}
-                  title={m.tournament_recalculateStandings()}
-                >
-                  {#if recalculatingGroups.has(group.id)}
-                    <span class="spinner-small"></span>
-                  {:else}
-                    🔄
-                  {/if}
-                </button>
+                {#if !tournament.isImported}
+                  <button
+                    class="recalc-btn"
+                    onclick={() => handleRecalculateStandings(group.id)}
+                    disabled={recalculatingGroups.has(group.id)}
+                    title={m.tournament_recalculateStandings()}
+                  >
+                    {#if recalculatingGroups.has(group.id)}
+                      <span class="spinner-small"></span>
+                    {:else}
+                      🔄
+                    {/if}
+                  </button>
+                {/if}
               </div>
               <GroupStandings
                 standings={group.standings}
@@ -434,7 +438,8 @@
               />
             </div>
 
-            <!-- Match Results by Round - Collapsible -->
+            <!-- Match Results by Round - Collapsible (only if there are matches) -->
+            {#if getGroupMatches(group).length > 0}
             <div class="matches-section">
               <button
                 class="results-accordion-header"
@@ -483,6 +488,7 @@
                 </div>
               {/if}
             </div>
+            {/if}
           </div>
         {/each}
       </div>

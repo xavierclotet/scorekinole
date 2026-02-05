@@ -27,7 +27,8 @@
 		try {
 			const profile = await getUserProfile();
 			playerNameInput = profile?.playerName || user.name || user.displayName || '';
-			rankingPoints = profile?.ranking || 0;
+			// Calculate ranking from tournaments (sum of all rankingDelta values)
+			rankingPoints = profile?.tournaments?.reduce((sum, t) => sum + (t.rankingDelta || 0), 0) || 0;
 		} catch (error) {
 			console.error('Error loading player data:', error);
 			playerNameInput = user.name || user.displayName || '';

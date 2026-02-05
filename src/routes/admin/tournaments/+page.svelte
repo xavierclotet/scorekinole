@@ -1262,9 +1262,14 @@
       padding: 0.15rem 0.5rem;
     }
 
-    .create-btn {
-      padding: 0.4rem 0.75rem;
-      font-size: 0.8rem;
+    .header-actions {
+      gap: 0.35rem;
+    }
+
+    .create-btn,
+    .import-btn {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.7rem;
     }
 
     .controls-section {
@@ -1339,9 +1344,14 @@
       font-size: 0.65rem;
     }
 
-    .create-btn {
-      padding: 0.35rem 0.6rem;
-      font-size: 0.75rem;
+    .header-actions {
+      gap: 0.25rem;
+    }
+
+    .create-btn,
+    .import-btn {
+      padding: 0.3rem 0.4rem;
+      font-size: 0.65rem;
     }
 
     .name-cell {
@@ -1394,9 +1404,14 @@
       font-size: 0.65rem;
     }
 
-    .create-btn {
-      padding: 0.35rem 0.6rem;
-      font-size: 0.75rem;
+    .header-actions {
+      gap: 0.25rem;
+    }
+
+    .create-btn,
+    .import-btn {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.7rem;
     }
 
     .controls-section {

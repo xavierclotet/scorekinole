@@ -87,11 +87,8 @@ export interface HistoricalGroupInput {
 export interface HistoricalStandingInput {
   participantName: string;
   position: number;
-  matchesWon: number;
-  matchesLost: number;
-  matchesTied?: number;
+  points: number;          // Classification points (2 per win, 1 per tie)
   total20s?: number;
-  totalPointsScored?: number;
 }
 
 export interface HistoricalFinalStageInput {
@@ -313,23 +310,35 @@ export async function createHistoricalTournament(
       participantMap.set(fullName.toLowerCase(), id);
       participantMap.set(p.name.toLowerCase(), id);
 
-      return {
+      // Build participant object without undefined values (Firebase rejects undefined)
+      const participant: TournamentParticipant = {
         id,
-        type: p.oderId ? 'REGISTERED' : 'GUEST',
-        userId: p.oderId,
+        type: p.userId ? 'REGISTERED' : 'GUEST',
         name: p.name,
-        partner: p.partnerName
-          ? {
-              type: p.partnerUserId ? 'REGISTERED' : 'GUEST',
-              userId: p.partnerUserId,
-              name: p.partnerName
-            }
-          : undefined,
         rankingSnapshot: 0,
         currentRanking: 0,
-        finalPosition: p.finalPosition,
         status: 'ACTIVE'
       };
+
+      // Only add optional fields if they have values
+      if (p.userId) {
+        participant.userId = p.userId;
+      }
+      if (p.finalPosition !== undefined && p.finalPosition !== null) {
+        participant.finalPosition = p.finalPosition;
+      }
+      if (p.partnerName) {
+        const partnerObj: { type: 'REGISTERED' | 'GUEST'; name: string; userId?: string } = {
+          type: p.partnerUserId ? 'REGISTERED' : 'GUEST',
+          name: p.partnerName
+        };
+        if (p.partnerUserId) {
+          partnerObj.userId = p.partnerUserId;
+        }
+        participant.partner = partnerObj;
+      }
+
+      return participant;
     });
 
     // Helper to find participant ID by name
@@ -349,13 +358,13 @@ export async function createHistoricalTournament(
         const standings: GroupStanding[] = g.standings.map((s) => ({
           participantId: findParticipantId(s.participantName),
           position: s.position,
-          matchesPlayed: s.matchesWon + s.matchesLost + (s.matchesTied || 0),
-          matchesWon: s.matchesWon,
-          matchesLost: s.matchesLost,
-          matchesTied: s.matchesTied || 0,
-          points: s.matchesWon * 2 + (s.matchesTied || 0),
+          matchesPlayed: 0,  // Not tracked in simplified import
+          matchesWon: 0,     // Not tracked in simplified import
+          matchesLost: 0,    // Not tracked in simplified import
+          matchesTied: 0,    // Not tracked in simplified import
+          points: s.points,
           total20s: s.total20s || 0,
-          totalPointsScored: s.totalPointsScored || 0,
+          totalPointsScored: 0,  // Not tracked in simplified import
           qualifiedForFinal: true // All are qualified in historical
         }));
 
@@ -399,10 +408,10 @@ export async function createHistoricalTournament(
         participantB,
         status: match.isWalkover ? 'WALKOVER' : 'COMPLETED',
         winner,
-        totalPointsA: match.scoreA,
-        totalPointsB: match.scoreB,
-        total20sA: match.twentiesA,
-        total20sB: match.twentiesB,
+        totalPointsA: match.scoreA ?? 0,
+        totalPointsB: match.scoreB ?? 0,
+        total20sA: match.twentiesA ?? 0,
+        total20sB: match.twentiesB ?? 0,
         completedAt: input.tournamentDate
       };
     };
@@ -436,18 +445,27 @@ export async function createHistoricalTournament(
         // Find winner from final round
         const finalRound = bracket.rounds[bracket.rounds.length - 1];
         const finalMatch = finalRound?.matches[0];
+        const bracketWinner = finalMatch?.winner;
 
-        return {
+        // Build bracket object without undefined values
+        const namedBracket: NamedBracket = {
           id: `bracket-${b.label.toLowerCase()}`,
           name: b.name,
           label: b.label,
           bracket,
-          sourcePositions: b.sourcePositions,
-          winner: finalMatch?.winner
+          sourcePositions: b.sourcePositions
         };
+
+        // Only add winner if it has a value
+        if (bracketWinner) {
+          namedBracket.winner = bracketWinner;
+        }
+
+        return namedBracket;
       });
 
       // Use first bracket as goldBracket for compatibility
+      const firstBracketWinner = parallelBrackets[0]?.winner;
       finalStage = {
         mode: 'PARALLEL_BRACKETS',
         goldBracket: parallelBrackets[0]?.bracket || {
@@ -460,45 +478,84 @@ export async function createHistoricalTournament(
           }
         },
         parallelBrackets,
-        isComplete: true,
-        winner: parallelBrackets[0]?.winner
-      };
-    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS' && input.finalStage.brackets.length >= 2) {
-      // Gold/Silver divisions
-      finalStage = {
-        mode: 'SPLIT_DIVISIONS',
-        goldBracket: buildBracket(input.finalStage.brackets[0]),
-        silverBracket: buildBracket(input.finalStage.brackets[1]),
-        isComplete: true,
-        winner: undefined, // Will be set from bracket
-        silverWinner: undefined
+        isComplete: true
       };
 
-      // Set winners
-      const goldFinal = finalStage.goldBracket.rounds[finalStage.goldBracket.rounds.length - 1];
-      const silverFinal = finalStage.silverBracket!.rounds[finalStage.silverBracket!.rounds.length - 1];
-      finalStage.winner = goldFinal?.matches[0]?.winner;
-      finalStage.silverWinner = silverFinal?.matches[0]?.winner;
+      // Only add winner if it has a value
+      if (firstBracketWinner) {
+        finalStage.winner = firstBracketWinner;
+      }
+    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS' && input.finalStage.brackets.length >= 2) {
+      // Gold/Silver divisions
+      const goldBracket = buildBracket(input.finalStage.brackets[0]);
+      const silverBracket = buildBracket(input.finalStage.brackets[1]);
+
+      // Get winners from final matches
+      const goldFinal = goldBracket.rounds[goldBracket.rounds.length - 1];
+      const silverFinal = silverBracket.rounds[silverBracket.rounds.length - 1];
+      const goldWinner = goldFinal?.matches[0]?.winner;
+      const silverWinner = silverFinal?.matches[0]?.winner;
+
+      // Build finalStage without undefined values
+      finalStage = {
+        mode: 'SPLIT_DIVISIONS',
+        goldBracket,
+        silverBracket,
+        isComplete: true
+      };
+
+      // Only add winner fields if they have values
+      if (goldWinner) {
+        finalStage.winner = goldWinner;
+      }
+      if (silverWinner) {
+        finalStage.silverWinner = silverWinner;
+      }
     } else {
       // Single bracket
       const bracket = buildBracket(input.finalStage.brackets[0]);
       const finalRound = bracket.rounds[bracket.rounds.length - 1];
+      const bracketWinner = finalRound?.matches[0]?.winner;
 
       finalStage = {
         mode: 'SINGLE_BRACKET',
         goldBracket: bracket,
-        isComplete: true,
-        winner: finalRound?.matches[0]?.winner
+        isComplete: true
       };
+
+      // Only add winner if it has a value
+      if (bracketWinner) {
+        finalStage.winner = bracketWinner;
+      }
     }
 
-    // Build tournament document
+    // Auto-calculate numTables: minimum needed for parallel play
+    // = max(numGroups, maxFirstRoundMatchesInAnyBracket)
+    const numGroups = input.groupStage?.numGroups || 0;
+    let maxBracketFirstRoundMatches = 0;
+
+    if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
+      // Sum of first round matches across all parallel brackets (they play simultaneously)
+      maxBracketFirstRoundMatches = input.finalStage.brackets.reduce((sum, b) => {
+        return sum + (b.rounds[0]?.matches.length || 0);
+      }, 0);
+    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS') {
+      // Gold and silver brackets can play in parallel
+      const goldFirstRound = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+      const silverFirstRound = input.finalStage.brackets[1]?.rounds[0]?.matches.length || 0;
+      maxBracketFirstRoundMatches = goldFirstRound + silverFirstRound;
+    } else {
+      // Single bracket
+      maxBracketFirstRoundMatches = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+    }
+
+    const calculatedNumTables = Math.max(numGroups, maxBracketFirstRoundMatches, 1);
+
+    // Build tournament document (only include defined values - Firebase rejects undefined)
     const tournament: Partial<Tournament> = {
       id: tournamentId,
       key: tournamentKey,
       name: input.name,
-      edition: input.edition,
-      address: input.address,
       city: input.city,
       country: input.country,
       tournamentDate: input.tournamentDate,
@@ -507,10 +564,9 @@ export async function createHistoricalTournament(
       gameType: input.gameType,
       show20s: input.show20s ?? true,
       showHammer: input.showHammer ?? false,
-      numTables: 1,
+      numTables: calculatedNumTables,
       rankingConfig: input.rankingConfig,
       participants,
-      groupStage,
       finalStage,
       createdAt: Date.now(),
       createdBy: {
@@ -525,9 +581,24 @@ export async function createHistoricalTournament(
       importedBy: {
         userId: user.id,
         userName: creatorName
-      },
-      importNotes: input.importNotes
+      }
     };
+
+    // Add optional fields only if they have values
+    if (input.edition !== undefined && input.edition !== null) {
+      tournament.edition = input.edition;
+    }
+    if (input.address) {
+      tournament.address = input.address;
+    }
+    if (groupStage) {
+      tournament.groupStage = groupStage;
+    }
+    if (input.importNotes) {
+      tournament.importNotes = input.importNotes;
+    }
+
+    console.log('📦 Tournament document to save:', JSON.stringify(tournament, null, 2));
 
     const tournamentRef = doc(db, 'tournaments', tournamentId);
     await setDoc(tournamentRef, {

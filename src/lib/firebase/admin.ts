@@ -596,25 +596,22 @@ export async function mergeGuestToRegistered(
       return { success: false, error: 'GUEST user was already merged' };
     }
 
-    // Check if registered user already has tournaments or ranking
+    // Check if registered user already has tournaments (ranking is calculated from tournaments)
     const registeredTournaments = registeredData.tournaments || [];
-    const registeredRanking = registeredData.ranking || 0;
-    if (registeredTournaments.length > 0 || registeredRanking > 0) {
-      return { success: false, error: 'Target user already has tournaments or ranking' };
+    if (registeredTournaments.length > 0) {
+      return { success: false, error: 'Target user already has tournaments' };
     }
 
     // Copy tournaments from GUEST (target is empty, no deduplication needed)
     const guestTournaments = guestData.tournaments || [];
-    const guestRanking = guestData.ranking || 0;
 
     // Merge mergedFrom arrays
     const existingMergedFrom = registeredData.mergedFrom || [];
     const newMergedFrom = [...existingMergedFrom, guestUserId];
 
-    // Update registered user
+    // Update registered user (ranking is calculated from tournaments, not stored)
     await setDoc(registeredRef, {
       tournaments: guestTournaments,
-      ranking: guestRanking,
       mergedFrom: newMergedFrom,
       updatedAt: serverTimestamp()
     }, { merge: true });
@@ -627,7 +624,6 @@ export async function mergeGuestToRegistered(
 
     console.log(`✅ Merged GUEST ${guestUserId} into registered user ${registeredUserId}`);
     console.log(`   - Tournaments: ${guestTournaments.length}`);
-    console.log(`   - Ranking: ${guestRanking}`);
 
     return { success: true };
   } catch (error) {
@@ -666,8 +662,8 @@ export async function getRegisteredUsers(): Promise<AdminUserInfo[]> {
       const data = docSnap.data() as UserProfile;
       // Skip merged users (defensive - registered users shouldn't have mergedTo)
       if (data.mergedTo) return;
-      // Skip users that already have tournaments or ranking (can't be migration targets)
-      if ((data.tournaments && data.tournaments.length > 0) || (data.ranking && data.ranking > 0)) return;
+      // Skip users that already have tournaments (can't be migration targets)
+      if (data.tournaments && data.tournaments.length > 0) return;
       users.push({
         userId: docSnap.id,
         ...data

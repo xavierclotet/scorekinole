@@ -20,7 +20,8 @@
   }
 
   let playerName = $state(user.playerName);
-  let ranking = $state(user.ranking ?? 0);
+  // Ranking is calculated from tournaments, not stored
+  let calculatedRanking = $derived(user.tournaments?.reduce((sum, t) => sum + (t.rankingDelta || 0), 0) || 0);
   let isAdmin = $state(user.isAdmin || false);
   let canAutofill = $state(user.canAutofill || false);
   let canImportTournaments = $state(user.canImportTournaments || false);
@@ -38,14 +39,10 @@
     errorMessage = '';
 
     try {
-      const updates: { playerName?: string; ranking?: number; maxTournamentsPerYear?: number; canAutofill?: boolean; canImportTournaments?: boolean } = {};
+      const updates: { playerName?: string; maxTournamentsPerYear?: number; canAutofill?: boolean; canImportTournaments?: boolean } = {};
 
       if (playerName !== user.playerName) {
         updates.playerName = playerName;
-      }
-
-      if (ranking !== (user.ranking ?? 0)) {
-        updates.ranking = ranking;
       }
 
       if (maxTournamentsPerYear !== (user.maxTournamentsPerYear ?? 0)) {
@@ -187,9 +184,9 @@
               <input
                 id="ranking"
                 type="number"
-                bind:value={ranking}
-                min="0"
-                step="1"
+                value={calculatedRanking}
+                disabled
+                title="Calculated from tournaments"
               />
               <span class="suffix">pts</span>
             </div>

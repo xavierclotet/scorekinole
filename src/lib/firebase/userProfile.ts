@@ -14,8 +14,7 @@ export interface UserProfile {
   canAutofill?: boolean;           // Can use autofill buttons in groups/bracket pages
   canImportTournaments?: boolean;  // Can import historical tournaments (doesn't count towards quota)
   maxTournamentsPerYear?: number;  // Max tournaments this admin can create per year (0-365)
-  // Ranking and tournament tracking
-  ranking?: number;                      // Current ranking points (starts at 0)
+  // Tournament tracking (ranking is calculated from tournaments, not stored)
   tournaments?: TournamentRecord[];      // Tournament history
   authProvider?: 'google' | null;        // null = GUEST without auth
   mergedFrom?: string[];                 // IDs of GUEST users merged into this one
@@ -137,7 +136,6 @@ export async function getOrCreateUserByName(name: string): Promise<{ userId: str
       email: null,
       photoURL: null,
       authProvider: null,
-      ranking: 0,
       tournaments: [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -153,17 +151,16 @@ export async function getOrCreateUserByName(name: string): Promise<{ userId: str
 }
 
 /**
- * Add a tournament record to user's history and update ranking
+ * Add a tournament record to user's history
  * Prevents duplicates by checking if tournament already exists in history
+ * Note: Ranking is calculated from tournaments, not stored separately
  *
  * @param userId Firestore user ID
  * @param record Tournament record to add
- * @param newRanking New ranking value after tournament
  */
 export async function addTournamentRecord(
   userId: string,
-  record: TournamentRecord,
-  newRanking: number
+  record: TournamentRecord
 ): Promise<boolean> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
@@ -185,12 +182,11 @@ export async function addTournamentRecord(
     }
 
     await setDoc(userRef, {
-      ranking: newRanking,
       tournaments: arrayUnion(record),
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Added tournament record for user ${userId}: Ranking ${record.rankingBefore} → ${newRanking} (+${record.rankingDelta})`);
+    console.log(`✅ Added tournament record for user ${userId}: +${record.rankingDelta} points`);
     return true;
   } catch (error) {
     console.error('❌ Error adding tournament record:', error);
@@ -224,8 +220,9 @@ export async function getUserProfileById(userId: string): Promise<UserProfile | 
 }
 
 /**
- * Remove a tournament record from user's history and revert ranking
- * Used when deleting a tournament to undo ranking changes
+ * Remove a tournament record from user's history
+ * Used when deleting a tournament
+ * Note: Ranking is calculated from tournaments, not stored separately
  *
  * @param userId Firestore user ID
  * @param tournamentId Tournament ID to remove
@@ -268,17 +265,12 @@ export async function removeTournamentRecord(
       ...tournaments.slice(tournamentIndex + 1)
     ];
 
-    // Revert ranking: subtract the delta that was added
-    const currentRanking = profile.ranking || 0;
-    const revertedRanking = currentRanking - removedRecord.rankingDelta;
-
     await setDoc(userRef, {
-      ranking: revertedRanking,
       tournaments: updatedTournaments,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Removed tournament ${tournamentId} from user ${userId}: Ranking ${currentRanking} → ${revertedRanking} (reverted +${removedRecord.rankingDelta})`);
+    console.log(`✅ Removed tournament ${tournamentId} from user ${userId} (was +${removedRecord.rankingDelta} points)`);
     return true;
   } catch (error) {
     console.error('❌ Error removing tournament record:', error);

@@ -90,7 +90,6 @@ interface Tournament {
 
 interface UserProfile {
   playerName: string;
-  ranking?: number;
   tournaments?: TournamentRecord[];
 }
 
@@ -137,7 +136,6 @@ async function getOrCreateUserByName(name: string): Promise<{ userId: string; cr
       email: null,
       photoURL: null,
       authProvider: null,
-      ranking: 0,
       tournaments: [],
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -154,11 +152,11 @@ async function getOrCreateUserByName(name: string): Promise<{ userId: string; cr
 
 /**
  * Add tournament record to user profile
+ * Note: Ranking is calculated from tournaments, not stored separately
  */
 async function addTournamentRecord(
   userId: string,
-  record: TournamentRecord,
-  newRanking: number
+  record: TournamentRecord
 ): Promise<boolean> {
   try {
     const userRef = getDb().collection("users").doc(userId);
@@ -180,7 +178,6 @@ async function addTournamentRecord(
 
     await userRef.set(
       {
-        ranking: newRanking,
         tournaments: FieldValue.arrayUnion(record),
         updatedAt: FieldValue.serverTimestamp(),
       },
@@ -188,7 +185,7 @@ async function addTournamentRecord(
     );
 
     logger.info(
-      `Added tournament record for user ${userId}: Ranking ${record.rankingBefore} -> ${newRanking} (+${record.rankingDelta})`
+      `Added tournament record for user ${userId}: +${record.rankingDelta} points`
     );
     return true;
   } catch (error) {
@@ -311,7 +308,7 @@ async function processParticipant(
         }
       }
       if (member1UserId) {
-        await addTournamentRecord(member1UserId, tournamentRecord, rankingAfter);
+        await addTournamentRecord(member1UserId, tournamentRecord);
       }
 
       // Member 2
@@ -325,7 +322,7 @@ async function processParticipant(
         }
       }
       if (member2UserId) {
-        await addTournamentRecord(member2UserId, tournamentRecord, rankingAfter);
+        await addTournamentRecord(member2UserId, tournamentRecord);
       }
     }
     return;
@@ -343,7 +340,7 @@ async function processParticipant(
   }
 
   if (userId) {
-    await addTournamentRecord(userId, tournamentRecord, rankingAfter);
+    await addTournamentRecord(userId, tournamentRecord);
   }
 
   // Partner (for legacy doubles with partner field)
@@ -359,7 +356,7 @@ async function processParticipant(
     }
 
     if (partnerUserId) {
-      await addTournamentRecord(partnerUserId, tournamentRecord, rankingAfter);
+      await addTournamentRecord(partnerUserId, tournamentRecord);
     }
   }
 }

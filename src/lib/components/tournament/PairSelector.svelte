@@ -9,10 +9,11 @@
   interface Props {
     onadd: (participant: Partial<TournamentParticipant>) => void;
     existingParticipants?: Partial<TournamentParticipant>[];
+    excludedUserIds?: string[];  // UserIds to exclude from player search (from already-added pairs)
     theme?: 'light' | 'dark';
   }
 
-  let { onadd, existingParticipants = [], theme = 'light' }: Props = $props();
+  let { onadd, existingParticipants = [], excludedUserIds = [], theme = 'light' }: Props = $props();
 
   // Pair search
   let pairSearch = $state('');
@@ -21,12 +22,12 @@
 
   // New pair form
   let p1 = $state('');
-  let p1Results = $state<(UserProfile & { userId: string })[]>([]);
+  let p1RawResults = $state<(UserProfile & { userId: string })[]>([]);
   let p1Loading = $state(false);
   let p1Selected = $state<PairMember | null>(null);
 
   let p2 = $state('');
-  let p2Results = $state<(UserProfile & { userId: string })[]>([]);
+  let p2RawResults = $state<(UserProfile & { userId: string })[]>([]);
   let p2Loading = $state(false);
   let p2Selected = $state<PairMember | null>(null);
 
@@ -34,6 +35,21 @@
   let adding = $state(false);
 
   let canAdd = $derived(p1Selected && p2Selected && !adding);
+
+  // Filtered results - reactively filters when excludedUserIds changes
+  let p1Results = $derived(
+    p1RawResults.filter(u =>
+      !(p2Selected?.type === 'REGISTERED' && p2Selected.userId === u.userId) &&
+      !excludedUserIds.includes(u.userId)
+    )
+  );
+
+  let p2Results = $derived(
+    p2RawResults.filter(u =>
+      !(p1Selected?.type === 'REGISTERED' && p1Selected.userId === u.userId) &&
+      !excludedUserIds.includes(u.userId)
+    )
+  );
 
   // Debounce timers
   let pairTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -52,26 +68,26 @@
     }, 250);
   });
 
-  // Search player 1
+  // Search player 1 - stores raw results, filtering is done via $derived
   $effect(() => {
     if (p1Timeout) clearTimeout(p1Timeout);
-    if (!p1 || p1.length < 2 || p1Selected) { p1Results = []; return; }
+    if (!p1 || p1.length < 2 || p1Selected) { p1RawResults = []; return; }
     p1Loading = true;
     p1Timeout = setTimeout(async () => {
       const res = await searchUsers(p1) as (UserProfile & { userId: string })[];
-      p1Results = res.filter(u => !(p2Selected?.type === 'REGISTERED' && p2Selected.userId === u.userId));
+      p1RawResults = res;
       p1Loading = false;
     }, 250);
   });
 
-  // Search player 2
+  // Search player 2 - stores raw results, filtering is done via $derived
   $effect(() => {
     if (p2Timeout) clearTimeout(p2Timeout);
-    if (!p2 || p2.length < 2 || p2Selected) { p2Results = []; return; }
+    if (!p2 || p2.length < 2 || p2Selected) { p2RawResults = []; return; }
     p2Loading = true;
     p2Timeout = setTimeout(async () => {
       const res = await searchUsers(p2) as (UserProfile & { userId: string })[];
-      p2Results = res.filter(u => !(p1Selected?.type === 'REGISTERED' && p1Selected.userId === u.userId));
+      p2RawResults = res;
       p2Loading = false;
     }, 250);
   });
@@ -79,32 +95,32 @@
   function selectP1(user: UserProfile & { userId: string }) {
     p1Selected = { type: 'REGISTERED', userId: user.userId, name: user.playerName };
     p1 = user.playerName;
-    p1Results = [];
+    p1RawResults = [];
   }
 
   function selectP2(user: UserProfile & { userId: string }) {
     p2Selected = { type: 'REGISTERED', userId: user.userId, name: user.playerName };
     p2 = user.playerName;
-    p2Results = [];
+    p2RawResults = [];
   }
 
   function setP1Guest() {
     if (p1.trim().length < 3) return;
     p1Selected = { type: 'GUEST', name: p1.trim() };
-    p1Results = [];
+    p1RawResults = [];
   }
 
   function setP2Guest() {
     if (p2.trim().length < 3) return;
     p2Selected = { type: 'GUEST', name: p2.trim() };
-    p2Results = [];
+    p2RawResults = [];
   }
 
-  function clearP1() { p1Selected = null; p1 = ''; p1Results = []; }
-  function clearP2() { p2Selected = null; p2 = ''; p2Results = []; }
+  function clearP1() { p1Selected = null; p1 = ''; p1RawResults = []; }
+  function clearP2() { p2Selected = null; p2 = ''; p2RawResults = []; }
 
   function addExistingPair(pair: Pair) {
-    const participant: Partial<TournamentParticipant> = {
+    const participant: Partial<TournamentParticipant> & { memberUserIds?: string[] } = {
       id: crypto.randomUUID(),
       participantMode: 'pair',
       pairId: pair.id,
@@ -113,7 +129,12 @@
       type: 'REGISTERED',
       rankingSnapshot: 0,
       currentRanking: 0,
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      // Include member userIds for filtering in parent
+      memberUserIds: [
+        pair.member1Type === 'REGISTERED' ? pair.member1UserId : '',
+        pair.member2Type === 'REGISTERED' ? pair.member2UserId : ''
+      ].filter(Boolean)
     };
     onadd(participant);
     pairSearch = '';
@@ -126,7 +147,7 @@
 
     const pair = await getOrCreatePair(p1Selected, p2Selected, teamName || undefined);
     if (pair) {
-      const participant: Partial<TournamentParticipant> = {
+      const participant: Partial<TournamentParticipant> & { memberUserIds?: string[] } = {
         id: crypto.randomUUID(),
         participantMode: 'pair',
         pairId: pair.id,
@@ -135,7 +156,12 @@
         type: 'REGISTERED',
         rankingSnapshot: 0,
         currentRanking: 0,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        // Include member userIds for filtering in parent
+        memberUserIds: [
+          p1Selected.type === 'REGISTERED' && p1Selected.userId ? p1Selected.userId : '',
+          p2Selected.type === 'REGISTERED' && p2Selected.userId ? p2Selected.userId : ''
+        ].filter(Boolean)
       };
       onadd(participant);
       clearP1();
@@ -151,7 +177,7 @@
   <div class="row">
     <label class="lbl">{m.wizard_searchPair()}</label>
     <div class="search-wrap">
-      <input type="text" bind:value={pairSearch} placeholder="Nombre o jugador..." />
+      <input type="text" bind:value={pairSearch} placeholder={m.wizard_searchPairPlaceholder()} />
       {#if pairLoading}<span class="spin"></span>{/if}
       {#if pairResults.length > 0}
         <div class="results">
