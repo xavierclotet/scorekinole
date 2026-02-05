@@ -2,6 +2,7 @@
 	import type { TournamentListItem } from '$lib/firebase/publicTournaments';
 	import * as m from '$lib/paraglide/messages.js';
 	import { translateCountry } from '$lib/utils/countryTranslations';
+	import LiveBadge from './LiveBadge.svelte';
 
 	interface Props {
 		tournament: TournamentListItem;
@@ -83,16 +84,30 @@
 			action: 'TEMPLATE',
 			text: tournament.name,
 			dates: `${dateStr}/${endDateStr}`,
-			location: `${tournament.city}, ${tournament.country}`,
+			location: tournament.address
+				? `${tournament.address}, ${tournament.city}, ${tournament.country}`
+				: `${tournament.city}, ${tournament.country}`,
 			details: `Torneo de Crokinole: ${tournament.name}`
 		});
 		return `https://calendar.google.com/calendar/render?${params.toString()}`;
 	}
 
 	const isPast = $derived(tournament.tournamentDate && tournament.tournamentDate < Date.now());
+
+	// Check if tournament is LIVE
+	const isLive = $derived(
+		tournament.status === 'GROUP_STAGE' ||
+		tournament.status === 'TRANSITION' ||
+		tournament.status === 'FINAL_STAGE'
+	);
 </script>
 
-<button class="card" class:past={isPast} {onclick}>
+<button class="card" class:past={isPast} class:live={isLive} {onclick}>
+	{#if isLive}
+		<div class="live-indicator">
+			<LiveBadge size="small" />
+		</div>
+	{/if}
 	<div class="card-main">
 		<div class="logo">
 			<span class="logo-text">{getInitials(tournament.name)}</span>
@@ -109,7 +124,7 @@
 			<div class="meta">
 				<a
 					class="location"
-					href="https://www.google.com/maps/search/?api=1&query={encodeURIComponent(tournament.city + ', ' + tournament.country)}"
+					href="https://www.google.com/maps/search/?api=1&query={encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + tournament.city + ', ' + tournament.country)}"
 					target="_blank"
 					rel="noopener noreferrer"
 					onclick={(e) => e.stopPropagation()}
@@ -195,6 +210,7 @@
 		width: 100%;
 		font-family: inherit;
 		overflow: hidden;
+		position: relative;
 	}
 
 	.card:hover {
@@ -209,6 +225,17 @@
 
 	.card.past:hover {
 		opacity: 1;
+	}
+
+	/* LIVE card styles */
+	.card.live {
+		background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 100%);
+		border-color: rgba(16, 185, 129, 0.35);
+	}
+
+	.card.live:hover {
+		border-color: rgba(16, 185, 129, 0.5);
+		box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
 	}
 
 	.card-main {
@@ -272,18 +299,16 @@
 	.meta {
 		display: flex;
 		flex-direction: column;
+		align-items: flex-start;
 		gap: 0.25rem;
 	}
 
 	.location {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		gap: 0.375rem;
 		font-size: 0.8rem;
 		color: #8b9bb3;
-	}
-
-	.location {
 		text-decoration: none;
 		transition: color 0.2s ease;
 		cursor: pointer;
@@ -316,7 +341,7 @@
 	}
 
 	.date-link {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		gap: 0.375rem;
 		font-size: 0.8rem;
@@ -382,6 +407,13 @@
 	.badge.tier {
 		background: color-mix(in srgb, var(--tier-color) 20%, transparent);
 		color: var(--tier-color);
+	}
+
+	.live-indicator {
+		position: absolute;
+		right: 0.95rem;
+		bottom: calc(100% - 4.8rem);
+		z-index: 2;
 	}
 
 	.participants {
@@ -483,6 +515,16 @@
 	:global([data-theme='light']) .card:hover {
 		border-color: #cbd5e0;
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+	}
+
+	:global([data-theme='light']) .card.live {
+		background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(5, 150, 105, 0.03) 100%);
+		border-color: rgba(16, 185, 129, 0.3);
+	}
+
+	:global([data-theme='light']) .card.live:hover {
+		border-color: rgba(16, 185, 129, 0.45);
+		box-shadow: 0 4px 16px rgba(16, 185, 129, 0.15);
 	}
 
 	:global([data-theme='light']) .name {

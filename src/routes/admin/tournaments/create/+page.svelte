@@ -12,7 +12,7 @@
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
   import type { UserProfile } from '$lib/firebase/userProfile';
-  import { DEVELOPED_COUNTRIES } from '$lib/constants';
+  import CountrySelect from '$lib/components/CountrySelect.svelte';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
@@ -1519,18 +1519,12 @@
 
               <div class="info-field">
                 <label for="country">{m.wizard_country()}</label>
-                <select
+                <CountrySelect
                   id="country"
                   bind:value={country}
-                  class="input-field"
-                  class:input-error={countryHasError}
+                  hasError={countryHasError}
                   onblur={() => markTouched('country')}
-                >
-                  <option value="">{m.wizard_selectOption()}</option>
-                  {#each DEVELOPED_COUNTRIES as countryOption}
-                    <option value={countryOption}>{countryOption}</option>
-                  {/each}
-                </select>
+                />
               </div>
 
               <div class="info-field">

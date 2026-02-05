@@ -12,13 +12,13 @@
     type HistoricalTournamentInput,
     type HistoricalParticipantInput,
     type HistoricalGroupStageInput,
-    type HistoricalFinalStageInput,
-    type HistoricalBracketInput
+    type HistoricalFinalStageInput
   } from '$lib/firebase/tournamentImport';
   import { searchUsers } from '$lib/firebase/tournaments';
   import type { UserProfile } from '$lib/firebase/userProfile';
-  import type { TournamentTier, RankingConfig } from '$lib/types/tournament';
-  import { DEVELOPED_COUNTRIES } from '$lib/constants';
+  import type { TournamentTier, TournamentParticipant } from '$lib/types/tournament';
+  import PairSelector from '$lib/components/tournament/PairSelector.svelte';
+  import CountrySelect from '$lib/components/CountrySelect.svelte';
   import * as m from '$lib/paraglide/messages.js';
 
   // Wizard state
@@ -70,6 +70,11 @@
     partnerName?: string;
     partnerUserId?: string;
     isRegistered: boolean;
+    // Pair-specific fields (for doubles)
+    participantMode?: 'individual' | 'pair';
+    pairId?: string;
+    pairTeamName?: string;
+    memberUserIds?: string[];  // UserIds of pair members (for filtering)
   }
 
   let participants = $state<ParticipantEntry[]>([]);
@@ -78,6 +83,29 @@
   let searchLoading = $state(false);
   let batchInput = $state('');
   let showBatchInput = $state(false);
+
+  // Handler for PairSelector (doubles mode)
+  function handlePairAdd(participant: Partial<TournamentParticipant> & { memberUserIds?: string[] }) {
+    // Convert TournamentParticipant to ParticipantEntry
+    const entry: ParticipantEntry = {
+      id: participant.id || `p-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      name: participant.name || '',
+      isRegistered: participant.type === 'REGISTERED',
+      participantMode: participant.participantMode,
+      pairId: participant.pairId,
+      pairTeamName: participant.pairTeamName,
+      memberUserIds: participant.memberUserIds
+    };
+    participants = [...participants, entry];
+    saveDraft();
+  }
+
+  // Derived: userIds to exclude from pair member search
+  let excludedUserIds = $derived(
+    participants
+      .filter(p => p.memberUserIds && p.memberUserIds.length > 0)
+      .flatMap(p => p.memberUserIds!)
+  );
 
   // Step 3: Group Stage
   let hasGroupStage = $state(true);
@@ -92,11 +120,8 @@
     participantId: string;
     participantName: string;
     position: number;
-    matchesWon: number;
-    matchesLost: number;
-    matchesTied: number;
+    points: number;        // Classification points (2 per win, 1 per tie)
     total20s: number;
-    totalPointsScored: number;
   }
 
   let groups = $state<GroupEntry[]>([]);
@@ -112,11 +137,13 @@
   }
 
   interface BracketRoundEntry {
+    id: string;
     name: string;
     matches: MatchEntry[];
   }
 
   interface MatchEntry {
+    id: string;
     participantAId: string;
     participantAName: string;
     participantBId: string;
@@ -188,7 +215,7 @@
           newGroups.push(groups[i]);
         } else {
           newGroups.push({
-            name: `Grupo ${i + 1}`,
+            name: m.import_groupName({ n: i + 1 }),
             standings: []
           });
         }
@@ -208,8 +235,9 @@
           newBrackets.push(brackets[i]);
         } else {
           const label = labels[i] || String(i + 1);
+          const typeLabel = gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles();
           newBrackets.push({
-            name: `${label} Finals`,
+            name: m.import_bracketNameWithType({ type: typeLabel, label }),
             label: label,
             sourcePositions: [i * 2 + 1, i * 2 + 2],
             rounds: []
@@ -252,7 +280,18 @@
 
       // Step 4: Final Stage
       numBrackets = data.numBrackets ?? 2;
-      brackets = data.brackets ?? [];
+      // Migrate old data to ensure all rounds/matches have IDs
+      brackets = (data.brackets ?? []).map((b: BracketEntry) => ({
+        ...b,
+        rounds: (b.rounds ?? []).map(r => ({
+          ...r,
+          id: r.id || crypto.randomUUID(),
+          matches: (r.matches ?? []).map(m => ({
+            ...m,
+            id: m.id || crypto.randomUUID()
+          }))
+        }))
+      }));
 
       // Wizard state
       currentStep = data.currentStep ?? 1;
@@ -313,6 +352,12 @@
   async function handleSearchInput() {
     clearTimeout(searchTimeout);
     if (searchQuery.length < 2) {
+      searchResults = [];
+      return;
+    }
+
+    // In doubles mode, don't search for individual players - just allow adding team names directly
+    if (gameType === 'doubles') {
       searchResults = [];
       return;
     }
@@ -397,7 +442,10 @@
 
     if (newParticipants.length > 0) {
       participants = [...participants, ...newParticipants];
-      showToastMessage(`${newParticipants.length} participantes añadidos`, 'success');
+      const message = gameType === 'doubles'
+        ? m.import_addedTeams({ count: newParticipants.length })
+        : m.import_addedParticipants({ count: newParticipants.length });
+      showToastMessage(message, 'success');
     }
 
     batchInput = '';
@@ -419,11 +467,8 @@
         participantId: '',
         participantName: '',
         position: groups[groupIndex].standings.length + 1,
-        matchesWon: 0,
-        matchesLost: 0,
-        matchesTied: 0,
-        total20s: 0,
-        totalPointsScored: 0
+        points: 0,
+        total20s: 0
       }
     ];
   }
@@ -439,30 +484,58 @@
 
   // Add round to bracket
   function addRound(bracketIndex: number) {
-    const roundNames = [m.import_round16(), m.import_quarterfinals(), m.import_semifinals(), m.import_final()];
-    const matchCountsByIndex: number[] = [8, 4, 2, 1];
     const currentRounds = brackets[bracketIndex].rounds.length;
-    const roundName = roundNames[currentRounds] || m.import_roundN({ n: currentRounds + 1 });
 
-    // Calculate how many matches to pre-create
-    let numMatches = matchCountsByIndex[currentRounds] || 1;
+    let numMatches: number;
+    let roundName: string;
 
-    // Cap to available participants / 2 if we're creating the first round
     if (currentRounds === 0) {
-      const maxMatches = Math.floor(participants.length / 2);
-      numMatches = Math.min(numMatches, maxMatches);
+      // First round: calculate based on participants per bracket
+      const participantsPerBracket = Math.ceil(participants.length / numBrackets);
+
+      // Determine starting round based on participants
+      // 2 → Final (1), 3-4 → Semis (2), 5-8 → Quarters (4), 9-16 → R16 (8), 17-32 → R32 (16)
+      if (participantsPerBracket <= 2) {
+        numMatches = 1;
+        roundName = m.import_final();
+      } else if (participantsPerBracket <= 4) {
+        numMatches = 2;
+        roundName = m.import_semifinals();
+      } else if (participantsPerBracket <= 8) {
+        numMatches = Math.min(4, Math.floor(participantsPerBracket / 2));
+        roundName = m.import_quarterfinals();
+      } else if (participantsPerBracket <= 16) {
+        numMatches = Math.min(8, Math.floor(participantsPerBracket / 2));
+        roundName = m.import_round16();
+      } else {
+        numMatches = Math.min(16, Math.floor(participantsPerBracket / 2));
+        roundName = m.import_round32();
+      }
     } else {
-      // For subsequent rounds, use half the previous round's matches
-      const prevRoundMatches = brackets[bracketIndex].rounds[currentRounds - 1]?.matches.length || 0;
-      if (prevRoundMatches > 0) {
-        numMatches = Math.max(1, Math.floor(prevRoundMatches / 2));
+      // Subsequent rounds: half the previous round's matches
+      const prevRoundMatches = brackets[bracketIndex].rounds[currentRounds - 1]?.matches.length || 2;
+      numMatches = Math.max(1, Math.floor(prevRoundMatches / 2));
+
+      // Determine round name based on number of matches
+      if (numMatches === 1) {
+        roundName = m.import_final();
+      } else if (numMatches === 2) {
+        roundName = m.import_semifinals();
+      } else if (numMatches <= 4) {
+        roundName = m.import_quarterfinals();
+      } else if (numMatches <= 8) {
+        roundName = m.import_round16();
+      } else {
+        roundName = m.import_round32();
       }
     }
 
-    // Create empty matches
+    // Create empty matches with unique IDs
+    const roundId = crypto.randomUUID();
     const emptyMatches: MatchEntry[] = [];
     for (let i = 0; i < numMatches; i++) {
       emptyMatches.push({
+        id: crypto.randomUUID(),
         participantAId: '',
         participantAName: '',
         participantBId: '',
@@ -479,6 +552,7 @@
     brackets[bracketIndex].rounds = [
       ...brackets[bracketIndex].rounds,
       {
+        id: roundId,
         name: roundName,
         matches: emptyMatches
       }
@@ -497,6 +571,7 @@
     brackets[bracketIndex].rounds[roundIndex].matches = [
       ...brackets[bracketIndex].rounds[roundIndex].matches,
       {
+        id: crypto.randomUUID(),
         participantAId: '',
         participantAName: '',
         participantBId: '',
@@ -519,6 +594,13 @@
   function removeMatch(bracketIndex: number, roundIndex: number, matchIndex: number) {
     brackets[bracketIndex].rounds[roundIndex].matches =
       brackets[bracketIndex].rounds[roundIndex].matches.filter((_, i) => i !== matchIndex);
+    saveDraft();
+  }
+
+  // Remove round
+  function removeRound(bracketIndex: number, roundIndex: number) {
+    brackets[bracketIndex].rounds = brackets[bracketIndex].rounds.filter((_, i) => i !== roundIndex);
+    saveDraft();
   }
 
   // Toast helper
@@ -611,11 +693,8 @@
           standings: g.standings.map(s => ({
             participantName: s.participantName || participants.find(p => p.id === s.participantId)?.name || '',
             position: s.position,
-            matchesWon: s.matchesWon,
-            matchesLost: s.matchesLost,
-            matchesTied: s.matchesTied,
-            total20s: s.total20s,
-            totalPointsScored: s.totalPointsScored
+            points: s.points,
+            total20s: s.total20s
           }))
         }))
       };
@@ -642,25 +721,37 @@
       }))
     };
 
-    return {
+    // Build input object - only include optional fields if they have values
+    const input: HistoricalTournamentInput = {
       name,
-      edition,
       tournamentDate: new Date(tournamentDate).getTime(),
-      address: address || undefined,
       city,
       country,
       gameType,
-      rankingConfig: {
-        enabled: rankingEnabled,
-        tier: rankingEnabled ? selectedTier : undefined
-      },
-      importNotes: importNotes || undefined,
+      rankingConfig: rankingEnabled
+        ? { enabled: true, tier: selectedTier }
+        : { enabled: false },
       phaseType: hasGroupStage ? 'TWO_PHASE' : 'ONE_PHASE',
       show20s: true,
       participants: participantInputs,
-      groupStage: groupStageInput,
       finalStage: finalStageInput
     };
+
+    // Add optional fields only if they have values
+    if (edition !== undefined && edition !== null) {
+      input.edition = edition;
+    }
+    if (address && address.trim()) {
+      input.address = address.trim();
+    }
+    if (importNotes && importNotes.trim()) {
+      input.importNotes = importNotes.trim();
+    }
+    if (groupStageInput) {
+      input.groupStage = groupStageInput;
+    }
+
+    return input;
   }
 
   // Submit
@@ -674,6 +765,7 @@
     isSaving = true;
     try {
       const input = buildTournamentInput();
+      console.log('🔍 DEBUG - Tournament input:', JSON.stringify(input, null, 2));
       const tournamentId = await createHistoricalTournament(input);
 
       if (tournamentId) {
@@ -831,16 +923,7 @@
 
               <div class="info-field">
                 <label for="country">{m.wizard_country()}</label>
-                <select
-                  id="country"
-                  bind:value={country}
-                  class="input-field"
-                >
-                  <option value="">{m.wizard_selectOption()}</option>
-                  {#each DEVELOPED_COUNTRIES as countryOption}
-                    <option value={countryOption}>{countryOption}</option>
-                  {/each}
-                </select>
+                <CountrySelect id="country" bind:value={country} />
               </div>
 
               <div class="info-field date-field">
@@ -921,68 +1004,107 @@
         <div class="step-container">
           <h2>{m.wizard_participants()}</h2>
 
-          <!-- Search Section -->
-          <div class="info-section">
-            <div class="info-section-header">{m.import_searchPlayer()}</div>
-            <div class="info-grid">
-              <div class="info-field full-width">
-                <div class="search-input-wrapper">
-                  <input
-                    type="text"
-                    bind:value={searchQuery}
-                    oninput={handleSearchInput}
-                    placeholder={m.import_searchPlayer()}
-                    class="input-field search-input"
+          {#if gameType === 'doubles'}
+            <!-- Doubles: PairSelector + Batch add for team names -->
+            <div class="info-section">
+              <div class="info-section-header">{m.wizard_addPair()}</div>
+              <div class="info-grid">
+                <div class="info-field full-width">
+                  <PairSelector
+                    onadd={handlePairAdd}
+                    existingParticipants={participants.map(p => ({ id: p.id, name: p.name, pairId: p.pairId }))}
+                    excludedUserIds={excludedUserIds}
+                    theme={$adminTheme}
                   />
-                  {#if searchLoading}
-                    <div class="search-spinner">
-                      <LoadingSpinner size="small" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Batch input for team names (doubles) -->
+            <div class="info-section">
+              <button class="info-section-header clickable" onclick={() => showBatchInput = !showBatchInput}>
+                {m.import_batchAdd()} {showBatchInput ? '▼' : '▶'}
+              </button>
+              {#if showBatchInput}
+                <div class="info-grid">
+                  <div class="info-field full-width">
+                    <textarea
+                      bind:value={batchInput}
+                      placeholder={m.import_batchHintDoubles()}
+                      class="input-field textarea"
+                      rows="4"
+                    ></textarea>
+                    <button class="add-batch-btn" onclick={addBatchParticipants}>
+                      + {m.import_addTeam()}
+                    </button>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {:else}
+            <!-- Singles: Search for individual players -->
+            <div class="info-section">
+              <div class="info-section-header">{m.import_searchPlayer()}</div>
+              <div class="info-grid">
+                <div class="info-field full-width">
+                  <div class="search-input-wrapper">
+                    <input
+                      type="text"
+                      bind:value={searchQuery}
+                      oninput={handleSearchInput}
+                      placeholder={m.import_searchPlayer()}
+                      class="input-field search-input"
+                    />
+                    {#if searchLoading}
+                      <div class="search-spinner">
+                        <LoadingSpinner size="small" />
+                      </div>
+                    {/if}
+                  </div>
+
+                  {#if searchResults.length > 0}
+                    <div class="search-results">
+                      {#each searchResults as user}
+                        <button class="search-result" onclick={() => addParticipantFromSearch(user)}>
+                          <span class="result-name">{user.playerName || 'Usuario'}</span>
+                          <span class="result-add">+</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {:else if searchQuery.length >= 2 && !searchLoading}
+                    <div class="search-results">
+                      <button class="search-result guest" onclick={addGuestParticipant}>
+                        <span class="result-name">+ "{searchQuery}"</span>
+                        <span class="result-badge guest">{m.import_createAsGuest()}</span>
+                      </button>
                     </div>
                   {/if}
                 </div>
-
-                {#if searchResults.length > 0}
-                  <div class="search-results">
-                    {#each searchResults as user}
-                      <button class="search-result" onclick={() => addParticipantFromSearch(user)}>
-                        <span class="result-name">{user.playerName || 'Usuario'}</span>
-                        <span class="result-add">+</span>
-                      </button>
-                    {/each}
-                  </div>
-                {:else if searchQuery.length >= 2 && !searchLoading}
-                  <div class="search-results">
-                    <button class="search-result guest" onclick={addGuestParticipant}>
-                      <span class="result-name">+ "{searchQuery}"</span>
-                      <span class="result-badge guest">{m.import_createAsGuest()}</span>
-                    </button>
-                  </div>
-                {/if}
               </div>
             </div>
-          </div>
 
-          <!-- Batch input -->
-          <div class="info-section">
-            <button class="info-section-header clickable" onclick={() => showBatchInput = !showBatchInput}>
-              {m.import_batchAdd()} {showBatchInput ? '▼' : '▶'}
-            </button>
-            {#if showBatchInput}
-              <div class="info-grid">
-                <div class="info-field full-width">
-                  <textarea
-                    bind:value={batchInput}
-                    placeholder={m.import_batchHint()}
-                    class="input-field textarea"
-                    rows="4"
-                  ></textarea>
-                  <button class="add-batch-btn" onclick={addBatchParticipants}>
-                    + {m.import_addParticipant()}
-                  </button>
+            <!-- Batch input (singles) -->
+            <div class="info-section">
+              <button class="info-section-header clickable" onclick={() => showBatchInput = !showBatchInput}>
+                {m.import_batchAdd()} {showBatchInput ? '▼' : '▶'}
+              </button>
+              {#if showBatchInput}
+                <div class="info-grid">
+                  <div class="info-field full-width">
+                    <textarea
+                      bind:value={batchInput}
+                      placeholder={m.import_batchHint()}
+                      class="input-field textarea"
+                      rows="4"
+                    ></textarea>
+                    <button class="add-batch-btn" onclick={addBatchParticipants}>
+                      + {m.import_addParticipant()}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            {/if}
-          </div>
+              {/if}
+            </div>
+          {/if}
 
           <!-- Participants list -->
           <div class="info-section">
@@ -994,12 +1116,12 @@
                 {:else}
                   <div class="participants-grid">
                     {#each sortedParticipants as participant}
-                      <div class="participant-item">
+                      <div class="participant-item" class:registered={participant.isRegistered}>
                         <span class="participant-name">
-                          {participant.name}
-                          {#if participant.isRegistered}
-                            <span class="registered-badge">✓</span>
+                          {#if participant.participantMode === 'pair'}
+                            <span class="pair-badge">👥</span>
                           {/if}
+                          {participant.name}
                         </span>
                         <button class="remove-btn" onclick={() => removeParticipant(participant.id)}>
                           ×
@@ -1045,82 +1167,81 @@
             <!-- Groups -->
             {#each groups as group, groupIndex}
               <div class="info-section group-section">
-                <div class="info-section-header">{group.name}</div>
-                <div class="info-grid">
-                  <div class="info-field full-width">
-                    <table class="standings-table">
-                      <thead>
-                        <tr>
-                          <th>{m.import_position()}</th>
-                          <th>{m.common_name()}</th>
-                          <th>{m.import_wonShort()}</th>
-                          <th>{m.import_lostShort()}</th>
-                          <th>{m.import_pointsShort()}</th>
-                          <th>{m.import_twentiesShort()}</th>
-                          <th></th>
+                <div class="info-section-header group-header">
+                  <span>{group.name}</span>
+                  <button class="add-row-btn-inline" onclick={() => addStandingRow(groupIndex)}>
+                    + {m.import_addRow()}
+                  </button>
+                </div>
+                <div class="standings-wrapper">
+                  <table class="standings-table">
+                    <thead>
+                      <tr>
+                        <th class="col-pos">#</th>
+                        <th class="col-name">{m.common_name()}</th>
+                        <th class="col-num">{m.import_pointsShort()}</th>
+                        <th class="col-num">{m.import_twentiesShort()}</th>
+                        <th class="col-action"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each group.standings as standing, standingIndex}
+                        {@const availableParticipants = sortedParticipants.filter(p =>
+                          p.id === standing.participantId || !assignedParticipantIds().has(p.id)
+                        )}
+                        <tr class:zebra={standingIndex % 2 === 1}>
+                          <td class="position-cell">{standing.position}</td>
+                          <td>
+                            <select
+                              bind:value={standing.participantId}
+                              class="input-field compact participant-dropdown"
+                              onchange={() => {
+                                standing.participantName = getParticipantName(standing.participantId);
+                                const pointsInput = document.getElementById(`points-${groupIndex}-${standingIndex}`);
+                                if (pointsInput && standing.participantId) {
+                                  pointsInput.focus();
+                                  (pointsInput as HTMLInputElement).select();
+                                }
+                              }}
+                            >
+                              <option value="">{m.import_selectParticipant()}</option>
+                              {#each availableParticipants as p}
+                                <option value={p.id}>{p.name}</option>
+                              {/each}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              id="points-{groupIndex}-{standingIndex}"
+                              type="number"
+                              bind:value={standing.points}
+                              min="0"
+                              class="input-field compact number-input"
+                              onfocus={(e) => (e.target as HTMLInputElement).select()}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              id="twenties-{groupIndex}-{standingIndex}"
+                              type="number"
+                              bind:value={standing.total20s}
+                              min="0"
+                              class="input-field compact number-input"
+                              onfocus={(e) => (e.target as HTMLInputElement).select()}
+                            />
+                          </td>
+                          <td>
+                            <button class="remove-btn small" onclick={() => removeStandingRow(groupIndex, standingIndex)}>
+                              ×
+                            </button>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {#each group.standings as standing, standingIndex}
-                          <tr>
-                            <td class="position-cell">{standing.position}</td>
-                            <td>
-                              <select
-                                bind:value={standing.participantId}
-                                class="input-field compact"
-                                onchange={() => {
-                                  standing.participantName = getParticipantName(standing.participantId);
-                                }}
-                              >
-                                <option value="">{m.import_selectParticipant()}</option>
-                                {#each participants as p}
-                                  <option value={p.id} disabled={assignedParticipantIds().has(p.id) && standing.participantId !== p.id}>
-                                    {p.name}
-                                  </option>
-                                {/each}
-                              </select>
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                bind:value={standing.matchesWon}
-                                min="0"
-                                class="input-field compact number-input"
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                bind:value={standing.matchesLost}
-                                min="0"
-                                class="input-field compact number-input"
-                              />
-                            </td>
-                            <td class="points-cell">
-                              {standing.matchesWon * 2 + standing.matchesTied}
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                bind:value={standing.total20s}
-                                min="0"
-                                class="input-field compact number-input"
-                              />
-                            </td>
-                            <td>
-                              <button class="remove-btn small" onclick={() => removeStandingRow(groupIndex, standingIndex)}>
-                                ×
-                              </button>
-                            </td>
-                          </tr>
-                        {/each}
-                      </tbody>
-                    </table>
-
-                    <button class="add-row-btn" onclick={() => addStandingRow(groupIndex)}>
-                      + {m.import_addRow()}
-                    </button>
-                  </div>
+                      {/each}
+                    </tbody>
+                  </table>
+                  {#if group.standings.length === 0}
+                    <div class="empty-group-hint">{m.import_addRowHint()}</div>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -1132,241 +1253,225 @@
         <div class="step-container">
           <h2>{m.import_knockoutStage()}</h2>
 
-          <div class="info-section">
-            <div class="info-section-header">{m.wizard_configuration()}</div>
-            <div class="info-grid config-grid">
-              <div class="info-field">
-                <label for="numBrackets">{m.import_numBrackets()}</label>
-                <select id="numBrackets" bind:value={numBrackets} class="input-field" style="width: 100px;">
-                  {#each [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as n}
-                    <option value={n}>{n}</option>
-                  {/each}
-                </select>
-              </div>
-            </div>
+          <!-- Config: Number of brackets -->
+          <div class="knockout-config">
+            <label for="numBrackets">{m.import_numBrackets()}:</label>
+            <select id="numBrackets" bind:value={numBrackets} class="input-field brackets-select">
+              {#each [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as n}
+                <option value={n}>{n}</option>
+              {/each}
+            </select>
           </div>
 
           <!-- Brackets -->
           {#each brackets as bracket, bracketIndex}
-            <div class="info-section bracket-section bracket-{bracket.label.toLowerCase()}">
-              <div class="info-section-header bracket-header">
-                <span>{bracket.name}</span>
-                <span class="bracket-label-badge">{bracket.label}</span>
+            <div class="bracket-card bracket-{bracket.label.toLowerCase()}">
+              <div class="bracket-card-header">
+                <div class="bracket-title">
+                  <span class="bracket-label-pill">{bracket.label}</span>
+                  <span class="bracket-name">{bracket.name}</span>
+                </div>
+                <button class="add-round-btn-compact" onclick={() => addRound(bracketIndex)}>
+                  + {m.import_addRound()}
+                </button>
               </div>
-              <div class="info-grid">
-                <div class="info-field full-width">
-                  <!-- Rounds -->
-                  {#each bracket.rounds as round, roundIndex}
-                    <div class="round-section">
-                      <div class="round-header">
-                        <h4>{round.name}</h4>
-                        <button class="add-match-btn" onclick={() => addMatch(bracketIndex, roundIndex)}>
-                          + {m.import_addMatch()}
-                        </button>
+
+              <div class="bracket-content">
+                {#if bracket.rounds.length === 0}
+                  <div class="empty-bracket-hint">{m.import_clickAddRound()}</div>
+                {:else}
+                  {#each bracket.rounds as round, roundIndex (round.id)}
+                    <div class="round-card">
+                      <div class="round-card-header">
+                        <span class="round-name">{round.name}</span>
+                        <div class="round-actions">
+                          <span class="round-match-count">{round.matches.length} {round.matches.length === 1 ? 'partido' : 'partidos'}</span>
+                          <button class="round-delete" onclick={() => removeRound(bracketIndex, roundIndex)} title="Eliminar ronda">×</button>
+                        </div>
                       </div>
 
-                      <!-- Matches with selectors -->
-                      {#each round.matches as match, matchIndex}
-                        {@const usedInRound = getUsedParticipantsInRound(bracketIndex, roundIndex, matchIndex)}
-                        {@const usedInOtherBrackets = getUsedParticipantsInOtherBrackets(bracketIndex)}
-                        {@const availableForA = sortedParticipants.filter(p =>
-                          p.id === match.participantAId ||
-                          (!usedInRound.has(p.id) && !usedInOtherBrackets.has(p.id) && p.id !== match.participantBId)
-                        )}
-                        {@const availableForB = sortedParticipants.filter(p =>
-                          p.id === match.participantBId ||
-                          (!usedInRound.has(p.id) && !usedInOtherBrackets.has(p.id) && p.id !== match.participantAId)
-                        )}
-                        {@const matchId = `b${bracketIndex}-r${roundIndex}-m${matchIndex}`}
-                        <div class="match-entry-row">
-                          <select
-                            id="{matchId}-a"
-                            class="input-field participant-select"
-                            bind:value={match.participantAId}
-                            onchange={(e) => {
-                              match.participantAName = getParticipantName(match.participantAId);
-                              // Auto-tab to score A
-                              const scoreA = document.getElementById(`${matchId}-scoreA`);
-                              if (scoreA && match.participantAId) scoreA.focus();
-                            }}
-                          >
-                            <option value="">{m.import_selectParticipant()}</option>
-                            {#each availableForA as p}
-                              <option value={p.id}>{p.name}</option>
-                            {/each}
-                          </select>
+                      <div class="matches-grid">
+                        {#each round.matches as match, matchIndex (match.id)}
+                          {@const usedInRound = getUsedParticipantsInRound(bracketIndex, roundIndex, matchIndex)}
+                          {@const usedInOtherBrackets = getUsedParticipantsInOtherBrackets(bracketIndex)}
+                          {@const matchId = `b${bracketIndex}-r${roundIndex}-m${matchIndex}`}
+                          {@const hasWinner = match.scoreA !== match.scoreB && match.participantAId && match.participantBId}
 
-                          <div class="score-inputs">
-                            <input
-                              id="{matchId}-scoreA"
-                              type="number"
-                              class="input-field score-input"
-                              bind:value={match.scoreA}
-                              min="0"
-                              placeholder="0"
-                              onfocus={(e) => e.currentTarget.select()}
-                              onkeydown={(e) => {
-                                if (e.key === 'Enter' || e.key === 'Tab') {
-                                  e.preventDefault();
-                                  const scoreB = document.getElementById(`${matchId}-scoreB`);
-                                  if (scoreB) scoreB.focus();
-                                }
-                              }}
-                            />
-                            <span class="score-separator">-</span>
-                            <input
-                              id="{matchId}-scoreB"
-                              type="number"
-                              class="input-field score-input"
-                              bind:value={match.scoreB}
-                              min="0"
-                              placeholder="0"
-                              onfocus={(e) => e.currentTarget.select()}
-                              onkeydown={(e) => {
-                                if (e.key === 'Enter' || e.key === 'Tab') {
-                                  e.preventDefault();
-                                  const selectB = document.getElementById(`${matchId}-b`);
-                                  if (selectB) selectB.focus();
-                                }
-                              }}
-                            />
+                          <div class="match-card" class:complete={hasWinner}>
+                            <div class="match-players">
+                              <div class="player-row" class:winner={match.scoreA > match.scoreB && hasWinner}>
+                                <select
+                                  id="{matchId}-a"
+                                  class="player-select"
+                                  bind:value={match.participantAId}
+                                  onchange={() => {
+                                    match.participantAName = getParticipantName(match.participantAId);
+                                    const scoreA = document.getElementById(`${matchId}-scoreA`);
+                                    if (scoreA && match.participantAId) scoreA.focus();
+                                  }}
+                                >
+                                  <option value="">— Seleccionar —</option>
+                                  {#each sortedParticipants as p (p.id)}
+                                    {@const isUsed = (usedInRound.has(p.id) || usedInOtherBrackets.has(p.id) || p.id === match.participantBId) && p.id !== match.participantAId}
+                                    <option value={p.id} disabled={isUsed}>{p.name}{isUsed ? ' ✓' : ''}</option>
+                                  {/each}
+                                </select>
+                                <input
+                                  id="{matchId}-scoreA"
+                                  type="number"
+                                  class="score-field"
+                                  bind:value={match.scoreA}
+                                  min="0"
+                                  placeholder="0"
+                                  onfocus={(e) => e.currentTarget.select()}
+                                />
+                              </div>
+                              <div class="vs-divider">vs</div>
+                              <div class="player-row" class:winner={match.scoreB > match.scoreA && hasWinner}>
+                                <select
+                                  id="{matchId}-b"
+                                  class="player-select"
+                                  bind:value={match.participantBId}
+                                  onchange={() => {
+                                    match.participantBName = getParticipantName(match.participantBId);
+                                  }}
+                                >
+                                  <option value="">— Seleccionar —</option>
+                                  {#each sortedParticipants as p (p.id)}
+                                    {@const isUsed = (usedInRound.has(p.id) || usedInOtherBrackets.has(p.id) || p.id === match.participantAId) && p.id !== match.participantBId}
+                                    <option value={p.id} disabled={isUsed}>{p.name}{isUsed ? ' ✓' : ''}</option>
+                                  {/each}
+                                </select>
+                                <input
+                                  id="{matchId}-scoreB"
+                                  type="number"
+                                  class="score-field"
+                                  bind:value={match.scoreB}
+                                  min="0"
+                                  placeholder="0"
+                                  onfocus={(e) => e.currentTarget.select()}
+                                />
+                              </div>
+                            </div>
+                            <button class="match-remove" onclick={() => removeMatch(bracketIndex, roundIndex, matchIndex)}>×</button>
                           </div>
+                        {/each}
 
-                          <select
-                            id="{matchId}-b"
-                            class="input-field participant-select"
-                            bind:value={match.participantBId}
-                            onchange={(e) => {
-                              match.participantBName = getParticipantName(match.participantBId);
-                              // Auto-tab to next match's participant A or add button
-                              const nextMatchA = document.getElementById(`b${bracketIndex}-r${roundIndex}-m${matchIndex + 1}-a`);
-                              if (nextMatchA && match.participantBId) {
-                                nextMatchA.focus();
-                              }
-                            }}
-                          >
-                            <option value="">{m.import_selectParticipant()}</option>
-                            {#each availableForB as p}
-                              <option value={p.id}>{p.name}</option>
-                            {/each}
-                          </select>
-
-                          <button class="remove-btn small" onclick={() => removeMatch(bracketIndex, roundIndex, matchIndex)}>
-                            ×
-                          </button>
-                        </div>
-                      {/each}
-
-                      {#if round.matches.length === 0}
-                        <p class="empty-round-message">{m.import_noMatches()}</p>
-                      {/if}
+                        <button class="add-match-card" onclick={() => addMatch(bracketIndex, roundIndex)}>
+                          + Partido
+                        </button>
+                      </div>
                     </div>
                   {/each}
-
-                  <button class="add-row-btn" onclick={() => addRound(bracketIndex)}>
-                    + {m.import_addRound()}
-                  </button>
-                </div>
+                {/if}
               </div>
             </div>
           {/each}
         </div>
 
       {:else if currentStep === 5}
-        <!-- Step 5: Review -->
-        <div class="step-container">
-          <h2>{m.wizard_finalReview()}</h2>
-
-          <div class="info-section">
-            <div class="info-section-header">{m.import_tournamentInfo()}</div>
-            <div class="review-grid">
-              <div class="review-item">
-                <span class="review-label">{m.wizard_name()}</span>
-                <span class="review-value">{name}</span>
-              </div>
-              {#if edition}
-                <div class="review-item">
-                  <span class="review-label">{m.wizard_edition()}</span>
-                  <span class="review-value">#{edition}</span>
-                </div>
-              {/if}
-              <div class="review-item">
-                <span class="review-label">{m.wizard_date()}</span>
-                <span class="review-value">{tournamentDate}</span>
-              </div>
-              <div class="review-item">
-                <span class="review-label">{m.wizard_location()}</span>
-                <span class="review-value">{#if address}{address}, {/if}{city}, {country}</span>
-              </div>
-              <div class="review-item">
-                <span class="review-label">{m.wizard_gameType()}</span>
-                <span class="review-value">{gameType === 'singles' ? 'Singles' : 'Dobles'}</span>
-              </div>
+        <!-- Step 5: Review - Professional & Compact -->
+        <div class="step-container review-step">
+          <!-- Tournament Header Card -->
+          <div class="review-header-card">
+            <div class="review-title-row">
+              <h3>{name}{#if edition} <span class="edition">#{edition}</span>{/if}</h3>
+              <span class="review-type-badge">{gameType === 'singles' ? 'Singles' : 'Dobles'}</span>
+            </div>
+            <div class="review-meta">
+              <span class="meta-item">📅 {tournamentDate}</span>
+              <span class="meta-item">📍 {#if address}{address}, {/if}{city}</span>
+              <span class="meta-item">🏳️ {country}</span>
+              <span class="meta-item">👥 {participants.length}</span>
             </div>
           </div>
 
-          <div class="info-section">
-            <div class="info-section-header">{m.import_participants()} ({participants.length})</div>
-            <div class="info-grid">
-              <div class="info-field full-width">
-                <div class="review-participants">
-                  {#each sortedParticipants as p}
-                    <span class="review-participant">
-                      {p.name}
-                      {#if p.isRegistered}<span class="registered-badge small">✓</span>{/if}
-                    </span>
-                  {/each}
-                </div>
-              </div>
+          <!-- Participants Chips -->
+          <div class="review-section">
+            <div class="review-section-title">{m.import_participants()}</div>
+            <div class="review-chips">
+              {#each sortedParticipants as p}
+                <span class="review-chip" class:registered={p.isRegistered}>{p.name}</span>
+              {/each}
             </div>
           </div>
 
-          {#if hasGroupStage}
-            <div class="info-section">
-              <div class="info-section-header">{m.import_groupStage()} ({groups.length} grupos)</div>
-              <div class="info-grid">
-                <div class="info-field full-width">
-                  <div class="review-groups-row">
-                    {#each groups as group}
-                      <div class="review-group">
-                        <h4>{group.name}</h4>
-                        <ol>
-                          {#each group.standings as standing}
-                            <li>{standing.participantName || getParticipantName(standing.participantId)}</li>
-                          {/each}
-                        </ol>
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              </div>
-            </div>
-          {/if}
-
-          <div class="info-section">
-            <div class="info-section-header">{m.import_knockoutStage()} ({brackets.length} brackets)</div>
-            <div class="info-grid">
-              <div class="info-field full-width">
-                {#each brackets as bracket}
-                  <div class="review-bracket">
-                    <h4>{bracket.name}</h4>
-                    {#each bracket.rounds as round}
-                      <div class="review-round">
-                        <strong>{round.name}:</strong>
-                        {#each round.matches as match}
-                          <div class="review-match">
-                            <span class:winner={match.scoreA > match.scoreB}>{match.participantAName || getParticipantName(match.participantAId)}</span>
-                            <strong>{match.scoreA} - {match.scoreB}</strong>
-                            <span class:winner={match.scoreB > match.scoreA}>{match.participantBName || getParticipantName(match.participantBId)}</span>
-                          </div>
+          <!-- Group Stage Tables -->
+          {#if hasGroupStage && groups.length > 0}
+            <div class="review-section">
+              <div class="review-section-title">{m.import_groupStage()}</div>
+              <div class="review-groups-grid">
+                {#each groups as group, groupIndex}
+                  <div class="review-group-card">
+                    <div class="review-group-header">{m.import_groupName({ n: groupIndex + 1 })}</div>
+                    <table class="review-standings-table">
+                      <thead>
+                        <tr><th>#</th><th>{m.tournament_playerColumn()}</th><th>Pts</th><th>20s</th></tr>
+                      </thead>
+                      <tbody>
+                        {#each group.standings as standing, idx}
+                          {@const pName = standing.participantName || getParticipantName(standing.participantId)}
+                          <tr class:zebra={idx % 2 === 1}>
+                            <td class="pos">{standing.position || idx + 1}</td>
+                            <td class="pname">{pName || '—'}</td>
+                            <td class="num">{standing.points || 0}</td>
+                            <td class="num">{standing.total20s || 0}</td>
+                          </tr>
                         {/each}
-                      </div>
-                    {/each}
+                      </tbody>
+                    </table>
                   </div>
                 {/each}
               </div>
             </div>
+          {/if}
+
+          <!-- Knockout Stage Brackets -->
+          <div class="review-section">
+            <div class="review-section-title">{m.import_knockoutStage()}</div>
+            <div class="review-brackets-container">
+              {#each brackets as bracket}
+                {@const typeLabel = gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()}
+                <div class="review-bracket-card">
+                  <div class="review-bracket-header">{m.import_bracketNameWithType({ type: typeLabel, label: bracket.label })}</div>
+                  <div class="review-bracket-rounds">
+                    {#each bracket.rounds as round}
+                      <div class="review-round-col">
+                        <div class="review-round-label">{round.name}</div>
+                        <div class="review-matches-col">
+                          {#each round.matches as match}
+                            {@const pA = match.participantAName || getParticipantName(match.participantAId)}
+                            {@const pB = match.participantBName || getParticipantName(match.participantBId)}
+                            {@const isBye = (!pA || !pB) && (match.scoreA > 0 || match.scoreB > 0)}
+                            {@const hasResult = (match.scoreA !== match.scoreB) || isBye}
+                            <div class="review-match-box" class:complete={hasResult} class:bye={isBye}>
+                              <div class="rm-row" class:winner={match.scoreA > match.scoreB && hasResult}>
+                                <span class="rm-name">{pA || 'BYE'}</span>
+                                <span class="rm-score">{match.scoreA}</span>
+                              </div>
+                              <div class="rm-row" class:winner={match.scoreB > match.scoreA && hasResult}>
+                                <span class="rm-name">{pB || 'BYE'}</span>
+                                <span class="rm-score">{match.scoreB}</span>
+                              </div>
+                              {#if isBye}<span class="bye-tag">BYE</span>{/if}
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
           </div>
+
+          <!-- Import Notes -->
+          {#if importNotes}
+            <div class="review-section">
+              <div class="review-section-title">Notas</div>
+              <div class="review-notes-box">{importNotes}</div>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -2090,24 +2195,36 @@
   /* Participants Grid */
   .participants-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 0.6rem;
   }
 
   .participant-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.4rem 0.6rem;
+    padding: 0.6rem 0.8rem;
     background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    font-size: 0.8rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    border-left: 3px solid transparent;
+    color: #1a1a1a;
+  }
+
+  .participant-item.registered {
+    border-left-color: #10b981;
   }
 
   .wizard-container[data-theme='dark'] .participant-item {
     background: #1a2332;
     border-color: #2d3748;
+    border-left-color: transparent;
+    color: #e1e8ed;
+  }
+
+  .wizard-container[data-theme='dark'] .participant-item.registered {
+    border-left-color: #10b981;
   }
 
   .registered-badge {
@@ -2118,6 +2235,11 @@
 
   .registered-badge.small {
     font-size: 0.7rem;
+  }
+
+  .pair-badge {
+    margin-right: 0.25rem;
+    font-size: 0.8rem;
   }
 
   .remove-btn {
@@ -2165,6 +2287,10 @@
     text-align: center;
   }
 
+  .wizard-container[data-theme='dark'] .empty-message {
+    color: #6b7280;
+  }
+
   /* Add buttons */
   .add-batch-btn,
   .add-row-btn {
@@ -2186,7 +2312,24 @@
     background: rgba(5, 150, 105, 0.05);
   }
 
+  .wizard-container[data-theme='dark'] .add-batch-btn,
+  .wizard-container[data-theme='dark'] .add-row-btn {
+    border-color: #4b5563;
+    color: #9ca3af;
+  }
+
+  .wizard-container[data-theme='dark'] .add-batch-btn:hover,
+  .wizard-container[data-theme='dark'] .add-row-btn:hover {
+    border-color: #10b981;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+  }
+
   /* Standings Table */
+  .standings-wrapper {
+    padding: 0;
+  }
+
   .standings-table {
     width: 100%;
     border-collapse: collapse;
@@ -2195,41 +2338,148 @@
 
   .standings-table th,
   .standings-table td {
-    padding: 0.4rem 0.5rem;
+    padding: 0.5rem 0.75rem;
     text-align: left;
-    border-bottom: 1px solid #e5e7eb;
-  }
-
-  .wizard-container[data-theme='dark'] .standings-table th,
-  .wizard-container[data-theme='dark'] .standings-table td {
-    border-color: #2d3748;
   }
 
   .standings-table th {
     font-weight: 600;
     color: #6b7280;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: #f8f9fa;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .wizard-container[data-theme='dark'] .standings-table th {
+    background: #1a2332;
+    border-color: #374151;
+    color: #8b9bb3;
+  }
+
+  .standings-table tbody tr {
+    transition: background-color 0.15s;
+  }
+
+  .standings-table tbody tr:hover {
+    background: rgba(102, 126, 234, 0.04);
+  }
+
+  .wizard-container[data-theme='dark'] .standings-table tbody tr:hover {
+    background: rgba(102, 126, 234, 0.08);
+  }
+
+  .standings-table tbody tr.zebra {
+    background: #f1f5f9;
+  }
+
+  .wizard-container[data-theme='dark'] .standings-table tbody tr.zebra {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .standings-table tbody tr.zebra:hover {
+    background: #e2e8f0;
+  }
+
+  .wizard-container[data-theme='dark'] .standings-table tbody tr.zebra:hover {
+    background: rgba(102, 126, 234, 0.12);
+  }
+
+  .standings-table td {
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .wizard-container[data-theme='dark'] .standings-table td {
+    border-color: #2d3748;
+  }
+
+  .standings-table .col-pos {
+    width: 40px;
+    text-align: center;
+  }
+
+  .standings-table .col-name {
+    width: auto;
+  }
+
+  .standings-table .col-num {
+    width: 80px;
+    text-align: center;
+  }
+
+  .standings-table .col-action {
+    width: 36px;
+    text-align: center;
   }
 
   .position-cell {
-    width: 35px;
-    font-weight: 600;
+    font-weight: 700;
     color: #374151;
+    text-align: center;
+    font-size: 0.85rem;
   }
 
   .wizard-container[data-theme='dark'] .position-cell {
     color: #d1d5db;
   }
 
-  .points-cell {
-    font-weight: 600;
-    color: #059669;
+  .participant-dropdown {
+    width: 100%;
+    min-width: 140px;
   }
 
   .number-input {
-    width: 45px;
+    width: 60px;
     text-align: center;
+  }
+
+  /* Group header with inline add button */
+  .group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .add-row-btn-inline {
+    padding: 0.25rem 0.6rem;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    color: #6b7280;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .add-row-btn-inline:hover {
+    border-color: #059669;
+    color: #059669;
+    background: rgba(5, 150, 105, 0.05);
+  }
+
+  .wizard-container[data-theme='dark'] .add-row-btn-inline {
+    border-color: #4b5563;
+    color: #9ca3af;
+  }
+
+  .wizard-container[data-theme='dark'] .add-row-btn-inline:hover {
+    border-color: #10b981;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+  }
+
+  .empty-group-hint {
+    text-align: center;
+    padding: 1.5rem;
+    color: #9ca3af;
+    font-size: 0.8rem;
+    font-style: italic;
+  }
+
+  .wizard-container[data-theme='dark'] .empty-group-hint {
+    color: #6b7280;
   }
 
   /* Match rows */
@@ -2255,6 +2505,10 @@
     font-weight: 600;
   }
 
+  .wizard-container[data-theme='dark'] .round-section h4 {
+    color: #9ca3af;
+  }
+
   .round-header {
     display: flex;
     justify-content: space-between;
@@ -2277,6 +2531,17 @@
     border-color: #059669;
     color: #059669;
     background: rgba(5, 150, 105, 0.05);
+  }
+
+  .wizard-container[data-theme='dark'] .add-match-btn {
+    border-color: #4b5563;
+    color: #9ca3af;
+  }
+
+  .wizard-container[data-theme='dark'] .add-match-btn:hover {
+    border-color: #10b981;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
   }
 
   .match-entry-row {
@@ -2322,12 +2587,354 @@
     font-weight: 600;
   }
 
+  .wizard-container[data-theme='dark'] .score-separator {
+    color: #6b7280;
+  }
+
   .empty-round-message {
     color: #9ca3af;
     font-size: 0.8rem;
     font-style: italic;
     text-align: center;
     padding: 0.5rem;
+  }
+
+  .wizard-container[data-theme='dark'] .empty-round-message {
+    color: #6b7280;
+  }
+
+  /* Step 4: Knockout Stage Redesign */
+  .knockout-config {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: #374151;
+  }
+
+  .wizard-container[data-theme='dark'] .knockout-config {
+    color: #d1d5db;
+  }
+
+  .brackets-select {
+    width: 70px;
+    padding: 0.35rem 0.5rem;
+  }
+
+  .bracket-card {
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+
+  .wizard-container[data-theme='dark'] .bracket-card {
+    background: #161b22;
+    border-color: #2d3748;
+  }
+
+  .bracket-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0.75rem;
+    background: #f0f0f0;
+    border-bottom: 1px solid #e8e8e8;
+  }
+
+  .wizard-container[data-theme='dark'] .bracket-card-header {
+    background: #1e252d;
+    border-color: #2d3748;
+  }
+
+  .bracket-card.bracket-a .bracket-card-header { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+  .bracket-card.bracket-b .bracket-card-header { background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%); }
+  .bracket-card.bracket-c .bracket-card-header { background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); }
+  .bracket-card.bracket-d .bracket-card-header { background: linear-gradient(135deg, #dbeafe 0%, #93c5fd 100%); }
+  .bracket-card.bracket-e .bracket-card-header { background: linear-gradient(135deg, #dcfce7 0%, #86efac 100%); }
+
+  .bracket-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .bracket-label-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: rgba(0,0,0,0.15);
+    color: #1a1a1a;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 0.75rem;
+  }
+
+  .bracket-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #1a1a1a;
+  }
+
+  .add-round-btn-compact {
+    padding: 0.25rem 0.6rem;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(0,0,0,0.15);
+    border-radius: 4px;
+    color: #374151;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .add-round-btn-compact:hover {
+    background: rgba(255,255,255,0.9);
+    border-color: #059669;
+    color: #059669;
+  }
+
+  .bracket-content {
+    padding: 0.75rem;
+  }
+
+  .empty-bracket-hint {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #9ca3af;
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+
+  .wizard-container[data-theme='dark'] .empty-bracket-hint {
+    color: #6b7280;
+  }
+
+  .round-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+
+  .wizard-container[data-theme='dark'] .round-card {
+    background: #1a2332;
+    border-color: #374151;
+  }
+
+  .round-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .wizard-container[data-theme='dark'] .round-card-header {
+    background: #0f1419;
+    border-color: #374151;
+  }
+
+  .round-name {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #374151;
+  }
+
+  .wizard-container[data-theme='dark'] .round-name {
+    color: #e1e8ed;
+  }
+
+  .round-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .round-match-count {
+    font-size: 0.7rem;
+    color: #9ca3af;
+  }
+
+  .round-delete {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 1rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+
+  .round-delete:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+  }
+
+  .matches-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .match-card {
+    display: flex;
+    align-items: stretch;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .wizard-container[data-theme='dark'] .match-card {
+    background: #0f1419;
+    border-color: #2d3748;
+  }
+
+  .match-card.complete {
+    border-color: #10b981;
+  }
+
+  .match-players {
+    flex: 1;
+    padding: 0.4rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .player-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .player-row.winner .player-select {
+    font-weight: 600;
+    color: #059669;
+  }
+
+  .wizard-container[data-theme='dark'] .player-row.winner .player-select {
+    color: #10b981;
+  }
+
+  .player-select {
+    flex: 1;
+    min-width: 0;
+    padding: 0.3rem 0.4rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    background: white;
+    color: #1a1a1a;
+  }
+
+  .wizard-container[data-theme='dark'] .player-select {
+    background: #1a2332;
+    border-color: #374151;
+    color: #e1e8ed;
+  }
+
+  .player-select:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+
+  .score-field {
+    width: 38px;
+    padding: 0.3rem 0.25rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    background: white;
+    color: #1a1a1a;
+    flex-shrink: 0;
+  }
+
+  .wizard-container[data-theme='dark'] .score-field {
+    background: #1a2332;
+    border-color: #374151;
+    color: #e1e8ed;
+  }
+
+  .score-field:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+
+  .vs-divider {
+    font-size: 0.6rem;
+    color: #9ca3af;
+    text-align: center;
+    padding: 0 0.25rem;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .match-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    background: transparent;
+    border: none;
+    color: #cbd5e1;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+  }
+
+  .match-remove:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+  }
+
+  .add-match-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 70px;
+    background: transparent;
+    border: 2px dashed #d1d5db;
+    border-radius: 6px;
+    color: #9ca3af;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .add-match-card:hover {
+    border-color: #059669;
+    color: #059669;
+    background: rgba(5, 150, 105, 0.03);
+  }
+
+  .wizard-container[data-theme='dark'] .add-match-card {
+    border-color: #4b5563;
+    color: #6b7280;
+  }
+
+  .wizard-container[data-theme='dark'] .add-match-card:hover {
+    border-color: #10b981;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.05);
   }
 
   /* Review */
@@ -2349,6 +2956,10 @@
     color: #6b7280;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+  }
+
+  .wizard-container[data-theme='dark'] .review-label {
+    color: #8b9bb3;
   }
 
   .review-value {
@@ -2373,11 +2984,13 @@
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     font-size: 0.75rem;
+    color: #374151;
   }
 
   .wizard-container[data-theme='dark'] .review-participant {
     background: #1a2332;
     border-color: #2d3748;
+    color: #e1e8ed;
   }
 
   .review-groups-row {
@@ -2407,6 +3020,11 @@
     margin: 0;
     padding-left: 1.25rem;
     font-size: 0.8rem;
+    color: #374151;
+  }
+
+  .wizard-container[data-theme='dark'] .review-group ol {
+    color: #d1d5db;
   }
 
   .review-bracket {
@@ -2423,17 +3041,380 @@
     color: #6b7280;
   }
 
+  .wizard-container[data-theme='dark'] .review-round strong {
+    color: #9ca3af;
+  }
+
   .review-match {
     font-size: 0.8rem;
     padding: 0.2rem 0;
     display: flex;
     gap: 0.5rem;
     align-items: center;
+    color: #374151;
+  }
+
+  .wizard-container[data-theme='dark'] .review-match {
+    color: #d1d5db;
   }
 
   .review-match .winner {
     font-weight: 600;
     color: #10b981;
+  }
+
+  /* ========== NEW REVIEW STEP 5 STYLES ========== */
+  .review-step { padding-bottom: 1rem; }
+
+  /* Header Card - Clean Corporate Style */
+  .review-header-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid #10b981;
+  }
+  .wizard-container[data-theme='dark'] .review-header-card {
+    background: #1a2332;
+    border-color: #2d3748;
+    border-left-color: #10b981;
+  }
+  .review-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+  }
+  .review-title-row h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+  .wizard-container[data-theme='dark'] .review-title-row h3 {
+    color: #f1f5f9;
+  }
+  .review-title-row .edition {
+    font-weight: 500;
+    color: #6b7280;
+  }
+  .wizard-container[data-theme='dark'] .review-title-row .edition {
+    color: #9ca3af;
+  }
+  .review-type-badge {
+    background: #f0fdf4;
+    color: #15803d;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border: 1px solid #bbf7d0;
+  }
+  .wizard-container[data-theme='dark'] .review-type-badge {
+    background: #14532d;
+    color: #86efac;
+    border-color: #166534;
+  }
+  .review-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+  }
+  .wizard-container[data-theme='dark'] .review-meta {
+    color: #9ca3af;
+  }
+  .meta-item { white-space: nowrap; }
+
+  /* Sections */
+  .review-section {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+  }
+  .wizard-container[data-theme='dark'] .review-section {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+  .review-section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.6rem 0.75rem;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    color: #6b7280;
+  }
+  .wizard-container[data-theme='dark'] .review-section-title {
+    background: #0f172a;
+    border-color: #2d3748;
+    color: #9ca3af;
+  }
+
+  /* Participant Chips */
+  .review-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.75rem;
+  }
+  .review-chip {
+    padding: 0.2rem 0.5rem;
+    background: #f3f4f6;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    color: #4b5563;
+  }
+  .review-chip.registered {
+    background: #dbeafe;
+    color: #1e40af;
+    border-left: 2px solid #3b82f6;
+  }
+  .wizard-container[data-theme='dark'] .review-chip {
+    background: #374151;
+    color: #d1d5db;
+  }
+  .wizard-container[data-theme='dark'] .review-chip.registered {
+    background: #1e3a5f;
+    color: #93c5fd;
+    border-left-color: #3b82f6;
+  }
+
+  /* Groups Grid */
+  .review-groups-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+  .review-group-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .wizard-container[data-theme='dark'] .review-group-card {
+    border-color: #374151;
+  }
+  .review-group-header {
+    background: #f3f4f6;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+  }
+  .wizard-container[data-theme='dark'] .review-group-header {
+    background: #1e293b;
+    color: #e5e7eb;
+  }
+  .review-standings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.7rem;
+  }
+  .review-standings-table th {
+    background: #f9fafb;
+    padding: 0.3rem 0.4rem;
+    text-align: left;
+    font-weight: 500;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .wizard-container[data-theme='dark'] .review-standings-table th {
+    background: #0f172a;
+    color: #9ca3af;
+    border-color: #374151;
+  }
+  .review-standings-table td {
+    padding: 0.3rem 0.4rem;
+    color: #374151;
+  }
+  .wizard-container[data-theme='dark'] .review-standings-table td {
+    color: #d1d5db;
+  }
+  .review-standings-table tr.zebra td {
+    background: #f9fafb;
+  }
+  .wizard-container[data-theme='dark'] .review-standings-table tr.zebra td {
+    background: #0f172a;
+  }
+  .review-standings-table tr.qualified td {
+    background: #ecfdf5;
+  }
+  .wizard-container[data-theme='dark'] .review-standings-table tr.qualified td {
+    background: #064e3b;
+  }
+  .review-standings-table .pos { width: 24px; text-align: center; font-weight: 600; }
+  .review-standings-table .pname { font-weight: 500; }
+  .review-standings-table .num { width: 32px; text-align: center; color: #6b7280; }
+
+  /* Brackets Container */
+  .review-brackets-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.75rem;
+  }
+  .review-bracket-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .wizard-container[data-theme='dark'] .review-bracket-card {
+    border-color: #374151;
+  }
+  .review-bracket-header {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: white;
+  }
+  .review-bracket-card:nth-child(2) .review-bracket-header {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  }
+  .review-bracket-card:nth-child(3) .review-bracket-header {
+    background: linear-gradient(135deg, #a16207 0%, #854d0e 100%);
+  }
+
+  /* Bracket Rounds - Horizontal Layout */
+  .review-bracket-rounds {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    overflow-x: auto;
+    background: #fafafa;
+  }
+  .wizard-container[data-theme='dark'] .review-bracket-rounds {
+    background: #0f172a;
+  }
+  .review-round-col {
+    flex: 0 0 auto;
+    min-width: 140px;
+  }
+  .review-round-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6b7280;
+    padding: 0.25rem 0;
+    margin-bottom: 0.4rem;
+    border-bottom: 2px solid #3b82f6;
+  }
+  .wizard-container[data-theme='dark'] .review-round-label {
+    color: #9ca3af;
+    border-color: #3b82f6;
+  }
+  .review-matches-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* Match Box */
+  .review-match-box {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .wizard-container[data-theme='dark'] .review-match-box {
+    background: #1e293b;
+    border-color: #374151;
+  }
+  .review-match-box.complete {
+    border-color: #10b981;
+  }
+  .review-match-box.bye {
+    border-style: dashed;
+    opacity: 0.8;
+  }
+  .rm-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .wizard-container[data-theme='dark'] .rm-row {
+    border-color: #374151;
+  }
+  .rm-row:last-child { border-bottom: none; }
+  .rm-row.winner {
+    background: #ecfdf5;
+    font-weight: 600;
+  }
+  .wizard-container[data-theme='dark'] .rm-row.winner {
+    background: #064e3b;
+  }
+  .rm-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #374151;
+  }
+  .wizard-container[data-theme='dark'] .rm-name {
+    color: #d1d5db;
+  }
+  .rm-row.winner .rm-name {
+    color: #059669;
+  }
+  .wizard-container[data-theme='dark'] .rm-row.winner .rm-name {
+    color: #10b981;
+  }
+  .rm-score {
+    font-weight: 600;
+    min-width: 18px;
+    text-align: center;
+    color: #6b7280;
+  }
+  .rm-row.winner .rm-score {
+    color: #059669;
+  }
+  .wizard-container[data-theme='dark'] .rm-row.winner .rm-score {
+    color: #10b981;
+  }
+  .bye-tag {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+  }
+  .wizard-container[data-theme='dark'] .bye-tag {
+    background: #78350f;
+    color: #fcd34d;
+  }
+
+  /* Notes Box */
+  .review-notes-box {
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-style: italic;
+  }
+  .wizard-container[data-theme='dark'] .review-notes-box {
+    color: #9ca3af;
+  }
+
+  /* Responsive */
+  @media (max-width: 500px) {
+    .review-meta { flex-direction: column; gap: 0.25rem; }
+    .review-groups-grid { grid-template-columns: 1fr; }
+    .review-round-col { min-width: 120px; }
   }
 
   /* Navigation */

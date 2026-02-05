@@ -18,6 +18,7 @@
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TournamentRulesModal from '$lib/components/tournament/TournamentRulesModal.svelte';
+  import CountrySelect from '$lib/components/CountrySelect.svelte';
 
   let tournament: Tournament | null = $state(null);
   let loading = $state(true);
@@ -44,6 +45,13 @@
   let editRankingTier = $state<'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR'>('CLUB');
   let editConsolationEnabled = $state(false);
   let editThirdPlaceMatchEnabled = $state(true);
+
+  // Metadata fields (for event info editing)
+  let editDescription = $state('');
+  let editEdition = $state<number | undefined>(undefined);
+  let editAddress = $state('');
+  let editCity = $state('');
+  let editCountry = $state('');
 
   let tournamentId = $derived($page.params.id);
 
@@ -232,6 +240,13 @@
     // Initialize third place match toggle (default true)
     editThirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
 
+    // Initialize metadata fields
+    editDescription = tournament.description || '';
+    editEdition = tournament.edition;
+    editAddress = tournament.address || '';
+    editCity = tournament.city || '';
+    editCountry = tournament.country || '';
+
     showQuickEdit = true;
   }
 
@@ -277,7 +292,13 @@
         rankingConfig: {
           enabled: editRankingEnabled,
           tier: editRankingTier
-        }
+        },
+        // Metadata fields
+        description: editDescription.trim() || undefined,
+        edition: editEdition || undefined,
+        address: editAddress.trim() || undefined,
+        city: editCity.trim() || undefined,
+        country: editCountry.trim() || undefined
       };
 
       // Update finalStage options if it exists
@@ -335,6 +356,11 @@
                 <span class="status-badge" style="background: {getStatusColor(tournament.status)}; color: {getStatusTextColor(tournament.status)}">
                   {getStatusText(tournament.status)}
                 </span>
+                {#if tournament.isImported}
+                  <span class="info-badge imported-badge">
+                    📥 {m.import_imported()}
+                  </span>
+                {/if}
                 <span class="info-badge participants-badge">
                   {tournament.participants.length} {m.admin_participants()}
                 </span>
@@ -389,7 +415,17 @@
               <button class="action-btn" onclick={openQuickEdit}>
                 {m.admin_edit()}
               </button>
+            {:else if tournament.status === 'COMPLETED'}
+              <button class="action-btn" onclick={openQuickEdit}>
+                {m.admin_edit()}
+              </button>
             {/if}
+            <a href="/tournaments/{tournamentId}" class="public-link" title="Ver página pública">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </a>
             <ThemeToggle />
           </div>
         </div>
@@ -775,158 +811,251 @@
   <!-- Quick Edit Modal -->
   {#if showQuickEdit && tournament}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-backdrop" data-theme={$adminTheme} onclick={closeQuickEdit} role="none" onkeydown={(e) => e.key === 'Escape' && closeQuickEdit()}>
+    <div class="modal-backdrop" data-theme={$adminTheme} onmousedown={(e) => e.target === e.currentTarget && closeQuickEdit()} role="none" onkeydown={(e) => e.key === 'Escape' && closeQuickEdit()}>
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-      <div class="quick-edit-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+      <div class="quick-edit-modal" class:compact={tournament.status === 'COMPLETED'} role="dialog" aria-modal="true" tabindex="-1">
         <div class="quick-edit-header">
-          <div class="header-title">
-            <h2>⚙️ {m.admin_tournamentSettings()}</h2>
-            <span class="header-subtitle">{m.admin_modifiableConfiguration()}</span>
+          <h2>{m.admin_tournamentSettings()}</h2>
+          <div class="header-actions">
+            {#if tournament.status === 'COMPLETED'}
+              <button
+                class="save-btn"
+                onclick={saveQuickEdit}
+                disabled={isSavingQuickEdit || !editName.trim()}
+              >
+                {isSavingQuickEdit ? m.admin_saving() : m.admin_saveSettings()}
+              </button>
+            {/if}
+            <button class="close-btn" onclick={closeQuickEdit}>×</button>
           </div>
-          <button class="close-btn" onclick={closeQuickEdit}>×</button>
         </div>
 
-        <div class="quick-edit-body">
-          <!-- Left Column: Basic Info -->
-          <div class="edit-column">
-            <div class="column-header">
-              <span class="column-icon">📋</span>
-              <span>{m.admin_basicInfo()}</span>
+        <div class="quick-edit-body" class:single-column={tournament.status === 'COMPLETED'}>
+          {#if tournament.status === 'COMPLETED'}
+            <!-- Compact layout for completed tournaments -->
+            <div class="field-row">
+              <div class="field-group small">
+                <label for="edit-edition">{m.wizard_edition()}</label>
+                <input
+                  type="number"
+                  id="edit-edition"
+                  bind:value={editEdition}
+                  min="1"
+                  placeholder="—"
+                />
+              </div>
+              <div class="field-group flex-grow">
+                <label for="edit-name">{m.admin_tournamentName()}</label>
+                <input
+                  type="text"
+                  id="edit-name"
+                  bind:value={editName}
+                  placeholder={m.admin_tournamentName()}
+                />
+              </div>
             </div>
-            
+
             <div class="field-group">
-              <label for="edit-name">{m.admin_tournamentName()}</label>
+              <label for="edit-address">{m.wizard_address()}</label>
               <input
                 type="text"
-                id="edit-name"
-                bind:value={editName}
-                placeholder={m.admin_tournamentName()}
+                id="edit-address"
+                bind:value={editAddress}
+                placeholder="Av. Diagonal 123"
               />
             </div>
 
-            <div class="field-row">
+            <div class="field-row three-cols">
               <div class="field-group">
-                <label for="edit-date">{m.admin_dateLabel()}</label>
+                <label for="edit-city">{m.wizard_city()}</label>
+                <input
+                  type="text"
+                  id="edit-city"
+                  bind:value={editCity}
+                  placeholder="Barcelona"
+                />
+              </div>
+              <div class="field-group">
+                <label for="edit-country">{m.wizard_country()}</label>
+                <CountrySelect id="edit-country" bind:value={editCountry} />
+              </div>
+              <div class="field-group">
+                <label for="edit-date">{m.wizard_date()}</label>
                 <input
                   type="date"
                   id="edit-date"
                   bind:value={editDate}
                 />
               </div>
+            </div>
+
+            <div class="field-group">
+              <label for="edit-description">{m.wizard_description()}</label>
+              <textarea
+                id="edit-description"
+                bind:value={editDescription}
+                placeholder={m.wizard_descriptionOptional()}
+                rows="2"
+              ></textarea>
+            </div>
+          {:else}
+            <!-- Full layout for active tournaments -->
+            <div class="edit-column">
+              <div class="column-header">{m.admin_basicInfo()}</div>
 
               <div class="field-group">
-                <label for="edit-tables">{m.admin_availableTables()}</label>
+                <label for="edit-name">{m.admin_tournamentName()}</label>
                 <input
-                  type="number"
-                  id="edit-tables"
-                  bind:value={editNumTables}
-                  min="1"
-                  max="50"
+                  type="text"
+                  id="edit-name"
+                  bind:value={editName}
+                  placeholder={m.admin_tournamentName()}
                 />
-                <span class="field-hint" class:warning={tablesWarning}>
-                  {#if tablesWarning}
-                    ⚠️ {m.wizard_someRest({ max: maxPlayersForTables })}
-                  {:else}
-                    {maxPlayersForTables} {m.time_parallel()}
-                  {/if}
-                </span>
+              </div>
+
+              <div class="field-row">
+                <div class="field-group">
+                  <label for="edit-date">{m.admin_dateLabel()}</label>
+                  <input
+                    type="date"
+                    id="edit-date"
+                    bind:value={editDate}
+                  />
+                </div>
+                <div class="field-group">
+                  <label for="edit-tables">{m.admin_availableTables()}</label>
+                  <input
+                    type="number"
+                    id="edit-tables"
+                    bind:value={editNumTables}
+                    min="1"
+                    max="50"
+                  />
+                  <span class="field-hint" class:warning={tablesWarning}>
+                    {#if tablesWarning}
+                      {m.wizard_someRest({ max: maxPlayersForTables })}
+                    {:else}
+                      {maxPlayersForTables} {m.time_parallel()}
+                    {/if}
+                  </span>
+                </div>
+              </div>
+
+              <div class="subsection">
+                <div class="subsection-header">{m.admin_rankingSystem()}</div>
+                <label class="switch-row">
+                  <span class="switch-label">{m.admin_rankingSystemEnabled()}</span>
+                  <input type="checkbox" bind:checked={editRankingEnabled} class="toggle-switch" />
+                </label>
+
+                {#if editRankingEnabled}
+                  <div class="field-group tier-field">
+                    <label for="edit-tier">{m.admin_category()}</label>
+                    <select id="edit-tier" bind:value={editRankingTier}>
+                      <option value="CLUB">{m.admin_tierClub()} · 15p máx</option>
+                      <option value="REGIONAL">{m.admin_tierRegional()} · 25p máx</option>
+                      <option value="NATIONAL">{m.admin_tierNational()} · 40p máx</option>
+                      <option value="MAJOR">{m.admin_tierMajor()} · 50p máx</option>
+                    </select>
+                  </div>
+                {/if}
+              </div>
+
+              <div class="subsection">
+                <div class="subsection-header">{m.admin_eventInfo()}</div>
+                <div class="field-group">
+                  <label for="edit-description">{m.wizard_description()}</label>
+                  <textarea
+                    id="edit-description"
+                    bind:value={editDescription}
+                    placeholder={m.wizard_descriptionOptional()}
+                    rows="2"
+                  ></textarea>
+                </div>
+
+                <div class="field-row">
+                  <div class="field-group">
+                    <label for="edit-edition">{m.wizard_edition()}</label>
+                    <input
+                      type="number"
+                      id="edit-edition"
+                      bind:value={editEdition}
+                      min="1"
+                      placeholder="1, 2, 3..."
+                    />
+                  </div>
+                  <div class="field-group">
+                    <label for="edit-address">{m.wizard_address()}</label>
+                    <input
+                      type="text"
+                      id="edit-address"
+                      bind:value={editAddress}
+                    />
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field-group">
+                    <label for="edit-city">{m.wizard_city()}</label>
+                    <input
+                      type="text"
+                      id="edit-city"
+                      bind:value={editCity}
+                    />
+                  </div>
+                  <div class="field-group">
+                    <label for="edit-country">{m.wizard_country()}</label>
+                    <CountrySelect id="edit-country" bind:value={editCountry} />
+                  </div>
+                </div>
               </div>
             </div>
 
-            <!-- Ranking Section -->
-            <div class="subsection">
-              <div class="subsection-header">
-                <span class="subsection-icon">📊</span>
-                <span>{m.admin_rankingSystem()}</span>
+            <div class="edit-column">
+              <div class="column-header">{m.admin_gameOptions()}</div>
+              <div class="options-grid">
+                <label class="option-card">
+                  <input type="checkbox" bind:checked={editShow20s} />
+                  <span class="option-text">{m.admin_track20s()}</span>
+                </label>
+                <label class="option-card">
+                  <input type="checkbox" bind:checked={editShowHammer} />
+                  <span class="option-text">{m.admin_showHammer()}</span>
+                </label>
               </div>
-              
-              <label class="switch-row">
-                <span class="switch-label">
-                  <span class="switch-icon">📈</span>
-                  {m.admin_rankingSystemEnabled()}
-                </span>
-                <input type="checkbox" bind:checked={editRankingEnabled} class="toggle-switch" />
-              </label>
 
-              {#if editRankingEnabled}
-                <div class="field-group tier-field">
-                  <label for="edit-tier">{m.admin_category()}</label>
-                  <select id="edit-tier" bind:value={editRankingTier}>
-                    <option value="CLUB">🏠 {m.admin_tierClub()} · 15p máx</option>
-                    <option value="REGIONAL">🏝️ {m.admin_tierRegional()} · 25p máx</option>
-                    <option value="NATIONAL">🇪🇸 {m.admin_tierNational()} · 40p máx</option>
-                    <option value="MAJOR">🏆 {m.admin_tierMajor()} · 50p máx</option>
-                  </select>
+              {#if tournament.finalStage}
+                <div class="subsection">
+                  <div class="subsection-header">{m.time_finalStage()}</div>
+                  <label class="switch-row">
+                    <span class="switch-label">{m.admin_consolationRounds()}</span>
+                    <input type="checkbox" bind:checked={editConsolationEnabled} class="toggle-switch" />
+                  </label>
+                  <p class="option-description">{m.admin_consolationRoundsDescription()}</p>
+
+                  <label class="switch-row">
+                    <span class="switch-label">{m.wizard_thirdPlaceMatch()}</span>
+                    <input type="checkbox" bind:checked={editThirdPlaceMatchEnabled} class="toggle-switch" />
+                  </label>
+                  <p class="option-description">{m.wizard_thirdPlaceMatchDesc()}</p>
                 </div>
               {/if}
             </div>
-          </div>
-
-          <!-- Right Column: Options -->
-          <div class="edit-column">
-            <div class="column-header">
-              <span class="column-icon">🎮</span>
-              <span>{m.admin_gameOptions()}</span>
-            </div>
-
-            <div class="options-grid">
-              <label class="option-card">
-                <input type="checkbox" bind:checked={editShow20s} />
-                <span class="option-icon">🎯</span>
-                <span class="option-text">{m.admin_track20s()}</span>
-              </label>
-
-              <label class="option-card">
-                <input type="checkbox" bind:checked={editShowHammer} />
-                <span class="option-icon">🔨</span>
-                <span class="option-text">{m.admin_showHammer()}</span>
-              </label>
-            </div>
-
-            <!-- Final Stage Section -->
-            {#if tournament.finalStage}
-              <div class="subsection">
-                <div class="subsection-header">
-                  <span class="subsection-icon">🏆</span>
-                  <span>{m.time_finalStage()}</span>
-                </div>
-
-                <label class="switch-row">
-                  <span class="switch-label">
-                    <span class="switch-icon">🎖️</span>
-                    {m.admin_consolationRounds()}
-                  </span>
-                  <input type="checkbox" bind:checked={editConsolationEnabled} class="toggle-switch" />
-                </label>
-                <p class="option-description">
-                  {m.admin_consolationRoundsDescription()}
-                </p>
-
-                <label class="switch-row">
-                  <span class="switch-label">
-                    <span class="switch-icon">🥉</span>
-                    {m.wizard_thirdPlaceMatch()}
-                  </span>
-                  <input type="checkbox" bind:checked={editThirdPlaceMatchEnabled} class="toggle-switch" />
-                </label>
-                <p class="option-description">
-                  {m.wizard_thirdPlaceMatchDesc()}
-                </p>
-              </div>
-            {/if}
-          </div>
+          {/if}
         </div>
 
-        <div class="quick-edit-footer">
-          <button class="btn-secondary" onclick={closeQuickEdit}>{m.common_cancel()}</button>
-          <button
-            class="btn-primary"
-            onclick={saveQuickEdit}
-            disabled={isSavingQuickEdit || !editName.trim()}
-          >
-            {isSavingQuickEdit ? `⏳ ${m.admin_saving()}...` : `💾 ${m.admin_saveChanges()}`}
-          </button>
-        </div>
+        {#if tournament.status !== 'COMPLETED'}
+          <div class="quick-edit-footer">
+            <button class="btn-secondary" onclick={closeQuickEdit}>{m.common_cancel()}</button>
+            <button
+              class="btn-primary"
+              onclick={saveQuickEdit}
+              disabled={isSavingQuickEdit || !editName.trim()}
+            >
+              {isSavingQuickEdit ? m.admin_saving() + '...' : m.admin_saveChanges()}
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -1090,6 +1219,16 @@
     color: #86efac;
   }
 
+  .imported-badge {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .tournament-page[data-theme='dark'] .imported-badge {
+    background: #78350f;
+    color: #fde68a;
+  }
+
   .header-actions {
     display: flex;
     align-items: center;
@@ -1148,6 +1287,36 @@
 
   .action-btn.danger:hover {
     background: #fecaca;
+  }
+
+  .public-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    color: #6b7280;
+    transition: all 0.2s;
+  }
+
+  .public-link:hover {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+  }
+
+  .public-link svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .tournament-page[data-theme='dark'] .public-link {
+    color: #8b9bb3;
+  }
+
+  .tournament-page[data-theme='dark'] .public-link:hover {
+    background: rgba(102, 126, 234, 0.15);
+    color: #667eea;
   }
 
   /* Content */
@@ -1749,33 +1918,33 @@
     cursor: not-allowed;
   }
 
-  /* Quick Edit Modal - Redesigned */
+  /* Quick Edit Modal */
   .quick-edit-modal {
     background: white;
-    border-radius: 20px;
+    border-radius: 16px;
     padding: 0;
-    max-width: 720px;
+    max-width: 680px;
     width: 95%;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25);
-    transition: all 0.3s;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   }
 
   .modal-backdrop[data-theme='dark'] .quick-edit-modal {
     background: #1a2332;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
 
   .quick-edit-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding: 1.5rem 2rem;
+    align-items: center;
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid #e5e7eb;
     position: sticky;
     top: 0;
     background: white;
-    border-radius: 20px 20px 0 0;
+    border-radius: 16px 16px 0 0;
     z-index: 1;
   }
 
@@ -1784,16 +1953,10 @@
     border-color: #2d3748;
   }
 
-  .header-title {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
   .quick-edit-header h2 {
     margin: 0;
-    font-size: 1.35rem;
-    font-weight: 700;
+    font-size: 1rem;
+    font-weight: 600;
     color: #1a1a1a;
   }
 
@@ -1801,26 +1964,51 @@
     color: #e1e8ed;
   }
 
-  .header-subtitle {
-    font-size: 0.85rem;
-    color: #888;
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .header-subtitle {
-    color: #6b7a94;
+  .save-btn {
+    padding: 0.35rem 0.75rem;
+    background: transparent;
+    color: #667eea;
+    border: 1px solid #667eea;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .save-btn:hover {
+    background: rgba(102, 126, 234, 0.08);
+  }
+
+  .save-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .modal-backdrop[data-theme='dark'] .save-btn {
+    color: #8b9fd6;
+    border-color: #8b9fd6;
+  }
+
+  .modal-backdrop[data-theme='dark'] .save-btn:hover {
+    background: rgba(139, 159, 214, 0.1);
   }
 
   .close-btn {
-    width: 36px;
-    height: 36px;
+    width: 28px;
+    height: 28px;
     border: none;
-    background: #f3f4f6;
-    border-radius: 10px;
-    font-size: 1.5rem;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 1.25rem;
     line-height: 1;
-    color: #666;
+    color: #999;
     cursor: pointer;
-    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1828,14 +2016,12 @@
   }
 
   .modal-backdrop[data-theme='dark'] .close-btn {
-    background: #0f1419;
-    color: #8b9bb3;
+    color: #6b7a94;
   }
 
   .close-btn:hover {
-    background: #e5e7eb;
-    color: #1a1a1a;
-    transform: scale(1.05);
+    background: #f3f4f6;
+    color: #555;
   }
 
   .modal-backdrop[data-theme='dark'] .close-btn:hover {
@@ -1851,6 +2037,16 @@
     padding: 0;
   }
 
+  .quick-edit-body.single-column {
+    grid-template-columns: 1fr;
+    padding: 1.25rem 1.5rem;
+  }
+
+  /* Compact modal for completed tournaments */
+  .quick-edit-modal.compact {
+    max-width: 480px;
+  }
+
   .edit-column {
     padding: 1.5rem 2rem;
   }
@@ -1864,26 +2060,19 @@
   }
 
   .column-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    font-weight: 700;
+    font-size: 0.75rem;
+    font-weight: 600;
     color: #667eea;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 1.25rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid rgba(102, 126, 234, 0.2);
-  }
-
-  .column-icon {
-    font-size: 1rem;
+    letter-spacing: 0.5px;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(102, 126, 234, 0.2);
   }
 
   /* Field Groups */
   .field-group {
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
   }
 
   .field-group:last-child {
@@ -1892,10 +2081,10 @@
 
   .field-group label {
     display: block;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #555;
-    margin-bottom: 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #666;
+    margin-bottom: 0.3rem;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
@@ -1907,28 +2096,36 @@
   .field-group input[type="text"],
   .field-group input[type="date"],
   .field-group input[type="number"],
-  .field-group select {
+  .field-group select,
+  .field-group textarea {
     width: 100%;
-    padding: 0.7rem 0.9rem;
+    padding: 0.5rem 0.7rem;
     border: 1px solid #ddd;
-    border-radius: 10px;
-    font-size: 0.95rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
     color: #1a1a1a;
-    background: #f9fafb;
-    transition: all 0.2s;
+    background: #fafafa;
+    font-family: inherit;
+  }
+
+  .field-group textarea {
+    resize: vertical;
+    min-height: 52px;
   }
 
   .modal-backdrop[data-theme='dark'] .field-group input[type="text"],
   .modal-backdrop[data-theme='dark'] .field-group input[type="date"],
   .modal-backdrop[data-theme='dark'] .field-group input[type="number"],
-  .modal-backdrop[data-theme='dark'] .field-group select {
+  .modal-backdrop[data-theme='dark'] .field-group select,
+  .modal-backdrop[data-theme='dark'] .field-group textarea {
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
   .field-group input:focus,
-  .field-group select:focus {
+  .field-group select:focus,
+  .field-group textarea:focus {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
@@ -1937,8 +2134,25 @@
   .field-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .field-row.three-cols {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .field-group.small {
+    max-width: 70px;
+  }
+
+  .field-group.flex-grow {
+    flex: 1;
+  }
+
+  .field-row:has(.small) {
+    display: flex;
+    gap: 0.75rem;
   }
 
   .field-hint {
@@ -1986,10 +2200,6 @@
     color: #8b9bb3;
   }
 
-  .subsection-icon {
-    font-size: 0.95rem;
-  }
-
   /* Switch Rows */
   .switch-row {
     display: flex;
@@ -2026,10 +2236,6 @@
 
   .modal-backdrop[data-theme='dark'] .switch-label {
     color: #e1e8ed;
-  }
-
-  .switch-icon {
-    font-size: 1rem;
   }
 
   /* Toggle Switch Style */
@@ -2113,10 +2319,6 @@
     display: none;
   }
 
-  .option-icon {
-    font-size: 1.1rem;
-  }
-
   .option-text {
     font-size: 0.8rem;
     font-weight: 600;
@@ -2155,12 +2357,12 @@
   /* Footer */
   .quick-edit-footer {
     display: flex;
-    gap: 1rem;
+    gap: 0.75rem;
     justify-content: flex-end;
-    padding: 1.25rem 2rem;
+    padding: 1rem 1.5rem;
     border-top: 1px solid #e5e7eb;
-    background: #f9fafb;
-    border-radius: 0 0 20px 20px;
+    background: #fafafa;
+    border-radius: 0 0 16px 16px;
     position: sticky;
     bottom: 0;
   }
@@ -2171,15 +2373,14 @@
   }
 
   .btn-secondary {
-    padding: 0.75rem 1.5rem;
+    padding: 0.5rem 1rem;
     background: white;
     color: #555;
     border: 1px solid #ddd;
-    border-radius: 10px;
-    font-weight: 600;
+    border-radius: 8px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
 
   .modal-backdrop[data-theme='dark'] .btn-secondary {
@@ -2198,29 +2399,23 @@
   }
 
   .btn-primary {
-    padding: 0.75rem 1.75rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 0.5rem 1.25rem;
+    background: #667eea;
     color: white;
     border: none;
-    border-radius: 10px;
-    font-weight: 600;
+    border-radius: 8px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
-    font-size: 0.9rem;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    font-size: 0.8rem;
   }
 
   .btn-primary:hover {
-    opacity: 0.95;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    background: #5a6fd6;
   }
 
   .btn-primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
   }
 
   /* Responsive for quick edit modal */

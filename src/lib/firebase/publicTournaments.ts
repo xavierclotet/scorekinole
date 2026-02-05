@@ -25,6 +25,7 @@ export interface TournamentListItem {
 	edition?: number;
 	country: string;
 	city: string;
+	address?: string;
 	tournamentDate?: number;
 	status: TournamentStatus;
 	gameType: 'singles' | 'doubles';
@@ -104,11 +105,12 @@ export async function getPublicTournaments(
 				edition: data.edition,
 				country: data.country,
 				city: data.city,
+				address: data.address,
 				tournamentDate,
 				status: data.status,
 				gameType: data.gameType,
 				participantsCount,
-				tier: data.rankingConfig?.tier,
+				tier: data.rankingConfig?.enabled ? data.rankingConfig.tier : undefined,
 				createdAt:
 					data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt
 			});
