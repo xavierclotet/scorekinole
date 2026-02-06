@@ -1157,8 +1157,8 @@
 
 	.video-thumbnail {
 		position: relative;
-		width: 72px;
-		height: 40px;
+		width: 80px;
+		height: 45px;
 		background: #0f0f0f;
 		border-radius: 4px;
 		overflow: hidden;
@@ -1239,11 +1239,12 @@
 		font-size: 0.75rem;
 		font-weight: 500;
 		color: #e1e8ed;
-		line-height: 1.2;
-		white-space: nowrap;
+		line-height: 1.25;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
 		overflow: hidden;
-		text-overflow: ellipsis;
-		max-width: 180px;
+		max-width: 200px;
 	}
 
 	.video-score {
@@ -1968,11 +1969,11 @@
 
 		.video-card {
 			flex: 1;
-			min-width: 200px;
+			min-width: 220px;
 		}
 
 		.video-match-title {
-			max-width: 140px;
+			max-width: 160px;
 		}
 	}
 
