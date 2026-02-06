@@ -470,24 +470,42 @@
 				{#if isCompleted && matchesWithVideo.length > 0}
 					<div class="videos-section">
 						<div class="videos-header">
-							<span class="videos-title">Videos</span>
+							<svg class="videos-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+								<path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+							</svg>
+							<span class="videos-title">{m.tournament_matchVideos?.() ?? 'Videos del torneo'}</span>
 						</div>
-						<div class="videos-list">
+						<div class="videos-grid">
 							{#each matchesWithVideo as { match, label }}
 								<button
-									class="video-item"
+									class="video-card"
 									onclick={() => { videoMatch = match; showVideoModal = true; }}
 								>
-									<div class="video-item-icon">
-										<svg viewBox="0 0 24 24" fill="currentColor">
-											<polygon points="5 3 19 12 5 21 5 3"></polygon>
-										</svg>
+									<div class="video-thumbnail">
+										<div class="video-thumbnail-bg">
+											<svg class="youtube-logo" viewBox="0 0 28 20" fill="currentColor">
+												<path d="M27.4 3.1c-.3-1.2-1.2-2.1-2.4-2.4C22.8 0 14 0 14 0S5.2 0 3 .7C1.8 1 .9 1.9.6 3.1 0 5.3 0 10 0 10s0 4.7.6 6.9c.3 1.2 1.2 2.1 2.4 2.4 2.2.7 11 .7 11 .7s8.8 0 11-.7c1.2-.3 2.1-1.2 2.4-2.4.6-2.2.6-6.9.6-6.9s0-4.7-.6-6.9z"/>
+												<path fill="#fff" d="M11.2 14.2l7.3-4.2-7.3-4.2v8.4z"/>
+											</svg>
+										</div>
+										<div class="play-overlay">
+											<div class="play-button">
+												<svg viewBox="0 0 24 24" fill="currentColor">
+													<polygon points="5 3 19 12 5 21 5 3"></polygon>
+												</svg>
+											</div>
+										</div>
 									</div>
-									<div class="video-item-info">
-										<span class="video-item-label">{label}</span>
-										<span class="video-item-players">
+									<div class="video-info">
+										<span class="video-round">{label}</span>
+										<span class="video-match-title">
 											{getParticipantName(match.participantA)} vs {getParticipantName(match.participantB)}
 										</span>
+										{#if match.status === 'COMPLETED'}
+											<span class="video-score">
+												{match.totalPointsA || match.gamesWonA || 0} - {match.totalPointsB || match.gamesWonB || 0}
+											</span>
+										{/if}
 									</div>
 								</button>
 							{/each}
@@ -1084,86 +1102,154 @@
 
 	/* Videos Section */
 	.videos-section {
-		margin-top: 1rem;
-		padding-top: 0.875rem;
+		margin-top: 1.5rem;
+		padding-top: 1.25rem;
 		border-top: 1px solid #2d3748;
 	}
 
 	.videos-header {
-		margin-bottom: 0.5rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+	}
+
+	.videos-icon {
+		width: 18px;
+		height: 18px;
+		color: #ef4444;
 	}
 
 	.videos-title {
-		font-size: 0.7rem;
+		font-size: 0.8rem;
 		font-weight: 600;
-		color: #6b7a94;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		color: #e1e8ed;
+		letter-spacing: -0.01em;
 	}
 
-	.videos-list {
+	.videos-grid {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.5rem;
 	}
 
-	.video-item {
-		display: inline-flex;
+	.video-card {
+		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.375rem 0.625rem 0.375rem 0.375rem;
-		background: rgba(30, 41, 59, 0.4);
-		border: 1px solid #374151;
-		border-radius: 6px;
+		background: #1a2332;
+		border: 1px solid #2d3748;
+		border-radius: 8px;
+		padding: 0.5rem;
 		cursor: pointer;
-		transition: border-color 0.15s ease, background 0.15s ease;
+		transition: all 0.15s ease;
 		text-align: left;
 	}
 
-	.video-item:hover {
-		background: rgba(30, 41, 59, 0.6);
-		border-color: #dc2626;
+	.video-card:hover {
+		border-color: #ef4444;
+		background: #1e2a3d;
 	}
 
-	.video-item-icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 24px;
-		height: 24px;
-		background: #dc2626;
+	.video-card:hover .play-overlay {
+		opacity: 1;
+	}
+
+	.video-thumbnail {
+		position: relative;
+		width: 72px;
+		height: 40px;
+		background: #0f0f0f;
 		border-radius: 4px;
-		color: white;
+		overflow: hidden;
 		flex-shrink: 0;
 	}
 
-	.video-item-icon svg {
+	.video-thumbnail-bg {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: linear-gradient(145deg, #1a1a1a 0%, #0d0d0d 50%, #1a1a1a 100%);
+	}
+
+	.youtube-logo {
+		width: 28px;
+		height: 20px;
+		color: #cc0000;
+		opacity: 0.5;
+		transition: opacity 0.15s ease;
+	}
+
+	.video-card:hover .youtube-logo {
+		opacity: 0.3;
+	}
+
+	.play-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.4);
+		opacity: 0;
+		transition: opacity 0.15s ease;
+	}
+
+	.play-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 20px;
+		background: #cc0000;
+		border-radius: 4px;
+		color: white;
+		transition: background 0.15s ease;
+	}
+
+	.play-button svg {
 		width: 10px;
 		height: 10px;
 		margin-left: 1px;
 	}
 
-	.video-item-info {
+	.video-card:hover .play-button {
+		background: #ff0000;
+	}
+
+	.video-info {
 		display: flex;
 		flex-direction: column;
-		gap: 0;
+		gap: 0.125rem;
 		min-width: 0;
 	}
 
-	.video-item-label {
-		font-size: 0.65rem;
+	.video-round {
+		font-size: 0.6rem;
 		font-weight: 600;
-		color: #dc2626;
-		line-height: 1.2;
+		color: #ef4444;
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+		line-height: 1;
 	}
 
-	.video-item-players {
-		font-size: 0.7rem;
-		color: #94a3b8;
+	.video-match-title {
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: #e1e8ed;
+		line-height: 1.2;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		max-width: 180px;
+	}
+
+	.video-score {
+		font-size: 0.65rem;
+		font-weight: 500;
+		color: #6b7a94;
 	}
 
 	.podium-list {
@@ -1879,6 +1965,15 @@
 		.participant-name {
 			font-size: 0.8rem;
 		}
+
+		.video-card {
+			flex: 1;
+			min-width: 200px;
+		}
+
+		.video-match-title {
+			max-width: 140px;
+		}
 	}
 
 	/* Light theme */
@@ -2104,6 +2199,32 @@
 	.detail-container[data-theme='light'] .bracket-match::before,
 	.detail-container[data-theme='light'] .pair-connector {
 		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+	}
+
+	/* Light theme videos section */
+	.detail-container[data-theme='light'] .videos-section {
+		border-top-color: #e2e8f0;
+	}
+
+	.detail-container[data-theme='light'] .videos-title {
+		color: #1a202c;
+	}
+
+	.detail-container[data-theme='light'] .video-card {
+		background: #ffffff;
+		border-color: #e2e8f0;
+	}
+
+	.detail-container[data-theme='light'] .video-card:hover {
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+	}
+
+	.detail-container[data-theme='light'] .video-match-title {
+		color: #1a202c;
+	}
+
+	.detail-container[data-theme='light'] .video-score {
+		color: #718096;
 	}
 
 	/* Video Badge */

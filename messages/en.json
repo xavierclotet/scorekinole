@@ -985,5 +985,6 @@
   "video_invalidUrl": "Invalid YouTube URL",
   "video_matchVideo": "Match Video",
   "video_removeVideo": "Remove video",
-  "video_watchVideo": "Watch video"
+  "video_watchVideo": "Watch video",
+  "tournament_matchVideos": "Tournament videos"
 }

@@ -725,6 +725,7 @@
   "tournament_matchesPlayed": "Jugadas",
   "tournament_matchesTied": "Empates",
   "tournament_matchesWon": "Ganadas",
+  "tournament_matchVideos": "Videos del torneo",
   "tournament_miniLeagueDescription": "Desempate calculado solo con partidos entre jugadores empatados",
   "tournament_miniLeagueTiebreaker": "Desempate Mini-Liga",
   "tournament_mustCompleteAllRounds": "Debes completar todas las rondas",

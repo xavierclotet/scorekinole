@@ -985,5 +985,6 @@
   "video_invalidUrl": "URL de YouTube no vàlida",
   "video_matchVideo": "Vídeo del Partit",
   "video_removeVideo": "Treure vídeo",
-  "video_watchVideo": "Veure vídeo"
+  "video_watchVideo": "Veure vídeo",
+  "tournament_matchVideos": "Vídeos del torneig"
 }
