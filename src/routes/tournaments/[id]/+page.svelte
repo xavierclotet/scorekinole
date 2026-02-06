@@ -2372,4 +2372,50 @@
 			text-align: center;
 		}
 	}
+
+	/* Portrait fullscreen video modal */
+	@media (orientation: portrait) {
+		.video-modal-overlay {
+			padding: 0;
+		}
+
+		.video-modal {
+			width: 100%;
+			height: 100%;
+			max-height: 100%;
+			border-radius: 0;
+			border: none;
+			display: flex;
+			flex-direction: column;
+		}
+
+		.video-modal-content {
+			flex: 1;
+			padding-top: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background: #000;
+		}
+
+		.video-modal-content iframe {
+			position: relative;
+			width: 100%;
+			height: auto;
+			aspect-ratio: 16 / 9;
+			max-height: 100%;
+		}
+
+		.video-modal-close {
+			top: max(12px, env(safe-area-inset-top, 12px));
+			right: 12px;
+			background: rgba(0, 0, 0, 0.7);
+		}
+
+		.video-modal-info {
+			flex-shrink: 0;
+			padding: 1rem;
+			padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+		}
+	}
 </style>
