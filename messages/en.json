@@ -986,5 +986,16 @@
   "video_matchVideo": "Match Video",
   "video_removeVideo": "Remove video",
   "video_watchVideo": "Watch video",
-  "tournament_matchVideos": "Tournament videos"
+  "tournament_matchVideos": "Tournament videos",
+  "tournament_completeConfiguration": "Complete Setup",
+  "tournament_configurationIncomplete": "Incomplete configuration",
+  "tournament_upcoming": "Soon",
+  "tournament_upcomingDescription": "This tournament has been announced but is still pending full setup.",
+  "wizard_upcomingHint": "Do you just want to announce the tournament? You can complete the setup later.",
+  "wizard_saveAsUpcoming": "Save as Coming Soon",
+  "wizard_saveAsUpcomingSuccess": "Tournament saved. You can complete the setup later.",
+  "common_moreInfo": "More information",
+  "import_externalLink": "External link",
+  "tournament_resultsComingSoon": "The results will be available soon.",
+  "wizard_posterUrl": "Image of the tournament"
 }

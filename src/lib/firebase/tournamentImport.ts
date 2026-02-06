@@ -42,6 +42,7 @@ import { browser } from '$app/environment';
 export interface HistoricalTournamentInput {
   // Basic info
   name: string;
+  description?: string;
   edition?: number;
   tournamentDate: number;
   address?: string;
@@ -49,7 +50,8 @@ export interface HistoricalTournamentInput {
   country: string;
   gameType: 'singles' | 'doubles';
   rankingConfig: RankingConfig;
-  importNotes?: string;
+  externalLink?: string;
+  posterUrl?: string;
 
   // Structure
   phaseType: 'ONE_PHASE' | 'TWO_PHASE';
@@ -313,7 +315,7 @@ export async function createHistoricalTournament(
       // Build participant object without undefined values (Firebase rejects undefined)
       const participant: TournamentParticipant = {
         id,
-        type: p.userId ? 'REGISTERED' : 'GUEST',
+        type: p.oderId ? 'REGISTERED' : 'GUEST',
         name: p.name,
         rankingSnapshot: 0,
         currentRanking: 0,
@@ -321,8 +323,8 @@ export async function createHistoricalTournament(
       };
 
       // Only add optional fields if they have values
-      if (p.userId) {
-        participant.userId = p.userId;
+      if (p.oderId) {
+        participant.userId = p.oderId;
       }
       if (p.finalPosition !== undefined && p.finalPosition !== null) {
         participant.finalPosition = p.finalPosition;
@@ -585,6 +587,9 @@ export async function createHistoricalTournament(
     };
 
     // Add optional fields only if they have values
+    if (input.description) {
+      tournament.description = input.description;
+    }
     if (input.edition !== undefined && input.edition !== null) {
       tournament.edition = input.edition;
     }
@@ -594,8 +599,11 @@ export async function createHistoricalTournament(
     if (groupStage) {
       tournament.groupStage = groupStage;
     }
-    if (input.importNotes) {
-      tournament.importNotes = input.importNotes;
+    if (input.externalLink) {
+      tournament.externalLink = input.externalLink;
+    }
+    if (input.posterUrl) {
+      tournament.posterUrl = input.posterUrl;
     }
 
     console.log('📦 Tournament document to save:', JSON.stringify(tournament, null, 2));
@@ -658,6 +666,437 @@ export async function updateHistoricalTournament(
     return true;
   } catch (error) {
     console.error('Error updating historical tournament:', error);
+    return false;
+  }
+}
+
+/**
+ * Input for creating an upcoming tournament (minimal info only)
+ */
+export interface UpcomingTournamentInput {
+  name: string;
+  description?: string;
+  edition?: number;
+  tournamentDate: number;
+  address?: string;
+  city: string;
+  country: string;
+  gameType: 'singles' | 'doubles';
+  rankingConfig: RankingConfig;
+  externalLink?: string;
+  posterUrl?: string;
+}
+
+/**
+ * Create a new upcoming tournament (announcement only, no game config)
+ * This creates a minimal tournament with just basic info and status DRAFT
+ */
+export async function createUpcomingTournament(
+  input: UpcomingTournamentInput
+): Promise<string | null> {
+  if (!browser || !isFirebaseEnabled() || !db) {
+    console.warn('Firebase disabled');
+    return null;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return null;
+  }
+
+  // Check import permission
+  const canImport = await canImportTournaments();
+  if (!canImport) {
+    console.error('Unauthorized: User does not have import permission');
+    return null;
+  }
+
+  try {
+    // Get user profile for name
+    const profile = await getUserProfile(user.id);
+    const userName = profile?.name || user.displayName || 'Unknown';
+
+    // Generate tournament ID and key
+    const tournamentId = `tournament-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tournamentKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // Build minimal tournament document (no finalStage, no groupStage, no participants)
+    const tournament: Partial<Tournament> = {
+      id: tournamentId,
+      key: tournamentKey,
+      name: input.name,
+      city: input.city,
+      country: input.country,
+      tournamentDate: input.tournamentDate,
+      status: 'DRAFT', // Use DRAFT for upcoming tournaments
+      phaseType: 'ONE_PHASE', // Default, will be configured later
+      gameType: input.gameType,
+      show20s: true,
+      showHammer: false,
+      numTables: 1,
+      rankingConfig: input.rankingConfig,
+      participants: [], // Empty for now
+      isImported: true, // Mark as imported to distinguish from regular DRAFT
+      createdBy: {
+        userId: user.id,
+        userName
+      }
+    };
+
+    // Add optional fields
+    if (input.description) {
+      tournament.description = input.description;
+    }
+    if (input.edition !== undefined && input.edition !== null) {
+      tournament.edition = input.edition;
+    }
+    if (input.address) {
+      tournament.address = input.address;
+    }
+    if (input.externalLink) {
+      tournament.externalLink = input.externalLink;
+    }
+    if (input.posterUrl) {
+      tournament.posterUrl = input.posterUrl;
+    }
+
+    console.log('📦 Upcoming tournament to save:', JSON.stringify(tournament, null, 2));
+
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+    await setDoc(tournamentRef, {
+      ...tournament,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    console.log('✅ Upcoming tournament created:', tournamentId);
+    return tournamentId;
+  } catch (error) {
+    console.error('❌ Error creating upcoming tournament:', error);
+    return null;
+  }
+}
+
+/**
+ * Complete an upcoming tournament by adding full configuration
+ * This rebuilds the tournament with participants, groups, brackets, etc.
+ * and sets isImported=false (converting from upcoming to normal tournament)
+ */
+export async function completeUpcomingTournament(
+  id: string,
+  input: HistoricalTournamentInput,
+  keepAsUpcoming: boolean = false
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled() || !db) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return false;
+  }
+
+  // Check import permission
+  const canImport = await canImportTournaments();
+  if (!canImport) {
+    console.error('Unauthorized: User does not have import permission');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', id);
+    const snapshot = await getDoc(tournamentRef);
+
+    if (!snapshot.exists()) {
+      console.error('Tournament not found');
+      return false;
+    }
+
+    const existingData = snapshot.data();
+
+    // Check ownership
+    const superAdminStatus = await isSuperAdmin();
+    if (!superAdminStatus && existingData.createdBy?.userId !== user.id) {
+      console.error('Unauthorized');
+      return false;
+    }
+
+    // Create participant map for name -> id lookup
+    const participantMap = new Map<string, string>();
+    const participants: TournamentParticipant[] = input.participants.map((p, index) => {
+      const participantId = `participant-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
+      const fullName = p.partnerName ? `${p.name} / ${p.partnerName}` : p.name;
+      participantMap.set(fullName.toLowerCase(), participantId);
+      participantMap.set(p.name.toLowerCase(), participantId);
+
+      const participant: TournamentParticipant = {
+        id: participantId,
+        type: p.oderId ? 'REGISTERED' : 'GUEST',
+        name: p.name,
+        rankingSnapshot: 0,
+        currentRanking: 0,
+        status: 'ACTIVE'
+      };
+
+      if (p.oderId) {
+        participant.userId = p.oderId;
+      }
+      if (p.finalPosition !== undefined && p.finalPosition !== null) {
+        participant.finalPosition = p.finalPosition;
+      }
+      if (p.partnerName) {
+        const partnerObj: { type: 'REGISTERED' | 'GUEST'; name: string; userId?: string } = {
+          type: p.partnerUserId ? 'REGISTERED' : 'GUEST',
+          name: p.partnerName
+        };
+        if (p.partnerUserId) {
+          partnerObj.userId = p.partnerUserId;
+        }
+        participant.partner = partnerObj;
+      }
+
+      return participant;
+    });
+
+    // Helper to find participant ID by name
+    const findParticipantId = (name: string): string => {
+      const foundId = participantMap.get(name.toLowerCase());
+      if (!foundId) {
+        console.warn(`Participant not found: ${name}`);
+        return `unknown-${name}`;
+      }
+      return foundId;
+    };
+
+    // Build group stage if provided
+    let groupStage: GroupStage | undefined;
+    if (input.groupStage) {
+      const groups = input.groupStage.groups.map((g, gIndex) => {
+        const standings: GroupStanding[] = g.standings.map((s) => ({
+          participantId: findParticipantId(s.participantName),
+          position: s.position,
+          matchesPlayed: 0,
+          matchesWon: 0,
+          matchesLost: 0,
+          matchesTied: 0,
+          points: s.points,
+          total20s: s.total20s || 0,
+          totalPointsScored: 0,
+          qualifiedForFinal: true
+        }));
+
+        return {
+          id: `group-${gIndex}`,
+          name: g.name,
+          participants: standings.map((s) => s.participantId),
+          standings,
+          schedule: []
+        };
+      });
+
+      groupStage = {
+        type: 'ROUND_ROBIN',
+        groups,
+        currentRound: 0,
+        totalRounds: 0,
+        isComplete: true,
+        gameMode: 'points',
+        pointsToWin: 7,
+        matchesToWin: 1,
+        numGroups: input.groupStage.numGroups
+      };
+    }
+
+    // Build final stage
+    const buildBracketMatch = (
+      match: HistoricalMatchInput,
+      position: number,
+      matchIndex: number,
+      roundIndex: number
+    ): BracketMatch => {
+      const participantA = findParticipantId(match.participantAName);
+      const participantB = findParticipantId(match.participantBName);
+      const winner = match.scoreA > match.scoreB ? participantA : participantB;
+
+      return {
+        id: `match-${roundIndex}-${matchIndex}-${Date.now()}`,
+        position,
+        participantA,
+        participantB,
+        status: match.isWalkover ? 'WALKOVER' : 'COMPLETED',
+        winner,
+        totalPointsA: match.scoreA ?? 0,
+        totalPointsB: match.scoreB ?? 0,
+        total20sA: match.twentiesA ?? 0,
+        total20sB: match.twentiesB ?? 0,
+        completedAt: input.tournamentDate
+      };
+    };
+
+    const buildBracket = (bracketInput: HistoricalBracketInput): BracketWithConfig => {
+      const rounds: BracketRound[] = bracketInput.rounds.map((r, rIndex) => ({
+        roundNumber: rIndex + 1,
+        name: r.name,
+        matches: r.matches.map((m, mIndex) =>
+          buildBracketMatch(m, mIndex, mIndex, rIndex)
+        )
+      }));
+
+      return {
+        rounds,
+        totalRounds: rounds.length,
+        config: {
+          earlyRounds: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 },
+          semifinal: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 },
+          final: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 }
+        }
+      };
+    };
+
+    let finalStage: FinalStage;
+
+    if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
+      const parallelBrackets: NamedBracket[] = input.finalStage.brackets.map((b) => {
+        const bracket = buildBracket(b);
+        const finalRound = bracket.rounds[bracket.rounds.length - 1];
+        const finalMatch = finalRound?.matches[0];
+        const bracketWinner = finalMatch?.winner;
+
+        const namedBracket: NamedBracket = {
+          id: `bracket-${b.label.toLowerCase()}`,
+          name: b.name,
+          label: b.label,
+          bracket,
+          sourcePositions: b.sourcePositions
+        };
+
+        if (bracketWinner) {
+          namedBracket.winner = bracketWinner;
+        }
+
+        return namedBracket;
+      });
+
+      const firstBracketWinner = parallelBrackets[0]?.winner;
+      finalStage = {
+        mode: 'PARALLEL_BRACKETS',
+        goldBracket: parallelBrackets[0]?.bracket || {
+          rounds: [],
+          totalRounds: 0,
+          config: {
+            earlyRounds: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 },
+            semifinal: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 },
+            final: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 }
+          }
+        },
+        parallelBrackets,
+        isComplete: true
+      };
+
+      if (firstBracketWinner) {
+        finalStage.winner = firstBracketWinner;
+      }
+    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS' && input.finalStage.brackets.length >= 2) {
+      const goldBracket = buildBracket(input.finalStage.brackets[0]);
+      const silverBracket = buildBracket(input.finalStage.brackets[1]);
+
+      const goldFinal = goldBracket.rounds[goldBracket.rounds.length - 1];
+      const silverFinal = silverBracket.rounds[silverBracket.rounds.length - 1];
+      const goldWinner = goldFinal?.matches[0]?.winner;
+      const silverWinner = silverFinal?.matches[0]?.winner;
+
+      finalStage = {
+        mode: 'SPLIT_DIVISIONS',
+        goldBracket,
+        silverBracket,
+        isComplete: true
+      };
+
+      if (goldWinner) {
+        finalStage.winner = goldWinner;
+      }
+      if (silverWinner) {
+        finalStage.silverWinner = silverWinner;
+      }
+    } else {
+      const bracket = buildBracket(input.finalStage.brackets[0]);
+      const finalRound = bracket.rounds[bracket.rounds.length - 1];
+      const bracketWinner = finalRound?.matches[0]?.winner;
+
+      finalStage = {
+        mode: 'SINGLE_BRACKET',
+        goldBracket: bracket,
+        isComplete: true
+      };
+
+      if (bracketWinner) {
+        finalStage.winner = bracketWinner;
+      }
+    }
+
+    // Calculate numTables
+    const numGroups = input.groupStage?.numGroups || 0;
+    let maxBracketFirstRoundMatches = 0;
+
+    if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
+      maxBracketFirstRoundMatches = input.finalStage.brackets.reduce((sum, b) => {
+        return sum + (b.rounds[0]?.matches.length || 0);
+      }, 0);
+    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS') {
+      const goldFirstRound = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+      const silverFirstRound = input.finalStage.brackets[1]?.rounds[0]?.matches.length || 0;
+      maxBracketFirstRoundMatches = goldFirstRound + silverFirstRound;
+    } else {
+      maxBracketFirstRoundMatches = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+    }
+
+    const calculatedNumTables = Math.max(numGroups, maxBracketFirstRoundMatches, 1);
+
+    // Build update data
+    const updateData: Record<string, unknown> = {
+      name: input.name,
+      city: input.city,
+      country: input.country,
+      tournamentDate: input.tournamentDate,
+      status: 'COMPLETED',
+      phaseType: input.phaseType,
+      gameType: input.gameType,
+      show20s: input.show20s ?? true,
+      showHammer: input.showHammer ?? false,
+      numTables: calculatedNumTables,
+      rankingConfig: input.rankingConfig,
+      participants,
+      finalStage,
+      startedAt: input.tournamentDate,
+      completedAt: input.tournamentDate,
+      updatedAt: serverTimestamp(),
+      // Convert from upcoming to imported (completed historical)
+      isImported: keepAsUpcoming ? true : true // Keep as imported for historical tournaments
+    };
+
+    // Add optional fields
+    if (input.edition !== undefined && input.edition !== null) {
+      updateData.edition = input.edition;
+    }
+    if (input.address) {
+      updateData.address = input.address;
+    }
+    if (groupStage) {
+      updateData.groupStage = groupStage;
+    }
+    if (input.externalLink) {
+      updateData.externalLink = input.externalLink;
+    }
+
+    await updateDoc(tournamentRef, updateData);
+
+    console.log('✅ Upcoming tournament completed:', id);
+    return true;
+  } catch (error) {
+    console.error('❌ Error completing upcoming tournament:', error);
     return false;
   }
 }

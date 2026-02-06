@@ -1492,7 +1492,7 @@
             <div class="info-section-header">{m.wizard_locationDate()}</div>
             <div class="info-grid location-grid">
               <div class="info-field address-field">
-                <label for="address">{m.wizard_address()} <span class="optional-label">({m.common_optional()})</span></label>
+                <label for="address">{m.wizard_address()}</label>
                 <input
                   id="address"
                   type="text"
@@ -1567,12 +1567,12 @@
               </div>
 
               <div class="info-field desc-field">
-                <label for="description">{m.wizard_descriptionOptional()}</label>
+                <label for="description">{m.wizard_description()}</label>
                 <input
                   id="description"
                   type="text"
                   bind:value={description}
-                  placeholder="Breve descripción del torneo..."
+                  placeholder={m.wizard_description()}
                   class="input-field"
                 />
               </div>

@@ -17,7 +17,7 @@
   let tournaments: Tournament[] = $state([]);
   let filteredTournaments: Tournament[] = $state([]);
   let searchQuery = $state('');
-  let statusFilter: 'all' | 'DRAFT' | 'GROUP_STAGE' | 'FINAL_STAGE' | 'COMPLETED' | 'CANCELLED' = $state('all');
+  let statusFilter: 'all' | 'UPCOMING' | 'COMPLETED' = $state('all');
   let creatorFilter = $state('all'); // 'all', 'mine', or a specific creator userId
   let loading = $state(true);
   let loadingMore = $state(false);
@@ -102,6 +102,18 @@
     }
   }
 
+  // Helper to check if tournament has a future date
+  function hasFutureDate(tournament: Tournament): boolean {
+    const now = Date.now();
+    return tournament.tournamentDate != null && tournament.tournamentDate > now;
+  }
+
+  // Helper to check if tournament is upcoming (future date + isImported)
+  function isUpcomingTournament(tournament: Tournament): boolean {
+    if (!tournament.isImported) return false;
+    return hasFutureDate(tournament);
+  }
+
   function filterTournaments() {
     const user = get(currentUser);
     filteredTournaments = tournaments.filter(tournament => {
@@ -112,7 +124,17 @@
         tournament.description?.toLowerCase().includes(query) ||
         tournament.createdBy?.userName?.toLowerCase().includes(query);
 
-      const matchesStatus = statusFilter === 'all' || tournament.status === statusFilter;
+      // Status filter
+      let matchesStatus = false;
+      if (statusFilter === 'all') {
+        matchesStatus = true;
+      } else if (statusFilter === 'UPCOMING') {
+        // UPCOMING filter: show tournaments with future date (upcoming or draft with future date)
+        matchesStatus = hasFutureDate(tournament);
+      } else if (statusFilter === 'COMPLETED') {
+        // COMPLETED filter: show truly completed tournaments (not upcoming ones)
+        matchesStatus = tournament.status === 'COMPLETED' && !isUpcomingTournament(tournament);
+      }
 
       let matchesCreator = true;
       if (creatorFilter === 'mine') {
@@ -135,8 +157,17 @@
 
   let displayTotal = $derived(isSearching || isFiltering || creatorFilter !== 'all' ? filteredTournaments.length : totalCount);
 
-  function getStatusText(status: string): string {
-    switch (status) {
+  function getStatusText(tournament: Tournament): string {
+    // Check if it's an imported tournament (could be upcoming or historical)
+    if (tournament.isImported) {
+      const now = Date.now();
+      if (tournament.tournamentDate && tournament.tournamentDate > now) {
+        return m.tournament_upcoming(); // "Próximamente"
+      }
+      return m.import_imported(); // "Importado"
+    }
+
+    switch (tournament.status) {
       case 'DRAFT':
         return m.admin_draft();
       case 'GROUP_STAGE':
@@ -148,7 +179,7 @@
       case 'CANCELLED':
         return m.admin_cancelled();
       default:
-        return status;
+        return tournament.status;
     }
   }
 
@@ -172,7 +203,16 @@
     goto('/admin/tournaments/import');
   }
 
-  function getStatusColor(status: string): string {
+  function getStatusColor(tournament: Tournament): string {
+    // Check if it's an imported tournament (could be upcoming or historical)
+    if (tournament.isImported) {
+      const now = Date.now();
+      if (tournament.tournamentDate && tournament.tournamentDate > now) {
+        return '#8b5cf6'; // Purple for upcoming
+      }
+      return '#6366f1'; // Indigo for imported
+    }
+
     const colorMap: Record<string, string> = {
       DRAFT: '#666',
       GROUP_STAGE: '#fa709a',
@@ -181,13 +221,16 @@
       COMPLETED: '#4ade80',
       CANCELLED: '#ef4444'
     };
-    return colorMap[status] || '#666';
+    return colorMap[tournament.status] || '#666';
   }
 
-  function getStatusTextColor(status: string): string {
+  function getStatusTextColor(tournament: Tournament): string {
     // Light backgrounds need dark text for contrast
+    if (tournament.isImported) {
+      return 'white'; // Both upcoming and imported have dark backgrounds
+    }
     const darkTextStatuses = ['TRANSITION', 'COMPLETED', 'FINAL_STAGE'];
-    return darkTextStatuses.includes(status) ? '#1f2937' : 'white';
+    return darkTextStatuses.includes(tournament.status) ? '#1f2937' : 'white';
   }
 
   function confirmDelete(tournament: Tournament) {
@@ -196,7 +239,12 @@
   }
 
   function duplicateTournament(tournament: Tournament) {
-    goto(`/admin/tournaments/create?duplicate=${tournament.id}`);
+    // Use import wizard for imported tournaments, create wizard for live tournaments
+    if (tournament.isImported) {
+      goto(`/admin/tournaments/import?duplicate=${tournament.id}`);
+    } else {
+      goto(`/admin/tournaments/create?duplicate=${tournament.id}`);
+    }
   }
 
   function cancelDelete() {
@@ -277,10 +325,10 @@
           </button>
           <button
             class="filter-tab"
-            class:active={statusFilter === 'DRAFT'}
-            onclick={() => (statusFilter = 'DRAFT')}
+            class:active={statusFilter === 'UPCOMING'}
+            onclick={() => (statusFilter = 'UPCOMING')}
           >
-            {m.admin_drafts()}
+            {m.tournament_upcoming()}
           </button>
           <button
             class="filter-tab"
@@ -359,9 +407,9 @@
                 <td class="status-cell">
                   <span
                     class="status-badge"
-                    style="background: {getStatusColor(tournament.status)}; color: {getStatusTextColor(tournament.status)};"
+                    style="background: {getStatusColor(tournament)}; color: {getStatusTextColor(tournament)};"
                   >
-                    {getStatusText(tournament.status)}
+                    {getStatusText(tournament)}
                   </span>
                 </td>
                 <td class="type-cell hide-mobile">
@@ -374,10 +422,12 @@
                     </span>
                     <span class="mode-separator">+</span>
                   {/if}
-                  {#if tournament.finalStage?.mode === 'SPLIT_DIVISIONS'}
-                    <span class="mode-final split">{m.admin_goldSilverDivisions()}</span>
+                  {#if tournament.finalStage?.mode === 'PARALLEL_BRACKETS'}
+                    <span class="mode-final">{tournament.finalStage.parallelBrackets?.length || 1}B</span>
+                  {:else if tournament.finalStage?.mode === 'SPLIT_DIVISIONS'}
+                    <span class="mode-final">2B</span>
                   {:else}
-                    <span class="mode-final">1F</span>
+                    <span class="mode-final">1B</span>
                   {/if}
                 </td>
                 <td class="participants-cell">
@@ -770,10 +820,17 @@
   }
 
   .filter-tab.active {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    background: #10b981;
     color: white;
-    border-color: transparent;
+    border-color: #10b981;
     font-weight: 600;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+  }
+
+  .tournaments-container[data-theme='dark'] .filter-tab.active {
+    background: #059669;
+    border-color: #059669;
+    box-shadow: 0 2px 4px rgba(5, 150, 105, 0.4);
   }
 
   /* Results info */

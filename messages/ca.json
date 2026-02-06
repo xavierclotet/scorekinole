@@ -986,5 +986,16 @@
   "video_matchVideo": "Vídeo del Partit",
   "video_removeVideo": "Treure vídeo",
   "video_watchVideo": "Veure vídeo",
-  "tournament_matchVideos": "Vídeos del torneig"
+  "tournament_matchVideos": "Vídeos del torneig",
+  "tournament_completeConfiguration": "Completar Configuració",
+  "tournament_configurationIncomplete": "Configuració incompleta",
+  "tournament_upcoming": "Properament",
+  "tournament_upcomingDescription": "Aquest torneig està anunciat però està pendent de configurar completament.",
+  "wizard_upcomingHint": "Només vols anunciar el torneig? Podràs completar la configuració més endavant.",
+  "wizard_saveAsUpcoming": "Desa com a Properament",
+  "wizard_saveAsUpcomingSuccess": "Torneig desat. Podràs completar la configuració més endavant.",
+  "common_moreInfo": "Més informació",
+  "import_externalLink": "Enllaç extern",
+  "tournament_resultsComingSoon": "Els resultats estaran disponibles properament",
+  "wizard_posterUrl": "Imatge del torneig"
 }

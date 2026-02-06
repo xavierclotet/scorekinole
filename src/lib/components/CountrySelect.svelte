@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
 	import { DEVELOPED_COUNTRIES } from '$lib/constants';
+	import { getTranslatedCountryOptions } from '$lib/utils/countryTranslations';
 
 	interface Props {
 		value: string;
@@ -11,6 +12,9 @@
 	}
 
 	let { value = $bindable(''), id, hasError = false, onchange, onblur }: Props = $props();
+
+	// Get translated country options sorted alphabetically
+	let countryOptions = $derived(getTranslatedCountryOptions(DEVELOPED_COUNTRIES));
 
 	function handleChange(e: Event) {
 		const target = e.target as HTMLSelectElement;
@@ -28,8 +32,8 @@
 	{onblur}
 >
 	<option value="">{m.wizard_selectOption()}</option>
-	{#each DEVELOPED_COUNTRIES as countryOption}
-		<option value={countryOption}>{countryOption}</option>
+	{#each countryOptions as { value: countryValue, label }}
+		<option value={countryValue}>{label}</option>
 	{/each}
 </select>
 

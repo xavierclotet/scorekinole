@@ -113,7 +113,37 @@
     }
   }
 
+  // Helper to detect if tournament is "upcoming" (isImported + future date)
+  let isUpcoming = $derived(() => {
+    if (!tournament?.isImported) return false;
+    const now = Date.now();
+    return tournament.tournamentDate && tournament.tournamentDate > now;
+  });
+
+  // Check if tournament has any actual results
+  let hasResults = $derived(() => {
+    if (!tournament) return false;
+    // Check if any bracket match is completed
+    const hasBracketResults = tournament.finalStage?.goldBracket?.rounds?.some(
+      r => r.matches?.some(m => m.status === 'COMPLETED')
+    );
+    // Check if any group has standings with matches played
+    const hasGroupResults = tournament.groupStage?.groups?.some(
+      g => g.standings?.some(s => s.matchesPlayed > 0)
+    );
+    return hasBracketResults || hasGroupResults;
+  });
+
   function getStatusText(status: string): string {
+    // Check if it's an upcoming tournament
+    if (tournament?.isImported) {
+      const now = Date.now();
+      if (tournament.tournamentDate && tournament.tournamentDate > now) {
+        return m.tournament_upcoming(); // "Próximamente"
+      }
+      return m.import_imported(); // "Importado"
+    }
+
     const statusMap: Record<string, string> = {
       DRAFT: m.admin_draft(),
       GROUP_STAGE: m.tournament_groupStage(),
@@ -126,6 +156,15 @@
   }
 
   function getStatusColor(status: string): string {
+    // Check if it's an upcoming or imported tournament
+    if (tournament?.isImported) {
+      const now = Date.now();
+      if (tournament.tournamentDate && tournament.tournamentDate > now) {
+        return '#8b5cf6'; // Purple for upcoming
+      }
+      return '#6366f1'; // Indigo for imported
+    }
+
     const colorMap: Record<string, string> = {
       DRAFT: '#666',
       GROUP_STAGE: '#fa709a',
@@ -138,6 +177,10 @@
   }
 
   function getStatusTextColor(status: string): string {
+    // Upcoming and imported have dark backgrounds
+    if (tournament?.isImported) {
+      return 'white';
+    }
     const darkTextStatuses = ['TRANSITION', 'COMPLETED', 'FINAL_STAGE'];
     return darkTextStatuses.includes(status) ? '#1f2937' : 'white';
   }
@@ -384,7 +427,15 @@
           </div>
 
           <div class="header-actions">
-            {#if tournament.status === 'DRAFT'}
+            {#if isUpcoming()}
+              <!-- Upcoming tournament: show "Complete Configuration" button -->
+              <button class="action-btn primary upcoming" onclick={() => goto(`/admin/tournaments/import?edit=${tournamentId}`)}>
+                {m.tournament_completeConfiguration()}
+              </button>
+              <button class="action-btn danger" onclick={confirmCancel}>
+                {m.common_cancel()}
+              </button>
+            {:else if tournament.status === 'DRAFT'}
               <button class="action-btn primary" onclick={confirmStart} disabled={isStarting}>
                 {isStarting ? m.admin_starting() + '...' : m.admin_start()}
               </button>
@@ -461,8 +512,8 @@
       {:else}
         <!-- Tournament Dashboard Content -->
         <div class="dashboard-grid">
-          <!-- Completed Tournament Results Section (at the top) -->
-          {#if tournament.status === 'COMPLETED'}
+          <!-- Completed Tournament Results Section (at the top) - hide for upcoming/no results -->
+          {#if tournament.status === 'COMPLETED' && !isUpcoming() && hasResults()}
             <section class="dashboard-card results-card">
               <h2>📋 {m.admin_tournamentResults()}</h2>
               <CompletedTournamentView {tournament} onupdated={loadTournament} />
@@ -538,6 +589,17 @@
                   <span class="config-label">{m.admin_estimatedDuration()}:</span>
                   <span class="config-value duration-value">
                     ~{formatDuration(tournament.timeEstimate.totalMinutes)}
+                  </span>
+                </div>
+              {/if}
+
+              {#if tournament.externalLink}
+                <div class="config-item">
+                  <span class="config-label">{m.import_externalLink()}:</span>
+                  <span class="config-value">
+                    <a href={tournament.externalLink} target="_blank" rel="noopener noreferrer" class="external-link-value">
+                      {new URL(tournament.externalLink).hostname} ↗
+                    </a>
                   </span>
                 </div>
               {/if}
@@ -1280,6 +1342,17 @@
     cursor: not-allowed;
   }
 
+  .action-btn.upcoming,
+  .tournament-page[data-theme='dark'] .action-btn.upcoming {
+    background: #8b5cf6;
+    color: white;
+  }
+
+  .action-btn.upcoming:hover,
+  .tournament-page[data-theme='dark'] .action-btn.upcoming:hover {
+    background: #7c3aed;
+  }
+
   .action-btn.danger {
     background: #fee2e2;
     color: #dc2626;
@@ -1500,6 +1573,26 @@
     border-radius: 4px;
     font-size: 0.85rem;
     font-weight: 600;
+  }
+
+  .external-link-value {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  .external-link-value:hover {
+    color: #5a6fd6;
+    text-decoration: underline;
+  }
+
+  .tournament-page[data-theme='dark'] .external-link-value {
+    color: #8b9fd6;
+  }
+
+  .tournament-page[data-theme='dark'] .external-link-value:hover {
+    color: #a8b8e0;
   }
 
   /* Bracket phase configuration */

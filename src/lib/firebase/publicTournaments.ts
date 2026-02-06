@@ -32,6 +32,7 @@ export interface TournamentListItem {
 	participantsCount: number;
 	tier?: TournamentTier;
 	createdAt: number;
+	isImported?: boolean; // true for imported/upcoming tournaments
 }
 
 /**
@@ -112,7 +113,8 @@ export async function getPublicTournaments(
 				participantsCount,
 				tier: data.rankingConfig?.enabled ? data.rankingConfig.tier : undefined,
 				createdAt:
-					data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt
+					data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+				isImported: data.isImported
 			});
 		});
 

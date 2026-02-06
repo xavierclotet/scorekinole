@@ -17,11 +17,32 @@
 		TRANSITION: '#8b5cf6',
 		FINAL_STAGE: '#3b82f6',
 		COMPLETED: '#10b981',
-		CANCELLED: '#ef4444'
+		CANCELLED: '#ef4444',
+		UPCOMING: '#8b5cf6', // Purple for upcoming
+		IMPORTED: '#6366f1' // Indigo for imported
 	};
+
+	// Check if tournament is "upcoming" (isImported + future date)
+	const isUpcoming = $derived(() => {
+		if (!tournament.isImported) return false;
+		const now = Date.now();
+		return tournament.tournamentDate && tournament.tournamentDate > now;
+	});
+
+	// Get display status (considering upcoming vs imported)
+	const displayStatus = $derived(() => {
+		if (tournament.isImported) {
+			return isUpcoming() ? 'UPCOMING' : 'IMPORTED';
+		}
+		return tournament.status;
+	});
 
 	// Use translated status labels
 	const getStatusLabel = (status: string): string => {
+		// Handle upcoming/imported cases
+		if (status === 'UPCOMING') return m.tournament_upcoming();
+		if (status === 'IMPORTED') return m.import_imported();
+
 		const labels: Record<string, () => string> = {
 			DRAFT: () => m.admin_draft(),
 			GROUP_STAGE: () => m.tournament_groupStage(),
@@ -175,8 +196,8 @@
 	<div class="card-footer">
 		<div class="badges">
 			<span class="badge mode">{tournament.gameType === 'singles' ? '1v1' : '2v2'}</span>
-			<span class="badge status" style="--status-color: {statusColors[tournament.status]}">
-				{getStatusLabel(tournament.status)}
+			<span class="badge status" style="--status-color: {statusColors[displayStatus()]}">
+				{getStatusLabel(displayStatus())}
 			</span>
 			{#if tournament.tier}
 				<span class="badge tier" style="--tier-color: {tierColors[tournament.tier]}">

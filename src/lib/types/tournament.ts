@@ -97,6 +97,8 @@ export interface Tournament {
     userName: string;
   };
   importNotes?: string;                // Notes about data source/quality
+  externalLink?: string;               // External link (e.g., to original results page)
+  posterUrl?: string;                  // URL to tournament poster/banner image
 
   // Video highlight (YouTube)
   videoUrl?: string;                   // Full YouTube URL

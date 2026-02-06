@@ -42,6 +42,54 @@
 
 	let isCompleted = $derived(tournament?.status === 'COMPLETED');
 
+	// Check if tournament is upcoming (imported with future date)
+	let isUpcoming = $derived(
+		tournament?.isImported &&
+		tournament.tournamentDate &&
+		tournament.tournamentDate > Date.now()
+	);
+
+	// Check if tournament has any results (completed matches or standings with played matches)
+	let hasResults = $derived((() => {
+		if (!tournament) return false;
+		// Check if any bracket match is completed
+		const hasBracketResults = tournament.finalStage?.goldBracket?.rounds?.some(
+			r => r.matches?.some(m => m.status === 'COMPLETED')
+		);
+		// Check if any group has standings with matches played
+		const hasGroupResults = tournament.groupStage?.groups?.some(
+			g => g.standings?.some(s => s.matchesPlayed > 0)
+		);
+		return hasBracketResults || hasGroupResults;
+	})());
+
+	// Debug logging for visibility conditions
+	$effect(() => {
+		if (tournament) {
+			console.log('🔍 Tournament Debug:', {
+				name: tournament.name,
+				status: tournament.status,
+				isImported: tournament.isImported,
+				tournamentDate: tournament.tournamentDate,
+				now: Date.now(),
+				isFuture: tournament.tournamentDate ? tournament.tournamentDate > Date.now() : false,
+				isUpcoming,
+				isCompleted,
+				hasResults,
+				hasGroupStage,
+				hasFinalStage,
+				hasBothPhases,
+				goldBracketRoundsLength: tournament.finalStage?.goldBracket?.rounds?.length ?? 0,
+				groupsLength: tournament.groupStage?.groups?.length ?? 0,
+				groupsHaveStandings: tournament.groupStage?.groups?.some(g => g.standings?.length > 0) ?? false,
+				shouldShowUpcomingNotice: isUpcoming || (!isCompleted && !hasResults),
+				shouldShowPhaseTabs: hasBothPhases && hasResults,
+				shouldShowGroupStage: hasGroupStage && hasResults,
+				shouldShowFinalStage: hasFinalStage && hasResults
+			});
+		}
+	});
+
 	// Final standings (top 4) - uses finalPosition if available
 	let finalStandings = $derived(
 		tournament?.participants
@@ -50,9 +98,17 @@
 			.slice(0, 4) || []
 	);
 
-	// Check if both phases exist
-	let hasGroupStage = $derived(tournament?.groupStage && tournament.groupStage.groups.length > 0);
-	let hasFinalStage = $derived(tournament?.finalStage && (tournament.status === 'FINAL_STAGE' || tournament.status === 'COMPLETED'));
+	// Check if both phases exist (with actual content)
+	let hasGroupStage = $derived(
+		tournament?.groupStage &&
+		tournament.groupStage.groups.length > 0 &&
+		tournament.groupStage.groups.some(g => g.standings && g.standings.length > 0)
+	);
+	let hasFinalStage = $derived(
+		tournament?.finalStage &&
+		tournament.finalStage.goldBracket?.rounds?.length > 0 &&
+		(tournament.status === 'FINAL_STAGE' || tournament.status === 'COMPLETED')
+	);
 	let hasBothPhases = $derived(hasGroupStage && hasFinalStage);
 
 	// Bracket derived values
@@ -328,6 +384,54 @@
 			</button>
 		</div>
 	{:else}
+		{#if tournament.posterUrl}
+			<div class="hero-banner">
+				<img src={tournament.posterUrl} alt={tournament.name} class="hero-image" loading="lazy" />
+				<div class="hero-overlay"></div>
+				<div class="hero-content">
+					<div class="hero-badge">
+						{#if tournament.edition}
+							<span class="edition">#{tournament.edition}</span>
+						{/if}
+						{#if tournament.rankingConfig?.tier}
+							<span class="tier tier-{tournament.rankingConfig.tier}">{getTierLabel(tournament.rankingConfig.tier)}</span>
+						{/if}
+					</div>
+					<h2 class="hero-title">{tournament.name}</h2>
+					{#if tournament.tournamentDate}
+						<div class="hero-date">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+								<line x1="16" y1="2" x2="16" y2="6"/>
+								<line x1="8" y1="2" x2="8" y2="6"/>
+								<line x1="3" y1="10" x2="21" y2="10"/>
+							</svg>
+							<span>{formatDate(tournament.tournamentDate)}</span>
+						</div>
+					{/if}
+					{#if tournament.city}
+						<div class="hero-location">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+								<circle cx="12" cy="10" r="3"/>
+							</svg>
+							<span>{tournament.city}{tournament.country ? `, ${translateCountry(tournament.country)}` : ''}</span>
+						</div>
+					{/if}
+				</div>
+				{#if tournament.externalLink}
+					<a href={tournament.externalLink} target="_blank" rel="noopener noreferrer" class="hero-link" onclick={(e) => e.stopPropagation()}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+							<polyline points="15 3 21 3 21 9"/>
+							<line x1="10" y1="14" x2="21" y2="3"/>
+						</svg>
+						<span>{m.common_moreInfo()}</span>
+					</a>
+				{/if}
+			</div>
+		{/if}
+
 		{#if isLive}
 			<!-- LIVE Tournament View -->
 			<LiveTournamentView {tournament} />
@@ -337,23 +441,65 @@
 				<!-- Completed/Draft: Full details -->
 				<div class="info-grid">
 					{#if tournament.tournamentDate}
-						<div class="info-card">
-							<span class="info-label">{m.tournament_date()}</span>
-							<span class="info-value">{formatDate(tournament.tournamentDate)}</span>
-						</div>
+						{@const eventDate = new Date(tournament.tournamentDate)}
+						{@const dateStr = eventDate.toISOString().split('T')[0].replace(/-/g, '')}
+						{@const nextDay = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '')}
+						{@const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(tournament.name)}&dates=${dateStr}/${nextDay}${tournament.description ? `&details=${encodeURIComponent(tournament.description)}` : ''}${tournament.city ? `&location=${encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + tournament.city + (tournament.country ? ', ' + tournament.country : ''))}` : ''}`}
+						<a
+							href={calendarUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="info-card calendar-card"
+						>
+							<span class="info-label">
+								<svg class="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+									<line x1="16" y1="2" x2="16" y2="6"/>
+									<line x1="8" y1="2" x2="8" y2="6"/>
+									<line x1="3" y1="10" x2="21" y2="10"/>
+								</svg>
+								{m.tournament_date()}
+							</span>
+							<span class="info-value calendar-value">
+								<span>{formatDate(tournament.tournamentDate)}</span>
+								<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+									<polyline points="15 3 21 3 21 9"/>
+									<line x1="10" y1="14" x2="21" y2="3"/>
+								</svg>
+							</span>
+						</a>
 					{/if}
 					{#if tournament.city || tournament.country}
-						<div class="info-card">
-							<span class="info-label">{m.tournament_location()}</span>
-							<span class="info-value">
-								{tournament.city}{tournament.city && tournament.country ? ', ' : ''}{translateCountry(tournament.country)}
+						<a
+							href="https://www.google.com/maps/search/?api=1&query={encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + (tournament.city || '') + ', ' + (tournament.country || ''))}"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="info-card location-card"
+						>
+							<span class="info-label">
+								<svg class="location-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+									<circle cx="12" cy="10" r="3"/>
+								</svg>
+								{m.tournament_location()}
 							</span>
+							<span class="info-value location-value">
+								<span>{tournament.city}{tournament.city && tournament.country ? ', ' : ''}{translateCountry(tournament.country)}</span>
+								<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+									<polyline points="15 3 21 3 21 9"/>
+									<line x1="10" y1="14" x2="21" y2="3"/>
+								</svg>
+							</span>
+						</a>
+					{/if}
+					{#if tournament.participants.length > 0}
+						<div class="info-card">
+							<span class="info-label">{m.tournaments_participants()}</span>
+							<span class="info-value">{tournament.participants.length}</span>
 						</div>
 					{/if}
-					<div class="info-card">
-						<span class="info-label">{m.tournaments_participants()}</span>
-						<span class="info-value">{tournament.participants.length}</span>
-					</div>
 					<div class="info-card">
 						<span class="info-label">{m.common_mode()}</span>
 						<span class="info-value">{getModeLabel(tournament.gameType)}</span>
@@ -367,7 +513,17 @@
 				</div>
 
 				{#if tournament.description}
-					<p class="tournament-description">{tournament.description}</p>
+					<div class="description-section">
+						<div class="description-header">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<circle cx="12" cy="12" r="10"/>
+								<line x1="12" y1="16" x2="12" y2="12"/>
+								<line x1="12" y1="8" x2="12.01" y2="8"/>
+							</svg>
+							<span>{m.wizard_information()}</span>
+						</div>
+						<p class="tournament-description">{tournament.description}</p>
+					</div>
 				{/if}
 
 				<!-- Final Standings (for completed tournaments) -->
@@ -514,8 +670,8 @@
 				{/if}
 			</div>
 
-			<!-- Phase Tabs (when both phases exist) -->
-		{#if hasBothPhases}
+			<!-- Phase Tabs (when both phases exist and have results) -->
+		{#if hasBothPhases && hasResults}
 			<div class="phase-nav" role="tablist">
 				<button
 					class="phase-tab"
@@ -559,7 +715,7 @@
 		{/if}
 
 		<!-- Group Stage Section -->
-		{#if hasGroupStage && (!hasBothPhases || activePhase === 'groups')}
+		{#if hasGroupStage && hasResults && (!hasBothPhases || activePhase === 'groups')}
 			<section class="stage-section">
 				{#if !hasBothPhases}
 					<h2 class="section-title">
@@ -613,7 +769,7 @@
 		{/if}
 
 		<!-- Final Stage Section -->
-		{#if hasFinalStage && (!hasBothPhases || activePhase === 'bracket')}
+		{#if hasFinalStage && hasResults && (!hasBothPhases || activePhase === 'bracket')}
 			<section class="stage-section">
 				{#if !hasBothPhases}
 					<h2 class="section-title">
@@ -1062,22 +1218,365 @@
 	.info-value.tier-REGIONAL { color: #10b981; }
 	.info-value.tier-CLUB { color: #6b7a94; }
 
+	/* External Link Card */
+	.link-card {
+		text-decoration: none;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		border-color: rgba(102, 126, 234, 0.3);
+	}
+
+	.link-card:hover {
+		background: #1e2a3d;
+		border-color: #667eea;
+		transform: translateY(-1px);
+	}
+
+	.link-value {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		color: #667eea !important;
+	}
+
+	.link-text {
+		max-width: 120px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.external-icon {
+		width: 14px;
+		height: 14px;
+		flex-shrink: 0;
+		opacity: 0.7;
+		transition: opacity 0.15s;
+	}
+
+	.link-card:hover .external-icon {
+		opacity: 1;
+	}
+
+	.detail-container[data-theme='light'] .link-card {
+		border-color: rgba(102, 126, 234, 0.25);
+	}
+
+	.detail-container[data-theme='light'] .link-card:hover {
+		background: #f0f4ff;
+		border-color: #667eea;
+	}
+
+	.detail-container[data-theme='light'] .link-value {
+		color: #5a67d8 !important;
+	}
+
+	/* Location Card */
+	.location-card {
+		text-decoration: none;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		border: 1px solid rgba(102, 126, 234, 0.2);
+	}
+
+	.location-card:hover {
+		background: rgba(102, 126, 234, 0.15);
+		border-color: rgba(102, 126, 234, 0.4);
+	}
+
+	.location-card .info-label {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.location-icon {
+		width: 14px;
+		height: 14px;
+		color: #667eea;
+		flex-shrink: 0;
+	}
+
+	.location-value {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: #667eea !important;
+	}
+
+	.location-value .external-icon {
+		width: 12px;
+		height: 12px;
+		opacity: 0.6;
+		transition: opacity 0.15s;
+	}
+
+	.location-card:hover .external-icon {
+		opacity: 1;
+	}
+
+	.detail-container[data-theme='light'] .location-card {
+		border-color: rgba(102, 126, 234, 0.2);
+	}
+
+	.detail-container[data-theme='light'] .location-card:hover {
+		background: rgba(102, 126, 234, 0.08);
+		border-color: rgba(102, 126, 234, 0.3);
+	}
+
+	.detail-container[data-theme='light'] .location-value {
+		color: #5a67d8 !important;
+	}
+
+	.detail-container[data-theme='light'] .location-icon {
+		color: #5a67d8;
+	}
+
+	/* Calendar Card */
+	.calendar-card {
+		text-decoration: none;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		border: 1px solid rgba(16, 185, 129, 0.2);
+	}
+
+	.calendar-card:hover {
+		background: rgba(16, 185, 129, 0.15);
+		border-color: rgba(16, 185, 129, 0.4);
+	}
+
+	.calendar-card .info-label {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.calendar-icon {
+		width: 14px;
+		height: 14px;
+		color: #10b981;
+		flex-shrink: 0;
+	}
+
+	.calendar-value {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: #10b981 !important;
+	}
+
+	.calendar-value .external-icon {
+		width: 12px;
+		height: 12px;
+		opacity: 0.6;
+		transition: opacity 0.15s;
+	}
+
+	.calendar-card:hover .external-icon {
+		opacity: 1;
+	}
+
+	.detail-container[data-theme='light'] .calendar-card {
+		border-color: rgba(16, 185, 129, 0.2);
+	}
+
+	.detail-container[data-theme='light'] .calendar-card:hover {
+		background: rgba(16, 185, 129, 0.08);
+		border-color: rgba(16, 185, 129, 0.3);
+	}
+
+	.detail-container[data-theme='light'] .calendar-value {
+		color: #059669 !important;
+	}
+
+	.detail-container[data-theme='light'] .calendar-icon {
+		color: #059669;
+	}
+
+	/* Hero Banner */
+	.hero-banner {
+		display: block;
+		position: relative;
+		width: 100%;
+		height: 280px;
+		overflow: hidden;
+		text-decoration: none;
+		margin-bottom: 1rem;
+	}
+
+	.hero-image {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: center top;
+	}
+
+	.hero-overlay {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			to bottom,
+			rgba(0, 0, 0, 0.2) 0%,
+			rgba(0, 0, 0, 0.4) 50%,
+			rgba(0, 0, 0, 0.85) 100%
+		);
+	}
+
+	.hero-content {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		padding: 1.25rem;
+		color: white;
+	}
+
+	.hero-badge {
+		display: flex;
+		gap: 0.5rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.hero-badge .edition {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.2rem 0.5rem;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		border-radius: 4px;
+		font-size: 0.7rem;
+		font-weight: 700;
+	}
+
+	.hero-badge .tier {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
+		font-size: 0.65rem;
+		font-weight: 600;
+		text-transform: uppercase;
+	}
+
+	.hero-badge .tier-CLUB { background: #6b7280; }
+	.hero-badge .tier-REGIONAL { background: #3b82f6; }
+	.hero-badge .tier-NATIONAL { background: #8b5cf6; }
+	.hero-badge .tier-MAJOR { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+
+	.hero-title {
+		margin: 0 0 0.5rem 0;
+		font-size: 1.25rem;
+		font-weight: 700;
+		line-height: 1.2;
+		text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+	}
+
+	.hero-date,
+	.hero-location {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.8rem;
+		opacity: 0.9;
+		margin-bottom: 0.25rem;
+	}
+
+	.hero-date svg,
+	.hero-location svg {
+		width: 14px;
+		height: 14px;
+		opacity: 0.8;
+	}
+
+	.hero-link {
+		position: absolute;
+		top: 1rem;
+		right: 1rem;
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.4rem 0.6rem;
+		background: rgba(255, 255, 255, 0.15);
+		backdrop-filter: blur(8px);
+		border-radius: 6px;
+		font-size: 0.7rem;
+		color: white;
+		text-decoration: none;
+		opacity: 0;
+		transition: opacity 0.2s ease, background 0.2s ease;
+	}
+
+	.hero-link:hover {
+		background: rgba(255, 255, 255, 0.25);
+	}
+
+	.hero-banner:hover .hero-link {
+		opacity: 1;
+	}
+
+	.hero-link svg {
+		width: 14px;
+		height: 14px;
+	}
+
+	@media (max-width: 480px) {
+		.hero-banner {
+			height: 240px;
+		}
+
+		.hero-title {
+			font-size: 1.1rem;
+		}
+
+		.hero-link {
+			opacity: 1;
+		}
+	}
+
+	/* Description Section */
+	.description-section {
+		margin-top: 1rem;
+	}
+
+	.description-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.5rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: #667eea;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.description-header svg {
+		width: 14px;
+		height: 14px;
+	}
+
+	.detail-container[data-theme='light'] .description-header {
+		color: #5a67d8;
+	}
+
 	/* Tournament Description */
 	.tournament-description {
-		margin: 1rem 0 0 0;
-		padding: 0.75rem 1rem;
-		font-size: 0.85rem;
-		color: #8b9bb3;
-		line-height: 1.5;
-		background: rgba(45, 55, 72, 0.3);
+		margin: 0;
+		padding: 0.875rem 1rem;
+		font-size: 0.875rem;
+		color: #9ca3af;
+		line-height: 1.6;
+		background: rgba(30, 41, 59, 0.4);
 		border-radius: 8px;
-		border-left: 3px solid #667eea;
+		white-space: pre-wrap;
+		word-wrap: break-word;
 	}
 
 	.detail-container[data-theme='light'] .tournament-description {
-		color: #555;
-		background: rgba(0, 0, 0, 0.03);
-		border-left-color: #667eea;
+		color: #4b5563;
+		background: #f8fafc;
 	}
 
 	/* Podium Section */

@@ -6,17 +6,22 @@
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import { adminTheme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import {
     createHistoricalTournament,
+    createUpcomingTournament,
+    completeUpcomingTournament,
+    updateHistoricalTournament,
     canImportTournaments,
     type HistoricalTournamentInput,
     type HistoricalParticipantInput,
     type HistoricalGroupStageInput,
-    type HistoricalFinalStageInput
+    type HistoricalFinalStageInput,
+    type UpcomingTournamentInput
   } from '$lib/firebase/tournamentImport';
-  import { searchUsers } from '$lib/firebase/tournaments';
+  import { searchUsers, getTournament } from '$lib/firebase/tournaments';
   import type { UserProfile } from '$lib/firebase/userProfile';
-  import type { TournamentTier, TournamentParticipant } from '$lib/types/tournament';
+  import type { TournamentTier, TournamentParticipant, Tournament } from '$lib/types/tournament';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import CountrySelect from '$lib/components/CountrySelect.svelte';
   import * as m from '$lib/paraglide/messages.js';
@@ -36,19 +41,206 @@
   // Loading states
   let isLoading = $state(true);
   let isSaving = $state(false);
+  let savingAsUpcoming = $state(false);
   let hasPermission = $state(false);
 
-  // Check permission on mount
+  // Edit mode state
+  let editTournamentId = $state<string | null>(null);
+  let editingTournament = $state<Tournament | null>(null);
+  let isEditMode = $derived(!!editTournamentId);
+
+  // Duplicate mode state
+  let duplicateMode = $state(false);
+
+  // Check permission on mount and load edit data if applicable
   onMount(async () => {
     hasPermission = await canImportTournaments();
-    if (hasPermission) {
+
+    // Check for edit or duplicate mode
+    const editId = page.url.searchParams.get('edit');
+    const duplicateId = page.url.searchParams.get('duplicate');
+
+    if (editId) {
+      editTournamentId = editId;
+      await loadTournamentForEdit(editId);
+    } else if (duplicateId) {
+      duplicateMode = true;
+      await loadTournamentForDuplication(duplicateId);
+    } else if (hasPermission) {
       loadDraft();
     }
+
     isLoading = false;
     if (!hasPermission) {
       showToastMessage(m.import_noPermissionError(), 'error');
     }
   });
+
+  // Load tournament data for editing
+  async function loadTournamentForEdit(tournamentId: string) {
+    try {
+      const tournament = await getTournament(tournamentId);
+      if (!tournament) {
+        showToastMessage(m.tournament_notFound(), 'error');
+        goto('/admin/tournaments');
+        return;
+      }
+
+      editingTournament = tournament;
+
+      // Pre-populate Step 1: Basic Info
+      name = tournament.name || '';
+      edition = tournament.edition;
+      address = tournament.address || '';
+      city = tournament.city || '';
+      country = tournament.country || 'España';
+      tournamentDate = tournament.tournamentDate
+        ? new Date(tournament.tournamentDate).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+      gameType = tournament.gameType || 'singles';
+      rankingEnabled = tournament.rankingConfig?.enabled || false;
+      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      description = tournament.description || '';
+      externalLink = tournament.externalLink || '';
+      posterUrl = tournament.posterUrl || '';
+
+      // Pre-populate Step 2: Participants (if any)
+      if (tournament.participants && tournament.participants.length > 0) {
+        participants = tournament.participants.map(p => ({
+          id: p.id,
+          name: p.name,
+          oderId: p.userId,
+          partnerName: p.partner?.name,
+          partnerUserId: p.partner?.userId,
+          isRegistered: p.type === 'REGISTERED',
+          participantMode: p.participantMode,
+          pairId: p.pairId,
+          pairTeamName: p.pairTeamName
+        }));
+      }
+
+      // Pre-populate Step 3: Group Stage (if any)
+      if (tournament.groupStage) {
+        hasGroupStage = true;
+        numGroups = tournament.groupStage.numGroups || tournament.groupStage.groups?.length || 2;
+        if (tournament.groupStage.groups) {
+          groups = tournament.groupStage.groups.map(g => ({
+            name: g.name,
+            standings: g.standings?.map(s => ({
+              participantId: s.participantId,
+              participantName: tournament.participants?.find(p => p.id === s.participantId)?.name || '',
+              position: s.position,
+              points: s.points || 0,
+              total20s: s.total20s || 0
+            })) || []
+          }));
+        }
+      } else {
+        hasGroupStage = false;
+      }
+
+      // Pre-populate Step 4: Final Stage (if any)
+      if (tournament.finalStage?.parallelBrackets) {
+        numBrackets = tournament.finalStage.parallelBrackets.length;
+        brackets = tournament.finalStage.parallelBrackets.map(nb => ({
+          name: nb.name,
+          label: nb.label,
+          sourcePositions: nb.sourcePositions || [],
+          rounds: nb.bracket?.rounds?.map(r => ({
+            id: crypto.randomUUID(),
+            name: r.name,
+            matches: r.matches?.map(match => ({
+              id: crypto.randomUUID(),
+              participantAId: match.participantA || '',
+              participantAName: tournament.participants?.find(p => p.id === match.participantA)?.name || '',
+              participantBId: match.participantB || '',
+              participantBName: tournament.participants?.find(p => p.id === match.participantB)?.name || '',
+              scoreA: match.totalPointsA || 0,
+              scoreB: match.totalPointsB || 0,
+              twentiesA: match.total20sA || 0,
+              twentiesB: match.total20sB || 0,
+              isWalkover: match.status === 'WALKOVER'
+            })) || []
+          })) || []
+        }));
+      }
+
+      console.log('✅ Tournament loaded for editing:', tournament.name);
+    } catch (error) {
+      console.error('Error loading tournament for edit:', error);
+      showToastMessage(m.import_error(), 'error');
+      goto('/admin/tournaments');
+    }
+  }
+
+  // Load tournament data for duplication (similar to edit but creates new tournament)
+  async function loadTournamentForDuplication(tournamentId: string) {
+    try {
+      const tournament = await getTournament(tournamentId);
+      if (!tournament) {
+        showToastMessage(m.tournament_notFound(), 'error');
+        goto('/admin/tournaments');
+        return;
+      }
+
+      // Pre-populate Step 1: Basic Info (increment edition, reset date to today)
+      name = tournament.name || '';
+      edition = (tournament.edition || 0) + 1;  // Increment edition for the copy
+      address = tournament.address || '';
+      city = tournament.city || '';
+      country = tournament.country || 'España';
+      tournamentDate = new Date().toISOString().split('T')[0];  // Today's date for new tournament
+      gameType = tournament.gameType || 'singles';
+      rankingEnabled = tournament.rankingConfig?.enabled || false;
+      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      description = '';  // Clear notes for new tournament
+      externalLink = tournament.externalLink || '';
+      posterUrl = tournament.posterUrl || '';
+
+      // Pre-populate Step 2: Participants (if any)
+      if (tournament.participants && tournament.participants.length > 0) {
+        participants = tournament.participants.map(p => ({
+          id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,  // New IDs
+          name: p.name,
+          oderId: p.userId,
+          partnerName: p.partner?.name,
+          partnerUserId: p.partner?.userId,
+          isRegistered: p.type === 'REGISTERED',
+          participantMode: p.participantMode,
+          pairId: p.pairId,
+          pairTeamName: p.pairTeamName
+        }));
+      }
+
+      // Pre-populate Step 3: Group Stage structure (if any) - but clear results
+      if (tournament.groupStage) {
+        hasGroupStage = true;
+        numGroups = tournament.groupStage.numGroups || tournament.groupStage.groups?.length || 2;
+        // Keep structure but clear standings (will be recreated on save)
+        groups = [];
+      } else {
+        hasGroupStage = false;
+      }
+
+      // Pre-populate Step 4: Final Stage structure (if any) - keep bracket structure
+      if (tournament.finalStage?.parallelBrackets) {
+        numBrackets = tournament.finalStage.parallelBrackets.length;
+        brackets = tournament.finalStage.parallelBrackets.map(nb => ({
+          name: nb.name,
+          label: nb.label,
+          sourcePositions: nb.sourcePositions || [],
+          rounds: []  // Clear matches, they'll be populated fresh
+        }));
+      }
+
+      console.log('✅ Tournament loaded for duplication:', tournament.name);
+      showToastMessage(m.wizard_duplicate() + ': ' + tournament.name, 'info');
+    } catch (error) {
+      console.error('Error loading tournament for duplication:', error);
+      showToastMessage(m.import_error(), 'error');
+      goto('/admin/tournaments');
+    }
+  }
 
   // Step 1: Basic Info
   let name = $state('');
@@ -60,7 +252,9 @@
   let gameType = $state<'singles' | 'doubles'>('singles');
   let rankingEnabled = $state(false);
   let selectedTier = $state<TournamentTier>('CLUB');
-  let importNotes = $state('');
+  let description = $state('');
+  let externalLink = $state('');
+  let posterUrl = $state('');
 
   // Step 2: Participants
   interface ParticipantEntry {
@@ -268,7 +462,9 @@
       gameType = data.gameType ?? 'singles';
       rankingEnabled = data.rankingEnabled ?? false;
       selectedTier = data.selectedTier ?? 'CLUB';
-      importNotes = data.importNotes ?? '';
+      description = data.description ?? '';
+      externalLink = data.externalLink ?? '';
+      posterUrl = data.posterUrl ?? '';
 
       // Step 2: Participants
       participants = data.participants ?? [];
@@ -317,7 +513,9 @@
         gameType,
         rankingEnabled,
         selectedTier,
-        importNotes,
+        description,
+        externalLink,
+        posterUrl,
 
         // Step 2: Participants
         participants,
@@ -744,14 +942,138 @@
     if (address && address.trim()) {
       input.address = address.trim();
     }
-    if (importNotes && importNotes.trim()) {
-      input.importNotes = importNotes.trim();
+    if (description && description.trim()) {
+      input.description = description.trim();
+    }
+    if (externalLink && externalLink.trim()) {
+      input.externalLink = externalLink.trim();
+    }
+    if (posterUrl && posterUrl.trim()) {
+      input.posterUrl = posterUrl.trim();
     }
     if (groupStageInput) {
       input.groupStage = groupStageInput;
     }
 
     return input;
+  }
+
+  // Save as Upcoming (only Step 1 data, for future tournaments)
+  async function saveAsUpcoming() {
+    // Validate Step 1 fields only
+    const errors = validateStep(1);
+    if (errors.length > 0) {
+      showToastMessage(errors[0], 'error');
+      return;
+    }
+
+    savingAsUpcoming = true;
+    try {
+      // Build minimal tournament input for upcoming tournament (no game config)
+      const input: UpcomingTournamentInput = {
+        name: name.trim(),
+        tournamentDate: new Date(tournamentDate).getTime(),
+        city: city.trim(),
+        country,
+        gameType,
+        rankingConfig: rankingEnabled
+          ? { enabled: true, tier: selectedTier }
+          : { enabled: false }
+      };
+
+      // Add optional fields only if they have values
+      if (edition !== undefined && edition !== null) {
+        input.edition = edition;
+      }
+      if (address && address.trim()) {
+        input.address = address.trim();
+      }
+      if (description && description.trim()) {
+        input.description = description.trim();
+      }
+      if (externalLink && externalLink.trim()) {
+        input.externalLink = externalLink.trim();
+      }
+      if (posterUrl && posterUrl.trim()) {
+        input.posterUrl = posterUrl.trim();
+      }
+
+      const tournamentId = await createUpcomingTournament(input);
+
+      if (tournamentId) {
+        clearDraft();
+        showToastMessage(m.wizard_saveAsUpcomingSuccess(), 'success');
+        setTimeout(() => {
+          goto('/admin/tournaments');
+        }, 500);
+      } else {
+        showToastMessage(m.import_error(), 'error');
+      }
+    } catch (error) {
+      console.error('Error saving as upcoming:', error);
+      showToastMessage(m.import_error(), 'error');
+    } finally {
+      savingAsUpcoming = false;
+    }
+  }
+
+  // Save only basic info (Step 1) when editing
+  let savingBasicInfo = $state(false);
+
+  async function saveBasicInfoOnly() {
+    const errors = validateStep(1);
+    if (errors.length > 0) {
+      showToastMessage(errors[0], 'error');
+      return;
+    }
+
+    if (!editTournamentId) return;
+
+    savingBasicInfo = true;
+    try {
+      const updates: Partial<HistoricalTournamentInput> = {
+        name: name.trim(),
+        tournamentDate: new Date(tournamentDate).getTime(),
+        city: city.trim(),
+        country,
+        gameType,
+        rankingConfig: rankingEnabled
+          ? { enabled: true, tier: selectedTier }
+          : { enabled: false }
+      };
+
+      if (edition !== undefined && edition !== null) {
+        updates.edition = edition;
+      }
+      if (address && address.trim()) {
+        updates.address = address.trim();
+      }
+      if (description && description.trim()) {
+        updates.description = description.trim();
+      }
+      if (externalLink && externalLink.trim()) {
+        updates.externalLink = externalLink.trim();
+      }
+      if (posterUrl && posterUrl.trim()) {
+        updates.posterUrl = posterUrl.trim();
+      }
+
+      const success = await updateHistoricalTournament(editTournamentId, updates);
+
+      if (success) {
+        showToastMessage(m.wizard_saveAsUpcomingSuccess(), 'success');
+        setTimeout(() => {
+          goto('/admin/tournaments');
+        }, 500);
+      } else {
+        showToastMessage(m.import_error(), 'error');
+      }
+    } catch (error) {
+      console.error('Error saving basic info:', error);
+      showToastMessage(m.import_error(), 'error');
+    } finally {
+      savingBasicInfo = false;
+    }
   }
 
   // Submit
@@ -766,16 +1088,33 @@
     try {
       const input = buildTournamentInput();
       console.log('🔍 DEBUG - Tournament input:', JSON.stringify(input, null, 2));
-      const tournamentId = await createHistoricalTournament(input);
 
-      if (tournamentId) {
-        clearDraft();
-        showToastMessage(m.import_success(), 'success');
-        setTimeout(() => {
-          goto(`/tournaments/${tournamentId}`);
-        }, 1500);
+      let success: boolean | string | null;
+
+      if (isEditMode && editTournamentId) {
+        // Update existing tournament (completing an upcoming tournament)
+        success = await completeUpcomingTournament(editTournamentId, input);
+        if (success) {
+          clearDraft();
+          showToastMessage(m.import_success(), 'success');
+          setTimeout(() => {
+            goto(`/tournaments/${editTournamentId}`);
+          }, 1500);
+        } else {
+          showToastMessage(m.import_error(), 'error');
+        }
       } else {
-        showToastMessage(m.import_error(), 'error');
+        // Create new historical tournament
+        const tournamentId = await createHistoricalTournament(input);
+        if (tournamentId) {
+          clearDraft();
+          showToastMessage(m.import_success(), 'success');
+          setTimeout(() => {
+            goto(`/tournaments/${tournamentId}`);
+          }, 1500);
+        } else {
+          showToastMessage(m.import_error(), 'error');
+        }
       }
     } catch (e) {
       console.error('Import error:', e);
@@ -814,7 +1153,7 @@
         <div class="header-main">
           <div class="title-section">
             <h1>
-              {m.import_title()}:
+              {isEditMode ? m.tournament_completeConfiguration() : m.import_title()}:
               {#if edition && name}
                 #{edition} {name}
               {:else if name}
@@ -825,7 +1164,11 @@
             </h1>
             <div class="header-badges">
               <span class="info-badge step-badge">{m.wizard_step({ current: currentStep, total: totalSteps })}</span>
-              <span class="info-badge imported-badge">{m.import_imported()}</span>
+              {#if isEditMode}
+                <span class="info-badge upcoming-badge">{m.tournament_upcoming()}</span>
+              {:else}
+                <span class="info-badge imported-badge">{m.import_imported()}</span>
+              {/if}
             </div>
           </div>
         </div>
@@ -982,21 +1325,41 @@
             </div>
           </div>
 
-          <!-- Notas -->
+          <!-- Descripción, External Link y Poster -->
           <div class="info-section">
-            <div class="info-section-header">{m.import_dataNotes()} <span class="optional">({m.import_optional()})</span></div>
-            <div class="info-grid">
-              <div class="info-field full-width">
+            <div class="info-grid two-col">
+              <div class="info-field">
+                <span class="field-label">{m.wizard_description()}</span>
                 <textarea
-                  id="notes"
-                  bind:value={importNotes}
-                  placeholder={m.import_dataNotesHint()}
+                  id="description"
+                  bind:value={description}
+                  placeholder={m.wizard_description()}
                   class="input-field textarea"
-                  rows="2"
+                  rows="4"
                 ></textarea>
+              </div>
+              <div class="info-field">
+                <span class="field-label">{m.import_externalLink()}</span>
+                <input
+                  id="externalLink"
+                  type="url"
+                  bind:value={externalLink}
+                  placeholder="https://..."
+                  class="input-field"
+                />
+                <div class="field-spacer"></div>
+                <span class="field-label">{m.wizard_posterUrl?.() ?? 'Imagen del torneo'}</span>
+                <input
+                  id="posterUrl"
+                  type="url"
+                  bind:value={posterUrl}
+                  placeholder="https://..."
+                  class="input-field"
+                />
               </div>
             </div>
           </div>
+
         </div>
 
       {:else if currentStep === 2}
@@ -1466,10 +1829,10 @@
           </div>
 
           <!-- Import Notes -->
-          {#if importNotes}
+          {#if description}
             <div class="review-section">
               <div class="review-section-title">Notas</div>
-              <div class="review-notes-box">{importNotes}</div>
+              <div class="review-notes-box">{description}</div>
             </div>
           {/if}
         </div>
@@ -1482,19 +1845,49 @@
         ← {m.wizard_previous()}
       </button>
 
-      {#if currentStep < totalSteps}
-        <button class="nav-button primary" onclick={nextStep}>
-          {m.wizard_next()} →
-        </button>
-      {:else}
-        <button class="nav-button primary create" onclick={handleSubmit} disabled={isSaving}>
-          {#if isSaving}
-            <LoadingSpinner size="small" inline={true} />
-          {:else}
-            📥 {m.import_completeImport()}
-          {/if}
-        </button>
-      {/if}
+      <div class="nav-right">
+        {#if isEditMode && currentStep === 1}
+          <button
+            class="nav-button save-only"
+            onclick={saveBasicInfoOnly}
+            disabled={savingBasicInfo}
+          >
+            {#if savingBasicInfo}
+              {m.wizard_saving()}
+            {:else}
+              {m.wizard_saveChanges()}
+            {/if}
+          </button>
+        {/if}
+
+        {#if !isEditMode && currentStep === 1}
+          <button
+            class="nav-button save-only"
+            onclick={saveAsUpcoming}
+            disabled={savingAsUpcoming}
+          >
+            {#if savingAsUpcoming}
+              {m.wizard_saving()}
+            {:else}
+              {m.wizard_saveChanges()}
+            {/if}
+          </button>
+        {/if}
+
+        {#if currentStep < totalSteps}
+          <button class="nav-button primary" onclick={nextStep}>
+            {m.wizard_next()} →
+          </button>
+        {:else}
+          <button class="nav-button primary create" onclick={handleSubmit} disabled={isSaving}>
+            {#if isSaving}
+              <LoadingSpinner size="small" inline={true} />
+            {:else}
+              📥 {m.import_completeImport()}
+            {/if}
+          </button>
+        {/if}
+      </div>
     </div>
   </div>
   {/if}
@@ -1624,6 +2017,16 @@
   [data-theme='dark'] .info-badge.imported-badge {
     background: #78350f;
     color: #fcd34d;
+  }
+
+  .info-badge.upcoming-badge {
+    background: #f3e8ff;
+    color: #7c3aed;
+  }
+
+  [data-theme='dark'] .info-badge.upcoming-badge {
+    background: #4c1d95;
+    color: #c4b5fd;
   }
 
   .header-actions {
@@ -1969,6 +2372,10 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .two-col {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .info-field {
     display: flex;
     flex-direction: column;
@@ -1977,6 +2384,10 @@
 
   .info-field.full-width {
     grid-column: 1 / -1;
+  }
+
+  .field-spacer {
+    height: 0.75rem;
   }
 
   .info-field label,
@@ -3421,9 +3832,16 @@
   .wizard-navigation {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 0.75rem;
     padding: 0.75rem;
     flex-shrink: 0;
+  }
+
+  .nav-right {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
   }
 
   .nav-button {
@@ -3487,6 +3905,28 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+  }
+
+  .nav-button.save-only {
+    background: #7c3aed;
+    color: white;
+  }
+
+  .nav-button.save-only:hover:not(:disabled) {
+    background: #6d28d9;
+  }
+
+  .wizard-container[data-theme='dark'] .nav-button.save-only {
+    background: #8b5cf6;
+  }
+
+  .wizard-container[data-theme='dark'] .nav-button.save-only:hover:not(:disabled) {
+    background: #a78bfa;
+  }
+
+  .nav-button.save-only:disabled {
+    opacity: 0.6;
+    cursor: wait;
   }
 
   /* No permission state */
@@ -3645,6 +4085,13 @@
     .wizard-navigation {
       flex-direction: column-reverse;
       padding: 0.5rem;
+    }
+
+    .nav-right {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      gap: 0.5rem;
     }
 
     .nav-button {

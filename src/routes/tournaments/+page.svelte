@@ -40,7 +40,8 @@
 
 	// Filtered tournaments
 	let filteredTournaments = $derived.by(() => {
-		let result = allTournaments;
+		// Exclude cancelled tournaments from public list
+		let result = allTournaments.filter((t) => t.status !== 'CANCELLED');
 
 		if (selectedYear) {
 			result = result.filter((t) => {
