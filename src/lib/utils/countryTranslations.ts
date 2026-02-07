@@ -10,6 +10,7 @@ const countryTranslationMap: Record<string, () => string> = {
   'Austria': () => m.country_austria(),
   'Bélgica': () => m.country_belgium(),
   'Canadá': () => m.country_canada(),
+  'Cataluña': () => m.country_catalonia(),
   'Corea del Sur': () => m.country_southKorea(),
   'Dinamarca': () => m.country_denmark(),
   'España': () => m.country_spain(),

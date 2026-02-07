@@ -24,6 +24,7 @@
   import type { TournamentTier, TournamentParticipant, Tournament } from '$lib/types/tournament';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import CountrySelect from '$lib/components/CountrySelect.svelte';
+  import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
   import * as m from '$lib/paraglide/messages.js';
 
   // Wizard state
@@ -292,6 +293,13 @@
     };
     participants = [...participants, entry];
     saveDraft();
+  }
+
+  // Handler for VenueSelector
+  function handleVenueSelect(venue: { address?: string; city: string; country: string }) {
+    address = venue.address || '';
+    city = venue.city;
+    country = venue.country;
   }
 
   // Derived: userIds to exclude from pair member search
@@ -1241,6 +1249,17 @@
           <!-- Ubicación y Fecha -->
           <div class="info-section">
             <div class="info-section-header">{m.wizard_locationDate()}</div>
+
+            <div class="venue-selector-wrapper">
+              <VenueSelector
+                address={address}
+                city={city}
+                country={country}
+                onselect={handleVenueSelect}
+                theme={$adminTheme}
+              />
+            </div>
+
             <div class="info-grid location-grid">
               <div class="info-field address-field">
                 <label for="address">{m.wizard_address()}</label>
@@ -2362,6 +2381,10 @@
 
   .location-grid {
     grid-template-columns: 1fr 1fr 1fr 115px;
+  }
+
+  .venue-selector-wrapper {
+    margin-bottom: 0.75rem;
   }
 
   .address-field {

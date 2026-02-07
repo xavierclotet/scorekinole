@@ -44,6 +44,7 @@ export interface Tournament {
   key: string;                  // 6-character alphanumeric identifier
   name: string;
   description?: string;
+  descriptionLanguage?: string; // Language code of the description (es, en, ca) for translation
   edition?: number;             // Edition number of the tournament (e.g., 1st, 2nd, etc.) - optional
   country: string;              // Country where tournament takes place
   city: string;                 // City where tournament takes place
@@ -85,6 +86,12 @@ export interface Tournament {
     userId: string;
     userName: string;
   };
+
+  // Ownership & permissions
+  ownerId?: string;              // Current owner UID (defaults to createdBy.userId if not set)
+  ownerName?: string;            // Current owner name (for display without extra queries)
+  adminIds?: string[];           // Additional admin UIDs who can manage this tournament
+
   startedAt?: number;
   completedAt?: number;
   updatedAt: number;

@@ -57,6 +57,74 @@ function cleanUndefined<T>(obj: T): T {
   return obj;
 }
 
+// ============================================================================
+// PERMISSION HELPERS
+// ============================================================================
+
+/**
+ * Check if a user can manage a tournament (edit, update matches, etc.)
+ * Returns true if user is owner, in adminIds, or superadmin
+ *
+ * @param tournament Tournament object or partial with ownership fields
+ * @param userId User ID to check
+ * @returns true if user can manage the tournament
+ */
+export async function canManageTournament(
+  tournament: { ownerId?: string; adminIds?: string[]; createdBy?: { userId: string } },
+  userId: string
+): Promise<boolean> {
+  // Check if user is owner (ownerId takes precedence, fallback to createdBy.userId)
+  const ownerId = tournament.ownerId || tournament.createdBy?.userId;
+  if (ownerId === userId) {
+    return true;
+  }
+
+  // Check if user is in adminIds
+  if (tournament.adminIds?.includes(userId)) {
+    return true;
+  }
+
+  // Check if user is superadmin
+  const superAdminStatus = await isSuperAdmin();
+  return superAdminStatus;
+}
+
+/**
+ * Check if a user can manage tournament admins (add/remove admins, transfer ownership)
+ * Returns true only if user is owner or superadmin
+ *
+ * @param tournament Tournament object or partial with ownership fields
+ * @param userId User ID to check
+ * @returns true if user can manage admins
+ */
+export async function canManageAdmins(
+  tournament: { ownerId?: string; createdBy?: { userId: string } },
+  userId: string
+): Promise<boolean> {
+  // Only owner or superadmin can manage admins
+  const ownerId = tournament.ownerId || tournament.createdBy?.userId;
+  if (ownerId === userId) {
+    return true;
+  }
+
+  const superAdminStatus = await isSuperAdmin();
+  return superAdminStatus;
+}
+
+/**
+ * Get the effective owner ID of a tournament
+ * Uses ownerId if set, otherwise falls back to createdBy.userId
+ */
+export function getEffectiveOwnerId(
+  tournament: { ownerId?: string; createdBy?: { userId: string } }
+): string | undefined {
+  return tournament.ownerId || tournament.createdBy?.userId;
+}
+
+// ============================================================================
+// QUOTA FUNCTIONS
+// ============================================================================
+
 /**
  * Get count of tournaments created by a user in a specific year
  *
@@ -227,6 +295,9 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
         userId: user.id,
         userName: creatorName
       },
+      ownerId: user.id,        // Owner is the creator by default
+      ownerName: creatorName,  // Owner name for display
+      adminIds: [],            // No additional admins initially
       updatedAt: Date.now()
     };
 
@@ -330,11 +401,20 @@ export async function getAllTournaments(
 
   try {
     const tournamentsRef = collection(db!, 'tournaments');
-    let q;
+    const tournamentsMap = new Map<string, Tournament>();
+
+    // Helper to convert Firestore doc to Tournament
+    const docToTournament = (data: DocumentData): Tournament => ({
+      ...data,
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+      startedAt: data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
+      completedAt: data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
+      updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
+    } as Tournament);
 
     if (superAdminStatus) {
       // SuperAdmin: see all tournaments
-      q = query(tournamentsRef, orderBy('createdAt', 'desc'), limit(limitCount));
+      let q;
       if (statusFilter) {
         q = query(
           tournamentsRef,
@@ -342,11 +422,58 @@ export async function getAllTournaments(
           orderBy('createdAt', 'desc'),
           limit(limitCount)
         );
+      } else {
+        q = query(tournamentsRef, orderBy('createdAt', 'desc'), limit(limitCount));
       }
+
+      const snapshot = await getDocs(q);
+      snapshot.forEach(docSnap => {
+        tournamentsMap.set(docSnap.id, docToTournament(docSnap.data()));
+      });
     } else {
-      // Admin: only see own tournaments
+      // Admin: see own tournaments + tournaments where they're in adminIds
+      // Query 1: Tournaments owned by user (ownerId or createdBy.userId)
+      let ownedQuery;
       if (statusFilter) {
-        q = query(
+        ownedQuery = query(
+          tournamentsRef,
+          where('ownerId', '==', user.id),
+          where('status', '==', statusFilter),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      } else {
+        ownedQuery = query(
+          tournamentsRef,
+          where('ownerId', '==', user.id),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      }
+
+      // Query 2: Tournaments where user is in adminIds
+      let collaboratorQuery;
+      if (statusFilter) {
+        collaboratorQuery = query(
+          tournamentsRef,
+          where('adminIds', 'array-contains', user.id),
+          where('status', '==', statusFilter),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      } else {
+        collaboratorQuery = query(
+          tournamentsRef,
+          where('adminIds', 'array-contains', user.id),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      }
+
+      // Query 3: Legacy tournaments (createdBy.userId but no ownerId set)
+      let legacyQuery;
+      if (statusFilter) {
+        legacyQuery = query(
           tournamentsRef,
           where('createdBy.userId', '==', user.id),
           where('status', '==', statusFilter),
@@ -354,31 +481,37 @@ export async function getAllTournaments(
           limit(limitCount)
         );
       } else {
-        q = query(
+        legacyQuery = query(
           tournamentsRef,
           where('createdBy.userId', '==', user.id),
           orderBy('createdAt', 'desc'),
           limit(limitCount)
         );
       }
+
+      // Execute all queries in parallel
+      const [ownedSnapshot, collaboratorSnapshot, legacySnapshot] = await Promise.all([
+        getDocs(ownedQuery),
+        getDocs(collaboratorQuery),
+        getDocs(legacyQuery)
+      ]);
+
+      // Combine results (Map deduplicates by ID)
+      ownedSnapshot.forEach(docSnap => {
+        tournamentsMap.set(docSnap.id, docToTournament(docSnap.data()));
+      });
+      collaboratorSnapshot.forEach(docSnap => {
+        tournamentsMap.set(docSnap.id, docToTournament(docSnap.data()));
+      });
+      legacySnapshot.forEach(docSnap => {
+        tournamentsMap.set(docSnap.id, docToTournament(docSnap.data()));
+      });
     }
 
-    const snapshot = await getDocs(q);
-
-    const tournaments: Tournament[] = [];
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      tournaments.push({
-        ...data,
-        createdAt:
-          data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
-        startedAt:
-          data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
-        completedAt:
-          data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
-        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
-      } as Tournament);
-    });
+    // Convert to array and sort by createdAt desc
+    const tournaments = Array.from(tournamentsMap.values())
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, limitCount);
 
     console.log(`✅ Retrieved ${tournaments.length} tournaments`);
     return tournaments;
@@ -436,20 +569,21 @@ export async function getTournamentsPaginated(
   try {
     const tournamentsRef = collection(db!, 'tournaments');
 
-    // Get total count (filtered for non-superadmins)
-    let countQuery;
-    if (superAdminStatus) {
-      countQuery = tournamentsRef;
-    } else {
-      countQuery = query(tournamentsRef, where('createdBy.userId', '==', user.id));
-    }
-    const countSnapshot = await getCountFromServer(countQuery);
-    const totalCount = countSnapshot.data().count;
+    // Helper to convert Firestore doc to Tournament
+    const docToTournament = (data: DocumentData): Tournament => ({
+      ...data,
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+      startedAt: data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
+      completedAt: data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
+      updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
+    } as Tournament);
 
-    // Build paginated query (filtered for non-superadmins)
-    let q;
     if (superAdminStatus) {
-      // SuperAdmin: see all tournaments
+      // SuperAdmin: standard Firestore pagination
+      const countSnapshot = await getCountFromServer(tournamentsRef);
+      const totalCount = countSnapshot.data().count;
+
+      let q;
       if (lastDocument) {
         q = query(
           tournamentsRef,
@@ -460,55 +594,96 @@ export async function getTournamentsPaginated(
       } else {
         q = query(tournamentsRef, orderBy('createdAt', 'desc'), limit(pageSize));
       }
+
+      const snapshot = await getDocs(q);
+      const tournaments: Tournament[] = [];
+      snapshot.forEach(docSnap => {
+        tournaments.push(docToTournament(docSnap.data()));
+      });
+
+      const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+      const hasMore = snapshot.docs.length === pageSize;
+
+      console.log(`✅ Retrieved ${tournaments.length} tournaments (page), total: ${totalCount}`);
+      return { tournaments, totalCount, lastDoc, hasMore };
     } else {
-      // Admin: only see own tournaments
-      // Note: This query requires a composite index on createdBy.userId + createdAt
-      // If the index doesn't exist, Firestore will show a link in the console to create it
+      // Admin: combine multiple queries (owned + collaborator + legacy)
+      // Since Firestore doesn't support OR queries, we fetch all matching and paginate client-side
+      const maxFetchLimit = 500; // Reasonable limit for admin tournaments
+
+      // Query 1: Tournaments owned by user
+      const ownedQuery = query(
+        tournamentsRef,
+        where('ownerId', '==', user.id),
+        orderBy('createdAt', 'desc'),
+        limit(maxFetchLimit)
+      );
+
+      // Query 2: Tournaments where user is in adminIds
+      const collaboratorQuery = query(
+        tournamentsRef,
+        where('adminIds', 'array-contains', user.id),
+        orderBy('createdAt', 'desc'),
+        limit(maxFetchLimit)
+      );
+
+      // Query 3: Legacy tournaments (createdBy.userId for backward compatibility)
+      const legacyQuery = query(
+        tournamentsRef,
+        where('createdBy.userId', '==', user.id),
+        orderBy('createdAt', 'desc'),
+        limit(maxFetchLimit)
+      );
+
+      // Execute all queries in parallel
+      const [ownedSnapshot, collaboratorSnapshot, legacySnapshot] = await Promise.all([
+        getDocs(ownedQuery),
+        getDocs(collaboratorQuery),
+        getDocs(legacyQuery)
+      ]);
+
+      // Combine and deduplicate results
+      const tournamentsMap = new Map<string, Tournament>();
+      ownedSnapshot.forEach(docSnap => {
+        tournamentsMap.set(docSnap.id, docToTournament(docSnap.data()));
+      });
+      collaboratorSnapshot.forEach(docSnap => {
+        tournamentsMap.set(docSnap.id, docToTournament(docSnap.data()));
+      });
+      legacySnapshot.forEach(docSnap => {
+        tournamentsMap.set(docSnap.id, docToTournament(docSnap.data()));
+      });
+
+      // Sort by createdAt desc
+      const allTournaments = Array.from(tournamentsMap.values())
+        .sort((a, b) => b.createdAt - a.createdAt);
+
+      const totalCount = allTournaments.length;
+
+      // Client-side pagination using offset from lastDocument
+      // Since we can't use Firestore's startAfter with combined queries,
+      // we use a simple offset approach
+      let startIndex = 0;
       if (lastDocument) {
-        q = query(
-          tournamentsRef,
-          where('createdBy.userId', '==', user.id),
-          orderBy('createdAt', 'desc'),
-          startAfter(lastDocument),
-          limit(pageSize)
-        );
-      } else {
-        q = query(
-          tournamentsRef,
-          where('createdBy.userId', '==', user.id),
-          orderBy('createdAt', 'desc'),
-          limit(pageSize)
-        );
+        // Find the index after the last document's createdAt
+        const lastCreatedAt = lastDocument.data().createdAt instanceof Timestamp
+          ? lastDocument.data().createdAt.toMillis()
+          : lastDocument.data().createdAt;
+        startIndex = allTournaments.findIndex(t => t.createdAt < lastCreatedAt);
+        if (startIndex === -1) startIndex = allTournaments.length;
       }
+
+      const tournaments = allTournaments.slice(startIndex, startIndex + pageSize);
+      const hasMore = startIndex + pageSize < totalCount;
+
+      console.log(`✅ Retrieved ${tournaments.length} tournaments (page), total: ${totalCount}`);
+      return {
+        tournaments,
+        totalCount,
+        lastDoc: null, // Not used for client-side pagination
+        hasMore
+      };
     }
-
-    const snapshot = await getDocs(q);
-
-    const tournaments: Tournament[] = [];
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      tournaments.push({
-        ...data,
-        createdAt:
-          data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
-        startedAt:
-          data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
-        completedAt:
-          data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
-        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
-      } as Tournament);
-    });
-
-    const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-    const hasMore = snapshot.docs.length === pageSize;
-
-    console.log(`✅ Retrieved ${tournaments.length} tournaments (page), total: ${totalCount}`);
-    return {
-      tournaments,
-      totalCount,
-      lastDoc,
-      hasMore
-    };
   } catch (error) {
     console.error('❌ Error getting tournaments:', error);
     return emptyResult;
@@ -547,17 +722,18 @@ export async function updateTournament(
   try {
     const tournamentRef = doc(db!, 'tournaments', id);
 
-    // Check ownership for non-superadmins
-    const superAdminStatus = await isSuperAdmin();
-    if (!superAdminStatus) {
-      const snapshot = await getDoc(tournamentRef);
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data.createdBy?.userId !== user.id) {
-          console.error('Unauthorized: Admin can only edit own tournaments');
-          return false;
-        }
-      }
+    // Check permission using canManageTournament
+    const snapshot = await getDoc(tournamentRef);
+    if (!snapshot.exists()) {
+      console.error('Tournament not found:', id);
+      return false;
+    }
+
+    const tournamentData = snapshot.data();
+    const hasPermission = await canManageTournament(tournamentData, user.id);
+    if (!hasPermission) {
+      console.error('Unauthorized: User cannot edit this tournament');
+      return false;
     }
 
     // Recursively remove undefined values from updates
@@ -641,18 +817,19 @@ export async function deleteTournament(id: string): Promise<boolean> {
   }
 
   try {
-    // Check ownership for non-superadmins
-    const superAdminStatus = await isSuperAdmin();
-    if (!superAdminStatus) {
-      const tournamentRef = doc(db!, 'tournaments', id);
-      const snapshot = await getDoc(tournamentRef);
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data.createdBy?.userId !== user.id) {
-          console.error('Unauthorized: Admin can only delete own tournaments');
-          return false;
-        }
-      }
+    // Check permission using canManageTournament
+    const tournamentRef = doc(db!, 'tournaments', id);
+    const snapshot = await getDoc(tournamentRef);
+    if (!snapshot.exists()) {
+      console.error('Tournament not found:', id);
+      return false;
+    }
+
+    const tournamentData = snapshot.data();
+    const hasPermission = await canManageTournament(tournamentData, user.id);
+    if (!hasPermission) {
+      console.error('Unauthorized: User cannot delete this tournament');
+      return false;
     }
 
     // First, revert ranking changes for all participants
@@ -664,7 +841,6 @@ export async function deleteTournament(id: string): Promise<boolean> {
     }
 
     // Then delete the tournament document
-    const tournamentRef = doc(db!, 'tournaments', id);
     await deleteDoc(tournamentRef);
 
     console.log('✅ Tournament deleted:', id);
@@ -695,6 +871,7 @@ export interface TournamentNameInfo {
   name: string;
   maxEdition: number;
   description?: string;
+  descriptionLanguage?: string;
   country?: string;
   city?: string;
   address?: string;
@@ -728,7 +905,7 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
     const snapshot = await getDocs(q);
 
     // Track max edition per tournament name with additional info
-    const namesMap = new Map<string, { maxEdition: number; description?: string; country?: string; city?: string; address?: string }>();
+    const namesMap = new Map<string, { maxEdition: number; description?: string; descriptionLanguage?: string; country?: string; city?: string; address?: string }>();
     const queryLower = searchQuery.toLowerCase();
 
     snapshot.forEach(docSnap => {
@@ -743,6 +920,7 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
             namesMap.set(data.name, {
               maxEdition: edition,
               description: data.description,
+              descriptionLanguage: data.descriptionLanguage,
               country: data.country,
               city: data.city,
               address: data.address
@@ -758,6 +936,7 @@ export async function searchTournamentNames(searchQuery: string): Promise<Tourna
         name,
         maxEdition: info.maxEdition,
         description: info.description,
+        descriptionLanguage: info.descriptionLanguage,
         country: info.country,
         city: info.city,
         address: info.address
@@ -967,4 +1146,329 @@ export function subscribeTournament(
   );
 
   return unsubscribe;
+}
+
+// ============================================================================
+// TOURNAMENT ADMIN MANAGEMENT
+// ============================================================================
+
+/**
+ * Add an admin to a tournament
+ * Only the owner or superadmin can add admins
+ *
+ * @param tournamentId Tournament ID
+ * @param adminUserId User ID of the admin to add
+ * @returns true if successful
+ */
+export async function addTournamentAdmin(
+  tournamentId: string,
+  adminUserId: string
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db!, 'tournaments', tournamentId);
+    const snapshot = await getDoc(tournamentRef);
+
+    if (!snapshot.exists()) {
+      console.error('Tournament not found:', tournamentId);
+      return false;
+    }
+
+    const tournamentData = snapshot.data();
+
+    // Check if current user can manage admins
+    const hasPermission = await canManageAdmins(tournamentData, user.id);
+    if (!hasPermission) {
+      console.error('Unauthorized: Only owner or superadmin can add tournament admins');
+      return false;
+    }
+
+    // Get current adminIds
+    const currentAdminIds = tournamentData.adminIds || [];
+
+    // Check if user is already an admin
+    if (currentAdminIds.includes(adminUserId)) {
+      console.warn('User is already an admin of this tournament');
+      return true; // Not an error, just already added
+    }
+
+    // Check if trying to add the owner
+    const ownerId = getEffectiveOwnerId(tournamentData);
+    if (adminUserId === ownerId) {
+      console.warn('Cannot add owner as admin (they already have full access)');
+      return true;
+    }
+
+    // Add the new admin
+    await updateDoc(tournamentRef, {
+      adminIds: [...currentAdminIds, adminUserId],
+      updatedAt: serverTimestamp()
+    });
+
+    console.log('✅ Admin added to tournament:', adminUserId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error adding tournament admin:', error);
+    return false;
+  }
+}
+
+/**
+ * Remove an admin from a tournament
+ * Only the owner or superadmin can remove admins
+ *
+ * @param tournamentId Tournament ID
+ * @param adminUserId User ID of the admin to remove
+ * @returns true if successful
+ */
+export async function removeTournamentAdmin(
+  tournamentId: string,
+  adminUserId: string
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db!, 'tournaments', tournamentId);
+    const snapshot = await getDoc(tournamentRef);
+
+    if (!snapshot.exists()) {
+      console.error('Tournament not found:', tournamentId);
+      return false;
+    }
+
+    const tournamentData = snapshot.data();
+
+    // Check if current user can manage admins
+    const hasPermission = await canManageAdmins(tournamentData, user.id);
+    if (!hasPermission) {
+      console.error('Unauthorized: Only owner or superadmin can remove tournament admins');
+      return false;
+    }
+
+    // Get current adminIds
+    const currentAdminIds = tournamentData.adminIds || [];
+
+    // Remove the admin
+    const updatedAdminIds = currentAdminIds.filter((id: string) => id !== adminUserId);
+
+    await updateDoc(tournamentRef, {
+      adminIds: updatedAdminIds,
+      updatedAt: serverTimestamp()
+    });
+
+    console.log('✅ Admin removed from tournament:', adminUserId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error removing tournament admin:', error);
+    return false;
+  }
+}
+
+/**
+ * Transfer tournament ownership to another user
+ * Only the owner or superadmin can transfer ownership
+ *
+ * @param tournamentId Tournament ID
+ * @param newOwnerId User ID of the new owner
+ * @param keepPreviousOwnerAsAdmin If true, previous owner becomes an admin
+ * @returns true if successful
+ */
+export async function transferTournamentOwnership(
+  tournamentId: string,
+  newOwnerId: string,
+  newOwnerName: string,
+  keepPreviousOwnerAsAdmin: boolean = false
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db!, 'tournaments', tournamentId);
+    const snapshot = await getDoc(tournamentRef);
+
+    if (!snapshot.exists()) {
+      console.error('Tournament not found:', tournamentId);
+      return false;
+    }
+
+    const tournamentData = snapshot.data();
+
+    // Check if current user can manage admins (transfer is an admin action)
+    const hasPermission = await canManageAdmins(tournamentData, user.id);
+    if (!hasPermission) {
+      console.error('Unauthorized: Only owner or superadmin can transfer ownership');
+      return false;
+    }
+
+    const currentOwnerId = getEffectiveOwnerId(tournamentData);
+
+    // Can't transfer to yourself
+    if (currentOwnerId === newOwnerId) {
+      console.warn('Cannot transfer ownership to the current owner');
+      return true;
+    }
+
+    // Prepare the update
+    const currentAdminIds = tournamentData.adminIds || [];
+
+    // Remove new owner from adminIds if they were a collaborator
+    let updatedAdminIds = currentAdminIds.filter((id: string) => id !== newOwnerId);
+
+    // Add previous owner to adminIds if requested
+    if (keepPreviousOwnerAsAdmin && currentOwnerId && !updatedAdminIds.includes(currentOwnerId)) {
+      updatedAdminIds = [...updatedAdminIds, currentOwnerId];
+    }
+
+    await updateDoc(tournamentRef, {
+      ownerId: newOwnerId,
+      ownerName: newOwnerName,
+      adminIds: updatedAdminIds,
+      updatedAt: serverTimestamp()
+    });
+
+    console.log('✅ Tournament ownership transferred to:', newOwnerName, '(', newOwnerId, ')');
+    return true;
+  } catch (error) {
+    console.error('❌ Error transferring tournament ownership:', error);
+    return false;
+  }
+}
+
+/**
+ * Get list of admin users for selection
+ * Returns users who have isAdmin flag
+ *
+ * @returns Array of admin user profiles
+ */
+export async function getAdminUsers(): Promise<(UserProfile & { userId: string })[]> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return [];
+  }
+
+  try {
+    const usersRef = collection(db!, 'users');
+    const q = query(usersRef, where('isAdmin', '==', true));
+    const snapshot = await getDocs(q);
+
+    const admins: (UserProfile & { userId: string })[] = [];
+
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data() as UserProfile;
+
+      // Skip merged users
+      if (data.mergedTo) {
+        return;
+      }
+
+      admins.push({
+        ...data,
+        userId: docSnap.id,
+        playerName: data.playerName || 'Usuario'
+      });
+    });
+
+    // Sort by name
+    admins.sort((a, b) => (a.playerName || '').localeCompare(b.playerName || ''));
+
+    return admins;
+  } catch (error) {
+    console.error('❌ Error getting admin users:', error);
+    return [];
+  }
+}
+
+/**
+ * Get tournament admins info (for display in UI)
+ * Returns basic info about owner and admin collaborators
+ *
+ * @param tournament Tournament object
+ * @returns Object with owner and admins info
+ */
+export async function getTournamentAdminsInfo(tournament: Tournament): Promise<{
+  owner: { userId: string; name: string } | null;
+  admins: Array<{ userId: string; name: string }>;
+}> {
+  if (!browser || !isFirebaseEnabled()) {
+    return { owner: null, admins: [] };
+  }
+
+  const result: {
+    owner: { userId: string; name: string } | null;
+    admins: Array<{ userId: string; name: string }>;
+  } = {
+    owner: null,
+    admins: []
+  };
+
+  try {
+    const ownerId = getEffectiveOwnerId(tournament);
+    const adminIds = tournament.adminIds || [];
+
+    // Get all user IDs we need to fetch
+    const userIds = new Set<string>();
+    if (ownerId) userIds.add(ownerId);
+    adminIds.forEach(id => userIds.add(id));
+
+    if (userIds.size === 0) {
+      return result;
+    }
+
+    // Fetch user profiles
+    const usersRef = collection(db!, 'users');
+    const userProfiles = new Map<string, string>();
+
+    for (const userId of userIds) {
+      const userDoc = await getDoc(doc(usersRef, userId));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        userProfiles.set(userId, data.playerName || 'Usuario');
+      }
+    }
+
+    // Build result
+    if (ownerId) {
+      result.owner = {
+        userId: ownerId,
+        name: userProfiles.get(ownerId) || tournament.createdBy?.userName || 'Unknown'
+      };
+    }
+
+    result.admins = adminIds.map(id => ({
+      userId: id,
+      name: userProfiles.get(id) || 'Unknown'
+    }));
+
+    return result;
+  } catch (error) {
+    console.error('❌ Error getting tournament admins info:', error);
+    return result;
+  }
 }

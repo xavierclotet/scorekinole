@@ -9,7 +9,7 @@
   interface Props {
     onadd: (participant: Partial<TournamentParticipant>) => void;
     existingParticipants?: Partial<TournamentParticipant>[];
-    excludedUserIds?: string[];  // UserIds to exclude from player search (from already-added pairs)
+    excludedUserIds?: string[];
     theme?: 'light' | 'dark';
   }
 
@@ -36,7 +36,6 @@
 
   let canAdd = $derived(p1Selected && p2Selected && !adding);
 
-  // Filtered results - reactively filters when excludedUserIds changes
   let p1Results = $derived(
     p1RawResults.filter(u =>
       !(p2Selected?.type === 'REGISTERED' && p2Selected.userId === u.userId) &&
@@ -51,12 +50,10 @@
     )
   );
 
-  // Debounce timers
   let pairTimeout: ReturnType<typeof setTimeout> | null = null;
   let p1Timeout: ReturnType<typeof setTimeout> | null = null;
   let p2Timeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Search existing pairs
   $effect(() => {
     if (pairTimeout) clearTimeout(pairTimeout);
     if (!pairSearch || pairSearch.length < 2) { pairResults = []; return; }
@@ -68,7 +65,6 @@
     }, 250);
   });
 
-  // Search player 1 - stores raw results, filtering is done via $derived
   $effect(() => {
     if (p1Timeout) clearTimeout(p1Timeout);
     if (!p1 || p1.length < 2 || p1Selected) { p1RawResults = []; return; }
@@ -80,7 +76,6 @@
     }, 250);
   });
 
-  // Search player 2 - stores raw results, filtering is done via $derived
   $effect(() => {
     if (p2Timeout) clearTimeout(p2Timeout);
     if (!p2 || p2.length < 2 || p2Selected) { p2RawResults = []; return; }
@@ -130,7 +125,6 @@
       rankingSnapshot: 0,
       currentRanking: 0,
       status: 'ACTIVE',
-      // Include member userIds for filtering in parent
       memberUserIds: [
         pair.member1Type === 'REGISTERED' ? pair.member1UserId : '',
         pair.member2Type === 'REGISTERED' ? pair.member2UserId : ''
@@ -157,7 +151,6 @@
         rankingSnapshot: 0,
         currentRanking: 0,
         status: 'ACTIVE',
-        // Include member userIds for filtering in parent
         memberUserIds: [
           p1Selected.type === 'REGISTERED' && p1Selected.userId ? p1Selected.userId : '',
           p2Selected.type === 'REGISTERED' && p2Selected.userId ? p2Selected.userId : ''
@@ -172,157 +165,393 @@
   }
 </script>
 
-<div class="ps" data-theme={theme}>
-  <!-- Row 1: Search existing pairs -->
-  <div class="row">
-    <label class="lbl">
-      <span class="label-text">{m.wizard_searchPair()}</span>
-      <input type="text" bind:value={pairSearch} placeholder={m.wizard_searchPairPlaceholder()} />
-    </label>
-    <div class="search-wrap">
-      {#if pairLoading}<span class="spin"></span>{/if}
-      {#if pairResults.length > 0}
-        <div class="results">
-          {#each pairResults as pair}
-            <button onclick={() => addExistingPair(pair)}>
-              <span class="pname">{getPairDisplayName(pair)}</span>
-              <span class="pmembers">{pair.member1Name} / {pair.member2Name}</span>
-              <span class="plus">+</span>
-            </button>
-          {/each}
-        </div>
-      {/if}
+<div class="pair-selector" data-theme={theme}>
+  <div class="add-row">
+    <!-- Search existing pairs -->
+    <div class="add-field search-field">
+      <label>{m.wizard_searchPair()}</label>
+      <div class="search-box">
+        <input
+          type="text"
+          bind:value={pairSearch}
+          placeholder={m.wizard_searchPairPlaceholder()}
+          class="input-field"
+          autocomplete="off"
+        />
+        {#if pairLoading}
+          <span class="search-loading">⏳</span>
+        {/if}
+        {#if pairResults.length > 0}
+          <div class="search-results">
+            {#each pairResults as pair}
+              <button class="search-result-item" onclick={() => addExistingPair(pair)}>
+                <span class="result-name">{getPairDisplayName(pair)}</span>
+                <span class="result-members">{pair.member1Name} / {pair.member2Name}</span>
+                <span class="result-add">+</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
     </div>
-  </div>
 
-  <!-- Row 2: Create new pair -->
-  <div class="row new-pair">
-    <span class="lbl">{m.wizard_newPair()}</span>
-    <div class="inline-form">
-      <!-- Player 1 -->
-      <div class="pfield">
-        {#if p1Selected}
-          <span class="sel" class:guest={p1Selected.type === 'GUEST'}>{p1Selected.name}<button onclick={clearP1}>×</button></span>
-        {:else}
-          <input type="text" bind:value={p1} placeholder={m.wizard_player1()} />
-          {#if p1Loading}<span class="spin"></span>{/if}
-          {#if p1Results.length > 0}
-            <div class="results">
-              {#each p1Results.slice(0, 4) as u}
-                <button onclick={() => selectP1(u)}>{u.playerName}</button>
-              {/each}
+    <!-- New pair section -->
+    <div class="add-field new-pair-field">
+      <label>{m.wizard_newPair()}</label>
+      <div class="new-pair-inputs">
+        <!-- Player 1 -->
+        <div class="player-box">
+          {#if p1Selected}
+            <span class="player-chip" class:guest={p1Selected.type === 'GUEST'}>
+              {p1Selected.name}
+              <button class="chip-clear" onclick={clearP1}>×</button>
+            </span>
+          {:else}
+            <div class="player-search">
+              <input
+                type="text"
+                bind:value={p1}
+                placeholder={m.wizard_player1()}
+                class="player-input"
+                autocomplete="off"
+              />
+              {#if p1Loading}<span class="mini-loading">⏳</span>{/if}
             </div>
+            {#if p1Results.length > 0}
+              <div class="player-results">
+                {#each p1Results.slice(0, 4) as u}
+                  <button onclick={() => selectP1(u)}>{u.playerName}</button>
+                {/each}
+              </div>
+            {/if}
+            {#if p1.length >= 3 && !p1Loading && p1Results.length === 0}
+              <button class="add-guest-btn" onclick={setP1Guest}>+ inv "{p1}"</button>
+            {/if}
           {/if}
-          {#if p1.length >= 3 && !p1Loading && p1Results.length === 0}
-            <button class="guest-btn" onclick={setP1Guest}>+ inv "{p1}"</button>
-          {/if}
-        {/if}
-      </div>
+        </div>
 
-      <span class="amp">/</span>
+        <span class="pair-sep">/</span>
 
-      <!-- Player 2 -->
-      <div class="pfield">
-        {#if p2Selected}
-          <span class="sel" class:guest={p2Selected.type === 'GUEST'}>{p2Selected.name}<button onclick={clearP2}>×</button></span>
-        {:else}
-          <input type="text" bind:value={p2} placeholder={m.wizard_player2()} />
-          {#if p2Loading}<span class="spin"></span>{/if}
-          {#if p2Results.length > 0}
-            <div class="results">
-              {#each p2Results.slice(0, 4) as u}
-                <button onclick={() => selectP2(u)}>{u.playerName}</button>
-              {/each}
+        <!-- Player 2 -->
+        <div class="player-box">
+          {#if p2Selected}
+            <span class="player-chip" class:guest={p2Selected.type === 'GUEST'}>
+              {p2Selected.name}
+              <button class="chip-clear" onclick={clearP2}>×</button>
+            </span>
+          {:else}
+            <div class="player-search">
+              <input
+                type="text"
+                bind:value={p2}
+                placeholder={m.wizard_player2()}
+                class="player-input"
+                autocomplete="off"
+              />
+              {#if p2Loading}<span class="mini-loading">⏳</span>{/if}
             </div>
+            {#if p2Results.length > 0}
+              <div class="player-results">
+                {#each p2Results.slice(0, 4) as u}
+                  <button onclick={() => selectP2(u)}>{u.playerName}</button>
+                {/each}
+              </div>
+            {/if}
+            {#if p2.length >= 3 && !p2Loading && p2Results.length === 0}
+              <button class="add-guest-btn" onclick={setP2Guest}>+ inv "{p2}"</button>
+            {/if}
           {/if}
-          {#if p2.length >= 3 && !p2Loading && p2Results.length === 0}
-            <button class="guest-btn" onclick={setP2Guest}>+ inv "{p2}"</button>
-          {/if}
-        {/if}
+        </div>
       </div>
+    </div>
 
-      <!-- Team name -->
-      <input type="text" bind:value={teamName} placeholder={m.wizard_teamNamePlaceholder()} class="team" maxlength="40" />
-
-      <!-- Add button -->
-      <button class="add" onclick={addNewPair} disabled={!canAdd}>{adding ? '...' : '+'}</button>
+    <!-- Team name & add -->
+    <div class="add-field team-field">
+      <label>{m.wizard_teamName()}</label>
+      <div class="team-input-group">
+        <input
+          type="text"
+          bind:value={teamName}
+          placeholder={m.wizard_teamNamePlaceholder()}
+          class="input-field"
+          maxlength="40"
+        />
+        <button class="add-btn" onclick={addNewPair} disabled={!canAdd}>
+          {adding ? '...' : '+'}
+        </button>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
-  .ps {
+  .pair-selector {
     --bg: #fff;
-    --bg2: #f8fafc;
+    --bg-input: #fff;
+    --bg-hover: #f1f5f9;
     --border: #e2e8f0;
     --txt: #1e293b;
-    --muted: #64748b;
+    --txt-muted: #64748b;
     --primary: #3b82f6;
-    --sel-bg: #dbeafe;
-    --sel-txt: #1e40af;
+    --primary-hover: #2563eb;
+    --chip-bg: #dbeafe;
+    --chip-txt: #1e40af;
     --guest-bg: #fef3c7;
-    --guest-txt: #b45309;
+    --guest-txt: #92400e;
   }
-  .ps[data-theme='dark'] {
-    --bg: #1e293b;
-    --bg2: #0f172a;
-    --border: #475569;
+
+  .pair-selector[data-theme='dark'] {
+    --bg: #1a2332;
+    --bg-input: #0f172a;
+    --bg-hover: #1e293b;
+    --border: #334155;
     --txt: #f1f5f9;
-    --muted: #94a3b8;
-    --sel-bg: #1e3a5f;
-    --sel-txt: #93c5fd;
+    --txt-muted: #94a3b8;
+    --chip-bg: #1e3a5f;
+    --chip-txt: #93c5fd;
     --guest-bg: #78350f;
     --guest-txt: #fcd34d;
   }
 
-  .ps { display: flex; flex-direction: column; gap: 0.75rem; }
-
-  .row { display: flex; align-items: flex-start; gap: 0.5rem; }
-  .lbl { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; width: 80px; flex-shrink: 0; padding-top: 0.5rem; }
-
-  .search-wrap { position: relative; flex: 1; min-width: 0; }
-  .pfield { position: relative; }
-  .pfield input {
-    width: 100%; padding: 0.35rem 0.5rem; border: 1px solid var(--border);
-    border-radius: 4px; font-size: 0.8rem; background: var(--bg); color: var(--txt); box-sizing: border-box;
+  .add-row {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    gap: 0.75rem;
+    align-items: start;
   }
-  .pfield input:focus { outline: none; border-color: var(--primary); }
 
-  .spin { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.5s linear infinite; }
-  @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+  .add-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
 
-  .results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; margin-top: 2px; z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden; }
-  .results button { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.4rem 0.6rem; border: none; background: transparent; color: var(--txt); font-size: 0.8rem; cursor: pointer; text-align: left; }
-  .results button:hover { background: var(--bg2); }
-  .pname { font-weight: 500; }
-  .pmembers { flex: 1; font-size: 0.75rem; color: var(--muted); }
-  .plus { color: var(--primary); font-weight: 600; }
+  .add-field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--txt-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
 
-  .guest-btn { width: 100%; margin-top: 0.25rem; padding: 0.3rem; background: transparent; border: 1px dashed var(--border); border-radius: 4px; color: var(--muted); font-size: 0.75rem; cursor: pointer; }
-  .guest-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .search-box,
+  .team-input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
 
-  .inline-form { display: flex; align-items: flex-start; gap: 0.4rem; flex: 1; flex-wrap: nowrap; }
-  .pfield { flex: 0 1 140px; min-width: 110px; max-width: 170px; }
-  .amp { color: var(--muted); padding-top: 0.4rem; font-size: 0.8rem; }
-  .team { flex: 2; min-width: 120px; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.85rem; background: var(--bg); color: var(--txt); }
-  .team:focus { outline: none; border-color: var(--primary); }
+  .input-field {
+    flex: 1;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 0.8rem;
+    background: var(--bg-input);
+    color: var(--txt);
+  }
+  .input-field:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+  .input-field::placeholder {
+    color: var(--txt-muted);
+  }
 
-  .sel { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.25rem 0.4rem; background: var(--sel-bg); border-radius: 3px; font-size: 0.75rem; color: var(--sel-txt); font-weight: 500; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sel.guest { background: var(--guest-bg); color: var(--guest-txt); }
-  .sel button { padding: 0; width: 14px; height: 14px; border: none; background: rgba(0,0,0,0.1); color: inherit; border-radius: 50%; cursor: pointer; font-size: 0.7rem; line-height: 1; flex-shrink: 0; }
-  .sel button:hover { background: rgba(0,0,0,0.2); }
+  .search-loading,
+  .mini-loading {
+    font-size: 0.75rem;
+    position: absolute;
+    right: 0.5rem;
+  }
 
-  .add { padding: 0.4rem 0.8rem; background: var(--primary); color: #fff; border: none; border-radius: 4px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
-  .add:hover:not(:disabled) { background: #2563eb; }
-  .add:disabled { opacity: 0.4; cursor: not-allowed; }
+  .search-results,
+  .player-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    margin-top: 2px;
+    z-index: 30;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
 
-  @media (max-width: 600px) {
-    .row { flex-direction: column; gap: 0.25rem; }
-    .lbl { width: auto; padding-top: 0; }
-    .inline-form { flex-wrap: wrap; gap: 0.4rem; }
-    .pfield { flex: 1 1 80px; min-width: 80px; max-width: none; }
-    .team { flex: 1 1 100%; min-width: 100px; }
-    .amp { display: none; }
-    .add { flex: 0 0 auto; }
+  .search-result-item,
+  .player-results button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    border: none;
+    background: transparent;
+    color: var(--txt);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-align: left;
+  }
+  .search-result-item:hover,
+  .player-results button:hover {
+    background: var(--bg-hover);
+  }
+
+  .result-name {
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .result-members {
+    flex: 1;
+    font-size: 0.7rem;
+    color: var(--txt-muted);
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .result-add {
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  /* New pair inputs */
+  .new-pair-inputs {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .player-box {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+  }
+
+  .player-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .player-input {
+    width: 100%;
+    padding: 0.45rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 0.8rem;
+    background: var(--bg-input);
+    color: var(--txt);
+  }
+  .player-input:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+  .player-input::placeholder {
+    color: var(--txt-muted);
+  }
+
+  .pair-sep {
+    color: var(--txt-muted);
+    font-weight: 500;
+    padding: 0.4rem 0.15rem 0;
+    flex-shrink: 0;
+  }
+
+  .player-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem;
+    background: var(--chip-bg);
+    color: var(--chip-txt);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .player-chip.guest {
+    background: var(--guest-bg);
+    color: var(--guest-txt);
+  }
+
+  .chip-clear {
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    border: none;
+    background: rgba(0, 0, 0, 0.1);
+    color: inherit;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.65rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .chip-clear:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .add-guest-btn {
+    width: 100%;
+    margin-top: 0.25rem;
+    padding: 0.3rem;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    color: var(--txt-muted);
+    font-size: 0.7rem;
+    cursor: pointer;
+    text-align: center;
+  }
+  .add-guest-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .add-btn {
+    padding: 0.45rem 0.75rem;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .add-btn:hover:not(:disabled) {
+    background: var(--primary-hover);
+  }
+  .add-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 700px) {
+    .add-row {
+      grid-template-columns: 1fr;
+      gap: 0.6rem;
+    }
+    .new-pair-inputs {
+      flex-wrap: wrap;
+    }
+    .player-box {
+      flex: 1 1 45%;
+      min-width: 100px;
+    }
+    .pair-sep {
+      display: none;
+    }
   }
 </style>

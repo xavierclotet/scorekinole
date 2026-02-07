@@ -39,6 +39,7 @@ export const DEVELOPED_COUNTRIES = [
     'Austria',
     'Bélgica',
     'Canadá',
+    'Cataluña',
     'Corea del Sur',
     'Dinamarca',
     'España',

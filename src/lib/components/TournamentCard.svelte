@@ -1,15 +1,20 @@
 <script lang="ts">
 	import type { TournamentListItem } from '$lib/firebase/publicTournaments';
+	import type { TournamentParticipant } from '$lib/types/tournament';
 	import * as m from '$lib/paraglide/messages.js';
 	import { translateCountry } from '$lib/utils/countryTranslations';
 	import LiveBadge from './LiveBadge.svelte';
 
 	interface Props {
 		tournament: TournamentListItem;
+		participants?: Partial<TournamentParticipant>[];
 		onclick?: () => void;
 	}
 
-	let { tournament, onclick }: Props = $props();
+	let { tournament, participants = [], onclick }: Props = $props();
+
+	const isDraft = $derived(tournament.status === 'DRAFT');
+	const showParticipants = $derived(isDraft && participants.length > 0);
 
 	const statusColors: Record<string, string> = {
 		DRAFT: '#6b7280',
@@ -18,8 +23,7 @@
 		FINAL_STAGE: '#3b82f6',
 		COMPLETED: '#10b981',
 		CANCELLED: '#ef4444',
-		UPCOMING: '#8b5cf6', // Purple for upcoming
-		IMPORTED: '#6366f1' // Indigo for imported
+		UPCOMING: '#8b5cf6' // Purple for upcoming
 	};
 
 	// Check if tournament is "upcoming" (isImported + future date)
@@ -29,19 +33,18 @@
 		return tournament.tournamentDate && tournament.tournamentDate > now;
 	});
 
-	// Get display status (considering upcoming vs imported)
+	// Get display status (considering upcoming for imported tournaments)
 	const displayStatus = $derived(() => {
-		if (tournament.isImported) {
-			return isUpcoming() ? 'UPCOMING' : 'IMPORTED';
+		if (tournament.isImported && isUpcoming()) {
+			return 'UPCOMING';
 		}
 		return tournament.status;
 	});
 
 	// Use translated status labels
 	const getStatusLabel = (status: string): string => {
-		// Handle upcoming/imported cases
+		// Handle upcoming case
 		if (status === 'UPCOMING') return m.tournament_upcoming();
-		if (status === 'IMPORTED') return m.import_imported();
 
 		const labels: Record<string, () => string> = {
 			DRAFT: () => m.admin_draft(),
@@ -215,6 +218,18 @@
 			{tournament.participantsCount}
 		</span>
 	</div>
+
+	{#if showParticipants}
+		<div class="participants-section">
+			<div class="participants-list">
+				{#each participants as p}
+					<span class="participant-tag" class:guest={p.type === 'GUEST'}>
+						{p.name}
+					</span>
+				{/each}
+			</div>
+		</div>
+	{/if}
 </button>
 
 <style>
@@ -229,6 +244,7 @@
 		transition: all 0.2s ease;
 		text-align: left;
 		width: 100%;
+		height: 100%;
 		font-family: inherit;
 		overflow: hidden;
 		position: relative;
@@ -263,6 +279,7 @@
 		display: flex;
 		gap: 0.875rem;
 		padding: 1rem;
+		flex: 1;
 	}
 
 	.logo {
@@ -451,6 +468,33 @@
 		height: 15px;
 	}
 
+	/* Participants section for DRAFT */
+	.participants-section {
+		padding: 0.5rem 0.75rem;
+		background: rgba(102, 126, 234, 0.06);
+		border-top: 1px solid #2d3748;
+	}
+
+	.participants-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+	}
+
+	.participant-tag {
+		font-size: 0.65rem;
+		padding: 0.15rem 0.4rem;
+		background: rgba(255, 255, 255, 0.08);
+		color: #94a3b8;
+		border-radius: 3px;
+		white-space: nowrap;
+	}
+
+	.participant-tag.guest {
+		background: rgba(251, 191, 36, 0.15);
+		color: #fbbf24;
+	}
+
 	.chevron {
 		display: flex;
 		align-items: center;
@@ -579,6 +623,21 @@
 	:global([data-theme='light']) .card:active .chevron {
 		background: #667eea;
 		color: white;
+	}
+
+	:global([data-theme='light']) .participants-section {
+		background: rgba(102, 126, 234, 0.04);
+		border-top-color: #e2e8f0;
+	}
+
+	:global([data-theme='light']) .participant-tag {
+		background: rgba(0, 0, 0, 0.05);
+		color: #64748b;
+	}
+
+	:global([data-theme='light']) .participant-tag.guest {
+		background: rgba(245, 158, 11, 0.12);
+		color: #b45309;
 	}
 
 	@media (max-width: 480px) {

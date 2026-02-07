@@ -20,7 +20,7 @@
 	let selectedCountry = $state('');
 	let selectedMode = $state<'all' | 'singles' | 'doubles'>('all');
 	let selectedTier = $state<'all' | 'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR'>('all');
-	let timeFilter = $state<'all' | 'past' | 'future'>('all');
+	let timeFilter = $state<'all' | 'past' | 'future'>('future');
 
 	// Data state
 	let allTournaments: TournamentListItem[] = $state([]);
@@ -147,11 +147,11 @@
 		selectedCountry = '';
 		selectedMode = 'all';
 		selectedTier = 'all';
-		timeFilter = 'all';
+		timeFilter = 'future';
 	}
 
 	let hasActiveFilters = $derived(
-		selectedYear !== undefined || selectedCountry !== '' || selectedMode !== 'all' || selectedTier !== 'all' || timeFilter !== 'all'
+		selectedYear !== undefined || selectedCountry !== '' || selectedMode !== 'all' || selectedTier !== 'all' || timeFilter !== 'future'
 	);
 </script>
 
@@ -526,6 +526,9 @@
 	.grid-container {
 		overflow-y: auto;
 		max-height: calc(100vh - 220px);
+		/* Padding to prevent card hover/focus transforms from being clipped */
+		padding: 0.5rem;
+		margin: -0.5rem;
 	}
 
 	.tournaments-grid {

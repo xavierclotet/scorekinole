@@ -79,6 +79,20 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Venues collection - for tournament locations
+    match /venues/{venueId} {
+      // Admins can read venues (query filters by ownerId in code)
+      // Note: Firestore can't enforce ownerId filter in rules for queries,
+      // so we allow read for all admins and filter in the query itself
+      allow read: if isAdmin();
+
+      // Admins can create venues for themselves
+      allow create: if isAdmin() && request.resource.data.ownerId == request.auth.uid;
+
+      // Admins can update/delete only their own venues
+      allow update, delete: if isAdmin() && resource.data.ownerId == request.auth.uid;
+    }
+
     // Settings collection - for global app configuration
     match /settings/{settingId} {
       // Anyone authenticated can read settings

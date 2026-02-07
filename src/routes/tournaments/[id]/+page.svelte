@@ -14,6 +14,8 @@
 	import { currentUser } from '$lib/firebase/auth';
 	import { isSuperAdmin } from '$lib/firebase/admin';
 	import { getYouTubeEmbedUrl } from '$lib/utils/youtube';
+	import { translateText } from '$lib/utils/translate';
+	import { language } from '$lib/stores/language';
 
 	let tournament = $state<Tournament | null>(null);
 	let canEdit = $state(false);
@@ -24,6 +26,12 @@
 	// Video modal state
 	let showVideoModal = $state(false);
 	let videoMatch = $state<BracketMatch | null>(null);
+
+	// Translation state
+	let translating = $state(false);
+	let translatedDescription = $state<string | null>(null);
+	let translationError = $state<string | null>(null);
+	let showTranslation = $state(false);
 
 	// Bracket view state (for SPLIT_DIVISIONS)
 	let activeTab = $state<'gold' | 'silver'>('gold');
@@ -171,6 +179,36 @@
 		return results;
 	})());
 	let thirdPlaceMatch = $derived(currentBracket?.thirdPlaceMatch);
+
+	// Check if translation button should be shown
+	let canTranslate = $derived(
+		tournament?.description &&
+		tournament.descriptionLanguage &&
+		tournament.descriptionLanguage !== $language
+	);
+
+	// Translate description function
+	async function handleTranslate() {
+		if (!tournament?.description || !tournament.descriptionLanguage) return;
+
+		translating = true;
+		translationError = null;
+
+		const result = await translateText(
+			tournament.description,
+			tournament.descriptionLanguage,
+			$language
+		);
+
+		if (result.success && result.translatedText) {
+			translatedDescription = result.translatedText;
+			showTranslation = true;
+		} else {
+			translationError = result.error || 'Error al traducir';
+		}
+
+		translating = false;
+	}
 
 	onMount(async () => {
 		await loadTournament();
@@ -521,8 +559,41 @@
 								<line x1="12" y1="8" x2="12.01" y2="8"/>
 							</svg>
 							<span>{m.wizard_information()}</span>
+							{#if canTranslate}
+								<button
+									class="translate-btn"
+									onclick={handleTranslate}
+									disabled={translating}
+									title={m.common_translate?.() ?? 'Traducir'}
+								>
+									{#if translating}
+										<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+										</svg>
+									{:else}
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
+										</svg>
+									{/if}
+								</button>
+							{/if}
 						</div>
-						<p class="tournament-description">{tournament.description}</p>
+						{#if showTranslation && translatedDescription}
+							<p class="tournament-description translated">{translatedDescription}</p>
+							<button class="show-original-btn" onclick={() => showTranslation = false}>
+								{m.common_showOriginal?.() ?? 'Ver original'}
+							</button>
+						{:else}
+							<p class="tournament-description">{tournament.description}</p>
+							{#if translatedDescription}
+								<button class="show-translated-btn" onclick={() => showTranslation = true}>
+									{m.common_showTranslation?.() ?? 'Ver traducción'}
+								</button>
+							{/if}
+						{/if}
+						{#if translationError}
+							<p class="translation-error">{translationError}</p>
+						{/if}
 					</div>
 				{/if}
 
@@ -1577,6 +1648,76 @@
 	.detail-container[data-theme='light'] .tournament-description {
 		color: #4b5563;
 		background: #f8fafc;
+	}
+
+	/* Translation */
+	.translate-btn {
+		margin-left: auto;
+		padding: 0.25rem 0.5rem;
+		background: rgba(102, 126, 234, 0.1);
+		border: 1px solid rgba(102, 126, 234, 0.3);
+		border-radius: 4px;
+		color: #667eea;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-size: 0.65rem;
+		transition: all 0.2s ease;
+	}
+
+	.translate-btn:hover:not(:disabled) {
+		background: rgba(102, 126, 234, 0.2);
+	}
+
+	.translate-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.translate-btn svg {
+		width: 14px;
+		height: 14px;
+	}
+
+	.translate-btn .spin {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
+
+	.tournament-description.translated {
+		border-left: 3px solid #667eea;
+	}
+
+	.show-original-btn,
+	.show-translated-btn {
+		margin-top: 0.5rem;
+		padding: 0.25rem 0.5rem;
+		background: transparent;
+		border: 1px solid rgba(102, 126, 234, 0.3);
+		border-radius: 4px;
+		color: #667eea;
+		font-size: 0.7rem;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.show-original-btn:hover,
+	.show-translated-btn:hover {
+		background: rgba(102, 126, 234, 0.1);
+	}
+
+	.translation-error {
+		margin-top: 0.5rem;
+		padding: 0.5rem;
+		background: rgba(239, 68, 68, 0.1);
+		border-radius: 4px;
+		color: #ef4444;
+		font-size: 0.75rem;
 	}
 
 	/* Podium Section */

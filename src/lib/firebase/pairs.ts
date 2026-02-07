@@ -6,7 +6,6 @@
  */
 
 import { db, isFirebaseEnabled } from './config';
-import { currentUser } from './auth';
 import {
   doc,
   getDoc,
@@ -19,7 +18,6 @@ import {
   serverTimestamp,
   or
 } from 'firebase/firestore';
-import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { Pair, PairMember, PairTournamentRecord } from '$lib/types/pair';
 import { generatePairId, getMemberIdentifier } from '$lib/types/pair';

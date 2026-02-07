@@ -5,6 +5,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
+  import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
   import { adminTheme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
   import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
@@ -43,6 +44,9 @@
   let key = $state('');
   let name = $state('');
   let description = $state('');
+  let descriptionLanguage = $state('es');  // Language of the description (es, en, ca)
+  let externalLink = $state('');
+  let posterUrl = $state('');
   let edition = $state<number | undefined>(undefined);
   let country = $state('España');
   let city = $state('');
@@ -228,11 +232,19 @@
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
     const duplicateId = urlParams.get('duplicate');
+    const stepParam = urlParams.get('step');
 
     if (editId) {
       editMode = true;
       editTournamentId = editId;
       await loadTournamentForEdit(editId);
+      // Go to specific step if provided
+      if (stepParam) {
+        const stepNum = parseInt(stepParam, 10);
+        if (stepNum >= 1 && stepNum <= 5) {
+          currentStep = stepNum;
+        }
+      }
     } else if (duplicateId) {
       duplicateMode = true;
       await loadTournamentForDuplication(duplicateId);
@@ -268,6 +280,9 @@
       key = tournament.key;
       name = tournament.name;
       description = tournament.description || '';
+      descriptionLanguage = tournament.descriptionLanguage || 'es';
+      externalLink = tournament.externalLink || '';
+      posterUrl = tournament.posterUrl || '';
       edition = tournament.edition || 1;
       country = tournament.country || '';
       city = tournament.city || '';
@@ -427,6 +442,9 @@
       // Step 1
       name = tournament.name;  // Keep same name, user can modify
       description = tournament.description || '';
+      descriptionLanguage = tournament.descriptionLanguage || 'es';
+      externalLink = tournament.externalLink || '';
+      posterUrl = tournament.posterUrl || '';
       edition = (tournament.edition || 1) + 1;  // Increment edition
       country = tournament.country || '';
       city = tournament.city || '';
@@ -578,9 +596,13 @@
       key = data.key || key; // Keep generated key if no draft key
       name = data.name || '';
       description = data.description || '';
+      descriptionLanguage = data.descriptionLanguage || 'es';
+      externalLink = data.externalLink || '';
+      posterUrl = data.posterUrl || '';
       edition = data.edition || 1;
       country = data.country || '';
       city = data.city || '';
+      address = data.address || '';
       tournamentDate = data.tournamentDate || '';
       gameType = data.gameType || 'singles';
 
@@ -612,6 +634,39 @@
       silverPointsToWin = data.silverPointsToWin || 7;
       silverRoundsToPlay = data.silverRoundsToPlay || 4;
       silverMatchesToWin = data.silverMatchesToWin || 1;
+
+      // Consolation and 3rd place
+      consolationEnabled = data.consolationEnabled ?? false;
+      thirdPlaceMatchEnabled = data.thirdPlaceMatchEnabled ?? true;
+
+      // Advanced bracket config
+      showAdvancedBracketConfig = data.showAdvancedBracketConfig ?? false;
+      earlyRoundsGameMode = data.earlyRoundsGameMode || 'rounds';
+      earlyRoundsPointsToWin = data.earlyRoundsPointsToWin || 7;
+      earlyRoundsToPlay = data.earlyRoundsToPlay || 4;
+      earlyRoundsMatchesToWin = data.earlyRoundsMatchesToWin || 1;
+      semifinalGameMode = data.semifinalGameMode || 'points';
+      semifinalPointsToWin = data.semifinalPointsToWin || 7;
+      semifinalRoundsToPlay = data.semifinalRoundsToPlay || 4;
+      semifinalMatchesToWin = data.semifinalMatchesToWin || 1;
+      bracketFinalGameMode = data.bracketFinalGameMode || 'points';
+      bracketFinalPointsToWin = data.bracketFinalPointsToWin || 9;
+      bracketFinalRoundsToPlay = data.bracketFinalRoundsToPlay || 4;
+      bracketFinalMatchesToWin = data.bracketFinalMatchesToWin || 1;
+
+      // Silver bracket advanced config
+      silverEarlyRoundsGameMode = data.silverEarlyRoundsGameMode || 'rounds';
+      silverEarlyRoundsPointsToWin = data.silverEarlyRoundsPointsToWin || 7;
+      silverEarlyRoundsToPlay = data.silverEarlyRoundsToPlay || 4;
+      silverEarlyRoundsMatchesToWin = data.silverEarlyRoundsMatchesToWin || 1;
+      silverSemifinalGameMode = data.silverSemifinalGameMode || 'rounds';
+      silverSemifinalPointsToWin = data.silverSemifinalPointsToWin || 7;
+      silverSemifinalRoundsToPlay = data.silverSemifinalRoundsToPlay || 4;
+      silverSemifinalMatchesToWin = data.silverSemifinalMatchesToWin || 1;
+      silverBracketFinalGameMode = data.silverBracketFinalGameMode || 'rounds';
+      silverBracketFinalPointsToWin = data.silverBracketFinalPointsToWin || 7;
+      silverBracketFinalRoundsToPlay = data.silverBracketFinalRoundsToPlay || 4;
+      silverBracketFinalMatchesToWin = data.silverBracketFinalMatchesToWin || 1;
 
       // Backward compatibility for ONE_PHASE
       gameMode = data.gameMode || 'points';
@@ -657,9 +712,13 @@
         key,
         name,
         description,
+        descriptionLanguage,
+        externalLink,
+        posterUrl,
         edition,
         country,
         city,
+        address,
         tournamentDate,
         gameType,
         numTables,
@@ -683,6 +742,36 @@
         silverPointsToWin,
         silverRoundsToPlay,
         silverMatchesToWin,
+        // Consolation and 3rd place
+        consolationEnabled,
+        thirdPlaceMatchEnabled,
+        // Advanced bracket config
+        showAdvancedBracketConfig,
+        earlyRoundsGameMode,
+        earlyRoundsPointsToWin,
+        earlyRoundsToPlay,
+        earlyRoundsMatchesToWin,
+        semifinalGameMode,
+        semifinalPointsToWin,
+        semifinalRoundsToPlay,
+        semifinalMatchesToWin,
+        bracketFinalGameMode,
+        bracketFinalPointsToWin,
+        bracketFinalRoundsToPlay,
+        bracketFinalMatchesToWin,
+        // Silver bracket advanced config
+        silverEarlyRoundsGameMode,
+        silverEarlyRoundsPointsToWin,
+        silverEarlyRoundsToPlay,
+        silverEarlyRoundsMatchesToWin,
+        silverSemifinalGameMode,
+        silverSemifinalPointsToWin,
+        silverSemifinalRoundsToPlay,
+        silverSemifinalMatchesToWin,
+        silverBracketFinalGameMode,
+        silverBracketFinalPointsToWin,
+        silverBracketFinalRoundsToPlay,
+        silverBracketFinalMatchesToWin,
         // ONE_PHASE backward compatibility
         gameMode,
         pointsToWin,
@@ -793,6 +882,7 @@
     // Auto-fill description, country, and city from previous edition
     if (info.description) {
       description = info.description;
+      descriptionLanguage = info.descriptionLanguage || 'es';
     }
     if (info.country) {
       country = info.country;
@@ -818,6 +908,13 @@
     if (tournamentNameResults.length > 0) {
       showNameDropdown = true;
     }
+  }
+
+  function handleVenueSelect(venue: { address?: string; city: string; country: string }) {
+    address = venue.address || '';
+    city = venue.city;
+    country = venue.country;
+    saveDraft();
   }
 
   function addRegisteredUser(user: UserProfile & { userId?: string }) {
@@ -1068,6 +1165,9 @@
         key: key.toUpperCase().trim(),
         name: name.trim(),
         description: description.trim() || undefined,
+        descriptionLanguage: description.trim() ? descriptionLanguage : undefined,
+        externalLink: externalLink.trim() || undefined,
+        posterUrl: posterUrl.trim() || undefined,
         edition: edition,
         country: country,
         city: city.trim(),
@@ -1490,6 +1590,18 @@
           <!-- Ubicación y Fecha -->
           <div class="info-section">
             <div class="info-section-header">{m.wizard_locationDate()}</div>
+
+            <!-- Venue Selector -->
+            <div class="venue-selector-wrapper">
+              <VenueSelector
+                {address}
+                {city}
+                {country}
+                onselect={handleVenueSelect}
+                theme={$adminTheme}
+              />
+            </div>
+
             <div class="info-grid location-grid">
               <div class="info-field address-field">
                 <label for="address">{m.wizard_address()}</label>
@@ -1567,12 +1679,42 @@
               </div>
 
               <div class="info-field desc-field">
-                <label for="description">{m.wizard_description()}</label>
-                <input
+                <div class="desc-label-row">
+                  <label for="description">{m.wizard_description()}</label>
+                  <select
+                    class="lang-select"
+                    bind:value={descriptionLanguage}
+                    title={m.wizard_descriptionLanguage?.() ?? 'Idioma de la descripción'}
+                  >
+                    <option value="es">🇪🇸 ES</option>
+                    <option value="ca">🇦🇩 CA</option>
+                    <option value="en">🇬🇧 EN</option>
+                  </select>
+                </div>
+                <textarea
                   id="description"
-                  type="text"
                   bind:value={description}
                   placeholder={m.wizard_description()}
+                  class="input-field desc-textarea"
+                ></textarea>
+              </div>
+
+              <div class="info-field links-field">
+                <label for="externalLink">{m.import_externalLink()}</label>
+                <input
+                  id="externalLink"
+                  type="url"
+                  bind:value={externalLink}
+                  placeholder="https://..."
+                  class="input-field"
+                />
+                <div class="field-spacer"></div>
+                <label for="posterUrl">{m.wizard_posterUrl?.() ?? 'Imagen del torneo'}</label>
+                <input
+                  id="posterUrl"
+                  type="url"
+                  bind:value={posterUrl}
+                  placeholder="https://..."
                   class="input-field"
                 />
               </div>
@@ -2758,9 +2900,24 @@
 
     <!-- Navigation -->
     <div class="wizard-navigation">
-      <button class="nav-button secondary" onclick={prevStep} disabled={currentStep === 1}>
-        ← {m.wizard_previous()}
-      </button>
+      {#if currentStep === 1}
+        <!-- Step 1: No previous button, show save changes on left if editing -->
+        {#if editMode}
+          <button class="nav-button secondary save-left" onclick={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
+            {#if creating}
+              <LoadingSpinner size="small" inline={true} message={m.wizard_saving()} />
+            {:else}
+              💾 {m.wizard_saveChanges()}
+            {/if}
+          </button>
+        {:else}
+          <div class="nav-spacer"></div>
+        {/if}
+      {:else}
+        <button class="nav-button secondary" onclick={prevStep}>
+          ← {m.wizard_previous()}
+        </button>
+      {/if}
 
       {#if currentStep < totalSteps}
         <button class="nav-button primary" onclick={nextStep} disabled={validationErrors.length > 0}>
@@ -3295,6 +3452,15 @@
     color: #8b9bb3;
   }
 
+  .venue-selector-wrapper {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e8e8e8;
+  }
+
+  .wizard-container[data-theme='dark'] .venue-selector-wrapper {
+    border-color: #2d3748;
+  }
+
   .info-grid {
     display: grid;
     gap: 0.75rem;
@@ -3310,7 +3476,47 @@
   }
 
   .config-grid {
-    grid-template-columns: 160px 1fr;
+    grid-template-columns: 160px 1fr 1fr;
+  }
+
+  .field-spacer {
+    height: 0.5rem;
+  }
+
+  .links-field {
+    min-width: 0;
+  }
+
+  .desc-field {
+    flex: 1;
+  }
+
+  .desc-textarea {
+    flex: 1;
+    min-height: 4.5rem;
+    resize: vertical;
+  }
+
+  .desc-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .lang-select {
+    padding: 0.15rem 0.3rem;
+    font-size: 0.65rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.25rem;
+    background: white;
+    cursor: pointer;
+  }
+
+  .wizard-container[data-theme='dark'] .lang-select {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
   }
 
   .info-field {
@@ -6076,6 +6282,32 @@
     flex-shrink: 0;
   }
 
+  .nav-spacer {
+    flex: 0 0 auto;
+  }
+
+  .nav-button.save-left {
+    background: #16a34a;
+    color: white;
+    border: 1px solid #16a34a;
+  }
+
+  .nav-button.save-left:hover:not(:disabled) {
+    background: #15803d;
+    border-color: #15803d;
+  }
+
+  .wizard-container[data-theme='dark'] .nav-button.save-left {
+    background: #22c55e;
+    border-color: #22c55e;
+    color: #0f1419;
+  }
+
+  .wizard-container[data-theme='dark'] .nav-button.save-left:hover:not(:disabled) {
+    background: #16a34a;
+    border-color: #16a34a;
+  }
+
   .nav-button {
     padding: 0.4rem 1rem;
     border: none;
@@ -6203,8 +6435,25 @@
       padding: 0 0.75rem 0.75rem;
     }
 
+    /* Hide spacer on mobile - only show actual buttons */
+    .nav-spacer {
+      display: none;
+    }
+
+    /* When spacer is hidden, navigation with single button stays row-based */
+    .wizard-navigation:has(.nav-spacer) {
+      flex-direction: row;
+      justify-content: flex-end;
+    }
+
     .nav-button {
       width: 100%;
+    }
+
+    /* Single button (Next only) should not be full width */
+    .wizard-navigation:has(.nav-spacer) .nav-button {
+      width: auto;
+      min-width: 120px;
     }
   }
 

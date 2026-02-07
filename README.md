@@ -47,6 +47,7 @@ Works on any device with a browser - no installation required!
 - Set custom team names
 - Add tournament/event information (e.g., "World Championship 2025 - Final")
 - **Multi-Language**: Spanish, Catalan, and English
+- **Auto-Translation**: Tournament descriptions can be translated on-demand to user's language (powered by MyMemory API)
 
 ### 📊 **Match History & Cloud Sync**
 - **Automatic History**: All your matches are saved automatically to local storage

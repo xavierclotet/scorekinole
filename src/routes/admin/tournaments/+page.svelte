@@ -18,6 +18,7 @@
   let filteredTournaments: Tournament[] = $state([]);
   let searchQuery = $state('');
   let statusFilter: 'all' | 'UPCOMING' | 'COMPLETED' = $state('all');
+  let importedFilter: 'all' | 'imported' | 'live' = $state('all'); // 'all', 'imported', 'live'
   let creatorFilter = $state('all'); // 'all', 'mine', or a specific creator userId
   let loading = $state(true);
   let loadingMore = $state(false);
@@ -45,7 +46,7 @@
       }
     }
   });
-  let isFiltering = $derived(statusFilter !== 'all');
+  let isFiltering = $derived(statusFilter !== 'all' || importedFilter !== 'all');
 
   // Get unique creators from tournaments (for superadmin filter), excluding current user
   interface Creator {
@@ -61,6 +62,22 @@
     }
     return acc;
   }, []).sort((a, b) => a.userName.localeCompare(b.userName)));
+
+  // Helper to get user's role in tournament
+  function getUserRole(tournament: Tournament): 'owner' | 'collaborator' | 'none' {
+    const userId = $currentUser?.id;
+    if (!userId) return 'none';
+
+    const ownerId = tournament.ownerId || tournament.createdBy?.userId;
+    if (ownerId === userId) return 'owner';
+    if (tournament.adminIds?.includes(userId)) return 'collaborator';
+    return 'none';
+  }
+
+  // Helper to get collaborator count
+  function getCollaboratorCount(tournament: Tournament): number {
+    return tournament.adminIds?.length || 0;
+  }
 
   onMount(async () => {
     await loadInitialTournaments();
@@ -136,6 +153,14 @@
         matchesStatus = tournament.status === 'COMPLETED' && !isUpcomingTournament(tournament);
       }
 
+      // Imported filter
+      let matchesImported = true;
+      if (importedFilter === 'imported') {
+        matchesImported = tournament.isImported === true;
+      } else if (importedFilter === 'live') {
+        matchesImported = !tournament.isImported;
+      }
+
       let matchesCreator = true;
       if (creatorFilter === 'mine') {
         matchesCreator = tournament.createdBy?.userId === user?.id;
@@ -143,7 +168,7 @@
         matchesCreator = tournament.createdBy?.userId === creatorFilter;
       }
 
-      return matchesSearch && matchesStatus && matchesCreator;
+      return matchesSearch && matchesStatus && matchesImported && matchesCreator;
     });
   }
 
@@ -151,6 +176,7 @@
     // Track dependencies
     searchQuery;
     statusFilter;
+    importedFilter;
     creatorFilter;
     filterTournaments();
   });
@@ -158,15 +184,12 @@
   let displayTotal = $derived(isSearching || isFiltering || creatorFilter !== 'all' ? filteredTournaments.length : totalCount);
 
   function getStatusText(tournament: Tournament): string {
-    // Check if it's an imported tournament (could be upcoming or historical)
-    if (tournament.isImported) {
-      const now = Date.now();
-      if (tournament.tournamentDate && tournament.tournamentDate > now) {
-        return m.tournament_upcoming(); // "Próximamente"
-      }
-      return m.import_imported(); // "Importado"
+    // For imported tournaments with future date, show "Upcoming"
+    if (tournament.isImported && tournament.tournamentDate && tournament.tournamentDate > Date.now()) {
+      return m.tournament_upcoming(); // "Próximamente" / "Confirmed"
     }
 
+    // Show the actual tournament status
     switch (tournament.status) {
       case 'DRAFT':
         return m.admin_draft();
@@ -204,15 +227,12 @@
   }
 
   function getStatusColor(tournament: Tournament): string {
-    // Check if it's an imported tournament (could be upcoming or historical)
-    if (tournament.isImported) {
-      const now = Date.now();
-      if (tournament.tournamentDate && tournament.tournamentDate > now) {
-        return '#8b5cf6'; // Purple for upcoming
-      }
-      return '#6366f1'; // Indigo for imported
+    // For imported tournaments with future date, show purple (upcoming)
+    if (tournament.isImported && tournament.tournamentDate && tournament.tournamentDate > Date.now()) {
+      return '#8b5cf6'; // Purple for upcoming
     }
 
+    // Use standard status colors
     const colorMap: Record<string, string> = {
       DRAFT: '#666',
       GROUP_STAGE: '#fa709a',
@@ -225,10 +245,11 @@
   }
 
   function getStatusTextColor(tournament: Tournament): string {
-    // Light backgrounds need dark text for contrast
-    if (tournament.isImported) {
-      return 'white'; // Both upcoming and imported have dark backgrounds
+    // For imported tournaments with future date (purple background), use white text
+    if (tournament.isImported && tournament.tournamentDate && tournament.tournamentDate > Date.now()) {
+      return 'white';
     }
+    // Light backgrounds need dark text for contrast
     const darkTextStatuses = ['TRANSITION', 'COMPLETED', 'FINAL_STAGE'];
     return darkTextStatuses.includes(tournament.status) ? '#1f2937' : 'white';
   }
@@ -314,14 +335,15 @@
         />
       </div>
 
-      <div class="filter-row">
+      <div class="filters-row">
+        <!-- Status filter tabs -->
         <div class="filter-tabs">
           <button
             class="filter-tab"
             class:active={statusFilter === 'all'}
             onclick={() => (statusFilter = 'all')}
           >
-            {m.admin_all()} ({tournaments.length})
+            {m.admin_all()}
           </button>
           <button
             class="filter-tab"
@@ -339,6 +361,32 @@
           </button>
         </div>
 
+        <!-- Type filter tabs (secondary) -->
+        <div class="filter-tabs secondary">
+          <button
+            class="filter-tab"
+            class:active={importedFilter === 'all'}
+            onclick={() => (importedFilter = 'all')}
+          >
+            {m.admin_all()}
+          </button>
+          <button
+            class="filter-tab"
+            class:active={importedFilter === 'live'}
+            onclick={() => (importedFilter = 'live')}
+          >
+            {m.admin_filterLive()}
+          </button>
+          <button
+            class="filter-tab"
+            class:active={importedFilter === 'imported'}
+            onclick={() => (importedFilter = 'imported')}
+          >
+            {m.admin_filterImported()}
+          </button>
+        </div>
+
+        <!-- Creator filter (superadmin only) -->
         {#if $isSuperAdminUser}
           <select class="creator-filter" bind:value={creatorFilter}>
             <option value="all">{m.admin_allCreators()}</option>
@@ -378,7 +426,7 @@
               <th class="type-col hide-mobile">{m.admin_type()}</th>
               <th class="mode-col hide-mobile">{m.admin_mode()}</th>
               <th class="participants-col">Players</th>
-              <th class="created-col hide-small hide-mobile">{m.admin_createdBy()}</th>
+              <th class="created-col hide-small hide-mobile">{m.admin_owner()}</th>
               <th class="actions-col"></th>
             </tr>
           </thead>
@@ -435,7 +483,17 @@
                 </td>
                 <td class="created-cell hide-small hide-mobile">
                   <div class="creator-info">
-                    <span class="creator-name">{tournament.createdBy?.userName || '-'}</span>
+                    <div class="creator-row">
+                      <span class="creator-name">{tournament.ownerName || tournament.createdBy?.userName || '-'}</span>
+                      {#if getUserRole(tournament) === 'owner'}
+                        <span class="role-badge owner" title={m.admin_youAreOwner()}>👑</span>
+                      {:else if getUserRole(tournament) === 'collaborator'}
+                        <span class="role-badge collaborator" title={m.admin_youAreCollaborator()}>🤝</span>
+                      {/if}
+                      {#if getCollaboratorCount(tournament) > 0}
+                        <span class="collab-count" title={m.admin_collaboratorsCount({ count: String(getCollaboratorCount(tournament)) })}>+{getCollaboratorCount(tournament)}</span>
+                      {/if}
+                    </div>
                     <small class="creator-date">{formatDate(tournament.createdAt)}</small>
                   </div>
                 </td>
@@ -734,10 +792,11 @@
     box-shadow: 0 0 0 2px rgba(250, 112, 154, 0.1);
   }
 
-  .filter-row {
+  .filters-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
     flex: 1;
     min-width: 0;
   }
@@ -745,7 +804,7 @@
   .filter-tabs {
     display: flex;
     gap: 0.25rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .filter-tab {
@@ -784,9 +843,9 @@
     color: #555;
     cursor: pointer;
     transition: all 0.2s;
-    margin-left: auto;
     min-width: 100px;
     flex-shrink: 0;
+    margin-left: auto;
   }
 
   .creator-filter:hover {
@@ -831,6 +890,19 @@
     background: #059669;
     border-color: #059669;
     box-shadow: 0 2px 4px rgba(5, 150, 105, 0.4);
+  }
+
+  /* Secondary filter tabs (type filter) - indigo color */
+  .filter-tabs.secondary .filter-tab.active {
+    background: #6366f1;
+    border-color: #6366f1;
+    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+  }
+
+  .tournaments-container[data-theme='dark'] .filter-tabs.secondary .filter-tab.active {
+    background: #4f46e5;
+    border-color: #4f46e5;
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.4);
   }
 
   /* Results info */
@@ -1069,13 +1141,38 @@
     gap: 0.15rem;
   }
 
+  .creator-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
   .creator-name {
     font-weight: 500;
     font-size: 0.85rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: 100px;
+  }
+
+  .role-badge {
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+
+  .collab-count {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #6366f1;
+    background: rgba(99, 102, 241, 0.1);
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+  }
+
+  .tournaments-container[data-theme='dark'] .collab-count {
+    color: #818cf8;
+    background: rgba(129, 140, 248, 0.15);
   }
 
   .creator-date {
@@ -1369,13 +1466,14 @@
       max-width: none;
     }
 
-    .filter-row {
-      flex: 1;
-      min-width: 0;
+    .filters-row {
+      flex-direction: column;
+      width: 100%;
+      gap: 0.5rem;
     }
 
     .filter-tabs {
-      flex: 1;
+      width: 100%;
       overflow-x: auto;
       padding-bottom: 0.25rem;
       flex-wrap: nowrap;
@@ -1388,9 +1486,9 @@
     }
 
     .creator-filter {
+      width: 100%;
       padding: 0.35rem 0.5rem;
       font-size: 0.75rem;
-      min-width: 80px;
     }
 
     .hide-mobile {

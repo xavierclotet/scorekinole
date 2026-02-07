@@ -19,6 +19,8 @@
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TournamentRulesModal from '$lib/components/tournament/TournamentRulesModal.svelte';
   import CountrySelect from '$lib/components/CountrySelect.svelte';
+  import TournamentAdminsModal from '$lib/components/admin/TournamentAdminsModal.svelte';
+  import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
 
   let tournament: Tournament | null = $state(null);
   let loading = $state(true);
@@ -28,6 +30,7 @@
   let showQuickEdit = $state(false);
   let showTimeBreakdown = $state(false);
   let showRules = $state(false);
+  let showAdminsModal = $state(false);
   let timeBreakdown: TimeBreakdown | null = $state(null);
   let showToast = $state(false);
   let toastMessage = $state('');
@@ -297,6 +300,12 @@
     showQuickEdit = false;
   }
 
+  function handleVenueSelect(venue: { address?: string; city: string; country: string }) {
+    editAddress = venue.address || '';
+    editCity = venue.city;
+    editCountry = venue.country;
+  }
+
   function openTimeBreakdown() {
     if (!tournament) return;
     timeBreakdown = calculateTimeBreakdown(tournament);
@@ -471,6 +480,18 @@
                 {m.admin_edit()}
               </button>
             {/if}
+            <button
+              class="icon-btn"
+              title={m.admin_tournamentAdmins()}
+              onclick={() => showAdminsModal = true}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </button>
             <a href="/tournaments/{tournamentId}" class="public-link" title="Ver página pública">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -613,6 +634,23 @@
               📋 {m.rules_viewRules()}
             </button>
           </section>
+
+          <!-- Participants Section (only for DRAFT) -->
+          {#if tournament.status === 'DRAFT' && tournament.participants.length > 0}
+            <section class="dashboard-card participants-card">
+              <h2>👥 {m.admin_participants()} ({tournament.participants.length})</h2>
+              <div class="participants-grid">
+                {#each tournament.participants as p}
+                  <span class="participant-chip" class:guest={p.type === 'GUEST'}>
+                    {p.name}
+                  </span>
+                {/each}
+              </div>
+              <button class="edit-participants-btn" onclick={() => goto(`/admin/tournaments/create?edit=${tournamentId}&step=4`)}>
+                ✏️ {m.admin_editParticipants()}
+              </button>
+            </section>
+          {/if}
 
           <!-- Group Stage Configuration (only for TWO_PHASE) -->
           {#if tournament.phaseType === 'TWO_PHASE' && tournament.groupStage}
@@ -917,6 +955,17 @@
               </div>
             </div>
 
+            <!-- Venue Selector -->
+            <div class="venue-selector-section">
+              <VenueSelector
+                address={editAddress}
+                city={editCity}
+                country={editCountry}
+                onselect={handleVenueSelect}
+                theme={$adminTheme}
+              />
+            </div>
+
             <div class="field-group">
               <label for="edit-address">{m.wizard_address()}</label>
               <input
@@ -1046,6 +1095,20 @@
                       placeholder="1, 2, 3..."
                     />
                   </div>
+                </div>
+
+                <!-- Venue Selector -->
+                <div class="venue-selector-section">
+                  <VenueSelector
+                    address={editAddress}
+                    city={editCity}
+                    country={editCountry}
+                    onselect={handleVenueSelect}
+                    theme={$adminTheme}
+                  />
+                </div>
+
+                <div class="field-row">
                   <div class="field-group">
                     <label for="edit-address">{m.wizard_address()}</label>
                     <input
@@ -1140,6 +1203,14 @@
     {tournament}
     theme={$adminTheme}
     onclose={() => showRules = false}
+  />
+{/if}
+
+{#if showAdminsModal && tournament}
+  <TournamentAdminsModal
+    {tournament}
+    onClose={() => showAdminsModal = false}
+    onUpdated={loadTournament}
   />
 {/if}
 
@@ -1362,6 +1433,7 @@
     background: #fecaca;
   }
 
+  .icon-btn,
   .public-link {
     display: flex;
     align-items: center;
@@ -1371,22 +1443,30 @@
     border-radius: 6px;
     color: #6b7280;
     transition: all 0.2s;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-decoration: none;
   }
 
+  .icon-btn:hover,
   .public-link:hover {
     background: rgba(102, 126, 234, 0.1);
     color: #667eea;
   }
 
+  .icon-btn svg,
   .public-link svg {
     width: 18px;
     height: 18px;
   }
 
+  .tournament-page[data-theme='dark'] .icon-btn,
   .tournament-page[data-theme='dark'] .public-link {
     color: #8b9bb3;
   }
 
+  .tournament-page[data-theme='dark'] .icon-btn:hover,
   .tournament-page[data-theme='dark'] .public-link:hover {
     background: rgba(102, 126, 234, 0.15);
     color: #667eea;
@@ -1495,6 +1575,75 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+  }
+
+  /* Participants section */
+  .participants-card {
+    border: 1px dashed #d1d5db;
+  }
+
+  .tournament-page[data-theme='dark'] .participants-card {
+    border-color: #475569;
+  }
+
+  .participants-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .participant-chip {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    background: #f1f5f9;
+    color: #475569;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .participant-chip.guest {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .tournament-page[data-theme='dark'] .participant-chip {
+    background: rgba(255, 255, 255, 0.08);
+    color: #94a3b8;
+  }
+
+  .tournament-page[data-theme='dark'] .participant-chip.guest {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+  }
+
+  .edit-participants-btn {
+    width: 100%;
+    padding: 0.5rem;
+    background: transparent;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    color: #6b7280;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .edit-participants-btn:hover {
+    background: #f9fafb;
+    border-color: #667eea;
+    color: #667eea;
+  }
+
+  .tournament-page[data-theme='dark'] .edit-participants-btn {
+    border-color: #475569;
+    color: #94a3b8;
+  }
+
+  .tournament-page[data-theme='dark'] .edit-participants-btn:hover {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: #667eea;
+    color: #667eea;
   }
 
   .rules-btn {
@@ -2291,6 +2440,17 @@
 
   .modal-backdrop[data-theme='dark'] .subsection-header {
     color: #8b9bb3;
+  }
+
+  .venue-selector-section {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    background: #f9fafb;
+    border-radius: 8px;
+  }
+
+  .modal-backdrop[data-theme='dark'] .venue-selector-section {
+    background: #0f1419;
   }
 
   /* Switch Rows */
