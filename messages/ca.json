@@ -1035,5 +1035,7 @@
   "common_showOriginal": "Veure original",
   "common_showTranslation": "Veure traducció",
   "common_translate": "Traduir",
-  "wizard_descriptionLanguage": "Idioma de la descripció"
+  "wizard_descriptionLanguage": "Idioma de la descripció",
+  "common_language": "Idioma",
+  "common_translateSameLanguage": "El text ja és al teu idioma"
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { gameSettings } from '$lib/stores/gameSettings';
+	import { setLocale } from '$lib/paraglide/runtime.js';
 	import * as m from '$lib/paraglide/messages.js';
 
 	let isOpen = $state(false);
@@ -18,6 +19,8 @@
 		gameSettings.update((settings) => ({ ...settings, language: lang }));
 		gameSettings.save();
 		isOpen = false;
+		// setLocale triggers page reload to apply translations
+		setLocale(lang);
 	}
 
 	function handleClickOutside(event: MouseEvent) {
