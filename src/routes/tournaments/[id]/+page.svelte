@@ -258,7 +258,7 @@
 				// Check if user can edit (creator or superadmin)
 				const user = $currentUser;
 				if (user) {
-					const isCreator = tournament.createdBy === user.uid;
+					const isCreator = tournament.createdBy?.userId === user.id;
 					const superAdmin = await isSuperAdmin();
 					canEdit = isCreator || superAdmin;
 				}
@@ -336,15 +336,6 @@
 		}
 	}
 
-	function getPhaseLabel(status: string | undefined): string {
-		switch (status) {
-			case 'GROUP_STAGE': return m.tournament_groupStage();
-			case 'TRANSITION': return m.tournament_transition();
-			case 'FINAL_STAGE': return m.tournament_finalStage();
-			default: return '';
-		}
-	}
-
 	function translateGroupName(name: string): string {
 		// Extract number from group name (e.g., "Grupo 1" or "Group 1" -> "1")
 		const match = name.match(/\d+/);
@@ -384,7 +375,7 @@
 			</div>
 			<div class="header-center">
 				{#if tournament}
-					<h1>{tournament.name}</h1>
+					<h1>{#if tournament.edition}<span class="edition">{m.common_editionLabel({ n: String(tournament.edition) })} · </span> {/if} {tournament.name}</h1>
 				{:else}
 					<h1>{m.common_loading()}...</h1>
 				{/if}
@@ -1091,6 +1082,11 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.header-center h1 .edition {
+		font-weight: 400;
+		opacity: 0.7;
 	}
 
 	.header-right {

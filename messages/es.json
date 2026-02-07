@@ -391,6 +391,7 @@
   "common_darkMode": "Modo Oscuro",
   "common_delete": "Eliminar",
   "common_edit": "Editar",
+  "common_editionLabel": "{n}º",
   "common_error": "Error",
   "common_estimatedEnd": "Fin Estimado",
   "common_goHome": "Ir al Inicio",
