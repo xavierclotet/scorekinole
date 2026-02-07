@@ -6,6 +6,7 @@
 	import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
 	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 	import { theme } from '$lib/stores/theme';
 	import type { Tournament, BracketMatch } from '$lib/types/tournament';
 	import { isBye } from '$lib/algorithms/bracket';
@@ -180,23 +181,20 @@
 	})());
 	let thirdPlaceMatch = $derived(currentBracket?.thirdPlaceMatch);
 
-	// Check if translation button should be shown
-	let canTranslate = $derived(
-		tournament?.description &&
-		tournament.descriptionLanguage &&
-		tournament.descriptionLanguage !== $language
-	);
+	// Check if translation button should be shown (always show if there's a description)
+	let canTranslate = $derived(!!tournament?.description);
 
 	// Translate description function
 	async function handleTranslate() {
-		if (!tournament?.description || !tournament.descriptionLanguage) return;
+		if (!tournament?.description) return;
 
 		translating = true;
 		translationError = null;
 
+		// Use auto-detection - MyMemory API supports 'autodetect' as source language
 		const result = await translateText(
 			tournament.description,
-			tournament.descriptionLanguage,
+			'autodetect',
 			$language
 		);
 
@@ -400,6 +398,7 @@
 						</svg>
 					</a>
 				{/if}
+				<LanguageSelector />
 				<ThemeToggle />
 			</div>
 		</div>

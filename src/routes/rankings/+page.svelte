@@ -16,6 +16,7 @@
 	import RankingDetailModal from '$lib/components/RankingDetailModal.svelte';
 	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 	import { theme } from '$lib/stores/theme';
 	import SEO from '$lib/components/SEO.svelte';
 
@@ -155,6 +156,7 @@
 				</div>
 			</div>
 			<div class="header-right">
+				<LanguageSelector />
 				<ThemeToggle />
 			</div>
 		</div>

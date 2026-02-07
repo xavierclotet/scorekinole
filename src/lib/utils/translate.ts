@@ -30,9 +30,66 @@ const LANGUAGE_MAP: Record<string, string> = {
 };
 
 /**
+ * Simple language detection based on common words
+ * Returns the most likely language code
+ */
+function detectLanguage(text: string): string {
+	const lowerText = text.toLowerCase();
+
+	// Catalan-specific patterns
+	const catalanPatterns = [
+		/\bel\s+torneig\b/,
+		/\bla\s+partida\b/,
+		/\bels\s+jugadors\b/,
+		/\bles\s+rondes\b/,
+		/\bamb\s+/,
+		/\bper\s+a\b/,
+		/\bque\s+es\b/,
+		/\bd'aquest/,
+		/\bl'encontre\b/,
+		/\bserà\b/,
+		/\btambé\b/,
+		/\baixò\b/,
+		/\bperò\b/,
+		/\bdoncs\b/,
+		/\bfins\b/
+	];
+
+	// Spanish-specific patterns
+	const spanishPatterns = [
+		/\bel\s+torneo\b/,
+		/\bla\s+partida\b/,
+		/\blos\s+jugadores\b/,
+		/\blas\s+rondas\b/,
+		/\bpara\s+/,
+		/\bque\s+se\b/,
+		/\bserá\b/,
+		/\btambién\b/,
+		/\besto\b/,
+		/\bpero\b/,
+		/\bentonces\b/,
+		/\bhasta\b/
+	];
+
+	let catalanScore = 0;
+	let spanishScore = 0;
+
+	for (const pattern of catalanPatterns) {
+		if (pattern.test(lowerText)) catalanScore++;
+	}
+
+	for (const pattern of spanishPatterns) {
+		if (pattern.test(lowerText)) spanishScore++;
+	}
+
+	// Default to Catalan if tied or no matches (common for this app)
+	return spanishScore > catalanScore ? 'es' : 'ca';
+}
+
+/**
  * Translate text using MyMemory API
  * @param text Text to translate
- * @param fromLang Source language code (es, en, ca)
+ * @param fromLang Source language code (es, en, ca, or 'autodetect')
  * @param toLang Target language code (es, en, ca)
  * @returns Translation result
  */
@@ -41,13 +98,16 @@ export async function translateText(
 	fromLang: string,
 	toLang: string
 ): Promise<TranslateResult> {
-	// Don't translate if same language
-	if (fromLang === toLang) {
+	// Handle auto-detection
+	const detectedFrom = fromLang === 'autodetect' ? detectLanguage(text) : fromLang;
+
+	// Don't translate if same language (after detection)
+	if (detectedFrom === toLang) {
 		return { success: true, translatedText: text };
 	}
 
 	// Validate languages
-	const from = LANGUAGE_MAP[fromLang];
+	const from = LANGUAGE_MAP[detectedFrom];
 	const to = LANGUAGE_MAP[toLang];
 
 	if (!from || !to) {
