@@ -14,6 +14,8 @@
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import SEO from '$lib/components/SEO.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { Play } from '@lucide/svelte';
 
 	const jsonLd = [
 		{
@@ -195,12 +197,14 @@
 				</h1>
 				<p class="hero-subtitle">{m.scoring_appTitle()}</p>
 
-				<button class="cta-button" onclick={startScoring}>
-					<svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-						<path d="M8 5v14l11-7z"/>
-					</svg>
-					<span>{m.common_newGame()}</span>
-				</button>
+				<Button
+					size="lg"
+					onclick={startScoring}
+					class="h-14 w-full max-w-[280px] gap-3 rounded-xl px-8 text-xl font-bold shadow-[0_4px_20px_rgba(0,255,136,0.25)] hover:shadow-[0_6px_28px_rgba(0,255,136,0.35)] hover:-translate-y-0.5 active:translate-y-0"
+				>
+					<Play class="size-6" />
+					{m.common_newGame()}
+				</Button>
 			</div>
 
 			<!-- Right Features Column -->
@@ -430,7 +434,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 4rem;
 		text-align: center;
 	}
 
@@ -498,50 +502,6 @@
 
 	.landing[data-theme='light'] .hero-subtitle {
 		color: rgba(0, 0, 0, 0.5);
-	}
-
-	.cta-button {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.6rem;
-		width: 100%;
-		max-width: 280px;
-		padding: 1rem 1.5rem;
-		margin-top: 3.75rem;
-		background: #00ff88;
-		border: none;
-		border-radius: 10px;
-		color: #0a0e1a;
-		font-family: 'Lexend', sans-serif;
-		font-size: 1.2rem;
-		font-weight: 700;
-		cursor: pointer;
-		transition: all 0.2s;
-		box-shadow: 0 4px 20px rgba(0, 255, 136, 0.25);
-	}
-
-	.cta-button svg {
-		flex-shrink: 0;
-	}
-
-	.cta-button:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 6px 28px rgba(0, 255, 136, 0.35);
-	}
-
-	.cta-button:active {
-		transform: translateY(0);
-	}
-
-	.landing[data-theme='light'] .cta-button {
-		background: #10b981;
-		color: #fff;
-		box-shadow: 0 4px 20px rgba(16, 185, 129, 0.25);
-	}
-
-	.landing[data-theme='light'] .cta-button:hover {
-		box-shadow: 0 6px 28px rgba(16, 185, 129, 0.35);
 	}
 
 	/* Main Layout - Three columns */
@@ -786,12 +746,6 @@
 
 		.hero-subtitle {
 			font-size: 0.85rem;
-		}
-
-		.cta-button {
-			max-width: 220px;
-			padding: 0.75rem 1.25rem;
-			font-size: 1rem;
 		}
 
 		/* In landscape, show features columns */
