@@ -18,13 +18,14 @@
 		theme?: 'light' | 'dark';
 	}
 
-	let {
-		address: initialAddress = '',
-		city: initialCity = '',
-		country: initialCountry = 'España',
-		onselect,
-		theme = 'light'
-	}: Props = $props();
+	// Keep props as object for better reactivity
+	let props = $props<Props>();
+
+	// Derived values from props for reactivity
+	let currentAddress = $derived(props.address ?? '');
+	let currentCity = $derived(props.city ?? '');
+	let currentCountry = $derived(props.country ?? 'España');
+	let theme = $derived(props.theme ?? 'light');
 
 	// Search state
 	let searchQuery = $state('');
@@ -44,16 +45,53 @@
 			.slice(0, 8);
 	});
 
+	// Find matching venue name for current location
+	// First try exact match (city + country + address), then fallback to city + country only
+	let matchingVenueName = $derived.by(() => {
+		if (!currentCity) return null;
+
+		// Try exact match first
+		let match = allVenues.find(
+			(v) =>
+				v.city === currentCity &&
+				v.country === currentCountry &&
+				(v.address || '') === (currentAddress || '')
+		);
+
+		// If no exact match, try matching just city + country (for venues without address)
+		if (!match) {
+			match = allVenues.find(
+				(v) => v.city === currentCity && v.country === currentCountry
+			);
+		}
+
+		return match?.name || null;
+	});
+
 	// Manual input state
 	let manualName = $state('');
-	let manualAddress = $state(initialAddress);
-	let manualCity = $state(initialCity);
-	let manualCountry = $state(initialCountry);
+	let manualAddress = $state('');
+	let manualCity = $state('');
+	let manualCountry = $state('España');
 	let saveAsVenue = $state(false);
 	let saving = $state(false);
 
 	// Mode: 'search' (default) or 'manual'
 	let showManualForm = $state(false);
+
+	// Sync manual values when props change (e.g., when duplicating a tournament)
+	// Also hide manual form when a venue is selected
+	$effect(() => {
+		if (currentCity) {
+			// Location selected - hide manual form
+			showManualForm = false;
+		} else if (!showManualForm) {
+			// Sync values only when form is closed
+			manualAddress = currentAddress;
+			manualCity = currentCity;
+			manualCountry = currentCountry;
+		}
+	});
 
 	// Can apply manual entry
 	let canApply = $derived(manualCity.trim().length > 0 && !saving);
@@ -69,7 +107,7 @@
 	}
 
 	function selectVenue(venue: Venue) {
-		onselect({
+		props.onselect({
 			address: venue.address,
 			city: venue.city,
 			country: venue.country
@@ -97,7 +135,7 @@
 			}
 		}
 
-		onselect({
+		props.onselect({
 			address: manualAddress.trim() || undefined,
 			city: manualCity.trim(),
 			country: manualCountry
@@ -111,48 +149,67 @@
 		showManualForm = !showManualForm;
 		if (showManualForm) {
 			// Pre-fill with current values from props
-			manualAddress = initialAddress;
-			manualCity = initialCity;
-			manualCountry = initialCountry;
+			manualAddress = currentAddress;
+			manualCity = currentCity;
+			manualCountry = currentCountry;
 		}
 	}
 </script>
 
 <div class="venue-selector" data-theme={theme}>
-	<!-- Search existing venues -->
-	<div class="search-section">
-		<span class="field-label">{m.venue_savedVenues()}</span>
-		<div class="search-box">
-			<input
-				type="text"
-				bind:value={searchQuery}
-				placeholder={m.venue_searchPlaceholder()}
-				class="input-field"
-				autocomplete="off"
-			/>
-			{#if searchResults.length > 0}
-				<div class="search-results">
-					{#each searchResults as venue (venue.id)}
-						<button class="search-result-item" onclick={() => selectVenue(venue)}>
-							<span class="result-name">{venue.name}</span>
-							<span class="result-location">{getVenueLocationDisplay(venue)}</span>
-							<span class="result-add">+</span>
-						</button>
-					{/each}
-				</div>
-			{:else if searchQuery.length >= 2}
-				<div class="no-results">{m.venue_noResults()}</div>
-			{/if}
+	{#if currentCity}
+		<!-- Location already selected: show summary -->
+		<div class="selected-location">
+			<span class="field-label">{m.wizard_location()}</span>
+			<div class="location-chip">
+				<span class="location-icon">📍</span>
+				<span class="location-text">
+					{#if matchingVenueName}
+						<strong>{matchingVenueName}</strong> · {currentCity}, {currentCountry}
+					{:else}
+						{#if currentAddress}{currentAddress}, {/if}{currentCity}, {currentCountry}
+					{/if}
+				</span>
+				<button type="button" class="clear-btn" onclick={() => props.onselect({ address: '', city: '', country: 'España' })}>
+					✕
+				</button>
+			</div>
 		</div>
-	</div>
+	{:else}
+		<!-- No location: show search and manual entry -->
+		<div class="search-section">
+			<span class="field-label">{m.venue_savedVenues()}</span>
+			<div class="search-box">
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder={m.venue_searchPlaceholder()}
+					class="input-field"
+					autocomplete="off"
+				/>
+				{#if searchResults.length > 0}
+					<div class="search-results">
+						{#each searchResults as venue (venue.id)}
+							<button class="search-result-item" onclick={() => selectVenue(venue)}>
+								<span class="result-name">{venue.name}</span>
+								<span class="result-location">{getVenueLocationDisplay(venue)}</span>
+								<span class="result-add">+</span>
+							</button>
+						{/each}
+					</div>
+				{:else if searchQuery.length >= 2}
+					<div class="no-results">{m.venue_noResults()}</div>
+				{/if}
+			</div>
+		</div>
 
-	<!-- Toggle for manual entry -->
-	<button class="toggle-manual" onclick={toggleManualForm}>
-		{showManualForm ? '−' : '+'} {m.venue_orEnterManually()}
-	</button>
+		<!-- Toggle for manual entry -->
+		<button class="toggle-manual" onclick={toggleManualForm}>
+			{showManualForm ? '−' : '+'} {m.venue_orEnterManually()}
+		</button>
 
-	<!-- Manual entry form (collapsible) -->
-	{#if showManualForm}
+		<!-- Manual entry form (collapsible) -->
+		{#if showManualForm}
 		<div class="manual-form">
 			<div class="form-row">
 				<div class="form-field name-field">
@@ -207,6 +264,7 @@
 				</button>
 			</div>
 		</div>
+		{/if}
 	{/if}
 </div>
 
@@ -229,6 +287,55 @@
 		--border: #334155;
 		--txt: #f1f5f9;
 		--txt-muted: #94a3b8;
+	}
+
+	/* Selected location display */
+	.selected-location {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.selected-location .field-label {
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--txt-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+	}
+
+	.location-chip {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.65rem;
+		background: var(--bg-hover);
+		border: 1px solid var(--border);
+		border-radius: 5px;
+	}
+
+	.location-icon {
+		font-size: 1rem;
+	}
+
+	.location-text {
+		flex: 1;
+		font-size: 0.85rem;
+		color: var(--txt);
+	}
+
+	.clear-btn {
+		padding: 0.15rem 0.4rem;
+		background: transparent;
+		border: none;
+		color: var(--txt-muted);
+		font-size: 0.9rem;
+		cursor: pointer;
+		border-radius: 3px;
+	}
+	.clear-btn:hover {
+		background: var(--border);
+		color: var(--txt);
 	}
 
 	.search-section {

@@ -59,6 +59,30 @@
 	let team = $derived(teamNumber === 1 ? $team1 : $team2);
 	let otherTeam = $derived(teamNumber === 1 ? $team2 : $team1);
 
+	// Get player avatars for tournament mode
+	// Team 1 corresponds to current user's side (A or B), Team 2 is the opponent
+	// For doubles, we have two photos: primary (member1) and partner (member2)
+	let playerPhotoURL = $derived((() => {
+		if (!inTournamentMode || !$gameTournamentContext) return undefined;
+		const ctx = $gameTournamentContext;
+		const isUserSideA = ctx.currentUserSide === 'A';
+		return teamNumber === 1
+			? (isUserSideA ? ctx.participantAPhotoURL : ctx.participantBPhotoURL)
+			: (isUserSideA ? ctx.participantBPhotoURL : ctx.participantAPhotoURL);
+	})());
+
+	let partnerPhotoURL = $derived((() => {
+		if (!inTournamentMode || !$gameTournamentContext) return undefined;
+		const ctx = $gameTournamentContext;
+		const isUserSideA = ctx.currentUserSide === 'A';
+		return teamNumber === 1
+			? (isUserSideA ? ctx.participantAPartnerPhotoURL : ctx.participantBPartnerPhotoURL)
+			: (isUserSideA ? ctx.participantBPartnerPhotoURL : ctx.participantAPartnerPhotoURL);
+	})());
+
+	// Check if we have any photo to display
+	let hasAnyPhoto = $derived(!!playerPhotoURL || !!partnerPhotoURL);
+
 	// Name editing state
 	let isEditingName = $state(false);
 	let nameInputRef = $state<HTMLInputElement | null>(null);
@@ -605,7 +629,27 @@
 		<div class="name-hammer-group">
 			{#if inTournamentMode}
 				<div class="tournament-player-display">
-					<span class="player-name-badge">{team.name}</span>
+					{#if hasAnyPhoto}
+						<div class="player-avatars-stack">
+							{#if playerPhotoURL}
+								<img
+									src={playerPhotoURL}
+									alt=""
+									class="player-avatar"
+									loading="lazy"
+								/>
+							{/if}
+							{#if partnerPhotoURL}
+								<img
+									src={partnerPhotoURL}
+									alt=""
+									class="player-avatar"
+									loading="lazy"
+								/>
+							{/if}
+						</div>
+					{/if}
+					<span class="player-name-badge" class:has-avatar={hasAnyPhoto}>{team.name}</span>
 					{#if teamNumber === 1 && $gameTournamentContext?.currentUserRanking !== undefined}
 						<span class="ranking-badge">#{$gameTournamentContext.currentUserRanking}</span>
 					{/if}
@@ -833,9 +877,41 @@
 	/* Tournament player display */
 	.tournament-player-display {
 		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 0.5rem;
+		position: relative;
+	}
+
+	/* Player avatar in tournament mode */
+	.player-avatar-wrapper {
+		position: relative;
+		flex-shrink: 0;
+	}
+
+	/* Stack for doubles: two photos vertically, centered */
+	.player-avatars-stack {
+		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.25rem;
+		justify-content: center;
+		gap: 3px;
+		flex-shrink: 0;
+	}
+
+	.player-avatar {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		object-fit: cover;
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	}
+
+	/* Single photo: larger size */
+	.player-avatars-stack:has(.player-avatar:only-child) .player-avatar {
+		width: 42px;
+		height: 42px;
 	}
 
 	.player-name-badge {
@@ -844,11 +920,15 @@
 		font-weight: 600;
 		color: var(--text-color);
 		text-align: center;
-		max-width: 70%;
+/*		max-width: 90%;*/
 		line-height: 1.2;
 		white-space: normal;
 		word-break: normal;
 		overflow-wrap: normal;
+	}
+
+	.player-name-badge.has-avatar {
+		text-align: left;
 	}
 
 	.ranking-badge {
@@ -859,6 +939,7 @@
 		border: 1px solid rgba(255, 215, 0, 0.4);
 		border-radius: 6px;
 		color: var(--text-color);
+		margin-left: 0.35rem;
 	}
 
 	.hammer-indicator {
@@ -917,6 +998,14 @@
 	.name-size-medium .hammer-indicator svg { width: 22px; height: 22px; }
 	.name-size-large .hammer-indicator svg { width: 26px; height: 26px; }
 
+	/* Avatar size scales with name size - base (desktop) */
+	.name-size-small .player-avatar { width: 28px; height: 28px; }
+	.name-size-medium .player-avatar { width: 32px; height: 32px; }
+	.name-size-large .player-avatar { width: 38px; height: 38px; }
+	.name-size-small .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 36px; height: 36px; }
+	.name-size-medium .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 42px; height: 42px; }
+	.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 50px; height: 50px; }
+
 	.winner-badge {
 		background: rgba(255, 255, 255, 0.12);
 		backdrop-filter: blur(8px);
@@ -955,6 +1044,14 @@
 		.name-size-medium .hammer-indicator svg { width: 20px; height: 20px; }
 		.name-size-large .hammer-indicator svg { width: 24px; height: 24px; }
 
+		/* Avatar sizes for tablet */
+		.name-size-small .player-avatar { width: 24px; height: 24px; }
+		.name-size-medium .player-avatar { width: 28px; height: 28px; }
+		.name-size-large .player-avatar { width: 34px; height: 34px; }
+		.name-size-small .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 30px; height: 30px; }
+		.name-size-medium .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 36px; height: 36px; }
+		.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 44px; height: 44px; }
+
 		.winner-badge {
 			font-size: 0.7rem;
 			padding: 0.3rem 0.8rem;
@@ -962,6 +1059,16 @@
 
 		.ranking-badge {
 			font-size: 0.65rem;
+		}
+
+		.player-avatar {
+			width: 28px;
+			height: 28px;
+		}
+
+		.player-avatars-stack:has(.player-avatar:only-child) .player-avatar {
+			width: 36px;
+			height: 36px;
 		}
 
 		.color-btn,
@@ -1003,6 +1110,14 @@
 		.name-size-medium .hammer-indicator svg { width: 17px; height: 17px; }
 		.name-size-large .hammer-indicator svg { width: 21px; height: 21px; }
 
+		/* Avatar sizes for mobile */
+		.name-size-small .player-avatar { width: 22px; height: 22px; }
+		.name-size-medium .player-avatar { width: 26px; height: 26px; }
+		.name-size-large .player-avatar { width: 32px; height: 32px; }
+		.name-size-small .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 28px; height: 28px; }
+		.name-size-medium .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 32px; height: 32px; }
+		.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 40px; height: 40px; }
+
 		.winner-badge {
 			font-size: 0.65rem;
 			padding: 0.25rem 0.6rem;
@@ -1011,6 +1126,14 @@
 		.ranking-badge {
 			font-size: 0.6rem;
 			padding: 0.1rem 0.4rem;
+		}
+
+		.player-avatars-stack {
+			gap: 2px;
+		}
+
+		.tournament-player-display {
+			gap: 0.35rem;
 		}
 
 		.color-btn,
@@ -1050,6 +1173,14 @@
 		.name-size-small .hammer-indicator svg { width: 17px; height: 17px; }
 		.name-size-medium .hammer-indicator svg { width: 21px; height: 21px; }
 		.name-size-large .hammer-indicator svg { width: 25px; height: 25px; }
+
+		/* Avatar sizes for portrait tablet */
+		.name-size-small .player-avatar { width: 26px; height: 26px; }
+		.name-size-medium .player-avatar { width: 30px; height: 30px; }
+		.name-size-large .player-avatar { width: 36px; height: 36px; }
+		.name-size-small .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 32px; height: 32px; }
+		.name-size-medium .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 38px; height: 38px; }
+		.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 46px; height: 46px; }
 	}
 
 	@media (max-width: 480px) and (orientation: portrait) {
@@ -1073,6 +1204,14 @@
 		.name-size-small .hammer-indicator svg { width: 15px; height: 15px; }
 		.name-size-medium .hammer-indicator svg { width: 18px; height: 18px; }
 		.name-size-large .hammer-indicator svg { width: 22px; height: 22px; }
+
+		/* Avatar sizes for portrait mobile */
+		.name-size-small .player-avatar { width: 24px; height: 24px; }
+		.name-size-medium .player-avatar { width: 28px; height: 28px; }
+		.name-size-large .player-avatar { width: 34px; height: 34px; }
+		.name-size-small .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 30px; height: 30px; }
+		.name-size-medium .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 34px; height: 34px; }
+		.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 42px; height: 42px; }
 	}
 
 	/* Very small portrait phones */
@@ -1097,6 +1236,14 @@
 		.name-size-small .hammer-indicator svg { width: 13px; height: 13px; }
 		.name-size-medium .hammer-indicator svg { width: 16px; height: 16px; }
 		.name-size-large .hammer-indicator svg { width: 19px; height: 19px; }
+
+		/* Avatar sizes for very small phones */
+		.name-size-small .player-avatar { width: 20px; height: 20px; }
+		.name-size-medium .player-avatar { width: 24px; height: 24px; }
+		.name-size-large .player-avatar { width: 28px; height: 28px; }
+		.name-size-small .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 26px; height: 26px; }
+		.name-size-medium .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 30px; height: 30px; }
+		.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 36px; height: 36px; }
 	}
 
 	/* Landscape mobile - smaller scores due to limited height */
@@ -1126,6 +1273,14 @@
 		.name-size-small .hammer-indicator svg { width: 13px; height: 13px; }
 		.name-size-medium .hammer-indicator svg { width: 16px; height: 16px; }
 		.name-size-large .hammer-indicator svg { width: 19px; height: 19px; }
+
+		/* Avatar sizes for landscape mobile */
+		.name-size-small .player-avatar { width: 20px; height: 20px; }
+		.name-size-medium .player-avatar { width: 24px; height: 24px; }
+		.name-size-large .player-avatar { width: 28px; height: 28px; }
+		.name-size-small .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 26px; height: 26px; }
+		.name-size-medium .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 30px; height: 30px; }
+		.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 36px; height: 36px; }
 
 		.winner-badge {
 			font-size: 0.6rem;

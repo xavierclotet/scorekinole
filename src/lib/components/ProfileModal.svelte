@@ -1,20 +1,23 @@
 <script lang="ts">
 	// import { t } from '$lib/stores/language'; // Legacy - to remove after full migration
 	import * as m from '$lib/paraglide/messages.js';
-	import { goto } from '$app/navigation';
 	import { getUserProfile } from '$lib/firebase/userProfile';
+	import { uploadAvatar, deleteAvatar } from '$lib/firebase/avatarStorage';
 
 	interface Props {
 		isOpen?: boolean;
 		user?: any;
 		onclose?: () => void;
-		onupdate?: (data: { playerName: string }) => void;
+		onupdate?: (data: { playerName: string; photoURL?: string }) => void;
 	}
 
 	let { isOpen = $bindable(false), user = null, onclose, onupdate }: Props = $props();
 
 	let playerNameInput = $state('');
-	let rankingPoints = $state(0);
+	let currentPhotoURL = $state<string | null>(null);
+	let isUploading = $state(false);
+	let uploadError = $state<string | null>(null);
+	let fileInput: HTMLInputElement;
 
 	// Load player data from Firestore when modal opens
 	$effect(() => {
@@ -27,12 +30,12 @@
 		try {
 			const profile = await getUserProfile();
 			playerNameInput = profile?.playerName || user.name || user.displayName || '';
-			// Calculate ranking from tournaments (sum of all rankingDelta values)
-			rankingPoints = profile?.tournaments?.reduce((sum, t) => sum + (t.rankingDelta || 0), 0) || 0;
+			currentPhotoURL = profile?.photoURL || user.photo || user.photoURL || null;
+			uploadError = null;
 		} catch (error) {
 			console.error('Error loading player data:', error);
 			playerNameInput = user.name || user.displayName || '';
-			rankingPoints = 0;
+			currentPhotoURL = user.photo || user.photoURL || null;
 		}
 	}
 
@@ -43,13 +46,53 @@
 
 	function updateProfile() {
 		if (playerNameInput.trim()) {
-			onupdate?.({ playerName: playerNameInput.trim() });
+			onupdate?.({ playerName: playerNameInput.trim(), photoURL: currentPhotoURL || undefined });
 		}
 	}
 
-	function goToRankings() {
-		close();
-		goto('/rankings');
+	function triggerFileSelect() {
+		fileInput?.click();
+	}
+
+	async function handleFileSelect(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		isUploading = true;
+		uploadError = null;
+
+		const result = await uploadAvatar(file);
+
+		if (result.success && result.url) {
+			currentPhotoURL = result.url;
+		} else {
+			uploadError = result.error || m.common_error();
+		}
+
+		isUploading = false;
+		// Reset input so same file can be selected again
+		input.value = '';
+	}
+
+	async function handleDeleteAvatar() {
+		if (!currentPhotoURL) return;
+		// Don't delete if already showing Google photo
+		if (currentPhotoURL === user?.googlePhotoURL) return;
+
+		isUploading = true;
+		uploadError = null;
+
+		const result = await deleteAvatar();
+
+		if (result.success) {
+			// Revert to Google photo
+			currentPhotoURL = user?.googlePhotoURL || null;
+		} else {
+			uploadError = result.error || m.common_error();
+		}
+
+		isUploading = false;
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -81,36 +124,71 @@
 			</button>
 
 			{#if user}
+				<!-- Hidden file input -->
+				<input
+					type="file"
+					accept="image/*"
+					bind:this={fileInput}
+					onchange={handleFileSelect}
+					style="display: none;"
+				/>
+
 				<!-- Profile header with photo -->
 				<div class="profile-header">
-					<div class="photo-wrapper">
-						{#if user.photo || user.photoURL}
-							<img src={user.photo || user.photoURL} alt="" class="photo" />
-						{:else}
-							<div class="photo-placeholder">
-								{user.email?.charAt(0).toUpperCase() || '?'}
+					<div class="photo-container">
+						<button
+							class="photo-wrapper"
+							onclick={triggerFileSelect}
+							disabled={isUploading}
+							aria-label={m.profile_changePhoto()}
+						>
+							{#if currentPhotoURL}
+								<img src={currentPhotoURL} alt="" class="photo" />
+							{:else}
+								<div class="photo-placeholder">
+									{user.email?.charAt(0).toUpperCase() || '?'}
+								</div>
+							{/if}
+							<div class="photo-overlay" class:uploading={isUploading}>
+								{#if isUploading}
+									<svg class="spinner" viewBox="0 0 24 24">
+										<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.4" stroke-linecap="round"/>
+									</svg>
+								{:else}
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+										<circle cx="12" cy="13" r="4"/>
+									</svg>
+								{/if}
 							</div>
+						</button>
+						{#if currentPhotoURL && currentPhotoURL !== user?.googlePhotoURL}
+							<button
+								class="delete-photo-btn"
+								onclick={handleDeleteAvatar}
+								disabled={isUploading}
+								aria-label={m.profile_deletePhoto()}
+								title={m.profile_deletePhoto()}
+							>
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<line x1="18" y1="6" x2="6" y2="18"/>
+									<line x1="6" y1="6" x2="18" y2="18"/>
+								</svg>
+							</button>
 						{/if}
 					</div>
 					<h2 class="profile-title">{m.auth_myProfile()}</h2>
+					{#if uploadError}
+						<p class="upload-error">{uploadError}</p>
+					{/if}
 				</div>
 
 				<!-- Info grid -->
-				<div class="info-grid">
+				<div class="info-grid single">
 					<div class="info-item">
 						<span class="info-label">{m.auth_email()}</span>
 						<span class="info-value">{user.email || '-'}</span>
 					</div>
-					<button class="info-item ranking-link" onclick={goToRankings}>
-						<span class="info-label">{m.ranking_pointsLabel()}</span>
-						<span class="info-value ranking">
-							<span class="ranking-badge">{rankingPoints}</span>
-							<span class="ranking-unit">pts</span>
-							<svg class="ranking-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<polyline points="9 18 15 12 9 6"/>
-							</svg>
-						</span>
-					</button>
 				</div>
 
 				<!-- Editable section -->
@@ -224,8 +302,28 @@
 		background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
 	}
 
-	.photo-wrapper {
+	.photo-container {
+		position: relative;
 		margin-bottom: 0.75rem;
+	}
+
+	.photo-wrapper {
+		position: relative;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		border-radius: 50%;
+		transition: transform 0.15s;
+	}
+
+	.photo-wrapper:hover {
+		transform: scale(1.05);
+	}
+
+	.photo-wrapper:disabled {
+		cursor: wait;
+		transform: none;
 	}
 
 	.photo {
@@ -250,6 +348,79 @@
 		color: #64b5f6;
 	}
 
+	.photo-overlay {
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+
+	.photo-overlay svg {
+		width: 20px;
+		height: 20px;
+		color: #fff;
+	}
+
+	.photo-wrapper:hover .photo-overlay,
+	.photo-overlay.uploading {
+		opacity: 1;
+	}
+
+	.photo-overlay .spinner {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
+
+	.delete-photo-btn {
+		position: absolute;
+		top: -4px;
+		right: -4px;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: #ef4444;
+		border: 2px solid #0f1218;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition: all 0.15s;
+		z-index: 5;
+	}
+
+	.delete-photo-btn svg {
+		width: 12px;
+		height: 12px;
+		color: #fff;
+	}
+
+	.delete-photo-btn:hover {
+		background: #dc2626;
+		transform: scale(1.1);
+	}
+
+	.delete-photo-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+		transform: none;
+	}
+
+	.upload-error {
+		margin: 0.5rem 0 0;
+		font-size: 0.75rem;
+		color: #ef4444;
+		text-align: center;
+	}
+
 	.profile-title {
 		font-size: 1rem;
 		font-weight: 600;
@@ -265,6 +436,10 @@
 		background: rgba(255, 255, 255, 0.04);
 		border-top: 1px solid rgba(255, 255, 255, 0.04);
 		border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+	}
+
+	.info-grid.single {
+		grid-template-columns: 1fr;
 	}
 
 	.info-item {
@@ -289,48 +464,6 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.info-value.ranking {
-		display: flex;
-		align-items: baseline;
-		gap: 0.25rem;
-	}
-
-	.ranking-badge {
-		font-size: 1rem;
-		font-weight: 700;
-		color: #fbbf24;
-	}
-
-	.ranking-unit {
-		font-size: 0.65rem;
-		font-weight: 500;
-		color: rgba(251, 191, 36, 0.7);
-	}
-
-	.ranking-arrow {
-		width: 14px;
-		height: 14px;
-		stroke: rgba(251, 191, 36, 0.5);
-		margin-left: auto;
-		transition: all 0.15s;
-	}
-
-	.ranking-link {
-		cursor: pointer;
-		border: none;
-		text-align: left;
-		transition: background 0.15s;
-	}
-
-	.ranking-link:hover {
-		background: rgba(251, 191, 36, 0.08);
-	}
-
-	.ranking-link:hover .ranking-arrow {
-		stroke: #fbbf24;
-		transform: translateX(2px);
 	}
 
 	/* Edit section */

@@ -19,6 +19,7 @@
   let searchQuery = $state('');
   let statusFilter: 'all' | 'UPCOMING' | 'COMPLETED' = $state('all');
   let importedFilter: 'all' | 'imported' | 'live' = $state('all'); // 'all', 'imported', 'live'
+  let testFilter: 'all' | 'real' | 'test' = $state('all'); // 'all', 'real' (no test), 'test' (only test)
   let creatorFilter = $state('all'); // 'all', 'mine', or a specific creator userId
   let loading = $state(true);
   let loadingMore = $state(false);
@@ -46,7 +47,7 @@
       }
     }
   });
-  let isFiltering = $derived(statusFilter !== 'all' || importedFilter !== 'all');
+  let isFiltering = $derived(statusFilter !== 'all' || importedFilter !== 'all' || testFilter !== 'all');
 
   // Get unique creators from tournaments (for superadmin filter), excluding current user
   interface Creator {
@@ -80,7 +81,17 @@
   }
 
   onMount(async () => {
+    // Load testFilter from localStorage
+    const savedTestFilter = localStorage.getItem('adminTestFilter');
+    if (savedTestFilter && ['all', 'real', 'test'].includes(savedTestFilter)) {
+      testFilter = savedTestFilter as 'all' | 'real' | 'test';
+    }
     await loadInitialTournaments();
+  });
+
+  // Save testFilter to localStorage when it changes
+  $effect(() => {
+    localStorage.setItem('adminTestFilter', testFilter);
   });
 
   async function loadInitialTournaments() {
@@ -161,6 +172,14 @@
         matchesImported = !tournament.isImported;
       }
 
+      // Test filter
+      let matchesTest = true;
+      if (testFilter === 'real') {
+        matchesTest = !tournament.isTest;
+      } else if (testFilter === 'test') {
+        matchesTest = tournament.isTest === true;
+      }
+
       let matchesCreator = true;
       if (creatorFilter === 'mine') {
         matchesCreator = tournament.createdBy?.userId === user?.id;
@@ -168,7 +187,7 @@
         matchesCreator = tournament.createdBy?.userId === creatorFilter;
       }
 
-      return matchesSearch && matchesStatus && matchesImported && matchesCreator;
+      return matchesSearch && matchesStatus && matchesImported && matchesTest && matchesCreator;
     });
   }
 
@@ -177,6 +196,7 @@
     searchQuery;
     statusFilter;
     importedFilter;
+    testFilter;
     creatorFilter;
     filterTournaments();
   });
@@ -386,6 +406,31 @@
           </button>
         </div>
 
+        <!-- Test filter tabs (tertiary) -->
+        <div class="filter-tabs tertiary">
+          <button
+            class="filter-tab"
+            class:active={testFilter === 'all'}
+            onclick={() => (testFilter = 'all')}
+          >
+            {m.admin_all()}
+          </button>
+          <button
+            class="filter-tab"
+            class:active={testFilter === 'real'}
+            onclick={() => (testFilter = 'real')}
+          >
+            {m.tournament_realOnly()}
+          </button>
+          <button
+            class="filter-tab"
+            class:active={testFilter === 'test'}
+            onclick={() => (testFilter = 'test')}
+          >
+            {m.tournament_testOnly()}
+          </button>
+        </div>
+
         <!-- Creator filter (superadmin only) -->
         {#if $isSuperAdminUser}
           <select class="creator-filter" bind:value={creatorFilter}>
@@ -442,6 +487,9 @@
                       <strong class="tournament-title" title={tournament.name}>{tournament.name.length > 20 ? tournament.name.substring(0, 20) + '...' : tournament.name}</strong>
                       {#if tournament.tournamentDate}
                         <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+                      {/if}
+                      {#if tournament.isTest}
+                        <span class="test-indicator" title={m.tournament_isTestHint()}>🧪</span>
                       {/if}
                     </div>
                     {#if tournament.description}
@@ -903,6 +951,27 @@
     background: #4f46e5;
     border-color: #4f46e5;
     box-shadow: 0 2px 4px rgba(79, 70, 229, 0.4);
+  }
+
+  /* Tertiary filter tabs (test filter) - amber color */
+  .filter-tabs.tertiary .filter-tab.active {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+  }
+
+  .tournaments-container[data-theme='dark'] .filter-tabs.tertiary .filter-tab.active {
+    background: #d97706;
+    border-color: #d97706;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(217, 119, 6, 0.4);
+  }
+
+  /* Test indicator */
+  .test-indicator {
+    font-size: 0.75rem;
+    margin-left: 0.25rem;
   }
 
   /* Results info */

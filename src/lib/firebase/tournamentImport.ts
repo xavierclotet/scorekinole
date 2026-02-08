@@ -57,6 +57,7 @@ export interface HistoricalTournamentInput {
   phaseType: 'ONE_PHASE' | 'TWO_PHASE';
   show20s?: boolean;
   showHammer?: boolean;
+  isTest?: boolean;
 
   // Participants
   participants: HistoricalParticipantInput[];
@@ -566,6 +567,7 @@ export async function createHistoricalTournament(
       gameType: input.gameType,
       show20s: input.show20s ?? true,
       showHammer: input.showHammer ?? false,
+      isTest: input.isTest ?? false,
       numTables: calculatedNumTables,
       rankingConfig: input.rankingConfig,
       participants,
@@ -685,6 +687,7 @@ export interface UpcomingTournamentInput {
   rankingConfig: RankingConfig;
   externalLink?: string;
   posterUrl?: string;
+  isTest?: boolean;
 }
 
 /**
@@ -734,6 +737,7 @@ export async function createUpcomingTournament(
       gameType: input.gameType,
       show20s: true,
       showHammer: false,
+      isTest: input.isTest ?? false,
       numTables: 1,
       rankingConfig: input.rankingConfig,
       participants: [], // Empty for now
@@ -1066,6 +1070,7 @@ export async function completeUpcomingTournament(
       gameType: input.gameType,
       show20s: input.show20s ?? true,
       showHammer: input.showHammer ?? false,
+      isTest: input.isTest ?? false,
       numTables: calculatedNumTables,
       rankingConfig: input.rankingConfig,
       participants,

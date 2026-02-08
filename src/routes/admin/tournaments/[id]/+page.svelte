@@ -48,6 +48,7 @@
   let editRankingTier = $state<'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR'>('CLUB');
   let editConsolationEnabled = $state(false);
   let editThirdPlaceMatchEnabled = $state(true);
+  let editIsTest = $state(false);
 
   // Metadata fields (for event info editing)
   let editDescription = $state('');
@@ -285,6 +286,8 @@
     );
     // Initialize third place match toggle (default true)
     editThirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
+    // Initialize test toggle
+    editIsTest = tournament.isTest ?? false;
 
     // Initialize metadata fields
     editDescription = tournament.description || '';
@@ -341,6 +344,7 @@
         numTables: editNumTables,
         show20s: editShow20s,
         showHammer: editShowHammer,
+        isTest: editIsTest,
         rankingConfig: {
           enabled: editRankingEnabled,
           tier: editRankingTier
@@ -411,6 +415,11 @@
                 {#if tournament.isImported}
                   <span class="info-badge imported-badge">
                     📥 {m.import_imported()}
+                  </span>
+                {/if}
+                {#if tournament.isTest}
+                  <span class="info-badge test-badge">
+                    🧪 {m.tournament_test()}
                   </span>
                 {/if}
                 <span class="info-badge participants-badge">
@@ -1167,6 +1176,15 @@
               {/if}
             </div>
           {/if}
+
+          <!-- Test Tournament -->
+          <div class="subsection test-subsection">
+            <label class="switch-row">
+              <span class="switch-label">{m.tournament_isTest()}</span>
+              <input type="checkbox" bind:checked={editIsTest} class="toggle-switch" />
+            </label>
+            <p class="option-description">{m.tournament_isTestHint()}</p>
+          </div>
         </div>
 
         {#if tournament.status !== 'COMPLETED'}
@@ -1360,6 +1378,26 @@
   .tournament-page[data-theme='dark'] .imported-badge {
     background: #78350f;
     color: #fde68a;
+  }
+
+  .test-badge {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .tournament-page[data-theme='dark'] .test-badge {
+    background: #78350f;
+    color: #fde68a;
+  }
+
+  .test-subsection {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed #e5e7eb;
+  }
+
+  .tournament-page[data-theme='dark'] .test-subsection {
+    border-top-color: #374151;
   }
 
   .header-actions {

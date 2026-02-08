@@ -31,19 +31,16 @@ export async function addParticipant(
   // For now, just use default (0)
   const ranking = 0;
 
-  const participant: any = {
-    id: `participant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  // Preserve all fields from participantData, only override defaults
+  const participant: TournamentParticipant = {
+    ...participantData,
+    id: participantData.id || `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
     type: participantData.type || 'GUEST',
     name: participantData.name || 'Participante',
     rankingSnapshot: ranking,
     currentRanking: ranking,
     status: 'ACTIVE'
-  };
-
-  // Add optional fields only if they exist
-  if (participantData.userId) participant.userId = participantData.userId;
-  if (participantData.email) participant.email = participantData.email;
-  if (participantData.partner) participant.partner = participantData.partner;
+  } as TournamentParticipant;
 
   const updatedParticipants = [...tournament.participants, participant];
 
@@ -78,21 +75,32 @@ export async function addParticipants(
   // For now, just use default (0)
   const ranking = 0;
 
-  // Create all participant objects
-  const newParticipants = participantsData.map(participantData => {
-    const participant: any = {
-      id: `participant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  // Create all participant objects, preserving all fields from participantData
+  console.log('📥 addParticipants received:', participantsData.map(p => ({
+    name: p.name,
+    photoURL: p.photoURL,
+    partnerPhotoURL: p.partnerPhotoURL,
+    participantMode: p.participantMode,
+    pairId: p.pairId
+  })));
+
+  const newParticipants = participantsData.map((participantData, index) => {
+    const participant: TournamentParticipant = {
+      ...participantData,
+      id: participantData.id || `participant-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 11)}`,
       type: participantData.type || 'GUEST',
       name: participantData.name || 'Participante',
       rankingSnapshot: ranking,
       currentRanking: ranking,
       status: 'ACTIVE'
-    };
+    } as TournamentParticipant;
 
-    // Add optional fields only if they exist
-    if (participantData.userId) participant.userId = participantData.userId;
-    if (participantData.email) participant.email = participantData.email;
-    if (participantData.partner) participant.partner = participantData.partner;
+    console.log('📤 Created participant:', {
+      name: participant.name,
+      photoURL: participant.photoURL,
+      partnerPhotoURL: participant.partnerPhotoURL,
+      participantMode: participant.participantMode
+    });
 
     return participant;
   });

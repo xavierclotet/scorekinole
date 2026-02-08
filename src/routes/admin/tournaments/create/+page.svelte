@@ -12,8 +12,8 @@
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
-  import type { UserProfile } from '$lib/firebase/userProfile';
-  import CountrySelect from '$lib/components/CountrySelect.svelte';
+  import { getUserProfileById, type UserProfile } from '$lib/firebase/userProfile';
+  import { getPairById, searchPairsByTeamName } from '$lib/firebase/pairs';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
@@ -55,6 +55,7 @@
   let gameType = $state<'singles' | 'doubles'>('singles');
   let show20s = $state(true);
   let showHammer = $state(true);
+  let isTest = $state(false);
 
   // Step 2: Tournament Format
   let numTables = $state(4);
@@ -174,8 +175,6 @@
   let keyHasError = $derived(touchedFields.has('key') && (!/^[A-Z0-9]{6}$/.test(key) || keyCheckResult?.exists));
   let nameHasError = $derived(touchedFields.has('name') && !name.trim());
   let editionHasError = $derived(touchedFields.has('edition') && edition !== undefined && (edition < 1 || edition > 1000));
-  let countryHasError = $derived(touchedFields.has('country') && !country);
-  let cityHasError = $derived(touchedFields.has('city') && !city.trim());
 
   // Loading state
   let creating = $state(false);
@@ -295,6 +294,7 @@
       phaseType = tournament.phaseType;
       show20s = tournament.show20s;
       showHammer = tournament.showHammer;
+      isTest = tournament.isTest ?? false;
       consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
       thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
 
@@ -390,13 +390,18 @@
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
-      // Step 4 - Load participants
+      // Step 4 - Load participants (preserve all participant fields)
       participants = tournament.participants.map(p => ({
         type: p.type,
         userId: p.userId,
         name: p.name,
         email: p.email,
-        partner: p.partner
+        partner: p.partner,
+        photoURL: p.photoURL,
+        partnerPhotoURL: p.partnerPhotoURL,
+        participantMode: p.participantMode,
+        pairId: p.pairId,
+        pairTeamName: p.pairTeamName
       }));
 
       guestName = `Player${participants.length + 1}`;
@@ -458,6 +463,7 @@
       phaseType = tournament.phaseType;
       show20s = tournament.show20s;
       showHammer = tournament.showHammer;
+      isTest = true; // Always mark as test when duplicating to avoid accidental publication
       consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
       thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
 
@@ -543,13 +549,127 @@
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
-      // Step 4 - Copy participants (without match data)
-      participants = tournament.participants.map(p => ({
-        type: p.type,
-        userId: p.userId,
-        name: p.name,
-        email: p.email,
-        partner: p.partner
+      // Step 4 - Copy participants and refresh photos from user profiles
+      const isDoublesTournament = tournament.gameType === 'doubles';
+
+      participants = await Promise.all(tournament.participants.map(async (p) => {
+        let photoURL = p.photoURL;
+        let partnerPhotoURL = p.partnerPhotoURL;
+        let pairId = p.pairId;
+        let participantMode = p.participantMode;
+
+        // For singles (individual participants with userId), refresh photo from profile
+        if (p.userId && p.participantMode !== 'pair') {
+          const profile = await getUserProfileById(p.userId);
+          if (profile?.photoURL) {
+            photoURL = profile.photoURL;
+          }
+        }
+
+        // For doubles pairs with pairId, fetch photos from pair members' profiles
+        if (p.participantMode === 'pair' && p.pairId) {
+          const pair = await getPairById(p.pairId);
+          if (pair) {
+            // Get member 1 photo
+            if (pair.member1Type === 'REGISTERED' && pair.member1UserId) {
+              const profile1 = await getUserProfileById(pair.member1UserId);
+              if (profile1?.photoURL) {
+                photoURL = profile1.photoURL;
+              }
+            }
+            // Get member 2 photo
+            if (pair.member2Type === 'REGISTERED' && pair.member2UserId) {
+              const profile2 = await getUserProfileById(pair.member2UserId);
+              if (profile2?.photoURL) {
+                partnerPhotoURL = profile2.photoURL;
+              }
+            }
+          }
+        }
+
+        // For doubles tournaments with old format (no pairId), try to find pair by name
+        if (isDoublesTournament && !p.pairId && !p.participantMode) {
+          console.log('🔍 Searching pair for:', p.name);
+
+          let matchingPairs = await searchPairsByTeamName(p.name);
+
+          // If name contains " / ", it's likely "Member1 / Member2" format - search by individual names
+          if (matchingPairs.length === 0 && p.name?.includes(' / ')) {
+            const [name1, name2] = p.name.split(' / ').map(n => n.trim());
+            console.log('🔍 Splitting name into:', name1, 'and', name2);
+
+            // Search for each name and find pairs that match both
+            const pairs1 = await searchPairsByTeamName(name1);
+            const pairs2 = await searchPairsByTeamName(name2);
+
+            // Find pairs that appear in both searches (have both members)
+            const allPairs = [...pairs1, ...pairs2];
+            const uniquePairs = allPairs.filter((pair, index, self) =>
+              index === self.findIndex(p => p.id === pair.id)
+            );
+
+            // Filter to pairs where both member names match
+            matchingPairs = uniquePairs.filter(pair => {
+              const memberNames = [pair.member1Name.toLowerCase(), pair.member2Name.toLowerCase()];
+              return memberNames.includes(name1.toLowerCase()) && memberNames.includes(name2.toLowerCase());
+            });
+            console.log('🔍 Found pairs by member names:', matchingPairs.map(pair => ({ id: pair.id, members: `${pair.member1Name} / ${pair.member2Name}` })));
+          } else {
+            console.log('🔍 Found pairs:', matchingPairs.map(pair => ({ teamName: pair.teamName, members: `${pair.member1Name} / ${pair.member2Name}` })));
+          }
+
+          // Find exact match by teamName or combined member names
+          const exactMatch = matchingPairs.find(pair =>
+            pair.teamName === p.name ||
+            `${pair.member1Name} / ${pair.member2Name}` === p.name ||
+            `${pair.member2Name} / ${pair.member1Name}` === p.name  // Also check reverse order
+          );
+          console.log('🔍 Exact match:', exactMatch ? (exactMatch.teamName || `${exactMatch.member1Name} / ${exactMatch.member2Name}`) : 'NONE');
+
+          if (exactMatch) {
+            pairId = exactMatch.id;
+            participantMode = 'pair';
+
+            console.log('🔎 Pair members:', {
+              name: exactMatch.teamName || `${exactMatch.member1Name} / ${exactMatch.member2Name}`,
+              member1: { name: exactMatch.member1Name, type: exactMatch.member1Type, userId: exactMatch.member1UserId },
+              member2: { name: exactMatch.member2Name, type: exactMatch.member2Type, userId: exactMatch.member2UserId }
+            });
+
+            // Get member photos
+            if (exactMatch.member1Type === 'REGISTERED' && exactMatch.member1UserId) {
+              const profile1 = await getUserProfileById(exactMatch.member1UserId);
+              console.log('👤 Member1 profile:', exactMatch.member1Name, profile1?.photoURL ? 'has photo' : 'no photo');
+              if (profile1?.photoURL) {
+                photoURL = profile1.photoURL;
+              }
+            } else {
+              console.log('👤 Member1 skipped (not registered):', exactMatch.member1Name, exactMatch.member1Type);
+            }
+            if (exactMatch.member2Type === 'REGISTERED' && exactMatch.member2UserId) {
+              const profile2 = await getUserProfileById(exactMatch.member2UserId);
+              console.log('👤 Member2 profile:', exactMatch.member2Name, profile2?.photoURL ? 'has photo' : 'no photo');
+              if (profile2?.photoURL) {
+                partnerPhotoURL = profile2.photoURL;
+              }
+            } else {
+              console.log('👤 Member2 skipped (not registered):', exactMatch.member2Name, exactMatch.member2Type);
+            }
+          }
+        }
+
+        return {
+          type: p.type,
+          userId: p.userId,
+          name: p.name,
+          email: p.email,
+          partner: p.partner,
+          photoURL,
+          partnerPhotoURL,
+          participantMode,
+          pairId,
+          pairTeamName: p.pairTeamName
+        };
       }));
 
       guestName = `Player${participants.length + 1}`;
@@ -615,6 +735,7 @@
       qualificationMode = data.qualificationMode || data.rankingSystem || data.swissRankingSystem || 'WINS';
       show20s = data.show20s ?? true;
       showHammer = data.showHammer ?? true;
+      isTest = data.isTest ?? false;
 
       // Load phase-specific game config
       groupGameMode = data.groupGameMode || 'rounds';
@@ -779,6 +900,7 @@
         matchesToWin,
         show20s,
         showHammer,
+        isTest,
         rankingEnabled,
         selectedTier,
         participants,
@@ -933,6 +1055,7 @@
         userId: user.userId,
         name: user.playerName,
         email: user.email || undefined,
+        photoURL: user.photoURL || undefined,
         rankingSnapshot: user.ranking || 0
       }
     ];
@@ -1176,6 +1299,7 @@
         gameType,
         show20s,
         showHammer,
+        isTest,
         numTables,
         phaseType,
         rankingConfig,
@@ -1355,6 +1479,13 @@
         }
 
         // Add all participants in a single Firebase call
+        console.log('📋 Participants to add:', participants.map(p => ({
+          name: p.name,
+          photoURL: p.photoURL,
+          partnerPhotoURL: p.partnerPhotoURL,
+          pairId: p.pairId,
+          participantMode: p.participantMode
+        })));
         const participantsAdded = await addParticipants(tournamentId, participants);
 
         if (!participantsAdded) {
@@ -1590,56 +1721,17 @@
           <!-- Ubicación y Fecha -->
           <div class="info-section">
             <div class="info-section-header">{m.wizard_locationDate()}</div>
-
-            <!-- Venue Selector -->
-            <div class="venue-selector-wrapper">
-              <VenueSelector
-                {address}
-                {city}
-                {country}
-                onselect={handleVenueSelect}
-                theme={$adminTheme}
-              />
-            </div>
-
-            <div class="info-grid location-grid">
-              <div class="info-field address-field">
-                <label for="address">{m.wizard_address()}</label>
-                <input
-                  id="address"
-                  type="text"
-                  bind:value={address}
-                  placeholder="Av. Diagonal 123, Local 5"
-                  class="input-field"
-                  maxlength="100"
+            <div class="location-date-row">
+              <div class="venue-col">
+                <VenueSelector
+                  {address}
+                  {city}
+                  {country}
+                  onselect={handleVenueSelect}
+                  theme={$adminTheme}
                 />
               </div>
-
-              <div class="info-field">
-                <label for="city">{m.wizard_city()}</label>
-                <input
-                  id="city"
-                  type="text"
-                  bind:value={city}
-                  placeholder="Barcelona"
-                  class="input-field"
-                  class:input-error={cityHasError}
-                  maxlength="50"
-                  onblur={() => markTouched('city')}
-                />
-              </div>
-
-              <div class="info-field">
-                <label for="country">{m.wizard_country()}</label>
-                <CountrySelect
-                  id="country"
-                  bind:value={country}
-                  hasError={countryHasError}
-                  onblur={() => markTouched('country')}
-                />
-              </div>
-
-              <div class="info-field">
+              <div class="date-col">
                 <label for="tournamentDate">{m.wizard_date()}</label>
                 <input
                   id="tournamentDate"
@@ -1654,8 +1746,9 @@
           <!-- Configuración -->
           <div class="info-section">
             <div class="info-section-header">{m.wizard_configuration()}</div>
-            <div class="info-grid config-grid">
-              <div class="info-field type-field">
+            <div class="config-grid-compact">
+              <!-- Modality -->
+              <div class="info-field type-field-compact">
                 <!-- svelte-ignore a11y_label_has_associated_control -->
                 <label>{m.wizard_modality()}</label>
                 <div class="type-toggle">
@@ -1678,7 +1771,8 @@
                 </div>
               </div>
 
-              <div class="info-field desc-field">
+              <!-- Description -->
+              <div class="info-field desc-field-compact">
                 <div class="desc-label-row">
                   <label for="description">{m.wizard_description()}</label>
                   <select
@@ -1695,28 +1789,44 @@
                   id="description"
                   bind:value={description}
                   placeholder={m.wizard_description()}
-                  class="input-field desc-textarea"
+                  class="input-field desc-textarea-compact"
+                  rows="3"
                 ></textarea>
               </div>
 
-              <div class="info-field links-field">
-                <label for="externalLink">{m.import_externalLink()}</label>
-                <input
-                  id="externalLink"
-                  type="url"
-                  bind:value={externalLink}
-                  placeholder="https://..."
-                  class="input-field"
-                />
-                <div class="field-spacer"></div>
-                <label for="posterUrl">{m.wizard_posterUrl?.() ?? 'Imagen del torneo'}</label>
-                <input
-                  id="posterUrl"
-                  type="url"
-                  bind:value={posterUrl}
-                  placeholder="https://..."
-                  class="input-field"
-                />
+              <!-- Links row -->
+              <div class="links-row">
+                <div class="info-field link-field">
+                  <label for="externalLink">{m.import_externalLink()}</label>
+                  <input
+                    id="externalLink"
+                    type="url"
+                    bind:value={externalLink}
+                    placeholder="https://..."
+                    class="input-field"
+                  />
+                </div>
+                <div class="info-field link-field">
+                  <label for="posterUrl">{m.wizard_posterUrl?.() ?? 'Imagen'}</label>
+                  <input
+                    id="posterUrl"
+                    type="url"
+                    bind:value={posterUrl}
+                    placeholder="https://..."
+                    class="input-field"
+                  />
+                </div>
+              </div>
+
+              <!-- Test checkbox -->
+              <div class="info-field test-field-compact">
+                <label class="option-check test-check">
+                  <input type="checkbox" bind:checked={isTest} />
+                  <span class="test-label">
+                    {m.tournament_isTest()}
+                    <span class="test-hint">{m.tournament_isTestHint()}</span>
+                  </span>
+                </label>
               </div>
             </div>
           </div>
@@ -2901,18 +3011,8 @@
     <!-- Navigation -->
     <div class="wizard-navigation">
       {#if currentStep === 1}
-        <!-- Step 1: No previous button, show save changes on left if editing -->
-        {#if editMode}
-          <button class="nav-button secondary save-left" onclick={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
-            {#if creating}
-              <LoadingSpinner size="small" inline={true} message={m.wizard_saving()} />
-            {:else}
-              💾 {m.wizard_saveChanges()}
-            {/if}
-          </button>
-        {:else}
-          <div class="nav-spacer"></div>
-        {/if}
+        <!-- Step 1: No previous button -->
+        <div class="nav-spacer"></div>
       {:else}
         <button class="nav-button secondary" onclick={prevStep}>
           ← {m.wizard_previous()}
@@ -2920,9 +3020,20 @@
       {/if}
 
       {#if currentStep < totalSteps}
-        <button class="nav-button primary" onclick={nextStep} disabled={validationErrors.length > 0}>
-          {m.wizard_next()} →
-        </button>
+        <div class="nav-buttons-right">
+          {#if currentStep === 1 && editMode}
+            <button class="nav-button secondary" onclick={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
+              {#if creating}
+                <LoadingSpinner size="small" inline={true} message={m.wizard_saving()} />
+              {:else}
+                💾 {m.wizard_saveChanges()}
+              {/if}
+            </button>
+          {/if}
+          <button class="nav-button primary" onclick={nextStep} disabled={validationErrors.length > 0}>
+            {m.wizard_next()} →
+          </button>
+        </div>
       {:else}
         <button class="nav-button primary create" onclick={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
           {#if creating}
@@ -3452,13 +3563,130 @@
     color: #8b9bb3;
   }
 
-  .venue-selector-wrapper {
+  /* Location + Date row */
+  .location-date-row {
+    display: grid;
+    grid-template-columns: 1fr 130px;
+    gap: 0.75rem;
     padding: 0.75rem;
-    border-bottom: 1px solid #e8e8e8;
+    align-items: start;
   }
 
-  .wizard-container[data-theme='dark'] .venue-selector-wrapper {
+  .venue-col {
+    min-width: 0;
+  }
+
+  .date-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .date-col label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .wizard-container[data-theme='dark'] .date-col label {
+    color: #8b9bb3;
+  }
+
+  /* Configuration grid */
+  .config-grid-compact {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr 1fr;
+    gap: 0.6rem 0.75rem;
+    padding: 0.75rem;
+    align-items: start;
+  }
+
+  .type-field-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .desc-field-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    grid-column: span 3;
+  }
+
+  .desc-textarea-compact {
+    min-height: 80px;
+    resize: vertical;
+  }
+
+  .links-row {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .link-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .test-field-compact {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    padding-top: 0.5rem;
+    margin-top: 0.25rem;
+    border-top: 1px solid #e8e8e8;
+  }
+
+  .wizard-container[data-theme='dark'] .test-field-compact {
     border-color: #2d3748;
+  }
+
+  @media (max-width: 700px) {
+    .location-date-row {
+      grid-template-columns: 1fr;
+    }
+
+    .date-col {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .date-col label {
+      min-width: 50px;
+    }
+
+    .config-grid-compact {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .type-field-compact {
+      grid-column: span 2;
+    }
+
+    .desc-field-compact {
+      grid-column: span 2;
+    }
+
+    .test-field-compact {
+      grid-column: span 2;
+    }
+
+    .links-row {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .links-row {
+      flex-direction: column;
+    }
   }
 
   .info-grid {
@@ -4782,6 +5010,58 @@
 
   .option-check span {
     font-weight: 500;
+  }
+
+  /* Test tournament field */
+  .test-field {
+    grid-column: 1 / -1;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #fefce8;
+    border: 1px solid #fef08a;
+    border-radius: 8px;
+  }
+
+  .wizard-container[data-theme='dark'] .test-field {
+    background: #422006;
+    border-color: #854d0e;
+  }
+
+  .test-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    cursor: pointer;
+  }
+
+  .test-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    cursor: pointer;
+    accent-color: #f59e0b;
+  }
+
+  .test-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-weight: 500;
+    color: #92400e;
+  }
+
+  .wizard-container[data-theme='dark'] .test-label {
+    color: #fcd34d;
+  }
+
+  .test-hint {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: #a16207;
+  }
+
+  .wizard-container[data-theme='dark'] .test-hint {
+    color: #9ca3af;
   }
 
   /* Responsive for step-format */
@@ -6286,26 +6566,9 @@
     flex: 0 0 auto;
   }
 
-  .nav-button.save-left {
-    background: #16a34a;
-    color: white;
-    border: 1px solid #16a34a;
-  }
-
-  .nav-button.save-left:hover:not(:disabled) {
-    background: #15803d;
-    border-color: #15803d;
-  }
-
-  .wizard-container[data-theme='dark'] .nav-button.save-left {
-    background: #22c55e;
-    border-color: #22c55e;
-    color: #0f1419;
-  }
-
-  .wizard-container[data-theme='dark'] .nav-button.save-left:hover:not(:disabled) {
-    background: #16a34a;
-    border-color: #16a34a;
+  .nav-buttons-right {
+    display: flex;
+    gap: 0.5rem;
   }
 
   .nav-button {

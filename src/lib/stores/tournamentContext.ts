@@ -57,6 +57,10 @@ export interface TournamentMatchContext {
   participantBId: string;
   participantAName: string;
   participantBName: string;
+  participantAPhotoURL?: string;  // Avatar URL for participant A (or first member in doubles)
+  participantBPhotoURL?: string;  // Avatar URL for participant B (or first member in doubles)
+  participantAPartnerPhotoURL?: string;  // For doubles: second member of team A
+  participantBPartnerPhotoURL?: string;  // For doubles: second member of team B
 
   // Current user context
   currentUserId?: string;

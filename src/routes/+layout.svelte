@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { loadMatchState } from '$lib/stores/matchState';
 	import { loadTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
@@ -18,6 +19,32 @@
 	// Don't show update modal when playing a game
 	let isOnGamePage = $derived($page.url.pathname === '/game');
 
+	async function setupBackButtonHandler() {
+		try {
+			const { App } = await import('@capacitor/app');
+
+			App.addListener('backButton', ({ canGoBack }) => {
+				const currentPath = window.location.pathname;
+
+				// If on home page, exit the app
+				if (currentPath === '/' || currentPath === '') {
+					App.exitApp();
+					return;
+				}
+
+				// If browser has history, go back
+				if (canGoBack || window.history.length > 1) {
+					window.history.back();
+				} else {
+					// Fallback: go to home
+					goto('/');
+				}
+			});
+		} catch {
+			// Not running on Capacitor (web browser), ignore
+		}
+	}
+
 	onMount(() => {
 		// Load all persisted data
 		gameSettings.load();
@@ -27,6 +54,9 @@
 
 		// Initialize Firebase auth listener
 		initAuthListener();
+
+		// Setup Android back button handler
+		setupBackButtonHandler();
 
 		// Check for updates after a delay (non-intrusive)
 		setTimeout(async () => {

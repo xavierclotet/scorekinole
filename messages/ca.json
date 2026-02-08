@@ -1038,5 +1038,15 @@
   "common_translate": "Traduir",
   "wizard_descriptionLanguage": "Idioma de la descripció",
   "common_language": "Idioma",
-  "common_translateSameLanguage": "El text ja és al teu idioma"
+  "common_translateSameLanguage": "El text ja és al teu idioma",
+  "profile_changePhoto": "Canviar foto de perfil",
+  "profile_deletePhoto": "Eliminar foto personalitzada",
+  "profile_photoUpdated": "Foto actualitzada correctament",
+  "profile_photoDeleted": "Foto eliminada",
+  "profile_maxFileSize": "La imatge no pot superar {size} MB",
+  "tournament_isTest": "Torneig de prova",
+  "tournament_isTestHint": "Els tornejos de prova no apareixen al llistat públic",
+  "tournament_realOnly": "Només reals",
+  "tournament_test": "Prova",
+  "tournament_testOnly": "Només proves"
 }

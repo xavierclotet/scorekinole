@@ -641,6 +641,10 @@
 				participantBId: 'participantB' in selectedMatch.match ? selectedMatch.match.participantB || '' : '',
 				participantAName: selectedMatch.participantAName,
 				participantBName: selectedMatch.participantBName,
+				participantAPhotoURL: selectedMatch.participantAPhotoURL,
+				participantBPhotoURL: selectedMatch.participantBPhotoURL,
+				participantAPartnerPhotoURL: selectedMatch.participantAPartnerPhotoURL,
+				participantBPartnerPhotoURL: selectedMatch.participantBPartnerPhotoURL,
 				currentUserId: $currentUser?.id,
 				currentUserParticipantId: participantId,
 				currentUserSide: selectedSide,
@@ -660,7 +664,11 @@
 				phase: context.phase,
 				isConsolation: selectedMatch.isConsolation,
 				existingRounds: context.existingRounds,
-				currentGameData: context.currentGameData
+				currentGameData: context.currentGameData,
+				participantAPhotoURL: context.participantAPhotoURL,
+				participantBPhotoURL: context.participantBPhotoURL,
+				participantAPartnerPhotoURL: context.participantAPartnerPhotoURL,
+				participantBPartnerPhotoURL: context.participantBPartnerPhotoURL
 			});
 
 			setTournamentContext(context);
@@ -919,9 +927,25 @@
 														</span>
 													</div>
 													<div class="match-row-bottom">
-														<span class="player left">{matchDisplay.match.participantAName}</span>
+														<span class="player-with-avatar left">
+															{#if matchDisplay.match.participantAPhotoURL}
+																<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
+															{/if}
+															{#if matchDisplay.match.participantAPartnerPhotoURL}
+																<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
+															{/if}
+															<span class="player-name">{matchDisplay.match.participantAName}</span>
+														</span>
 														<span class="vs-badge">vs</span>
-														<span class="player right">{matchDisplay.match.participantBName}</span>
+														<span class="player-with-avatar right">
+															<span class="player-name">{matchDisplay.match.participantBName}</span>
+															{#if matchDisplay.match.participantBPartnerPhotoURL}
+																<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
+															{/if}
+															{#if matchDisplay.match.participantBPhotoURL}
+																<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
+															{/if}
+														</span>
 													</div>
 												</button>
 											{/each}
@@ -954,9 +978,25 @@
 											</span>
 										</div>
 										<div class="match-row-bottom">
-											<span class="player left">{matchDisplay.match.participantAName}</span>
+											<span class="player-with-avatar left">
+												{#if matchDisplay.match.participantAPhotoURL}
+													<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
+												{/if}
+												{#if matchDisplay.match.participantAPartnerPhotoURL}
+													<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
+												{/if}
+												<span class="player-name">{matchDisplay.match.participantAName}</span>
+											</span>
 											<span class="vs-badge">vs</span>
-											<span class="player right">{matchDisplay.match.participantBName}</span>
+											<span class="player-with-avatar right">
+												<span class="player-name">{matchDisplay.match.participantBName}</span>
+												{#if matchDisplay.match.participantBPartnerPhotoURL}
+													<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
+												{/if}
+												{#if matchDisplay.match.participantBPhotoURL}
+													<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
+												{/if}
+											</span>
 										</div>
 									</button>
 								{/each}
@@ -1028,9 +1068,25 @@
 																		</span>
 																	</div>
 																	<div class="match-row-bottom">
-																		<span class="player left">{matchDisplay.match.participantAName}</span>
+																		<span class="player-with-avatar left">
+																			{#if matchDisplay.match.participantAPhotoURL}
+																				<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
+																			{/if}
+																			{#if matchDisplay.match.participantAPartnerPhotoURL}
+																				<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
+																			{/if}
+																			<span class="player-name">{matchDisplay.match.participantAName}</span>
+																		</span>
 																		<span class="vs-badge">vs</span>
-																		<span class="player right">{matchDisplay.match.participantBName}</span>
+																		<span class="player-with-avatar right">
+																			<span class="player-name">{matchDisplay.match.participantBName}</span>
+																			{#if matchDisplay.match.participantBPartnerPhotoURL}
+																				<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
+																			{/if}
+																			{#if matchDisplay.match.participantBPhotoURL}
+																				<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
+																			{/if}
+																		</span>
 																	</div>
 																</button>
 															{/each}
@@ -1061,9 +1117,25 @@
 															</span>
 														</div>
 														<div class="match-row-bottom">
-															<span class="player left">{matchDisplay.match.participantAName}</span>
+															<span class="player-with-avatar left">
+																{#if matchDisplay.match.participantAPhotoURL}
+																	<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
+																{/if}
+																{#if matchDisplay.match.participantAPartnerPhotoURL}
+																	<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
+																{/if}
+																<span class="player-name">{matchDisplay.match.participantAName}</span>
+															</span>
 															<span class="vs-badge">vs</span>
-															<span class="player right">{matchDisplay.match.participantBName}</span>
+															<span class="player-with-avatar right">
+																<span class="player-name">{matchDisplay.match.participantBName}</span>
+																{#if matchDisplay.match.participantBPartnerPhotoURL}
+																	<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
+																{/if}
+																{#if matchDisplay.match.participantBPhotoURL}
+																	<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
+																{/if}
+															</span>
 														</div>
 													</button>
 												{/each}
@@ -1584,6 +1656,7 @@
 		padding: 0.85rem 0.7rem;
 		cursor: pointer;
 		transition: all 0.15s ease;
+		color: #e5e7eb;
 	}
 
 	.match-row-btn:hover {
@@ -1628,8 +1701,23 @@
 		background: rgba(255, 255, 255, 0.03);
 	}
 
-	.match-row-btn .player {
+	.match-row-btn .player-with-avatar {
 		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+
+	.match-row-btn .player-with-avatar.left {
+		justify-content: flex-end;
+	}
+
+	.match-row-btn .player-with-avatar.right {
+		justify-content: flex-start;
+	}
+
+	.match-row-btn .player-name {
 		font-family: 'Lexend', sans-serif;
 		font-size: 0.85rem;
 		font-weight: 500;
@@ -1640,12 +1728,13 @@
 		min-width: 0;
 	}
 
-	.match-row-btn .player.left {
-		text-align: right;
-	}
-
-	.match-row-btn .player.right {
-		text-align: left;
+	.match-row-btn .player-avatar {
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		object-fit: cover;
+		flex-shrink: 0;
+		border: 1px solid rgba(255, 255, 255, 0.15);
 	}
 
 	.match-row-btn .vs-badge {
@@ -1946,8 +2035,17 @@
 			min-width: 1.5rem;
 		}
 
-		.match-row-btn .player {
+		.match-row-btn .player-name {
 			font-size: 0.8rem;
+		}
+
+		.match-row-btn .player-avatar {
+			width: 20px;
+			height: 20px;
+		}
+
+		.match-row-btn .player-with-avatar {
+			gap: 0.3rem;
 		}
 
 		.match-row-btn .vs-badge {

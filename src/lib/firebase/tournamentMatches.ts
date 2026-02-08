@@ -6,7 +6,7 @@
 
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, isFirebaseEnabled } from './config';
-import type { GroupMatch, GroupStanding, BracketMatch, Tournament } from '$lib/types/tournament';
+import type { GroupMatch, GroupStanding, BracketMatch, Tournament, TournamentParticipant } from '$lib/types/tournament';
 import type { TournamentGameConfig } from '$lib/stores/tournamentContext';
 import { getTournament } from './tournaments';
 import { browser } from '$app/environment';
@@ -596,6 +596,10 @@ export interface PendingMatchInfo {
   bracketRoundName?: string;
   participantAName: string;
   participantBName: string;
+  participantAPhotoURL?: string;  // Avatar URL for participant A (or first member in doubles)
+  participantBPhotoURL?: string;  // Avatar URL for participant B (or first member in doubles)
+  participantAPartnerPhotoURL?: string;  // For doubles: second member of team A
+  participantBPartnerPhotoURL?: string;  // For doubles: second member of team B
   gameConfig: TournamentGameConfig;
   isInProgress?: boolean;  // True if match is IN_PROGRESS (for resume functionality)
   tableNumber?: number;    // Table number for display (e.g., M1, M2)
@@ -724,6 +728,84 @@ function getParticipantName(tournament: Tournament, participantId: string): stri
 }
 
 /**
+ * Photo info for a participant (supports doubles with partner photo)
+ */
+interface ParticipantPhotos {
+  photoURL?: string;
+  partnerPhotoURL?: string;  // For doubles
+}
+
+/**
+ * Get participant photos by ID from cached data
+ * Returns undefined for BYE, TBD, or participants without photos
+ */
+function getParticipantPhotos(
+  participantId: string,
+  participantPhotoMap: Map<string, ParticipantPhotos>
+): ParticipantPhotos {
+  if (!participantId || participantId === 'BYE' || isLoserPlaceholder(participantId)) {
+    return {};
+  }
+  return participantPhotoMap.get(participantId) || {};
+}
+
+/**
+ * Build a map of participant ID to photos (supports doubles with partner photos)
+ * Uses the photoURL/partnerPhotoURL stored directly on each participant
+ */
+function buildParticipantPhotoMap(
+  participants: TournamentParticipant[]
+): Map<string, ParticipantPhotos> {
+  const photoMap = new Map<string, ParticipantPhotos>();
+
+  console.log('📸 buildParticipantPhotoMap - participants:', participants.map(p => ({
+    id: p.id,
+    name: p.name,
+    photoURL: p.photoURL,
+    partnerPhotoURL: p.partnerPhotoURL
+  })));
+
+  for (const p of participants) {
+    if (p.status === 'ACTIVE') {
+      if (p.photoURL || p.partnerPhotoURL) {
+        photoMap.set(p.id, {
+          photoURL: p.photoURL,
+          partnerPhotoURL: p.partnerPhotoURL
+        });
+      }
+    }
+  }
+
+  console.log('📸 photoMap size:', photoMap.size, 'entries:', Array.from(photoMap.entries()));
+
+  return photoMap;
+}
+
+/**
+ * Get all photo properties for both participants in a match
+ * Returns an object with all 4 photo fields ready to spread into PendingMatchInfo
+ */
+function getMatchPhotos(
+  participantAId: string | undefined,
+  participantBId: string | undefined,
+  photoMap: Map<string, ParticipantPhotos>
+): {
+  participantAPhotoURL?: string;
+  participantAPartnerPhotoURL?: string;
+  participantBPhotoURL?: string;
+  participantBPartnerPhotoURL?: string;
+} {
+  const photosA = participantAId ? getParticipantPhotos(participantAId, photoMap) : {};
+  const photosB = participantBId ? getParticipantPhotos(participantBId, photoMap) : {};
+  return {
+    participantAPhotoURL: photosA.photoURL,
+    participantAPartnerPhotoURL: photosA.partnerPhotoURL,
+    participantBPhotoURL: photosB.photoURL,
+    participantBPartnerPhotoURL: photosB.partnerPhotoURL
+  };
+}
+
+/**
  * Get pending matches for a specific user (by userId)
  * Returns matches where the user is assigned as participant A or B
  */
@@ -742,6 +824,9 @@ export async function getPendingMatchesForUser(
 
   const userParticipantIds = new Set(userParticipants.map(p => p.id));
 
+  // Build photo map for all participants
+  const photoMap = buildParticipantPhotoMap(tournament.participants);
+
   // Check group stage matches
   if (tournament.groupStage && !tournament.groupStage.isComplete) {
     for (const group of tournament.groupStage.groups) {
@@ -759,6 +844,7 @@ export async function getPendingMatchesForUser(
                 roundNumber: round.roundNumber,
                 participantAName: getParticipantName(tournament, match.participantA),
                 participantBName: getParticipantName(tournament, match.participantB),
+                ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 tableNumber: match.tableNumber
               });
@@ -781,6 +867,7 @@ export async function getPendingMatchesForUser(
                 roundNumber: pairing.roundNumber,
                 participantAName: getParticipantName(tournament, match.participantA),
                 participantBName: getParticipantName(tournament, match.participantB),
+                ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 tableNumber: match.tableNumber
               });
@@ -808,6 +895,7 @@ export async function getPendingMatchesForUser(
               bracketRoundName: round.name,
               participantAName: getParticipantName(tournament, match.participantA),
               participantBName: getParticipantName(tournament, match.participantB),
+              ...getMatchPhotos(match.participantA, match.participantB, photoMap),
               gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false),
               isSilverBracket: false,
               tableNumber: match.tableNumber
@@ -828,6 +916,7 @@ export async function getPendingMatchesForUser(
             bracketRoundName: 'Tercer Puesto',
             participantAName: getParticipantName(tournament, match.participantA),
             participantBName: getParticipantName(tournament, match.participantB),
+            ...getMatchPhotos(match.participantA, match.participantB, photoMap),
             gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false),
             isSilverBracket: false,
             tableNumber: match.tableNumber
@@ -850,6 +939,7 @@ export async function getPendingMatchesForUser(
               bracketRoundName: round.name,
               participantAName: getParticipantName(tournament, match.participantA),
               participantBName: getParticipantName(tournament, match.participantB),
+              ...getMatchPhotos(match.participantA, match.participantB, photoMap),
               gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, true),
               isSilverBracket: true,
               tableNumber: match.tableNumber
@@ -875,6 +965,9 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
   const shouldIncludeMatch = (status: string) => status === 'PENDING' || status === 'IN_PROGRESS';
   const isInProgress = (status: string) => status === 'IN_PROGRESS';
 
+  // Build photo map for all participants
+  const photoMap = buildParticipantPhotoMap(tournament.participants);
+
   // Check group stage matches
   if (tournament.groupStage && !tournament.groupStage.isComplete) {
     for (const group of tournament.groupStage.groups) {
@@ -891,6 +984,7 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                 roundNumber: round.roundNumber,
                 participantAName: getParticipantName(tournament, match.participantA),
                 participantBName: getParticipantName(tournament, match.participantB),
+                ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 isInProgress: isInProgress(match.status),
                 tableNumber: match.tableNumber
@@ -918,6 +1012,7 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                 roundNumber: pairing.roundNumber,
                 participantAName: getParticipantName(tournament, match.participantA),
                 participantBName: getParticipantName(tournament, match.participantB),
+                ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 isInProgress: isInProgress(match.status),
                 tableNumber: match.tableNumber
@@ -964,6 +1059,7 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
               bracketRoundName: round.name,
               participantAName: getParticipantName(tournament, match.participantA),
               participantBName: getParticipantName(tournament, match.participantB),
+              ...getMatchPhotos(match.participantA, match.participantB, photoMap),
               gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false),
               isInProgress: isInProgress(match.status),
               isSilverBracket: false,
@@ -988,6 +1084,7 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
             bracketRoundName: 'Tercer Puesto',
             participantAName: getParticipantName(tournament, match.participantA),
             participantBName: getParticipantName(tournament, match.participantB),
+            ...getMatchPhotos(match.participantA, match.participantB, photoMap),
             gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false),
             isInProgress: isInProgress(match.status),
             isSilverBracket: false,
@@ -1050,6 +1147,7 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                   bracketRoundName,
                   participantAName: getParticipantName(tournament, match.participantA!),
                   participantBName: getParticipantName(tournament, match.participantB!),
+                  ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                   gameConfig: getGameConfigForMatch(tournament, 'FINAL', bracketRoundName, false),
                   isInProgress: isInProgress(match.status),
                   isSilverBracket: false,
@@ -1087,6 +1185,7 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
               bracketRoundName: round.name,
               participantAName: getParticipantName(tournament, match.participantA),
               participantBName: getParticipantName(tournament, match.participantB),
+              ...getMatchPhotos(match.participantA, match.participantB, photoMap),
               gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, true),
               isInProgress: isInProgress(match.status),
               isSilverBracket: true,
@@ -1111,6 +1210,7 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
             bracketRoundName: 'Tercer Puesto',
             participantAName: getParticipantName(tournament, match.participantA),
             participantBName: getParticipantName(tournament, match.participantB),
+            ...getMatchPhotos(match.participantA, match.participantB, photoMap),
             gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', true),
             isInProgress: isInProgress(match.status),
             isSilverBracket: true,
@@ -1173,6 +1273,7 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                   bracketRoundName,
                   participantAName: getParticipantName(tournament, match.participantA!),
                   participantBName: getParticipantName(tournament, match.participantB!),
+                  ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                   gameConfig: getGameConfigForMatch(tournament, 'FINAL', bracketRoundName, true),
                   isInProgress: isInProgress(match.status),
                   isSilverBracket: true,

@@ -1,6 +1,7 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getAnalytics, type Analytics } from 'firebase/analytics';
 import { browser } from '$app/environment';
 
@@ -24,6 +25,7 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 let analytics: Analytics | null = null;
 
 if (browser && isFirebaseEnabled()) {
@@ -31,6 +33,7 @@ if (browser && isFirebaseEnabled()) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    storage = getStorage(app);
     analytics = getAnalytics(app);
     console.log('✅ Firebase initialized successfully');
   } catch (error) {
@@ -38,4 +41,4 @@ if (browser && isFirebaseEnabled()) {
   }
 }
 
-export { app, auth, db, analytics };
+export { app, auth, db, storage, analytics };

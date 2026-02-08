@@ -271,6 +271,7 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
       gameType: data.gameType || 'singles',
       show20s: data.show20s ?? true,
       showHammer: data.showHammer ?? true,
+      isTest: data.isTest ?? false,
       numTables: data.numTables || 1,
       rankingConfig: data.rankingConfig || {
         enabled: true,
@@ -303,7 +304,12 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
 
     // Add optional fields only if they exist in the data object
     if ('description' in data && data.description) tournament.description = data.description;
+    if ('descriptionLanguage' in data && data.descriptionLanguage) tournament.descriptionLanguage = data.descriptionLanguage;
     if ('tournamentDate' in data && data.tournamentDate) tournament.tournamentDate = data.tournamentDate;
+    if ('address' in data && data.address) tournament.address = data.address;
+    if ('externalLink' in data && data.externalLink) tournament.externalLink = data.externalLink;
+    if ('posterUrl' in data && data.posterUrl) tournament.posterUrl = data.posterUrl;
+    if ('timeConfig' in data && data.timeConfig) tournament.timeConfig = data.timeConfig;
 
     // Add groupStage configuration if it exists in the data
     if ('groupStage' in data && data.groupStage) {

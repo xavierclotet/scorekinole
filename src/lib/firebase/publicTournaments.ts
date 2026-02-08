@@ -97,6 +97,9 @@ export async function getPublicTournaments(
 				if (filters.timeFilter === 'future' && tournamentDate <= now) return;
 			}
 
+			// Skip test tournaments from public view
+			if (data.isTest === true) return;
+
 			// Count active participants
 			const participantsCount = data.participants?.filter((p) => p.status === 'ACTIVE').length || 0;
 

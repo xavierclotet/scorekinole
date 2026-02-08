@@ -1038,5 +1038,15 @@
   "common_translate": "Translate",
   "wizard_descriptionLanguage": "Language of the description",
   "common_language": "Language",
-  "common_translateSameLanguage": "The text is already in your language."
+  "common_translateSameLanguage": "The text is already in your language.",
+  "profile_changePhoto": "Change profile picture",
+  "profile_deletePhoto": "Delete custom photo",
+  "profile_photoUpdated": "Photo updated correctly",
+  "profile_photoDeleted": "Photo removed",
+  "profile_maxFileSize": "The image cannot exceed {size} MB",
+  "tournament_isTest": "Test Tournament",
+  "tournament_isTestHint": "Test tournaments do not appear in the public listing",
+  "tournament_realOnly": "Only real ones",
+  "tournament_test": "Proof",
+  "tournament_testOnly": "Tests only"
 }

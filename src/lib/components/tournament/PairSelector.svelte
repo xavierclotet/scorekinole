@@ -1,6 +1,7 @@
 <script lang="ts">
   import { searchUsers } from '$lib/firebase/tournaments';
   import { getOrCreatePair, searchPairsByTeamName, getPairDisplayName } from '$lib/firebase/pairs';
+  import { getUserProfileById } from '$lib/firebase/userProfile';
   import type { Pair, PairMember } from '$lib/types/pair';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentParticipant } from '$lib/types/tournament';
@@ -25,11 +26,13 @@
   let p1RawResults = $state<(UserProfile & { userId: string })[]>([]);
   let p1Loading = $state(false);
   let p1Selected = $state<PairMember | null>(null);
+  let p1PhotoURL = $state<string | undefined>(undefined);
 
   let p2 = $state('');
   let p2RawResults = $state<(UserProfile & { userId: string })[]>([]);
   let p2Loading = $state(false);
   let p2Selected = $state<PairMember | null>(null);
+  let p2PhotoURL = $state<string | undefined>(undefined);
 
   let teamName = $state('');
   let adding = $state(false);
@@ -89,12 +92,14 @@
 
   function selectP1(user: UserProfile & { userId: string }) {
     p1Selected = { type: 'REGISTERED', userId: user.userId, name: user.playerName };
+    p1PhotoURL = user.photoURL || undefined;
     p1 = user.playerName;
     p1RawResults = [];
   }
 
   function selectP2(user: UserProfile & { userId: string }) {
     p2Selected = { type: 'REGISTERED', userId: user.userId, name: user.playerName };
+    p2PhotoURL = user.photoURL || undefined;
     p2 = user.playerName;
     p2RawResults = [];
   }
@@ -102,19 +107,36 @@
   function setP1Guest() {
     if (p1.trim().length < 3) return;
     p1Selected = { type: 'GUEST', name: p1.trim() };
+    p1PhotoURL = undefined;
     p1RawResults = [];
   }
 
   function setP2Guest() {
     if (p2.trim().length < 3) return;
     p2Selected = { type: 'GUEST', name: p2.trim() };
+    p2PhotoURL = undefined;
     p2RawResults = [];
   }
 
-  function clearP1() { p1Selected = null; p1 = ''; p1RawResults = []; }
-  function clearP2() { p2Selected = null; p2 = ''; p2RawResults = []; }
+  function clearP1() { p1Selected = null; p1PhotoURL = undefined; p1 = ''; p1RawResults = []; }
+  function clearP2() { p2Selected = null; p2PhotoURL = undefined; p2 = ''; p2RawResults = []; }
 
-  function addExistingPair(pair: Pair) {
+  async function addExistingPair(pair: Pair) {
+    // Fetch photos for pair members
+    let member1Photo: string | undefined;
+    let member2Photo: string | undefined;
+
+    if (pair.member1Type === 'REGISTERED' && pair.member1UserId) {
+      const profile = await getUserProfileById(pair.member1UserId);
+      console.log('🖼️ Member1 profile:', pair.member1UserId, profile?.photoURL);
+      member1Photo = profile?.photoURL || undefined;
+    }
+    if (pair.member2Type === 'REGISTERED' && pair.member2UserId) {
+      const profile = await getUserProfileById(pair.member2UserId);
+      console.log('🖼️ Member2 profile:', pair.member2UserId, profile?.photoURL);
+      member2Photo = profile?.photoURL || undefined;
+    }
+
     const participant: Partial<TournamentParticipant> & { memberUserIds?: string[] } = {
       id: crypto.randomUUID(),
       participantMode: 'pair',
@@ -125,11 +147,14 @@
       rankingSnapshot: 0,
       currentRanking: 0,
       status: 'ACTIVE',
+      photoURL: member1Photo,
+      partnerPhotoURL: member2Photo,
       memberUserIds: [
         pair.member1Type === 'REGISTERED' ? pair.member1UserId : '',
         pair.member2Type === 'REGISTERED' ? pair.member2UserId : ''
       ].filter(Boolean)
     };
+    console.log('🎯 PairSelector onadd participant:', { name: participant.name, photoURL: participant.photoURL, partnerPhotoURL: participant.partnerPhotoURL });
     onadd(participant);
     pairSearch = '';
     pairResults = [];
@@ -151,11 +176,14 @@
         rankingSnapshot: 0,
         currentRanking: 0,
         status: 'ACTIVE',
+        photoURL: p1PhotoURL,
+        partnerPhotoURL: p2PhotoURL,
         memberUserIds: [
           p1Selected.type === 'REGISTERED' && p1Selected.userId ? p1Selected.userId : '',
           p2Selected.type === 'REGISTERED' && p2Selected.userId ? p2Selected.userId : ''
         ].filter(Boolean)
       };
+      console.log('🎯 PairSelector addNewPair onadd:', { name: participant.name, photoURL: participant.photoURL, partnerPhotoURL: participant.partnerPhotoURL });
       onadd(participant);
       clearP1();
       clearP2();

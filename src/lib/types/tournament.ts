@@ -110,6 +110,9 @@ export interface Tournament {
   // Video highlight (YouTube)
   videoUrl?: string;                   // Full YouTube URL
   videoId?: string;                    // Extracted video ID for embedding
+
+  // Test flag
+  isTest?: boolean;                    // true = hidden from public tournament list
 }
 
 /**
@@ -145,6 +148,8 @@ export interface TournamentParticipant {
   userId?: string;         // Only for REGISTERED
   name: string;
   email?: string;
+  photoURL?: string;       // Snapshot of user's photo at time of registration
+  partnerPhotoURL?: string; // For doubles: second player's photo
 
   // For doubles (LEGACY - backward compatible with old tournaments)
   partner?: {

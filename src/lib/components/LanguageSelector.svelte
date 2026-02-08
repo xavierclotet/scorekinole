@@ -76,16 +76,17 @@
 		position: relative;
 	}
 
+	/* Default: dark theme (for landing page and dark contexts) */
 	.lang-toggle {
 		width: 32px;
 		height: 32px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(0, 0, 0, 0.05);
-		border: 1px solid rgba(0, 0, 0, 0.15);
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.15);
 		border-radius: 50%;
-		color: rgba(0, 0, 0, 0.6);
+		color: rgba(255, 255, 255, 0.7);
 		cursor: pointer;
 		transition: all 0.2s;
 		padding: 0;
@@ -97,9 +98,9 @@
 	}
 
 	.lang-toggle:hover {
-		background: rgba(0, 0, 0, 0.1);
-		color: #1a1a2e;
-		border-color: rgba(0, 0, 0, 0.3);
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
+		border-color: rgba(255, 255, 255, 0.3);
 	}
 
 	.lang-toggle:active {
@@ -110,10 +111,10 @@
 		position: absolute;
 		top: calc(100% + 8px);
 		right: 0;
-		background: white;
-		border: 1px solid rgba(0, 0, 0, 0.1);
+		background: #1e1e2e;
+		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 8px;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 		overflow: hidden;
 		z-index: 100;
 		min-width: 140px;
@@ -142,16 +143,16 @@
 		cursor: pointer;
 		text-align: left;
 		transition: background 0.15s;
-		color: #333;
+		color: rgba(255, 255, 255, 0.9);
 	}
 
 	.lang-option:hover {
-		background: rgba(0, 0, 0, 0.05);
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.lang-option.active {
-		background: rgba(59, 130, 246, 0.1);
-		color: #2563eb;
+		background: rgba(0, 255, 136, 0.15);
+		color: #00ff88;
 	}
 
 	.lang-short {
@@ -164,35 +165,35 @@
 		font-size: 14px;
 	}
 
-	/* Dark theme */
-	:global([data-theme='dark']) .lang-toggle {
-		background: rgba(255, 255, 255, 0.05);
-		border-color: rgba(255, 255, 255, 0.15);
-		color: rgba(255, 255, 255, 0.7);
+	/* Light theme override */
+	:global([data-theme='light']) .lang-toggle {
+		background: rgba(0, 0, 0, 0.05);
+		border-color: rgba(0, 0, 0, 0.15);
+		color: rgba(0, 0, 0, 0.6);
 	}
 
-	:global([data-theme='dark']) .lang-toggle:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #60a5fa;
-		border-color: rgba(96, 165, 250, 0.3);
+	:global([data-theme='light']) .lang-toggle:hover {
+		background: rgba(0, 0, 0, 0.1);
+		color: #1a1a2e;
+		border-color: rgba(0, 0, 0, 0.3);
 	}
 
-	:global([data-theme='dark']) .lang-dropdown {
-		background: #1e1e2e;
-		border-color: rgba(255, 255, 255, 0.1);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	:global([data-theme='light']) .lang-dropdown {
+		background: white;
+		border-color: rgba(0, 0, 0, 0.1);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	}
 
-	:global([data-theme='dark']) .lang-option {
-		color: rgba(255, 255, 255, 0.9);
+	:global([data-theme='light']) .lang-option {
+		color: #333;
 	}
 
-	:global([data-theme='dark']) .lang-option:hover {
-		background: rgba(255, 255, 255, 0.08);
+	:global([data-theme='light']) .lang-option:hover {
+		background: rgba(0, 0, 0, 0.05);
 	}
 
-	:global([data-theme='dark']) .lang-option.active {
-		background: rgba(96, 165, 250, 0.15);
-		color: #60a5fa;
+	:global([data-theme='light']) .lang-option.active {
+		background: rgba(16, 185, 129, 0.1);
+		color: #10b981;
 	}
 </style>

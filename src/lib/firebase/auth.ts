@@ -22,6 +22,7 @@ export interface User {
   name: string;
   email: string | null;
   photoURL: string | null;
+  googlePhotoURL: string | null; // Original Google profile photo (preserved for fallback)
 }
 
 // Current user store (reactive)
@@ -46,7 +47,8 @@ export async function signInWithGoogle(): Promise<User> {
       id: 'mock-user-123',
       name: 'Developer User',
       email: 'dev@scorekinole.com',
-      photoURL: null
+      photoURL: null,
+      googlePhotoURL: null
     };
     currentUser.set(mockUser);
     return mockUser;
@@ -83,11 +85,11 @@ export async function signInWithGoogle(): Promise<User> {
         id: user.uid,
         name: user.displayName || 'Unknown',
         email: user.email,
-        photoURL: user.photoURL
+        photoURL: user.photoURL,
+        googlePhotoURL: user.photoURL
       };
 
       console.log('✅ User signed in (native):', appUser.name);
-      console.log('✅ Photo URL:', appUser.photoURL);
       currentUser.set(appUser);
       return appUser;
     } else {
@@ -102,7 +104,8 @@ export async function signInWithGoogle(): Promise<User> {
         id: user.uid,
         name: user.displayName || 'Unknown',
         email: user.email,
-        photoURL: user.photoURL
+        photoURL: user.photoURL,
+        googlePhotoURL: user.photoURL
       };
 
       console.log('✅ User signed in (web):', appUser.name);
@@ -154,13 +157,15 @@ export function initAuthListener(): void {
 
   onAuthStateChanged(auth!, async (user: FirebaseUser | null) => {
     if (user) {
-      const appUser: User = {
+      // Start with Google Auth data (preserve Google photo for fallback)
+      const googlePhotoURL = user.photoURL;
+      let appUser: User = {
         id: user.uid,
         name: user.displayName || 'Unknown',
         email: user.email,
-        photoURL: user.photoURL
+        photoURL: user.photoURL,
+        googlePhotoURL: googlePhotoURL
       };
-      currentUser.set(appUser);
 
       // Check if user has a document in the users collection
       try {
@@ -173,11 +178,24 @@ export function initAuthListener(): void {
         } else {
           console.log('✅ User has profile in Firestore');
           needsProfileSetup.set(false);
+
+          // Use Firestore profile data (custom photo, player name)
+          const profile = userDocSnap.data();
+          if (profile) {
+            appUser = {
+              ...appUser,
+              name: profile.playerName || appUser.name,
+              // Use custom photo if set, otherwise fall back to Google photo
+              photoURL: profile.photoURL || googlePhotoURL
+            };
+          }
         }
       } catch (error) {
         console.error('❌ Error checking user profile:', error);
         needsProfileSetup.set(false);
       }
+
+      currentUser.set(appUser);
     } else {
       currentUser.set(null);
       needsProfileSetup.set(false);

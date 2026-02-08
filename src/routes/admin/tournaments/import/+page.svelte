@@ -104,6 +104,7 @@
       description = tournament.description || '';
       externalLink = tournament.externalLink || '';
       posterUrl = tournament.posterUrl || '';
+      isTest = tournament.isTest ?? false;
 
       // Pre-populate Step 2: Participants (if any)
       if (tournament.participants && tournament.participants.length > 0) {
@@ -197,6 +198,7 @@
       description = '';  // Clear notes for new tournament
       externalLink = tournament.externalLink || '';
       posterUrl = tournament.posterUrl || '';
+      isTest = tournament.isTest ?? false;
 
       // Pre-populate Step 2: Participants (if any)
       if (tournament.participants && tournament.participants.length > 0) {
@@ -256,6 +258,7 @@
   let description = $state('');
   let externalLink = $state('');
   let posterUrl = $state('');
+  let isTest = $state(false);
 
   // Step 2: Participants
   interface ParticipantEntry {
@@ -473,6 +476,7 @@
       description = data.description ?? '';
       externalLink = data.externalLink ?? '';
       posterUrl = data.posterUrl ?? '';
+      isTest = data.isTest ?? false;
 
       // Step 2: Participants
       participants = data.participants ?? [];
@@ -524,6 +528,7 @@
         description,
         externalLink,
         posterUrl,
+        isTest,
 
         // Step 2: Participants
         participants,
@@ -959,6 +964,9 @@
     if (posterUrl && posterUrl.trim()) {
       input.posterUrl = posterUrl.trim();
     }
+    if (isTest) {
+      input.isTest = true;
+    }
     if (groupStageInput) {
       input.groupStage = groupStageInput;
     }
@@ -1004,6 +1012,9 @@
       }
       if (posterUrl && posterUrl.trim()) {
         input.posterUrl = posterUrl.trim();
+      }
+      if (isTest) {
+        input.isTest = true;
       }
 
       const tournamentId = await createUpcomingTournament(input);
@@ -1065,6 +1076,7 @@
       if (posterUrl && posterUrl.trim()) {
         updates.posterUrl = posterUrl.trim();
       }
+      updates.isTest = isTest;
 
       const success = await updateHistoricalTournament(editTournamentId, updates);
 
@@ -1260,35 +1272,9 @@
               />
             </div>
 
-            <div class="info-grid location-grid">
-              <div class="info-field address-field">
-                <label for="address">{m.wizard_address()}</label>
-                <input
-                  id="address"
-                  type="text"
-                  bind:value={address}
-                  placeholder=""
-                  class="input-field"
-                />
-              </div>
-
+            <!-- Date field -->
+            <div class="info-grid date-grid">
               <div class="info-field">
-                <label for="city">{m.wizard_city()}</label>
-                <input
-                  id="city"
-                  type="text"
-                  bind:value={city}
-                  placeholder="Barcelona"
-                  class="input-field"
-                />
-              </div>
-
-              <div class="info-field">
-                <label for="country">{m.wizard_country()}</label>
-                <CountrySelect id="country" bind:value={country} />
-              </div>
-
-              <div class="info-field date-field">
                 <label for="date">{m.wizard_date()}</label>
                 <input
                   id="date"
@@ -1377,6 +1363,17 @@
                 />
               </div>
             </div>
+          </div>
+
+          <!-- Test Tournament -->
+          <div class="test-field">
+            <label class="option-check test-check">
+              <input type="checkbox" bind:checked={isTest} />
+              <span class="test-label">
+                {m.tournament_isTest()}
+                <span class="test-hint">{m.tournament_isTestHint()}</span>
+              </span>
+            </label>
           </div>
 
         </div>
@@ -4120,5 +4117,56 @@
     .nav-button {
       width: 100%;
     }
+  }
+
+  /* Test tournament field */
+  .test-field {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #fefce8;
+    border: 1px solid #fef08a;
+    border-radius: 8px;
+  }
+
+  .wizard-container[data-theme='dark'] .test-field {
+    background: #422006;
+    border-color: #854d0e;
+  }
+
+  .option-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    cursor: pointer;
+  }
+
+  .option-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    cursor: pointer;
+    accent-color: #f59e0b;
+  }
+
+  .test-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-weight: 500;
+    color: #92400e;
+  }
+
+  .wizard-container[data-theme='dark'] .test-label {
+    color: #fcd34d;
+  }
+
+  .test-hint {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: #a16207;
+  }
+
+  .wizard-container[data-theme='dark'] .test-hint {
+    color: #fbbf24;
   }
 </style>

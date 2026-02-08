@@ -7,7 +7,11 @@ const STORAGE_KEY = 'theme';
 
 // Initialize theme from localStorage or system preference
 function getInitialTheme(): Theme {
-  if (!browser) return 'light';
+  if (!browser) return 'dark'; // Default to dark for SSR to match landing page
+
+  // First check if already set by blocking script in app.html
+  const htmlTheme = document.documentElement.getAttribute('data-theme') as Theme | null;
+  if (htmlTheme === 'light' || htmlTheme === 'dark') return htmlTheme;
 
   // Check both new and old storage keys for backwards compatibility
   const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
@@ -26,7 +30,7 @@ function getInitialTheme(): Theme {
     return 'dark';
   }
 
-  return 'light';
+  return 'dark'; // Default to dark to match landing page
 }
 
 function createTheme() {

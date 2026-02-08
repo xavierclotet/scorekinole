@@ -10,6 +10,7 @@
 	import QuickMenu from '$lib/components/QuickMenu.svelte';
 	import ProfileModal from '$lib/components/ProfileModal.svelte';
 	import LoginModal from '$lib/components/LoginModal.svelte';
+	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import SEO from '$lib/components/SEO.svelte';
@@ -57,11 +58,6 @@
 
 	function goToRankings() {
 		goto('/rankings');
-	}
-
-	function changeLanguage(lang: 'es' | 'ca' | 'en') {
-		gameSettings.update(settings => ({ ...settings, language: lang }));
-		gameSettings.save();
 	}
 
 	function goToAdmin() {
@@ -116,11 +112,7 @@
 		</div>
 
 		<div class="nav-right">
-			<div class="lang-selector">
-				<button class:active={$gameSettings.language === 'es'} onclick={() => changeLanguage('es')}>ES</button>
-				<button class:active={$gameSettings.language === 'ca'} onclick={() => changeLanguage('ca')}>CA</button>
-				<button class:active={$gameSettings.language === 'en'} onclick={() => changeLanguage('en')}>EN</button>
-			</div>
+			<LanguageSelector />
 			<button class="nav-btn icon-btn" onclick={toggleTheme} title={$adminTheme === 'light' ? m.common_darkMode() : m.common_lightMode()}>
 				{#if $adminTheme === 'light'}
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -411,50 +403,6 @@
 	.icon-btn svg {
 		width: 16px;
 		height: 16px;
-	}
-
-	.lang-selector {
-		display: flex;
-		gap: 0.25rem;
-	}
-
-	.lang-selector button {
-		padding: 0.4rem 0.7rem;
-		background: transparent;
-		border: 1px solid rgba(255, 255, 255, 0.15);
-		border-radius: 4px;
-		color: rgba(255, 255, 255, 0.5);
-		font-size: 0.75rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.lang-selector button:hover {
-		border-color: rgba(255, 255, 255, 0.3);
-		color: #fff;
-	}
-
-	.lang-selector button.active {
-		background: #00ff88;
-		border-color: #00ff88;
-		color: #0a0e1a;
-	}
-
-	.landing[data-theme='light'] .lang-selector button {
-		border-color: rgba(0, 0, 0, 0.15);
-		color: rgba(0, 0, 0, 0.5);
-	}
-
-	.landing[data-theme='light'] .lang-selector button:hover {
-		border-color: rgba(0, 0, 0, 0.3);
-		color: #1a1a2e;
-	}
-
-	.landing[data-theme='light'] .lang-selector button.active {
-		background: #10b981;
-		border-color: #10b981;
-		color: #fff;
 	}
 
 	.profile-wrap {
