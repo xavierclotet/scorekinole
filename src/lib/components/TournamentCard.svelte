@@ -126,7 +126,10 @@
 	);
 </script>
 
-<button class="card" class:past={isPast} class:live={isLive} {onclick}>
+<button class="card" class:past={isPast} class:live={isLive} class:has-poster={tournament.posterUrl} {onclick}>
+	{#if tournament.posterUrl}
+		<div class="poster-background" style="background-image: url({tournament.posterUrl})"></div>
+	{/if}
 	{#if isLive}
 		<div class="live-indicator">
 			<LiveBadge size="small" />
@@ -248,6 +251,29 @@
 		font-family: inherit;
 		overflow: hidden;
 		position: relative;
+	}
+
+	/* Poster background */
+	.poster-background {
+		position: absolute;
+		inset: 0;
+		background-size: cover;
+		background-position: center;
+		opacity: 0.3;
+		transition: opacity 0.3s ease;
+		z-index: 0;
+	}
+
+	.card.has-poster:hover .poster-background {
+		opacity: 0.4;
+	}
+
+	.card.has-poster .card-main,
+	.card.has-poster .card-footer,
+	.card.has-poster .live-indicator,
+	.card.has-poster .participants-section {
+		position: relative;
+		z-index: 1;
 	}
 
 	.card:hover {
@@ -572,6 +598,14 @@
 	}
 
 	/* Light theme */
+	:global([data-theme='light']) .poster-background {
+		opacity: 0.25;
+	}
+
+	:global([data-theme='light']) .card.has-poster:hover .poster-background {
+		opacity: 0.35;
+	}
+
 	:global([data-theme='light']) .card {
 		background: #ffffff;
 		border-color: #e2e8f0;

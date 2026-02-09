@@ -33,6 +33,7 @@ export interface TournamentListItem {
 	tier?: TournamentTier;
 	createdAt: number;
 	isImported?: boolean; // true for imported/upcoming tournaments
+	posterUrl?: string; // URL to tournament poster/banner image
 }
 
 /**
@@ -117,7 +118,8 @@ export async function getPublicTournaments(
 				tier: data.rankingConfig?.enabled ? data.rankingConfig.tier : undefined,
 				createdAt:
 					data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
-				isImported: data.isImported
+				isImported: data.isImported,
+				posterUrl: data.posterUrl
 			});
 		});
 
