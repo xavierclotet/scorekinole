@@ -2,8 +2,9 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { setLocale } from '$lib/paraglide/runtime.js';
 	import * as m from '$lib/paraglide/messages.js';
-
-	let isOpen = $state(false);
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { Button } from '$lib/components/ui/button';
+	import { Globe, Check } from '@lucide/svelte';
 
 	const languages = [
 		{ code: 'es' as const, label: 'Español', short: 'ES' },
@@ -11,189 +12,49 @@
 		{ code: 'en' as const, label: 'English', short: 'EN' }
 	];
 
-	function toggleOpen() {
-		isOpen = !isOpen;
-	}
+	let currentLang = $derived($gameSettings.language);
 
 	function selectLanguage(lang: 'es' | 'ca' | 'en') {
 		gameSettings.update((settings) => ({ ...settings, language: lang }));
 		gameSettings.save();
-		isOpen = false;
 		// setLocale triggers page reload to apply translations
 		setLocale(lang);
 	}
 
-	function handleClickOutside(event: MouseEvent) {
-		const target = event.target as HTMLElement;
-		if (!target.closest('.language-selector')) {
-			isOpen = false;
-		}
+	function isSelected(code: string) {
+		return currentLang === code;
 	}
-
-	$effect(() => {
-		if (isOpen) {
-			document.addEventListener('click', handleClickOutside);
-			return () => document.removeEventListener('click', handleClickOutside);
-		}
-	});
 </script>
 
-<div class="language-selector">
-	<button
-		class="lang-toggle"
-		onclick={toggleOpen}
-		title={m.common_language()}
-		aria-expanded={isOpen}
-		aria-haspopup="listbox"
-	>
-		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-			<circle cx="12" cy="12" r="10" />
-			<path d="M2 12h20" />
-			<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-		</svg>
-	</button>
-
-	{#if isOpen}
-		<div class="lang-dropdown" role="listbox">
+<DropdownMenu.Root>
+	<DropdownMenu.Trigger>
+		{#snippet child({ props })}
+			<Button
+				{...props}
+				variant="ghost"
+				size="icon"
+				class="size-9 rounded-full bg-foreground/5 border border-foreground/15 text-foreground/70 hover:bg-foreground/10 hover:text-foreground hover:border-foreground/30"
+				title={m.common_language()}
+			>
+				<Globe class="size-4" />
+			</Button>
+		{/snippet}
+	</DropdownMenu.Trigger>
+	<DropdownMenu.Portal>
+		<DropdownMenu.Content align="end" sideOffset={8} class="min-w-40 p-2">
 			{#each languages as lang}
-				<button
-					class="lang-option"
-					class:active={$gameSettings.language === lang.code}
+				{@const selected = isSelected(lang.code)}
+				<DropdownMenu.Item
 					onclick={() => selectLanguage(lang.code)}
-					role="option"
-					aria-selected={$gameSettings.language === lang.code}
+					class={['cursor-pointer gap-3 py-2.5 px-3 rounded-md', selected && 'bg-primary/15 text-primary']}
 				>
-					<span class="lang-short">{lang.short}</span>
-					<span class="lang-full">{lang.label}</span>
-				</button>
+					<span class="font-semibold text-xs w-6">{lang.short}</span>
+					<span class="flex-1">{lang.label}</span>
+					{#if selected}
+						<Check class="size-4" />
+					{/if}
+				</DropdownMenu.Item>
 			{/each}
-		</div>
-	{/if}
-</div>
-
-<style>
-	.language-selector {
-		position: relative;
-	}
-
-	/* Default: dark theme (for landing page and dark contexts) */
-	.lang-toggle {
-		width: 32px;
-		height: 32px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.15);
-		border-radius: 50%;
-		color: rgba(255, 255, 255, 0.7);
-		cursor: pointer;
-		transition: all 0.2s;
-		padding: 0;
-	}
-
-	.lang-toggle svg {
-		width: 16px;
-		height: 16px;
-	}
-
-	.lang-toggle:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
-		border-color: rgba(255, 255, 255, 0.3);
-	}
-
-	.lang-toggle:active {
-		transform: scale(0.95);
-	}
-
-	.lang-dropdown {
-		position: absolute;
-		top: calc(100% + 8px);
-		right: 0;
-		background: #1e1e2e;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-		overflow: hidden;
-		z-index: 100;
-		min-width: 140px;
-		animation: dropdownIn 0.15s ease-out;
-	}
-
-	@keyframes dropdownIn {
-		from {
-			opacity: 0;
-			transform: translateY(-4px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-
-	.lang-option {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		width: 100%;
-		padding: 10px 14px;
-		background: transparent;
-		border: none;
-		cursor: pointer;
-		text-align: left;
-		transition: background 0.15s;
-		color: rgba(255, 255, 255, 0.9);
-	}
-
-	.lang-option:hover {
-		background: rgba(255, 255, 255, 0.08);
-	}
-
-	.lang-option.active {
-		background: rgba(0, 255, 136, 0.15);
-		color: #00ff88;
-	}
-
-	.lang-short {
-		font-weight: 600;
-		font-size: 12px;
-		width: 24px;
-	}
-
-	.lang-full {
-		font-size: 14px;
-	}
-
-	/* Light theme override */
-	:global([data-theme='light']) .lang-toggle {
-		background: rgba(0, 0, 0, 0.05);
-		border-color: rgba(0, 0, 0, 0.15);
-		color: rgba(0, 0, 0, 0.6);
-	}
-
-	:global([data-theme='light']) .lang-toggle:hover {
-		background: rgba(0, 0, 0, 0.1);
-		color: #1a1a2e;
-		border-color: rgba(0, 0, 0, 0.3);
-	}
-
-	:global([data-theme='light']) .lang-dropdown {
-		background: white;
-		border-color: rgba(0, 0, 0, 0.1);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-	}
-
-	:global([data-theme='light']) .lang-option {
-		color: #333;
-	}
-
-	:global([data-theme='light']) .lang-option:hover {
-		background: rgba(0, 0, 0, 0.05);
-	}
-
-	:global([data-theme='light']) .lang-option.active {
-		background: rgba(16, 185, 129, 0.1);
-		color: #10b981;
-	}
-</style>
+		</DropdownMenu.Content>
+	</DropdownMenu.Portal>
+</DropdownMenu.Root>

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import { loadMatchState } from '$lib/stores/matchState';
 	import { loadTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
@@ -9,9 +10,17 @@
 	import { initAuthListener, needsProfileSetup, currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import { checkForUpdates, type VersionCheckResult } from '$lib/utils/versionCheck';
+	import { adminTheme } from '$lib/stores/theme';
 	import CompleteProfileModal from '$lib/components/CompleteProfileModal.svelte';
 	import UpdateAvailableModal from '$lib/components/UpdateAvailableModal.svelte';
 	import '../app.css';
+
+	// Sync theme to document root for portaled elements (dropdowns, modals, etc.)
+	$effect(() => {
+		if (browser) {
+			document.documentElement.setAttribute('data-theme', $adminTheme);
+		}
+	});
 
 	let updateInfo = $state<VersionCheckResult | null>(null);
 	let showUpdateModal = $state(false);

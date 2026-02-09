@@ -650,9 +650,6 @@
 						</div>
 					{/if}
 					<span class="player-name-badge" class:has-avatar={hasAnyPhoto}>{team.name}</span>
-					{#if teamNumber === 1 && $gameTournamentContext?.currentUserRanking !== undefined}
-						<span class="ranking-badge">#{$gameTournamentContext.currentUserRanking}</span>
-					{/if}
 				</div>
 			{:else if isEditingName}
 				<input
@@ -931,17 +928,6 @@
 		text-align: left;
 	}
 
-	.ranking-badge {
-		font-size: 0.7rem;
-		font-weight: 600;
-		padding: 0.15rem 0.5rem;
-		background: rgba(255, 215, 0, 0.2);
-		border: 1px solid rgba(255, 215, 0, 0.4);
-		border-radius: 6px;
-		color: var(--text-color);
-		margin-left: 0.35rem;
-	}
-
 	.hammer-indicator {
 		display: flex;
 		align-items: center;
@@ -1057,10 +1043,6 @@
 			padding: 0.3rem 0.8rem;
 		}
 
-		.ranking-badge {
-			font-size: 0.65rem;
-		}
-
 		.player-avatar {
 			width: 28px;
 			height: 28px;
@@ -1121,11 +1103,6 @@
 		.winner-badge {
 			font-size: 0.65rem;
 			padding: 0.25rem 0.6rem;
-		}
-
-		.ranking-badge {
-			font-size: 0.6rem;
-			padding: 0.1rem 0.4rem;
 		}
 
 		.player-avatars-stack {
@@ -1285,10 +1262,6 @@
 		.winner-badge {
 			font-size: 0.6rem;
 			padding: 0.2rem 0.5rem;
-		}
-
-		.ranking-badge {
-			font-size: 0.55rem;
 		}
 
 		.color-btn,

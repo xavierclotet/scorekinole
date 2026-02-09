@@ -541,7 +541,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each standings as standing}
+        {#each standings as standing, idx}
           {@const isSelected = selectedParticipants.has(standing.participantId)}
           {@const swissPoints = standing.swissPoints ?? (standing.matchesWon * 2 + standing.matchesTied)}
           {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
@@ -549,10 +549,13 @@
           {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
           {@const atCutoffTie = isAtCutoffTie(standing.participantId)}
           {@const showTieStyles = qualificationMode === 'WINS'}
+          {@const halfwayIndex = Math.ceil(standings.length / 2) - 1}
+          {@const isHalfwayRow = idx === halfwayIndex && standings.length > 1}
           <tr
             class:selected={isSelected}
             class:has-tie={hasTie && showTieStyles && !isSelected}
             class:at-cutoff-tie={atCutoffTie && showTieStyles && !isSelected}
+            class:halfway-row={isHalfwayRow}
             onclick={() => toggleParticipant(standing.participantId)}
             role="button"
             tabindex="0"
@@ -799,6 +802,11 @@
 
   tbody tr.selected {
     background: #eff6ff;
+  }
+
+  /* Halfway line - marks the middle of participants */
+  tbody tr.halfway-row {
+    border-bottom: 3px solid #6b7280;
   }
 
   td {
@@ -1316,6 +1324,10 @@
 
   :global([data-theme='dark']) tbody tr.selected {
     background: rgba(102, 126, 234, 0.2);
+  }
+
+  :global([data-theme='dark']) tbody tr.halfway-row {
+    border-bottom: 3px solid #6b7280;
   }
 
   :global([data-theme='dark']) td {

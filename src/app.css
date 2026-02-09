@@ -157,6 +157,131 @@
 }
 
 /* ============================================
+   VIOLET THEME - Easy swap for testing
+   To use: add data-theme="violet" or data-theme="violet-light"
+   ============================================ */
+
+[data-theme='violet'] {
+	/* Base dark theme colors (same as :root) */
+	--bg-primary: #0a0e1a;
+	--bg-header: #151b2d;
+	--bg-modal: #1a1f35;
+	--text-primary: #ffffff;
+	--text-dim: #8899aa;
+	--divider: #2a3a4a;
+
+	--background: oklch(0.145 0.02 250);
+	--foreground: oklch(0.985 0 0);
+	--card: oklch(0.17 0.02 250);
+	--card-foreground: oklch(0.985 0 0);
+	--popover: oklch(0.17 0.02 250);
+	--popover-foreground: oklch(0.985 0 0);
+
+	/* Violet primary colors */
+	--primary: oklch(0.7 0.2 285);
+	--primary-foreground: oklch(0.15 0 0);
+
+	--secondary: oklch(0.269 0.02 250);
+	--secondary-foreground: oklch(0.985 0 0);
+	--muted: oklch(0.269 0.02 250);
+	--muted-foreground: oklch(0.6 0.02 220);
+	--accent: oklch(0.269 0.02 250);
+	--accent-foreground: oklch(0.985 0 0);
+	--destructive: oklch(0.65 0.22 25);
+	--destructive-foreground: oklch(0.985 0 0);
+	--border: oklch(0.3 0.02 250);
+	--input: oklch(0.3 0.02 250);
+	--ring: oklch(0.7 0.2 285);
+
+	/* Sidebar with violet */
+	--sidebar: oklch(0.145 0.02 250);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.7 0.2 285);
+	--sidebar-primary-foreground: oklch(0.15 0 0);
+	--sidebar-accent: oklch(0.269 0.02 250);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(0.3 0.02 250);
+	--sidebar-ring: oklch(0.7 0.2 285);
+
+	/* Feature card colors (dark) */
+	--feature-card-bg: rgba(255, 255, 255, 0.03);
+	--feature-card-bg-hover: rgba(255, 255, 255, 0.05);
+	--feature-card-border: rgba(255, 255, 255, 0.06);
+	--feature-card-border-hover: rgba(255, 255, 255, 0.1);
+	--feature-icon-color: rgba(255, 255, 255, 0.6);
+	--feature-label-color: rgba(255, 255, 255, 0.5);
+
+	/* Link card colors (dark) */
+	--link-card-bg: rgba(255, 255, 255, 0.03);
+	--link-card-bg-hover: rgba(255, 255, 255, 0.06);
+	--link-card-border: rgba(255, 255, 255, 0.1);
+	--link-card-border-hover: rgba(255, 255, 255, 0.2);
+	--link-card-text: rgba(255, 255, 255, 0.7);
+	--link-card-text-hover: #ffffff;
+
+	--accent-green: #a855f7; /* For legacy CSS using this var */
+}
+
+[data-theme='violet-light'] {
+	/* Extend light theme */
+	--bg-primary: #f8fafc;
+	--bg-header: #ffffff;
+	--bg-modal: #ffffff;
+	--text-primary: #1a202c;
+	--text-dim: #64748b;
+	--divider: #e2e8f0;
+
+	--background: oklch(0.985 0 0);
+	--foreground: oklch(0.145 0 0);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.145 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.145 0 0);
+
+	--primary: oklch(0.55 0.25 285);
+	--primary-foreground: oklch(0.98 0 0);
+
+	--secondary: oklch(0.97 0 0);
+	--secondary-foreground: oklch(0.205 0 0);
+	--muted: oklch(0.97 0 0);
+	--muted-foreground: oklch(0.45 0 0);
+	--accent: oklch(0.97 0 0);
+	--accent-foreground: oklch(0.205 0 0);
+	--destructive: oklch(0.55 0.22 25);
+	--destructive-foreground: oklch(0.985 0 0);
+	--border: oklch(0.9 0 0);
+	--input: oklch(0.9 0 0);
+	--ring: oklch(0.55 0.25 285);
+
+	--sidebar: oklch(0.985 0 0);
+	--sidebar-foreground: oklch(0.145 0 0);
+	--sidebar-primary: oklch(0.55 0.25 285);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent-foreground: oklch(0.205 0 0);
+	--sidebar-border: oklch(0.9 0 0);
+	--sidebar-ring: oklch(0.55 0.25 285);
+
+	/* Feature card colors (light) */
+	--feature-card-bg: rgba(0, 0, 0, 0.02);
+	--feature-card-bg-hover: rgba(0, 0, 0, 0.04);
+	--feature-card-border: rgba(0, 0, 0, 0.06);
+	--feature-card-border-hover: rgba(0, 0, 0, 0.1);
+	--feature-icon-color: rgba(0, 0, 0, 0.5);
+	--feature-label-color: rgba(0, 0, 0, 0.5);
+
+	/* Link card colors (light) */
+	--link-card-bg: rgba(0, 0, 0, 0.03);
+	--link-card-bg-hover: rgba(0, 0, 0, 0.06);
+	--link-card-border: rgba(0, 0, 0, 0.1);
+	--link-card-border-hover: rgba(0, 0, 0, 0.2);
+	--link-card-text: rgba(0, 0, 0, 0.6);
+	--link-card-text-hover: #1a1a2e;
+
+	--accent-green: #a855f7; /* For legacy CSS */
+}
+
+/* ============================================
    @theme inline - Map CSS vars to Tailwind
    ============================================ */
 

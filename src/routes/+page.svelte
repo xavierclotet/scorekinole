@@ -66,7 +66,7 @@
 	}
 
 	function toggleTheme() {
-		adminTheme.toggle();
+		adminTheme.toggleMode(); // Solo cambia light/dark, preserva el color
 	}
 
 	function handleLogin() {
@@ -106,16 +106,22 @@
 	<nav class="navbar">
 		<div class="nav-left">
 			{#if $canAccessAdmin}
-				<button class="admin-btn" onclick={goToAdmin} title={m.admin_panel()}>
+				<Button
+					variant="outline"
+					size="sm"
+					onclick={goToAdmin}
+					title={m.admin_panel()}
+					class="bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:text-primary font-semibold px-6 min-w-20"
+				>
 					Admin
-				</button>
+				</Button>
 			{/if}
 		</div>
 
 		<div class="nav-right">
 			<LanguageSelector />
-			<button class="nav-btn icon-btn" onclick={toggleTheme} title={$adminTheme === 'light' ? m.common_darkMode() : m.common_lightMode()}>
-				{#if $adminTheme === 'light'}
+			<button class="nav-btn icon-btn" onclick={toggleTheme} title={$adminTheme === 'light' || $adminTheme === 'violet-light' ? m.common_darkMode() : m.common_lightMode()}>
+				{#if $adminTheme === 'light' || $adminTheme === 'violet-light'}
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
 					</svg>
@@ -269,7 +275,7 @@
 
 	<!-- Footer -->
 	<footer class="footer">
-		<span class="footer-copy">© Scorekinole by XaviC</span>
+		<span class="footer-copy">© 2026 Scorekinole by XaviC</span>
 	</footer>
 </main>
 
@@ -296,7 +302,8 @@
 		position: relative;
 	}
 
-	.landing[data-theme='light'] {
+	.landing[data-theme='light'],
+	.landing[data-theme='violet-light'] {
 		background: #f8fafc;
 		color: #1a1a2e;
 	}
@@ -312,7 +319,8 @@
 		pointer-events: none;
 	}
 
-	.landing[data-theme='light'] .bg-image {
+	.landing[data-theme='light'] .bg-image,
+	.landing[data-theme='violet-light'] .bg-image {
 		opacity: 0.06;
 	}
 
@@ -332,32 +340,6 @@
 		gap: 0.75rem;
 	}
 
-	.admin-btn {
-		padding: 0.4rem 0.8rem;
-		background: rgba(0, 255, 136, 0.1);
-		border: 1px solid rgba(0, 255, 136, 0.3);
-		border-radius: 6px;
-		color: #00ff88;
-		font-size: 0.8rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.admin-btn:hover {
-		background: rgba(0, 255, 136, 0.2);
-	}
-
-	.landing[data-theme='light'] .admin-btn {
-		background: rgba(16, 185, 129, 0.1);
-		border-color: rgba(16, 185, 129, 0.3);
-		color: #10b981;
-	}
-
-	.landing[data-theme='light'] .admin-btn:hover {
-		background: rgba(16, 185, 129, 0.2);
-	}
-
 	.nav-btn {
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.15);
@@ -375,13 +357,15 @@
 		color: #fff;
 	}
 
-	.landing[data-theme='light'] .nav-btn {
+	.landing[data-theme='light'] .nav-btn,
+	.landing[data-theme='violet-light'] .nav-btn {
 		background: rgba(0, 0, 0, 0.05);
 		border-color: rgba(0, 0, 0, 0.15);
 		color: rgba(0, 0, 0, 0.6);
 	}
 
-	.landing[data-theme='light'] .nav-btn:hover {
+	.landing[data-theme='light'] .nav-btn:hover,
+	.landing[data-theme='violet-light'] .nav-btn:hover {
 		background: rgba(0, 0, 0, 0.1);
 		color: #1a1a2e;
 	}
@@ -434,12 +418,8 @@
 		font-family: 'Lexend', sans-serif;
 		font-size: 2.5rem;
 		font-weight: 700;
-		color: #00ff88;
+		color: var(--primary);
 		letter-spacing: -0.01em;
-	}
-
-	.landing[data-theme='light'] .title-main {
-		color: #10b981;
 	}
 
 	.title-suffix {
@@ -474,7 +454,8 @@
 		margin-left: 0.1rem;
 	}
 
-	.landing[data-theme='light'] .title-version {
+	.landing[data-theme='light'] .title-version,
+	.landing[data-theme='violet-light'] .title-version {
 		color: rgba(0, 0, 0, 0.35);
 	}
 
@@ -485,7 +466,8 @@
 		font-weight: 400;
 	}
 
-	.landing[data-theme='light'] .hero-subtitle {
+	.landing[data-theme='light'] .hero-subtitle,
+	.landing[data-theme='violet-light'] .hero-subtitle {
 		color: rgba(0, 0, 0, 0.5);
 	}
 
@@ -554,7 +536,8 @@
 		color: rgba(255, 255, 255, 0.3);
 	}
 
-	.landing[data-theme='light'] .footer-copy {
+	.landing[data-theme='light'] .footer-copy,
+	.landing[data-theme='violet-light'] .footer-copy {
 		color: rgba(0, 0, 0, 0.3);
 	}
 

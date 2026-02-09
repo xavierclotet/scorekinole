@@ -101,20 +101,6 @@
     tournament?.finalStage?.thirdPlaceMatchEnabled ?? true
   );
 
-  // Consolation is only useful when bracket has enough participants
-  // With MIN_PARTICIPANTS_FOR_CONSOLATION or less: positions are already determined by main bracket
-  // With more: multiple losers in first round need consolation to determine 5th, 6th, etc.
-  let consolationNeededForGold = $derived(goldCount > MIN_PARTICIPANTS_FOR_CONSOLATION);
-  let consolationNeededForSilver = $derived(silverCount > MIN_PARTICIPANTS_FOR_CONSOLATION);
-  let consolationNeededForSingle = $derived(totalQualifiers > MIN_PARTICIPANTS_FOR_CONSOLATION);
-  let consolationNotNeeded = $derived(
-    consolationEnabled && (
-      isSplitDivisions
-        ? (!consolationNeededForGold && !consolationNeededForSilver)
-        : !consolationNeededForSingle
-    )
-  );
-
   let tournamentId = $derived($page.params.id);
   let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
   let isSplitDivisions = $derived(tournament?.finalStage?.mode === 'SPLIT_DIVISIONS');
@@ -128,6 +114,20 @@
   let silverCount = $derived(silverParticipants.length);
   let isValidGoldSize = $derived(isValidBracketSize(goldCount));
   let isValidSilverSize = $derived(isValidBracketSize(silverCount));
+
+  // Consolation is only useful when bracket has enough participants
+  // With MIN_PARTICIPANTS_FOR_CONSOLATION or less: positions are already determined by main bracket
+  // With more: multiple losers in first round need consolation to determine 5th, 6th, etc.
+  let consolationNeededForGold = $derived(goldCount > MIN_PARTICIPANTS_FOR_CONSOLATION);
+  let consolationNeededForSilver = $derived(silverCount > MIN_PARTICIPANTS_FOR_CONSOLATION);
+  let consolationNeededForSingle = $derived(totalQualifiers > MIN_PARTICIPANTS_FOR_CONSOLATION);
+  let consolationNotNeeded = $derived(
+    consolationEnabled && (
+      isSplitDivisions
+        ? (!consolationNeededForGold && !consolationNeededForSilver)
+        : !consolationNeededForSingle
+    )
+  );
 
   // Can proceed logic - also check for unresolved ties
   let canProceed = $derived(!hasAnyUnresolvedTies && (isSplitDivisions

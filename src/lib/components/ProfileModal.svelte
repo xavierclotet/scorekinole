@@ -3,6 +3,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { getUserProfile } from '$lib/firebase/userProfile';
 	import { uploadAvatar, deleteAvatar } from '$lib/firebase/avatarStorage';
+	import { adminTheme } from '$lib/stores/theme';
 
 	interface Props {
 		isOpen?: boolean;
@@ -18,6 +19,19 @@
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let fileInput: HTMLInputElement;
+
+	// Color theme: 'green' or 'violet'
+	let colorScheme = $derived(
+		$adminTheme === 'violet' || $adminTheme === 'violet-light' ? 'violet' : 'green'
+	);
+
+	function setColorScheme(color: 'green' | 'violet') {
+		if (color === 'violet') {
+			adminTheme.set($adminTheme === 'light' || $adminTheme === 'violet-light' ? 'violet-light' : 'violet');
+		} else {
+			adminTheme.set($adminTheme === 'light' || $adminTheme === 'violet-light' ? 'light' : 'dark');
+		}
+	}
 
 	// Load player data from Firestore when modal opens
 	$effect(() => {
@@ -207,6 +221,31 @@
 						/>
 					</div>
 					<p class="input-hint">{m.auth_playerNameDescription()}</p>
+				</div>
+
+				<!-- Color theme selector -->
+				<div class="edit-section">
+					<span class="edit-label">{m.profile_colorTheme()}</span>
+					<div class="color-selector">
+						<button
+							class="color-option"
+							class:selected={colorScheme === 'green'}
+							onclick={() => setColorScheme('green')}
+							title={m.profile_themeGreen()}
+						>
+							<span class="color-swatch green"></span>
+							<span class="color-name">{m.profile_themeGreen()}</span>
+						</button>
+						<button
+							class="color-option"
+							class:selected={colorScheme === 'violet'}
+							onclick={() => setColorScheme('violet')}
+							title={m.profile_themeViolet()}
+						>
+							<span class="color-swatch violet"></span>
+							<span class="color-name">{m.profile_themeViolet()}</span>
+						</button>
+					</div>
 				</div>
 
 				<!-- Actions -->
@@ -509,6 +548,54 @@
 		margin: 0.375rem 0 0;
 		font-size: 0.7rem;
 		color: rgba(255, 255, 255, 0.35);
+	}
+
+	/* Color selector */
+	.color-selector {
+		display: flex;
+		gap: 0.75rem;
+	}
+
+	.color-option {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.color-option:hover {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.15);
+	}
+
+	.color-option.selected {
+		border-color: var(--primary, #00ff88);
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.color-swatch {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		border: 2px solid rgba(255, 255, 255, 0.2);
+	}
+
+	.color-swatch.green {
+		background: linear-gradient(135deg, #00ff88 0%, #10b981 100%);
+	}
+
+	.color-swatch.violet {
+		background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+	}
+
+	.color-name {
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.85);
 	}
 
 	/* Actions */

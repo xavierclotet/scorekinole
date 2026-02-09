@@ -28,11 +28,11 @@
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger asChild>
 		<button
-			class="flex items-center justify-center size-9 rounded-full bg-transparent border-none text-white/70 cursor-pointer transition-all duration-200 hover:text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20"
+			class="flex items-center justify-center size-9 rounded-full bg-transparent border-none text-foreground/70 cursor-pointer transition-all duration-200 hover:text-foreground hover:bg-foreground/10 focus:outline-none focus:ring-2 focus:ring-foreground/20"
 			aria-label="Profile"
 		>
 			{#if $currentUser?.photoURL}
-				<Avatar.Root class="size-7 ring-2 ring-white/20 transition-all duration-200 hover:ring-white/40">
+				<Avatar.Root class="size-7 ring-2 ring-foreground/20 transition-all duration-200 hover:ring-foreground/40">
 					<Avatar.Image src={$currentUser.photoURL} alt="" referrerpolicy="no-referrer" />
 					<Avatar.Fallback class="text-xs font-medium bg-gradient-to-br from-primary/80 to-primary text-primary-foreground">
 						{$currentUser.email?.charAt(0).toUpperCase() || '?'}
