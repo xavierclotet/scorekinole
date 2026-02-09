@@ -8,11 +8,12 @@
 	interface Props {
 		isOpen?: boolean;
 		user?: any;
+		isAdmin?: boolean;
 		onclose?: () => void;
 		onupdate?: (data: { playerName: string; photoURL?: string }) => void;
 	}
 
-	let { isOpen = $bindable(false), user = null, onclose, onupdate }: Props = $props();
+	let { isOpen = $bindable(false), user = null, isAdmin = false, onclose, onupdate }: Props = $props();
 
 	let playerNameInput = $state('');
 	let currentPhotoURL = $state<string | null>(null);
@@ -223,7 +224,8 @@
 					<p class="input-hint">{m.auth_playerNameDescription()}</p>
 				</div>
 
-				<!-- Color theme selector -->
+				<!-- Color theme selector (admin only) -->
+				{#if isAdmin}
 				<div class="edit-section">
 					<span class="edit-label">{m.profile_colorTheme()}</span>
 					<div class="color-selector">
@@ -247,6 +249,7 @@
 						</button>
 					</div>
 				</div>
+				{/if}
 
 				<!-- Actions -->
 				<div class="actions">

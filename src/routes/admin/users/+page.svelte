@@ -322,8 +322,7 @@
             <tr>
               <th class="name-col">{m.admin_playerName()}</th>
               <th class="email-col hide-mobile">{m.auth_email()}</th>
-              <th class="role-col">{m.admin_role()}</th>
-              <th class="ranking-col">{m.admin_ranking()}</th>
+              <th class="role-col">Admin</th>
               <th class="tournaments-col hide-small">{m.admin_tournaments()}</th>
               <th class="quota-col hide-small">Cuota</th>
               <th class="created-col hide-small">{m.admin_createdAt()}</th>
@@ -359,11 +358,8 @@
                     <span class="role-badge admin">Admin</span>
                     <span class="tournaments-created">{user.tournamentsCreatedCount ?? 0}</span>
                   {:else}
-                    <span class="role-badge user">User</span>
+                    <span class="role-badge user">-</span>
                   {/if}
-                </td>
-                <td class="ranking-cell">
-                  <span class="ranking-value">{user.tournaments?.reduce((sum, t) => sum + (t.rankingDelta || 0), 0) ?? 0} <small>pts</small></span>
                 </td>
                 <td class="tournaments-cell hide-small">
                   🏆 {user.tournaments?.length ?? 0}

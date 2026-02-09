@@ -259,13 +259,31 @@
 		inset: 0;
 		background-size: cover;
 		background-position: center;
-		opacity: 0.3;
+		opacity: 0.25;
 		transition: opacity 0.3s ease;
 		z-index: 0;
 	}
 
+	/* Dark overlay for better text readability */
+	.poster-background::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(180deg, rgba(15, 20, 25, 0.4) 0%, rgba(15, 20, 25, 0.7) 100%);
+	}
+
 	.card.has-poster:hover .poster-background {
-		opacity: 0.4;
+		opacity: 0.35;
+	}
+
+	/* Text shadow for cards with poster */
+	.card.has-poster .name {
+		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+	}
+
+	.card.has-poster .location,
+	.card.has-poster .date-link {
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 	}
 
 	.card.has-poster .card-main,
@@ -599,11 +617,19 @@
 
 	/* Light theme */
 	:global([data-theme='light']) .poster-background {
-		opacity: 0.25;
+		opacity: 0.2;
+	}
+
+	:global([data-theme='light']) .poster-background::after {
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.75) 100%);
 	}
 
 	:global([data-theme='light']) .card.has-poster:hover .poster-background {
-		opacity: 0.35;
+		opacity: 0.3;
+	}
+
+	:global([data-theme='light']) .card.has-poster .name {
+		text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 	}
 
 	:global([data-theme='light']) .card {

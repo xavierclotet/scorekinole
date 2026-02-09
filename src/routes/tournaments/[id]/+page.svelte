@@ -856,11 +856,6 @@
 										<span class="video-match-title">
 											{getParticipantName(match.participantA)} vs {getParticipantName(match.participantB)}
 										</span>
-										{#if match.status === 'COMPLETED'}
-											<span class="video-score">
-												{match.totalPointsA || match.gamesWonA || 0} - {match.totalPointsB || match.gamesWonB || 0}
-											</span>
-										{/if}
 									</div>
 								</button>
 							{/each}
@@ -3752,8 +3747,8 @@
 	.video-badge {
 		position: absolute;
 		top: 50%;
-		right: -28px;
-		transform: translateY(-50%);
+		left: 50%;
+		transform: translate(-50%, -50%);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -3775,7 +3770,7 @@
 	}
 
 	.video-badge:hover {
-		transform: translateY(-50%) scale(1.15);
+		transform: translate(-50%, -50%) scale(1.15);
 		box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
 	}
 
@@ -3868,15 +3863,13 @@
 
 	@media (max-width: 768px) {
 		.video-badge {
-			width: 28px;
-			height: 28px;
-			bottom: -14px;
-			right: 50%;
-			transform: translateX(50%);
+			width: 26px;
+			height: 26px;
 		}
 
-		.bracket-match.has-video {
-			margin-bottom: 18px;
+		.video-badge svg {
+			width: 12px;
+			height: 12px;
 		}
 
 		.video-modal {

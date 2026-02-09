@@ -21,8 +21,6 @@
 
   // svelte-ignore state_referenced_locally - Intentional: initializing editable local state from props
   let playerName = $state(user.playerName);
-  // Ranking is calculated from tournaments, not stored
-  let calculatedRanking = $derived(user.tournaments?.reduce((sum, t) => sum + (t.rankingDelta || 0), 0) || 0);
   // svelte-ignore state_referenced_locally
   let isAdmin = $state(user.isAdmin || false);
   // svelte-ignore state_referenced_locally
@@ -113,7 +111,16 @@
       <div class="header-left">
         <h2>{m.admin_editUser()}</h2>
       </div>
-      <button class="close-btn" onclick={onClose}>×</button>
+      <div class="header-actions">
+        <button class="btn-save" onclick={saveChanges} disabled={isSaving}>
+          {#if isSaving}
+            <span class="spinner"></span>
+          {:else}
+            {m.common_save()}
+          {/if}
+        </button>
+        <button class="close-btn" onclick={onClose}>×</button>
+      </div>
     </div>
 
     <!-- Content -->
@@ -183,23 +190,10 @@
               placeholder="Nombre del jugador"
             />
           </div>
-
-          <div class="field">
-            <label for="ranking">{m.admin_ranking()}</label>
-            <div class="input-with-suffix">
-              <input
-                id="ranking"
-                type="number"
-                value={calculatedRanking}
-                disabled
-                title="Calculated from tournaments"
-              />
-              <span class="suffix">pts</span>
-            </div>
-          </div>
         </div>
 
-        <!-- Right Column -->
+        <!-- Right Column - Permissions (only for non-superadmins) -->
+        {#if !user.isSuperAdmin}
         <div class="form-section">
           <h3>{m.admin_permissionsSection()}</h3>
 
@@ -261,6 +255,7 @@
             </div>
           {/if}
         </div>
+        {/if}
       </div>
 
       {#if errorMessage}
@@ -271,20 +266,6 @@
       {/if}
     </div>
 
-    <!-- Footer -->
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick={onClose} disabled={isSaving}>
-        {m.common_cancel()}
-      </button>
-      <button class="btn btn-primary" onclick={saveChanges} disabled={isSaving}>
-        {#if isSaving}
-          <span class="spinner"></span>
-          {m.common_saving()}
-        {:else}
-          {m.common_save()}
-        {/if}
-      </button>
-    </div>
   </div>
 </div>
 
@@ -342,6 +323,38 @@
 
   .modal-overlay[data-theme='dark'] .modal-header h2 {
     color: #e1e8ed;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-save {
+    padding: 0.4rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    min-width: 80px;
+  }
+
+  .btn-save:hover:not(:disabled) {
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+
+  .btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .close-btn {
@@ -723,67 +736,6 @@
     font-size: 0.7rem;
     font-weight: 700;
     flex-shrink: 0;
-  }
-
-  /* Footer */
-  .modal-footer {
-    display: flex;
-    gap: 0.75rem;
-    padding: 1rem 1.25rem;
-    border-top: 1px solid #e5e7eb;
-    background: #f9fafb;
-  }
-
-  .modal-overlay[data-theme='dark'] .modal-footer {
-    background: #0f1419;
-    border-color: #2d3748;
-  }
-
-  .btn {
-    flex: 1;
-    padding: 0.6rem 1rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-  }
-
-  .btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .btn-secondary {
-    background: #e5e7eb;
-    color: #374151;
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: #d1d5db;
-  }
-
-  .modal-overlay[data-theme='dark'] .btn-secondary {
-    background: #374151;
-    color: #e5e7eb;
-  }
-
-  .modal-overlay[data-theme='dark'] .btn-secondary:hover:not(:disabled) {
-    background: #4b5563;
-  }
-
-  .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
   }
 
   .spinner {

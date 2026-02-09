@@ -279,7 +279,7 @@
 	</footer>
 </main>
 
-<ProfileModal isOpen={showProfile} user={$currentUser} onclose={() => showProfile = false} onupdate={handleProfileUpdate} />
+<ProfileModal isOpen={showProfile} user={$currentUser} isAdmin={$canAccessAdmin} onclose={() => showProfile = false} onupdate={handleProfileUpdate} />
 <LoginModal isOpen={showLogin} onclose={() => showLogin = false} />
 
 <style>
