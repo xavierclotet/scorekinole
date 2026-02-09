@@ -10,6 +10,7 @@
 	import { theme } from '$lib/stores/theme';
 	import type { Tournament, BracketMatch } from '$lib/types/tournament';
 	import { isBye } from '$lib/algorithms/bracket';
+	import { calculateRankingPoints } from '$lib/algorithms/ranking';
 	import { translateCountry } from '$lib/utils/countryTranslations';
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
 	import { currentUser } from '$lib/firebase/auth';
@@ -17,6 +18,10 @@
 	import { getYouTubeEmbedUrl } from '$lib/utils/youtube';
 	import { translateText } from '$lib/utils/translate';
 	import { language } from '$lib/stores/language';
+	import * as Command from '$lib/components/ui/command';
+	import * as Popover from '$lib/components/ui/popover';
+	import { Button } from '$lib/components/ui/button';
+	import { Check, ChevronsUpDown } from '@lucide/svelte';
 
 	let tournament = $state<Tournament | null>(null);
 	let canEdit = $state(false);
@@ -39,6 +44,13 @@
 
 	// Phase tabs state
 	let activePhase = $state<'groups' | 'bracket'>('groups');
+
+	// Track which groups have matches expanded
+	let expandedGroupMatches = $state<Set<string>>(new Set());
+
+	// Player filter for single-group results
+	let selectedPlayerFilter = $state<string | undefined>(undefined);
+	let playerFilterOpen = $state(false);
 
 	let tournamentId = $derived($page.params.id);
 
@@ -158,6 +170,19 @@
 	);
 	let rounds = $derived(currentBracket?.rounds || []);
 
+	// Consolation brackets support
+	let bracketView = $state<'main' | 'consolation'>('main');
+	let goldConsolationBrackets = $derived(goldBracket?.consolationBrackets || []);
+	let silverConsolationBrackets = $derived(silverBracket?.consolationBrackets || []);
+	let consolationBrackets = $derived(activeTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets);
+	let consolationEnabledValue = $derived(
+		tournament?.finalStage?.consolationEnabled ??
+		(tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled '] ??
+		tournament?.finalStage?.goldBracket?.config?.consolationEnabled ??
+		false
+	);
+	let hasConsolation = $derived(consolationEnabledValue && consolationBrackets.length > 0);
+
 	// Find all matches with video (for highlighting in Final Standings)
 	let matchesWithVideo = $derived((() => {
 		const results: Array<{ match: BracketMatch; label: string }> = [];
@@ -180,6 +205,12 @@
 		return results;
 	})());
 	let thirdPlaceMatch = $derived(currentBracket?.thirdPlaceMatch);
+
+	// Qualification mode for group stage (WINS = victory points, POINTS = total crokinole points)
+	let qualificationMode = $derived(tournament?.groupStage?.config?.qualificationMode || 'WINS');
+
+	// Single group detection for 2-column layout
+	let isSingleGroup = $derived((tournament?.groupStage?.groups?.length ?? 0) === 1);
 
 	// Check if translation button should be shown (always show if there's a description)
 	let canTranslate = $derived(!!tournament?.description);
@@ -364,18 +395,56 @@
 	function translateRoundName(name: string): string {
 		const key = name.toLowerCase();
 		const roundTranslations: Record<string, string> = {
+			// Singular forms (legacy)
 			'final': m.tournament_final(),
 			'semifinal': m.tournament_semifinal(),
-			'quarterfinal': m.tournament_round() + ' 8',
-			'round of 16': m.tournament_round() + ' 16',
+			'quarterfinal': m.import_quarterfinals(),
+			'round of 16': m.import_round16(),
 			'round of 32': m.tournament_round() + ' 32',
 			'third place': m.tournament_thirdPlace(),
+			// Plural forms (from getRoundName in bracket.ts)
+			'finals': m.tournament_final(),
+			'semifinals': m.tournament_semifinal(),
+			'quarterfinals': m.import_quarterfinals(),
+			'round16': m.import_round16(),
+			'round32': m.tournament_round() + ' 32',
+			'round64': m.tournament_round() + ' 64',
 		};
 		return roundTranslations[key] || name.charAt(0).toUpperCase() + name.slice(1);
 	}
 
 	function isByeMatch(match: BracketMatch): boolean {
 		return isBye(match.participantA) || isBye(match.participantB);
+	}
+
+	function toggleGroupMatches(groupId: string) {
+		const newSet = new Set(expandedGroupMatches);
+		if (newSet.has(groupId)) {
+			newSet.delete(groupId);
+		} else {
+			newSet.add(groupId);
+		}
+		expandedGroupMatches = newSet;
+	}
+
+	function getGroupMatches(group: any): any[] {
+		// Get all matches from schedule (Round Robin) or pairings (Swiss)
+		if (group.schedule) {
+			return group.schedule.flatMap((r: any) => r.matches.map((m: any) => ({ ...m, roundNumber: r.roundNumber })));
+		} else if (group.pairings) {
+			return group.pairings.flatMap((p: any) => p.matches.map((m: any) => ({ ...m, roundNumber: p.roundNumber })));
+		}
+		return [];
+	}
+
+	function getGroupRounds(group: any): any[] {
+		// Get rounds with their matches
+		if (group.schedule) {
+			return group.schedule;
+		} else if (group.pairings) {
+			return group.pairings;
+		}
+		return [];
 	}
 </script>
 
@@ -654,6 +723,9 @@
 													<span class="podium-rank">{entry.position}</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
+													{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier}
+														<span class="podium-points">+{calculateRankingPoints(entry.position, tournament.rankingConfig.tier)}</span>
+													{/if}
 												</li>
 											{/each}
 										</ol>
@@ -680,6 +752,9 @@
 													<span class="podium-rank">{entry.position}</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
+													{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier}
+														<span class="podium-points">+{calculateRankingPoints(entry.position, tournament.rankingConfig.tier)}</span>
+													{/if}
 												</li>
 											{/each}
 										</ol>
@@ -693,10 +768,14 @@
 										<span class="podium-group-label">{m.bracket_silver()}</span>
 										<ol class="podium-list">
 											{#each silverTop4 as entry}
+												{@const silverPosition = entry.position + 4}
 												<li class="podium-entry" data-position={entry.position}>
-													<span class="podium-rank">{entry.position}</span>
+													<span class="podium-rank">{silverPosition}</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
+													{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier}
+														<span class="podium-points">+{calculateRankingPoints(silverPosition, tournament.rankingConfig.tier)}</span>
+													{/if}
 												</li>
 											{/each}
 										</ol>
@@ -716,6 +795,9 @@
 									<span class="podium-rank">{participant.finalPosition}</span>
 									{@render participantAvatar(participant.id, 'md')}
 									<span class="podium-name">{getParticipantName(participant.id)}</span>
+									{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier && participant.finalPosition}
+										<span class="podium-points">+{calculateRankingPoints(participant.finalPosition, tournament.rankingConfig.tier)}</span>
+									{/if}
 								</li>
 							{/each}
 						</ol>
@@ -731,6 +813,9 @@
 								<span class="podium-rank">1</span>
 								{@render participantAvatar(tournament.finalStage.winner, 'md')}
 								<span class="podium-name">{getParticipantName(tournament.finalStage.winner)}</span>
+								{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier}
+									<span class="podium-points">+{calculateRankingPoints(1, tournament.rankingConfig.tier)}</span>
+								{/if}
 							</li>
 						</ol>
 					</div>
@@ -842,41 +927,231 @@
 						{m.tournament_groupStage()}
 					</h2>
 				{/if}
-				<div class="groups-container">
+				<div class="groups-container" class:single-group={isSingleGroup}>
 					{#each tournament.groupStage?.groups ?? [] as group}
-						<div class="group-card">
-							<h3 class="group-name">{translateGroupName(group.name)}</h3>
-							<table class="standings-table">
-								<thead>
-									<tr>
-										<th class="pos-col">#</th>
-										<th class="name-col">{m.common_player()}</th>
-										{#if hasMatchDetails}
-											<th class="stat-col">V</th>
-											<th class="stat-col">P</th>
+						{@const groupRounds = getGroupRounds(group)}
+						{#if isSingleGroup && groupRounds.length > 0}
+							<!-- Single group: 2-column layout -->
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+								<div class="bg-[#1a2332] border border-[#2d3748] rounded-[10px] overflow-hidden">
+									<h3 class="group-name">{m.ranking_standings?.() ?? 'Clasificación'}</h3>
+									<div class="standings-table-wrapper">
+										<table class="standings-table">
+											<thead>
+												<tr>
+													<th class="pos-col">#</th>
+													<th class="name-col">{m.common_player()}</th>
+													<th class="stat-col" title="Victorias">V</th>
+													<th class="stat-col" title="Empates">E</th>
+													<th class="stat-col" title="Derrotas">P</th>
+													<th class="stat-col" title="20s totales">20s</th>
+													<th class="stat-col" class:primary-col={qualificationMode === 'POINTS'} title="Puntos totales de crokinole">PT</th>
+													<th class="stat-col" class:primary-col={qualificationMode === 'WINS'} title="Puntos por victoria">PV</th>
+												</tr>
+											</thead>
+											<tbody>
+												{#each group.standings.toSorted((a, b) => a.position - b.position) as standing}
+													<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
+														<td class="pos-col">{standing.position}</td>
+														<td class="name-col">{getParticipantName(standing.participantId)}</td>
+														<td class="stat-col">{standing.matchesWon ?? 0}</td>
+														<td class="stat-col">{standing.matchesTied ?? 0}</td>
+														<td class="stat-col">{standing.matchesLost ?? 0}</td>
+														<td class="stat-col">{standing.total20s ?? 0}</td>
+														<td class="stat-col" class:primary-col={qualificationMode === 'POINTS'}>{standing.totalPointsScored ?? 0}</td>
+														<td class="stat-col" class:primary-col={qualificationMode === 'WINS'}>{standing.points}</td>
+													</tr>
+												{/each}
+											</tbody>
+										</table>
+									</div>
+									<div class="standings-legend">
+										<span class="legend-item"><strong>PT</strong> Puntos totales</span>
+										<span class="legend-item"><strong>PV</strong> Puntos por victoria (2/1/0)</span>
+									</div>
+								</div>
+								<div class="bg-[#1a2332] border border-[#2d3748] rounded-[10px] overflow-hidden flex flex-col">
+									<div class="flex items-center justify-between gap-2 px-3 py-2 bg-[#0f1419] border-b border-[#2d3748]">
+										<h3 class="text-sm font-bold text-[#e1e8ed] m-0">{m.tournament_results?.() ?? 'Resultados'}</h3>
+										<Popover.Root bind:open={playerFilterOpen}>
+											<Popover.Trigger>
+												{#snippet child({ props })}
+													<Button
+														{...props}
+														variant="outline"
+														size="sm"
+														class="h-7 w-40 justify-between text-xs bg-[#1a2332] border-[#2d3748] hover:bg-[#2d3748]"
+													>
+														<span class="truncate">
+															{selectedPlayerFilter ? getParticipantName(selectedPlayerFilter) : m.admin_allPlayers()}
+														</span>
+														<ChevronsUpDown class="ml-1 size-3 shrink-0 opacity-50" />
+													</Button>
+												{/snippet}
+											</Popover.Trigger>
+											<Popover.Content class="w-52 p-0" align="end">
+												<Command.Root>
+													<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
+													<Command.List class="max-h-60">
+														<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
+														<Command.Group>
+															<Command.Item
+																value="all"
+																onSelect={() => {
+																	selectedPlayerFilter = undefined;
+																	playerFilterOpen = false;
+																}}
+															>
+																<Check class={['mr-2 size-3', !selectedPlayerFilter ? 'opacity-100' : 'opacity-0']} />
+																{m.admin_allPlayers()}
+															</Command.Item>
+															{#each (tournament?.participants ?? []).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+																<Command.Item
+																	value={participant.name ?? participant.id}
+																	onSelect={() => {
+																		selectedPlayerFilter = participant.id;
+																		playerFilterOpen = false;
+																	}}
+																>
+																	<Check class={['mr-2 size-3', selectedPlayerFilter === participant.id ? 'opacity-100' : 'opacity-0']} />
+																	{getParticipantName(participant.id)}
+																</Command.Item>
+															{/each}
+														</Command.Group>
+													</Command.List>
+												</Command.Root>
+											</Popover.Content>
+										</Popover.Root>
+									</div>
+									<div class="p-3 flex-1 overflow-y-auto">
+										{#each selectedPlayerFilter
+											? groupRounds.map(r => ({
+												...r,
+												matches: r.matches.filter(m =>
+													m.participantA === selectedPlayerFilter ||
+													m.participantB === selectedPlayerFilter
+												)
+											})).filter(r => r.matches.length > 0)
+											: groupRounds as round, i}
+											<div class="round-section [&:not(:last-child)]:mb-3">
+												<h4 class="round-title">{m.tournament_round()} {round.roundNumber}</h4>
+												<div class="matches-list flex flex-col gap-1.5">
+													{#each round.matches as match}
+														{#if match.participantB !== 'BYE'}
+															<div class={['match-result-row max-w-full', match.status === 'COMPLETED' && 'completed']}>
+																<span class="match-player" class:winner={match.winner === match.participantA}>
+																	{getParticipantName(match.participantA)}
+																</span>
+																<span class="match-score">
+																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																		{match.totalPointsA ?? match.gamesWonA ?? 0} - {match.totalPointsB ?? match.gamesWonB ?? 0}
+																	{:else}
+																		vs
+																	{/if}
+																</span>
+																<span class="match-player" class:winner={match.winner === match.participantB}>
+																	{getParticipantName(match.participantB)}
+																</span>
+															</div>
+														{/if}
+													{/each}
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							</div>
+						{:else}
+							<!-- Multiple groups: stacked layout with toggle -->
+							<div class="group-card">
+								<h3 class="group-name">{translateGroupName(group.name)}</h3>
+								<div class="standings-table-wrapper">
+									<table class="standings-table">
+										<thead>
+											<tr>
+												<th class="pos-col">#</th>
+												<th class="name-col">{m.common_player()}</th>
+												<th class="stat-col" title="Victorias">V</th>
+												<th class="stat-col" title="Empates">E</th>
+												<th class="stat-col" title="Derrotas">P</th>
+												<th class="stat-col" title="20s totales">20s</th>
+												<th class="stat-col" class:primary-col={qualificationMode === 'POINTS'} title="Puntos totales de crokinole">PT</th>
+												<th class="stat-col" class:primary-col={qualificationMode === 'WINS'} title="Puntos por victoria">PV</th>
+											</tr>
+										</thead>
+										<tbody>
+											{#each group.standings.toSorted((a, b) => a.position - b.position) as standing}
+												<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
+													<td class="pos-col">{standing.position}</td>
+													<td class="name-col">{getParticipantName(standing.participantId)}</td>
+													<td class="stat-col">{standing.matchesWon ?? 0}</td>
+													<td class="stat-col">{standing.matchesTied ?? 0}</td>
+													<td class="stat-col">{standing.matchesLost ?? 0}</td>
+													<td class="stat-col">{standing.total20s ?? 0}</td>
+													<td class="stat-col" class:primary-col={qualificationMode === 'POINTS'}>{standing.totalPointsScored ?? 0}</td>
+													<td class="stat-col" class:primary-col={qualificationMode === 'WINS'}>{standing.points}</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
+								<div class="standings-legend">
+									<span class="legend-item"><strong>PT</strong> Puntos totales</span>
+									<span class="legend-item"><strong>PV</strong> Puntos por victoria (2/1/0)</span>
+								</div>
+
+								<!-- Match Results Toggle -->
+								{#if groupRounds.length > 0}
+									<button
+										class="view-matches-btn"
+										onclick={() => toggleGroupMatches(group.id)}
+									>
+										{#if expandedGroupMatches.has(group.id)}
+											<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<polyline points="18 15 12 9 6 15"></polyline>
+											</svg>
+											{m.tournament_hideMatches?.() ?? 'Ocultar partidos'}
 										{:else}
-											<th class="stat-col">20s</th>
+											<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<polyline points="6 9 12 15 18 9"></polyline>
+											</svg>
+											{m.tournament_showMatches?.() ?? 'Ver partidos'}
 										{/if}
-										<th class="stat-col">Pts</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each group.standings.toSorted((a, b) => a.position - b.position) as standing}
-										<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
-											<td class="pos-col">{standing.position}</td>
-											<td class="name-col">{getParticipantName(standing.participantId)}</td>
-											{#if hasMatchDetails}
-												<td class="stat-col">{standing.matchesWon}</td>
-												<td class="stat-col">{standing.matchesLost}</td>
-											{:else}
-												<td class="stat-col">{standing.total20s || 0}</td>
-											{/if}
-											<td class="stat-col">{standing.points}</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
+									</button>
+
+									{#if expandedGroupMatches.has(group.id)}
+										<div class="group-matches-section">
+											{#each groupRounds as round}
+												<div class="round-section">
+													<h4 class="round-title">{m.tournament_round()} {round.roundNumber}</h4>
+													<div class="matches-list">
+														{#each round.matches as match}
+															{#if match.participantB !== 'BYE'}
+																<div class="match-result-row" class:completed={match.status === 'COMPLETED'}>
+																	<span class="match-player" class:winner={match.winner === match.participantA}>
+																		{getParticipantName(match.participantA)}
+																	</span>
+																	<span class="match-score">
+																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																			{match.totalPointsA ?? match.gamesWonA ?? 0} - {match.totalPointsB ?? match.gamesWonB ?? 0}
+																		{:else}
+																			vs
+																		{/if}
+																	</span>
+																	<span class="match-player" class:winner={match.winner === match.participantB}>
+																		{getParticipantName(match.participantB)}
+																	</span>
+																</div>
+															{/if}
+														{/each}
+													</div>
+												</div>
+											{/each}
+										</div>
+									{/if}
+								{/if}
+							</div>
+						{/if}
 					{/each}
 				</div>
 			</section>
@@ -940,11 +1215,34 @@
 						</div>
 					{/if}
 
-					<!-- Bracket visualization -->
-					{#if currentBracket && rounds.length > 0}
+					<!-- Main/Consolation toggle (only show if consolation brackets exist) -->
+					{#if hasConsolation}
+						<div class="bracket-view-toggle">
+							<button
+								class="view-toggle-btn"
+								class:active={bracketView === 'main'}
+								onclick={() => bracketView = 'main'}
+							>
+								🏆 {m.bracket_winners?.() ?? 'Ganadores'}
+							</button>
+							<button
+								class="view-toggle-btn"
+								class:active={bracketView === 'consolation'}
+								onclick={() => bracketView = 'consolation'}
+							>
+								🎯 {m.bracket_consolation?.() ?? 'Consolación'}
+							</button>
+						</div>
+					{/if}
+
+					<!-- Main Bracket visualization -->
+					{#if bracketView === 'main' && currentBracket && rounds.length > 0}
 						<div class="bracket-wrapper">
 							<div class="bracket-container">
 								{#each rounds as round, roundIndex}
+									{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
+									{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
+									{#if hasEnoughVisibleMatches}
 									<div class="bracket-round" style="--round-index: {roundIndex}">
 										<h3 class="round-name">{translateRoundName(round.name)}</h3>
 										<div class="matches-column">
@@ -994,6 +1292,7 @@
 											{/if}
 										</div>
 									</div>
+									{/if}
 								{/each}
 
 								<!-- Third place match -->
@@ -1039,6 +1338,107 @@
 									</div>
 								{/if}
 							</div>
+						</div>
+					{/if}
+
+					<!-- Consolation Brackets visualization -->
+					{#if bracketView === 'consolation' && consolationBrackets.length > 0}
+						{@const r16Bracket = consolationBrackets.find(c => c.source === 'R16')}
+						{@const qfBracket = consolationBrackets.find(c => c.source === 'QF')}
+						<div class="consolation-section">
+							<!-- R16 consolation (9º-16º) if exists -->
+							{#if r16Bracket}
+								<div class="consolation-bracket-card">
+									<h4 class="consolation-bracket-title">
+										🎯 {m.bracket_positions?.({ start: r16Bracket.startPosition, end: r16Bracket.startPosition + (Math.pow(2, r16Bracket.totalRounds) - 1) }) ?? `Posiciones ${r16Bracket.startPosition}º-${r16Bracket.startPosition + Math.pow(2, r16Bracket.totalRounds) - 1}º`}
+									</h4>
+									<div class="bracket-wrapper consolation">
+										<div class="bracket-container">
+											{#each r16Bracket.rounds as round, roundIndex}
+												<div class="bracket-round" style="--round-index: {roundIndex}">
+													<h3 class="round-name">{round.name}</h3>
+													<div class="matches-column">
+														{#each round.matches as match}
+															{#if !isByeMatch(match)}
+																<div class="bracket-match" class:completed={match.status === 'COMPLETED'}>
+																	<div
+																		class="match-participant"
+																		class:winner={match.winner === match.participantA}
+																		class:tbd={!match.participantA}
+																	>
+																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																		{/if}
+																	</div>
+																	<div class="vs-divider"></div>
+																	<div
+																		class="match-participant"
+																		class:winner={match.winner === match.participantB}
+																		class:tbd={!match.participantB}
+																	>
+																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																		{/if}
+																	</div>
+																</div>
+															{/if}
+														{/each}
+													</div>
+												</div>
+											{/each}
+										</div>
+									</div>
+								</div>
+							{/if}
+
+							<!-- QF consolation (5º-8º) if exists -->
+							{#if qfBracket}
+								<div class="consolation-bracket-card">
+									<h4 class="consolation-bracket-title">
+										🎯 {m.bracket_positions?.({ start: qfBracket.startPosition, end: qfBracket.startPosition + (Math.pow(2, qfBracket.totalRounds) - 1) }) ?? `Posiciones ${qfBracket.startPosition}º-${qfBracket.startPosition + Math.pow(2, qfBracket.totalRounds) - 1}º`}
+									</h4>
+									<div class="bracket-wrapper consolation">
+										<div class="bracket-container">
+											{#each qfBracket.rounds as round, roundIndex}
+												<div class="bracket-round" style="--round-index: {roundIndex}">
+													<h3 class="round-name">{round.name}</h3>
+													<div class="matches-column">
+														{#each round.matches as match}
+															{#if !isByeMatch(match)}
+																<div class="bracket-match" class:completed={match.status === 'COMPLETED'}>
+																	<div
+																		class="match-participant"
+																		class:winner={match.winner === match.participantA}
+																		class:tbd={!match.participantA}
+																	>
+																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																		{/if}
+																	</div>
+																	<div class="vs-divider"></div>
+																	<div
+																		class="match-participant"
+																		class:winner={match.winner === match.participantB}
+																		class:tbd={!match.participantB}
+																	>
+																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																		{/if}
+																	</div>
+																</div>
+															{/if}
+														{/each}
+													</div>
+												</div>
+											{/each}
+										</div>
+									</div>
+								</div>
+							{/if}
 						</div>
 					{/if}
 				</div>
@@ -1999,6 +2399,16 @@
 		white-space: nowrap;
 	}
 
+	.podium-points {
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: #10b981;
+		background: rgba(16, 185, 129, 0.15);
+		padding: 0.15rem 0.4rem;
+		border-radius: 4px;
+		flex-shrink: 0;
+	}
+
 	/* Position-specific styling */
 	.podium-entry[data-position="1"] .podium-rank {
 		background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
@@ -2251,6 +2661,11 @@
 		gap: 1rem;
 	}
 
+	/* Single group: 2-column layout */
+	.groups-container.single-group {
+		display: block;
+	}
+
 	.group-card {
 		background: #1a2332;
 		border: 1px solid #2d3748;
@@ -2268,15 +2683,21 @@
 		border-bottom: 1px solid #2d3748;
 	}
 
+	.standings-table-wrapper {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
 	.standings-table {
 		width: 100%;
+		min-width: 380px;
 		border-collapse: collapse;
 		font-size: 0.8rem;
 	}
 
 	.standings-table th,
 	.standings-table td {
-		padding: 0.5rem 0.6rem;
+		padding: 0.4rem 0.35rem;
 		text-align: left;
 	}
 
@@ -2309,12 +2730,155 @@
 	/* Qualified to gold bracket - subtle left border */
 	.standings-table tr.qualified td:first-child {
 		border-left: 2px solid #10b981;
-		padding-left: calc(0.6rem - 2px);
+		padding-left: calc(0.35rem - 2px);
 	}
 
-	.pos-col { width: 32px; text-align: center; }
-	.name-col { flex: 1; }
-	.stat-col { width: 36px; text-align: center; }
+	.pos-col { width: 28px; text-align: center; }
+	.name-col { flex: 1; min-width: 80px; }
+	.stat-col { width: 32px; text-align: center; font-variant-numeric: tabular-nums; }
+
+	/* Primary column (used for qualification ranking) */
+	.standings-table th.primary-col,
+	.standings-table td.primary-col {
+		background: rgba(16, 185, 129, 0.12);
+		color: #10b981;
+		font-weight: 700;
+	}
+
+	.standings-table th.primary-col {
+		background: rgba(16, 185, 129, 0.18);
+	}
+
+	/* Row hover for better readability */
+	.standings-table tbody tr:hover td {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.standings-table tbody tr:hover td.primary-col {
+		background: rgba(16, 185, 129, 0.2);
+	}
+
+	/* Standings Legend */
+	.standings-legend {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 0.5rem 1rem;
+		margin-top: 0.5rem;
+		padding: 0.4rem 0.5rem;
+		font-size: 0.65rem;
+		color: #6b7a94;
+	}
+
+	.legend-item {
+		white-space: nowrap;
+	}
+
+	.legend-item strong {
+		color: #8b9bb3;
+		margin-right: 0.2rem;
+	}
+
+	/* View Matches Button */
+	.view-matches-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		width: 100%;
+		padding: 0.6rem;
+		margin-top: 0.75rem;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid #2d3748;
+		border-radius: 6px;
+		color: #8b9bb3;
+		font-size: 0.8rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.view-matches-btn:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: #e1e8ed;
+	}
+
+	/* Group Matches Section */
+	.group-matches-section {
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid #2d3748;
+	}
+
+	.round-section {
+		margin-bottom: 1rem;
+	}
+
+	.round-section:last-child {
+		margin-bottom: 0;
+	}
+
+	.round-title {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: #8b9bb3;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		margin: 0 0 0.5rem 0;
+	}
+
+	.matches-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+
+	.match-result-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.4rem 0.5rem;
+		background: rgba(0, 0, 0, 0.2);
+		border-radius: 4px;
+		font-size: 0.8rem;
+		/* Two columns with flex-wrap - each item takes ~50% minus gap */
+		flex: 1 1 calc(50% - 0.2rem);
+		min-width: 200px;
+		max-width: 100%;
+	}
+
+	.match-result-row.completed {
+		background: rgba(0, 0, 0, 0.3);
+	}
+
+	.match-player {
+		flex: 1;
+		color: #8b9bb3;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.match-player:first-child {
+		text-align: right;
+	}
+
+	.match-player:last-child {
+		text-align: left;
+	}
+
+	.match-player.winner {
+		color: #10b981;
+		font-weight: 600;
+	}
+
+	.match-score {
+		flex-shrink: 0;
+		min-width: 50px;
+		text-align: center;
+		font-weight: 600;
+		color: #e1e8ed;
+	}
 
 	/* Division Tabs (Gold/Silver) */
 	.division-tabs {
@@ -2450,6 +3014,86 @@
 		padding: 0;
 	}
 
+	/* Bracket view toggle (main/consolation) */
+	.bracket-view-toggle {
+		display: flex;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: rgba(0, 0, 0, 0.2);
+		border-radius: 8px;
+		margin: 0 1rem 1rem;
+	}
+
+	.view-toggle-btn {
+		flex: 1;
+		padding: 0.5rem 1rem;
+		background: transparent;
+		border: 1px solid #2d3748;
+		border-radius: 6px;
+		color: #8b9bb3;
+		font-size: 0.85rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.view-toggle-btn:hover {
+		background: rgba(255, 255, 255, 0.05);
+		border-color: #4a5568;
+	}
+
+	.view-toggle-btn.active {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		border-color: transparent;
+		color: white;
+	}
+
+	/* Consolation section */
+	.consolation-section {
+		display: flex;
+		flex-direction: column;
+		gap: 2rem;
+		padding: 1rem;
+	}
+
+	.consolation-bracket-card {
+		background: rgba(0, 0, 0, 0.2);
+		border-radius: 12px;
+		padding: 1rem;
+	}
+
+	.consolation-bracket-title {
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: #e1e8ed;
+		margin: 0 0 1rem 0;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid #2d3748;
+	}
+
+	.bracket-wrapper.consolation {
+		padding: 0.5rem 0;
+		overflow-y: hidden;
+	}
+
+	.bracket-wrapper.consolation .bracket-container {
+		gap: 5rem;
+		min-height: auto;
+		align-items: flex-start;
+	}
+
+	.bracket-wrapper.consolation .matches-column {
+		min-height: auto;
+		justify-content: flex-start;
+		gap: 0.75rem;
+	}
+
+	/* No connector lines in consolation brackets - they are independent rounds */
+	.bracket-wrapper.consolation .bracket-match::before,
+	.bracket-wrapper.consolation .bracket-match::after {
+		display: none;
+	}
+
 	/* Bracket */
 	.bracket-wrapper {
 		overflow-x: auto;
@@ -2474,9 +3118,22 @@
 	}
 
 	.bracket-round.third-place {
-		margin-left: 2rem;
-		padding-left: 2rem;
-		border-left: 2px dashed #2d3748;
+		/* Bronze connector handles spacing */
+	}
+
+	.bracket-round.third-place .round-name {
+		background: linear-gradient(135deg, #d4a574 0%, #b8956e 100%);
+		color: #5c4033;
+		padding: 0.3rem 0.8rem;
+		border-radius: 6px;
+		box-shadow: 0 2px 6px rgba(180, 137, 94, 0.3);
+	}
+
+	/* Bronze connector from final to 3rd place */
+	.bracket-round:nth-last-child(2):not(.third-place):has(+ .third-place) .bracket-match::after {
+		display: block;
+		width: 4.5rem;
+		background: linear-gradient(90deg, #b8956e 0%, #d4a574 100%);
 	}
 
 	/* Hide connectors in third place match */
@@ -2553,19 +3210,19 @@
 
 	/* Dynamic vertical line height based on round index - space-around distribution */
 	.bracket-round[style*="--round-index: 0"] .bracket-match::before {
-		height: calc(50% + 0.5rem);
+		height: calc(50% );
 	}
 	.bracket-round[style*="--round-index: 1"] .bracket-match::before {
-		height: calc(100% + 1rem);
+		height: calc(100% + 0.5rem);
 	}
 	.bracket-round[style*="--round-index: 2"] .bracket-match::before {
-		height: calc(200% + 2rem);
+		height: calc(200% + 1rem);
 	}
 	.bracket-round[style*="--round-index: 3"] .bracket-match::before {
-		height: calc(400% + 4rem);
+		height: calc(400% + 2rem);
 	}
 	.bracket-round[style*="--round-index: 4"] .bracket-match::before {
-		height: calc(800% + 8rem);
+		height: calc(800% + 4rem);
 	}
 
 	/* Remove vertical connectors from final round */
@@ -2818,6 +3475,11 @@
 		color: #64748b;
 	}
 
+	.detail-container[data-theme='light'] .podium-points {
+		color: #059669;
+		background: rgba(16, 185, 129, 0.1);
+	}
+
 	.detail-container[data-theme='light'] .section-title {
 		color: #1a202c;
 		border-bottom-color: #e2e8f0;
@@ -2826,6 +3488,16 @@
 	.detail-container[data-theme='light'] .group-card {
 		background: #ffffff;
 		border-color: #e2e8f0;
+	}
+
+	.detail-container[data-theme='light'] .standings-column,
+	.detail-container[data-theme='light'] .matches-column {
+		background: #ffffff;
+		border-color: #e2e8f0;
+	}
+
+	.detail-container[data-theme='light'] .group-matches-inline {
+		background: transparent;
 	}
 
 	.detail-container[data-theme='light'] .group-name {
@@ -2850,6 +3522,71 @@
 
 	.detail-container[data-theme='light'] .standings-table tbody tr:nth-child(even) td {
 		background: transparent;
+	}
+
+	.detail-container[data-theme='light'] .standings-table th.primary-col,
+	.detail-container[data-theme='light'] .standings-table td.primary-col {
+		background: rgba(16, 185, 129, 0.1);
+		color: #059669;
+	}
+
+	.detail-container[data-theme='light'] .standings-table th.primary-col {
+		background: rgba(16, 185, 129, 0.15);
+	}
+
+	.detail-container[data-theme='light'] .standings-table tbody tr:hover td {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	.detail-container[data-theme='light'] .standings-table tbody tr:hover td.primary-col {
+		background: rgba(16, 185, 129, 0.18);
+	}
+
+	.detail-container[data-theme='light'] .standings-legend {
+		color: #718096;
+	}
+
+	.detail-container[data-theme='light'] .legend-item strong {
+		color: #4a5568;
+	}
+
+	.detail-container[data-theme='light'] .view-matches-btn {
+		background: rgba(0, 0, 0, 0.02);
+		border-color: #e2e8f0;
+		color: #64748b;
+	}
+
+	.detail-container[data-theme='light'] .view-matches-btn:hover {
+		background: rgba(0, 0, 0, 0.05);
+		color: #1a202c;
+	}
+
+	.detail-container[data-theme='light'] .group-matches-section {
+		border-top-color: #e2e8f0;
+	}
+
+	.detail-container[data-theme='light'] .round-title {
+		color: #64748b;
+	}
+
+	.detail-container[data-theme='light'] .match-result-row {
+		background: rgba(0, 0, 0, 0.02);
+	}
+
+	.detail-container[data-theme='light'] .match-result-row.completed {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	.detail-container[data-theme='light'] .match-player {
+		color: #64748b;
+	}
+
+	.detail-container[data-theme='light'] .match-player.winner {
+		color: #059669;
+	}
+
+	.detail-container[data-theme='light'] .match-score {
+		color: #1a202c;
 	}
 
 	.detail-container[data-theme='light'] .phase-nav {
@@ -2919,6 +3656,34 @@
 
 	.detail-container[data-theme='light'] .bracket-round.third-place {
 		border-left-color: #e2e8f0;
+	}
+
+	.detail-container[data-theme='light'] .bracket-view-toggle {
+		background: rgba(0, 0, 0, 0.03);
+	}
+
+	.detail-container[data-theme='light'] .view-toggle-btn {
+		border-color: #e2e8f0;
+		color: #64748b;
+	}
+
+	.detail-container[data-theme='light'] .view-toggle-btn:hover {
+		background: rgba(0, 0, 0, 0.05);
+		border-color: #cbd5e1;
+	}
+
+	.detail-container[data-theme='light'] .consolation-section {
+		background: transparent;
+	}
+
+	.detail-container[data-theme='light'] .consolation-bracket-card {
+		background: rgba(0, 0, 0, 0.02);
+		border: 1px solid #e2e8f0;
+	}
+
+	.detail-container[data-theme='light'] .consolation-bracket-title {
+		color: #1a202c;
+		border-bottom-color: #e2e8f0;
 	}
 
 	.detail-container[data-theme='light'] .round-name {

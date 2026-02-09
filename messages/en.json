@@ -1049,5 +1049,16 @@
   "tournament_realOnly": "Only real ones",
   "tournament_test": "Proof",
   "tournament_testOnly": "Tests only",
-  "admin_possiblePairs": "Potential partners"
+  "admin_possiblePairs": "Potential partners",
+  "admin_consolationNotNeeded": "With 5 or fewer teams qualified, the consolation phase is not necessary since the main draw determines all positions.",
+  "admin_externalLink": "External link",
+  "admin_noBrokenMatches": "There are no matches to fix.",
+  "admin_posterUrl": "Image of the tournament",
+  "admin_repairError": "Error repairing matches",
+  "admin_repairFailed": "No matches could be repaired",
+  "admin_repairMatchesTitle": "Repair matches with broken advance",
+  "admin_matchesRepaired": "{n} match(s) repaired",
+  "profile_colorTheme": "Color theme",
+  "profile_themeGreen": "Green",
+  "profile_themeViolet": "Violet"
 }

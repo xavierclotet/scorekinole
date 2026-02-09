@@ -900,7 +900,7 @@
   "import_position": "Pos",
   "import_preview": "Vista prèvia",
   "import_previousStep": "Anterior",
-  "import_quarterfinals": "Cambres",
+  "import_quarterfinals": "Quarts de final",
   "import_registeredUser": "Usuari registrat",
   "import_removeParticipant": "Eliminar participant",
   "import_review": "Revisar",
@@ -1049,5 +1049,16 @@
   "tournament_realOnly": "Només reals",
   "tournament_test": "Prova",
   "tournament_testOnly": "Només proves",
-  "admin_possiblePairs": "Possibles parelles"
+  "admin_possiblePairs": "Possibles parelles",
+  "admin_consolationNotNeeded": "Amb 5 o menys classificats, la fase de consolació no és necessària ja que el quadre principal determina totes les posicions.",
+  "admin_externalLink": "Enllaç extern",
+  "admin_noBrokenMatches": "No hi ha partits per reparar",
+  "admin_posterUrl": "Imatge del torneig",
+  "admin_repairError": "Error en reparar partits",
+  "admin_repairFailed": "No es va poder reparar cap partit",
+  "admin_repairMatchesTitle": "Reparar partits amb avenç trencat",
+  "admin_matchesRepaired": "{n} partit(s) reparat(s)",
+  "profile_colorTheme": "Tema de color",
+  "profile_themeGreen": "Verd",
+  "profile_themeViolet": "Violeta"
 }
