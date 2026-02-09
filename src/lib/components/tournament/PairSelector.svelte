@@ -1,8 +1,5 @@
 <script lang="ts">
   import { searchUsers } from '$lib/firebase/tournaments';
-  import { getOrCreatePair, searchPairsByTeamName, getPairDisplayName } from '$lib/firebase/pairs';
-  import { getUserProfileById } from '$lib/firebase/userProfile';
-  import type { Pair, PairMember } from '$lib/types/pair';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentParticipant } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
@@ -14,31 +11,33 @@
     theme?: 'light' | 'dark';
   }
 
+  interface SelectedMember {
+    type: 'REGISTERED' | 'GUEST';
+    userId?: string;
+    name: string;
+    photoURL?: string;
+  }
+
   let { onadd, existingParticipants = [], excludedUserIds = [], theme = 'light' }: Props = $props();
 
-  // Pair search
-  let pairSearch = $state('');
-  let pairResults = $state<Pair[]>([]);
-  let pairLoading = $state(false);
-
-  // New pair form
+  // Player 1
   let p1 = $state('');
   let p1RawResults = $state<(UserProfile & { userId: string })[]>([]);
   let p1Loading = $state(false);
-  let p1Selected = $state<PairMember | null>(null);
-  let p1PhotoURL = $state<string | undefined>(undefined);
+  let p1Selected = $state<SelectedMember | null>(null);
 
+  // Player 2
   let p2 = $state('');
   let p2RawResults = $state<(UserProfile & { userId: string })[]>([]);
   let p2Loading = $state(false);
-  let p2Selected = $state<PairMember | null>(null);
-  let p2PhotoURL = $state<string | undefined>(undefined);
+  let p2Selected = $state<SelectedMember | null>(null);
 
   let teamName = $state('');
   let adding = $state(false);
 
   let canAdd = $derived(p1Selected && p2Selected && !adding);
 
+  // Filter results to exclude already selected players
   let p1Results = $derived(
     p1RawResults.filter(u =>
       !(p2Selected?.type === 'REGISTERED' && p2Selected.userId === u.userId) &&
@@ -53,21 +52,10 @@
     )
   );
 
-  let pairTimeout: ReturnType<typeof setTimeout> | null = null;
   let p1Timeout: ReturnType<typeof setTimeout> | null = null;
   let p2Timeout: ReturnType<typeof setTimeout> | null = null;
 
-  $effect(() => {
-    if (pairTimeout) clearTimeout(pairTimeout);
-    if (!pairSearch || pairSearch.length < 2) { pairResults = []; return; }
-    pairLoading = true;
-    pairTimeout = setTimeout(async () => {
-      const res = await searchPairsByTeamName(pairSearch, 6);
-      pairResults = res.filter(p => !existingParticipants.some(ep => ep.pairId === p.id));
-      pairLoading = false;
-    }, 250);
-  });
-
+  // Search player 1
   $effect(() => {
     if (p1Timeout) clearTimeout(p1Timeout);
     if (!p1 || p1.length < 2 || p1Selected) { p1RawResults = []; return; }
@@ -79,6 +67,7 @@
     }, 250);
   });
 
+  // Search player 2
   $effect(() => {
     if (p2Timeout) clearTimeout(p2Timeout);
     if (!p2 || p2.length < 2 || p2Selected) { p2RawResults = []; return; }
@@ -91,15 +80,23 @@
   });
 
   function selectP1(user: UserProfile & { userId: string }) {
-    p1Selected = { type: 'REGISTERED', userId: user.userId, name: user.playerName };
-    p1PhotoURL = user.photoURL || undefined;
+    p1Selected = {
+      type: 'REGISTERED',
+      userId: user.userId,
+      name: user.playerName,
+      photoURL: user.photoURL || undefined
+    };
     p1 = user.playerName;
     p1RawResults = [];
   }
 
   function selectP2(user: UserProfile & { userId: string }) {
-    p2Selected = { type: 'REGISTERED', userId: user.userId, name: user.playerName };
-    p2PhotoURL = user.photoURL || undefined;
+    p2Selected = {
+      type: 'REGISTERED',
+      userId: user.userId,
+      name: user.playerName,
+      photoURL: user.photoURL || undefined
+    };
     p2 = user.playerName;
     p2RawResults = [];
   }
@@ -107,189 +104,135 @@
   function setP1Guest() {
     if (p1.trim().length < 3) return;
     p1Selected = { type: 'GUEST', name: p1.trim() };
-    p1PhotoURL = undefined;
     p1RawResults = [];
   }
 
   function setP2Guest() {
     if (p2.trim().length < 3) return;
     p2Selected = { type: 'GUEST', name: p2.trim() };
-    p2PhotoURL = undefined;
     p2RawResults = [];
   }
 
-  function clearP1() { p1Selected = null; p1PhotoURL = undefined; p1 = ''; p1RawResults = []; }
-  function clearP2() { p2Selected = null; p2PhotoURL = undefined; p2 = ''; p2RawResults = []; }
+  function clearP1() { p1Selected = null; p1 = ''; p1RawResults = []; }
+  function clearP2() { p2Selected = null; p2 = ''; p2RawResults = []; }
 
-  async function addExistingPair(pair: Pair) {
-    // Fetch photos for pair members
-    let member1Photo: string | undefined;
-    let member2Photo: string | undefined;
-
-    if (pair.member1Type === 'REGISTERED' && pair.member1UserId) {
-      const profile = await getUserProfileById(pair.member1UserId);
-      console.log('🖼️ Member1 profile:', pair.member1UserId, profile?.photoURL);
-      member1Photo = profile?.photoURL || undefined;
-    }
-    if (pair.member2Type === 'REGISTERED' && pair.member2UserId) {
-      const profile = await getUserProfileById(pair.member2UserId);
-      console.log('🖼️ Member2 profile:', pair.member2UserId, profile?.photoURL);
-      member2Photo = profile?.photoURL || undefined;
-    }
-
-    const participant: Partial<TournamentParticipant> & { memberUserIds?: string[] } = {
-      id: crypto.randomUUID(),
-      participantMode: 'pair',
-      pairId: pair.id,
-      pairTeamName: pair.teamName || undefined,
-      name: getPairDisplayName(pair),
-      type: 'REGISTERED',
-      rankingSnapshot: 0,
-      currentRanking: 0,
-      status: 'ACTIVE',
-      photoURL: member1Photo,
-      partnerPhotoURL: member2Photo,
-      memberUserIds: [
-        pair.member1Type === 'REGISTERED' ? pair.member1UserId : '',
-        pair.member2Type === 'REGISTERED' ? pair.member2UserId : ''
-      ].filter(Boolean)
-    };
-    console.log('🎯 PairSelector onadd participant:', { name: participant.name, photoURL: participant.photoURL, partnerPhotoURL: participant.partnerPhotoURL });
-    onadd(participant);
-    pairSearch = '';
-    pairResults = [];
-  }
-
-  async function addNewPair() {
+  function addPair() {
     if (!p1Selected || !p2Selected) return;
     adding = true;
 
-    const pair = await getOrCreatePair(p1Selected, p2Selected, teamName || undefined);
-    if (pair) {
-      const participant: Partial<TournamentParticipant> & { memberUserIds?: string[] } = {
-        id: crypto.randomUUID(),
-        participantMode: 'pair',
-        pairId: pair.id,
-        pairTeamName: teamName || undefined,
-        name: getPairDisplayName(pair, teamName),
-        type: 'REGISTERED',
-        rankingSnapshot: 0,
-        currentRanking: 0,
-        status: 'ACTIVE',
-        photoURL: p1PhotoURL,
-        partnerPhotoURL: p2PhotoURL,
-        memberUserIds: [
-          p1Selected.type === 'REGISTERED' && p1Selected.userId ? p1Selected.userId : '',
-          p2Selected.type === 'REGISTERED' && p2Selected.userId ? p2Selected.userId : ''
-        ].filter(Boolean)
-      };
-      console.log('🎯 PairSelector addNewPair onadd:', { name: participant.name, photoURL: participant.photoURL, partnerPhotoURL: participant.partnerPhotoURL });
-      onadd(participant);
-      clearP1();
-      clearP2();
-      teamName = '';
+    // Check for duplicate pair (same two players)
+    const isDuplicate = existingParticipants.some(ep => {
+      if (!ep.partner) return false;
+      // Check both combinations using real names
+      const existingP1 = ep.userId || ep.name;
+      const existingP2 = ep.partner.userId || ep.partner.name;
+      const newP1 = p1Selected!.userId || p1Selected!.name;
+      const newP2 = p2Selected!.userId || p2Selected!.name;
+      return (existingP1 === newP1 && existingP2 === newP2) ||
+             (existingP1 === newP2 && existingP2 === newP1);
+    });
+
+    if (isDuplicate) {
+      adding = false;
+      return;
     }
+
+    // Create participant with REAL names (teamName is optional for display)
+    const participant: Partial<TournamentParticipant> = {
+      id: crypto.randomUUID(),
+      name: p1Selected.name,              // Player 1's REAL name
+      type: p1Selected.type,
+      userId: p1Selected.userId,
+      photoURL: p1Selected.photoURL,
+      teamName: teamName.trim() || undefined,  // Optional artistic name
+      partner: {
+        type: p2Selected.type,
+        userId: p2Selected.userId,
+        name: p2Selected.name,            // Player 2's REAL name
+        photoURL: p2Selected.photoURL
+      },
+      rankingSnapshot: 0,
+      currentRanking: 0,
+      status: 'ACTIVE'
+    };
+
+    onadd(participant);
+    clearP1();
+    clearP2();
+    teamName = '';
     adding = false;
   }
 </script>
 
 <div class="pair-selector" data-theme={theme}>
   <div class="add-row">
-    <!-- Search existing pairs -->
-    <div class="add-field search-field">
-      <label>{m.wizard_searchPair()}</label>
-      <div class="search-box">
-        <input
-          type="text"
-          bind:value={pairSearch}
-          placeholder={m.wizard_searchPairPlaceholder()}
-          class="input-field"
-          autocomplete="off"
-        />
-        {#if pairLoading}
-          <span class="search-loading">⏳</span>
-        {/if}
-        {#if pairResults.length > 0}
-          <div class="search-results">
-            {#each pairResults as pair}
-              <button class="search-result-item" onclick={() => addExistingPair(pair)}>
-                <span class="result-name">{getPairDisplayName(pair)}</span>
-                <span class="result-members">{pair.member1Name} / {pair.member2Name}</span>
-                <span class="result-add">+</span>
-              </button>
-            {/each}
+    <!-- Player 1 -->
+    <div class="add-field player-field">
+      <label>{m.wizard_player1()}</label>
+      <div class="player-box">
+        {#if p1Selected}
+          <span class="player-chip" class:guest={p1Selected.type === 'GUEST'}>
+            {p1Selected.name}
+            <button class="chip-clear" onclick={clearP1}>×</button>
+          </span>
+        {:else}
+          <div class="player-search">
+            <input
+              type="text"
+              bind:value={p1}
+              placeholder={m.wizard_searchOrGuest()}
+              class="player-input"
+              autocomplete="off"
+            />
+            {#if p1Loading}<span class="mini-loading">⏳</span>{/if}
           </div>
+          {#if p1Results.length > 0}
+            <div class="player-results">
+              {#each p1Results.slice(0, 4) as u}
+                <button onclick={() => selectP1(u)}>{u.playerName}</button>
+              {/each}
+            </div>
+          {/if}
+          {#if p1.length >= 3 && !p1Loading && p1Results.length === 0}
+            <button class="add-guest-btn" onclick={setP1Guest}>+ inv "{p1}"</button>
+          {/if}
         {/if}
       </div>
     </div>
 
-    <!-- New pair section -->
-    <div class="add-field new-pair-field">
-      <label>{m.wizard_newPair()}</label>
-      <div class="new-pair-inputs">
-        <!-- Player 1 -->
-        <div class="player-box">
-          {#if p1Selected}
-            <span class="player-chip" class:guest={p1Selected.type === 'GUEST'}>
-              {p1Selected.name}
-              <button class="chip-clear" onclick={clearP1}>×</button>
-            </span>
-          {:else}
-            <div class="player-search">
-              <input
-                type="text"
-                bind:value={p1}
-                placeholder={m.wizard_player1()}
-                class="player-input"
-                autocomplete="off"
-              />
-              {#if p1Loading}<span class="mini-loading">⏳</span>{/if}
-            </div>
-            {#if p1Results.length > 0}
-              <div class="player-results">
-                {#each p1Results.slice(0, 4) as u}
-                  <button onclick={() => selectP1(u)}>{u.playerName}</button>
-                {/each}
-              </div>
-            {/if}
-            {#if p1.length >= 3 && !p1Loading && p1Results.length === 0}
-              <button class="add-guest-btn" onclick={setP1Guest}>+ inv "{p1}"</button>
-            {/if}
-          {/if}
-        </div>
+    <span class="pair-sep">/</span>
 
-        <span class="pair-sep">/</span>
-
-        <!-- Player 2 -->
-        <div class="player-box">
-          {#if p2Selected}
-            <span class="player-chip" class:guest={p2Selected.type === 'GUEST'}>
-              {p2Selected.name}
-              <button class="chip-clear" onclick={clearP2}>×</button>
-            </span>
-          {:else}
-            <div class="player-search">
-              <input
-                type="text"
-                bind:value={p2}
-                placeholder={m.wizard_player2()}
-                class="player-input"
-                autocomplete="off"
-              />
-              {#if p2Loading}<span class="mini-loading">⏳</span>{/if}
+    <!-- Player 2 -->
+    <div class="add-field player-field">
+      <label>{m.wizard_player2()}</label>
+      <div class="player-box">
+        {#if p2Selected}
+          <span class="player-chip" class:guest={p2Selected.type === 'GUEST'}>
+            {p2Selected.name}
+            <button class="chip-clear" onclick={clearP2}>×</button>
+          </span>
+        {:else}
+          <div class="player-search">
+            <input
+              type="text"
+              bind:value={p2}
+              placeholder={m.wizard_searchOrGuest()}
+              class="player-input"
+              autocomplete="off"
+            />
+            {#if p2Loading}<span class="mini-loading">⏳</span>{/if}
+          </div>
+          {#if p2Results.length > 0}
+            <div class="player-results">
+              {#each p2Results.slice(0, 4) as u}
+                <button onclick={() => selectP2(u)}>{u.playerName}</button>
+              {/each}
             </div>
-            {#if p2Results.length > 0}
-              <div class="player-results">
-                {#each p2Results.slice(0, 4) as u}
-                  <button onclick={() => selectP2(u)}>{u.playerName}</button>
-                {/each}
-              </div>
-            {/if}
-            {#if p2.length >= 3 && !p2Loading && p2Results.length === 0}
-              <button class="add-guest-btn" onclick={setP2Guest}>+ inv "{p2}"</button>
-            {/if}
           {/if}
-        </div>
+          {#if p2.length >= 3 && !p2Loading && p2Results.length === 0}
+            <button class="add-guest-btn" onclick={setP2Guest}>+ inv "{p2}"</button>
+          {/if}
+        {/if}
       </div>
     </div>
 
@@ -304,7 +247,7 @@
           class="input-field"
           maxlength="40"
         />
-        <button class="add-btn" onclick={addNewPair} disabled={!canAdd}>
+        <button class="add-btn" onclick={addPair} disabled={!canAdd}>
           {adding ? '...' : '+'}
         </button>
       </div>
@@ -343,7 +286,7 @@
 
   .add-row {
     display: grid;
-    grid-template-columns: 1fr 1.5fr 1fr;
+    grid-template-columns: 1fr auto 1fr 1.2fr;
     gap: 0.75rem;
     align-items: start;
   }
@@ -362,7 +305,13 @@
     letter-spacing: 0.02em;
   }
 
-  .search-box,
+  .pair-sep {
+    color: var(--txt-muted);
+    font-weight: 500;
+    padding-top: 1.6rem;
+    font-size: 1.1rem;
+  }
+
   .team-input-group {
     position: relative;
     display: flex;
@@ -387,77 +336,15 @@
     color: var(--txt-muted);
   }
 
-  .search-loading,
   .mini-loading {
     font-size: 0.75rem;
     position: absolute;
     right: 0.5rem;
   }
 
-  .search-results,
-  .player-results {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    margin-top: 2px;
-    z-index: 30;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-  }
-
-  .search-result-item,
-  .player-results button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.4rem 0.6rem;
-    border: none;
-    background: transparent;
-    color: var(--txt);
-    font-size: 0.8rem;
-    cursor: pointer;
-    text-align: left;
-  }
-  .search-result-item:hover,
-  .player-results button:hover {
-    background: var(--bg-hover);
-  }
-
-  .result-name {
-    font-weight: 500;
-    flex-shrink: 0;
-  }
-  .result-members {
-    flex: 1;
-    font-size: 0.7rem;
-    color: var(--txt-muted);
-    text-align: right;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .result-add {
-    color: var(--primary);
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-
-  /* New pair inputs */
-  .new-pair-inputs {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.35rem;
-  }
-
   .player-box {
-    flex: 1;
-    min-width: 0;
     position: relative;
+    min-height: 32px;
   }
 
   .player-search {
@@ -483,11 +370,35 @@
     color: var(--txt-muted);
   }
 
-  .pair-sep {
-    color: var(--txt-muted);
-    font-weight: 500;
-    padding: 0.4rem 0.15rem 0;
-    flex-shrink: 0;
+  .player-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    margin-top: 2px;
+    z-index: 30;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
+
+  .player-results button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    border: none;
+    background: transparent;
+    color: var(--txt);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-align: left;
+  }
+  .player-results button:hover {
+    background: var(--bg-hover);
   }
 
   .player-chip {
@@ -568,18 +479,14 @@
 
   @media (max-width: 700px) {
     .add-row {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 0.6rem;
-    }
-    .new-pair-inputs {
-      flex-wrap: wrap;
-    }
-    .player-box {
-      flex: 1 1 45%;
-      min-width: 100px;
     }
     .pair-sep {
       display: none;
+    }
+    .team-field {
+      grid-column: span 2;
     }
   }
 </style>

@@ -70,15 +70,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Pairs collection - for doubles tournament pairs
-    match /pairs/{pairId} {
-      // Admins can read pairs (for searching existing pairs in wizard)
-      allow read: if isAdmin();
-
-      // Admins can create/update pairs (created during tournament setup)
-      allow write: if isAdmin();
-    }
-
     // Venues collection - for tournament locations
     match /venues/{venueId} {
       // Admins can read venues (query filters by ownerId in code)

@@ -113,8 +113,16 @@ export async function getCompletedTournaments(): Promise<Map<string, TournamentI
     const snapshot = await getDocs(q);
 
     const tournamentsMap = new Map<string, TournamentInfo>();
+    let testCount = 0;
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
+
+      // Skip test tournaments - only include real tournaments (isTest !== true)
+      if (data.isTest === true) {
+        testCount++;
+        return;
+      }
+
       const completedAt = data.completedAt instanceof Timestamp
         ? data.completedAt.toMillis()
         : data.completedAt;
@@ -127,7 +135,7 @@ export async function getCompletedTournaments(): Promise<Map<string, TournamentI
       });
     });
 
-    console.log(`✅ Retrieved ${tournamentsMap.size} completed tournaments`);
+    console.log(`✅ Retrieved ${tournamentsMap.size} completed tournaments (excluded ${testCount} test tournaments)`);
     return tournamentsMap;
   } catch (error) {
     console.error('❌ Error getting completed tournaments:', error);

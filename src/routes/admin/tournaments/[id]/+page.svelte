@@ -11,7 +11,7 @@
   import { currentUser } from '$lib/firebase/auth';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
-  import type { Tournament } from '$lib/types/tournament';
+  import { type Tournament, getParticipantDisplayName } from '$lib/types/tournament';
   import Toast from '$lib/components/Toast.svelte';
   import * as m from '$lib/paraglide/messages.js';
   import { formatDuration, calculateRemainingTime, calculateTournamentTimeEstimate, calculateTimeBreakdown, type TimeBreakdown } from '$lib/utils/tournamentTime';
@@ -56,6 +56,8 @@
   let editAddress = $state('');
   let editCity = $state('');
   let editCountry = $state('');
+  let editExternalLink = $state('');
+  let editPosterUrl = $state('');
 
   let tournamentId = $derived($page.params.id);
 
@@ -295,6 +297,8 @@
     editAddress = tournament.address || '';
     editCity = tournament.city || '';
     editCountry = tournament.country || '';
+    editExternalLink = tournament.externalLink || '';
+    editPosterUrl = tournament.posterUrl || '';
 
     showQuickEdit = true;
   }
@@ -354,7 +358,9 @@
         edition: editEdition || undefined,
         address: editAddress.trim() || undefined,
         city: editCity.trim() || undefined,
-        country: editCountry.trim() || undefined
+        country: editCountry.trim() || undefined,
+        externalLink: editExternalLink.trim() || undefined,
+        posterUrl: editPosterUrl.trim() || undefined
       };
 
       // Update finalStage options if it exists
@@ -429,18 +435,6 @@
                   <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
                 {/if}
               </div>
-              {#if timeRemaining && ['GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'].includes(tournament.status)}
-                <div class="header-progress">
-                  <TimeProgressBar
-                    percentComplete={timeRemaining.percentComplete}
-                    remainingMinutes={timeRemaining.remainingMinutes}
-                    showEstimatedEnd={true}
-                    compact={true}
-                    clickable={true}
-                    onclick={openTimeBreakdown}
-                  />
-                </div>
-              {/if}
             </div>
           </div>
 
@@ -510,6 +504,19 @@
             <ThemeToggle />
           </div>
         </div>
+
+        {#if timeRemaining && ['GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE'].includes(tournament.status)}
+          <div class="header-progress-bar">
+            <TimeProgressBar
+              percentComplete={timeRemaining.percentComplete}
+              remainingMinutes={timeRemaining.remainingMinutes}
+              showEstimatedEnd={true}
+              compact={false}
+              clickable={true}
+              onclick={openTimeBreakdown}
+            />
+          </div>
+        {/if}
       {:else}
         <div class="header-row">
           <button class="back-btn" onclick={() => goto('/admin/tournaments')}>
@@ -651,7 +658,7 @@
               <div class="participants-grid">
                 {#each tournament.participants as p}
                   <span class="participant-chip" class:guest={p.type === 'GUEST'}>
-                    {p.name}
+                    {getParticipantDisplayName(p, tournament.gameType === 'doubles')}
                   </span>
                 {/each}
               </div>
@@ -924,281 +931,176 @@
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
       <div class="quick-edit-modal" class:compact={tournament.status === 'COMPLETED'} role="dialog" aria-modal="true" tabindex="-1">
         <div class="quick-edit-header">
-          <h2>{m.admin_tournamentSettings()}</h2>
-          <div class="header-actions">
-            {#if tournament.status === 'COMPLETED'}
-              <button
-                class="save-btn"
-                onclick={saveQuickEdit}
-                disabled={isSavingQuickEdit || !editName.trim()}
-              >
-                {isSavingQuickEdit ? m.admin_saving() : m.admin_saveSettings()}
-              </button>
-            {/if}
-            <button class="close-btn" onclick={closeQuickEdit}>×</button>
-          </div>
+          <h2>{m.admin_tournamentSettings({ name: tournament.name })}</h2>
+          <button class="close-btn" onclick={closeQuickEdit}>×</button>
         </div>
 
         <div class="quick-edit-body" class:single-column={tournament.status === 'COMPLETED'}>
           {#if tournament.status === 'COMPLETED'}
             <!-- Compact layout for completed tournaments -->
-            <div class="field-row">
-              <div class="field-group small">
+            <div class="qe-row">
+              <div class="qe-field" style="width: 80px;">
                 <label for="edit-edition">{m.wizard_edition()}</label>
-                <input
-                  type="number"
-                  id="edit-edition"
-                  bind:value={editEdition}
-                  min="1"
-                  placeholder="—"
-                />
+                <input type="number" id="edit-edition" bind:value={editEdition} min="1" placeholder="—" />
               </div>
-              <div class="field-group flex-grow">
+              <div class="qe-field" style="flex: 1;">
                 <label for="edit-name">{m.admin_tournamentName()}</label>
-                <input
-                  type="text"
-                  id="edit-name"
-                  bind:value={editName}
-                  placeholder={m.admin_tournamentName()}
-                />
+                <input type="text" id="edit-name" bind:value={editName} placeholder={m.admin_tournamentName()} />
               </div>
-            </div>
-
-            <!-- Venue Selector -->
-            <div class="venue-selector-section">
-              <VenueSelector
-                address={editAddress}
-                city={editCity}
-                country={editCountry}
-                onselect={handleVenueSelect}
-                theme={$adminTheme}
-              />
-            </div>
-
-            <div class="field-group">
-              <label for="edit-address">{m.wizard_address()}</label>
-              <input
-                type="text"
-                id="edit-address"
-                bind:value={editAddress}
-                placeholder="Av. Diagonal 123"
-              />
-            </div>
-
-            <div class="field-row three-cols">
-              <div class="field-group">
-                <label for="edit-city">{m.wizard_city()}</label>
-                <input
-                  type="text"
-                  id="edit-city"
-                  bind:value={editCity}
-                  placeholder="Barcelona"
-                />
-              </div>
-              <div class="field-group">
-                <label for="edit-country">{m.wizard_country()}</label>
-                <CountrySelect id="edit-country" bind:value={editCountry} />
-              </div>
-              <div class="field-group">
+              <div class="qe-field" style="width: 140px;">
                 <label for="edit-date">{m.wizard_date()}</label>
-                <input
-                  type="date"
-                  id="edit-date"
-                  bind:value={editDate}
-                />
+                <input type="date" id="edit-date" bind:value={editDate} />
               </div>
             </div>
 
-            <div class="field-group">
+            <div class="qe-venue">
+              <VenueSelector address={editAddress} city={editCity} country={editCountry} onselect={handleVenueSelect} theme={$adminTheme} />
+            </div>
+
+            <div class="qe-field">
               <label for="edit-description">{m.wizard_description()}</label>
-              <textarea
-                id="edit-description"
-                bind:value={editDescription}
-                placeholder={m.wizard_descriptionOptional()}
-                rows="2"
-              ></textarea>
+              <textarea id="edit-description" bind:value={editDescription} placeholder={m.wizard_descriptionOptional()} rows="2"></textarea>
+            </div>
+
+            <div class="qe-grid cols-2">
+              <div class="qe-field">
+                <label for="edit-external-link-c">{m.admin_externalLink()}</label>
+                <input type="url" id="edit-external-link-c" bind:value={editExternalLink} placeholder="https://..." />
+              </div>
+              <div class="qe-field">
+                <label for="edit-poster-url-c">{m.admin_posterUrl()}</label>
+                <input type="url" id="edit-poster-url-c" bind:value={editPosterUrl} placeholder="https://..." />
+              </div>
+            </div>
+
+            <div class="qe-row qe-footer-row">
+              <label class="qe-toggle">
+                <input type="checkbox" bind:checked={editIsTest} />
+                <span>{m.tournament_isTest()}</span>
+              </label>
+              <div class="qe-actions">
+                <button class="qe-btn secondary" onclick={closeQuickEdit}>{m.common_cancel()}</button>
+                <button class="qe-btn primary" onclick={saveQuickEdit} disabled={isSavingQuickEdit || !editName.trim()}>
+                  {isSavingQuickEdit ? m.admin_saving() : m.admin_saveChanges()}
+                </button>
+              </div>
             </div>
           {:else}
             <!-- Full layout for active tournaments -->
-            <div class="edit-column">
-              <div class="column-header">{m.admin_basicInfo()}</div>
-
-              <div class="field-group">
-                <label for="edit-name">{m.admin_tournamentName()}</label>
-                <input
-                  type="text"
-                  id="edit-name"
-                  bind:value={editName}
-                  placeholder={m.admin_tournamentName()}
-                />
-              </div>
-
-              <div class="field-row">
-                <div class="field-group">
-                  <label for="edit-date">{m.admin_dateLabel()}</label>
-                  <input
-                    type="date"
-                    id="edit-date"
-                    bind:value={editDate}
-                  />
+            <div class="qe-section">
+              <div class="qe-section-title">{m.admin_basicInfo()}</div>
+              <div class="qe-grid cols-3">
+                <div class="qe-field span-2">
+                  <label for="edit-name">{m.admin_tournamentName()}</label>
+                  <input type="text" id="edit-name" bind:value={editName} />
                 </div>
-                <div class="field-group">
+                <div class="qe-field">
+                  <label for="edit-date">{m.admin_dateLabel()}</label>
+                  <input type="date" id="edit-date" bind:value={editDate} />
+                </div>
+              </div>
+              <div class="qe-grid cols-edition-tables-venue">
+                <div class="qe-field">
+                  <label for="edit-edition">{m.wizard_edition()}</label>
+                  <input type="number" id="edit-edition" bind:value={editEdition} min="1" placeholder="1, 2..." />
+                </div>
+                <div class="qe-field">
                   <label for="edit-tables">{m.admin_availableTables()}</label>
-                  <input
-                    type="number"
-                    id="edit-tables"
-                    bind:value={editNumTables}
-                    min="1"
-                    max="50"
-                  />
-                  <span class="field-hint" class:warning={tablesWarning}>
-                    {#if tablesWarning}
-                      {m.wizard_someRest({ max: maxPlayersForTables })}
-                    {:else}
-                      {maxPlayersForTables} {m.time_parallel()}
-                    {/if}
+                  <input type="number" id="edit-tables" bind:value={editNumTables} min="1" max="50" />
+                  <span class="qe-hint" class:warning={tablesWarning}>
+                    {#if tablesWarning}{m.wizard_someRest({ max: maxPlayersForTables })}{:else}{maxPlayersForTables} {m.time_parallel()}{/if}
                   </span>
                 </div>
+                <div class="qe-field">
+                  <span class="qe-label">{m.admin_location()}</span>
+                  <div class="qe-venue-inline">
+                    <VenueSelector address={editAddress} city={editCity} country={editCountry} onselect={handleVenueSelect} theme={$adminTheme} />
+                  </div>
+                </div>
               </div>
+              <div class="qe-field">
+                <label for="edit-description">{m.wizard_description()}</label>
+                <textarea id="edit-description" bind:value={editDescription} placeholder={m.wizard_descriptionOptional()} rows="2"></textarea>
+              </div>
+              <div class="qe-grid cols-2">
+                <div class="qe-field">
+                  <label for="edit-external-link">{m.admin_externalLink()}</label>
+                  <input type="url" id="edit-external-link" bind:value={editExternalLink} placeholder="https://..." />
+                </div>
+                <div class="qe-field">
+                  <label for="edit-poster-url">{m.admin_posterUrl()}</label>
+                  <input type="url" id="edit-poster-url" bind:value={editPosterUrl} placeholder="https://..." />
+                </div>
+              </div>
+            </div>
 
-              <div class="subsection">
-                <div class="subsection-header">{m.admin_rankingSystem()}</div>
-                <label class="switch-row">
-                  <span class="switch-label">{m.admin_rankingSystemEnabled()}</span>
-                  <input type="checkbox" bind:checked={editRankingEnabled} class="toggle-switch" />
-                </label>
+            <div class="qe-divider"></div>
 
-                {#if editRankingEnabled}
-                  <div class="field-group tier-field">
-                    <label for="edit-tier">{m.admin_category()}</label>
-                    <select id="edit-tier" bind:value={editRankingTier}>
-                      <option value="CLUB">{m.admin_tierClub()} · 15p máx</option>
-                      <option value="REGIONAL">{m.admin_tierRegional()} · 25p máx</option>
-                      <option value="NATIONAL">{m.admin_tierNational()} · 40p máx</option>
-                      <option value="MAJOR">{m.admin_tierMajor()} · 50p máx</option>
-                    </select>
+            <div class="qe-columns">
+              <div class="qe-col">
+                <div class="qe-section-title">{m.admin_gameOptions()}</div>
+                <div class="qe-toggles">
+                  <label class="qe-toggle-card">
+                    <input type="checkbox" bind:checked={editShow20s} />
+                    <span>{m.admin_track20s()}</span>
+                  </label>
+                  <label class="qe-toggle-card">
+                    <input type="checkbox" bind:checked={editShowHammer} />
+                    <span>{m.admin_showHammer()}</span>
+                  </label>
+                </div>
+
+                {#if tournament.finalStage}
+                  <div class="qe-subsection">
+                    <div class="qe-subsection-title">{m.time_finalStage()}</div>
+                    <label class="qe-toggle-row">
+                      <span>{m.admin_consolationRounds()}</span>
+                      <input type="checkbox" bind:checked={editConsolationEnabled} class="qe-switch" />
+                    </label>
+                    <label class="qe-toggle-row">
+                      <span>{m.wizard_thirdPlaceMatch()}</span>
+                      <input type="checkbox" bind:checked={editThirdPlaceMatchEnabled} class="qe-switch" />
+                    </label>
                   </div>
                 {/if}
               </div>
 
-              <div class="subsection">
-                <div class="subsection-header">{m.admin_eventInfo()}</div>
-                <div class="field-group">
-                  <label for="edit-description">{m.wizard_description()}</label>
-                  <textarea
-                    id="edit-description"
-                    bind:value={editDescription}
-                    placeholder={m.wizard_descriptionOptional()}
-                    rows="2"
-                  ></textarea>
-                </div>
-
-                <div class="field-row">
-                  <div class="field-group">
-                    <label for="edit-edition">{m.wizard_edition()}</label>
-                    <input
-                      type="number"
-                      id="edit-edition"
-                      bind:value={editEdition}
-                      min="1"
-                      placeholder="1, 2, 3..."
-                    />
+              <div class="qe-col">
+                <div class="qe-section-title">{m.admin_rankingSystem()}</div>
+                <label class="qe-toggle-row">
+                  <span>{m.admin_rankingSystemEnabled()}</span>
+                  <input type="checkbox" bind:checked={editRankingEnabled} class="qe-switch" />
+                </label>
+                {#if editRankingEnabled}
+                  <div class="qe-field">
+                    <label for="edit-tier">{m.admin_category()}</label>
+                    <select id="edit-tier" bind:value={editRankingTier}>
+                      <option value="CLUB">{m.admin_tierClub()} · 15p</option>
+                      <option value="REGIONAL">{m.admin_tierRegional()} · 25p</option>
+                      <option value="NATIONAL">{m.admin_tierNational()} · 40p</option>
+                      <option value="MAJOR">{m.admin_tierMajor()} · 50p</option>
+                    </select>
                   </div>
-                </div>
+                {/if}
 
-                <!-- Venue Selector -->
-                <div class="venue-selector-section">
-                  <VenueSelector
-                    address={editAddress}
-                    city={editCity}
-                    country={editCountry}
-                    onselect={handleVenueSelect}
-                    theme={$adminTheme}
-                  />
-                </div>
-
-                <div class="field-row">
-                  <div class="field-group">
-                    <label for="edit-address">{m.wizard_address()}</label>
-                    <input
-                      type="text"
-                      id="edit-address"
-                      bind:value={editAddress}
-                    />
-                  </div>
-                </div>
-
-                <div class="field-row">
-                  <div class="field-group">
-                    <label for="edit-city">{m.wizard_city()}</label>
-                    <input
-                      type="text"
-                      id="edit-city"
-                      bind:value={editCity}
-                    />
-                  </div>
-                  <div class="field-group">
-                    <label for="edit-country">{m.wizard_country()}</label>
-                    <CountrySelect id="edit-country" bind:value={editCountry} />
-                  </div>
+                <div class="qe-subsection">
+                  <div class="qe-subsection-title">{m.tournament_isTest()}</div>
+                  <label class="qe-toggle-row">
+                    <span class="qe-hint-text">{m.tournament_isTestHint()}</span>
+                    <input type="checkbox" bind:checked={editIsTest} class="qe-switch" />
+                  </label>
                 </div>
               </div>
             </div>
 
-            <div class="edit-column">
-              <div class="column-header">{m.admin_gameOptions()}</div>
-              <div class="options-grid">
-                <label class="option-card">
-                  <input type="checkbox" bind:checked={editShow20s} />
-                  <span class="option-text">{m.admin_track20s()}</span>
-                </label>
-                <label class="option-card">
-                  <input type="checkbox" bind:checked={editShowHammer} />
-                  <span class="option-text">{m.admin_showHammer()}</span>
-                </label>
-              </div>
-
-              {#if tournament.finalStage}
-                <div class="subsection">
-                  <div class="subsection-header">{m.time_finalStage()}</div>
-                  <label class="switch-row">
-                    <span class="switch-label">{m.admin_consolationRounds()}</span>
-                    <input type="checkbox" bind:checked={editConsolationEnabled} class="toggle-switch" />
-                  </label>
-                  <p class="option-description">{m.admin_consolationRoundsDescription()}</p>
-
-                  <label class="switch-row">
-                    <span class="switch-label">{m.wizard_thirdPlaceMatch()}</span>
-                    <input type="checkbox" bind:checked={editThirdPlaceMatchEnabled} class="toggle-switch" />
-                  </label>
-                  <p class="option-description">{m.wizard_thirdPlaceMatchDesc()}</p>
-                </div>
-              {/if}
+            <div class="qe-footer">
+              <button class="qe-btn secondary" onclick={closeQuickEdit}>{m.common_cancel()}</button>
+              <button class="qe-btn primary" onclick={saveQuickEdit} disabled={isSavingQuickEdit || !editName.trim()}>
+                {isSavingQuickEdit ? m.admin_saving() + '...' : m.admin_saveChanges()}
+              </button>
             </div>
           {/if}
-
-          <!-- Test Tournament -->
-          <div class="subsection test-subsection">
-            <label class="switch-row">
-              <span class="switch-label">{m.tournament_isTest()}</span>
-              <input type="checkbox" bind:checked={editIsTest} class="toggle-switch" />
-            </label>
-            <p class="option-description">{m.tournament_isTestHint()}</p>
-          </div>
         </div>
-
-        {#if tournament.status !== 'COMPLETED'}
-          <div class="quick-edit-footer">
-            <button class="btn-secondary" onclick={closeQuickEdit}>{m.common_cancel()}</button>
-            <button
-              class="btn-primary"
-              onclick={saveQuickEdit}
-              disabled={isSavingQuickEdit || !editName.trim()}
-            >
-              {isSavingQuickEdit ? m.admin_saving() + '...' : m.admin_saveChanges()}
-            </button>
-          </div>
-        {/if}
       </div>
     </div>
   {/if}
@@ -1304,9 +1206,9 @@
 
   .title-section {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
   }
 
   .title-section h1 {
@@ -1329,8 +1231,15 @@
     flex-wrap: wrap;
   }
 
-  .header-progress {
-    margin-left: 0.5rem;
+  .header-progress-bar {
+    padding: 0.5rem 1rem 0.75rem;
+    background: linear-gradient(to bottom, transparent, rgba(102, 126, 234, 0.03));
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .tournament-page[data-theme='dark'] .header-progress-bar {
+    background: linear-gradient(to bottom, transparent, rgba(102, 126, 234, 0.05));
+    border-color: #2d3748;
   }
 
   .status-badge {
@@ -1388,16 +1297,6 @@
   .tournament-page[data-theme='dark'] .test-badge {
     background: #78350f;
     color: #fde68a;
-  }
-
-  .test-subsection {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px dashed #e5e7eb;
-  }
-
-  .tournament-page[data-theme='dark'] .test-subsection {
-    border-top-color: #374151;
   }
 
   .header-actions {
@@ -1515,6 +1414,7 @@
     width: 100%;
     padding: 1.5rem;
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: auto;
   }
@@ -1891,9 +1791,7 @@
     }
 
     .title-section {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.3rem;
+      gap: 0.25rem;
     }
 
     .title-section h1 {
@@ -2201,30 +2099,33 @@
   /* Quick Edit Modal */
   .quick-edit-modal {
     background: white;
-    border-radius: 16px;
-    padding: 0;
-    max-width: 680px;
-    width: 95%;
+    border-radius: 12px;
+    width: 94%;
+    max-width: 960px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
   }
 
   .modal-backdrop[data-theme='dark'] .quick-edit-modal {
     background: #1a2332;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .quick-edit-modal.compact {
+    max-width: 700px;
   }
 
   .quick-edit-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem 1.5rem;
+    padding: 0.875rem 1.25rem;
     border-bottom: 1px solid #e5e7eb;
     position: sticky;
     top: 0;
     background: white;
-    border-radius: 16px 16px 0 0;
+    border-radius: 12px 12px 0 0;
     z-index: 1;
   }
 
@@ -2235,73 +2136,32 @@
 
   .quick-edit-header h2 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    color: #1a1a1a;
+    color: #374151;
   }
 
   .modal-backdrop[data-theme='dark'] .quick-edit-header h2 {
     color: #e1e8ed;
   }
 
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .save-btn {
-    padding: 0.35rem 0.75rem;
-    background: transparent;
-    color: #667eea;
-    border: 1px solid #667eea;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .save-btn:hover {
-    background: rgba(102, 126, 234, 0.08);
-  }
-
-  .save-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .modal-backdrop[data-theme='dark'] .save-btn {
-    color: #8b9fd6;
-    border-color: #8b9fd6;
-  }
-
-  .modal-backdrop[data-theme='dark'] .save-btn:hover {
-    background: rgba(139, 159, 214, 0.1);
-  }
-
   .close-btn {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border: none;
     background: transparent;
     border-radius: 6px;
-    font-size: 1.25rem;
-    line-height: 1;
-    color: #999;
+    font-size: 1.1rem;
+    color: #9ca3af;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .modal-backdrop[data-theme='dark'] .close-btn {
-    color: #6b7a94;
   }
 
   .close-btn:hover {
     background: #f3f4f6;
-    color: #555;
+    color: #374151;
   }
 
   .modal-backdrop[data-theme='dark'] .close-btn:hover {
@@ -2309,407 +2169,387 @@
     color: #e1e8ed;
   }
 
-  /* 2-Column Body Layout */
   .quick-edit-body {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-    padding: 0;
+    padding: 1.25rem;
   }
 
   .quick-edit-body.single-column {
-    grid-template-columns: 1fr;
-    padding: 1.25rem 1.5rem;
+    padding: 1rem 1.25rem;
   }
 
-  /* Compact modal for completed tournaments */
-  .quick-edit-modal.compact {
-    max-width: 480px;
+  /* Compact layout (completed) */
+  .qe-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.875rem;
   }
 
-  .edit-column {
-    padding: 1.5rem 2rem;
+  .qe-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
   }
 
-  .edit-column:first-child {
-    border-right: 1px solid #e5e7eb;
-  }
-
-  .modal-backdrop[data-theme='dark'] .edit-column:first-child {
-    border-color: #2d3748;
-  }
-
-  .column-header {
-    font-size: 0.75rem;
+  .qe-field label,
+  .qe-label {
+    font-size: 0.65rem;
     font-weight: 600;
-    color: #667eea;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(102, 126, 234, 0.2);
-  }
-
-  /* Field Groups */
-  .field-group {
-    margin-bottom: 0.75rem;
-  }
-
-  .field-group:last-child {
-    margin-bottom: 0;
-  }
-
-  .field-group label {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: #666;
-    margin-bottom: 0.3rem;
+    color: #6b7280;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
 
-  .modal-backdrop[data-theme='dark'] .field-group label {
+  .modal-backdrop[data-theme='dark'] .qe-field label,
+  .modal-backdrop[data-theme='dark'] .qe-label {
     color: #8b9bb3;
   }
 
-  .field-group input[type="text"],
-  .field-group input[type="date"],
-  .field-group input[type="number"],
-  .field-group select,
-  .field-group textarea {
-    width: 100%;
-    padding: 0.5rem 0.7rem;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    color: #1a1a1a;
-    background: #fafafa;
+  .qe-field input,
+  .qe-field select,
+  .qe-field textarea {
+    padding: 0.5rem 0.625rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    background: #f9fafb;
+    color: #1f2937;
     font-family: inherit;
   }
 
-  .field-group textarea {
-    resize: vertical;
-    min-height: 52px;
-  }
-
-  .modal-backdrop[data-theme='dark'] .field-group input[type="text"],
-  .modal-backdrop[data-theme='dark'] .field-group input[type="date"],
-  .modal-backdrop[data-theme='dark'] .field-group input[type="number"],
-  .modal-backdrop[data-theme='dark'] .field-group select,
-  .modal-backdrop[data-theme='dark'] .field-group textarea {
+  .modal-backdrop[data-theme='dark'] .qe-field input,
+  .modal-backdrop[data-theme='dark'] .qe-field select,
+  .modal-backdrop[data-theme='dark'] .qe-field textarea {
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
-  .field-group input:focus,
-  .field-group select:focus,
-  .field-group textarea:focus {
+  .qe-field input:focus,
+  .qe-field select:focus,
+  .qe-field textarea:focus {
     outline: none;
     border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.15);
   }
 
-  .field-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
+  .qe-field textarea {
+    resize: vertical;
+    min-height: 80px;
   }
 
-  .field-row.three-cols {
-    grid-template-columns: 1fr 1fr 1fr;
-  }
-
-  .field-group.small {
-    max-width: 70px;
-  }
-
-  .field-group.flex-grow {
-    flex: 1;
-  }
-
-  .field-row:has(.small) {
-    display: flex;
-    gap: 0.75rem;
-  }
-
-  .field-hint {
-    font-size: 0.7rem;
-    color: #888;
-    margin-top: 0.25rem;
-    display: block;
-  }
-
-  .modal-backdrop[data-theme='dark'] .field-hint {
-    color: #6b7a94;
-  }
-
-  .field-hint.warning {
-    color: #d97706;
-    font-weight: 500;
-  }
-
-  .modal-backdrop[data-theme='dark'] .field-hint.warning {
-    color: #fbbf24;
-  }
-
-  /* Subsections */
-  .subsection {
-    margin-top: 1.5rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid #e5e7eb;
-  }
-
-  .modal-backdrop[data-theme='dark'] .subsection {
-    border-color: #2d3748;
-  }
-
-  .subsection-header {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #666;
-    margin-bottom: 0.85rem;
-  }
-
-  .modal-backdrop[data-theme='dark'] .subsection-header {
-    color: #8b9bb3;
-  }
-
-  .venue-selector-section {
-    margin-bottom: 0.75rem;
+  .qe-venue {
+    margin-bottom: 0.875rem;
     padding: 0.5rem;
-    background: #f9fafb;
+    background: #f3f4f6;
     border-radius: 8px;
   }
 
-  .modal-backdrop[data-theme='dark'] .venue-selector-section {
+  .modal-backdrop[data-theme='dark'] .qe-venue {
     background: #0f1419;
   }
 
-  /* Switch Rows */
-  .switch-row {
-    display: flex;
+  .qe-footer-row {
+    margin-top: 1rem;
+    padding-top: 0.875rem;
+    border-top: 1px solid #e5e7eb;
     align-items: center;
     justify-content: space-between;
-    padding: 0.85rem 1rem;
-    background: #f9fafb;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-bottom: 0.75rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .switch-row {
-    background: #0f1419;
-  }
-
-  .switch-row:hover {
-    background: #f3f4f6;
-  }
-
-  .modal-backdrop[data-theme='dark'] .switch-row:hover {
-    background: #1e293b;
-  }
-
-  .switch-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 500;
-    color: #1a1a1a;
-    font-size: 0.9rem;
-  }
-
-  .modal-backdrop[data-theme='dark'] .switch-label {
-    color: #e1e8ed;
-  }
-
-  /* Toggle Switch Style */
-  .toggle-switch {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 44px;
-    height: 24px;
-    background: #d1d5db;
-    border-radius: 12px;
-    position: relative;
-    cursor: pointer;
-    transition: all 0.3s;
-  }
-
-  .toggle-switch::before {
-    content: '';
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    top: 3px;
-    left: 3px;
-    background: white;
-    transition: all 0.3s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-
-  .toggle-switch:checked {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  }
-
-  .toggle-switch:checked::before {
-    transform: translateX(20px);
-  }
-
-  /* Option Cards (Game Options) */
-  .options-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
-  }
-
-  .option-card {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.7rem 0.9rem;
-    background: #f9fafb;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 2px solid transparent;
-    text-align: left;
-  }
-
-  .modal-backdrop[data-theme='dark'] .option-card {
-    background: #0f1419;
-  }
-
-  .option-card:hover {
-    background: #f3f4f6;
-    border-color: rgba(102, 126, 234, 0.3);
-  }
-
-  .modal-backdrop[data-theme='dark'] .option-card:hover {
-    background: #1e293b;
-  }
-
-  .option-card:has(input:checked) {
-    background: rgba(102, 126, 234, 0.1);
-    border-color: #667eea;
-  }
-
-  .modal-backdrop[data-theme='dark'] .option-card:has(input:checked) {
-    background: rgba(102, 126, 234, 0.15);
-  }
-
-  .option-card input[type="checkbox"] {
-    display: none;
-  }
-
-  .option-text {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #555;
-  }
-
-  .modal-backdrop[data-theme='dark'] .option-text {
-    color: #b0bec5;
-  }
-
-  .option-card:has(input:checked) .option-text {
-    color: #667eea;
-  }
-
-  .option-description {
-    font-size: 0.75rem;
-    color: #888;
-    margin: 0;
-    line-height: 1.4;
-    padding: 0 0.5rem;
-  }
-
-  .modal-backdrop[data-theme='dark'] .option-description {
-    color: #6b7a94;
-  }
-
-  /* Tier Field */
-  .tier-field {
-    margin-top: 0.5rem;
-  }
-
-  .tier-field select {
-    font-size: 0.9rem;
-  }
-
-  /* Footer */
-  .quick-edit-footer {
-    display: flex;
-    gap: 0.75rem;
-    justify-content: flex-end;
-    padding: 1rem 1.5rem;
-    border-top: 1px solid #e5e7eb;
-    background: #fafafa;
-    border-radius: 0 0 16px 16px;
-    position: sticky;
-    bottom: 0;
-  }
-
-  .modal-backdrop[data-theme='dark'] .quick-edit-footer {
-    background: #0f1419;
+  .modal-backdrop[data-theme='dark'] .qe-footer-row {
     border-color: #2d3748;
   }
 
-  .btn-secondary {
+  .qe-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #6b7280;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-toggle {
+    color: #9ca3af;
+  }
+
+  .qe-toggle input {
+    accent-color: #667eea;
+  }
+
+  .qe-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .qe-btn {
     padding: 0.5rem 1rem;
-    background: white;
-    color: #555;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
     font-weight: 500;
     cursor: pointer;
-    font-size: 0.8rem;
+    border: none;
   }
 
-  .modal-backdrop[data-theme='dark'] .btn-secondary {
-    background: #1a2332;
-    border-color: #2d3748;
-    color: #b0bec5;
-  }
-
-  .btn-secondary:hover {
+  .qe-btn.secondary {
     background: #f3f4f6;
-    border-color: #ccc;
+    color: #4b5563;
   }
 
-  .modal-backdrop[data-theme='dark'] .btn-secondary:hover {
+  .modal-backdrop[data-theme='dark'] .qe-btn.secondary {
     background: #2d3748;
+    color: #9ca3af;
   }
 
-  .btn-primary {
-    padding: 0.5rem 1.25rem;
+  .qe-btn.secondary:hover {
+    background: #e5e7eb;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-btn.secondary:hover {
+    background: #374151;
+  }
+
+  .qe-btn.primary {
     background: #667eea;
     color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 500;
-    cursor: pointer;
-    font-size: 0.8rem;
   }
 
-  .btn-primary:hover {
+  .qe-btn.primary:hover {
     background: #5a6fd6;
   }
 
-  .btn-primary:disabled {
+  .qe-btn.primary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  /* Responsive for quick edit modal */
+  /* Full layout (active) */
+  .qe-section {
+    margin-bottom: 1rem;
+  }
+
+  .qe-section-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #667eea;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 0.75rem;
+  }
+
+  .qe-grid {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .qe-grid.cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .qe-grid.cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .qe-grid.cols-edition-tables-venue {
+    grid-template-columns: 90px 120px 1fr;
+  }
+
+  .qe-grid .span-2 {
+    grid-column: span 2;
+  }
+
+  .qe-hint {
+    font-size: 0.65rem;
+    color: #9ca3af;
+    margin-top: 0.2rem;
+  }
+
+  .qe-hint.warning {
+    color: #d97706;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-hint {
+    color: #6b7a94;
+  }
+
+  .qe-venue-inline {
+    background: #f3f4f6;
+    border-radius: 6px;
+    padding: 0.35rem;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-venue-inline {
+    background: #0f1419;
+  }
+
+  .qe-divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 1rem 0;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-divider {
+    background: #2d3748;
+  }
+
+  .qe-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .qe-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .qe-toggles {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .qe-toggle-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    background: #f3f4f6;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #374151;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-toggle-card {
+    background: #0f1419;
+    color: #e1e8ed;
+  }
+
+  .qe-toggle-card:hover {
+    border-color: rgba(102, 126, 234, 0.3);
+  }
+
+  .qe-toggle-card:has(input:checked) {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.08);
+  }
+
+  .qe-toggle-card input {
+    accent-color: #667eea;
+  }
+
+  .qe-subsection {
+    padding-top: 0.75rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-subsection {
+    border-color: #2d3748;
+  }
+
+  .qe-subsection-title {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 0.5rem;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-subsection-title {
+    color: #8b9bb3;
+  }
+
+  .qe-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: #f9fafb;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #374151;
+    margin-bottom: 0.375rem;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-toggle-row {
+    background: #0f1419;
+    color: #e1e8ed;
+  }
+
+  .qe-toggle-row:hover {
+    background: #f3f4f6;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-toggle-row:hover {
+    background: #1e293b;
+  }
+
+  .qe-hint-text {
+    font-size: 0.75rem;
+    color: #6b7280;
+    flex: 1;
+    padding-right: 0.5rem;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-hint-text {
+    color: #8b9bb3;
+  }
+
+  .qe-switch {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 36px;
+    height: 20px;
+    background: #d1d5db;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .qe-switch::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    background: white;
+    transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .qe-switch:checked {
+    background: #667eea;
+  }
+
+  .qe-switch:checked::before {
+    transform: translateX(16px);
+  }
+
+  .qe-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .modal-backdrop[data-theme='dark'] .qe-footer {
+    border-color: #2d3748;
+  }
+
+  /* Responsive */
   @media (max-width: 700px) {
     .quick-edit-modal {
       max-width: 100%;
@@ -2720,28 +2560,23 @@
 
     .quick-edit-header {
       border-radius: 0;
-      padding: 1.25rem 1.5rem;
     }
 
-    .quick-edit-body {
+    .qe-grid.cols-3 {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .qe-grid .span-2 {
+      grid-column: span 2;
+    }
+
+    .qe-columns {
       grid-template-columns: 1fr;
+      gap: 1rem;
     }
 
-    .edit-column {
-      padding: 1.25rem 1.5rem;
-    }
-
-    .edit-column:first-child {
-      border-right: none;
-      border-bottom: 1px solid #e5e7eb;
-    }
-
-    .modal-backdrop[data-theme='dark'] .edit-column:first-child {
-      border-color: #2d3748;
-    }
-
-    .quick-edit-footer {
-      border-radius: 0;
+    .qe-row {
+      flex-wrap: wrap;
     }
   }
 </style>

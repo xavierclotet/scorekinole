@@ -724,7 +724,14 @@ function getParticipantName(tournament: Tournament, participantId: string): stri
   // Handle LOSER: placeholders (participants not yet determined from main bracket)
   if (isLoserPlaceholder(participantId)) return 'TBD';
   const participant = tournament.participants.find(p => p.id === participantId);
-  return participant?.name || 'Unknown';
+  if (!participant) return 'Unknown';
+
+  // For doubles: use teamName if set, otherwise "Player1 / Player2"
+  if (participant.partner) {
+    return participant.teamName || `${participant.name} / ${participant.partner.name}`;
+  }
+
+  return participant.name;
 }
 
 /**
@@ -751,7 +758,7 @@ function getParticipantPhotos(
 
 /**
  * Build a map of participant ID to photos (supports doubles with partner photos)
- * Uses the photoURL/partnerPhotoURL stored directly on each participant
+ * Uses the photoURL and partner.photoURL stored on each participant
  */
 function buildParticipantPhotoMap(
   participants: TournamentParticipant[]
@@ -762,15 +769,16 @@ function buildParticipantPhotoMap(
     id: p.id,
     name: p.name,
     photoURL: p.photoURL,
-    partnerPhotoURL: p.partnerPhotoURL
+    partnerPhotoURL: p.partner?.photoURL
   })));
 
   for (const p of participants) {
     if (p.status === 'ACTIVE') {
-      if (p.photoURL || p.partnerPhotoURL) {
+      const partnerPhoto = p.partner?.photoURL;
+      if (p.photoURL || partnerPhoto) {
         photoMap.set(p.id, {
           photoURL: p.photoURL,
-          partnerPhotoURL: p.partnerPhotoURL
+          partnerPhotoURL: partnerPhoto
         });
       }
     }
@@ -2120,14 +2128,22 @@ export async function completeTournamentMatch(
 
       // Check if match is in silver bracket main rounds
       if (!isConsolationMatch && tournament.finalStage.silverBracket) {
+        console.log(`🔍 Checking silver bracket for match ${matchId}...`);
         for (const round of tournament.finalStage.silverBracket.rounds) {
-          if (round.matches.some(m => m.id === matchId)) {
+          const foundMatch = round.matches.find(m => m.id === matchId);
+          if (foundMatch) {
             isSilverBracket = true;
+            console.log(`  ✅ Found in silver bracket round ${round.roundNumber} (${round.roundName})`);
+            console.log(`  📍 nextMatchId: ${foundMatch.nextMatchId || 'FINAL'}`);
             break;
           }
         }
         if (!isSilverBracket && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
           isSilverBracket = true;
+          console.log(`  ✅ Found as silver bracket 3rd place match`);
+        }
+        if (!isSilverBracket) {
+          console.log(`  ⚠️ Match NOT found in silver bracket`);
         }
       }
 
@@ -2162,13 +2178,18 @@ export async function completeTournamentMatch(
       // Only advance winner if there is one (not a tie)
       // In bracket matches, ties shouldn't normally happen, but handle gracefully
       if (result.winner) {
+        console.log(`🏆 Advancing winner: ${result.winner}, isSilverBracket: ${isSilverBracket}, isConsolationMatch: ${isConsolationMatch}`);
         if (isConsolationMatch) {
           // Use consolation-specific advancement (also advances loser to 3rd place matches)
+          console.log(`  📤 Calling advanceConsolationWinner (${consolationBracketType})`);
           return await advanceConsolationWinner(tournamentId, matchId, result.winner, consolationBracketType, loserId);
         } else {
           const advanceFn = isSilverBracket ? advanceSilverWinner : advanceWinner;
+          console.log(`  📤 Calling ${isSilverBracket ? 'advanceSilverWinner' : 'advanceWinner'}`);
           return await advanceFn(tournamentId, matchId, result.winner);
         }
+      } else {
+        console.log(`⚠️ No winner to advance (result.winner is falsy)`);
       }
 
       return true; // Match completed but no winner to advance (tie)

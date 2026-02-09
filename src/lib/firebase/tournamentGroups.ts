@@ -408,6 +408,9 @@ export async function recalculateStandings(
       // Support qualificationMode (new) and legacy fields (rankingSystem, swissRankingSystem)
       const qualificationMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS';
 
+      console.log(`🔄 [recalculateStandings] Group: ${group.name}`);
+      console.log(`🔄 System: ${isSwiss ? 'SWISS' : 'ROUND ROBIN'}, Mode: ${qualificationMode}, GameType: ${tournament.gameType}`);
+
       if (isSwiss) {
         standingsMap.forEach(standing => {
           standing.swissPoints = standing.matchesWon * 2 + standing.matchesTied * 1;
@@ -416,7 +419,25 @@ export async function recalculateStandings(
 
       // Apply tie-breaker and sort
       const standings = Array.from(standingsMap.values());
+      console.log(`🔄 Standings before tiebreaker:`, standings.map(s => {
+        const p = tournament.participants.find(pp => pp.id === s.participantId);
+        return { name: p?.name, pts: s.points, twenties: s.total20s };
+      }));
+
       const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode);
+
+      // Log ties detected
+      const tieBreakerResults = sortedStandings.filter(s => s.tiedWith && s.tiedWith.length > 0);
+      if (tieBreakerResults.length > 0) {
+        console.log(`⚠️ [recalculateStandings] TIES DETECTED in ${group.name}:`);
+        tieBreakerResults.forEach(s => {
+          const p = tournament.participants.find(pp => pp.id === s.participantId);
+          const tiedNames = s.tiedWith?.map(id => tournament.participants.find(pp => pp.id === id)?.name).join(', ');
+          console.log(`  - ${p?.name} (pos ${s.position}) tied with: ${tiedNames} [reason: ${s.tieReason}]`);
+        });
+      } else {
+        console.log(`✅ [recalculateStandings] No unresolved ties in ${group.name}`);
+      }
 
       // Update group standings
       group.standings = sortedStandings;

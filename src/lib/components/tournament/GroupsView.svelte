@@ -532,6 +532,7 @@
                     expandedRoundsState={groupExpandedRounds[group.id] || null}
                     onExpandedRoundsChange={(expanded) => setGroupExpandedRounds(group.id, expanded)}
                     {totalRounds}
+                    isDoubles={tournament.gameType === 'doubles'}
                   />
                 {:else}
                   <GroupStandings
@@ -540,6 +541,7 @@
                     {isSwiss}
                     {qualificationMode}
                     enableTiebreaker={false}
+                    isDoubles={tournament.gameType === 'doubles'}
                   />
                 {/if}
               </div>

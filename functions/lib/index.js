@@ -221,7 +221,51 @@ async function processParticipant(participant, tournament, tier, totalParticipan
         }
         return;
     }
-    // LEGACY: Individual participant (or old doubles with partner field)
+    // DOUBLES: Process both members using their REAL names
+    // participant.name = Player 1's real name (always)
+    // participant.partner.name = Player 2's real name (always)
+    // participant.teamName = Optional artistic name (ignored for ranking)
+    if (tournament.gameType === "doubles" && participant.partner) {
+        firebase_functions_1.logger.info(`Processing doubles participant: ${participant.name} / ${participant.partner.name}` +
+            (participant.teamName ? ` (team: ${participant.teamName})` : ""));
+        // Member 1: Use userId if REGISTERED, otherwise use real name
+        let member1UserId = null;
+        if (participant.type === "REGISTERED" && participant.userId) {
+            member1UserId = participant.userId;
+        }
+        else {
+            // participant.name always contains the real name now
+            const result = await getOrCreateUserByName(participant.name);
+            if (result) {
+                member1UserId = result.userId;
+            }
+        }
+        if (member1UserId) {
+            await addTournamentRecord(member1UserId, tournamentRecord);
+        }
+        // Member 2: Use userId if REGISTERED, otherwise use real name
+        let member2UserId = null;
+        if (participant.partner.type === "REGISTERED" && participant.partner.userId) {
+            member2UserId = participant.partner.userId;
+        }
+        else {
+            // partner.name always contains the real name
+            const result = await getOrCreateUserByName(participant.partner.name);
+            if (result) {
+                member2UserId = result.userId;
+            }
+        }
+        if (member2UserId) {
+            await addTournamentRecord(member2UserId, tournamentRecord);
+        }
+        return;
+    }
+    // SINGLES: Individual participant
+    // Skip if name looks like a pair team name (contains " / ")
+    if (participant.name.includes(" / ")) {
+        firebase_functions_1.logger.warn(`Skipping participant "${participant.name}" - looks like a pair team name, not an individual player`);
+        return;
+    }
     let userId = null;
     if (participant.type === "REGISTERED" && participant.userId) {
         userId = participant.userId;
@@ -234,22 +278,6 @@ async function processParticipant(participant, tournament, tier, totalParticipan
     }
     if (userId) {
         await addTournamentRecord(userId, tournamentRecord);
-    }
-    // Partner (for legacy doubles with partner field)
-    if (tournament.gameType === "doubles" && participant.partner) {
-        let partnerUserId = null;
-        if (participant.partner.type === "REGISTERED" && participant.partner.userId) {
-            partnerUserId = participant.partner.userId;
-        }
-        else {
-            const result = await getOrCreateUserByName(participant.partner.name);
-            if (result) {
-                partnerUserId = result.userId;
-            }
-        }
-        if (partnerUserId) {
-            await addTournamentRecord(partnerUserId, tournamentRecord);
-        }
     }
 }
 /**

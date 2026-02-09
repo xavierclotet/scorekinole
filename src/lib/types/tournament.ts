@@ -129,39 +129,36 @@ export interface RankingConfig {
 }
 
 /**
- * Participant mode: individual player or pair (doubles)
- */
-export type ParticipantMode = 'individual' | 'pair';
-
-/**
- * Tournament participant (player or pair)
+ * Tournament participant (player or pair for doubles)
+ *
+ * For doubles: use the `partner` field with both players' data.
+ * - `name` always contains the primary player's REAL name
+ * - `partner.name` always contains the second player's REAL name
+ * - `teamName` (optional) contains the artistic team name for display
+ *
+ * Display logic: teamName || `${name} / ${partner.name}`
  */
 export interface TournamentParticipant {
   id: string;
 
-  // Mode determines if this is an individual player or a pair
-  // Defaults to 'individual' for backward compatibility
-  participantMode?: ParticipantMode;
-
-  // For individual participants (or legacy doubles with partner field)
+  // Primary player
   type: ParticipantType;
   userId?: string;         // Only for REGISTERED
-  name: string;
+  name: string;            // Player 1's REAL name (always)
   email?: string;
   photoURL?: string;       // Snapshot of user's photo at time of registration
-  partnerPhotoURL?: string; // For doubles: second player's photo
 
-  // For doubles (LEGACY - backward compatible with old tournaments)
+  // Optional artistic team name for doubles (display only)
+  teamName?: string;       // e.g., "Los Invencibles" - if not set, displays "P1 / P2"
+
+  // Second player (only for doubles)
   partner?: {
     type: ParticipantType;
     userId?: string;
-    name: string;
+    name: string;          // Player 2's REAL name (always)
     email?: string;
+    photoURL?: string;     // Partner's photo snapshot at registration
   };
-
-  // For pair participants (NEW - participantMode === 'pair')
-  pairId?: string;              // Reference to /pairs/{pairId} collection
-  pairTeamName?: string;        // Override team name for this tournament (optional)
 
   // Ranking tracking
   rankingSnapshot: number;     // Ranking at tournament start
@@ -540,4 +537,28 @@ export interface TournamentTimeEstimate {
   groupStageMinutes?: number;
   finalStageMinutes?: number;
   calculatedAt: number;
+}
+
+/**
+ * Get display name for a tournament participant
+ * For doubles: returns teamName if set, otherwise "Player1 / Player2"
+ * For singles: returns participant.name
+ *
+ * @param participant The tournament participant
+ * @param isDoubles Whether the tournament is doubles format
+ * @returns Display name for the participant
+ */
+export function getParticipantDisplayName(
+  participant: TournamentParticipant | null | undefined,
+  isDoubles: boolean = false
+): string {
+  if (!participant) return '';
+
+  // For doubles with partner, use teamName or construct from both names
+  if (isDoubles && participant.partner) {
+    return participant.teamName || `${participant.name} / ${participant.partner.name}`;
+  }
+
+  // For singles or doubles without partner data, use participant name
+  return participant.name;
 }

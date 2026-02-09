@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { GroupMatch, TournamentParticipant } from '$lib/types/tournament';
+  import { getParticipantDisplayName } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -8,6 +9,7 @@
     onMatchClick?: (match: GroupMatch) => void;
     compact?: boolean;
     gameMode?: 'points' | 'rounds'; // Game mode to determine what to display
+    isDoubles?: boolean; // Whether this is a doubles tournament
   }
 
   let {
@@ -15,16 +17,19 @@
     participants,
     onMatchClick,
     compact = false,
-    gameMode = 'points'
+    gameMode = 'points',
+    isDoubles = false
   }: Props = $props();
 
   // Create participant map for quick lookup
   let participantMap = $derived(new Map(participants.map(p => [p.id, p])));
 
-  // Get participant name by ID
+  // Get participant name by ID (handles doubles with teamName)
   function getParticipantName(participantId: string): string {
     if (participantId === 'BYE') return 'BYE';
-    return participantMap.get(participantId)?.name || 'Unknown';
+    const participant = participantMap.get(participantId);
+    if (!participant) return 'Unknown';
+    return getParticipantDisplayName(participant, isDoubles);
   }
 
   // Get status display

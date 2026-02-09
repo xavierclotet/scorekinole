@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Tournament, GroupMatch, BracketMatch, NamedBracket } from '$lib/types/tournament';
+  import { getParticipantDisplayName } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
   import { isBye } from '$lib/algorithms/bracket';
@@ -143,11 +144,13 @@
   let leftColumnParticipants = $derived(sortedParticipants.slice(0, Math.ceil(sortedParticipants.length / 2)));
   let rightColumnParticipants = $derived(sortedParticipants.slice(Math.ceil(sortedParticipants.length / 2)));
 
-  // Get participant name by ID
+  // Get participant name by ID (handles doubles with teamName)
   function getParticipantName(participantId: string | undefined): string {
     if (!participantId) return 'TBD';
     if (isBye(participantId)) return 'BYE';
-    return tournament.participants.find(p => p.id === participantId)?.name || 'Unknown';
+    const participant = tournament.participants.find(p => p.id === participantId);
+    if (!participant) return 'Unknown';
+    return getParticipantDisplayName(participant, tournament.gameType === 'doubles');
   }
 
   // Check if a match is a BYE match (one participant is BYE)
@@ -406,7 +409,7 @@
           {@const pos = participant.finalPosition || 0}
           <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
             <span class="pos">{getPositionDisplay(pos)}</span>
-            <span class="name">{participant.name}</span>
+            <span class="name">{getParticipantDisplayName(participant, tournament.gameType === 'doubles')}</span>
             {#if tournament.rankingConfig?.enabled}
               <span class="ranking">{participant.currentRanking}</span>
               <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
@@ -421,7 +424,7 @@
           {@const pos = participant.finalPosition || 0}
           <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
             <span class="pos">{getPositionDisplay(pos)}</span>
-            <span class="name">{participant.name}</span>
+            <span class="name">{getParticipantDisplayName(participant, tournament.gameType === 'doubles')}</span>
             {#if tournament.rankingConfig?.enabled}
               <span class="ranking">{participant.currentRanking}</span>
               <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
@@ -491,6 +494,7 @@
                 participants={tournament.participants}
                 isSwiss={tournament.groupStage?.type === 'SWISS'}
                 qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
+                isDoubles={tournament.gameType === 'doubles'}
               />
             </div>
 

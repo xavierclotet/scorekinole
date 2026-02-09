@@ -7,7 +7,7 @@
   "admin_all": "Tots",
   "admin_allCreators": "Tots els creadors",
   "admin_autoFillMatchesTitle": "Auto-omplir partits",
-  "admin_availableTables": "Taules disponibles",
+  "admin_availableTables": "Taules",
   "admin_avgRoundsDesc": "Rondes esperades per tipus de partit",
   "admin_avgRoundsTitle": "Rondes Promig",
   "admin_backToAdmin": "Tornar a Admin",
@@ -345,8 +345,8 @@
   "common_success": "Èxit",
   "common_tbd": "Per determinar",
   "common_unknown": "Desconegut",
-  "common_viewRankings": "Veure Rànquings",
-  "common_viewTournaments": "Veure Tornejos",
+  "common_viewRankings": "Rànquings",
+  "common_viewTournaments": "Tornejos",
   "common_giveSupport": "Donar suport",
   "common_liveTournaments": "Tornejos en viu",
   "common_tournamentAdmin": "Gestió de tornejos",
@@ -382,7 +382,7 @@
   "ranking_totalSum": "Total",
   "ranking_tournamentsCount": "Torneigs",
   "scoring_allowTies": "Permetre Empats",
-  "scoring_appTitle": "Crokinole Scoring Arena",
+  "scoring_appTitle": "Crokinole Scoring Arena Professional",
   "scoring_actions": "Accions",
   "scoring_color": "Color",
   "scoring_colorFor": "Color per",
@@ -1048,5 +1048,6 @@
   "tournament_isTestHint": "Els tornejos de prova no apareixen al llistat públic",
   "tournament_realOnly": "Només reals",
   "tournament_test": "Prova",
-  "tournament_testOnly": "Només proves"
+  "tournament_testOnly": "Només proves",
+  "admin_possiblePairs": "Possibles parelles"
 }

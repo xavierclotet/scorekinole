@@ -22,6 +22,7 @@
   import { searchUsers, getTournament } from '$lib/firebase/tournaments';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentTier, TournamentParticipant, Tournament } from '$lib/types/tournament';
+  import { getParticipantDisplayName } from '$lib/types/tournament';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import CountrySelect from '$lib/components/CountrySelect.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
@@ -111,13 +112,11 @@
         participants = tournament.participants.map(p => ({
           id: p.id,
           name: p.name,
-          oderId: p.userId,
+          userId: p.userId,
           partnerName: p.partner?.name,
           partnerUserId: p.partner?.userId,
           isRegistered: p.type === 'REGISTERED',
-          participantMode: p.participantMode,
-          pairId: p.pairId,
-          pairTeamName: p.pairTeamName
+          partner: p.partner
         }));
       }
 
@@ -205,13 +204,16 @@
         participants = tournament.participants.map(p => ({
           id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,  // New IDs
           name: p.name,
-          oderId: p.userId,
+          userId: p.userId,
           partnerName: p.partner?.name,
           partnerUserId: p.partner?.userId,
           isRegistered: p.type === 'REGISTERED',
-          participantMode: p.participantMode,
-          pairId: p.pairId,
-          pairTeamName: p.pairTeamName
+          partner: p.partner ? {
+            type: p.partner.type || 'GUEST',
+            userId: p.partner.userId,
+            name: p.partner.name,
+            photoURL: p.partner.photoURL
+          } : undefined
         }));
       }
 
@@ -264,15 +266,17 @@
   interface ParticipantEntry {
     id: string;
     name: string;
-    oderId?: string;
+    userId?: string;
     partnerName?: string;
     partnerUserId?: string;
     isRegistered: boolean;
-    // Pair-specific fields (for doubles)
-    participantMode?: 'individual' | 'pair';
-    pairId?: string;
-    pairTeamName?: string;
-    memberUserIds?: string[];  // UserIds of pair members (for filtering)
+    // Partner for doubles
+    partner?: {
+      type: 'REGISTERED' | 'GUEST';
+      userId?: string;
+      name: string;
+      photoURL?: string;
+    };
   }
 
   let participants = $state<ParticipantEntry[]>([]);
@@ -283,16 +287,14 @@
   let showBatchInput = $state(false);
 
   // Handler for PairSelector (doubles mode)
-  function handlePairAdd(participant: Partial<TournamentParticipant> & { memberUserIds?: string[] }) {
+  function handlePairAdd(participant: Partial<TournamentParticipant>) {
     // Convert TournamentParticipant to ParticipantEntry
     const entry: ParticipantEntry = {
       id: participant.id || `p-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       name: participant.name || '',
+      userId: participant.userId,
       isRegistered: participant.type === 'REGISTERED',
-      participantMode: participant.participantMode,
-      pairId: participant.pairId,
-      pairTeamName: participant.pairTeamName,
-      memberUserIds: participant.memberUserIds
+      partner: participant.partner
     };
     participants = [...participants, entry];
     saveDraft();
@@ -1144,9 +1146,11 @@
     }
   }
 
-  // Get participant name by ID
+  // Get participant name by ID (handles doubles with teamName)
   function getParticipantName(id: string): string {
-    return participants.find(p => p.id === id)?.name || '';
+    const participant = participants.find(p => p.id === id);
+    if (!participant) return '';
+    return getParticipantDisplayName(participant as any, gameType === 'doubles');
   }
 </script>
 
@@ -1391,7 +1395,7 @@
                 <div class="info-field full-width">
                   <PairSelector
                     onadd={handlePairAdd}
-                    existingParticipants={participants.map(p => ({ id: p.id, name: p.name, pairId: p.pairId }))}
+                    existingParticipants={participants.map(p => ({ id: p.id, name: p.name }))}
                     excludedUserIds={excludedUserIds}
                     theme={$adminTheme}
                   />
@@ -1497,7 +1501,7 @@
                     {#each sortedParticipants as participant}
                       <div class="participant-item" class:registered={participant.isRegistered}>
                         <span class="participant-name">
-                          {#if participant.participantMode === 'pair'}
+                          {#if participant.partner}
                             <span class="pair-badge">👥</span>
                           {/if}
                           {participant.name}

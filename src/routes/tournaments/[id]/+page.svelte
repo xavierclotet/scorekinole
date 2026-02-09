@@ -279,8 +279,24 @@
 		if (!participantId) return m.common_tbd();
 		if (isBye(participantId)) return 'BYE';
 		if (!tournament) return m.common_unknown();
-		return tournament.participants.find(p => p.id === participantId)?.name || m.common_unknown();
+		const participant = tournament.participants.find(p => p.id === participantId);
+		if (!participant) return m.common_unknown();
+
+		// For doubles: show teamName if exists, otherwise "Player1 / Player2"
+		if (participant.partner) {
+			return participant.teamName || `${participant.name} / ${participant.partner.name}`;
+		}
+		return participant.name;
 	}
+
+	// Get full participant object
+	function getParticipant(participantId: string | undefined) {
+		if (!participantId || isBye(participantId) || !tournament) return null;
+		return tournament.participants.find(p => p.id === participantId) || null;
+	}
+
+	// Check if this is a doubles tournament
+	let isDoubles = $derived(tournament?.gameType === 'doubles');
 
 	// Get top 4 finishers from a bracket
 	function getBracketTop4(pb: { winner?: string; bracket?: { rounds?: Array<{ matches?: Array<{ winner?: string; participantA?: string; participantB?: string }> }>; thirdPlaceMatch?: { winner?: string; participantA?: string; participantB?: string } } }): Array<{ position: number; participantId: string }> {
@@ -362,6 +378,38 @@
 		return isBye(match.participantA) || isBye(match.participantB);
 	}
 </script>
+
+<!-- Snippet for participant avatar (handles both singles and doubles) -->
+{#snippet participantAvatar(participantId: string | undefined, size: 'sm' | 'md' | 'lg' = 'md')}
+	{@const participant = getParticipant(participantId)}
+	{@const sizeClass = size === 'sm' ? 'avatar-sm' : size === 'lg' ? 'avatar-lg' : 'avatar-md'}
+	{#if participant}
+		{#if isDoubles && participant.partner}
+			<!-- Doubles: show both avatars -->
+			<div class="pair-avatars {sizeClass}">
+				{#if participant.photoURL}
+					<img src={participant.photoURL} alt="" class="avatar-img first" />
+				{:else}
+					<span class="avatar-placeholder first">{participant.name?.charAt(0) || '?'}</span>
+				{/if}
+				{#if participant.partner.photoURL}
+					<img src={participant.partner.photoURL} alt="" class="avatar-img second" />
+				{:else}
+					<span class="avatar-placeholder second">{participant.partner.name?.charAt(0) || '?'}</span>
+				{/if}
+			</div>
+		{:else}
+			<!-- Singles: show single avatar -->
+			<div class="single-avatar {sizeClass}">
+				{#if participant.photoURL}
+					<img src={participant.photoURL} alt="" class="avatar-img" />
+				{:else}
+					<span class="avatar-placeholder">{participant.name?.charAt(0) || '?'}</span>
+				{/if}
+			</div>
+		{/if}
+	{/if}
+{/snippet}
 
 <svelte:head>
 	<title>{tournament?.name || 'Torneo'} - Scorekinole</title>
@@ -604,6 +652,7 @@
 											{#each top4 as entry}
 												<li class="podium-entry" data-position={entry.position}>
 													<span class="podium-rank">{entry.position}</span>
+													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
 												</li>
 											{/each}
@@ -629,6 +678,7 @@
 											{#each goldTop4 as entry}
 												<li class="podium-entry" data-position={entry.position}>
 													<span class="podium-rank">{entry.position}</span>
+													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
 												</li>
 											{/each}
@@ -645,6 +695,7 @@
 											{#each silverTop4 as entry}
 												<li class="podium-entry" data-position={entry.position}>
 													<span class="podium-rank">{entry.position}</span>
+													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
 												</li>
 											{/each}
@@ -663,7 +714,8 @@
 							{#each finalStandings as participant}
 								<li class="podium-entry" data-position={participant.finalPosition}>
 									<span class="podium-rank">{participant.finalPosition}</span>
-									<span class="podium-name">{participant.name}</span>
+									{@render participantAvatar(participant.id, 'md')}
+									<span class="podium-name">{getParticipantName(participant.id)}</span>
 								</li>
 							{/each}
 						</ol>
@@ -677,6 +729,7 @@
 						<ol class="podium-list inline">
 							<li class="podium-entry" data-position="1">
 								<span class="podium-rank">1</span>
+								{@render participantAvatar(tournament.finalStage.winner, 'md')}
 								<span class="podium-name">{getParticipantName(tournament.finalStage.winner)}</span>
 							</li>
 						</ol>
@@ -1965,6 +2018,73 @@
 	.podium-entry[data-position="3"] .podium-rank {
 		background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
 		color: white;
+	}
+
+	/* Participant avatars */
+	.single-avatar,
+	.pair-avatars {
+		flex-shrink: 0;
+	}
+
+	.avatar-sm { --avatar-size: 24px; }
+	.avatar-md { --avatar-size: 32px; }
+	.avatar-lg { --avatar-size: 40px; }
+
+	.single-avatar {
+		width: var(--avatar-size);
+		height: var(--avatar-size);
+	}
+
+	.single-avatar .avatar-img,
+	.single-avatar .avatar-placeholder {
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		object-fit: cover;
+	}
+
+	.avatar-placeholder {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		font-weight: 600;
+		font-size: calc(var(--avatar-size) * 0.45);
+	}
+
+	/* Pair avatars - overlapping */
+	.pair-avatars {
+		display: flex;
+		align-items: center;
+		width: calc(var(--avatar-size) * 1.5);
+		height: var(--avatar-size);
+		position: relative;
+	}
+
+	.pair-avatars .avatar-img,
+	.pair-avatars .avatar-placeholder {
+		width: var(--avatar-size);
+		height: var(--avatar-size);
+		border-radius: 50%;
+		object-fit: cover;
+		position: absolute;
+		border: 2px solid #1a2332;
+	}
+
+	.pair-avatars .first {
+		left: 0;
+		z-index: 2;
+	}
+
+	.pair-avatars .second {
+		left: calc(var(--avatar-size) * 0.5);
+		z-index: 1;
+	}
+
+	.detail-container[data-theme='light'] .pair-avatars .avatar-img,
+	.detail-container[data-theme='light'] .pair-avatars .avatar-placeholder {
+		border-color: #ffffff;
 	}
 
 	/* Multi-bracket podium grid */

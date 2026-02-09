@@ -13,7 +13,6 @@
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
   import { getUserProfileById, type UserProfile } from '$lib/firebase/userProfile';
-  import { getPairById, searchPairsByTeamName } from '$lib/firebase/pairs';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
@@ -397,11 +396,7 @@
         name: p.name,
         email: p.email,
         partner: p.partner,
-        photoURL: p.photoURL,
-        partnerPhotoURL: p.partnerPhotoURL,
-        participantMode: p.participantMode,
-        pairId: p.pairId,
-        pairTeamName: p.pairTeamName
+        photoURL: p.photoURL
       }));
 
       guestName = `Player${participants.length + 1}`;
@@ -550,125 +545,55 @@
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
       // Step 4 - Copy participants and refresh photos from user profiles
-      const isDoublesTournament = tournament.gameType === 'doubles';
-
+      // Also migrate old pair format (name with " / " but no partner field) to new format
       participants = await Promise.all(tournament.participants.map(async (p) => {
         let photoURL = p.photoURL;
-        let partnerPhotoURL = p.partnerPhotoURL;
-        let pairId = p.pairId;
-        let participantMode = p.participantMode;
+        let partnerPhotoURL = p.partner?.photoURL;
 
-        // For singles (individual participants with userId), refresh photo from profile
-        if (p.userId && p.participantMode !== 'pair') {
+        // For singles or first member of doubles, refresh photo from profile
+        if (p.userId && p.type === 'REGISTERED') {
           const profile = await getUserProfileById(p.userId);
           if (profile?.photoURL) {
             photoURL = profile.photoURL;
           }
         }
 
-        // For doubles pairs with pairId, fetch photos from pair members' profiles
-        if (p.participantMode === 'pair' && p.pairId) {
-          const pair = await getPairById(p.pairId);
-          if (pair) {
-            // Get member 1 photo
-            if (pair.member1Type === 'REGISTERED' && pair.member1UserId) {
-              const profile1 = await getUserProfileById(pair.member1UserId);
-              if (profile1?.photoURL) {
-                photoURL = profile1.photoURL;
-              }
-            }
-            // Get member 2 photo
-            if (pair.member2Type === 'REGISTERED' && pair.member2UserId) {
-              const profile2 = await getUserProfileById(pair.member2UserId);
-              if (profile2?.photoURL) {
-                partnerPhotoURL = profile2.photoURL;
-              }
-            }
+        // For doubles with partner, refresh partner photo
+        if (p.partner?.userId && p.partner.type === 'REGISTERED') {
+          const partnerProfile = await getUserProfileById(p.partner.userId);
+          if (partnerProfile?.photoURL) {
+            partnerPhotoURL = partnerProfile.photoURL;
           }
         }
 
-        // For doubles tournaments with old format (no pairId), try to find pair by name
-        if (isDoublesTournament && !p.pairId && !p.participantMode) {
-          console.log('🔍 Searching pair for:', p.name);
-
-          let matchingPairs = await searchPairsByTeamName(p.name);
-
-          // If name contains " / ", it's likely "Member1 / Member2" format - search by individual names
-          if (matchingPairs.length === 0 && p.name?.includes(' / ')) {
-            const [name1, name2] = p.name.split(' / ').map(n => n.trim());
-            console.log('🔍 Splitting name into:', name1, 'and', name2);
-
-            // Search for each name and find pairs that match both
-            const pairs1 = await searchPairsByTeamName(name1);
-            const pairs2 = await searchPairsByTeamName(name2);
-
-            // Find pairs that appear in both searches (have both members)
-            const allPairs = [...pairs1, ...pairs2];
-            const uniquePairs = allPairs.filter((pair, index, self) =>
-              index === self.findIndex(p => p.id === pair.id)
-            );
-
-            // Filter to pairs where both member names match
-            matchingPairs = uniquePairs.filter(pair => {
-              const memberNames = [pair.member1Name.toLowerCase(), pair.member2Name.toLowerCase()];
-              return memberNames.includes(name1.toLowerCase()) && memberNames.includes(name2.toLowerCase());
-            });
-            console.log('🔍 Found pairs by member names:', matchingPairs.map(pair => ({ id: pair.id, members: `${pair.member1Name} / ${pair.member2Name}` })));
-          } else {
-            console.log('🔍 Found pairs:', matchingPairs.map(pair => ({ teamName: pair.teamName, members: `${pair.member1Name} / ${pair.member2Name}` })));
-          }
-
-          // Find exact match by teamName or combined member names
-          const exactMatch = matchingPairs.find(pair =>
-            pair.teamName === p.name ||
-            `${pair.member1Name} / ${pair.member2Name}` === p.name ||
-            `${pair.member2Name} / ${pair.member1Name}` === p.name  // Also check reverse order
-          );
-          console.log('🔍 Exact match:', exactMatch ? (exactMatch.teamName || `${exactMatch.member1Name} / ${exactMatch.member2Name}`) : 'NONE');
-
-          if (exactMatch) {
-            pairId = exactMatch.id;
-            participantMode = 'pair';
-
-            console.log('🔎 Pair members:', {
-              name: exactMatch.teamName || `${exactMatch.member1Name} / ${exactMatch.member2Name}`,
-              member1: { name: exactMatch.member1Name, type: exactMatch.member1Type, userId: exactMatch.member1UserId },
-              member2: { name: exactMatch.member2Name, type: exactMatch.member2Type, userId: exactMatch.member2UserId }
-            });
-
-            // Get member photos
-            if (exactMatch.member1Type === 'REGISTERED' && exactMatch.member1UserId) {
-              const profile1 = await getUserProfileById(exactMatch.member1UserId);
-              console.log('👤 Member1 profile:', exactMatch.member1Name, profile1?.photoURL ? 'has photo' : 'no photo');
-              if (profile1?.photoURL) {
-                photoURL = profile1.photoURL;
-              }
-            } else {
-              console.log('👤 Member1 skipped (not registered):', exactMatch.member1Name, exactMatch.member1Type);
+        // MIGRATION: Convert old pair format to new format
+        // Old format: name = "Player1 / Player2", partner = undefined
+        // New format: name = "Player1", partner = { name: "Player2", ... }
+        if (tournament.gameType === 'doubles' && !p.partner && p.name.includes(' / ')) {
+          const [player1Name, player2Name] = p.name.split(' / ').map(n => n.trim());
+          console.log(`🔄 Migrating old pair format: "${p.name}" → "${player1Name}" + "${player2Name}"`);
+          return {
+            type: 'GUEST' as const,
+            name: player1Name,
+            teamName: undefined,  // Old format had no separate team name
+            partner: {
+              type: 'GUEST' as const,
+              name: player2Name
             }
-            if (exactMatch.member2Type === 'REGISTERED' && exactMatch.member2UserId) {
-              const profile2 = await getUserProfileById(exactMatch.member2UserId);
-              console.log('👤 Member2 profile:', exactMatch.member2Name, profile2?.photoURL ? 'has photo' : 'no photo');
-              if (profile2?.photoURL) {
-                partnerPhotoURL = profile2.photoURL;
-              }
-            } else {
-              console.log('👤 Member2 skipped (not registered):', exactMatch.member2Name, exactMatch.member2Type);
-            }
-          }
+          };
         }
 
         return {
           type: p.type,
           userId: p.userId,
           name: p.name,
+          teamName: p.teamName,
           email: p.email,
-          partner: p.partner,
-          photoURL,
-          partnerPhotoURL,
-          participantMode,
-          pairId,
-          pairTeamName: p.pairTeamName
+          partner: p.partner ? {
+            ...p.partner,
+            photoURL: partnerPhotoURL
+          } : undefined,
+          photoURL
         };
       }));
 
@@ -1481,10 +1406,9 @@
         // Add all participants in a single Firebase call
         console.log('📋 Participants to add:', participants.map(p => ({
           name: p.name,
+          partner: p.partner?.name,
           photoURL: p.photoURL,
-          partnerPhotoURL: p.partnerPhotoURL,
-          pairId: p.pairId,
-          participantMode: p.participantMode
+          partnerPhotoURL: p.partner?.photoURL
         })));
         const participantsAdded = await addParticipants(tournamentId, participants);
 
@@ -2662,10 +2586,10 @@
                   <div
                     class="participant-chip"
                     class:registered={participant.type === 'REGISTERED'}
-                    class:pair={participant.participantMode === 'pair'}
+                    class:pair={!!participant.partner}
                   >
-                    <span class="chip-name">{participant.name}</span>
-                    {#if participant.participantMode === 'pair'}
+                    <span class="chip-name">{participant.partner ? (participant.teamName || `${participant.name} / ${participant.partner.name}`) : participant.name}</span>
+                    {#if participant.partner}
                       <span class="chip-pair-badge">👥</span>
                     {:else if participant.type === 'REGISTERED' && participant.rankingSnapshot}
                       <span class="chip-rank">{participant.rankingSnapshot}</span>

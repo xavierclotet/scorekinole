@@ -78,10 +78,9 @@ export async function addParticipants(
   // Create all participant objects, preserving all fields from participantData
   console.log('📥 addParticipants received:', participantsData.map(p => ({
     name: p.name,
+    partner: p.partner?.name,
     photoURL: p.photoURL,
-    partnerPhotoURL: p.partnerPhotoURL,
-    participantMode: p.participantMode,
-    pairId: p.pairId
+    partnerPhotoURL: p.partner?.photoURL
   })));
 
   const newParticipants = participantsData.map((participantData, index) => {
@@ -97,9 +96,9 @@ export async function addParticipants(
 
     console.log('📤 Created participant:', {
       name: participant.name,
+      partner: participant.partner?.name,
       photoURL: participant.photoURL,
-      partnerPhotoURL: participant.partnerPhotoURL,
-      participantMode: participant.participantMode
+      partnerPhotoURL: participant.partner?.photoURL
     });
 
     return participant;

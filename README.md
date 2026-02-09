@@ -126,7 +126,8 @@ Complete tournament administration system for professional Crokinole events:
 #### **Participant Management**
 - **Registered users**: Search and add from Firebase database
 - **Guest players**: Quick add without account
-- **Doubles support**: Pair configuration
+- **Doubles support**: Two players per participant with optional team name
+- **Ranking for doubles**: Both players receive individual ranking points
 - **Minimum 2 participants** required to start
 
 #### **Tournament States**

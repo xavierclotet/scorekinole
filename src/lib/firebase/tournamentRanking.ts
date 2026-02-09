@@ -10,6 +10,7 @@ import { browser } from '$app/environment';
 import { getOrCreateUserByName, getUserProfileById, removeTournamentRecord } from './userProfile';
 import { savingParticipantResults } from '$lib/stores/tournament';
 import type { ConsolationBracket } from '$lib/types/tournament';
+import { getParticipantDisplayName } from '$lib/types/tournament';
 
 /**
  * Sync current ranking for all participants from Firestore users collection
@@ -85,6 +86,10 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
   console.log('🏅 Has finalStage:', !!tournament.finalStage, 'isComplete:', tournament.finalStage?.isComplete);
 
   const updatedParticipants = [...tournament.participants];
+  const isDoubles = tournament.gameType === 'doubles';
+
+  // Helper to get display name for logs (handles doubles with teamName)
+  const getDisplayName = (p: any) => getParticipantDisplayName(p, isDoubles);
 
   if (tournament.phaseType === 'TWO_PHASE') {
     console.log('🏅 TWO_PHASE: assigning initial positions from group standings');
@@ -158,14 +163,14 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
         if (winner) {
           winner.finalPosition = currentPosition++;
           positionsAssigned++;
-          console.log(`🏅 1st place: ${winner.name} -> position ${winner.finalPosition}`);
+          console.log(`🏅 1st place: ${getDisplayName(winner)} -> position ${winner.finalPosition}`);
         }
         const loserId = finalMatch.winner === finalMatch.participantA ? finalMatch.participantB : finalMatch.participantA;
         const loser = updatedParticipants.find(p => p.id === loserId);
         if (loser) {
           loser.finalPosition = currentPosition++;
           positionsAssigned++;
-          console.log(`🏅 2nd place: ${loser.name} -> position ${loser.finalPosition}`);
+          console.log(`🏅 2nd place: ${getDisplayName(loser)} -> position ${loser.finalPosition}`);
         }
       } else {
         console.log('🏅 Final match not complete or missing participants');
@@ -181,14 +186,14 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
         if (thirdPlace) {
           thirdPlace.finalPosition = currentPosition++;
           positionsAssigned++;
-          console.log(`🏅 3rd place: ${thirdPlace.name} -> position ${thirdPlace.finalPosition}`);
+          console.log(`🏅 3rd place: ${getDisplayName(thirdPlace)} -> position ${thirdPlace.finalPosition}`);
         }
         const fourthPlaceId = thirdPlaceMatch.winner === thirdPlaceMatch.participantA ? thirdPlaceMatch.participantB : thirdPlaceMatch.participantA;
         const fourthPlace = updatedParticipants.find(p => p.id === fourthPlaceId);
         if (fourthPlace) {
           fourthPlace.finalPosition = currentPosition++;
           positionsAssigned++;
-          console.log(`🏅 4th place: ${fourthPlace.name} -> position ${fourthPlace.finalPosition}`);
+          console.log(`🏅 4th place: ${getDisplayName(fourthPlace)} -> position ${fourthPlace.finalPosition}`);
         }
         thirdPlaceProcessed = true;
       } else {
@@ -219,7 +224,7 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
           if (loser && !loser.finalPosition) {
             loser.finalPosition = currentPosition++;
             positionsAssigned++;
-            console.log(`🏅 Round ${i} loser: ${loser.name} -> position ${loser.finalPosition}`);
+            console.log(`🏅 Round ${i} loser: ${getDisplayName(loser)} -> position ${loser.finalPosition}`);
           }
         });
       }
@@ -260,7 +265,7 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
           if (participant) {
             const adjustedPosition = position + positionOffset;
             participant.finalPosition = adjustedPosition;
-            console.log(`🏅 Consolation position: ${participant.name} -> ${adjustedPosition}`);
+            console.log(`🏅 Consolation position: ${getDisplayName(participant)} -> ${adjustedPosition}`);
           }
         });
       }
@@ -330,7 +335,7 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     updatedParticipants.forEach(p => {
       if (!bracketParticipantIds.has(p.id)) {
         if (p.finalPosition !== undefined) {
-          console.log(`🏅 Clearing finalPosition for non-bracket participant: ${p.name} (was ${p.finalPosition})`);
+          console.log(`🏅 Clearing finalPosition for non-bracket participant: ${getDisplayName(p)} (was ${p.finalPosition})`);
           clearedCount++;
         }
         p.finalPosition = undefined;
@@ -340,7 +345,7 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
 
     // Log final positions after cleanup
     const positionedParticipants = updatedParticipants.filter(p => p.finalPosition !== undefined);
-    console.log('🏅 Participants with finalPosition after cleanup:', positionedParticipants.map(p => ({ name: p.name, pos: p.finalPosition })));
+    console.log('🏅 Participants with finalPosition after cleanup:', positionedParticipants.map(p => ({ name: getDisplayName(p), pos: p.finalPosition })));
   }
 
   // For ONE_PHASE tournaments, only bracket participants get finalPosition
@@ -473,6 +478,8 @@ export async function applyRankingUpdates(tournamentId: string): Promise<boolean
 
     console.log('🏅 Active participants with finalPosition:', activeParticipants.length, 'tier:', tier);
 
+    const isDoubles = tournament.gameType === 'doubles';
+
     for (const participant of activeParticipants) {
       const position = participant.finalPosition || 0;
       const pointsEarned = calculateRankingPoints(position, tier);
@@ -490,19 +497,56 @@ export async function applyRankingUpdates(tournamentId: string): Promise<boolean
         rankingDelta: pointsEarned
       };
 
-      let userId: string | null = null;
+      // DOUBLES: Process both members of the pair
+      if (isDoubles && participant.partner) {
+        console.log(`🏅 Processing doubles: ${participant.name} / ${participant.partner.name}`);
 
-      if (participant.type === 'REGISTERED' && participant.userId) {
-        userId = participant.userId;
-      } else {
-        const result = await getOrCreateUserByName(participant.name);
-        if (result) {
-          userId = result.userId;
+        // Member 1
+        let member1UserId: string | null = null;
+        if (participant.type === 'REGISTERED' && participant.userId) {
+          member1UserId = participant.userId;
+        } else {
+          const result = await getOrCreateUserByName(participant.name);
+          if (result) {
+            member1UserId = result.userId;
+          }
         }
-      }
+        if (member1UserId) {
+          await addTournamentRecord(member1UserId, tournamentRecord, rankingAfter);
+          console.log(`🏅 Added record for member 1: ${participant.name} (+${pointsEarned} points)`);
+        }
 
-      if (userId) {
-        await addTournamentRecord(userId, tournamentRecord, rankingAfter);
+        // Member 2 (partner)
+        let member2UserId: string | null = null;
+        if (participant.partner.type === 'REGISTERED' && participant.partner.userId) {
+          member2UserId = participant.partner.userId;
+        } else {
+          const result = await getOrCreateUserByName(participant.partner.name);
+          if (result) {
+            member2UserId = result.userId;
+          }
+        }
+        if (member2UserId) {
+          await addTournamentRecord(member2UserId, tournamentRecord, rankingAfter);
+          console.log(`🏅 Added record for member 2: ${participant.partner.name} (+${pointsEarned} points)`);
+        }
+      } else {
+        // SINGLES: Process individual participant
+        let userId: string | null = null;
+
+        if (participant.type === 'REGISTERED' && participant.userId) {
+          userId = participant.userId;
+        } else {
+          const result = await getOrCreateUserByName(participant.name);
+          if (result) {
+            userId = result.userId;
+          }
+        }
+
+        if (userId) {
+          await addTournamentRecord(userId, tournamentRecord, rankingAfter);
+          console.log(`🏅 Added record for: ${participant.name} (+${pointsEarned} points)`);
+        }
       }
     }
 

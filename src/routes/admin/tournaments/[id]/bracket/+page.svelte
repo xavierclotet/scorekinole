@@ -26,7 +26,7 @@
   } from '$lib/firebase/tournamentBracket';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import { getUserProfile } from '$lib/firebase/userProfile';
-  import type { Tournament, BracketMatch, GroupMatch, ConsolationBracket } from '$lib/types/tournament';
+  import type { Tournament, BracketMatch, GroupMatch, ConsolationBracket, TournamentParticipant } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
   import { isBye, isLoserPlaceholder, parseLoserPlaceholder } from '$lib/algorithms/bracket';
   import * as m from '$lib/paraglide/messages.js';
@@ -54,6 +54,18 @@
   let showTimeBreakdown = $state(false);
   let timeBreakdown = $state<TimeBreakdown | null>(null);
   let isGeneratingConsolation = $state(false);
+  let isRepairing = $state(false);
+
+  // Broken matches detection (completed but winner not advanced)
+  interface BrokenMatch {
+    match: BracketMatch;
+    bracketType: 'gold' | 'silver';
+    roundIndex: number;
+    nextMatchId: string;
+    winnerId: string;
+    nextMatch: BracketMatch;
+    slot: 'A' | 'B';
+  }
 
   // Current view for split divisions
   let activeTab = $state<'gold' | 'silver'>('gold');
@@ -449,7 +461,21 @@
     if (!participantId) return m.common_tbd();
     if (isBye(participantId)) return 'BYE';
     if (!tournament) return m.common_unknown();
-    return tournament.participants.find(p => p.id === participantId)?.name || m.common_unknown();
+    const participant = tournament.participants.find(p => p.id === participantId);
+    if (!participant) return m.common_unknown();
+
+    // For doubles: use teamName if set, otherwise "Player1 / Player2"
+    if (participant.partner) {
+      return participant.teamName || `${participant.name} / ${participant.partner.name}`;
+    }
+
+    return participant.name;
+  }
+
+  // Get participant by ID (for avatar display)
+  function getParticipant(participantId: string | undefined): TournamentParticipant | null {
+    if (!participantId || isBye(participantId) || !tournament) return null;
+    return tournament.participants.find(p => p.id === participantId) || null;
   }
 
   // Check if a match is a BYE match (one participant is BYE)
@@ -480,10 +506,11 @@
         if (round.matches.length === targetMatchCount) {
           const sourceMatch = round.matches[parsed.matchPosition];
           if (sourceMatch) {
-            const nameA = tournament.participants.find(p => p.id === sourceMatch.participantA)?.name;
-            const nameB = tournament.participants.find(p => p.id === sourceMatch.participantB)?.name;
+            // Use getParticipantName to handle doubles correctly
+            const nameA = getParticipantName(sourceMatch.participantA);
+            const nameB = getParticipantName(sourceMatch.participantB);
 
-            if (nameA && nameB) {
+            if (nameA && nameB && nameA !== m.common_unknown() && nameB !== m.common_unknown()) {
               // Shorten names if too long
               const shortA = nameA.length > 10 ? nameA.substring(0, 10) + '.' : nameA;
               const shortB = nameB.length > 10 ? nameB.substring(0, 10) + '.' : nameB;
@@ -877,6 +904,181 @@
   }
 
   /**
+   * Detect broken matches - matches that are COMPLETED but winner not advanced to next match
+   */
+  function detectBrokenMatches(): BrokenMatch[] {
+    if (!tournament?.finalStage) return [];
+
+    const broken: BrokenMatch[] = [];
+
+    function checkBracket(bracketData: typeof goldBracket, bracketType: 'gold' | 'silver') {
+      if (!bracketData?.rounds) return;
+
+      for (let roundIndex = 0; roundIndex < bracketData.rounds.length - 1; roundIndex++) {
+        const round = bracketData.rounds[roundIndex];
+        const nextRound = bracketData.rounds[roundIndex + 1];
+
+        for (let matchIndex = 0; matchIndex < round.matches.length; matchIndex++) {
+          const match = round.matches[matchIndex];
+
+          // Skip if not completed or no winner
+          if ((match.status !== 'COMPLETED' && match.status !== 'WALKOVER') || !match.winner) continue;
+
+          // Skip if no next match (final)
+          if (!match.nextMatchId) continue;
+
+          // Find next match
+          const nextMatch = nextRound.matches.find(m => m.id === match.nextMatchId);
+          if (!nextMatch) continue;
+
+          // Determine which slot the winner should be in
+          const isFirstOfPair = matchIndex % 2 === 0;
+          const slot = isFirstOfPair ? 'A' : 'B';
+          const currentValue = isFirstOfPair ? nextMatch.participantA : nextMatch.participantB;
+
+          // If winner is not in the correct slot, it's broken
+          if (currentValue !== match.winner) {
+            broken.push({
+              match,
+              bracketType,
+              roundIndex,
+              nextMatchId: match.nextMatchId,
+              winnerId: match.winner,
+              nextMatch,
+              slot
+            });
+          }
+        }
+      }
+    }
+
+    // Check gold bracket
+    if (tournament.finalStage.goldBracket) {
+      checkBracket(tournament.finalStage.goldBracket, 'gold');
+    }
+
+    // Check silver bracket
+    if (tournament.finalStage.silverBracket) {
+      checkBracket(tournament.finalStage.silverBracket, 'silver');
+    }
+
+    return broken;
+  }
+
+  // Derived: number of broken matches
+  let brokenMatchesCount = $derived(tournament ? detectBrokenMatches().length : 0);
+
+  /**
+   * Repair all broken matches by advancing winners to their next matches
+   * Uses direct data manipulation as a fallback if the advance functions fail
+   */
+  async function repairBrokenMatches() {
+    if (!tournament || !tournamentId) return;
+
+    const broken = detectBrokenMatches();
+    if (broken.length === 0) {
+      toastMessage = m.admin_noBrokenMatches?.() || 'No hay partidos por reparar';
+      toastType = 'info';
+      showToast = true;
+      return;
+    }
+
+    isRepairing = true;
+    console.log(`🔧 Repairing ${broken.length} broken matches...`);
+
+    let repairedCount = 0;
+    try {
+      // Get fresh tournament data
+      let currentTournament = await getTournament(tournamentId);
+      if (!currentTournament?.finalStage) {
+        throw new Error('Tournament not found');
+      }
+
+      for (const item of broken) {
+        console.log(`  🔧 Repairing: ${item.match.id} -> ${item.nextMatchId} (winner: ${item.winnerId}, slot: ${item.slot})`);
+
+        // First try the normal advance function
+        const advanceFn = item.bracketType === 'silver' ? advanceSilverWinner : advanceWinner;
+        await advanceFn(tournamentId, item.match.id, item.winnerId);
+
+        // Reload and verify if it worked
+        currentTournament = await getTournament(tournamentId);
+        if (!currentTournament?.finalStage) continue;
+
+        const bracket = item.bracketType === 'silver'
+          ? currentTournament.finalStage.silverBracket
+          : currentTournament.finalStage.goldBracket;
+
+        if (!bracket) continue;
+
+        // Find the next match and check if winner is there
+        let nextMatch: BracketMatch | undefined;
+        for (const round of bracket.rounds) {
+          nextMatch = round.matches.find(matchItem => matchItem.id === item.nextMatchId);
+          if (nextMatch) break;
+        }
+
+        if (!nextMatch) continue;
+
+        const currentValue = item.slot === 'A' ? nextMatch.participantA : nextMatch.participantB;
+
+        if (currentValue === item.winnerId) {
+          repairedCount++;
+          console.log(`    ✅ Verified: winner is now in slot ${item.slot}`);
+        } else {
+          // Direct repair as fallback
+          console.log(`    ⚠️ Advance function didn't work, trying direct repair...`);
+
+          // Directly modify the bracket data
+          for (const round of bracket.rounds) {
+            const matchToUpdate = round.matches.find(matchItem => matchItem.id === item.nextMatchId);
+            if (matchToUpdate) {
+              if (item.slot === 'A') {
+                matchToUpdate.participantA = item.winnerId;
+              } else {
+                matchToUpdate.participantB = item.winnerId;
+              }
+              break;
+            }
+          }
+
+          // Save the updated bracket
+          const { updateTournament: updateTournamentFn } = await import('$lib/firebase/tournaments');
+          const directSuccess = await updateTournamentFn(tournamentId, {
+            finalStage: currentTournament.finalStage
+          });
+
+          if (directSuccess) {
+            repairedCount++;
+            console.log(`    ✅ Direct repair successful`);
+          } else {
+            console.log(`    ❌ Direct repair also failed`);
+          }
+        }
+      }
+
+      // Final reload
+      await loadTournament();
+
+      if (repairedCount > 0) {
+        toastMessage = m.admin_matchesRepaired?.({ n: String(repairedCount) }) || `${repairedCount} partido(s) reparado(s)`;
+        toastType = 'success';
+      } else {
+        toastMessage = m.admin_repairFailed?.() || 'No se pudo reparar ningún partido';
+        toastType = 'error';
+      }
+      showToast = true;
+    } catch (err) {
+      console.error('Error repairing matches:', err);
+      toastMessage = m.admin_repairError?.() || 'Error al reparar partidos';
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      isRepairing = false;
+    }
+  }
+
+  /**
    * Auto-fill all pending bracket matches with random results (SuperAdmin only)
    * Simulates games until reaching pointsToWin (default 7) with 2+ point lead
    */
@@ -886,6 +1088,16 @@
     isAutoFilling = true;
     let filledCount = 0;
     const currentTournamentId = tournamentId; // Store in local variable for TypeScript
+
+    console.log('🎲 AUTO-FILL START ========================================');
+    console.log('📋 Tournament mode:', tournament.finalStage.mode);
+    console.log('📋 Game type:', tournament.gameType);
+    console.log('📋 Consolation enabled:', tournament.finalStage.consolationEnabled);
+    console.log('📋 Gold bracket rounds:', tournament.finalStage.goldBracket?.rounds?.length);
+    console.log('📋 Silver bracket exists:', !!tournament.finalStage.silverBracket);
+    console.log('📋 Silver bracket rounds:', tournament.finalStage.silverBracket?.rounds?.length);
+    console.log('📋 Gold consolation brackets:', tournament.finalStage.goldBracket?.consolationBrackets?.length || 0);
+    console.log('📋 Silver consolation brackets:', tournament.finalStage.silverBracket?.consolationBrackets?.length || 0);
 
     try {
       // Helper function to simulate a match for a specific bracket type
@@ -1052,6 +1264,7 @@
 
       // Process a bracket (gold or silver)
       async function processBracket(bracketType: 'gold' | 'silver'): Promise<number> {
+        console.log(`\n🏟️ Processing ${bracketType.toUpperCase()} bracket...`);
         let bracketFilledCount = 0;
         let hasMoreMatches = true;
         const isSilver = bracketType === 'silver';
@@ -1061,18 +1274,26 @@
 
           // Reload tournament to get current bracket state
           tournament = await getTournament(currentTournamentId);
-          if (!tournament?.finalStage) break;
+          if (!tournament?.finalStage) {
+            console.log(`  ❌ No finalStage found`);
+            break;
+          }
 
           const currentBracket = bracketType === 'gold'
             ? tournament.finalStage.goldBracket
             : tournament.finalStage.silverBracket;
 
-          if (!currentBracket) break;
+          if (!currentBracket) {
+            console.log(`  ❌ No ${bracketType} bracket found`);
+            break;
+          }
 
           const totalRounds = currentBracket.totalRounds;
 
           // Process rounds in order - matches within same round are independent
           for (const round of currentBracket.rounds) {
+            console.log(`  📍 Round ${round.roundNumber} (${round.roundName}):`);
+
             // Get phase-specific config for this round
             const phaseConfig = getPhaseConfig(
               currentBracket,
@@ -1087,11 +1308,23 @@
               m => m.status === 'PENDING' && m.participantA && m.participantB
             );
 
+            // Log all matches in this round
+            for (const match of round.matches) {
+              const pA = match.participantA ? getParticipantName(tournament!, match.participantA) : 'TBD';
+              const pB = match.participantB ? getParticipantName(tournament!, match.participantB) : 'TBD';
+              const isEligible = match.status === 'PENDING' && match.participantA && match.participantB;
+              console.log(`    - Match ${match.id}: ${pA} vs ${pB} | Status: ${match.status} | Eligible: ${isEligible}`);
+              if (!isEligible && match.status === 'PENDING') {
+                console.log(`      ⚠️ Not eligible: participantA=${!!match.participantA}, participantB=${!!match.participantB}`);
+              }
+            }
+
             for (const match of eligibleMatches) {
               const success = await simulateMatch(match, bracketType, phaseConfig);
               if (success) {
                 hasMoreMatches = true;
                 bracketFilledCount++;
+                console.log(`    ✅ Simulated match ${match.id} successfully`);
               }
             }
           }
@@ -1370,6 +1603,38 @@
   } as GroupMatch : null);
 </script>
 
+<!-- Snippet for participant avatar (handles both singles and doubles) -->
+{#snippet participantAvatar(participantId: string | undefined, size: 'sm' | 'md' | 'lg' = 'sm')}
+  {@const participant = getParticipant(participantId)}
+  {@const sizeClass = size === 'sm' ? 'avatar-sm' : size === 'lg' ? 'avatar-lg' : 'avatar-md'}
+  {#if participant}
+    {#if participant.partner}
+      <!-- Doubles: show both avatars -->
+      <div class="pair-avatars {sizeClass}">
+        {#if participant.photoURL}
+          <img src={participant.photoURL} alt="" class="avatar-img first" />
+        {:else}
+          <span class="avatar-placeholder first">{participant.name?.charAt(0) || '?'}</span>
+        {/if}
+        {#if participant.partner.photoURL}
+          <img src={participant.partner.photoURL} alt="" class="avatar-img second" />
+        {:else}
+          <span class="avatar-placeholder second">{participant.partner.name?.charAt(0) || '?'}</span>
+        {/if}
+      </div>
+    {:else}
+      <!-- Singles: show single avatar -->
+      <div class="single-avatar {sizeClass}">
+        {#if participant.photoURL}
+          <img src={participant.photoURL} alt="" class="avatar-img" />
+        {:else}
+          <span class="avatar-placeholder">{participant.name?.charAt(0) || '?'}</span>
+        {/if}
+      </div>
+    {/if}
+  {/if}
+{/snippet}
+
 <AdminGuard>
   <div class="bracket-page" data-theme={$adminTheme}>
     <header class="page-header">
@@ -1405,6 +1670,17 @@
             </div>
           </div>
           <div class="header-actions">
+            {#if brokenMatchesCount > 0 && tournament.status !== 'COMPLETED'}
+              <button
+                class="action-btn repair"
+                onclick={repairBrokenMatches}
+                disabled={isRepairing}
+                title={m.admin_repairMatchesTitle?.() || `Reparar ${brokenMatchesCount} partido(s) con avance roto`}
+              >
+                {isRepairing ? `⏳` : `🔧`}
+                <span class="repair-badge">{brokenMatchesCount}</span>
+              </button>
+            {/if}
             {#if (isSuperAdminUser || canAutofillUser) && tournament.status !== 'COMPLETED'}
               <button
                 class="action-btn autofill"
@@ -1753,6 +2029,7 @@
                       class:bye={isBye(match.participantA)}
                       class:games-leader={gamesLeaderA}
                     >
+                      {@render participantAvatar(match.participantA, 'sm')}
                       <span class="participant-name">{getParticipantName(match.participantA)}</span>
                       {#if match.seedA}
                         <span class="seed">#{match.seedA}</span>
@@ -1777,6 +2054,7 @@
                       class:bye={isBye(match.participantB)}
                       class:games-leader={gamesLeaderB}
                     >
+                      {@render participantAvatar(match.participantB, 'sm')}
                       <span class="participant-name">{getParticipantName(match.participantB)}</span>
                       {#if match.seedB}
                         <span class="seed">#{match.seedB}</span>
@@ -1870,6 +2148,7 @@
                     class:tbd={!thirdPlaceMatch.participantA}
                     class:games-leader={thirdGamesLeaderA}
                   >
+                    {@render participantAvatar(thirdPlaceMatch.participantA, 'sm')}
                     <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
                       <span class="score">{showGamesWon ? (thirdPlaceMatch.gamesWonA || 0) : (thirdPlaceMatch.totalPointsA || 0)}</span>
@@ -1890,6 +2169,7 @@
                     class:tbd={!thirdPlaceMatch.participantB}
                     class:games-leader={thirdGamesLeaderB}
                   >
+                    {@render participantAvatar(thirdPlaceMatch.participantB, 'sm')}
                     <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
                       <span class="score">{showGamesWon ? (thirdPlaceMatch.gamesWonB || 0) : (thirdPlaceMatch.totalPointsB || 0)}</span>
@@ -2021,6 +2301,9 @@
                               class:tbd={!match.participantA || isPlaceholderA}
                               class:bye={isByeA}
                             >
+                              {#if !isPlaceholderA && !isByeA}
+                                {@render participantAvatar(match.participantA, 'sm')}
+                              {/if}
                               <span class="participant-name">{displayNameA}</span>
                               {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                                 <span class="score">{showGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
@@ -2043,6 +2326,9 @@
                               class:tbd={!match.participantB || isPlaceholderB}
                               class:bye={isByeB}
                             >
+                              {#if !isPlaceholderB && !isByeB}
+                                {@render participantAvatar(match.participantB, 'sm')}
+                              {/if}
                               <span class="participant-name">{displayNameB}</span>
                               {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                                 <span class="score">{showGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
@@ -2120,6 +2406,9 @@
                                 class:tbd={!match.participantA || isPlaceholderA}
                                 class:bye={isByeA}
                               >
+                                {#if !isPlaceholderA && !isByeA}
+                                  {@render participantAvatar(match.participantA, 'sm')}
+                                {/if}
                                 <span class="participant-name">{displayNameA}</span>
                                 {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                                   <span class="score">{showGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
@@ -2142,6 +2431,9 @@
                                 class:tbd={!match.participantB || isPlaceholderB}
                                 class:bye={isByeB}
                               >
+                                {#if !isPlaceholderB && !isByeB}
+                                  {@render participantAvatar(match.participantB, 'sm')}
+                                {/if}
                                 <span class="participant-name">{displayNameB}</span>
                                 {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                                   <span class="score">{showGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
@@ -2224,10 +2516,10 @@
 
 <style>
   .bracket-page {
-    min-height: 100vh;
     height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     background: #fafafa;
     transition: background-color 0.3s;
   }
@@ -2360,6 +2652,39 @@
   .action-btn.autofill:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .action-btn.repair {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    position: relative;
+  }
+
+  .action-btn.repair:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  }
+
+  .action-btn.repair:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .repair-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fbbf24;
+    color: #1f2937;
+    font-size: 0.65rem;
+    font-weight: 700;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
   }
 
   .page-content {
@@ -2706,6 +3031,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 6px;
     padding: 0.3rem 0.4rem;
     border-radius: 4px;
     transition: all 0.15s;
@@ -3928,5 +4254,72 @@
     .consolation-round {
       min-width: 160px;
     }
+  }
+
+  /* Participant avatars */
+  .single-avatar,
+  .pair-avatars {
+    flex-shrink: 0;
+  }
+
+  .avatar-sm { --avatar-size: 20px; }
+  .avatar-md { --avatar-size: 28px; }
+  .avatar-lg { --avatar-size: 36px; }
+
+  .single-avatar {
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+  }
+
+  .single-avatar .avatar-img,
+  .single-avatar .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-primary, #6366f1);
+    color: white;
+    font-weight: 600;
+    font-size: calc(var(--avatar-size) * 0.45);
+  }
+
+  /* Pair avatars - overlapping */
+  .pair-avatars {
+    display: flex;
+    position: relative;
+    width: calc(var(--avatar-size) * 1.4);
+    height: var(--avatar-size);
+    flex-shrink: 0;
+  }
+
+  .pair-avatars .avatar-img,
+  .pair-avatars .avatar-placeholder {
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+    border-radius: 50%;
+    position: absolute;
+    border: 1.5px solid var(--bg-card, #fff);
+    object-fit: cover;
+  }
+
+  .pair-avatars .first {
+    left: 0;
+    z-index: 2;
+  }
+
+  .pair-avatars .second {
+    left: calc(var(--avatar-size) * 0.4);
+    z-index: 1;
+  }
+
+  .bracket-page[data-theme='dark'] .pair-avatars .avatar-img,
+  .bracket-page[data-theme='dark'] .pair-avatars .avatar-placeholder {
+    border-color: var(--bg-card, #1e1e2e);
   }
 </style>

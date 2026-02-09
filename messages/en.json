@@ -7,7 +7,7 @@
   "admin_all": "All",
   "admin_allCreators": "All creators",
   "admin_autoFillMatchesTitle": "Auto-fill matches",
-  "admin_availableTables": "Available tables",
+  "admin_availableTables": "Tables",
   "admin_avgRoundsDesc": "Expected rounds per match type",
   "admin_avgRoundsTitle": "Average Rounds",
   "admin_backToAdmin": "Back to Admin",
@@ -382,7 +382,7 @@
   "ranking_totalSum": "Total",
   "ranking_tournamentsCount": "Tournaments",
   "scoring_allowTies": "Allow Ties",
-  "scoring_appTitle": "Crokinole Scoring Arena",
+  "scoring_appTitle": "Profesional Crokinole Scoring Arena",
   "scoring_actions": "Actions",
   "scoring_color": "Color",
   "scoring_colorFor": "Color for",
@@ -1048,5 +1048,6 @@
   "tournament_isTestHint": "Test tournaments do not appear in the public listing",
   "tournament_realOnly": "Only real ones",
   "tournament_test": "Proof",
-  "tournament_testOnly": "Tests only"
+  "tournament_testOnly": "Tests only",
+  "admin_possiblePairs": "Potential partners"
 }

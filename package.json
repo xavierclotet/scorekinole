@@ -16,7 +16,7 @@
 		"deploy": "npm run build && firebase deploy",
 		"deploy:rules": "firebase deploy --only firestore:rules",
 		"deploy:storage": "firebase deploy --only storage",
-		"deploy:functions": "firebase deploy --only functions --force",
+		"deploy:functions": "set FUNCTIONS_DISCOVERY_TIMEOUT=60 && firebase deploy --only functions --force",
 		"deploy:hosting": "npm run build && firebase deploy --only hosting",
 		"functions:log": "firebase functions:log",
 		"machine-translate": "inlang machine translate --project project.inlang"
@@ -25,6 +25,8 @@
 		"@capacitor/assets": "^3.0.5",
 		"@inlang/cli": "^3.0.0",
 		"@inlang/paraglide-js": "^2.9.1",
+		"@internationalized/date": "^3.11.0",
+		"@lucide/svelte": "^0.561.0",
 		"@sveltejs/adapter-static": "^3.0.0",
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
@@ -44,7 +46,6 @@
 		"@capacitor/app": "^6.0.3",
 		"@capacitor/cli": "^6.0.0",
 		"@capacitor/core": "^6.0.0",
-		"@lucide/svelte": "^0.563.1",
 		"bits-ui": "^2.15.5",
 		"firebase": "^10.13.0"
 	}

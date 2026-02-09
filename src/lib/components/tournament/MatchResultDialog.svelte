@@ -61,6 +61,19 @@
   let participantB = $derived(participantMap.get(match.participantB));
   let isBye = $derived(match.participantB === 'BYE');
 
+  // Helper to get display name for doubles (teamName or "Player1 / Player2")
+  function getDisplayName(participant: TournamentParticipant | undefined): string {
+    if (!participant) return 'Unknown';
+    if (participant.partner) {
+      return participant.teamName || `${participant.name} / ${participant.partner.name}`;
+    }
+    return participant.name;
+  }
+
+  // Display names for the participants
+  let nameA = $derived(getDisplayName(participantA));
+  let nameB = $derived(isBye ? 'BYE' : getDisplayName(participantB));
+
   // Game mode - use phase-specific config if in bracket, otherwise use group stage config
   // Note: config is inside goldBracket or silverBracket, not directly in finalStage
   let activeBracket = $derived(
@@ -587,7 +600,7 @@
         <div class="match-card">
           <div class="match-participants">
             <div class="participant participant-a">
-              <span class="participant-name">{participantA?.name || 'Unknown'}</span>
+              <span class="participant-name">{nameA || 'Unknown'}</span>
             </div>
             <div class="match-center">
               <span class="vs-badge">VS</span>
@@ -596,7 +609,7 @@
               {/if}
             </div>
             <div class="participant participant-b">
-              <span class="participant-name">{isBye ? 'BYE' : participantB?.name || 'Unknown'}</span>
+              <span class="participant-name">{nameB}</span>
             </div>
           </div>
           <div class="match-format">
@@ -623,10 +636,10 @@
 
             <div class="match-complete-notice">
               <div class="match-winner">
-                🏆 {m.tournament_matchCompletedWinner({ name: gamesWonA > gamesWonB ? participantA?.name || '' : participantB?.name || '' })}
+                🏆 {m.tournament_matchCompletedWinner({ name: gamesWonA > gamesWonB ? nameA || '' : nameB || '' })}
               </div>
               <div class="match-score-summary">
-                {participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name} ({m.tournament_gamesLabel()})
+                {nameA} {gamesWonA} - {gamesWonB} {nameB} ({m.tournament_gamesLabel()})
               </div>
             </div>
 
@@ -642,7 +655,7 @@
                   <div class="completed-game-header">
                     <span class="game-title">{m.tournament_gameN({ n: String(gameNum) })}</span>
                     <span class="game-winner">
-                      {m.tournament_winnerLabel({ name: gamePointsA > gamePointsB ? participantA?.name || '' : participantB?.name || '' })} ({gamePointsA}-{gamePointsB})
+                      {m.tournament_winnerLabel({ name: gamePointsA > gamePointsB ? nameA || '' : nameB || '' })} ({gamePointsA}-{gamePointsB})
                     </span>
                   </div>
 
@@ -670,7 +683,7 @@
                       <tbody>
                         <!-- Player A -->
                         <tr class="player-row">
-                          <td class="player-name">{participantA?.name}</td>
+                          <td class="player-name">{nameA}</td>
                           {#each gameRounds as round}
                             <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
                             {#if tournament.show20s}
@@ -685,7 +698,7 @@
 
                         <!-- Player B -->
                         <tr class="player-row">
-                          <td class="player-name">{participantB?.name}</td>
+                          <td class="player-name">{nameB}</td>
                           {#each gameRounds as round}
                             <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
                             {#if tournament.show20s}
@@ -709,12 +722,12 @@
                 <div class="summary-stats">
                   <div class="stat-row">
                     <span class="stat-label">{m.tournament_totalPointsLabel()}</span>
-                    <span class="stat-value">{participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}</span>
+                    <span class="stat-value">{nameA} {displayTotalA} - {displayTotalB} {nameB}</span>
                   </div>
                   {#if tournament.show20s}
                     <div class="stat-row">
                       <span class="stat-label">{m.tournament_totalTwentiesLabel()}</span>
-                      <span class="stat-value">{participantA?.name} {display20sA} - {display20sB} {participantB?.name}</span>
+                      <span class="stat-value">{nameA} {display20sA} - {display20sB} {nameB}</span>
                     </div>
                   {/if}
                 </div>
@@ -735,7 +748,7 @@
                 <div class="completed-game-header">
                   <span class="game-title">✓ {m.tournament_gameN({ n: String(gameNum) })}</span>
                   <span class="game-winner">
-                    {m.tournament_winnerLabel({ name: gamePointsA > gamePointsB ? participantA?.name || '' : participantB?.name || '' })} ({gamePointsA}-{gamePointsB})
+                    {m.tournament_winnerLabel({ name: gamePointsA > gamePointsB ? nameA || '' : nameB || '' })} ({gamePointsA}-{gamePointsB})
                   </span>
                 </div>
 
@@ -762,7 +775,7 @@
                     </thead>
                     <tbody>
                       <tr class="player-row">
-                        <td class="player-name">{participantA?.name}</td>
+                        <td class="player-name">{nameA}</td>
                         {#each gameRounds as round}
                           <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
                           {#if tournament.show20s}
@@ -775,7 +788,7 @@
                         {/if}
                       </tr>
                       <tr class="player-row">
-                        <td class="player-name">{participantB?.name}</td>
+                        <td class="player-name">{nameB}</td>
                         {#each gameRounds as round}
                           <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
                           {#if tournament.show20s}
@@ -828,7 +841,7 @@
                 </thead>
                 <tbody>
                   <tr class="player-row">
-                    <td class="player-name">{participantA?.name}</td>
+                    <td class="player-name">{nameA}</td>
                     {#each currentGameRounds as round}
                       {@const roundIndex = rounds.findIndex(r => r === round)}
                       <td class="round-cell points-cell">
@@ -882,7 +895,7 @@
                     {/if}
                   </tr>
                   <tr class="player-row">
-                    <td class="player-name">{participantB?.name}</td>
+                    <td class="player-name">{nameB}</td>
                     {#each currentGameRounds as round}
                       {@const roundIndex = rounds.findIndex(r => r === round)}
                       <td class="round-cell points-cell">
@@ -951,7 +964,7 @@
                 <div class="game-complete-notice">
                   ✅ {m.tournament_gameCompletedNotice({ n: String(currentGameNumber) })}
                   <div class="game-result">
-                    {currentPointsA > currentPointsB ? participantA?.name : participantB?.name} {m.tournament_wins()} {Math.max(currentPointsA, currentPointsB)}-{Math.min(currentPointsA, currentPointsB)}
+                    {currentPointsA > currentPointsB ? nameA : nameB} {m.tournament_wins()} {Math.max(currentPointsA, currentPointsB)}-{Math.min(currentPointsA, currentPointsB)}
                   </div>
                 </div>
 
@@ -963,17 +976,17 @@
                 {:else}
                   <div class="match-complete-notice">
                     <div class="match-winner">
-                      🏆 {m.tournament_matchCompleteWinner({ name: gamesWonA > gamesWonB ? participantA?.name || '' : participantB?.name || '' })}
+                      🏆 {m.tournament_matchCompleteWinner({ name: gamesWonA > gamesWonB ? nameA || '' : nameB || '' })}
                     </div>
                     <div class="match-stats">
                       <div class="stat-row">
                         <span class="stat-label">{m.tournament_totalPointsLabel()}</span>
-                        <span class="stat-value">{participantA?.name} {totalPointsA} - {totalPointsB} {participantB?.name}</span>
+                        <span class="stat-value">{nameA} {totalPointsA} - {totalPointsB} {nameB}</span>
                       </div>
                       {#if tournament.show20s}
                         <div class="stat-row">
                           <span class="stat-label">{m.tournament_totalTwentiesLabel()}</span>
-                          <span class="stat-value">{participantA?.name} {total20sA} 🎯 - 🎯 {total20sB} {participantB?.name}</span>
+                          <span class="stat-value">{nameA} {total20sA} 🎯 - 🎯 {total20sB} {nameB}</span>
                         </div>
                       {/if}
                     </div>
@@ -994,10 +1007,10 @@
 
             <div class="match-complete-notice">
               <div class="match-winner">
-                🏆 {m.tournament_matchCompletedWinner({ name: match.winner === match.participantA ? participantA?.name || '' : participantB?.name || '' })}
+                🏆 {m.tournament_matchCompletedWinner({ name: match.winner === match.participantA ? nameA || '' : nameB || '' })}
               </div>
               <div class="match-score-summary">
-                {participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}
+                {nameA} {displayTotalA} - {displayTotalB} {nameB}
               </div>
             </div>
 
@@ -1027,7 +1040,7 @@
                   <tbody>
                     <!-- Player A -->
                     <tr class="player-row">
-                      <td class="player-name">{participantA?.name}</td>
+                      <td class="player-name">{nameA}</td>
                       {#each rounds as round}
                         <td class="round-cell readonly">{round.pointsA ?? '-'}</td>
                         {#if tournament.show20s}
@@ -1042,7 +1055,7 @@
 
                     <!-- Player B -->
                     <tr class="player-row">
-                      <td class="player-name">{participantB?.name}</td>
+                      <td class="player-name">{nameB}</td>
                       {#each rounds as round}
                         <td class="round-cell readonly">{round.pointsB ?? '-'}</td>
                         {#if tournament.show20s}
@@ -1064,12 +1077,12 @@
                 <div class="summary-stats">
                   <div class="stat-row">
                     <span class="stat-label">{m.tournament_totalPointsLabel()}</span>
-                    <span class="stat-value">{participantA?.name} {displayTotalA} - {displayTotalB} {participantB?.name}</span>
+                    <span class="stat-value">{nameA} {displayTotalA} - {displayTotalB} {nameB}</span>
                   </div>
                   {#if tournament.show20s}
                     <div class="stat-row">
                       <span class="stat-label">{m.tournament_totalTwentiesLabel()}</span>
-                      <span class="stat-value">{participantA?.name} {display20sA} - {display20sB} {participantB?.name}</span>
+                      <span class="stat-value">{nameA} {display20sA} - {display20sB} {nameB}</span>
                     </div>
                   {/if}
                 </div>
@@ -1101,7 +1114,7 @@
                 <tbody>
                   <!-- Player A -->
                   <tr class="player-row">
-                    <td class="player-name">{participantA?.name}</td>
+                    <td class="player-name">{nameA}</td>
                     {#each rounds as round, roundIndex}
                       <td class="round-cell points-cell">
                         <div class="points-selector">
@@ -1159,7 +1172,7 @@
 
                   <!-- Player B -->
                   <tr class="player-row">
-                    <td class="player-name">{participantB?.name}</td>
+                    <td class="player-name">{nameB}</td>
                     {#each rounds as round, roundIndex}
                       <td class="round-cell points-cell">
                         <div class="points-selector">
@@ -1229,7 +1242,7 @@
                   </div>
                   <div class="tiebreak-text">
                     <span class="tiebreak-title">{m.tournament_tiebreakNeeded()}</span>
-                    <span class="tiebreak-score">{participantA?.name} {gamesWonA} - {gamesWonB} {participantB?.name}</span>
+                    <span class="tiebreak-score">{nameA} {gamesWonA} - {gamesWonB} {nameB}</span>
                   </div>
                 </div>
                 <button class="extra-round-btn" onclick={addExtraRound} type="button">
@@ -1266,11 +1279,11 @@
                 </div>
                 <div class="noshow-buttons">
                   <button class="noshow-btn" onclick={() => handleNoShow(match.participantA)}>
-                    <span class="noshow-name">{participantA?.name || ''}</span>
+                    <span class="noshow-name">{nameA || ''}</span>
                     <span class="noshow-label">{m.tournament_didNotShowUp({ name: '' })}</span>
                   </button>
                   <button class="noshow-btn" onclick={() => handleNoShow(match.participantB)}>
-                    <span class="noshow-name">{participantB?.name || ''}</span>
+                    <span class="noshow-name">{nameB || ''}</span>
                     <span class="noshow-label">{m.tournament_didNotShowUp({ name: '' })}</span>
                   </button>
                 </div>
