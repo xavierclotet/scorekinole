@@ -21,6 +21,8 @@
     onExpandedRoundsChange?: (expanded: Set<number>) => void;
     // Total rounds configured for the tournament (for Swiss system, this is numSwissRounds)
     totalRounds?: number | null;
+    // Whether this is a doubles tournament (affects name display)
+    isDoubles?: boolean;
   }
 
   let {
@@ -33,7 +35,8 @@
     gameMode = 'points',
     expandedRoundsState = null,
     onExpandedRoundsChange,
-    totalRounds = null
+    totalRounds = null,
+    isDoubles = false
   }: Props = $props();
 
   // Internal state (used when no external state is provided)
@@ -167,13 +170,14 @@
         </button>
 
         {#if isExpanded}
-          <div class="matches-grid">
+          <div class="matches-grid" class:doubles={isDoubles}>
             {#each round.matches as match (match.id)}
               <MatchCard
                 {match}
                 {participants}
                 {onMatchClick}
                 {gameMode}
+                {isDoubles}
               />
             {/each}
           </div>
@@ -363,6 +367,11 @@
     animation: slideDown 0.15s ease-out;
   }
 
+  /* Doubles mode: 3 columns per row to accommodate longer team names */
+  .matches-grid.doubles {
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  }
+
   @keyframes slideDown {
     from {
       opacity: 0;
@@ -516,6 +525,10 @@
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 0.25rem;
       padding: 0.35rem 0.5rem;
+    }
+
+    .matches-grid.doubles {
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     }
 
     .empty-state {

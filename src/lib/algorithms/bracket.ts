@@ -758,6 +758,12 @@ export function replaceLoserPlaceholder(
   const placeholder = createLoserPlaceholder(roundName, matchPosition);
   const updated = JSON.parse(JSON.stringify(consolationBracket)) as ConsolationBracket;
 
+  // Guard: check if rounds exist
+  if (!updated.rounds || updated.rounds.length === 0 || !updated.rounds[0]?.matches) {
+    console.warn('replaceLoserPlaceholder: No rounds in consolation bracket');
+    return updated;
+  }
+
   // Only check first round - that's where placeholders are
   for (const match of updated.rounds[0].matches) {
     let replaced = false;
@@ -957,11 +963,26 @@ export function calculateConsolationPositions(
 }
 
 /**
+ * Minimum number of real participants required for consolation to be meaningful.
+ * With 5 or fewer participants, the main bracket already determines all positions.
+ */
+export const MIN_PARTICIPANTS_FOR_CONSOLATION = 5;
+
+/**
  * Check if main bracket has enough rounds for consolation
  * @param bracketSize Total bracket size (power of 2)
+ * @param realParticipants Optional: actual number of participants (not including BYEs)
  * @returns Object with available consolation sources
  */
-export function getAvailableConsolationSources(bracketSize: number): { hasQF: boolean; hasR16: boolean } {
+export function getAvailableConsolationSources(
+  bracketSize: number,
+  realParticipants?: number
+): { hasQF: boolean; hasR16: boolean } {
+  // If we know the real participant count and it's too small, no consolation needed
+  if (realParticipants !== undefined && realParticipants <= MIN_PARTICIPANTS_FOR_CONSOLATION) {
+    return { hasQF: false, hasR16: false };
+  }
+
   const totalRounds = Math.log2(bracketSize);
   return {
     hasQF: totalRounds >= 3,  // At least 8 players for QF

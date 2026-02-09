@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { GroupStanding, TournamentParticipant, QualificationMode } from '$lib/types/tournament';
+  import { getParticipantDisplayName } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -12,6 +13,11 @@
     // Whether to enable the mini-league tiebreaker button and modal
     // Set to false for /groups page, true for /transition page
     enableTiebreaker?: boolean;
+    // Whether this is a doubles tournament (affects name display)
+    isDoubles?: boolean;
+    // Number of participants that will qualify (for cutoff tie highlighting)
+    // If null/undefined, no cutoff highlighting will be shown
+    qualifyingCount?: number | null;
   }
 
   let {
@@ -19,7 +25,9 @@
     participants,
     isSwiss = false,
     qualificationMode = 'WINS',
-    enableTiebreaker = true
+    enableTiebreaker = true,
+    isDoubles = false,
+    qualifyingCount = null
   }: Props = $props();
 
   // Use qualificationMode if provided
@@ -50,9 +58,11 @@
     }
   }));
 
-  // Get participant name by ID
+  // Get participant name by ID (handles doubles with teamName)
   function getParticipantName(participantId: string): string {
-    return participantMap.get(participantId)?.name || 'Unknown';
+    const participant = participantMap.get(participantId);
+    if (!participant) return 'Unknown';
+    return getParticipantDisplayName(participant, isDoubles);
   }
 
   // Get names of participants in a tie
@@ -86,7 +96,37 @@
     return groups;
   })());
 
-  // Check if a player is part of a 3+ player tie (same primary value)
+  // Check if a player is part of a tie that crosses the qualification cutoff line
+  // Only highlights ties that matter for qualification decisions
+  function isAtCutoffTie(participantId: string): boolean {
+    // If no qualifying count specified, don't highlight any ties
+    if (qualifyingCount === null || qualifyingCount === undefined || qualifyingCount <= 0) {
+      return false;
+    }
+
+    // Find the tie group this participant belongs to
+    for (const [_, ids] of standingsByPrimaryValue) {
+      if (ids.includes(participantId) && ids.length >= 2) {
+        // Get positions of all players in this tie group
+        const positions = ids.map(id => {
+          const idx = sortedStandings.findIndex(s => s.participantId === id);
+          return idx + 1; // 1-based position
+        });
+
+        const minPos = Math.min(...positions);
+        const maxPos = Math.max(...positions);
+
+        // Check if this tie group crosses the cutoff line
+        // i.e., some would qualify (pos <= qualifyingCount) and some wouldn't (pos > qualifyingCount)
+        if (minPos <= qualifyingCount && maxPos > qualifyingCount) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Check if a player is part of a 3+ player tie (same primary value) - for mini-league button
   function isPartOfMultiTie(participantId: string): boolean {
     for (const [_, ids] of standingsByPrimaryValue) {
       if (ids.includes(participantId) && ids.length >= 3) {
@@ -222,8 +262,9 @@
         {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
         {@const tiedNames = getTiedWithNames(standing.tiedWith)}
         {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
+        {@const atCutoffTie = isAtCutoffTie(standing.participantId)}
         {@const showTieStyles = effectiveQualificationMode === 'WINS' && !isSwiss}
-        <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie && showTieStyles} class:in-multi-tie={inMultiTie && showTieStyles}>
+        <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie && showTieStyles} class:at-cutoff-tie={atCutoffTie && showTieStyles}>
           <td class="pos-col">
             <span class="position-badge" class:qualified={standing.qualifiedForFinal} class:tied={hasTie && showTieStyles}>
               {i + 1}
@@ -514,21 +555,12 @@
     background: rgba(245, 158, 11, 0.18);
   }
 
-  /* 3+ players with same points - stronger orange background */
-  tbody tr.in-multi-tie {
+  /* Ties at qualification cutoff - orange background (qualified keeps green) */
+  tbody tr.at-cutoff-tie:not(.qualified) {
     background: rgba(245, 158, 11, 0.15);
   }
 
-  tbody tr.in-multi-tie:hover {
-    background: rgba(245, 158, 11, 0.22);
-  }
-
-  /* Override qualified background when in multi-tie */
-  tbody tr.in-multi-tie.qualified {
-    background: rgba(245, 158, 11, 0.15);
-  }
-
-  tbody tr.in-multi-tie.qualified:hover {
+  tbody tr.at-cutoff-tie:not(.qualified):hover {
     background: rgba(245, 158, 11, 0.22);
   }
 
@@ -615,20 +647,12 @@
     background: rgba(245, 158, 11, 0.25);
   }
 
-  /* Dark mode 3+ player ties */
-  :global([data-theme='dark']) tbody tr.in-multi-tie {
+  /* Dark mode cutoff ties (qualified keeps green) */
+  :global([data-theme='dark']) tbody tr.at-cutoff-tie:not(.qualified) {
     background: rgba(245, 158, 11, 0.2);
   }
 
-  :global([data-theme='dark']) tbody tr.in-multi-tie:hover {
-    background: rgba(245, 158, 11, 0.3);
-  }
-
-  :global([data-theme='dark']) tbody tr.in-multi-tie.qualified {
-    background: rgba(245, 158, 11, 0.2);
-  }
-
-  :global([data-theme='dark']) tbody tr.in-multi-tie.qualified:hover {
+  :global([data-theme='dark']) tbody tr.at-cutoff-tie:not(.qualified):hover {
     background: rgba(245, 158, 11, 0.3);
   }
 

@@ -24,8 +24,10 @@
   } from '$lib/firebase/tournamentTransition';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { generateBracket, generateSplitBrackets } from '$lib/firebase/tournamentBracket';
+  import { MIN_PARTICIPANTS_FOR_CONSOLATION } from '$lib/algorithms/bracket';
   import { updateTournament, updateTournamentPublic } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';
+  import { getParticipantDisplayName } from '$lib/types/tournament';
 
   let tournament = $state<Tournament | null>(null);
   let loading = $state(true);
@@ -97,6 +99,20 @@
   // Get thirdPlaceMatchEnabled from tournament's finalStage (default to true)
   let thirdPlaceMatchEnabled = $derived(
     tournament?.finalStage?.thirdPlaceMatchEnabled ?? true
+  );
+
+  // Consolation is only useful when bracket has enough participants
+  // With MIN_PARTICIPANTS_FOR_CONSOLATION or less: positions are already determined by main bracket
+  // With more: multiple losers in first round need consolation to determine 5th, 6th, etc.
+  let consolationNeededForGold = $derived(goldCount > MIN_PARTICIPANTS_FOR_CONSOLATION);
+  let consolationNeededForSilver = $derived(silverCount > MIN_PARTICIPANTS_FOR_CONSOLATION);
+  let consolationNeededForSingle = $derived(totalQualifiers > MIN_PARTICIPANTS_FOR_CONSOLATION);
+  let consolationNotNeeded = $derived(
+    consolationEnabled && (
+      isSplitDivisions
+        ? (!consolationNeededForGold && !consolationNeededForSilver)
+        : !consolationNeededForSingle
+    )
   );
 
   let tournamentId = $derived($page.params.id);
@@ -642,7 +658,7 @@
         if (participant) {
           result.push({
             id: standing.participantId,
-            name: participant.name,
+            name: getParticipantDisplayName(participant, tournament?.gameType === 'doubles'),
             position: standing.position || 99,
             groupName: group.name
           });
@@ -678,7 +694,7 @@
           }
           byPosition.get(pos)!.push({
             id: participantId,
-            name: participant.name,
+            name: getParticipantDisplayName(participant, tournament?.gameType === 'doubles'),
             position: pos,
             groupName: group.name
           });
@@ -697,7 +713,9 @@
 
   // Helper functions for SPLIT_DIVISIONS mode
   function getParticipantName(participantId: string): string {
-    return tournament?.participants.find(p => p.id === participantId)?.name || 'Unknown';
+    const participant = tournament?.participants.find(p => p.id === participantId);
+    if (!participant) return 'Unknown';
+    return getParticipantDisplayName(participant, tournament?.gameType === 'doubles');
   }
 
   function getAllQualifiedParticipants(): Array<{ id: string; name: string; position: number; groupName: string }> {
@@ -719,7 +737,7 @@
           if (participant) {
             result.push({
               id: s.participantId,
-              name: participant.name,
+              name: getParticipantDisplayName(participant, tournament?.gameType === 'doubles'),
               position: s.position,
               groupName: group.name
             });
@@ -838,24 +856,25 @@
                   {m.admin_qualifierSelectionTitle()}
                 </span>
               </div>
-              {#if timeRemaining}
-                <div class="header-progress">
-                  <TimeProgressBar
-                    percentComplete={timeRemaining.percentComplete}
-                    remainingMinutes={timeRemaining.remainingMinutes}
-                    showEstimatedEnd={true}
-                    compact={true}
-                    clickable={true}
-                    onclick={openTimeBreakdown}
-                  />
-                </div>
-              {/if}
             </div>
           </div>
           <div class="header-actions">
             <ThemeToggle />
           </div>
         </div>
+
+        {#if timeRemaining}
+          <div class="header-progress-bar">
+            <TimeProgressBar
+              percentComplete={timeRemaining.percentComplete}
+              remainingMinutes={timeRemaining.remainingMinutes}
+              showEstimatedEnd={true}
+              compact={false}
+              clickable={true}
+              onclick={openTimeBreakdown}
+            />
+          </div>
+        {/if}
       {/if}
     </header>
 
@@ -913,6 +932,14 @@
               </div>
             </div>
 
+            <!-- Consolation not needed info (shown right after qualifiers) -->
+            {#if consolationNotNeeded}
+              <div class="info-banner">
+                <span class="info-icon">💡</span>
+                <span>{m.admin_consolationNotNeeded()}</span>
+              </div>
+            {/if}
+
             <!-- Warning for unresolved ties -->
             {#if hasAnyUnresolvedTies}
               <div class="action-required-banner">
@@ -953,16 +980,17 @@
                               {@const participantA = tournament.participants.find(p => p.id === match.participantA)}
                               {@const participantB = tournament.participants.find(p => p.id === match.participantB)}
                               {@const isBye = match.participantB === 'BYE'}
+                              {@const isDoubles = tournament.gameType === 'doubles'}
                               <div class="match-compact" class:completed={match.status === 'COMPLETED'} class:bye={isBye}>
                                 <div class="match-teams">
                                   <span class="team-name" class:winner={match.winner === match.participantA}>
-                                    {participantA?.name || '?'}
+                                    {getParticipantDisplayName(participantA, isDoubles) || '?'}
                                   </span>
                                   <span class="team-name" class:winner={match.winner === match.participantB}>
                                     {#if isBye}
                                       <span class="bye-text">BYE</span>
                                     {:else}
-                                      {participantB?.name || '?'}
+                                      {getParticipantDisplayName(participantB, isDoubles) || '?'}
                                     {/if}
                                   </span>
                                 </div>
@@ -1306,6 +1334,14 @@
               {/if}
             </div>
 
+            <!-- Consolation not needed info (shown right after qualifiers) -->
+            {#if consolationNotNeeded}
+              <div class="info-banner">
+                <span class="info-icon">💡</span>
+                <span>{m.admin_consolationNotNeeded()}</span>
+              </div>
+            {/if}
+
             <!-- Warning for unresolved ties -->
             {#if hasAnyUnresolvedTies}
               <div class="action-required-banner">
@@ -1427,7 +1463,10 @@
 
 <style>
   .transition-page {
-    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
     background: #fafafa;
     transition: background-color 0.3s;
   }
@@ -1490,9 +1529,9 @@
 
   .title-section {
     display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
   }
 
   .title-section h1 {
@@ -1515,8 +1554,15 @@
     flex-wrap: wrap;
   }
 
-  .header-progress {
-    margin-left: 0.5rem;
+  .header-progress-bar {
+    padding: 0.5rem 1rem 0.75rem;
+    background: linear-gradient(to bottom, transparent, rgba(102, 126, 234, 0.03));
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .transition-page[data-theme='dark'] .header-progress-bar {
+    background: linear-gradient(to bottom, transparent, rgba(102, 126, 234, 0.05));
+    border-color: #2d3748;
   }
 
   .info-badge {
@@ -1542,7 +1588,8 @@
   /* Content */
   .page-content {
     padding: 1rem;
-    max-height: calc(100vh - 60px);
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
   }
@@ -1630,6 +1677,31 @@
 
   .primary-button:hover {
     transform: translateY(-1px);
+  }
+
+  /* Info banner */
+  .info-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+    border-radius: 8px;
+    color: #1e40af;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .transition-page[data-theme='dark'] .info-banner {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+  }
+
+  .info-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
   }
 
   /* Sections */
@@ -2670,11 +2742,15 @@
     }
 
     .title-section {
-      gap: 0.5rem;
+      gap: 0.25rem;
     }
 
     .title-section h1 {
       font-size: 0.95rem;
+    }
+
+    .header-progress-bar {
+      padding: 0.4rem 0.75rem 0.6rem;
     }
 
     .header-badges {

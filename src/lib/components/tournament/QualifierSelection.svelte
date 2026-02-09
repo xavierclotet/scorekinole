@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Tournament } from '$lib/types/tournament';
+  import { getParticipantDisplayName } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -135,7 +136,9 @@
   }
 
   function getParticipantName(participantId: string): string {
-    return participantMap.get(participantId)?.name || 'Unknown';
+    const participant = participantMap.get(participantId);
+    if (!participant) return 'Unknown';
+    return getParticipantDisplayName(participant, tournament.gameType === 'doubles');
   }
 
   function getTiedWithNames(tiedWith: string[] | undefined): string {
@@ -148,6 +151,26 @@
 
   // Track previous tie status to only emit when it changes (not reactive - just for comparison)
   let previousTieStatus: boolean | null = null;
+
+  // Debug: Log tie detection conditions
+  $effect(() => {
+    if (standings.length > 0) {
+      const showTieStyles = qualificationMode === 'WINS';
+      console.log(`🔍 [QualifierSelection] Group ${groupIndex}:`, {
+        isSwiss,
+        qualificationMode,
+        showTieStyles,
+        hasUnresolvedTies,
+        standings: standings.map((s: any) => ({
+          name: getParticipantName(s.participantId),
+          pos: s.position,
+          pts: s.points,
+          tiedWith: s.tiedWith,
+          tieReason: s.tieReason
+        }))
+      });
+    }
+  });
 
   // Emit tie status only when it actually changes
   $effect(() => {
@@ -173,7 +196,35 @@
     return groups;
   })());
 
-  // Check if a player is part of a 3+ player tie (same primary value)
+  // Check if a player is part of a tie that crosses the qualification cutoff line
+  // Only highlights ties that matter for qualification decisions
+  function isAtCutoffTie(participantId: string): boolean {
+    // topN is the number of qualifiers
+    if (topN <= 0) return false;
+
+    // Find the tie group this participant belongs to
+    for (const [_, ids] of standingsByPrimaryValue) {
+      if (ids.includes(participantId) && ids.length >= 2) {
+        // Get positions of all players in this tie group
+        const positions = ids.map(id => {
+          const idx = standings.findIndex((s: any) => s.participantId === id);
+          return idx + 1; // 1-based position
+        });
+
+        const minPos = Math.min(...positions);
+        const maxPos = Math.max(...positions);
+
+        // Check if this tie group crosses the cutoff line
+        // i.e., some would qualify (pos <= topN) and some wouldn't (pos > topN)
+        if (minPos <= topN && maxPos > topN) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Check if a player is part of a 3+ player tie (same primary value) - for mini-league button
   function isPartOfMultiTie(participantId: string): boolean {
     for (const [_, ids] of standingsByPrimaryValue) {
       if (ids.includes(participantId) && ids.length >= 3) {
@@ -496,11 +547,12 @@
           {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
           {@const tiedNames = getTiedWithNames(standing.tiedWith)}
           {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
-          {@const showTieStyles = qualificationMode === 'WINS' && !isSwiss}
+          {@const atCutoffTie = isAtCutoffTie(standing.participantId)}
+          {@const showTieStyles = qualificationMode === 'WINS'}
           <tr
             class:selected={isSelected}
-            class:has-tie={hasTie && showTieStyles}
-            class:in-multi-tie={inMultiTie && showTieStyles}
+            class:has-tie={hasTie && showTieStyles && !isSelected}
+            class:at-cutoff-tie={atCutoffTie && showTieStyles && !isSelected}
             onclick={() => toggleParticipant(standing.participantId)}
             role="button"
             tabindex="0"
@@ -1199,15 +1251,13 @@
     background: rgba(245, 158, 11, 0.2);
   }
 
-  /* 3+ players with same points - uniform orange background for all tied players */
-  tr.in-multi-tie,
-  tr.in-multi-tie.selected {
-    background: rgba(245, 158, 11, 0.15) !important;
+  /* Ties at qualification cutoff - orange background (only when not selected) */
+  tr.at-cutoff-tie {
+    background: rgba(245, 158, 11, 0.15);
   }
 
-  tr.in-multi-tie:hover,
-  tr.in-multi-tie.selected:hover {
-    background: rgba(245, 158, 11, 0.22) !important;
+  tr.at-cutoff-tie:hover {
+    background: rgba(245, 158, 11, 0.22);
   }
 
   .position-badge.tied {
@@ -1299,15 +1349,13 @@
     background: rgba(245, 158, 11, 0.3);
   }
 
-  /* Dark mode 3+ player ties - uniform orange for all tied players */
-  :global([data-theme='dark']) tr.in-multi-tie,
-  :global([data-theme='dark']) tr.in-multi-tie.selected {
-    background: rgba(245, 158, 11, 0.2) !important;
+  /* Dark mode cutoff ties (only when not selected) */
+  :global([data-theme='dark']) tr.at-cutoff-tie {
+    background: rgba(245, 158, 11, 0.2);
   }
 
-  :global([data-theme='dark']) tr.in-multi-tie:hover,
-  :global([data-theme='dark']) tr.in-multi-tie.selected:hover {
-    background: rgba(245, 158, 11, 0.3) !important;
+  :global([data-theme='dark']) tr.at-cutoff-tie:hover {
+    background: rgba(245, 158, 11, 0.3);
   }
 
   /* Dark mode modal */

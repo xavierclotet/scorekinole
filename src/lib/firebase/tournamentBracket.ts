@@ -13,7 +13,8 @@ import {
   advanceConsolationWinner as advanceConsolationWinnerAlgorithm,
   getAvailableConsolationSources,
   nextPowerOfTwo,
-  isBye
+  isBye,
+  MIN_PARTICIPANTS_FOR_CONSOLATION
 } from '$lib/algorithms/bracket';
 import { calculateFinalPositionsForTournament, applyRankingUpdates } from './tournamentRanking';
 import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig } from '$lib/types/tournament';
@@ -475,8 +476,8 @@ export async function generateSplitBrackets(
     if (consolationEnabled) {
       const goldBracketSize = nextPowerOfTwo(goldParticipants.length);
       const silverBracketSize = nextPowerOfTwo(silverParticipants.length);
-      const goldAvailable = getAvailableConsolationSources(goldBracketSize);
-      const silverAvailable = getAvailableConsolationSources(silverBracketSize);
+      const goldAvailable = getAvailableConsolationSources(goldBracketSize, goldParticipants.length);
+      const silverAvailable = getAvailableConsolationSources(silverBracketSize, silverParticipants.length);
 
       goldBracketWithConfig.consolationBrackets = [];
       silverBracketWithConfig.consolationBrackets = [];
@@ -649,7 +650,7 @@ export async function generateBracket(
     // Generate consolation brackets with placeholders if enabled
     if (consolationEnabled) {
       const bracketSize = nextPowerOfTwo(qualifiedParticipants.length);
-      const available = getAvailableConsolationSources(bracketSize);
+      const available = getAvailableConsolationSources(bracketSize, qualifiedParticipants.length);
 
       goldBracketWithConfig.consolationBrackets = [];
 
@@ -933,7 +934,15 @@ export async function advanceWinner(
 
     console.log('📋 wasAlreadyCompleted=' + wasAlreadyCompleted + ', isTournamentComplete=' + isTournamentComplete);
 
-    return await updateTournamentPublic(tournamentId, updateData);
+    const result = await updateTournamentPublic(tournamentId, updateData);
+
+    // Apply ranking updates AFTER tournament is saved as COMPLETED
+    if (isTournamentComplete && !wasAlreadyCompleted) {
+      console.log('📈 Applying ranking updates from gold bracket completion...');
+      await applyRankingUpdates(tournamentId);
+    }
+
+    return result;
   } catch (error) {
     console.error('❌ Error advancing winner:', error);
     return false;
@@ -1056,19 +1065,45 @@ export async function advanceSilverWinner(
   matchId: string,
   winnerId: string
 ): Promise<boolean> {
+  console.log(`🥈 advanceSilverWinner called: matchId=${matchId}, winnerId=${winnerId}`);
+
   const tournament = await getTournament(tournamentId);
   if (!tournament || !tournament.finalStage || !tournament.finalStage.silverBracket || !tournament.finalStage.goldBracket) {
-    console.error('Tournament or brackets not found');
+    console.error('❌ Tournament or brackets not found');
     return false;
   }
 
   try {
+    // Find the match to get context
+    let matchRound = -1;
+    let matchNextId = '';
+    for (let i = 0; i < tournament.finalStage.silverBracket.rounds.length; i++) {
+      const match = tournament.finalStage.silverBracket.rounds[i].matches.find(m => m.id === matchId);
+      if (match) {
+        matchRound = i;
+        matchNextId = match.nextMatchId || '';
+        console.log(`  📍 Found match in round ${i}, nextMatchId: ${matchNextId || 'FINAL'}`);
+        break;
+      }
+    }
+
     // Use algorithm to advance winner in silver bracket
     const updatedSilverBracketRaw = advanceWinnerAlgorithm(
       tournament.finalStage.silverBracket,
       matchId,
       winnerId
     );
+
+    // Log what changed
+    if (matchNextId) {
+      for (const round of updatedSilverBracketRaw.rounds) {
+        const nextMatch = round.matches.find(m => m.id === matchNextId);
+        if (nextMatch) {
+          console.log(`  ✅ Next match (${matchNextId}): participantA=${nextMatch.participantA || 'TBD'}, participantB=${nextMatch.participantB || 'TBD'}`);
+          break;
+        }
+      }
+    }
 
     // Preserve config and consolation brackets in updated bracket
     let updatedSilverBracket: BracketWithConfig = {
@@ -1149,7 +1184,17 @@ export async function advanceSilverWinner(
       console.log('📊 Final positions calculated and included in update.');
     }
 
-    return await updateTournamentPublic(tournamentId, updateData);
+    console.log('📤 Updating tournament with silver bracket changes...');
+    const result = await updateTournamentPublic(tournamentId, updateData);
+    console.log(`📤 updateTournamentPublic result: ${result}`);
+
+    // Apply ranking updates AFTER tournament is saved as COMPLETED
+    if (isTournamentComplete && !wasAlreadyCompleted) {
+      console.log('📈 Applying ranking updates from silver bracket completion...');
+      await applyRankingUpdates(tournamentId);
+    }
+
+    return result;
   } catch (error) {
     console.error('❌ Error advancing silver winner:', error);
     return false;
@@ -1430,6 +1475,21 @@ function getByePositionsInRound(bracket: BracketWithConfig, roundType: 'QF' | 'R
 }
 
 /**
+ * Count real participants (non-BYE) in a bracket's first round
+ */
+function countRealParticipants(bracket: BracketWithConfig): number {
+  if (!bracket.rounds || bracket.rounds.length === 0) return 0;
+
+  const firstRound = bracket.rounds[0];
+  let count = 0;
+  for (const match of firstRound.matches) {
+    if (match.participantA && !isBye(match.participantA)) count++;
+    if (match.participantB && !isBye(match.participantB)) count++;
+  }
+  return count;
+}
+
+/**
  * Check and generate consolation brackets if needed
  * Also updates existing consolation brackets with losers from completed matches
  * Called after a match is completed in the main bracket
@@ -1447,7 +1507,8 @@ async function checkAndGenerateConsolation(
 
   const updatedBracket = JSON.parse(JSON.stringify(bracket)) as BracketWithConfig;
   const bracketSize = nextPowerOfTwo(Math.pow(2, bracket.totalRounds));
-  const available = getAvailableConsolationSources(bracketSize);
+  const realParticipants = countRealParticipants(bracket);
+  const available = getAvailableConsolationSources(bracketSize, realParticipants);
 
   // Initialize consolationBrackets array if needed
   if (!updatedBracket.consolationBrackets) {
@@ -1581,8 +1642,9 @@ export async function forceRegenerateConsolationBrackets(
   console.log(`   totalRounds: ${bracket.totalRounds}`);
   console.log(`   rounds.length: ${bracket.rounds?.length}`);
   const bracketSize = nextPowerOfTwo(Math.pow(2, bracket.totalRounds));
-  const available = getAvailableConsolationSources(bracketSize);
-  console.log(`   bracketSize: ${bracketSize}`);
+  const realParticipants = countRealParticipants(bracket);
+  const available = getAvailableConsolationSources(bracketSize, realParticipants);
+  console.log(`   bracketSize: ${bracketSize}, realParticipants: ${realParticipants}`);
   console.log(`   hasQF: ${available.hasQF}, hasR16: ${available.hasR16}`);
 
   // Check round completion
@@ -1950,6 +2012,13 @@ export async function advanceConsolationWinner(
     }
 
     await updateTournamentPublic(tournamentId, updateData);
+
+    // Apply ranking updates AFTER tournament is saved as COMPLETED
+    if (isTournamentComplete && !wasAlreadyCompleted) {
+      console.log('📈 Applying ranking updates from consolation bracket completion...');
+      await applyRankingUpdates(tournamentId);
+    }
+
     return true;
   } catch (error) {
     console.error('Error advancing consolation winner:', error);
@@ -1966,7 +2035,8 @@ function areConsolationBracketsComplete(bracket: BracketWithConfig | undefined, 
   if (!bracket.consolationBrackets || bracket.consolationBrackets.length === 0) {
     // Consolation enabled but no brackets generated yet - check if they should be
     const bracketSize = nextPowerOfTwo(Math.pow(2, bracket.totalRounds));
-    const available = getAvailableConsolationSources(bracketSize);
+    const realParticipants = countRealParticipants(bracket);
+    const available = getAvailableConsolationSources(bracketSize, realParticipants);
 
     // If we should have consolation brackets but don't, return false
     if (available.hasQF || available.hasR16) {

@@ -42,6 +42,21 @@ export function generateSwissPairings(
 }
 
 /**
+ * Get set of participant IDs who have already received a BYE
+ */
+function getByeHistory(previousPairings: SwissPairing[]): Set<string> {
+  const byeReceivers = new Set<string>();
+  previousPairings.forEach(pairing => {
+    pairing.matches.forEach(match => {
+      if (match.participantB === 'BYE') {
+        byeReceivers.add(match.participantA);
+      }
+    });
+  });
+  return byeReceivers;
+}
+
+/**
  * Generate random pairings for round 1
  */
 function generateRandomPairings(participants: TournamentParticipant[]): GroupMatch[] {
@@ -70,6 +85,10 @@ function generateRandomPairings(participants: TournamentParticipant[]): GroupMat
 
 /**
  * Generate point-based pairings for subsequent rounds
+ *
+ * BYE distribution: Each participant should receive at most 1 BYE before
+ * anyone receives a second BYE. Among eligible players, the lowest-ranked
+ * player (by Swiss points) gets the BYE.
  */
 function generatePointBasedPairings(
   participants: TournamentParticipant[],
@@ -104,11 +123,39 @@ function generatePointBasedPairings(
     });
   });
 
-  // Pair participants
-  const paired = new Set<string>();
-  const matches: GroupMatch[] = [];
-  let matchCounter = 1;
+  // Get BYE history - who has already received a BYE
+  const byeHistory = getByeHistory(previousPairings);
 
+  // Handle odd number of participants - assign BYE first
+  const matches: GroupMatch[] = [];
+  const paired = new Set<string>();
+  let matchCounter = 1;
+  const roundNumber = previousPairings.length + 1;
+
+  if (sorted.length % 2 !== 0) {
+    // Find the best candidate for BYE:
+    // 1. Prioritize players who haven't had a BYE yet
+    // 2. Among those, pick the lowest-ranked (last in sorted order)
+
+    // Get players who haven't had BYE yet
+    const neverHadBye = sorted.filter(p => !byeHistory.has(p.id));
+
+    let byeCandidate: TournamentParticipant;
+
+    if (neverHadBye.length > 0) {
+      // Pick the lowest-ranked player who hasn't had BYE
+      byeCandidate = neverHadBye[neverHadBye.length - 1];
+    } else {
+      // Everyone has had at least one BYE, pick lowest-ranked overall
+      byeCandidate = sorted[sorted.length - 1];
+    }
+
+    // Assign BYE to this player
+    matches.push(createByeMatch(byeCandidate.id, roundNumber));
+    paired.add(byeCandidate.id);
+  }
+
+  // Pair remaining participants
   for (let i = 0; i < sorted.length; i++) {
     if (paired.has(sorted[i].id)) continue;
 
@@ -144,15 +191,11 @@ function generatePointBasedPairings(
       paired.add(participantB.id);
 
       matches.push({
-        id: `swiss-r${previousPairings.length + 1}-m${matchCounter++}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `swiss-r${roundNumber}-m${matchCounter++}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         participantA: participantA.id,
         participantB: participantB.id,
         status: 'PENDING'
       });
-    } else {
-      // Odd one out gets BYE
-      matches.push(createByeMatch(participantA.id, previousPairings.length + 1));
-      paired.add(participantA.id);
     }
   }
 
