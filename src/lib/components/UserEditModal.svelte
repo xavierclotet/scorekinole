@@ -3,6 +3,9 @@
   import { adminTheme } from '$lib/stores/theme';
   import type { AdminUserInfo } from '$lib/firebase/admin';
   import { updateUserProfile, toggleAdminStatus } from '$lib/firebase/admin';
+  import { getQuotaForYear, setQuotaForYear, type QuotaEntry } from '$lib/types/quota';
+  import { currentUser } from '$lib/firebase/auth';
+  import { get } from 'svelte/store';
 
   interface Props {
     user: AdminUserInfo;
@@ -19,6 +22,21 @@
     return found?.playerName || userId.substring(0, 12) + '...';
   }
 
+  const currentYear = new Date().getFullYear();
+  const nextYear = currentYear + 1;
+
+  // Initialize quota from new system, falling back to old system
+  function getInitialQuotaForYear(year: number): number {
+    // Try new quota system first
+    const newSystemQuota = getQuotaForYear(user.quotaEntries, year);
+    if (newSystemQuota > 0) return newSystemQuota;
+    // Fallback to old system for current year only
+    if (year === currentYear && user.maxTournamentsPerYear) {
+      return user.maxTournamentsPerYear;
+    }
+    return 0;
+  }
+
   // svelte-ignore state_referenced_locally - Intentional: initializing editable local state from props
   let playerName = $state(user.playerName);
   // svelte-ignore state_referenced_locally
@@ -28,9 +46,20 @@
   // svelte-ignore state_referenced_locally
   let canImportTournaments = $state(user.canImportTournaments || false);
   // svelte-ignore state_referenced_locally
-  let maxTournamentsPerYear = $state(user.maxTournamentsPerYear ?? 0);
+  let currentYearQuota = $state(getInitialQuotaForYear(currentYear));
+  // svelte-ignore state_referenced_locally
+  let nextYearQuota = $state(getInitialQuotaForYear(nextYear));
+  // svelte-ignore state_referenced_locally
+  let showNextYear = $state(getQuotaForYear(user.quotaEntries, nextYear) > 0);
   let isSaving = $state(false);
   let errorMessage = $state('');
+
+  // Get past quotas (years before current year)
+  let pastQuotas = $derived(
+    (user.quotaEntries || [])
+      .filter(e => e.year < currentYear)
+      .sort((a, b) => b.year - a.year)
+  );
 
   async function saveChanges() {
     if (!playerName.trim()) {
@@ -42,14 +71,10 @@
     errorMessage = '';
 
     try {
-      const updates: { playerName?: string; maxTournamentsPerYear?: number; canAutofill?: boolean; canImportTournaments?: boolean } = {};
+      const updates: { playerName?: string; quotaEntries?: QuotaEntry[]; canAutofill?: boolean; canImportTournaments?: boolean } = {};
 
       if (playerName !== user.playerName) {
         updates.playerName = playerName;
-      }
-
-      if (maxTournamentsPerYear !== (user.maxTournamentsPerYear ?? 0)) {
-        updates.maxTournamentsPerYear = maxTournamentsPerYear;
       }
 
       if (canAutofill !== (user.canAutofill || false)) {
@@ -58,6 +83,25 @@
 
       if (canImportTournaments !== (user.canImportTournaments || false)) {
         updates.canImportTournaments = canImportTournaments;
+      }
+
+      // Build new quotaEntries if quota changed
+      const oldCurrentYearQuota = getInitialQuotaForYear(currentYear);
+      const oldNextYearQuota = getQuotaForYear(user.quotaEntries, nextYear);
+
+      if (currentYearQuota !== oldCurrentYearQuota || nextYearQuota !== oldNextYearQuota || (showNextYear && nextYearQuota > 0)) {
+        const adminUserId = get(currentUser)?.id;
+        let newEntries = user.quotaEntries ? [...user.quotaEntries] : [];
+
+        // Update current year quota
+        newEntries = setQuotaForYear(newEntries, currentYear, currentYearQuota, adminUserId, 'admin-assigned');
+
+        // Update next year quota if shown and > 0
+        if (showNextYear && nextYearQuota > 0) {
+          newEntries = setQuotaForYear(newEntries, nextYear, nextYearQuota, adminUserId, 'admin-assigned');
+        }
+
+        updates.quotaEntries = newEntries;
       }
 
       if (Object.keys(updates).length > 0) {
@@ -238,19 +282,63 @@
           {/if}
 
           {#if isAdmin}
-            <div class="field">
-              <label for="maxTournamentsPerYear">{m.admin_maxTournaments()}</label>
-              <div class="input-with-suffix">
-                <input
-                  id="maxTournamentsPerYear"
-                  type="number"
-                  bind:value={maxTournamentsPerYear}
-                  min="0"
-                  max="365"
-                  step="1"
-                />
-                <span class="suffix">/año</span>
+            <div class="field quota-section">
+              <label>{m.admin_maxTournaments()}</label>
+
+              <!-- Current year quota -->
+              <div class="quota-year-entry">
+                <span class="year-label">{currentYear}</span>
+                <div class="input-with-suffix compact">
+                  <input
+                    type="number"
+                    bind:value={currentYearQuota}
+                    min="0"
+                    max="365"
+                    step="1"
+                  />
+                  <span class="suffix">live</span>
+                </div>
               </div>
+
+              <!-- Next year quota (collapsible) -->
+              {#if showNextYear}
+                <div class="quota-year-entry">
+                  <span class="year-label">{nextYear}</span>
+                  <div class="input-with-suffix compact">
+                    <input
+                      type="number"
+                      bind:value={nextYearQuota}
+                      min="0"
+                      max="365"
+                      step="1"
+                    />
+                    <span class="suffix">live</span>
+                  </div>
+                </div>
+              {:else}
+                <button type="button" class="add-year-btn" onclick={() => { showNextYear = true; nextYearQuota = 1; }}>
+                  + {m.admin_addQuotaNextYear({ year: String(nextYear) })}
+                </button>
+              {/if}
+
+              <!-- Past quotas (read-only) -->
+              {#if pastQuotas.length > 0}
+                <details class="past-quotas">
+                  <summary>{m.admin_pastQuotas()} ({pastQuotas.length})</summary>
+                  <div class="past-quotas-list">
+                    {#each pastQuotas as quota}
+                      <div class="past-quota-item">
+                        <span class="year">{quota.year}</span>
+                        <span class="value">{quota.maxLiveTournaments} live</span>
+                        {#if quota.reason === 'auto-register'}
+                          <span class="reason-badge auto">{m.admin_quotaReason_autoRegister()}</span>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                </details>
+              {/if}
+
               <span class="field-hint">{m.admin_maxTournamentsHint()}</span>
             </div>
           {/if}
@@ -702,6 +790,138 @@
   .modal-overlay[data-theme='dark'] .toggle-switch.active .toggle-track {
     background: #22c55e;
     box-shadow: 0 0 14px rgba(34, 197, 94, 0.7);
+  }
+
+  /* Quota Section */
+  .quota-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .quota-year-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+  }
+
+  .quota-year-entry .year-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #333;
+    min-width: 50px;
+  }
+
+  .modal-overlay[data-theme='dark'] .quota-year-entry .year-label {
+    color: #c5d0de;
+  }
+
+  .input-with-suffix.compact {
+    max-width: 100px;
+  }
+
+  .input-with-suffix.compact input {
+    padding-right: 2.5rem;
+    text-align: center;
+  }
+
+  .add-year-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    background: transparent;
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 0.25rem;
+  }
+
+  .add-year-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
+  }
+
+  .modal-overlay[data-theme='dark'] .add-year-btn {
+    border-color: #4a5568;
+    color: #8b9bb3;
+  }
+
+  .modal-overlay[data-theme='dark'] .add-year-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+  }
+
+  .past-quotas {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .past-quotas summary {
+    cursor: pointer;
+    color: #666;
+    font-size: 0.75rem;
+    padding: 0.25rem 0;
+  }
+
+  .past-quotas summary:hover {
+    color: #333;
+  }
+
+  .modal-overlay[data-theme='dark'] .past-quotas summary {
+    color: #6b7a94;
+  }
+
+  .modal-overlay[data-theme='dark'] .past-quotas summary:hover {
+    color: #8b9bb3;
+  }
+
+  .past-quotas-list {
+    padding: 0.5rem 0 0 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .past-quota-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: #666;
+  }
+
+  .modal-overlay[data-theme='dark'] .past-quota-item {
+    color: #8b9bb3;
+  }
+
+  .past-quota-item .year {
+    font-weight: 600;
+    min-width: 40px;
+  }
+
+  .past-quota-item .value {
+    color: #999;
+  }
+
+  .reason-badge {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .reason-badge.auto {
+    background: #dbeafe;
+    color: #2563eb;
+  }
+
+  .modal-overlay[data-theme='dark'] .reason-badge.auto {
+    background: #1e3a5f;
+    color: #93c5fd;
   }
 
   /* Error Alert */

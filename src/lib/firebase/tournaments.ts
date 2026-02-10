@@ -8,6 +8,7 @@ import { currentUser } from './auth';
 import { isAdmin, isSuperAdmin } from './admin';
 import type { Tournament, TournamentStatus } from '$lib/types/tournament';
 import { getUserProfile, type UserProfile } from './userProfile';
+import { getQuotaForYear, getQuotaEntryForYear, type QuotaEntry } from '$lib/types/quota';
 import {
   collection,
   doc,
@@ -167,13 +168,14 @@ export async function getUserTournamentCountForYear(
 /**
  * Check if current user can create a new tournament (quota check)
  *
- * @returns Object with quota info: canCreate, used, limit, isSuperAdmin
+ * @returns Object with quota info: canCreate, used, limit, isSuperAdmin, quotaEntry
  */
 export async function checkTournamentQuota(): Promise<{
   canCreate: boolean;
   used: number;
   limit: number;
   isSuperAdmin: boolean;
+  quotaEntry?: QuotaEntry;
 }> {
   if (!browser || !isFirebaseEnabled()) {
     return { canCreate: false, used: 0, limit: 0, isSuperAdmin: false };
@@ -193,21 +195,30 @@ export async function checkTournamentQuota(): Promise<{
     }
 
     const profile = await getUserProfile();
-    const maxTournaments = profile?.maxTournamentsPerYear ?? 0;
+    const currentYear = new Date().getFullYear();
+
+    // 1. Try new quota system first (quotaEntries array)
+    let maxTournaments = getQuotaForYear(profile?.quotaEntries, currentYear);
+    const quotaEntry = getQuotaEntryForYear(profile?.quotaEntries, currentYear);
+
+    // 2. Fallback to old system for backward compatibility
+    if (maxTournaments === 0 && profile?.maxTournamentsPerYear) {
+      maxTournaments = profile.maxTournamentsPerYear;
+    }
 
     // If max is 0, user cannot create tournaments
     if (maxTournaments === 0) {
       return { canCreate: false, used: 0, limit: 0, isSuperAdmin: false };
     }
 
-    const currentYear = new Date().getFullYear();
     const usedCount = await getUserTournamentCountForYear(user.id, currentYear);
 
     return {
       canCreate: usedCount < maxTournaments,
       used: usedCount,
       limit: maxTournaments,
-      isSuperAdmin: false
+      isSuperAdmin: false,
+      quotaEntry
     };
   } catch (error) {
     console.error('Error checking tournament quota:', error);

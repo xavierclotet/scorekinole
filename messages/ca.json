@@ -1060,5 +1060,8 @@
   "profile_colorTheme": "Tema de color",
   "profile_themeGreen": "Verd",
   "profile_themeViolet": "Violeta",
-  "tournaments_statusLive": "EN VIU"
+  "tournaments_statusLive": "EN VIU",
+  "admin_addQuotaNextYear": "Afegir quota per a {year}",
+  "admin_pastQuotas": "Quotes anteriors",
+  "admin_quotaReason_autoRegister": "Autoregistre"
 }

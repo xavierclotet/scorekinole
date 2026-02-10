@@ -9,6 +9,18 @@
   import { adminTheme } from '$lib/stores/theme';
   import { getUsersPaginated, deleteUser, getUsersTournamentCounts, mergeGuestToRegistered, getRegisteredUsers, type AdminUserInfo } from '$lib/firebase/admin';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+  import { getQuotaForYear } from '$lib/types/quota';
+
+  const currentYear = new Date().getFullYear();
+
+  // Get quota for current year from new system, fallback to old system
+  function getUserQuotaForCurrentYear(user: AdminUserInfo): number {
+    // Try new quota system first
+    const newSystemQuota = getQuotaForYear(user.quotaEntries, currentYear);
+    if (newSystemQuota > 0) return newSystemQuota;
+    // Fallback to old system
+    return user.maxTournamentsPerYear ?? 0;
+  }
 
   let users: AdminUserInfo[] = $state([]);
   let isLoading = $state(true);
@@ -301,7 +313,6 @@
           <thead>
             <tr>
               <th class="name-col">{m.admin_playerName()}</th>
-              <th class="email-col hide-mobile">{m.auth_email()}</th>
               <th class="role-col">Admin</th>
               <th class="tournaments-col hide-small">{m.admin_tournaments()}</th>
               <th class="quota-col hide-small">Cuota</th>
@@ -323,12 +334,9 @@
                     {/if}
                     <div class="user-details">
                       <strong class="user-name">{user.playerName || 'Sin nombre'}</strong>
-                      <small class="user-id">{user.userId.substring(0, 8)}...</small>
+                      <small class="user-email">{user.email || '-'}</small>
                     </div>
                   </div>
-                </td>
-                <td class="email-cell hide-mobile">
-                  {user.email || '-'}
                 </td>
                 <td class="role-cell">
                   {#if user.isSuperAdmin}
@@ -348,7 +356,7 @@
                   {#if user.isSuperAdmin}
                     <span class="quota-unlimited">∞</span>
                   {:else if user.isAdmin}
-                    <span class="quota-value">{user.maxTournamentsPerYear ?? 0}/año</span>
+                    <span class="quota-value">{getUserQuotaForCurrentYear(user)} → {currentYear}</span>
                   {:else}
                     <span class="quota-na">-</span>
                   {/if}
@@ -365,18 +373,6 @@
                     >
                       🔗
                     </button>
-                  {/if}
-                  {#if user.mergedTo}
-                    {@const targetUser = users.find(u => u.userId === user.mergedTo)}
-                    <span class="merged-badge merged-to" title={m.admin_userAlreadyMerged()}>
-                      → {targetUser?.playerName || user.mergedTo.substring(0, 8) + '...'}
-                    </span>
-                  {/if}
-                  {#if user.mergedFrom && user.mergedFrom.length > 0}
-                    {@const sourceUsers = user.mergedFrom.map(id => users.find(u => u.userId === id)?.playerName || id.substring(0, 8) + '...')}
-                    <span class="merged-badge merged-from" title={sourceUsers.join(', ')}>
-                      ← {sourceUsers.length > 1 ? `${sourceUsers.length} usuarios` : sourceUsers[0]}
-                    </span>
                   {/if}
                   <button
                     class="action-btn delete-btn"
@@ -863,24 +859,13 @@
     text-overflow: ellipsis;
   }
 
-  .user-id {
+  .user-email {
     font-size: 0.7rem;
     color: #999;
-    font-family: monospace;
   }
 
-  .users-container[data-theme='dark'] .user-id {
+  .users-container[data-theme='dark'] .user-email {
     color: #6b7a94;
-  }
-
-  /* Email cell */
-  .email-cell {
-    color: #666;
-    font-size: 0.8rem;
-  }
-
-  .users-container[data-theme='dark'] .email-cell {
-    color: #8b9bb3;
   }
 
   /* Role cell */
@@ -930,25 +915,6 @@
   .users-container[data-theme='dark'] .tournaments-created {
     background: #0f1419;
     color: #8b9bb3;
-  }
-
-  /* Ranking cell */
-  .ranking-value {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.2rem;
-    padding: 0.2rem 0.5rem;
-    background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
-    color: #333;
-    font-size: 0.75rem;
-    font-weight: 700;
-    border-radius: 10px;
-  }
-
-  .ranking-value small {
-    font-size: 0.6rem;
-    font-weight: 500;
-    opacity: 0.8;
   }
 
   /* Quota cell */
@@ -1199,40 +1165,6 @@
 
   .users-container[data-theme='dark'] .action-btn.migrate-btn:hover {
     background: #1e3a5f;
-  }
-
-  .merged-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.2rem 0.5rem;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    white-space: nowrap;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 25px;
-    cursor: help;
-  }
-
-  .merged-badge.merged-to {
-    background: #d1fae5;
-    color: #059669;
-  }
-
-  .merged-badge.merged-from {
-    background: #dbeafe;
-    color: #2563eb;
-  }
-
-  .users-container[data-theme='dark'] .merged-badge.merged-to {
-    background: #064e3b;
-    color: #6ee7b7;
-  }
-
-  .users-container[data-theme='dark'] .merged-badge.merged-from {
-    background: #1e3a5f;
-    color: #93c5fd;
   }
 
   /* Migration modal */

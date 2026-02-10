@@ -1060,5 +1060,8 @@
   "profile_colorTheme": "Color theme",
   "profile_themeGreen": "Green",
   "profile_themeViolet": "Violet",
-  "tournaments_statusLive": "LIVE"
+  "tournaments_statusLive": "LIVE",
+  "admin_addQuotaNextYear": "Add quota for {year}",
+  "admin_pastQuotas": "Previous installments",
+  "admin_quotaReason_autoRegister": "Self-registration"
 }

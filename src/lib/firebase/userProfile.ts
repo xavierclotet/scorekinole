@@ -4,6 +4,8 @@ import { doc, getDoc, setDoc, getDocs, query, where, collection, addDoc, arrayUn
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { TournamentRecord } from '$lib/types/tournament';
+import type { QuotaEntry } from '$lib/types/quota';
+import { createInitialQuota } from '$lib/types/quota';
 
 export interface UserProfile {
   playerName: string;
@@ -13,7 +15,9 @@ export interface UserProfile {
   isSuperAdmin?: boolean;
   canAutofill?: boolean;           // Can use autofill buttons in groups/bracket pages
   canImportTournaments?: boolean;  // Can import historical tournaments (doesn't count towards quota)
+  /** @deprecated Use quotaEntries instead. Kept for backward compatibility. */
   maxTournamentsPerYear?: number;  // Max tournaments this admin can create per year (0-365)
+  quotaEntries?: QuotaEntry[];     // Per-year quota entries (new system)
   // Tournament tracking (ranking is calculated from tournaments, not stored)
   tournaments?: TournamentRecord[];      // Tournament history
   authProvider?: 'google' | null;        // null = GUEST without auth
@@ -58,6 +62,7 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 
 /**
  * Save or update user profile
+ * For NEW users: auto-assigns isAdmin=true and 1 live tournament quota for current year
  */
 export async function saveUserProfile(playerName: string): Promise<UserProfile | null> {
   if (!browser || !isFirebaseEnabled()) {
@@ -73,18 +78,32 @@ export async function saveUserProfile(playerName: string): Promise<UserProfile |
 
   try {
     const profileRef = doc(db!, 'users', user.id);
-    const profile: UserProfile = {
+
+    // Check if this is a new user (no existing document)
+    const existingDoc = await getDoc(profileRef);
+    const isNewUser = !existingDoc.exists();
+
+    const currentYear = new Date().getFullYear();
+
+    const profile: Partial<UserProfile> = {
       playerName: playerName.trim(),
       email: user.email,
       photoURL: user.photoURL,
       authProvider: 'google',
-      updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp() // Will only set on first create
+      updatedAt: serverTimestamp()
     };
 
+    // For NEW users only: auto-assign admin status and initial quota
+    if (isNewUser) {
+      profile.isAdmin = true;
+      profile.quotaEntries = createInitialQuota(currentYear, 1);
+      profile.createdAt = serverTimestamp();
+      console.log('🎉 New user - auto-assigning admin + 1 live tournament quota for', currentYear);
+    }
+
     await setDoc(profileRef, profile, { merge: true });
-    console.log('✅ User profile saved:', playerName);
-    return profile;
+    console.log('✅ User profile saved:', playerName, isNewUser ? '(new user)' : '(existing user)');
+    return profile as UserProfile;
   } catch (error) {
     console.error('❌ Error saving user profile:', error);
     return null;
