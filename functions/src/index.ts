@@ -43,6 +43,7 @@ interface TournamentParticipant {
   teamName?: string;               // Optional artistic team name for display
   status: "ACTIVE" | "WITHDRAWN" | "DISQUALIFIED";
   rankingSnapshot?: number;
+  currentRanking?: number;
   finalPosition?: number;
   // Legacy pair mode fields (deprecated - use partner instead)
   participantMode?: "individual" | "pair";
@@ -255,7 +256,17 @@ async function addPairTournamentRecord(
 }
 
 /**
+ * Result of processing a participant, includes userId updates needed
+ */
+interface ParticipantProcessResult {
+  participantId: string;
+  userId?: string;        // If main participant needs userId update
+  partnerUserId?: string; // If partner needs userId update (doubles)
+}
+
+/**
  * Process a single participant and add tournament record to their profile
+ * Returns info about userId updates needed for the participant
  */
 async function processParticipant(
   participant: TournamentParticipant,
@@ -263,7 +274,8 @@ async function processParticipant(
   tier: TournamentTier,
   totalParticipants: number,
   rankingEnabled: boolean
-): Promise<void> {
+): Promise<ParticipantProcessResult> {
+  const result: ParticipantProcessResult = { participantId: participant.id };
   const position = participant.finalPosition || 0;
   const pointsEarned = rankingEnabled ? calculateRankingPoints(position, tier) : 0;
   const rankingBefore = participant.rankingSnapshot || 0;
@@ -280,7 +292,7 @@ async function processParticipant(
     rankingDelta: pointsEarned,
   };
 
-  // NEW: Handle pair participants
+  // LEGACY: Handle pair participants (deprecated - use partner field instead)
   if (participant.participantMode === "pair" && participant.pairId) {
     logger.info(`Processing pair participant: ${participant.pairId}`);
 
@@ -303,9 +315,9 @@ async function processParticipant(
       if (pair.member1Type === "REGISTERED" && pair.member1UserId && !pair.member1UserId.startsWith("pair_")) {
         member1UserId = pair.member1UserId;
       } else {
-        const result = await getOrCreateUserByName(pair.member1Name);
-        if (result) {
-          member1UserId = result.userId;
+        const userResult = await getOrCreateUserByName(pair.member1Name);
+        if (userResult) {
+          member1UserId = userResult.userId;
         }
       }
       if (member1UserId) {
@@ -317,16 +329,17 @@ async function processParticipant(
       if (pair.member2Type === "REGISTERED" && pair.member2UserId && !pair.member2UserId.startsWith("pair_")) {
         member2UserId = pair.member2UserId;
       } else {
-        const result = await getOrCreateUserByName(pair.member2Name);
-        if (result) {
-          member2UserId = result.userId;
+        const userResult = await getOrCreateUserByName(pair.member2Name);
+        if (userResult) {
+          member2UserId = userResult.userId;
         }
       }
       if (member2UserId) {
         await addTournamentRecord(member2UserId, tournamentRecord);
       }
     }
-    return;
+    // Legacy pairs don't need userId updates in tournament (they use pairId)
+    return result;
   }
 
   // DOUBLES: Process both members using their REAL names
@@ -343,9 +356,11 @@ async function processParticipant(
       member1UserId = participant.userId;
     } else {
       // participant.name always contains the real name now
-      const result = await getOrCreateUserByName(participant.name);
-      if (result) {
-        member1UserId = result.userId;
+      const userResult = await getOrCreateUserByName(participant.name);
+      if (userResult) {
+        member1UserId = userResult.userId;
+        // Track that we need to update this participant's userId
+        result.userId = userResult.userId;
       }
     }
     if (member1UserId) {
@@ -358,38 +373,44 @@ async function processParticipant(
       member2UserId = participant.partner.userId;
     } else {
       // partner.name always contains the real name
-      const result = await getOrCreateUserByName(participant.partner.name);
-      if (result) {
-        member2UserId = result.userId;
+      const userResult = await getOrCreateUserByName(participant.partner.name);
+      if (userResult) {
+        member2UserId = userResult.userId;
+        // Track that we need to update the partner's userId
+        result.partnerUserId = userResult.userId;
       }
     }
     if (member2UserId) {
       await addTournamentRecord(member2UserId, tournamentRecord);
     }
 
-    return;
+    return result;
   }
 
   // SINGLES: Individual participant
   // Skip if name looks like a pair team name (contains " / ")
   if (participant.name.includes(" / ")) {
     logger.warn(`Skipping participant "${participant.name}" - looks like a pair team name, not an individual player`);
-    return;
+    return result;
   }
 
   let userId: string | null = null;
   if (participant.type === "REGISTERED" && participant.userId) {
     userId = participant.userId;
   } else {
-    const result = await getOrCreateUserByName(participant.name);
-    if (result) {
-      userId = result.userId;
+    const userResult = await getOrCreateUserByName(participant.name);
+    if (userResult) {
+      userId = userResult.userId;
+      // Track that we need to update this participant's userId
+      result.userId = userResult.userId;
     }
   }
 
   if (userId) {
     await addTournamentRecord(userId, tournamentRecord);
   }
+
+  return result;
 }
 
 /**
@@ -454,24 +475,56 @@ export const onTournamentComplete = onDocumentUpdated(
       `Tournament ${tournamentId} processing complete: ${successful} successful, ${failed} failed`
     );
 
-    // Update tournament to mark ranking updates as applied
+    // Collect userId updates from process results
+    const userIdUpdates = new Map<string, { userId?: string; partnerUserId?: string }>();
+    results.forEach((r) => {
+      if (r.status === "fulfilled" && r.value) {
+        const { participantId, userId, partnerUserId } = r.value;
+        if (userId || partnerUserId) {
+          userIdUpdates.set(participantId, { userId, partnerUserId });
+        }
+      }
+    });
+
+    if (userIdUpdates.size > 0) {
+      logger.info(`Found ${userIdUpdates.size} participant(s) needing userId updates`);
+    }
+
+    // Update tournament to mark ranking updates as applied AND update userIds
     try {
       const updatedParticipants = afterData.participants.map((p) => {
+        let updated = { ...p };
+
+        // Apply ranking updates
         if (p.status === "ACTIVE" && p.finalPosition) {
           const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
-          return {
-            ...p,
-            currentRanking: (p.rankingSnapshot || 0) + pointsEarned,
-          };
+          updated.currentRanking = (p.rankingSnapshot || 0) + pointsEarned;
         }
-        return p;
+
+        // Apply userId updates (for GUEST participants that were created/found)
+        const userIdUpdate = userIdUpdates.get(p.id);
+        if (userIdUpdate) {
+          if (userIdUpdate.userId && !p.userId) {
+            updated.userId = userIdUpdate.userId;
+            logger.info(`Updated participant ${p.id} (${p.name}) with userId: ${userIdUpdate.userId}`);
+          }
+          if (userIdUpdate.partnerUserId && p.partner && !p.partner.userId) {
+            updated.partner = {
+              ...p.partner,
+              userId: userIdUpdate.partnerUserId,
+            };
+            logger.info(`Updated partner of ${p.id} (${p.partner.name}) with userId: ${userIdUpdate.partnerUserId}`);
+          }
+        }
+
+        return updated;
       });
 
       await getDb().collection("tournaments").doc(tournamentId).update({
         participants: updatedParticipants,
       });
 
-      logger.info(`Updated participant rankings in tournament ${tournamentId}`);
+      logger.info(`Updated participant rankings and userIds in tournament ${tournamentId}`);
     } catch (error) {
       logger.error("Error updating tournament participants:", error);
     }

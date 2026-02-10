@@ -7,7 +7,10 @@
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
-  import { getUsersPaginated, deleteUser, getUsersTournamentCounts, mergeGuestToRegistered, getRegisteredUsers, type AdminUserInfo } from '$lib/firebase/admin';
+  import { getUsersPaginated, deleteUser, getUsersTournamentCounts, mergeGuestToRegistered, getRegisteredUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
+  import { getUserTournamentDependencies, type UserTournamentDependencies } from '$lib/firebase/tournaments';
+  import { getVenuesByOwner } from '$lib/firebase/venues';
+  import type { Venue } from '$lib/types/venue';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
   import { getQuotaForYear } from '$lib/types/quota';
 
@@ -28,6 +31,17 @@
   let selectedUser: AdminUserInfo | null = $state(null);
   let userToDelete: AdminUserInfo | null = $state(null);
   let isDeleting = $state(false);
+  let isLoadingDependencies = $state(false);
+  let tournamentDependencies: UserTournamentDependencies | null = $state(null);
+  let userVenues: Venue[] = $state([]);
+
+  // Derived: can we delete this user?
+  let canDeleteUser = $derived(
+    !isLoadingDependencies &&
+    tournamentDependencies !== null &&
+    tournamentDependencies.asOwner.length === 0 &&
+    userVenues.length === 0
+  );
 
   // Migration state
   let userToMigrate: AdminUserInfo | null = $state(null);
@@ -163,18 +177,44 @@
     await loadInitialUsers();
   }
 
-  function showDeleteConfirm(user: AdminUserInfo) {
+  async function showDeleteConfirm(user: AdminUserInfo) {
     userToDelete = user;
+    isLoadingDependencies = true;
+    tournamentDependencies = null;
+    userVenues = [];
+
+    // Load dependencies in parallel
+    const [tournaments, venues] = await Promise.all([
+      getUserTournamentDependencies(user.userId),
+      getVenuesByOwner(user.userId)
+    ]);
+
+    tournamentDependencies = tournaments;
+    userVenues = venues;
+    isLoadingDependencies = false;
   }
 
   function cancelDelete() {
     userToDelete = null;
+    tournamentDependencies = null;
+    userVenues = [];
+    isLoadingDependencies = false;
   }
 
   async function confirmDelete() {
-    if (!userToDelete) return;
+    if (!userToDelete || !canDeleteUser) return;
 
     isDeleting = true;
+
+    // 1. If user is a collaborator, remove from adminIds first
+    if (tournamentDependencies?.asCollaborator.length) {
+      await removeUserFromTournamentCollaborators(
+        userToDelete.userId,
+        tournamentDependencies.asCollaborator.map((t) => t.id)
+      );
+    }
+
+    // 2. Delete the user
     const success = await deleteUser(userToDelete.userId);
 
     if (success) {
@@ -184,6 +224,8 @@
 
     isDeleting = false;
     userToDelete = null;
+    tournamentDependencies = null;
+    userVenues = [];
   }
 
   function formatDate(timestamp: any): string {
@@ -413,7 +455,7 @@
 
   {#if userToDelete}
     <div class="delete-overlay" data-theme={$adminTheme} onclick={cancelDelete}>
-      <div class="delete-modal" onclick={(e) => e.stopPropagation()}>
+      <div class="delete-modal delete-modal-wide" onclick={(e) => e.stopPropagation()}>
         <h3>{m.admin_deleteUser()}</h3>
         <div class="user-preview">
           {#if userToDelete.photoURL}
@@ -425,12 +467,124 @@
           {/if}
           <strong>{userToDelete.playerName || userToDelete.email || '?'}</strong>
         </div>
+
+        <!-- Dependencies section -->
+        <div class="dependencies-section">
+          <h4 class="dependencies-title">{m.admin_userDependencies()}</h4>
+          {#if isLoadingDependencies}
+            <div class="dependencies-loading">
+              <span class="loading-spinner-small"></span>
+              <span>{m.admin_loadingDependencies()}</span>
+            </div>
+          {:else if tournamentDependencies}
+            {@const hasOwner = tournamentDependencies.asOwner.length > 0}
+            {@const hasVenues = userVenues.length > 0}
+            {@const hasCollaborator = tournamentDependencies.asCollaborator.length > 0}
+            {@const hasParticipant = tournamentDependencies.asParticipant.length > 0}
+            {@const hasDependencies = hasOwner || hasVenues || hasCollaborator || hasParticipant}
+
+            <div class="dependencies-content">
+            {#if hasDependencies}
+              <!-- Owner tournaments (blocking) -->
+              {#if hasOwner}
+                <div class="dependency-group">
+                  <div class="dependency-header owner">
+                    <span class="dependency-icon">👑</span>
+                    <span>{m.admin_asOwner({ count: String(tournamentDependencies.asOwner.length) })}</span>
+                  </div>
+                  <ul class="dependency-list">
+                    {#each tournamentDependencies.asOwner as tournament (tournament.id)}
+                      <li class="dependency-item">
+                        <span class="tournament-name">{tournament.name}</span>
+                        <span class="tournament-status status-{tournament.status.toLowerCase()}">{tournament.status}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+
+              <!-- Venues (blocking) -->
+              {#if hasVenues}
+                <div class="dependency-group">
+                  <div class="dependency-header owner">
+                    <span class="dependency-icon">🏠</span>
+                    <span>{m.admin_venuesAsOwner({ count: String(userVenues.length) })}</span>
+                  </div>
+                  <ul class="dependency-list">
+                    {#each userVenues as venue (venue.id)}
+                      <li class="dependency-item">
+                        <span class="tournament-name">{venue.name}</span>
+                        <span class="venue-city">{venue.city}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+
+              <!-- Collaborator tournaments (will be auto-removed) -->
+              {#if hasCollaborator}
+                <div class="dependency-group">
+                  <div class="dependency-header collaborator">
+                    <span class="dependency-icon">🤝</span>
+                    <span>{m.admin_asCollaborator({ count: String(tournamentDependencies.asCollaborator.length) })}</span>
+                  </div>
+                  <p class="dependency-note">{m.admin_collaboratorWillBeRemoved()}</p>
+                  <ul class="dependency-list">
+                    {#each tournamentDependencies.asCollaborator as tournament (tournament.id)}
+                      <li class="dependency-item">
+                        <span class="tournament-name">{tournament.name}</span>
+                        <span class="tournament-status status-{tournament.status.toLowerCase()}">{tournament.status}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+
+              <!-- Participant tournaments (info only) -->
+              {#if hasParticipant}
+                <div class="dependency-group">
+                  <div class="dependency-header participant">
+                    <span class="dependency-icon">🎮</span>
+                    <span>{m.admin_asParticipant({ count: String(tournamentDependencies.asParticipant.length) })}</span>
+                  </div>
+                  <ul class="dependency-list">
+                    {#each tournamentDependencies.asParticipant as tournament (tournament.id)}
+                      <li class="dependency-item">
+                        <span class="tournament-name">{tournament.name}</span>
+                        <span class="tournament-status status-{tournament.status.toLowerCase()}">{tournament.status}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+
+              <!-- Block message if owner -->
+              {#if hasOwner || hasVenues}
+                <div class="block-message">
+                  <span>❌</span>
+                  <span>{m.admin_cannotDeleteHasOwnership()}</span>
+                </div>
+              {/if}
+            {:else}
+              <div class="no-dependencies">
+                <span>✓</span>
+                <span>{m.admin_noDependencies()}</span>
+              </div>
+            {/if}
+            </div>
+          {/if}
+        </div>
+
         <p class="delete-warning">{m.admin_cannotBeUndone()}</p>
         <div class="delete-actions">
-          <button class="cancel-btn" onclick={cancelDelete} disabled={isDeleting}>
+          <button class="cancel-btn" onclick={cancelDelete} disabled={isDeleting || isLoadingDependencies}>
             {m.common_cancel()}
           </button>
-          <button class="confirm-btn" onclick={confirmDelete} disabled={isDeleting}>
+          <button
+            class="confirm-btn"
+            onclick={confirmDelete}
+            disabled={isDeleting || isLoadingDependencies || !canDeleteUser}
+          >
             {isDeleting ? m.admin_deleting() : m.common_delete()}
           </button>
         </div>
@@ -1060,6 +1214,10 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   }
 
+  .delete-modal-wide {
+    max-width: 450px;
+  }
+
   .delete-overlay[data-theme='dark'] .delete-modal {
     background: #1a2332;
     color: #e1e8ed;
@@ -1109,6 +1267,210 @@
     color: #dc2626;
     font-size: 0.85rem;
     margin: 0 0 1rem 0;
+  }
+
+  /* Dependencies section */
+  .dependencies-section {
+    margin: 1rem 0;
+    text-align: left;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .delete-overlay[data-theme='dark'] .dependencies-section {
+    border-color: #374151;
+  }
+
+  .dependencies-title {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+    color: #374151;
+  }
+
+  .delete-overlay[data-theme='dark'] .dependencies-title {
+    background: #1f2937;
+    border-bottom-color: #374151;
+    color: #9ca3af;
+  }
+
+  .dependencies-content {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 0.75rem;
+  }
+
+  .dependencies-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: #666;
+  }
+
+  .delete-overlay[data-theme='dark'] .dependencies-loading {
+    color: #9ca3af;
+  }
+
+  .loading-spinner-small {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .dependency-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .dependency-group:last-child {
+    margin-bottom: 0;
+  }
+
+  .dependency-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+
+  .dependency-header.owner {
+    color: #dc2626;
+  }
+
+  .dependency-header.collaborator {
+    color: #f59e0b;
+  }
+
+  .dependency-header.participant {
+    color: #6b7280;
+  }
+
+  .dependency-icon {
+    font-size: 0.9rem;
+  }
+
+  .dependency-note {
+    font-size: 0.7rem;
+    color: #6b7280;
+    margin: 0 0 0.35rem 1.5rem;
+    font-style: italic;
+  }
+
+  .delete-overlay[data-theme='dark'] .dependency-note {
+    color: #9ca3af;
+  }
+
+  .dependency-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .dependency-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0.5rem;
+    background: #f9fafb;
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+    font-size: 0.8rem;
+  }
+
+  .delete-overlay[data-theme='dark'] .dependency-item {
+    background: #0f1419;
+  }
+
+  .tournament-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+  }
+
+  .tournament-status,
+  .venue-city {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+
+  .tournament-status.status-draft {
+    background: #e5e7eb;
+    color: #374151;
+  }
+
+  .tournament-status.status-group_stage,
+  .tournament-status.status-final_stage {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+
+  .tournament-status.status-completed {
+    background: #d1fae5;
+    color: #059669;
+  }
+
+  .tournament-status.status-cancelled {
+    background: #fee2e2;
+    color: #dc2626;
+  }
+
+  .venue-city {
+    background: #e5e7eb;
+    color: #374151;
+  }
+
+  .delete-overlay[data-theme='dark'] .venue-city {
+    background: #374151;
+    color: #e5e7eb;
+  }
+
+  .no-dependencies {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    color: #10b981;
+    font-size: 0.85rem;
+  }
+
+  .block-message {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #fee2e2;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: #dc2626;
+    margin-top: 0.75rem;
+  }
+
+  .delete-overlay[data-theme='dark'] .block-message {
+    background: #4d1f24;
+    color: #fca5a5;
   }
 
   .delete-actions {

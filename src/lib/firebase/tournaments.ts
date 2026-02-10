@@ -6,7 +6,7 @@
 import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { isAdmin, isSuperAdmin } from './admin';
-import type { Tournament, TournamentStatus } from '$lib/types/tournament';
+import type { Tournament, TournamentStatus, TournamentParticipant } from '$lib/types/tournament';
 import { getUserProfile, type UserProfile } from './userProfile';
 import { getQuotaForYear, getQuotaEntryForYear, type QuotaEntry } from '$lib/types/quota';
 import {
@@ -1486,6 +1486,150 @@ export async function getTournamentAdminsInfo(tournament: Tournament): Promise<{
     return result;
   } catch (error) {
     console.error('❌ Error getting tournament admins info:', error);
+    return result;
+  }
+}
+
+// ============================================================================
+// USER DEPENDENCY CHECKING
+// ============================================================================
+
+/**
+ * Summary of a tournament for dependency checking
+ */
+export interface TournamentSummary {
+  id: string;
+  name: string;
+  status: TournamentStatus;
+}
+
+/**
+ * User's tournament dependencies
+ */
+export interface UserTournamentDependencies {
+  asOwner: TournamentSummary[];       // BLOQUEANTE - user owns these tournaments
+  asCollaborator: TournamentSummary[]; // Auto-remover - user is in adminIds
+  asParticipant: TournamentSummary[];  // Solo warning - user is a participant
+}
+
+/**
+ * Get all tournament dependencies for a user
+ * Used to check before deleting a user
+ *
+ * @param userId User ID to check dependencies for
+ * @returns Object with arrays of tournaments by relationship type
+ */
+export async function getUserTournamentDependencies(
+  userId: string
+): Promise<UserTournamentDependencies> {
+  const result: UserTournamentDependencies = {
+    asOwner: [],
+    asCollaborator: [],
+    asParticipant: []
+  };
+
+  if (!browser || !isFirebaseEnabled()) {
+    return result;
+  }
+
+  try {
+    const tournamentsRef = collection(db!, 'tournaments');
+
+    // Query 1: Owner by ownerId
+    const ownerQuery = query(tournamentsRef, where('ownerId', '==', userId));
+
+    // Query 2: Owner by createdBy.userId (legacy fallback for tournaments without ownerId)
+    const creatorQuery = query(tournamentsRef, where('createdBy.userId', '==', userId));
+
+    // Query 3: Collaborator (in adminIds array)
+    const collaboratorQuery = query(tournamentsRef, where('adminIds', 'array-contains', userId));
+
+    // Execute owner/collaborator queries in parallel
+    const [ownerSnapshot, creatorSnapshot, collaboratorSnapshot] = await Promise.all([
+      getDocs(ownerQuery),
+      getDocs(creatorQuery),
+      getDocs(collaboratorQuery)
+    ]);
+
+    // Deduplicate owner results (ownerId and createdBy.userId may overlap)
+    const ownerMap = new Map<string, TournamentSummary>();
+
+    ownerSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      ownerMap.set(docSnap.id, {
+        id: docSnap.id,
+        name: data.name,
+        status: data.status
+      });
+    });
+
+    creatorSnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      // Only add if not already an owner via ownerId (legacy tournaments)
+      if (!data.ownerId && !ownerMap.has(docSnap.id)) {
+        ownerMap.set(docSnap.id, {
+          id: docSnap.id,
+          name: data.name,
+          status: data.status
+        });
+      }
+    });
+
+    result.asOwner = Array.from(ownerMap.values());
+
+    // Collaborator results (exclude if already owner)
+    collaboratorSnapshot.forEach(docSnap => {
+      if (!ownerMap.has(docSnap.id)) {
+        const data = docSnap.data();
+        result.asCollaborator.push({
+          id: docSnap.id,
+          name: data.name,
+          status: data.status
+        });
+      }
+    });
+
+    // Query 4: Participant - Firestore cannot query nested arrays
+    // We need to fetch all tournaments and filter client-side
+    const allTournamentsSnapshot = await getDocs(tournamentsRef);
+
+    const alreadyProcessed = new Set([
+      ...ownerMap.keys(),
+      ...result.asCollaborator.map(t => t.id)
+    ]);
+
+    allTournamentsSnapshot.forEach(docSnap => {
+      // Skip if already processed as owner or collaborator
+      if (alreadyProcessed.has(docSnap.id)) {
+        return;
+      }
+
+      const data = docSnap.data();
+      const participants = (data.participants || []) as TournamentParticipant[];
+
+      // Check if user is a participant (primary or partner in doubles)
+      const isParticipant = participants.some(
+        (p: TournamentParticipant) => p.userId === userId || p.partner?.userId === userId
+      );
+
+      if (isParticipant) {
+        result.asParticipant.push({
+          id: docSnap.id,
+          name: data.name,
+          status: data.status
+        });
+      }
+    });
+
+    console.log(`✅ Found dependencies for user ${userId}:`, {
+      owner: result.asOwner.length,
+      collaborator: result.asCollaborator.length,
+      participant: result.asParticipant.length
+    });
+
+    return result;
+  } catch (error) {
+    console.error('❌ Error getting user tournament dependencies:', error);
     return result;
   }
 }

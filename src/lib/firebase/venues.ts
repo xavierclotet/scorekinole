@@ -249,3 +249,33 @@ export async function getVenueById(venueId: string): Promise<Venue | null> {
 		return null;
 	}
 }
+
+/**
+ * Get all venues owned by a specific user
+ * Used to check dependencies before deleting a user
+ *
+ * @param userId User ID to check
+ * @returns Array of venues owned by the user
+ */
+export async function getVenuesByOwner(userId: string): Promise<Venue[]> {
+	if (!browser || !isFirebaseEnabled()) {
+		return [];
+	}
+
+	try {
+		const venuesRef = collection(db!, 'venues');
+		const q = query(venuesRef, where('ownerId', '==', userId));
+		const snapshot = await getDocs(q);
+
+		const venues: Venue[] = [];
+		snapshot.forEach((docSnap) => {
+			venues.push({ id: docSnap.id, ...docSnap.data() } as Venue);
+		});
+
+		console.log(`✅ Found ${venues.length} venues for user ${userId}`);
+		return venues;
+	} catch (error) {
+		console.error('❌ Error getting venues by owner:', error);
+		return [];
+	}
+}

@@ -4,8 +4,16 @@ import { browser } from '$app/environment';
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/xavierclotet/scorekinole/releases/latest';
 const GITHUB_RELEASES_PAGE = 'https://github.com/xavierclotet/scorekinole/releases/latest';
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Check once per day
+const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000; // Check every 12 hours
 const STORAGE_KEY = 'scorekinole_last_version_check';
+
+/**
+ * Build direct APK download URL for a specific version
+ */
+function buildApkDownloadUrl(version: string): string {
+	const cleanVersion = version.replace(/^v/, '');
+	return `https://github.com/xavierclotet/scorekinole/releases/download/v${cleanVersion}/scorekinole-${cleanVersion}.apk`;
+}
 
 export interface VersionCheckResult {
 	updateAvailable: boolean;
@@ -114,6 +122,11 @@ export async function checkForUpdates(): Promise<VersionCheckResult> {
 		if (latestVersion) {
 			result.latestVersion = latestVersion.replace(/^v/, '');
 			result.updateAvailable = isNewerVersion(APP_VERSION, latestVersion);
+
+			// Set direct APK download URL when update is available
+			if (result.updateAvailable) {
+				result.downloadUrl = buildApkDownloadUrl(latestVersion);
+			}
 		}
 
 		// Mark as checked regardless of result

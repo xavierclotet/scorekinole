@@ -17,6 +17,7 @@ import {
   orderBy,
   limit,
   startAfter,
+  arrayRemove,
   type QueryDocumentSnapshot,
   type DocumentData
 } from 'firebase/firestore';
@@ -674,5 +675,57 @@ export async function getRegisteredUsers(): Promise<AdminUserInfo[]> {
   } catch (error) {
     console.error('❌ Error getting registered users:', error);
     return [];
+  }
+}
+
+/**
+ * Remove a user from tournament collaborators (adminIds) before deleting
+ * This is called before deleting a user to clean up their collaborator roles
+ *
+ * @param userId User ID to remove
+ * @param tournamentIds Tournament IDs to remove user from
+ * @returns true if all removals succeeded
+ */
+export async function removeUserFromTournamentCollaborators(
+  userId: string,
+  tournamentIds: string[]
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    return false;
+  }
+
+  if (tournamentIds.length === 0) {
+    return true;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user authenticated');
+    return false;
+  }
+
+  // Check admin permission
+  const adminStatus = await isAdmin();
+  if (!adminStatus) {
+    console.error('Unauthorized: User is not admin');
+    return false;
+  }
+
+  try {
+    // Remove user from adminIds in each tournament
+    const promises = tournamentIds.map(async (tournamentId) => {
+      const tournamentRef = doc(db!, 'tournaments', tournamentId);
+      await updateDoc(tournamentRef, {
+        adminIds: arrayRemove(userId)
+      });
+      console.log(`✅ Removed user ${userId} from tournament ${tournamentId} adminIds`);
+    });
+
+    await Promise.all(promises);
+    console.log(`✅ Removed user from ${tournamentIds.length} tournament(s)`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error removing user from tournament collaborators:', error);
+    return false;
   }
 }
