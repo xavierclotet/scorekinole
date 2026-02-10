@@ -17,12 +17,12 @@
 	const showParticipants = $derived(isDraft && participants.length > 0);
 
 	const statusColors: Record<string, string> = {
-		DRAFT: '#6b7280',
+		DRAFT: '#22c55e', // Vibrant green for LIVE
 		GROUP_STAGE: '#f59e0b',
 		TRANSITION: '#8b5cf6',
 		FINAL_STAGE: '#3b82f6',
 		COMPLETED: '#10b981',
-		CANCELLED: '#ef4444',
+		CANCELLED: '#6b7280', // Gray for cancelled
 		UPCOMING: '#8b5cf6' // Purple for upcoming
 	};
 
@@ -47,7 +47,7 @@
 		if (status === 'UPCOMING') return m.tournament_upcoming();
 
 		const labels: Record<string, () => string> = {
-			DRAFT: () => m.admin_draft(),
+			DRAFT: () => m.tournaments_statusLive(), // Show "EN VIVO" instead of "Borrador"
 			GROUP_STAGE: () => m.tournament_groupStage(),
 			TRANSITION: () => m.admin_transition(),
 			FINAL_STAGE: () => m.tournament_finalStage(),

@@ -571,7 +571,6 @@
   "tournament_totalPointsScored": "Points",
   "tournament_totalTwentiesLabel": "Total 20s",
   "tournament_tryAgain": "Try again",
-  "tournament_tryChangingFilters": "Try changing filters",
   "tournament_twentiesShort": "20s",
   "tournament_updateResult": "Update Result",
   "tournament_vs": "vs",
@@ -1060,5 +1059,6 @@
   "admin_matchesRepaired": "{n} match(s) repaired",
   "profile_colorTheme": "Color theme",
   "profile_themeGreen": "Green",
-  "profile_themeViolet": "Violet"
+  "profile_themeViolet": "Violet",
+  "tournaments_statusLive": "LIVE"
 }

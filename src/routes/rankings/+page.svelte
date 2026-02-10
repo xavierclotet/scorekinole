@@ -45,8 +45,8 @@
 	$: visiblePlayers = rankedPlayers.slice(0, visibleCount);
 	$: hasMore = visibleCount < rankedPlayers.length;
 
-	// Auto-load more if container doesn't have scroll
-	$: if (tableContainer && hasMore && !isLoading) {
+	// Auto-load more if container doesn't have scroll (also triggers when filters change)
+	$: if (tableContainer && hasMore && !isLoading && rankedPlayers.length >= 0) {
 		// Use setTimeout to wait for DOM update after visiblePlayers changes
 		setTimeout(() => {
 			if (tableContainer && tableContainer.scrollHeight <= tableContainer.clientHeight) {
@@ -216,14 +216,16 @@
 			<p>{m.common_loading()}...</p>
 		</div>
 	{:else if rankedPlayers.length === 0}
-		<div class="empty-state">
-			<div class="empty-icon">
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-					<path d="M12 15l-2-5-2 5h4zm6-5l-2-5-2 5h4zm-12 0l-2-5-2 5h4z"/>
-					<path d="M4 15h16v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z"/>
-				</svg>
+		<div class="flex items-center justify-center min-h-[calc(100vh-280px)] p-8">
+			<div class="flex flex-col items-center text-center max-w-[300px]">
+				<div class="empty-icon w-20 h-20 mb-6 p-5 rounded-full flex items-center justify-center">
+					<svg class="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+						<path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12" />
+						<path d="M12 2a4 4 0 0 0-4 4c0 1.5.8 2.8 2 3.5L12 15l2-5.5A4 4 0 0 0 12 2z" />
+					</svg>
+				</div>
+				<h3 class="empty-title text-lg font-semibold">{m.ranking_noRankingsFound()}</h3>
 			</div>
-			<h3>{m.ranking_noRankingsFound()}</h3>
 		</div>
 	{:else}
 		<div class="results-info">
@@ -521,26 +523,18 @@
 		color: #8b9bb3;
 	}
 
-	/* Empty state */
-	.empty-state {
-		text-align: center;
-		padding: 4rem 2rem;
-	}
-
+	/* Empty state (theme-dependent styles only) */
 	.empty-icon {
-		margin-bottom: 1rem;
+		background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
 	}
 
 	.empty-icon svg {
-		width: 64px;
-		height: 64px;
-		stroke: #4a5568;
+		stroke: #667eea;
 	}
 
-	.empty-state h3 {
-		font-size: 1.1rem;
-		margin: 0;
+	.empty-title {
 		color: #e1e8ed;
+		margin: 0;
 	}
 
 	/* Table */
@@ -926,11 +920,15 @@
 		color: #718096;
 	}
 
+	.rankings-container[data-theme='light'] .empty-icon {
+		background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+	}
+
 	.rankings-container[data-theme='light'] .empty-icon svg {
 		stroke: #a0aec0;
 	}
 
-	.rankings-container[data-theme='light'] .empty-state h3 {
+	.rankings-container[data-theme='light'] .empty-title {
 		color: #1a202c;
 	}
 

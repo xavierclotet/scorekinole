@@ -923,7 +923,7 @@
 					</h2>
 				{/if}
 				<div class="groups-container" class:single-group={isSingleGroup}>
-					{#each tournament.groupStage?.groups ?? [] as group}
+					{#each tournament.groupStage?.groups ?? [] as group, groupIndex}
 						{@const groupRounds = getGroupRounds(group)}
 						{#if isSingleGroup && groupRounds.length > 0}
 							<!-- Single group: 2-column layout -->
@@ -1090,10 +1090,12 @@
 										</tbody>
 									</table>
 								</div>
-								<div class="standings-legend">
-									<span class="legend-item"><strong>PT</strong> Puntos totales</span>
-									<span class="legend-item"><strong>PV</strong> Puntos por victoria (2/1/0)</span>
-								</div>
+								{#if groupIndex === 0}
+									<div class="standings-legend">
+										<span class="legend-item"><strong>PT</strong> Puntos totales</span>
+										<span class="legend-item"><strong>PV</strong> Puntos por victoria (2/1/0)</span>
+									</div>
+								{/if}
 
 								<!-- Match Results Toggle -->
 								{#if groupRounds.length > 0}

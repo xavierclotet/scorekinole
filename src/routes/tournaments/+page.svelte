@@ -21,7 +21,7 @@
 	let selectedCountry = $state('');
 	let selectedMode = $state<'all' | 'singles' | 'doubles'>('all');
 	let selectedTier = $state<'all' | 'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR'>('all');
-	let timeFilter = $state<'all' | 'past' | 'future'>('future');
+	let timeFilter = $state<'all' | 'past' | 'future'>('all');
 
 	// Data state
 	let allTournaments: TournamentListItem[] = $state([]);
@@ -148,11 +148,11 @@
 		selectedCountry = '';
 		selectedMode = 'all';
 		selectedTier = 'all';
-		timeFilter = 'future';
+		timeFilter = 'all';
 	}
 
 	let hasActiveFilters = $derived(
-		selectedYear !== undefined || selectedCountry !== '' || selectedMode !== 'all' || selectedTier !== 'all' || timeFilter !== 'future'
+		selectedYear !== undefined || selectedCountry !== '' || selectedMode !== 'all' || selectedTier !== 'all' || timeFilter !== 'all'
 	);
 </script>
 

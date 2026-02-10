@@ -25,7 +25,7 @@
   let migrationError: string | null = $state(null);
   let searchQuery = $state('');
   let filterRole: 'all' | 'admin' = $state('all');
-  let filterType: 'all' | 'registered' | 'guest' | 'not_merged' | 'merged' | 'possible_pairs' = $state('all');
+  let filterType: 'all' | 'registered' | 'guest' | 'merged' = $state('all');
   const pageSize = 15;
 
   // Infinite scroll state
@@ -36,21 +36,6 @@
 
   let isSearching = $derived(searchQuery.trim().length > 0);
   let isFiltering = $derived(filterRole !== 'all' || filterType !== 'all');
-  // Helper to detect if a user looks like a pair name (erroneous entry)
-  function looksLikePairName(user: AdminUserInfo): boolean {
-    // Contains " / " separator (common pair format like "Player1 / Player2")
-    if (user.playerName?.includes(' / ')) return true;
-    // GUEST without email and no tournaments - might be an erroneous pair team name
-    if (user.authProvider === null && !user.email && (user.tournaments?.length || 0) === 0) {
-      // Check if name looks like a team name (not a typical person name)
-      // Team names often have special chars, "Team", "Los", etc.
-      const name = user.playerName?.toLowerCase() || '';
-      if (name.includes('team') || name.includes('los ') || name.includes('las ') || name.includes('the ')) {
-        return true;
-      }
-    }
-    return false;
-  }
 
   let filteredUsers = $derived(users.filter((user) => {
     if (filterRole === 'admin' && !user.isAdmin) return false;
@@ -58,9 +43,7 @@
     // Type filter (registration + merged status)
     if (filterType === 'registered' && user.authProvider !== 'google') return false;
     if (filterType === 'guest' && user.authProvider === 'google') return false;
-    if (filterType === 'not_merged' && user.mergedTo) return false;
-    if (filterType === 'merged' && !user.mergedTo) return false;
-    if (filterType === 'possible_pairs' && !looksLikePairName(user)) return false;
+    if (filterType === 'merged' && !user.mergedFrom) return false;
 
     if (isSearching) {
       const q = searchQuery.toLowerCase();
@@ -74,15 +57,14 @@
   }));
 
   let displayTotal = $derived(isSearching || isFiltering ? filteredUsers.length : totalCount);
-  let adminCount = $derived(users.filter(u => u.isAdmin).length);
 
-  // Auto-load more if container doesn't have scroll (also triggers after deletions)
+  // Auto-load more if container doesn't have scroll (also triggers after deletions or filter changes)
   $effect(() => {
-    // Read users.length to re-trigger this effect when users are deleted
-    const _ = users.length;
+    // Track these to re-trigger when users change or filters change
+    const _ = filteredUsers.length;
 
-    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching && !isFiltering) {
-      // Use requestAnimationFrame to wait for DOM update after deletion
+    if (tableContainer && hasMore && !isLoading && !isLoadingMore && !isSearching) {
+      // Use requestAnimationFrame to wait for DOM update
       requestAnimationFrame(() => {
         if (tableContainer && tableContainer.scrollHeight <= tableContainer.clientHeight) {
           loadMore();
@@ -286,7 +268,7 @@
           class:active={filterRole === 'admin'}
           onclick={() => (filterRole = filterRole === 'admin' ? 'all' : 'admin')}
         >
-          Admins ({adminCount})
+          Admins
         </button>
 
         <select
@@ -296,9 +278,7 @@
           <option value="all">{m.admin_allUsers()}</option>
           <option value="registered">{m.admin_registeredUsers()}</option>
           <option value="guest">{m.admin_guestUsers()}</option>
-          <option value="not_merged">{m.admin_notMerged()}</option>
           <option value="merged">{m.admin_merged()}</option>
-          <option value="possible_pairs">{m.admin_possiblePairs()}</option>
         </select>
       </div>
     </div>
@@ -358,7 +338,7 @@
                     <span class="role-badge admin">Admin</span>
                     <span class="tournaments-created">{user.tournamentsCreatedCount ?? 0}</span>
                   {:else}
-                    <span class="role-badge user">-</span>
+                    <span class="role-badge user">User</span>
                   {/if}
                 </td>
                 <td class="tournaments-cell hide-small">

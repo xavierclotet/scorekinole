@@ -573,7 +573,6 @@
   "tournament_totalPointsScored": "Punts",
   "tournament_totalTwentiesLabel": "Total 20s",
   "tournament_tryAgain": "Torna-ho a provar",
-  "tournament_tryChangingFilters": "Prova canviant els filtres",
   "tournament_twentiesShort": "20s",
   "tournament_updateResult": "Actualitzar Resultat",
   "tournament_vs": "vs",
@@ -1060,5 +1059,6 @@
   "admin_matchesRepaired": "{n} partit(s) reparat(s)",
   "profile_colorTheme": "Tema de color",
   "profile_themeGreen": "Verd",
-  "profile_themeViolet": "Violeta"
+  "profile_themeViolet": "Violeta",
+  "tournaments_statusLive": "EN VIU"
 }
