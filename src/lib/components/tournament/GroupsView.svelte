@@ -612,7 +612,7 @@
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     transition: width 0.3s ease;
     border-radius: 3px;
   }
@@ -856,7 +856,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.35rem 0.6rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 4px;
@@ -928,111 +928,111 @@
   }
 
   /* Dark mode support */
-  :global([data-theme='dark']) .view-header {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .view-header {
     background: #1a2332;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
-  :global([data-theme='dark']) .header-content h2 {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .header-content h2 {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .round-label {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .round-label {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .progress-text {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .progress-text {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .progress-bar {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .progress-bar {
     background: #2d3748;
   }
 
-  :global([data-theme='dark']) .filter-group label {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .filter-group label {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .filter-group select {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .filter-group select {
     background: #1a2332;
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .filter-group select:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .filter-group select:hover {
     border-color: #4b5563;
   }
 
-  :global([data-theme='dark']) .toggle-btn {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .toggle-btn {
     background: #1a2332;
     border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .toggle-btn:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .toggle-btn:hover {
     border-color: #10b981;
     color: #10b981;
   }
 
-  :global([data-theme='dark']) .group-accordion {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .group-accordion {
     background: #1a2332;
     border-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .group-accordion.expanded {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .group-accordion.expanded {
     border-color: #667eea;
   }
 
-  :global([data-theme='dark']) .group-accordion.complete {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .group-accordion.complete {
     border-color: #10b981;
   }
 
-  :global([data-theme='dark']) .accordion-header:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .accordion-header:hover {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) .expand-icon {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .expand-icon {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .group-name {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .group-name {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .progress-label {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .progress-label {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .mini-progress-bar {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .mini-progress-bar {
     background: #2d3748;
   }
 
-  :global([data-theme='dark']) .accordion-content {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .accordion-content {
     border-top-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .group-view-toggle {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .group-view-toggle {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) .toggle-btn {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .toggle-btn {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .toggle-btn:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .toggle-btn:hover {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .toggle-btn.active {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .toggle-btn.active {
     background: #1a2332;
     color: #667eea;
   }
 
-  :global([data-theme='dark']) .no-group-state {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .no-group-state {
     color: #6b7280;
   }
 
-  :global([data-theme='dark']) .generate-next-round-btn {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .generate-next-round-btn {
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
   }
 

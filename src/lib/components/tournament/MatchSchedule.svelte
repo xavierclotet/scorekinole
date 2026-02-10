@@ -349,13 +349,14 @@
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     transition: width 0.3s ease;
     border-radius: 2px;
   }
 
   .progress-fill.complete {
-    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    background: var(--primary);
+    filter: brightness(1.1);
   }
 
   .matches-grid {
@@ -384,50 +385,50 @@
   }
 
   /* Dark mode support */
-  :global([data-theme='dark']) .empty-state {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .empty-state {
     color: #6b7280;
   }
 
-  :global([data-theme='dark']) .empty-state .hint {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .empty-state .hint {
     color: #4b5563;
   }
 
-  :global([data-theme='dark']) .round-section {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .round-section {
     background: #1a2332;
     border-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .round-section.current {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .round-section.current {
     border-color: #667eea;
   }
 
-  :global([data-theme='dark']) .round-section.complete.collapsed {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .round-section.complete.collapsed {
     border-color: #065f46;
     background: #022c22;
   }
 
-  :global([data-theme='dark']) .round-header:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .round-header:hover {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) .expand-icon {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .expand-icon {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .round-number {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .round-number {
     background: #2d3748;
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .progress-text {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .progress-text {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .progress-bar {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .progress-bar {
     background: #2d3748;
   }
 
-  :global([data-theme='dark']) .matches-grid {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .matches-grid {
     border-top-color: #2d3748;
   }
 

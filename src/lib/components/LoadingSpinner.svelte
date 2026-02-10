@@ -65,7 +65,7 @@
 
 	.dot {
 		border-radius: 50%;
-		background: #64748b;
+		background: var(--primary);
 		animation: pulse 1.4s ease-in-out infinite;
 	}
 
@@ -108,11 +108,11 @@
 	}
 
 	/* Dark theme support via parent data-theme */
-	:global([data-theme='dark']) .dot {
-		background: #8b9bb3;
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .dot {
+		background: var(--primary);
 	}
 
-	:global([data-theme='dark']) .loading-text {
-		color: #8b9bb3;
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .loading-text {
+		color: #a0aec0;
 	}
 </style>

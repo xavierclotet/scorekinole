@@ -165,7 +165,7 @@
     font-size: 0.65rem;
     font-weight: 700;
     color: white;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     padding: 0.15rem 0.35rem;
     border-radius: 3px;
     min-width: 1.6rem;
@@ -284,58 +284,58 @@
   }
 
   /* Dark mode support */
-  :global([data-theme='dark']) .match-card {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card {
     background: #1a2332;
     border-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .match-card.clickable:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.clickable:hover {
     border-color: #667eea;
     background: #1e2a3d;
   }
 
-  :global([data-theme='dark']) .match-card.in-progress {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.in-progress {
     background: rgba(245, 158, 11, 0.1);
   }
 
-  :global([data-theme='dark']) .match-card.bye {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.bye {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) .participant .name {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant .name {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .participant.winner .name {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.winner .name {
     color: #10b981;
   }
 
-  :global([data-theme='dark']) .participant.tie .name {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.tie .name {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .score-center {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center {
     background: #2d3748;
   }
 
-  :global([data-theme='dark']) .score-center .score {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .score-center .score.winner-a,
-  :global([data-theme='dark']) .score-center .score.winner-b {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.winner-a,
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.winner-b {
     color: #10b981;
   }
 
-  :global([data-theme='dark']) .score-center .pending {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .pending {
     color: #6b7280;
   }
 
-  :global([data-theme='dark']) .score-center .score.live {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.live {
     color: #fbbf24;
   }
 
-  :global([data-theme='dark']) .no-show-warning {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .no-show-warning {
     background: rgba(254, 243, 199, 0.15);
     color: #fbbf24;
   }

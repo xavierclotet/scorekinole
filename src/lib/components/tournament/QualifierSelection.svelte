@@ -1288,174 +1288,174 @@
   }
 
   /* Dark mode */
-  :global([data-theme='dark']) .qualifier-selection {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .qualifier-selection {
     background: #1a2332;
     border-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .group-header {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .group-header {
     border-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .group-header h3 {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .group-header h3 {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .standings-table::-webkit-scrollbar-track {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .standings-table::-webkit-scrollbar-track {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) thead {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) thead {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) th {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) th {
     color: #8b9bb3;
     border-bottom-color: #2d3748;
   }
 
-  :global([data-theme='dark']) tbody tr {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr {
     border-bottom-color: #243447;
   }
 
-  :global([data-theme='dark']) tbody tr:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr:hover {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) tbody tr.selected {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.selected {
     background: rgba(102, 126, 234, 0.2);
   }
 
-  :global([data-theme='dark']) tbody tr.halfway-row {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.halfway-row {
     border-bottom: 3px solid #6b7280;
   }
 
-  :global([data-theme='dark']) td {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) td {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .scored-col {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .scored-col {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .position-badge {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .position-badge {
     background: #2d3748;
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .position-badge.selected {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .position-badge.selected {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
   }
 
   /* Dark mode tie styles */
-  :global([data-theme='dark']) tr.has-tie {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tr.has-tie {
     background: rgba(245, 158, 11, 0.15);
   }
 
-  :global([data-theme='dark']) tr.has-tie:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tr.has-tie:hover {
     background: rgba(245, 158, 11, 0.25);
   }
 
-  :global([data-theme='dark']) tr.has-tie.selected {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tr.has-tie.selected {
     background: rgba(245, 158, 11, 0.3);
   }
 
   /* Dark mode cutoff ties (only when not selected) */
-  :global([data-theme='dark']) tr.at-cutoff-tie {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tr.at-cutoff-tie {
     background: rgba(245, 158, 11, 0.2);
   }
 
-  :global([data-theme='dark']) tr.at-cutoff-tie:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tr.at-cutoff-tie:hover {
     background: rgba(245, 158, 11, 0.3);
   }
 
   /* Dark mode modal */
-  :global([data-theme='dark']) .modal-content {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .modal-content {
     background: #1a2332;
   }
 
-  :global([data-theme='dark']) .modal-header {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .modal-header {
     background: #0f1419;
     border-bottom-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .modal-header h3 {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .modal-header h3 {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .close-btn {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .close-btn {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .close-btn:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .close-btn:hover {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .no-matches {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .no-matches {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .match-item {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-item {
     background: #0f1419;
     border-left-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .match-item.win {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-item.win {
     background: rgba(16, 185, 129, 0.1);
   }
 
-  :global([data-theme='dark']) .match-item.loss {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-item.loss {
     background: rgba(239, 68, 68, 0.1);
   }
 
-  :global([data-theme='dark']) .match-item.tie {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-item.tie {
     background: rgba(245, 158, 11, 0.1);
   }
 
-  :global([data-theme='dark']) .round-badge {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .round-badge {
     background: #2d3748;
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .opponent-name {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .opponent-name {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .score-player {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-player {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .score-opponent {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-opponent {
     color: #8b9bb3;
   }
 
   /* Dark mode for tiebreaker modal */
-  :global([data-theme='dark']) .tiebreaker-modal {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-modal {
     background: #1a2332;
   }
 
-  :global([data-theme='dark']) .modal-description {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .modal-description {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table thead {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table thead {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table th {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table th {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table tbody tr {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table tbody tr {
     border-bottom-color: #243447;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table td {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table td {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table td.mini-pts-col {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table td.mini-pts-col {
     background: rgba(245, 158, 11, 0.15);
   }
 

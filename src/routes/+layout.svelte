@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
@@ -14,6 +14,12 @@
 	import CompleteProfileModal from '$lib/components/CompleteProfileModal.svelte';
 	import UpdateAvailableModal from '$lib/components/UpdateAvailableModal.svelte';
 	import '../app.css';
+
+	interface Props {
+		children: Snippet;
+	}
+
+	let { children }: Props = $props();
 
 	// Sync theme to document root for portaled elements (dropdowns, modals, etc.)
 	$effect(() => {
@@ -95,7 +101,7 @@
 	}
 </script>
 
-<slot />
+{@render children()}
 
 <CompleteProfileModal
 	isOpen={$needsProfileSetup}

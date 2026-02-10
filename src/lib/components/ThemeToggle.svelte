@@ -2,6 +2,11 @@
   import { adminTheme } from '$lib/stores/theme';
   import * as m from '$lib/paraglide/messages.js';
 
+  // Determine if current theme is a light mode variant
+  let isLightMode = $derived($adminTheme === 'light' || $adminTheme === 'violet-light');
+  let isViolet = $derived($adminTheme === 'violet' || $adminTheme === 'violet-light');
+  let isGreen = $derived($adminTheme === 'dark' || $adminTheme === 'light');
+
   function toggleTheme() {
     adminTheme.toggle();
   }
@@ -9,14 +14,18 @@
 
 <button
   class="theme-toggle"
+  class:violet={isViolet}
+  class:green={isGreen}
   onclick={toggleTheme}
-  title={$adminTheme === 'light' ? m.common_darkMode() : m.common_lightMode()}
+  title={isLightMode ? m.common_darkMode() : m.common_lightMode()}
 >
-  {#if $adminTheme === 'light'}
+  {#if isLightMode}
+    <!-- Moon icon for light modes -->
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
     </svg>
   {:else}
+    <!-- Sun icon for dark modes -->
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <circle cx="12" cy="12" r="5"/>
       <line x1="12" y1="1" x2="12" y2="3"/>
@@ -33,6 +42,7 @@
 
 <style>
   .theme-toggle {
+    position: relative;
     width: 32px;
     height: 32px;
     display: flex;
@@ -62,8 +72,8 @@
     transform: scale(0.95);
   }
 
-  /* Dark theme */
-  :global([data-theme='dark']) .theme-toggle {
+  /* Dark themes (dark + violet) */
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .theme-toggle {
     background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.15);
     color: rgba(255, 255, 255, 0.7);
@@ -73,5 +83,38 @@
     background: rgba(255, 255, 255, 0.1);
     color: #fbbf24;
     border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  /* Violet theme hover - purple accent */
+  :global([data-theme='violet']) .theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #a855f7;
+    border-color: rgba(168, 85, 247, 0.3);
+  }
+
+  /* Green indicator dot */
+  .theme-toggle.green::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    border: 1px solid var(--background);
+  }
+
+  /* Violet indicator dot */
+  .theme-toggle.violet::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    background: #a855f7;
+    border-radius: 50%;
+    border: 1px solid var(--background);
   }
 </style>

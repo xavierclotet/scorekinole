@@ -572,87 +572,87 @@
   }
 
   /* Dark mode support */
-  :global([data-theme='dark']) .standings-table {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .standings-table {
     background: #1a2332;
     border-color: #2d3748;
   }
 
-  :global([data-theme='dark']) thead {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) thead {
     background: #0f1419;
     border-bottom-color: #2d3748;
   }
 
-  :global([data-theme='dark']) th {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) th {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) tbody tr {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr {
     border-bottom-color: #243447;
   }
 
   /* Dark mode zebra striping */
-  :global([data-theme='dark']) tbody tr:nth-child(odd) {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr:nth-child(odd) {
     background: #1a2332;
   }
 
-  :global([data-theme='dark']) tbody tr:nth-child(even) {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr:nth-child(even) {
     background: #151c28;
   }
 
-  :global([data-theme='dark']) tbody tr:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr:hover {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) tbody tr.qualified {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.qualified {
     background: rgba(16, 185, 129, 0.1);
   }
 
-  :global([data-theme='dark']) tbody tr.qualified:nth-child(even) {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.qualified:nth-child(even) {
     background: rgba(16, 185, 129, 0.08);
   }
 
-  :global([data-theme='dark']) tbody tr.qualified:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.qualified:hover {
     background: rgba(16, 185, 129, 0.15);
   }
 
-  :global([data-theme='dark']) td {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) td {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) td.total-points-col.primary,
-  :global([data-theme='dark']) td.points-col.primary {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) td.total-points-col.primary,
+  :global(:is([data-theme='dark'], [data-theme='violet'])) td.points-col.primary {
     background: rgba(16, 185, 129, 0.15);
   }
 
-  :global([data-theme='dark']) .position-badge {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .position-badge {
     background: #2d3748;
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .position-badge.qualified {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .position-badge.qualified {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
   }
 
-  :global([data-theme='dark']) .empty-state {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .empty-state {
     color: #6b7280;
   }
 
   /* Dark mode tie styles */
-  :global([data-theme='dark']) tbody tr.has-tie {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.has-tie {
     background: rgba(245, 158, 11, 0.15);
   }
 
-  :global([data-theme='dark']) tbody tr.has-tie:hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.has-tie:hover {
     background: rgba(245, 158, 11, 0.25);
   }
 
   /* Dark mode cutoff ties (qualified keeps green) */
-  :global([data-theme='dark']) tbody tr.at-cutoff-tie:not(.qualified) {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.at-cutoff-tie:not(.qualified) {
     background: rgba(245, 158, 11, 0.2);
   }
 
-  :global([data-theme='dark']) tbody tr.at-cutoff-tie:not(.qualified):hover {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.at-cutoff-tie:not(.qualified):hover {
     background: rgba(245, 158, 11, 0.3);
   }
 
@@ -856,39 +856,39 @@
   }
 
   /* Dark mode for modal */
-  :global([data-theme='dark']) .tiebreaker-modal {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-modal {
     background: #1a2332;
   }
 
-  :global([data-theme='dark']) .modal-header {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .modal-header {
     border-bottom-color: #2d3748;
   }
 
-  :global([data-theme='dark']) .modal-body {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .modal-body {
     background: #1a2332;
   }
 
-  :global([data-theme='dark']) .modal-description {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .modal-description {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table thead {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table thead {
     background: #0f1419;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table th {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table th {
     color: #8b9bb3;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table tbody tr {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table tbody tr {
     border-bottom-color: #243447;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table td {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table td {
     color: #e1e8ed;
   }
 
-  :global([data-theme='dark']) .tiebreaker-table td.mini-pts-col {
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .tiebreaker-table td.mini-pts-col {
     background: rgba(245, 158, 11, 0.15);
   }
 </style>

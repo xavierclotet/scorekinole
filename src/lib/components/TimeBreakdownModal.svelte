@@ -361,7 +361,7 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    background: var(--primary);
     border-radius: 10px;
     color: white;
   }
@@ -399,13 +399,13 @@
   }
 
   .recalculate-btn:hover {
-    background: #dbeafe;
-    color: #2563eb;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
   }
 
-  .backdrop[data-theme='dark'] .recalculate-btn:hover {
-    background: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
+  .backdrop:is([data-theme='dark'], [data-theme='violet']) .recalculate-btn:hover {
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+    color: var(--primary);
   }
 
   .close-btn:hover {
@@ -549,16 +549,11 @@
 
   .stat-value.badge {
     padding: 0.15rem 0.5rem;
-    background: #e0f2fe;
-    color: #0369a1;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
     border-radius: 4px;
     font-size: 0.7rem;
     font-weight: 600;
-  }
-
-  .backdrop[data-theme='dark'] .stat-value.badge {
-    background: rgba(14, 165, 233, 0.2);
-    color: #38bdf8;
   }
 
   /* Phase Breakdown */
@@ -669,14 +664,10 @@
 
   .breakdown-config {
     font-weight: 600;
-    color: #3b82f6;
+    color: var(--primary);
     text-align: center;
     min-width: 28px;
     font-size: 0.7rem;
-  }
-
-  .backdrop[data-theme='dark'] .breakdown-config {
-    color: #60a5fa;
   }
 
   .breakdown-matches {
@@ -720,13 +711,13 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #3b82f6;
-    background: #eff6ff;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
     border-bottom: 1px solid #e2e8f0;
   }
 
-  .backdrop[data-theme='dark'] .calc-box-header {
-    background: rgba(59, 130, 246, 0.1);
+  .backdrop:is([data-theme='dark'], [data-theme='violet']) .calc-box-header {
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
     border-bottom-color: #334155;
   }
 
@@ -780,7 +771,7 @@
 
   .formula-result {
     font-weight: 700;
-    color: #3b82f6;
+    color: var(--primary);
   }
 
   .calc-formula.small {
@@ -866,7 +857,7 @@
     align-items: center;
     padding: 1rem 1.25rem;
     margin-top: 1rem;
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    background: var(--primary);
     border-radius: 12px;
     color: white;
   }

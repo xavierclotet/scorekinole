@@ -271,7 +271,7 @@
     --guest-txt: #92400e;
   }
 
-  .pair-selector[data-theme='dark'] {
+  .pair-selector:is([data-theme='dark'], [data-theme='violet']) {
     --bg: #1a2332;
     --bg-input: #0f172a;
     --bg-hover: #1e293b;

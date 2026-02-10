@@ -1,6 +1,7 @@
 <script lang="ts">
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import { Button } from '$lib/components/ui/button';
   import * as m from '$lib/paraglide/messages.js';
   import { currentUser } from '$lib/firebase/auth';
   import { adminTheme } from '$lib/stores/theme';
@@ -53,16 +54,22 @@
 </script>
 
 <AdminGuard>
-  <div class="admin-container" data-theme={$adminTheme}>
-    <header class="admin-header">
-      <div class="header-top">
-        <button class="back-button" onclick={() => goto('/')}>
+  <div class="admin-page" data-theme={$adminTheme}>
+    <nav class="navbar">
+      <Button
+          variant="outline"
+          size="sm"
+          onclick={() => goto('/')}
+          class="bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:text-primary font-semibold px-6"
+        >
           ← {m.admin_backToHome()}
-        </button>
-        <div class="theme-toggle-wrapper">
-          <ThemeToggle />
-        </div>
+        </Button>
+      <div class="theme-toggle-wrapper">
+        <ThemeToggle />
       </div>
+    </nav>
+    <div class="admin-container">
+    <header class="admin-header">
       <div class="header-content">
         <div class="shield-icon">🛡️</div>
         <h1>{m.admin_panel()}</h1>
@@ -86,21 +93,30 @@
         </button>
       {/each}
     </div>
+    </div>
   </div>
 </AdminGuard>
 
 <style>
+  .admin-page {
+    min-height: 100vh;
+    background: var(--background);
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  .navbar {
+    background: var(--background);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    position: relative;
+  }
+
   .admin-container {
     max-width: 1100px;
     margin: 0 auto;
     padding: 1.5rem 2rem;
-    min-height: 100vh;
-    background: #fafafa;
-    transition: background-color 0.3s, color 0.3s;
-  }
-
-  .admin-container[data-theme='dark'] {
-    background: #0f1419;
   }
 
   .admin-header {
@@ -112,49 +128,6 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 2rem;
-  }
-
-  .back-button {
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
-    background: white;
-    color: #555;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-weight: 500;
-  }
-
-  .admin-container[data-theme='dark'] .back-button {
-    background: #1a2332;
-    color: #e1e8ed;
-    border-color: #2d3748;
-  }
-
-  .back-button:hover {
-    background: #f5f5f5;
-    border-color: #999;
-    transform: translateX(-3px);
-  }
-
-  .admin-container[data-theme='dark'] .back-button:hover {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-
-  .theme-toggle-wrapper {
-    /* No positioning needed, flex handles it */
-  }
-
-  .admin-container[data-theme='dark'] .theme-toggle-wrapper {
-    --toggle-bg: rgba(255, 255, 255, 0.05);
-    --toggle-color: #fbbf24;
-  }
-
-  .admin-container[data-theme='light'] .theme-toggle-wrapper {
-    --toggle-bg: white;
-    --toggle-color: #3730a3;
   }
 
   .header-content {
@@ -170,35 +143,23 @@
   .admin-header h1 {
     font-size: 1.8rem;
     margin: 0 0 0.5rem 0;
-    color: #1a1a1a;
+    color: var(--primary);
     font-weight: 700;
     letter-spacing: -0.5px;
     transition: color 0.3s;
   }
 
-  .admin-container[data-theme='dark'] .admin-header h1 {
-    color: #e1e8ed;
-  }
-
   .welcome {
     font-size: 1.05rem;
-    color: #666;
+    color: var(--muted-foreground);
     margin: 0;
     transition: color 0.3s;
   }
 
-  .admin-container[data-theme='dark'] .welcome {
-    color: #8b9bb3;
-  }
-
   .welcome strong {
-    color: #333;
+    color: var(--foreground);
     font-weight: 600;
     transition: color 0.3s;
-  }
-
-  .admin-container[data-theme='dark'] .welcome strong {
-    color: #e1e8ed;
   }
 
   .admin-grid {
@@ -211,7 +172,7 @@
 
   .admin-card {
     position: relative;
-    background: white;
+    background: var(--card);
     border: none;
     border-radius: 16px;
     padding: 0;
@@ -225,8 +186,7 @@
     justify-self: center;
   }
 
-  .admin-container[data-theme='dark'] .admin-card {
-    background: #1a2332;
+  .admin-page:is([data-theme='dark'], [data-theme='violet']) .admin-card {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
@@ -235,7 +195,7 @@
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
   }
 
-  .admin-container[data-theme='dark'] .admin-card:hover {
+  .admin-page:is([data-theme='dark'], [data-theme='violet']) .admin-card:hover {
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
   }
 
@@ -275,18 +235,14 @@
   .admin-card h2 {
     font-size: 1.15rem;
     margin: 0 0 0.5rem 0;
-    color: #1a1a1a;
+    color: var(--primary);
     font-weight: 700;
     letter-spacing: -0.3px;
     transition: color 0.3s;
   }
 
-  .admin-container[data-theme='dark'] .admin-card h2 {
-    color: #e1e8ed;
-  }
-
   .admin-card p {
-    color: #666;
+    color: var(--muted-foreground);
     font-size: 0.85rem;
     line-height: 1.4;
     margin: 0;
@@ -294,20 +250,12 @@
     transition: color 0.3s;
   }
 
-  .admin-container[data-theme='dark'] .admin-card p {
-    color: #8b9bb3;
-  }
-
   .arrow {
     font-size: 1.25rem;
-    color: #999;
+    color: var(--primary);
     align-self: flex-end;
     transition: transform 0.3s, color 0.3s;
     margin-top: 0.5rem;
-  }
-
-  .admin-container[data-theme='dark'] .arrow {
-    color: #6b7a94;
   }
 
   /* Landscape orientation - optimize for limited height */
@@ -319,11 +267,6 @@
 
     .header-top {
       margin-bottom: 0.5rem;
-    }
-
-    .back-button {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.75rem;
     }
 
     .admin-header {
@@ -392,11 +335,6 @@
       margin-bottom: 1rem;
     }
 
-    .back-button {
-      padding: 0.5rem 1rem;
-      font-size: 0.85rem;
-    }
-
     .admin-header {
       margin-bottom: 1.5rem;
     }
@@ -456,11 +394,6 @@
   @media (max-width: 480px) and (orientation: portrait) {
     .admin-container {
       padding: 0.75rem 0.75rem;
-    }
-
-    .back-button {
-      padding: 0.45rem 0.9rem;
-      font-size: 0.8rem;
     }
 
     .shield-icon {

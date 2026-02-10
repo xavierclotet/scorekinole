@@ -18,6 +18,7 @@
 		...restProps
 	}: WithElementRef<CarouselProps> = $props();
 
+	// svelte-ignore state_referenced_locally - Intentional: these props are only read once at initialization
 	let carouselState = $state<EmblaContext>({
 		api: undefined,
 		scrollPrev,

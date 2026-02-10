@@ -19,7 +19,7 @@
 	let currentPhotoURL = $state<string | null>(null);
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
-	let fileInput: HTMLInputElement;
+	let fileInput = $state<HTMLInputElement | null>(null);
 
 	// Color theme: 'green' or 'violet'
 	let colorScheme = $derived(

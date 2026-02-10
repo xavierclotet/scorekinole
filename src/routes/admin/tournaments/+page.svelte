@@ -342,18 +342,6 @@
           <ThemeToggle />
         </div>
       </div>
-    </header>
-
-    <div class="controls-section">
-      <div class="search-box">
-        <span class="search-icon">🔍</span>
-        <input
-          type="text"
-          bind:value={searchQuery}
-          placeholder={m.admin_searchTournaments()}
-          class="search-input"
-        />
-      </div>
 
       <div class="filters-row">
         <!-- Status filter tabs -->
@@ -441,6 +429,18 @@
             {/each}
           </select>
         {/if}
+      </div>
+    </header>
+
+    <div class="controls-section">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          bind:value={searchQuery}
+          placeholder={m.admin_searchTournaments()}
+          class="search-input"
+        />
       </div>
     </div>
 
@@ -621,7 +621,7 @@
     transition: background-color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) {
     background: #0f1419;
   }
 
@@ -634,7 +634,7 @@
     transition: background-color 0.3s, border-color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .page-header {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .page-header {
     background: #1a2332;
     border-color: #2d3748;
   }
@@ -661,16 +661,16 @@
     flex-shrink: 0;
   }
 
-  .tournaments-container[data-theme='dark'] .back-btn {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .back-btn {
     background: #0f1419;
-    color: #8b9bb3;
+    color: #fff;
     border-color: #2d3748;
   }
 
   .back-btn:hover {
     transform: translateX(-2px);
-    border-color: #667eea;
-    color: #667eea;
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
   .header-main {
@@ -687,29 +687,20 @@
   .title-section h1 {
     font-size: 1.1rem;
     margin: 0;
-    color: #1a1a1a;
+    color: var(--primary);
     font-weight: 700;
     white-space: nowrap;
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .title-section h1 {
-    color: #e1e8ed;
-  }
-
   .count-badge {
     padding: 0.2rem 0.6rem;
-    background: #f3f4f6;
-    color: #555;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
     transition: all 0.3s;
-  }
-
-  .tournaments-container[data-theme='dark'] .count-badge {
-    background: #0f1419;
-    color: #8b9bb3;
   }
 
   .header-actions {
@@ -749,13 +740,13 @@
     border-color: #444;
   }
 
-  .tournaments-container[data-theme='dark'] .create-btn {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .create-btn {
     background: #e5e7eb;
     color: #1a1a1a;
     border-color: #d1d5db;
   }
 
-  .tournaments-container[data-theme='dark'] .create-btn:hover {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .create-btn:hover {
     background: #f3f4f6;
     border-color: #e5e7eb;
   }
@@ -783,12 +774,12 @@
     border-color: #9ca3af;
   }
 
-  .tournaments-container[data-theme='dark'] .import-btn {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .import-btn {
     color: #9ca3af;
     border-color: #4b5563;
   }
 
-  .tournaments-container[data-theme='dark'] .import-btn:hover {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .import-btn:hover {
     background: #374151;
     color: #e5e7eb;
     border-color: #6b7280;
@@ -798,7 +789,7 @@
   .controls-section {
     display: flex;
     gap: 1rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
     flex-wrap: wrap;
     align-items: center;
   }
@@ -828,7 +819,7 @@
     transition: all 0.2s;
   }
 
-  .tournaments-container[data-theme='dark'] .search-input {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .search-input {
     background: #1a2332;
     border-color: #2d3748;
     color: #e1e8ed;
@@ -836,8 +827,8 @@
 
   .search-input:focus {
     outline: none;
-    border-color: #fa709a;
-    box-shadow: 0 0 0 2px rgba(250, 112, 154, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
   }
 
   .filters-row {
@@ -845,8 +836,13 @@
     align-items: center;
     gap: 0.75rem;
     flex-wrap: wrap;
-    flex: 1;
-    min-width: 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 0.75rem;
+  }
+
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filters-row {
+    border-top-color: #2d3748;
   }
 
   .filter-tabs {
@@ -866,7 +862,7 @@
     color: #555;
   }
 
-  .tournaments-container[data-theme='dark'] .filter-tab {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filter-tab {
     background: #1a2332;
     border-color: #2d3748;
     color: #8b9bb3;
@@ -874,10 +870,10 @@
 
   .filter-tab:hover {
     background: #f5f5f5;
-    border-color: #fa709a;
+    border-color: var(--primary);
   }
 
-  .tournaments-container[data-theme='dark'] .filter-tab:hover {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filter-tab:hover {
     background: #2d3748;
   }
 
@@ -897,75 +893,64 @@
   }
 
   .creator-filter:hover {
-    border-color: #fa709a;
+    border-color: var(--primary);
   }
 
   .creator-filter:focus {
     outline: none;
-    border-color: #fa709a;
-    box-shadow: 0 0 0 2px rgba(250, 112, 154, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
   }
 
-  .tournaments-container[data-theme='dark'] .creator-filter {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .creator-filter {
     background: #1a2332;
     border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  .tournaments-container[data-theme='dark'] .creator-filter:hover {
-    border-color: #667eea;
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .creator-filter:hover {
+    border-color: var(--primary);
   }
 
-  .tournaments-container[data-theme='dark'] .creator-filter:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .creator-filter:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
   }
 
-  .tournaments-container[data-theme='dark'] .creator-filter option {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .creator-filter option {
     background: #1a2332;
     color: #8b9bb3;
   }
 
   .filter-tab.active {
-    background: #10b981;
+    background: var(--primary);
     color: white;
-    border-color: #10b981;
+    border-color: var(--primary);
     font-weight: 600;
-    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 2px 4px color-mix(in srgb, var(--primary) 40%, transparent);
   }
 
-  .tournaments-container[data-theme='dark'] .filter-tab.active {
-    background: #059669;
-    border-color: #059669;
-    box-shadow: 0 2px 4px rgba(5, 150, 105, 0.4);
+  /* Dark/violet theme override for active tabs - ensures primary takes precedence */
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filter-tab.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
   }
 
-  /* Secondary filter tabs (type filter) - indigo color */
+  /* Secondary filter tabs (type filter) - slightly different opacity */
   .filter-tabs.secondary .filter-tab.active {
-    background: #6366f1;
-    border-color: #6366f1;
-    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 2px 4px color-mix(in srgb, var(--primary) 35%, transparent);
   }
 
-  .tournaments-container[data-theme='dark'] .filter-tabs.secondary .filter-tab.active {
-    background: #4f46e5;
-    border-color: #4f46e5;
-    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.4);
-  }
-
-  /* Tertiary filter tabs (test filter) - amber color */
+  /* Tertiary filter tabs (test filter) */
   .filter-tabs.tertiary .filter-tab.active {
-    background: #f59e0b;
-    border-color: #f59e0b;
+    background: var(--primary);
+    border-color: var(--primary);
     color: #fff;
-    box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
-  }
-
-  .tournaments-container[data-theme='dark'] .filter-tabs.tertiary .filter-tab.active {
-    background: #d97706;
-    border-color: #d97706;
-    color: #fff;
-    box-shadow: 0 2px 4px rgba(217, 119, 6, 0.4);
+    box-shadow: 0 2px 4px color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
   /* Test indicator */
@@ -982,7 +967,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .results-info {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .results-info {
     color: #6b7a94;
   }
 
@@ -1002,8 +987,8 @@
     font-size: 0.85rem;
   }
 
-  .tournaments-container[data-theme='dark'] .load-more-hint,
-  .tournaments-container[data-theme='dark'] .end-of-list {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .load-more-hint,
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .end-of-list {
     color: #6b7a94;
   }
 
@@ -1011,7 +996,7 @@
     border-top: 1px dashed #ddd;
   }
 
-  .tournaments-container[data-theme='dark'] .end-of-list {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .end-of-list {
     border-top-color: #2d3748;
   }
 
@@ -1034,7 +1019,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .empty-state h3 {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .empty-state h3 {
     color: #e1e8ed;
   }
 
@@ -1044,7 +1029,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .empty-state p {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .empty-state p {
     color: #8b9bb3;
   }
 
@@ -1060,7 +1045,7 @@
     transition: all 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .table-container {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .table-container {
     background: #1a2332;
   }
 
@@ -1079,7 +1064,7 @@
     transition: all 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .tournaments-table thead {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .tournaments-table thead {
     background: #0f1419;
     border-color: #2d3748;
   }
@@ -1095,7 +1080,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .tournaments-table th {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .tournaments-table th {
     color: #8b9bb3;
   }
 
@@ -1109,11 +1094,11 @@
     background: #f9fafb;
   }
 
-  .tournaments-container[data-theme='dark'] .tournament-row {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .tournament-row {
     border-color: #2d3748;
   }
 
-  .tournaments-container[data-theme='dark'] .tournament-row:nth-child(even) {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .tournament-row:nth-child(even) {
     background: #0f1419;
   }
 
@@ -1121,7 +1106,7 @@
     background: #f3f4f6;
   }
 
-  .tournaments-container[data-theme='dark'] .tournament-row:hover {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .tournament-row:hover {
     background: #243447;
   }
 
@@ -1131,7 +1116,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .tournaments-table td {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .tournaments-table td {
     color: #e1e8ed;
   }
 
@@ -1160,7 +1145,7 @@
     align-items: center;
     justify-content: center;
     padding: 0.15rem 0.4rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     border-radius: 4px;
     font-size: 0.7rem;
@@ -1173,7 +1158,7 @@
     font-size: 0.85rem;
   }
 
-  .tournaments-container[data-theme='dark'] .city-cell {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .city-cell {
     color: #8b9bb3;
   }
 
@@ -1184,7 +1169,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .tournament-date {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .tournament-date {
     color: #6b7a94;
   }
 
@@ -1199,7 +1184,7 @@
     transition: color 0.3s;
   }
 
-  .tournaments-container[data-theme='dark'] .tournament-desc {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .tournament-desc {
     color: #8b9bb3;
   }
 
@@ -1239,7 +1224,7 @@
     border-radius: 4px;
   }
 
-  .tournaments-container[data-theme='dark'] .collab-count {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .collab-count {
     color: #818cf8;
     background: rgba(129, 140, 248, 0.15);
   }
@@ -1249,7 +1234,7 @@
     font-size: 0.7rem;
   }
 
-  .tournaments-container[data-theme='dark'] .creator-date {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .creator-date {
     color: #6b7a94;
   }
 
@@ -1283,7 +1268,7 @@
     background: #f3f4f6;
   }
 
-  .tournaments-container[data-theme='dark'] .action-btn:hover {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .action-btn:hover {
     background: #2d3748;
   }
 
@@ -1292,7 +1277,7 @@
   }
 
   .duplicate-btn {
-    color: #3b82f6;
+    color: var(--primary);
   }
 
   .mode-cell {
@@ -1309,7 +1294,7 @@
     font-weight: 600;
   }
 
-  .tournaments-container[data-theme='dark'] .mode-group {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .mode-group {
     background: #1e3a5f;
     color: #7dd3fc;
   }
@@ -1320,7 +1305,7 @@
     font-size: 0.75rem;
   }
 
-  .tournaments-container[data-theme='dark'] .mode-separator {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .mode-separator {
     color: #6b7a94;
   }
 
@@ -1339,12 +1324,12 @@
     color: #1f2937;
   }
 
-  .tournaments-container[data-theme='dark'] .mode-final {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .mode-final {
     background: #374151;
     color: #d1d5db;
   }
 
-  .tournaments-container[data-theme='dark'] .mode-final.split {
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .mode-final.split {
     background: linear-gradient(135deg, #b8860b 0%, #808080 100%);
     color: #f9fafb;
   }
@@ -1370,28 +1355,24 @@
     transition: all 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal {
     background: #1a2332;
   }
 
   .confirm-modal h2 {
     margin: 0 0 1rem 0;
-    color: #1a1a1a;
+    color: var(--primary);
     font-size: 1.5rem;
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal h2 {
-    color: #e1e8ed;
-  }
-
   .confirm-modal p {
-    color: #666;
+    color: #1a1a1a;
     margin-bottom: 1.5rem;
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal p {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal p {
     color: #8b9bb3;
   }
 
@@ -1403,7 +1384,7 @@
     transition: all 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .tournament-info {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .tournament-info {
     background: #0f1419;
   }
 
@@ -1412,17 +1393,17 @@
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .tournament-info strong {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .tournament-info strong {
     color: #e1e8ed;
   }
 
   .tournament-info span {
-    color: #666;
+    color: #1a1a1a;
     font-size: 0.9rem;
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .tournament-info span {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .tournament-info span {
     color: #8b9bb3;
   }
 
@@ -1443,7 +1424,7 @@
     transition: all 0.2s;
   }
 
-  .modal-backdrop[data-theme='dark'] .cancel-btn {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .cancel-btn {
     background: #0f1419;
     color: #e1e8ed;
   }
@@ -1452,7 +1433,7 @@
     background: #e5e7eb;
   }
 
-  .modal-backdrop[data-theme='dark'] .cancel-btn:hover {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .cancel-btn:hover {
     background: #2d3748;
   }
 

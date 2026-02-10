@@ -61,14 +61,14 @@
     width: 48px;
     height: 48px;
     border: 4px solid #2d3748;
-    border-top: 4px solid #667eea;
+    border-top: 4px solid var(--primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
 
   .light .spinner {
     border: 4px solid #e2e8f0;
-    border-top: 4px solid #667eea;
+    border-top: 4px solid var(--primary);
   }
 
   @keyframes spin {

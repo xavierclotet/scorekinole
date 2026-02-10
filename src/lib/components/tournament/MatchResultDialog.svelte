@@ -962,7 +962,7 @@
                 </button>
               {:else}
                 <div class="game-complete-notice">
-                  ✅ {m.tournament_gameCompletedNotice({ n: String(currentGameNumber) })}
+                  {m.tournament_gameCompletedNotice({ n: String(currentGameNumber) })}
                   <div class="game-result">
                     {currentPointsA > currentPointsB ? nameA : nameB} {m.tournament_wins()} {Math.max(currentPointsA, currentPointsB)}-{Math.min(currentPointsA, currentPointsB)}
                   </div>
@@ -1439,7 +1439,7 @@
     margin: 0;
     font-size: 1rem;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--primary);
     letter-spacing: -0.01em;
   }
 
@@ -1619,7 +1619,7 @@
 
   .next-game-btn {
     padding: 0.75rem 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 8px;
@@ -1627,12 +1627,12 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
   .next-game-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 40%, transparent);
   }
 
   .match-complete-notice {
@@ -1711,15 +1711,15 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
-  .dialog-backdrop[data-theme='dark'] .summary-only-notice {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .summary-only-notice {
     background: #0f1419;
   }
 
-  .dialog-backdrop[data-theme='dark'] .summary-only-notice p {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .summary-only-notice p {
     color: #8b9bb3;
   }
 
-  .dialog-backdrop[data-theme='dark'] .summary-only-notice .stat-row {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .summary-only-notice .stat-row {
     background: #1a2332;
   }
 
@@ -1757,11 +1757,11 @@
     font-size: 0.9rem;
   }
 
-  .dialog-backdrop[data-theme='dark'] .current-game-header {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .current-game-header {
     background: #1e3a5f;
   }
 
-  .dialog-backdrop[data-theme='dark'] .current-game-header .game-title {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .current-game-header .game-title {
     color: #93c5fd;
   }
 
@@ -1819,7 +1819,7 @@
   }
 
   .rounds-table th {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     padding: 0.75rem 0.5rem;
     font-size: 0.9rem;
@@ -2056,25 +2056,25 @@
     background: #d97706;
   }
 
-  .dialog-backdrop[data-theme='dark'] .tiebreak-section {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .tiebreak-section {
     background: rgba(245, 158, 11, 0.1);
     border-color: rgba(245, 158, 11, 0.3);
   }
 
-  .dialog-backdrop[data-theme='dark'] .tiebreak-icon {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .tiebreak-icon {
     background: rgba(245, 158, 11, 0.2);
     color: #fbbf24;
   }
 
-  .dialog-backdrop[data-theme='dark'] .tiebreak-title {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .tiebreak-title {
     color: #fbbf24;
   }
 
-  .dialog-backdrop[data-theme='dark'] .tiebreak-score {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .tiebreak-score {
     color: #fcd34d;
   }
 
-  .dialog-backdrop[data-theme='dark'] .validation-message {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .validation-message {
     background: rgba(239, 68, 68, 0.1);
     border-color: rgba(239, 68, 68, 0.3);
     color: #fca5a5;
@@ -2214,220 +2214,216 @@
   }
 
   /* Dark mode */
-  .dialog-backdrop[data-theme='dark'] .dialog {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .dialog {
     background: #1a2332;
   }
 
-  .dialog-backdrop[data-theme='dark'] .dialog-header {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .dialog-header {
     background: #151b26;
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .dialog-header h2 {
-    color: #e1e8ed;
-  }
-
-  .dialog-backdrop[data-theme='dark'] .admin-edit-badge {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .admin-edit-badge {
     background: rgba(245, 158, 11, 0.15);
     color: #fbbf24;
   }
 
-  .dialog-backdrop[data-theme='dark'] .close-btn {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .close-btn {
     color: #6b7280;
   }
 
-  .dialog-backdrop[data-theme='dark'] .close-btn:hover {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .close-btn:hover {
     background: #2d3748;
     color: #e1e8ed;
   }
 
-  .dialog-backdrop[data-theme='dark'] .match-card {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-card {
     background: linear-gradient(135deg, #151b26 0%, #1a2332 100%);
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .participant-name {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .participant-name {
     color: #e1e8ed;
   }
 
-  .dialog-backdrop[data-theme='dark'] .vs-badge {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .vs-badge {
     background: #2d3748;
     border-color: #4a5568;
     color: #8b9bb3;
   }
 
-  .dialog-backdrop[data-theme='dark'] .table-badge {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .table-badge {
     color: #6b7280;
   }
 
-  .dialog-backdrop[data-theme='dark'] .match-format {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-format {
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .format-badge {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .format-badge {
     background: #2d3748;
     border-color: #4a5568;
     color: #8b9bb3;
   }
 
-  .dialog-backdrop[data-theme='dark'] .rounds-table {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table {
     background: #1a2332;
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .rounds-table td {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .rounds-table td {
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .player-row td {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .player-row td {
     background: #0f1419;
   }
 
-  .dialog-backdrop[data-theme='dark'] .player-name {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .player-name {
     color: #e1e8ed;
   }
 
-  .dialog-backdrop[data-theme='dark'] .point-btn {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .point-btn {
     background: #0f1419;
     border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  .dialog-backdrop[data-theme='dark'] .point-btn:hover {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .point-btn:hover {
     background: #2d3748;
     border-color: #4a5568;
   }
 
-  .dialog-backdrop[data-theme='dark'] .point-btn.selected {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .point-btn.selected {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     border-color: #10b981;
     color: white;
   }
 
-  .dialog-backdrop[data-theme='dark'] .twenties-input {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .twenties-input {
     background: rgba(251, 191, 36, 0.1);
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
-  .dialog-backdrop[data-theme='dark'] .twenties-input:focus {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .twenties-input:focus {
     border-color: #fbbf24;
   }
 
-  .dialog-backdrop[data-theme='dark'] .total-cell {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .total-cell {
     background: rgba(16, 185, 129, 0.15) !important;
   }
 
-  .dialog-backdrop[data-theme='dark'] .total-value {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .total-value {
     color: #10b981;
   }
 
-  .dialog-backdrop[data-theme='dark'] .games-won {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .games-won {
     color: #8b9bb3;
   }
 
-  .dialog-backdrop[data-theme='dark'] .noshow-section {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .noshow-section {
     background: #151b26;
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .noshow-header {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .noshow-header {
     color: #8b9bb3;
   }
 
-  .dialog-backdrop[data-theme='dark'] .noshow-header svg {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .noshow-header svg {
     color: #6b7280;
   }
 
-  .dialog-backdrop[data-theme='dark'] .noshow-btn {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .noshow-btn {
     background: #1a2332;
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .noshow-btn:hover {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .noshow-btn:hover {
     background: rgba(251, 191, 36, 0.1);
     border-color: rgba(251, 191, 36, 0.3);
   }
 
-  .dialog-backdrop[data-theme='dark'] .noshow-name {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .noshow-name {
     color: #e1e8ed;
   }
 
-  .dialog-backdrop[data-theme='dark'] .noshow-label {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .noshow-label {
     color: #6b7280;
   }
 
-  .dialog-backdrop[data-theme='dark'] .dialog-footer {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .dialog-footer {
     background: #151b26;
     border-color: #2d3748;
   }
 
-  .dialog-backdrop[data-theme='dark'] .btn-secondary {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .btn-secondary {
     background: #1a2332;
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
-  .dialog-backdrop[data-theme='dark'] .btn-secondary:hover {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .btn-secondary:hover {
     background: #2d3748;
     border-color: #4a5568;
   }
 
-  .dialog-backdrop[data-theme='dark'] .btn-primary:disabled {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .btn-primary:disabled {
     background: rgba(37, 99, 235, 0.3);
   }
 
-  .dialog-backdrop[data-theme='dark'] .btn-warning {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .btn-warning {
     background: #d97706;
   }
 
-  .dialog-backdrop[data-theme='dark'] .btn-warning:hover {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .btn-warning:hover {
     background: #b45309;
   }
 
   /* Dark mode for Points Mode elements */
-  .dialog-backdrop[data-theme='dark'] .game-complete-notice {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .game-complete-notice {
     background: rgba(16, 185, 129, 0.15);
     color: #10b981;
   }
 
-  .dialog-backdrop[data-theme='dark'] .match-complete-notice {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-complete-notice {
     background: rgba(251, 191, 36, 0.15);
     color: #fbbf24;
   }
 
-  .dialog-backdrop[data-theme='dark'] .match-stats {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-stats {
     border-top-color: rgba(251, 191, 36, 0.2);
   }
 
-  .dialog-backdrop[data-theme='dark'] .match-score-summary {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-score-summary {
     color: #fbbf24;
   }
 
-  .dialog-backdrop[data-theme='dark'] .completed-game {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .completed-game {
     background: rgba(31, 41, 55, 0.5);
     border-color: rgba(251, 191, 36, 0.2);
   }
 
-  .dialog-backdrop[data-theme='dark'] .completed-game-header {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .completed-game-header {
     border-bottom-color: rgba(251, 191, 36, 0.3);
   }
 
-  .dialog-backdrop[data-theme='dark'] .game-title {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .game-title {
     color: #fbbf24;
   }
 
-  .dialog-backdrop[data-theme='dark'] .game-winner {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .game-winner {
     color: #10b981;
   }
 
-  .dialog-backdrop[data-theme='dark'] .round-cell.readonly,
-  .dialog-backdrop[data-theme='dark'] .total-cell.readonly {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .round-cell.readonly,
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .total-cell.readonly {
     background: rgba(55, 65, 81, 0.5);
     color: #d1d5db;
   }
 
-  .dialog-backdrop[data-theme='dark'] .total-cell.readonly {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .total-cell.readonly {
     background: rgba(75, 85, 99, 0.5);
   }
 
@@ -2644,45 +2640,45 @@
   }
 
   /* Dark mode for video section */
-  .dialog-backdrop[data-theme='dark'] .video-section {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-section {
     border-top-color: #374151;
   }
 
-  .dialog-backdrop[data-theme='dark'] .video-toggle {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-toggle {
     background: #1f2937;
     border-color: #374151;
     color: #9ca3af;
   }
 
-  .dialog-backdrop[data-theme='dark'] .video-toggle:hover {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-toggle:hover {
     background: #374151;
     color: #d1d5db;
   }
 
-  .dialog-backdrop[data-theme='dark'] .video-content {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-content {
     background: #1f2937;
   }
 
-  .dialog-backdrop[data-theme='dark'] .video-input {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-input {
     background: #111827;
     border-color: #374151;
     color: #e5e7eb;
   }
 
-  .dialog-backdrop[data-theme='dark'] .video-input:focus {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-input:focus {
     border-color: #3b82f6;
   }
 
-  .dialog-backdrop[data-theme='dark'] .video-clear {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-clear {
     background: rgba(220, 38, 38, 0.2);
     color: #f87171;
   }
 
-  .dialog-backdrop[data-theme='dark'] .video-preview {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-preview {
     background: rgba(16, 185, 129, 0.15);
   }
 
-  .dialog-backdrop[data-theme='dark'] .video-ok {
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .video-ok {
     color: #34d399;
   }
 </style>

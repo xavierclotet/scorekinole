@@ -1145,7 +1145,7 @@
     overflow: hidden;
   }
 
-  .tournament-page[data-theme='dark'] {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) {
     background: #0f1419;
   }
 
@@ -1158,7 +1158,7 @@
     flex-shrink: 0;
   }
 
-  .tournament-page[data-theme='dark'] .page-header {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .page-header {
     background: #1a2332;
     border-color: #2d3748;
   }
@@ -1185,7 +1185,7 @@
     flex-shrink: 0;
   }
 
-  .tournament-page[data-theme='dark'] .back-btn {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .back-btn {
     background: #0f1419;
     color: #8b9bb3;
   }
@@ -1195,7 +1195,7 @@
     transform: translateX(-2px);
   }
 
-  .tournament-page[data-theme='dark'] .back-btn:hover {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .back-btn:hover {
     background: #2d3748;
   }
 
@@ -1220,7 +1220,7 @@
     transition: color 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .title-section h1 {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .title-section h1 {
     color: #e1e8ed;
   }
 
@@ -1237,7 +1237,7 @@
     border-bottom: 1px solid #e5e7eb;
   }
 
-  .tournament-page[data-theme='dark'] .header-progress-bar {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .header-progress-bar {
     background: linear-gradient(to bottom, transparent, rgba(102, 126, 234, 0.05));
     border-color: #2d3748;
   }
@@ -1264,7 +1264,7 @@
     transition: all 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .info-badge {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .info-badge {
     background: #0f1419;
     color: #8b9bb3;
   }
@@ -1274,7 +1274,7 @@
     color: #166534;
   }
 
-  .tournament-page[data-theme='dark'] .participants-badge {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .participants-badge {
     background: #14532d;
     color: #86efac;
   }
@@ -1284,7 +1284,7 @@
     color: #92400e;
   }
 
-  .tournament-page[data-theme='dark'] .imported-badge {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .imported-badge {
     background: #78350f;
     color: #fde68a;
   }
@@ -1294,7 +1294,7 @@
     color: #92400e;
   }
 
-  .tournament-page[data-theme='dark'] .test-badge {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .test-badge {
     background: #78350f;
     color: #fde68a;
   }
@@ -1319,7 +1319,7 @@
     color: #1a1a1a;
   }
 
-  .tournament-page[data-theme='dark'] .action-btn {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .action-btn {
     background: #374151;
     color: #e1e8ed;
   }
@@ -1328,20 +1328,20 @@
     background: #e5e7eb;
   }
 
-  .tournament-page[data-theme='dark'] .action-btn:hover {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .action-btn:hover {
     background: #4b5563;
   }
 
   .action-btn.primary,
-  .tournament-page[data-theme='dark'] .action-btn.primary {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .action-btn.primary {
+    background: var(--primary);
     color: white;
   }
 
   .action-btn.primary:hover:not(:disabled),
-  .tournament-page[data-theme='dark'] .action-btn.primary:hover:not(:disabled) {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .action-btn.primary:hover:not(:disabled) {
+    filter: brightness(1.1);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 40%, transparent);
     transform: translateY(-1px);
   }
 
@@ -1351,13 +1351,13 @@
   }
 
   .action-btn.upcoming,
-  .tournament-page[data-theme='dark'] .action-btn.upcoming {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .action-btn.upcoming {
     background: #8b5cf6;
     color: white;
   }
 
   .action-btn.upcoming:hover,
-  .tournament-page[data-theme='dark'] .action-btn.upcoming:hover {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .action-btn.upcoming:hover {
     background: #7c3aed;
   }
 
@@ -1388,8 +1388,8 @@
 
   .icon-btn:hover,
   .public-link:hover {
-    background: rgba(102, 126, 234, 0.1);
-    color: #667eea;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
   }
 
   .icon-btn svg,
@@ -1398,15 +1398,15 @@
     height: 18px;
   }
 
-  .tournament-page[data-theme='dark'] .icon-btn,
-  .tournament-page[data-theme='dark'] .public-link {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .icon-btn,
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .public-link {
     color: #8b9bb3;
   }
 
-  .tournament-page[data-theme='dark'] .icon-btn:hover,
-  .tournament-page[data-theme='dark'] .public-link:hover {
-    background: rgba(102, 126, 234, 0.15);
-    color: #667eea;
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .icon-btn:hover,
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .public-link:hover {
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
   }
 
   /* Content */
@@ -1439,7 +1439,7 @@
     transition: color 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .error-state h3 {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .error-state h3 {
     color: #e1e8ed;
   }
 
@@ -1449,13 +1449,13 @@
     transition: color 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .error-state p {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .error-state p {
     color: #8b9bb3;
   }
 
   .primary-button {
     padding: 0.75rem 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 8px;
@@ -1489,7 +1489,7 @@
     transition: background-color 0.3s, box-shadow 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .dashboard-card {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .dashboard-card {
     background: #1a2332;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
@@ -1504,7 +1504,7 @@
     transition: color 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .dashboard-card h2 {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .dashboard-card h2 {
     color: #e1e8ed;
   }
 
@@ -1520,7 +1520,7 @@
     border: 1px dashed #d1d5db;
   }
 
-  .tournament-page[data-theme='dark'] .participants-card {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .participants-card {
     border-color: #475569;
   }
 
@@ -1534,25 +1534,29 @@
   .participant-chip {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
-    background: #f1f5f9;
-    color: #475569;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
     border-radius: 4px;
     white-space: nowrap;
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
   .participant-chip.guest {
     background: #fef3c7;
     color: #92400e;
+    border-color: #fcd34d;
   }
 
-  .tournament-page[data-theme='dark'] .participant-chip {
-    background: rgba(255, 255, 255, 0.08);
-    color: #94a3b8;
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .participant-chip {
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
   }
 
-  .tournament-page[data-theme='dark'] .participant-chip.guest {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .participant-chip.guest {
     background: rgba(251, 191, 36, 0.15);
     color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.3);
   }
 
   .edit-participants-btn {
@@ -1569,19 +1573,19 @@
 
   .edit-participants-btn:hover {
     background: #f9fafb;
-    border-color: #667eea;
-    color: #667eea;
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
-  .tournament-page[data-theme='dark'] .edit-participants-btn {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .edit-participants-btn {
     border-color: #475569;
     color: #94a3b8;
   }
 
-  .tournament-page[data-theme='dark'] .edit-participants-btn:hover {
-    background: rgba(102, 126, 234, 0.1);
-    border-color: #667eea;
-    color: #667eea;
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .edit-participants-btn:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
   .rules-btn {
@@ -1604,12 +1608,12 @@
     border-color: #d1d5db;
   }
 
-  .tournament-page[data-theme='dark'] .rules-btn {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .rules-btn {
     border-color: #374151;
     color: rgba(255, 255, 255, 0.8);
   }
 
-  .tournament-page[data-theme='dark'] .rules-btn:hover {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .rules-btn:hover {
     background: rgba(255, 255, 255, 0.05);
     border-color: #4b5563;
   }
@@ -1625,7 +1629,7 @@
     transition: background-color 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .config-item {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .config-item {
     background: #0f1419;
   }
 
@@ -1635,7 +1639,7 @@
     transition: color 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .config-label {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .config-label {
     color: #8b9bb3;
   }
 
@@ -1646,7 +1650,7 @@
     transition: color 0.3s;
   }
 
-  .tournament-page[data-theme='dark'] .config-value {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .config-value {
     color: #e1e8ed;
   }
 
@@ -1655,7 +1659,7 @@
     align-items: center;
     gap: 0.3rem;
     padding: 0.15rem 0.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     border-radius: 4px;
     font-size: 0.85rem;
@@ -1663,7 +1667,7 @@
   }
 
   .external-link-value {
-    color: #667eea;
+    color: var(--primary);
     text-decoration: none;
     font-weight: 500;
     transition: color 0.2s;
@@ -1674,11 +1678,11 @@
     text-decoration: underline;
   }
 
-  .tournament-page[data-theme='dark'] .external-link-value {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .external-link-value {
     color: #8b9fd6;
   }
 
-  .tournament-page[data-theme='dark'] .external-link-value:hover {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .external-link-value:hover {
     color: #a8b8e0;
   }
 
@@ -1686,8 +1690,8 @@
   .config-item.bracket-header {
     margin-top: 0.5rem;
     padding: 0.3rem 0.6rem;
-    background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
-    border-left: 3px solid #667eea;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    border-left: 3px solid var(--primary);
   }
 
   .config-item.bracket-header .config-label {
@@ -1695,7 +1699,7 @@
     color: #1a1a1a;
   }
 
-  .tournament-page[data-theme='dark'] .config-item.bracket-header .config-label {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .config-item.bracket-header .config-label {
     color: #e1e8ed;
   }
 
@@ -1720,7 +1724,7 @@
     font-style: italic;
   }
 
-  .tournament-page[data-theme='dark'] .legend {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .legend {
     color: #6b7a94;
   }
 
@@ -1736,15 +1740,15 @@
   }
 
   .consolation-badge.enabled {
-    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-    color: #166534;
-    border: 1px solid #22c55e;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
+    border: 1px solid color-mix(in srgb, var(--primary) 50%, transparent);
   }
 
-  .tournament-page[data-theme='dark'] .consolation-badge.enabled {
-    background: linear-gradient(135deg, #14532d 0%, #166534 100%);
-    color: #dcfce7;
-    border-color: #22c55e;
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .consolation-badge.enabled {
+    background: color-mix(in srgb, var(--primary) 25%, transparent);
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 60%, transparent);
   }
 
   .consolation-badge.disabled {
@@ -1752,7 +1756,7 @@
     color: #6b7280;
   }
 
-  .tournament-page[data-theme='dark'] .consolation-badge.disabled {
+  .tournament-page:is([data-theme='dark'], [data-theme='violet']) .consolation-badge.disabled {
     background: #374151;
     color: #9ca3af;
   }
@@ -1955,7 +1959,7 @@
     transition: all 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal {
     background: #1a2332;
   }
 
@@ -1966,7 +1970,7 @@
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal h2 {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal h2 {
     color: #e1e8ed;
   }
 
@@ -1976,7 +1980,7 @@
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal p {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal p {
     color: #8b9bb3;
   }
 
@@ -1988,7 +1992,7 @@
     transition: all 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .tournament-info {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .tournament-info {
     background: #0f1419;
   }
 
@@ -1997,7 +2001,7 @@
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .tournament-info strong {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .tournament-info strong {
     color: #e1e8ed;
   }
 
@@ -2007,7 +2011,7 @@
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .tournament-info span {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .tournament-info span {
     color: #8b9bb3;
   }
 
@@ -2026,7 +2030,7 @@
     transition: color 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .info-text {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .info-text {
     color: #8b9bb3;
   }
 
@@ -2047,7 +2051,7 @@
     transition: all 0.2s;
   }
 
-  .modal-backdrop[data-theme='dark'] .cancel-btn {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .cancel-btn {
     background: #0f1419;
     color: #e1e8ed;
   }
@@ -2056,7 +2060,7 @@
     background: #e5e7eb;
   }
 
-  .modal-backdrop[data-theme='dark'] .cancel-btn:hover {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .cancel-btn:hover {
     background: #2d3748;
   }
 
@@ -2077,7 +2081,7 @@
 
   .confirm-btn {
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -2107,7 +2111,7 @@
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
   }
 
-  .modal-backdrop[data-theme='dark'] .quick-edit-modal {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .quick-edit-modal {
     background: #1a2332;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
   }
@@ -2129,7 +2133,7 @@
     z-index: 1;
   }
 
-  .modal-backdrop[data-theme='dark'] .quick-edit-header {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .quick-edit-header {
     background: #1a2332;
     border-color: #2d3748;
   }
@@ -2141,7 +2145,7 @@
     color: #374151;
   }
 
-  .modal-backdrop[data-theme='dark'] .quick-edit-header h2 {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .quick-edit-header h2 {
     color: #e1e8ed;
   }
 
@@ -2164,7 +2168,7 @@
     color: #374151;
   }
 
-  .modal-backdrop[data-theme='dark'] .close-btn:hover {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .close-btn:hover {
     background: #2d3748;
     color: #e1e8ed;
   }
@@ -2199,8 +2203,8 @@
     letter-spacing: 0.3px;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-field label,
-  .modal-backdrop[data-theme='dark'] .qe-label {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-field label,
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-label {
     color: #8b9bb3;
   }
 
@@ -2216,9 +2220,9 @@
     font-family: inherit;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-field input,
-  .modal-backdrop[data-theme='dark'] .qe-field select,
-  .modal-backdrop[data-theme='dark'] .qe-field textarea {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-field input,
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-field select,
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-field textarea {
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
@@ -2228,8 +2232,8 @@
   .qe-field select:focus,
   .qe-field textarea:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.15);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
   }
 
   .qe-field textarea {
@@ -2244,7 +2248,7 @@
     border-radius: 8px;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-venue {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-venue {
     background: #0f1419;
   }
 
@@ -2256,7 +2260,7 @@
     justify-content: space-between;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-footer-row {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-footer-row {
     border-color: #2d3748;
   }
 
@@ -2269,12 +2273,12 @@
     color: #6b7280;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-toggle {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-toggle {
     color: #9ca3af;
   }
 
   .qe-toggle input {
-    accent-color: #667eea;
+    accent-color: var(--primary);
   }
 
   .qe-actions {
@@ -2296,7 +2300,7 @@
     color: #4b5563;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-btn.secondary {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-btn.secondary {
     background: #2d3748;
     color: #9ca3af;
   }
@@ -2305,12 +2309,12 @@
     background: #e5e7eb;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-btn.secondary:hover {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-btn.secondary:hover {
     background: #374151;
   }
 
   .qe-btn.primary {
-    background: #667eea;
+    background: var(--primary);
     color: white;
   }
 
@@ -2331,7 +2335,7 @@
   .qe-section-title {
     font-size: 0.7rem;
     font-weight: 600;
-    color: #667eea;
+    color: var(--primary);
     text-transform: uppercase;
     letter-spacing: 0.4px;
     margin-bottom: 0.75rem;
@@ -2369,7 +2373,7 @@
     color: #d97706;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-hint {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-hint {
     color: #6b7a94;
   }
 
@@ -2379,7 +2383,7 @@
     padding: 0.35rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-venue-inline {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-venue-inline {
     background: #0f1419;
   }
 
@@ -2389,7 +2393,7 @@
     margin: 1rem 0;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-divider {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-divider {
     background: #2d3748;
   }
 
@@ -2425,22 +2429,22 @@
     transition: all 0.15s;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-toggle-card {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-toggle-card {
     background: #0f1419;
     color: #e1e8ed;
   }
 
   .qe-toggle-card:hover {
-    border-color: rgba(102, 126, 234, 0.3);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
   .qe-toggle-card:has(input:checked) {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.08);
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
   }
 
   .qe-toggle-card input {
-    accent-color: #667eea;
+    accent-color: var(--primary);
   }
 
   .qe-subsection {
@@ -2448,7 +2452,7 @@
     border-top: 1px solid #e5e7eb;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-subsection {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-subsection {
     border-color: #2d3748;
   }
 
@@ -2461,7 +2465,7 @@
     margin-bottom: 0.5rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-subsection-title {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-subsection-title {
     color: #8b9bb3;
   }
 
@@ -2478,7 +2482,7 @@
     margin-bottom: 0.375rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-toggle-row {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-toggle-row {
     background: #0f1419;
     color: #e1e8ed;
   }
@@ -2487,7 +2491,7 @@
     background: #f3f4f6;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-toggle-row:hover {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-toggle-row:hover {
     background: #1e293b;
   }
 
@@ -2498,7 +2502,7 @@
     padding-right: 0.5rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-hint-text {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-hint-text {
     color: #8b9bb3;
   }
 
@@ -2529,7 +2533,7 @@
   }
 
   .qe-switch:checked {
-    background: #667eea;
+    background: var(--primary);
   }
 
   .qe-switch:checked::before {
@@ -2545,7 +2549,7 @@
     border-top: 1px solid #e5e7eb;
   }
 
-  .modal-backdrop[data-theme='dark'] .qe-footer {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .qe-footer {
     border-color: #2d3748;
   }
 

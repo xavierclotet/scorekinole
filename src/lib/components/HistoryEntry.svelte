@@ -133,7 +133,7 @@
 		<div class="header-actions">
 			{#if $currentUser}
 				{#if match.syncStatus === 'synced'}
-					<span class="sync-badge synced">✅ {m.history_synced()}</span>
+					<span class="sync-badge synced">{m.history_synced()}</span>
 				{:else if match.syncStatus === 'error'}
 					<button
 						class="sync-badge error clickable"

@@ -24,6 +24,7 @@
   import { isSuperAdmin } from '$lib/firebase/admin';
   import { getUserProfile } from '$lib/firebase/userProfile';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
+  import { Check, X } from '@lucide/svelte';
 
   let tournament: Tournament | null = $state(null);
   let loading = $state(true);
@@ -850,20 +851,25 @@
       role="presentation"
     >
       <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2>✅ {m.admin_completeGroupStage()}</h2>
-        <p>{m.admin_readyToCompleteGroups()}</p>
-        <div class="tournament-info">
-          <strong>{tournament.name}</strong>
-          <br />
-          <span>{m.admin_finalStandingsWillBeCalculated()}</span>
+        <div class="modal-header">
+          <div class="header-icon">
+            <Check size={18} strokeWidth={2.5} />
+          </div>
+          <h2>{m.admin_completeGroupStage()}</h2>
+          <button class="close-btn" onclick={closeCompleteModal} aria-label="Close">
+            <X size={18} />
+          </button>
         </div>
-        <p class="info-text">
-          {#if tournament.phaseType === 'TWO_PHASE'}
-            {m.admin_selectQualifiersAfter()}
-          {:else}
-            {m.admin_tournamentWillAdvanceDirectly()}
-          {/if}
-        </p>
+        <div class="modal-body">
+          <div class="tournament-name">{tournament.name}</div>
+          <p class="info-text">
+            {#if tournament.phaseType === 'TWO_PHASE'}
+              {m.admin_selectQualifiersAfter()}
+            {:else}
+              {m.admin_tournamentWillAdvanceDirectly()}
+            {/if}
+          </p>
+        </div>
         <div class="confirm-actions">
           <button class="cancel-btn" onclick={closeCompleteModal}>{m.common_cancel()}</button>
           <button class="confirm-btn" onclick={completeGroupStage}>{m.admin_complete()}</button>
@@ -925,7 +931,7 @@
     overflow: hidden;
   }
 
-  .groups-page[data-theme='dark'] {
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) {
     background: #0f1419;
   }
 
@@ -938,7 +944,7 @@
     flex-shrink: 0;
   }
 
-  .groups-page[data-theme='dark'] .page-header {
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) .page-header {
     background: #1a2332;
     border-color: #2d3748;
   }
@@ -965,7 +971,7 @@
     flex-shrink: 0;
   }
 
-  .groups-page[data-theme='dark'] .back-btn {
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) .back-btn {
     background: #0f1419;
     color: #8b9bb3;
     border-color: #2d3748;
@@ -973,8 +979,8 @@
 
   .back-btn:hover {
     transform: translateX(-2px);
-    border-color: #667eea;
-    color: #667eea;
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
   .header-main {
@@ -998,7 +1004,7 @@
     transition: color 0.3s;
   }
 
-  .groups-page[data-theme='dark'] .title-section h1 {
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) .title-section h1 {
     color: #e1e8ed;
   }
 
@@ -1050,7 +1056,7 @@
     align-items: center;
     gap: 0.6rem;
     padding: 0.6rem 1rem;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 8px;
@@ -1059,17 +1065,17 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 25%, transparent);
   }
 
   .final-stage-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 35%, transparent);
   }
 
   .final-stage-btn:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 25%, transparent);
   }
 
   .final-stage-btn:disabled {
@@ -1111,13 +1117,13 @@
   }
 
   .action-btn.autofill {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: var(--primary);
     color: white;
   }
 
   .action-btn.autofill:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+    filter: brightness(1.1);
   }
 
   .action-btn.autofill:disabled {
@@ -1148,7 +1154,7 @@
     width: 50px;
     height: 50px;
     border: 4px solid #e5e7eb;
-    border-top-color: #667eea;
+    border-top-color: var(--primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -1170,7 +1176,7 @@
     transition: color 0.3s;
   }
 
-  .groups-page[data-theme='dark'] .error-state h3 {
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) .error-state h3 {
     color: #e1e8ed;
   }
 
@@ -1180,13 +1186,13 @@
     transition: color 0.3s;
   }
 
-  .groups-page[data-theme='dark'] .error-state p {
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) .error-state p {
     color: #8b9bb3;
   }
 
   .primary-button {
     padding: 0.75rem 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 8px;
@@ -1213,100 +1219,124 @@
 
   .confirm-modal {
     background: white;
-    border-radius: 12px;
-    padding: 2rem;
-    max-width: 400px;
+    border-radius: 10px;
+    max-width: 340px;
     width: 90%;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-    transition: all 0.3s;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal {
     background: #1a2332;
   }
 
+  .confirm-modal .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal .modal-header {
+    border-color: #2d3748;
+  }
+
+  .confirm-modal .header-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    border-radius: 6px;
+    color: white;
+    flex-shrink: 0;
+  }
+
   .confirm-modal h2 {
-    margin: 0 0 1rem 0;
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
     color: #1a1a1a;
-    font-size: 1.5rem;
-    transition: color 0.3s;
+    flex: 1;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal h2 {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal h2 {
     color: #e1e8ed;
   }
 
-  .confirm-modal p {
-    color: #666;
-    margin-bottom: 1rem;
-    transition: color 0.3s;
+  .confirm-modal .close-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: all 0.15s;
   }
 
-  .modal-backdrop[data-theme='dark'] .confirm-modal p {
-    color: #8b9bb3;
+  .confirm-modal .close-btn:hover {
+    background: #f3f4f6;
+    color: #374151;
   }
 
-  .tournament-info {
-    background: #f9fafb;
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal .close-btn:hover {
+    background: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .confirm-modal .modal-body {
     padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-    transition: all 0.3s;
   }
 
-  .modal-backdrop[data-theme='dark'] .tournament-info {
-    background: #0f1419;
-  }
-
-  .tournament-info strong {
-    color: #1a1a1a;
-    transition: color 0.3s;
-  }
-
-  .modal-backdrop[data-theme='dark'] .tournament-info strong {
-    color: #e1e8ed;
-  }
-
-  .tournament-info span {
-    color: #666;
+  .confirm-modal .tournament-name {
     font-size: 0.9rem;
-    transition: color 0.3s;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 0.5rem;
   }
 
-  .modal-backdrop[data-theme='dark'] .tournament-info span {
-    color: #8b9bb3;
+  .confirm-modal .info-text {
+    color: #64748b;
+    font-size: 0.8rem;
+    margin: 0;
+    line-height: 1.4;
   }
 
-  .info-text {
-    color: #666;
-    font-size: 0.9rem;
-    margin-bottom: 1.5rem;
-    line-height: 1.5;
-    transition: color 0.3s;
-  }
-
-  .modal-backdrop[data-theme='dark'] .info-text {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal .info-text {
     color: #8b9bb3;
   }
 
   .confirm-actions {
     display: flex;
-    gap: 1rem;
-    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-actions {
+    border-color: #2d3748;
   }
 
   .cancel-btn {
-    padding: 0.75rem 1.5rem;
+    flex: 1;
+    padding: 0.5rem 0.75rem;
     background: #f3f4f6;
-    color: #1a1a1a;
+    color: #374151;
     border: none;
     border-radius: 6px;
-    font-weight: 600;
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
-  .modal-backdrop[data-theme='dark'] .cancel-btn {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .cancel-btn {
     background: #0f1419;
     color: #e1e8ed;
   }
@@ -1315,24 +1345,25 @@
     background: #e5e7eb;
   }
 
-  .modal-backdrop[data-theme='dark'] .cancel-btn:hover {
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .cancel-btn:hover {
     background: #2d3748;
   }
 
   .confirm-btn {
-    padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 6px;
-    font-weight: 600;
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
 
   .confirm-btn:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
+    filter: brightness(1.1);
   }
 
   /* Responsive */
@@ -1422,7 +1453,7 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   }
 
-  .loading-overlay[data-theme='dark'] .loading-content {
+  .loading-overlay:is([data-theme='dark'], [data-theme='violet']) .loading-content {
     background: #1a2332;
   }
 
@@ -1430,7 +1461,7 @@
     width: 48px;
     height: 48px;
     border: 4px solid #e5e7eb;
-    border-top-color: #10b981;
+    border-top-color: var(--primary);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     margin: 0 auto 1rem;
@@ -1449,7 +1480,7 @@
     margin: 0 0 0.5rem;
   }
 
-  .loading-overlay[data-theme='dark'] .loading-text {
+  .loading-overlay:is([data-theme='dark'], [data-theme='violet']) .loading-text {
     color: #e1e8ed;
   }
 
@@ -1459,7 +1490,7 @@
     margin: 0;
   }
 
-  .loading-overlay[data-theme='dark'] .loading-subtext {
+  .loading-overlay:is([data-theme='dark'], [data-theme='violet']) .loading-subtext {
     color: #8b9bb3;
   }
 
@@ -1476,7 +1507,7 @@
     transition: all 0.3s;
   }
 
-  .swiss-config-section[data-theme='dark'] .swiss-config-card {
+  .swiss-config-section:is([data-theme='dark'], [data-theme='violet']) .swiss-config-card {
     background: #1a2332;
     border-color: #2d3748;
   }
@@ -1499,7 +1530,7 @@
     transition: color 0.3s;
   }
 
-  .swiss-config-section[data-theme='dark'] .config-title {
+  .swiss-config-section:is([data-theme='dark'], [data-theme='violet']) .config-title {
     color: #e1e8ed;
   }
 
@@ -1523,7 +1554,7 @@
     transition: color 0.3s;
   }
 
-  .swiss-config-section[data-theme='dark'] .config-row label {
+  .swiss-config-section:is([data-theme='dark'], [data-theme='violet']) .config-row label {
     color: #8b9bb3;
   }
 
@@ -1545,7 +1576,7 @@
     transition: all 0.2s;
   }
 
-  .swiss-config-section[data-theme='dark'] .config-input-group input {
+  .swiss-config-section:is([data-theme='dark'], [data-theme='violet']) .config-input-group input {
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
@@ -1553,7 +1584,7 @@
 
   .config-input-group input:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
   }
 
@@ -1564,13 +1595,13 @@
     transition: color 0.3s;
   }
 
-  .swiss-config-section[data-theme='dark'] .current-round-hint {
+  .swiss-config-section:is([data-theme='dark'], [data-theme='violet']) .current-round-hint {
     color: #6b7280;
   }
 
   .save-swiss-btn {
     padding: 0.4rem 0.75rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--primary);
     color: white;
     border: none;
     border-radius: 6px;
