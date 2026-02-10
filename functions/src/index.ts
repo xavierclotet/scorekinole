@@ -448,12 +448,14 @@ export const onTournamentComplete = onDocumentUpdated(
 
     const tier: TournamentTier = afterData.rankingConfig?.tier || "CLUB";
 
+    // Filter for ACTIVE participants (treat missing status as ACTIVE for legacy data)
+    // DISQUALIFIED and WITHDRAWN participants should NOT receive ranking points
     const activeParticipants = afterData.participants.filter(
-      (p) => p.status === "ACTIVE" && p.finalPosition
+      (p) => (p.status === "ACTIVE" || !p.status) && p.finalPosition
     );
 
     const totalParticipants = afterData.participants.filter(
-      (p) => p.status === "ACTIVE"
+      (p) => p.status === "ACTIVE" || !p.status
     ).length;
 
     logger.info(`Processing ${activeParticipants.length} participants with final positions (tier: ${tier})`);
@@ -495,8 +497,9 @@ export const onTournamentComplete = onDocumentUpdated(
       const updatedParticipants = afterData.participants.map((p) => {
         let updated = { ...p };
 
-        // Apply ranking updates
-        if (p.status === "ACTIVE" && p.finalPosition) {
+        // Apply ranking updates (treat missing status as ACTIVE for legacy data)
+        // DISQUALIFIED participants should NOT receive ranking points
+        if ((p.status === "ACTIVE" || !p.status) && p.finalPosition) {
           const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
           updated.currentRanking = (p.rankingSnapshot || 0) + pointsEarned;
         }

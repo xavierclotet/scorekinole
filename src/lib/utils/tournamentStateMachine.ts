@@ -110,8 +110,17 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
     }
   }
 
-  // Use participants as-is (no expected positions calculation needed with new tier system)
-  let updatedParticipants = tournament.participants;
+  // Ensure all participants have an ID (some legacy participants may not have one)
+  let updatedParticipants = tournament.participants.map((p, index) => {
+    if (!p.id) {
+      console.log(`⚠️ Participant "${p.name}" missing id, generating one`);
+      return {
+        ...p,
+        id: `participant-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 11)}`
+      };
+    }
+    return p;
+  });
 
   // Generate schedule based on type (in-memory only, don't update yet)
   let groupStage;
@@ -168,8 +177,8 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
       totalRounds,
       isComplete: false,
       gameMode,
-      pointsToWin: gameMode === 'points' ? pointsToWin : undefined,
-      roundsToPlay: gameMode === 'rounds' ? roundsToPlay : undefined,
+      ...(gameMode === 'points' && { pointsToWin }),
+      ...(gameMode === 'rounds' && { roundsToPlay }),
       matchesToWin,
       numGroups,
       qualificationMode
@@ -210,8 +219,8 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
       totalRounds: numSwissRounds,
       isComplete: false,
       gameMode,
-      pointsToWin: gameMode === 'points' ? pointsToWin : undefined,
-      roundsToPlay: gameMode === 'rounds' ? roundsToPlay : undefined,
+      ...(gameMode === 'points' && { pointsToWin }),
+      ...(gameMode === 'rounds' && { roundsToPlay }),
       matchesToWin,
       numSwissRounds,
       qualificationMode
@@ -356,15 +365,15 @@ async function completeTournament(tournamentId: string): Promise<boolean> {
     return false;
   }
 
-  // Calculate final positions
-  const positionsSuccess = await calculateFinalPositions(tournamentId);
-  if (!positionsSuccess) {
+  // Calculate final positions (returns updated tournament to avoid Firestore read consistency issues)
+  const updatedTournament = await calculateFinalPositions(tournamentId);
+  if (!updatedTournament) {
     console.warn('Failed to calculate final positions');
   }
 
-  // Apply ranking updates
-  if (tournament.rankingConfig?.enabled) {
-    const rankingSuccess = await applyRankingUpdates(tournamentId);
+  // Apply ranking updates using the updated tournament data
+  if (tournament.rankingConfig?.enabled && updatedTournament) {
+    const rankingSuccess = await applyRankingUpdates(tournamentId, updatedTournament);
     if (!rankingSuccess) {
       console.warn('Failed to apply ranking updates');
     }

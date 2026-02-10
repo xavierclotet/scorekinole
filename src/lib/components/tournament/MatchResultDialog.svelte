@@ -37,6 +37,7 @@
       }>;
     }) => void;
     onnoshow?: (participantId: string) => void;
+    ondisqualify?: (participantId: string, participantName: string) => void;
   }
 
   let {
@@ -52,7 +53,8 @@
     isAdmin = false,
     onclose,
     onsave,
-    onnoshow
+    onnoshow,
+    ondisqualify
   }: Props = $props();
 
   // Participant info
@@ -73,6 +75,11 @@
   // Display names for the participants
   let nameA = $derived(getDisplayName(participantA));
   let nameB = $derived(isBye ? 'BYE' : getDisplayName(participantB));
+
+  // Check if participants are disqualified
+  let isDisqualifiedA = $derived(participantA?.status === 'DISQUALIFIED');
+  let isDisqualifiedB = $derived(participantB?.status === 'DISQUALIFIED');
+  let hasDisqualified = $derived(isDisqualifiedA || isDisqualifiedB);
 
   // Game mode - use phase-specific config if in bracket, otherwise use group stage config
   // Note: config is inside goldBracket or silverBracket, not directly in finalStage
@@ -511,6 +518,10 @@
 
   function handleNoShow(participantId: string) {
     onnoshow?.(participantId);
+  }
+
+  function handleDisqualify(participantId: string, participantName: string) {
+    ondisqualify?.(participantId, participantName);
   }
 
   /**
@@ -993,6 +1004,67 @@
                   </div>
                 {/if}
               {/if}
+
+              <!-- No-show section (only show if no results have been entered) - Points Mode -->
+              {#if !hasAnyResult}
+                <div class="noshow-section">
+                  <div class="noshow-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                      <circle cx="9" cy="7" r="4"/>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span>{m.tournament_noShowLabel()}</span>
+                  </div>
+                  <div class="noshow-buttons">
+                    <button class="noshow-btn" onclick={() => handleNoShow(match.participantA)}>
+                      <span class="noshow-name">{nameA || ''}</span>
+                      <span class="noshow-label">{m.tournament_didNotShowUp({ name: '' })}</span>
+                    </button>
+                    <button class="noshow-btn" onclick={() => handleNoShow(match.participantB)}>
+                      <span class="noshow-name">{nameB || ''}</span>
+                      <span class="noshow-label">{m.tournament_didNotShowUp({ name: '' })}</span>
+                    </button>
+                  </div>
+                </div>
+              {/if}
+
+              <!-- Disqualify section (admin only) - Points Mode -->
+              {#if isAdmin && ondisqualify}
+                <div class="disqualify-section" class:has-disqualified={hasDisqualified}>
+                  <div class="disqualify-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                    </svg>
+                    <span>{m.admin_disqualify()}</span>
+                  </div>
+                  <div class="disqualify-buttons">
+                    <button
+                      class="disqualify-btn"
+                      class:already-disqualified={isDisqualifiedA}
+                      onclick={() => handleDisqualify(match.participantA, nameA)}
+                      disabled={isDisqualifiedA}
+                    >
+                      <span class="disqualify-name">{nameA || ''}</span>
+                      {#if isDisqualifiedA}
+                        <span class="disqualified-label">{m.admin_disqualified()}</span>
+                      {/if}
+                    </button>
+                    <button
+                      class="disqualify-btn"
+                      class:already-disqualified={isDisqualifiedB}
+                      onclick={() => handleDisqualify(match.participantB, nameB)}
+                      disabled={isDisqualifiedB}
+                    >
+                      <span class="disqualify-name">{nameB || ''}</span>
+                      {#if isDisqualifiedB}
+                        <span class="disqualified-label">{m.admin_disqualified()}</span>
+                      {/if}
+                    </button>
+                  </div>
+                </div>
+              {/if}
             </div>
           {/if}
 
@@ -1285,6 +1357,43 @@
                   <button class="noshow-btn" onclick={() => handleNoShow(match.participantB)}>
                     <span class="noshow-name">{nameB || ''}</span>
                     <span class="noshow-label">{m.tournament_didNotShowUp({ name: '' })}</span>
+                  </button>
+                </div>
+              </div>
+            {/if}
+
+            <!-- Disqualify section (admin only) -->
+            {#if isAdmin && ondisqualify}
+              <div class="disqualify-section" class:has-disqualified={hasDisqualified}>
+                <div class="disqualify-header">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                  </svg>
+                  <span>{m.admin_disqualify()}</span>
+                </div>
+                <div class="disqualify-buttons">
+                  <button
+                    class="disqualify-btn"
+                    class:already-disqualified={isDisqualifiedA}
+                    onclick={() => handleDisqualify(match.participantA, nameA)}
+                    disabled={isDisqualifiedA}
+                  >
+                    <span class="disqualify-name">{nameA || ''}</span>
+                    {#if isDisqualifiedA}
+                      <span class="disqualified-label">{m.admin_disqualified()}</span>
+                    {/if}
+                  </button>
+                  <button
+                    class="disqualify-btn"
+                    class:already-disqualified={isDisqualifiedB}
+                    onclick={() => handleDisqualify(match.participantB, nameB)}
+                    disabled={isDisqualifiedB}
+                  >
+                    <span class="disqualify-name">{nameB || ''}</span>
+                    {#if isDisqualifiedB}
+                      <span class="disqualified-label">{m.admin_disqualified()}</span>
+                    {/if}
                   </button>
                 </div>
               </div>
@@ -2145,6 +2254,83 @@
     letter-spacing: 0.025em;
   }
 
+  /* Disqualify section */
+  .disqualify-section {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+  }
+
+  .disqualify-header {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #dc2626;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .disqualify-header svg {
+    width: 14px;
+    height: 14px;
+    color: #dc2626;
+  }
+
+  .disqualify-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .disqualify-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .disqualify-btn:hover:not(:disabled) {
+    background: #fee2e2;
+    border-color: #f87171;
+  }
+
+  .disqualify-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.8;
+  }
+
+  .disqualify-btn.already-disqualified {
+    background: #fef2f2;
+    border-color: #dc2626;
+    border-style: dashed;
+  }
+
+  .disqualified-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #dc2626;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-top: 0.125rem;
+  }
+
+  .disqualify-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #b91c1c;
+  }
+
   .dialog-footer {
     display: flex;
     justify-content: flex-end;
@@ -2351,6 +2537,33 @@
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .noshow-label {
     color: #6b7280;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .disqualify-section {
+    background: rgba(185, 28, 28, 0.1);
+    border-color: rgba(248, 113, 113, 0.3);
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .disqualify-header {
+    color: #f87171;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .disqualify-header svg {
+    color: #f87171;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .disqualify-btn {
+    background: #1a2332;
+    border-color: rgba(248, 113, 113, 0.3);
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .disqualify-btn:hover {
+    background: rgba(185, 28, 28, 0.2);
+    border-color: #f87171;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .disqualify-name {
+    color: #fca5a5;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .dialog-footer {

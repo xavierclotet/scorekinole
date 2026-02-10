@@ -77,6 +77,9 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
  * Calculate final positions in-memory (without saving)
  * Used to include positions in the same update that marks tournament as COMPLETED
  *
+ * IMPORTANT: Disqualified participants are excluded from final positions.
+ * They don't earn ranking points and don't occupy positions in the final classification.
+ *
  * @param tournament Tournament object
  * @returns Updated participants array with finalPosition set
  */
@@ -85,11 +88,19 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
   console.log('🏅 Tournament:', { id: tournament.id, status: tournament.status, phaseType: tournament.phaseType });
   console.log('🏅 Has finalStage:', !!tournament.finalStage, 'isComplete:', tournament.finalStage?.isComplete);
 
-  const updatedParticipants = [...tournament.participants];
+  // Ensure all participants have status field (legacy data migration)
+  const updatedParticipants = tournament.participants.map((p: any) => ({
+    ...p,
+    status: p.status || 'ACTIVE' // Default to ACTIVE if not set
+  }));
   const isDoubles = tournament.gameType === 'doubles';
 
   // Helper to get display name for logs (handles doubles with teamName)
   const getDisplayName = (p: any) => getParticipantDisplayName(p, isDoubles);
+
+  // Helper to check if participant is active (not disqualified)
+  // Disqualified participants should NOT receive finalPosition or ranking points
+  const isActiveParticipant = (p: any) => p && p.status !== 'DISQUALIFIED';
 
   if (tournament.phaseType === 'TWO_PHASE') {
     console.log('🏅 TWO_PHASE: assigning initial positions from group standings');
@@ -160,17 +171,21 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
 
       if (finalMatch?.winner && finalMatch.participantA && finalMatch.participantB) {
         const winner = updatedParticipants.find(p => p.id === finalMatch.winner);
-        if (winner) {
+        if (winner && isActiveParticipant(winner)) {
           winner.finalPosition = currentPosition++;
           positionsAssigned++;
           console.log(`🏅 1st place: ${getDisplayName(winner)} -> position ${winner.finalPosition}`);
+        } else if (winner) {
+          console.log(`🏅 1st place ${getDisplayName(winner)} is DISQUALIFIED, skipping`);
         }
         const loserId = finalMatch.winner === finalMatch.participantA ? finalMatch.participantB : finalMatch.participantA;
         const loser = updatedParticipants.find(p => p.id === loserId);
-        if (loser) {
+        if (loser && isActiveParticipant(loser)) {
           loser.finalPosition = currentPosition++;
           positionsAssigned++;
           console.log(`🏅 2nd place: ${getDisplayName(loser)} -> position ${loser.finalPosition}`);
+        } else if (loser) {
+          console.log(`🏅 2nd place ${getDisplayName(loser)} is DISQUALIFIED, skipping`);
         }
       } else {
         console.log('🏅 Final match not complete or missing participants');
@@ -183,17 +198,21 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
 
       if (thirdPlaceMatch?.winner && thirdPlaceMatch.participantA && thirdPlaceMatch.participantB) {
         const thirdPlace = updatedParticipants.find(p => p.id === thirdPlaceMatch.winner);
-        if (thirdPlace) {
+        if (thirdPlace && isActiveParticipant(thirdPlace)) {
           thirdPlace.finalPosition = currentPosition++;
           positionsAssigned++;
           console.log(`🏅 3rd place: ${getDisplayName(thirdPlace)} -> position ${thirdPlace.finalPosition}`);
+        } else if (thirdPlace) {
+          console.log(`🏅 3rd place ${getDisplayName(thirdPlace)} is DISQUALIFIED, skipping`);
         }
         const fourthPlaceId = thirdPlaceMatch.winner === thirdPlaceMatch.participantA ? thirdPlaceMatch.participantB : thirdPlaceMatch.participantA;
         const fourthPlace = updatedParticipants.find(p => p.id === fourthPlaceId);
-        if (fourthPlace) {
+        if (fourthPlace && isActiveParticipant(fourthPlace)) {
           fourthPlace.finalPosition = currentPosition++;
           positionsAssigned++;
           console.log(`🏅 4th place: ${getDisplayName(fourthPlace)} -> position ${fourthPlace.finalPosition}`);
+        } else if (fourthPlace) {
+          console.log(`🏅 4th place ${getDisplayName(fourthPlace)} is DISQUALIFIED, skipping`);
         }
         thirdPlaceProcessed = true;
       } else {
@@ -221,10 +240,12 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
 
         roundLosers.forEach(loserId => {
           const loser = updatedParticipants.find(p => p.id === loserId);
-          if (loser && !loser.finalPosition) {
+          if (loser && !loser.finalPosition && isActiveParticipant(loser)) {
             loser.finalPosition = currentPosition++;
             positionsAssigned++;
             console.log(`🏅 Round ${i} loser: ${getDisplayName(loser)} -> position ${loser.finalPosition}`);
+          } else if (loser && !loser.finalPosition) {
+            console.log(`🏅 Round ${i} loser ${getDisplayName(loser)} is DISQUALIFIED, skipping`);
           }
         });
       }
@@ -262,10 +283,12 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
 
         positions.forEach((position, participantId) => {
           const participant = updatedParticipants.find(p => p.id === participantId);
-          if (participant) {
+          if (participant && isActiveParticipant(participant)) {
             const adjustedPosition = position + positionOffset;
             participant.finalPosition = adjustedPosition;
             console.log(`🏅 Consolation position: ${getDisplayName(participant)} -> ${adjustedPosition}`);
+          } else if (participant) {
+            console.log(`🏅 Consolation ${getDisplayName(participant)} is DISQUALIFIED, skipping`);
           }
         });
       }
@@ -401,7 +424,8 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       // Only assign position if:
       // 1. They don't have a position yet
       // 2. They ARE in the bracket (participated in at least one match)
-      if (!p.finalPosition && bracketParticipantIds.has(p.id)) {
+      // 3. They are NOT disqualified
+      if (!p.finalPosition && bracketParticipantIds.has(p.id) && isActiveParticipant(p)) {
         p.finalPosition = nextBracketPosition++;
       }
     });
@@ -416,24 +440,35 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
  * Calculate final positions from tournament results
  *
  * @param tournamentId Tournament ID
- * @returns true if successful
+ * @returns Updated tournament object with finalPosition set, or null if failed
  */
-export async function calculateFinalPositions(tournamentId: string): Promise<boolean> {
+export async function calculateFinalPositions(tournamentId: string): Promise<any | null> {
   const tournament = await getTournament(tournamentId);
   if (!tournament) {
     console.error('Tournament not found');
-    return false;
+    return null;
   }
 
   try {
     const updatedParticipants = calculateFinalPositionsForTournament(tournament);
 
-    return await updateTournamentPublic(tournamentId, {
+    const result = await updateTournamentPublic(tournamentId, {
       participants: updatedParticipants
     });
+
+    if (!result) {
+      console.error('Failed to save final positions');
+      return null;
+    }
+
+    // Return the updated tournament object to avoid Firestore read consistency issues
+    return {
+      ...tournament,
+      participants: updatedParticipants
+    };
   } catch (error) {
     console.error('Error calculating final positions:', error);
-    return false;
+    return null;
   }
 }
 
@@ -441,9 +476,13 @@ export async function calculateFinalPositions(tournamentId: string): Promise<boo
  * Apply ranking points to user profiles
  *
  * @param tournamentId Tournament ID
+ * @param preloadedTournament Optional pre-loaded tournament to avoid Firestore read consistency issues
  * @returns true if successful
  */
-export async function applyRankingUpdates(tournamentId: string): Promise<boolean> {
+export async function applyRankingUpdates(
+  tournamentId: string,
+  preloadedTournament?: any
+): Promise<boolean> {
   console.log('🏅 applyRankingUpdates called for tournament:', tournamentId);
 
   if (!browser || !isFirebaseEnabled()) {
@@ -451,7 +490,12 @@ export async function applyRankingUpdates(tournamentId: string): Promise<boolean
     return false;
   }
 
-  const tournament = await getTournament(tournamentId);
+  // Use preloaded tournament if provided, otherwise fetch from Firestore
+  let tournament = preloadedTournament;
+  if (!tournament) {
+    tournament = await getTournament(tournamentId);
+  }
+
   if (!tournament) {
     console.error('Tournament not found');
     return false;
@@ -473,10 +517,12 @@ export async function applyRankingUpdates(tournamentId: string): Promise<boolean
     const { addTournamentRecord } = await import('./userProfile');
 
     const tier = tournament.rankingConfig?.tier || 'CLUB';
-    const totalParticipants = tournament.participants.filter(p => p.status === 'ACTIVE').length;
-    const activeParticipants = tournament.participants.filter(p => p.status === 'ACTIVE' && p.finalPosition);
 
-    console.log('🏅 Active participants with finalPosition:', activeParticipants.length, 'tier:', tier);
+    // Treat missing status as ACTIVE for backward compatibility with legacy data
+    const totalParticipants = tournament.participants.filter((p: any) => p.status === 'ACTIVE' || !p.status).length;
+    const activeParticipants = tournament.participants.filter((p: any) => (p.status === 'ACTIVE' || !p.status) && p.finalPosition);
+
+    console.log('🏅 Active participants with finalPosition:', activeParticipants.length, 'total ACTIVE:', totalParticipants, 'tier:', tier);
 
     const isDoubles = tournament.gameType === 'doubles';
 
@@ -551,8 +597,9 @@ export async function applyRankingUpdates(tournamentId: string): Promise<boolean
     }
 
     // Update participant rankings in tournament document
+    // Note: userId updates are handled by the Cloud Function (onTournamentComplete)
     const updatedParticipants = tournament.participants.map(p => {
-      if (p.status === 'ACTIVE' && p.finalPosition) {
+      if ((p.status === 'ACTIVE' || !p.status) && p.finalPosition) {
         const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
         return {
           ...p,
@@ -604,7 +651,8 @@ export async function revertTournamentRanking(tournamentId: string): Promise<boo
 
   try {
     for (const participant of tournament.participants) {
-      if (participant.status !== 'ACTIVE') continue;
+      // Treat missing status as ACTIVE for backward compatibility
+      if (participant.status && participant.status !== 'ACTIVE') continue;
 
       let userId: string | null = null;
 

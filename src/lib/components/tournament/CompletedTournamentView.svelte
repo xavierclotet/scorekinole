@@ -136,8 +136,9 @@
   let showSilverGamesWon = $derived(silverMatchesToWin > 1);
 
   // Sort participants by final position for the final standings
+  // Treat missing status as ACTIVE for backward compatibility with legacy data
   let sortedParticipants = $derived([...tournament.participants]
-    .filter(p => p.status === 'ACTIVE' && p.finalPosition)
+    .filter(p => (p.status === 'ACTIVE' || !p.status) && p.finalPosition)
     .sort((a, b) => (a.finalPosition || 999) - (b.finalPosition || 999)));
 
   // Split into two columns: first half in left column, second half in right column
@@ -312,11 +313,12 @@
     recalculatingPositions = true;
 
     try {
-      const success = await calculateFinalPositions(tournament.id);
-      if (success) {
-        // Also recalculate ranking if enabled
+      // calculateFinalPositions now returns the updated tournament to avoid Firestore read consistency issues
+      const updatedTournament = await calculateFinalPositions(tournament.id);
+      if (updatedTournament) {
+        // Pass the updated tournament directly to avoid reading stale data from Firestore
         if (tournament.rankingConfig?.enabled) {
-          await applyRankingUpdates(tournament.id);
+          await applyRankingUpdates(tournament.id, updatedTournament);
         }
         onupdated?.();
       }

@@ -1063,5 +1063,20 @@
   "tournaments_statusLive": "LIVE",
   "admin_addQuotaNextYear": "Add quota for {year}",
   "admin_pastQuotas": "Previous installments",
-  "admin_quotaReason_autoRegister": "Self-registration"
+  "admin_quotaReason_autoRegister": "Self-registration",
+  "admin_asCollaborator": "{count} tournament(s) as a contributor",
+  "admin_asOwner": "{count} tournament(s) as owner",
+  "admin_asParticipant": "{count} tournament(s) as a participant",
+  "admin_cannotDeleteHasOwnership": "It cannot be deleted: transfer ownership first",
+  "admin_collaboratorWillBeRemoved": "You will be automatically removed as a contributor.",
+  "admin_disqualify": "Disqualify",
+  "admin_disqualifyConfirm": "Are you sure you want to disqualify {name} ?",
+  "admin_disqualifyConfirmTitle": "Confirm disqualification",
+  "admin_disqualifyWarning": "The participant will not appear in the final ranking and will not receive ranking points.",
+  "admin_disqualified": "Disqualified",
+  "admin_disqualifySuccess": "{name} has been disqualified",
+  "admin_loadingDependencies": "Checking dependencies...",
+  "admin_noDependencies": "No links",
+  "admin_venuesAsOwner": "{count} venue(s) as owner",
+  "admin_userDependencies": "Links"
 }

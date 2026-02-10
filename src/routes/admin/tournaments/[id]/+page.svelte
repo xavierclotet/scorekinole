@@ -222,18 +222,22 @@
       const success = await transitionTournament(tournamentId, nextStatus);
 
       if (success) {
-        await loadTournament();
+        // Navigate directly to the appropriate page - keep loading visible
+        const targetPage = nextStatus === 'GROUP_STAGE' ? 'groups' : 'bracket';
+        await goto(`/admin/tournaments/${tournamentId}/${targetPage}`);
+        // Don't reset isStarting - page is changing
+        return;
       } else {
         toastMessage = m.admin_errorStartingTournament();
         toastType = 'error';
         showToast = true;
+        isStarting = false;
       }
     } catch (err) {
       console.error('Error starting tournament:', err);
       toastMessage = m.admin_errorStartingTournament();
       toastType = 'error';
       showToast = true;
-    } finally {
       isStarting = false;
     }
   }

@@ -121,13 +121,13 @@
   let consolationNeededForGold = $derived(goldCount > MIN_PARTICIPANTS_FOR_CONSOLATION);
   let consolationNeededForSilver = $derived(silverCount > MIN_PARTICIPANTS_FOR_CONSOLATION);
   let consolationNeededForSingle = $derived(totalQualifiers > MIN_PARTICIPANTS_FOR_CONSOLATION);
-  let consolationNotNeeded = $derived(
-    consolationEnabled && (
-      isSplitDivisions
-        ? (!consolationNeededForGold && !consolationNeededForSilver)
-        : !consolationNeededForSingle
-    )
-  );
+
+  // For split divisions: show message independently for each bracket
+  let consolationNotNeededForGold = $derived(consolationEnabled && goldCount >= 2 && !consolationNeededForGold);
+  let consolationNotNeededForSilver = $derived(consolationEnabled && silverCount >= 2 && !consolationNeededForSilver);
+
+  // For single bracket mode
+  let consolationNotNeededForSingleBracket = $derived(consolationEnabled && !consolationNeededForSingle);
 
   // Can proceed logic - also check for unresolved ties
   let canProceed = $derived(!hasAnyUnresolvedTies && (isSplitDivisions
@@ -530,18 +530,20 @@
           : m.admin_bracketGeneratedAdvancing();
         toastType = 'success';
         showToast = true;
+        // Keep loading visible during navigation - don't reset isProcessing
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}/bracket`), 1500);
+        return; // Exit without resetting isProcessing
       } else {
         toastMessage = m.admin_errorAdvancingToFinalStage();
         toastType = 'error';
         showToast = true;
+        isProcessing = false;
       }
     } catch (err) {
       console.error('Error generating bracket:', err);
       toastMessage = m.admin_errorGeneratingBracket();
       toastType = 'error';
       showToast = true;
-    } finally {
       isProcessing = false;
     }
   }
@@ -594,6 +596,12 @@
       standings.forEach((standing: any) => {
         const participantId = standing.participantId;
         const pos = standing.position || 99;
+
+        // Skip disqualified participants - they should not be in any bracket
+        const participant = tournament?.participants.find(p => p.id === participantId);
+        if (participant?.status === 'DISQUALIFIED') {
+          return;
+        }
 
         if (qualifiedIds.has(participantId)) {
           if (!qualifiedByPosition.has(pos)) {
@@ -932,11 +940,17 @@
               </div>
             </div>
 
-            <!-- Consolation not needed info (shown right after qualifiers) -->
-            {#if consolationNotNeeded}
+            <!-- Consolation not needed info (shown independently for each bracket) -->
+            {#if consolationNotNeededForGold}
               <div class="info-banner">
                 <span class="info-icon">💡</span>
-                <span>{m.admin_consolationNotNeeded()}</span>
+                <span><strong>Gold:</strong> {m.admin_consolationNotNeeded()}</span>
+              </div>
+            {/if}
+            {#if consolationNotNeededForSilver}
+              <div class="info-banner">
+                <span class="info-icon">💡</span>
+                <span><strong>Silver:</strong> {m.admin_consolationNotNeeded()}</span>
               </div>
             {/if}
 
@@ -981,22 +995,42 @@
                               {@const participantB = tournament.participants.find(p => p.id === match.participantB)}
                               {@const isBye = match.participantB === 'BYE'}
                               {@const isDoubles = tournament.gameType === 'doubles'}
-                              <div class="match-compact" class:completed={match.status === 'COMPLETED'} class:bye={isBye}>
+                              {@const disqualifiedA = participantA?.status === 'DISQUALIFIED'}
+                              {@const disqualifiedB = participantB?.status === 'DISQUALIFIED'}
+                              {@const hasDSQ = disqualifiedA || disqualifiedB}
+                              {@const isWalkover = match.status === 'WALKOVER' && !hasDSQ}
+                              {@const noShowA = match.noShowParticipant === match.participantA && !disqualifiedA}
+                              {@const noShowB = match.noShowParticipant === match.participantB && !disqualifiedB}
+                              <div class="match-compact" class:completed={match.status === 'COMPLETED'} class:bye={isBye} class:walkover={isWalkover} class:dsq={hasDSQ}>
                                 <div class="match-teams">
-                                  <span class="team-name" class:winner={match.winner === match.participantA}>
+                                  <span class="team-name" class:winner={match.winner === match.participantA} class:disqualified={disqualifiedA} class:no-show={noShowA}>
                                     {getParticipantDisplayName(participantA, isDoubles) || '?'}
+                                    {#if disqualifiedA}
+                                      <span class="status-badge dsq">DSQ</span>
+                                    {:else if noShowA}
+                                      <span class="status-badge wo">WO</span>
+                                    {/if}
                                   </span>
-                                  <span class="team-name" class:winner={match.winner === match.participantB}>
+                                  <span class="team-name" class:winner={match.winner === match.participantB} class:disqualified={disqualifiedB} class:no-show={noShowB}>
                                     {#if isBye}
                                       <span class="bye-text">BYE</span>
                                     {:else}
                                       {getParticipantDisplayName(participantB, isDoubles) || '?'}
+                                      {#if disqualifiedB}
+                                        <span class="status-badge dsq">DSQ</span>
+                                      {:else if noShowB}
+                                        <span class="status-badge wo">WO</span>
+                                      {/if}
                                     {/if}
                                   </span>
                                 </div>
                                 <div class="match-result">
                                   {#if isBye}
                                     <span class="result-bye">-</span>
+                                  {:else if hasDSQ}
+                                    <span class="result-dsq">DSQ</span>
+                                  {:else if isWalkover}
+                                    <span class="result-walkover">WO</span>
                                   {:else if match.status === 'COMPLETED'}
                                     <span class="result-score" class:winner-a={match.winner === match.participantA}>{match.totalPointsA ?? 0}</span>
                                     <span class="result-separator">-</span>
@@ -1335,7 +1369,7 @@
             </div>
 
             <!-- Consolation not needed info (shown right after qualifiers) -->
-            {#if consolationNotNeeded}
+            {#if consolationNotNeededForSingleBracket}
               <div class="info-banner">
                 <span class="info-icon">💡</span>
                 <span>{m.admin_consolationNotNeeded()}</span>
@@ -3049,6 +3083,82 @@
     color: #d97706;
     font-style: italic;
     font-size: 0.7rem;
+  }
+
+  /* Disqualified and No-Show styles */
+  .team-name.disqualified,
+  .team-name.no-show {
+    text-decoration: line-through;
+    color: #9ca3af;
+  }
+
+  .transition-page:is([data-theme='dark'], [data-theme='violet']) .team-name.disqualified,
+  .transition-page:is([data-theme='dark'], [data-theme='violet']) .team-name.no-show {
+    color: #6b7280;
+  }
+
+  .status-badge {
+    display: inline-block;
+    margin-left: 0.25rem;
+    padding: 0.05rem 0.2rem;
+    font-size: 0.55rem;
+    font-weight: 700;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+  }
+
+  .status-badge.dsq {
+    background: #fef2f2;
+    color: #dc2626;
+  }
+
+  .status-badge.wo {
+    background: #fef3c7;
+    color: #d97706;
+  }
+
+  .transition-page:is([data-theme='dark'], [data-theme='violet']) .status-badge.dsq {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+
+  .transition-page:is([data-theme='dark'], [data-theme='violet']) .status-badge.wo {
+    background: rgba(217, 119, 6, 0.2);
+    color: #fbbf24;
+  }
+
+  .match-compact.walkover {
+    border-left-color: #d97706;
+    background: #fffbeb;
+  }
+
+  .match-compact.dsq {
+    border-left-color: #dc2626;
+    background: #fef2f2;
+  }
+
+  .transition-page:is([data-theme='dark'], [data-theme='violet']) .match-compact.walkover {
+    background: rgba(217, 119, 6, 0.1);
+    border-left-color: #d97706;
+  }
+
+  .transition-page:is([data-theme='dark'], [data-theme='violet']) .match-compact.dsq {
+    background: rgba(239, 68, 68, 0.1);
+    border-left-color: #dc2626;
+  }
+
+  .result-walkover {
+    color: #d97706;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .result-dsq {
+    color: #dc2626;
+    font-size: 0.7rem;
+    font-weight: 700;
   }
 
   .match-result {

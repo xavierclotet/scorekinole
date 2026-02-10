@@ -765,13 +765,6 @@ function buildParticipantPhotoMap(
 ): Map<string, ParticipantPhotos> {
   const photoMap = new Map<string, ParticipantPhotos>();
 
-  console.log('📸 buildParticipantPhotoMap - participants:', participants.map(p => ({
-    id: p.id,
-    name: p.name,
-    photoURL: p.photoURL,
-    partnerPhotoURL: p.partner?.photoURL
-  })));
-
   for (const p of participants) {
     if (p.status === 'ACTIVE') {
       const partnerPhoto = p.partner?.photoURL;
@@ -783,8 +776,6 @@ function buildParticipantPhotoMap(
       }
     }
   }
-
-  console.log('📸 photoMap size:', photoMap.size, 'entries:', Array.from(photoMap.entries()));
 
   return photoMap;
 }

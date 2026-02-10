@@ -156,6 +156,15 @@
       status: 'ACTIVE'
     };
 
+    console.log('👥 PairSelector adding:', {
+      name: participant.name,
+      type: participant.type,
+      userId: participant.userId,
+      partnerName: participant.partner?.name,
+      partnerType: participant.partner?.type,
+      partnerUserId: participant.partner?.userId
+    });
+
     onadd(participant);
     clearP1();
     clearP2();

@@ -389,15 +389,28 @@
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
-      // Step 4 - Load participants (preserve all participant fields)
-      participants = tournament.participants.map(p => ({
-        type: p.type,
-        userId: p.userId,
-        name: p.name,
-        email: p.email,
-        partner: p.partner,
-        photoURL: p.photoURL
-      }));
+      // Step 4 - Load participants (preserve all participant fields, filter out undefined)
+      participants = tournament.participants.map(p => {
+        const participant: Partial<TournamentParticipant> = {
+          id: p.id,
+          type: p.type,
+          name: p.name,
+          status: p.status
+        };
+        if (p.userId) participant.userId = p.userId;
+        if (p.teamName) participant.teamName = p.teamName;
+        if (p.email) participant.email = p.email;
+        if (p.photoURL) participant.photoURL = p.photoURL;
+        if (p.partner) {
+          participant.partner = {
+            type: p.partner.type,
+            name: p.partner.name,
+            ...(p.partner.userId && { userId: p.partner.userId }),
+            ...(p.partner.photoURL && { photoURL: p.partner.photoURL })
+          };
+        }
+        return participant;
+      });
 
       guestName = `Player${participants.length + 1}`;
 
@@ -1041,6 +1054,33 @@
     saveDraft(); // Save after removing participant
   }
 
+  // Edit participant (for teamName in doubles)
+  let editingParticipant = $state<Partial<TournamentParticipant> | null>(null);
+  let editTeamName = $state('');
+
+  function startEditParticipant(participant: Partial<TournamentParticipant>) {
+    editingParticipant = participant;
+    editTeamName = participant.teamName || '';
+  }
+
+  function saveEditParticipant() {
+    if (!editingParticipant) return;
+    participants = participants.map(p => {
+      if (p === editingParticipant) {
+        return { ...p, teamName: editTeamName.trim() || undefined };
+      }
+      return p;
+    });
+    editingParticipant = null;
+    editTeamName = '';
+    saveDraft();
+  }
+
+  function cancelEditParticipant() {
+    editingParticipant = null;
+    editTeamName = '';
+  }
+
   function getStep1Errors(): string[] {
     const errors: string[] = [];
     if (!name.trim()) {
@@ -1358,10 +1398,9 @@
         };
       }
 
-      // Only include participants in CREATE mode, not in UPDATE mode
-      if (!editMode) {
-        tournamentData.participants = participants;
-      }
+      // Include participants in both CREATE and EDIT modes
+      // In EDIT mode, this allows updating participant types (GUEST -> REGISTERED)
+      tournamentData.participants = participants;
 
       // Calculate time estimation if config is available
       if (timeConfig) {
@@ -1406,9 +1445,9 @@
         // Add all participants in a single Firebase call
         console.log('📋 Participants to add:', participants.map(p => ({
           name: p.name,
-          partner: p.partner?.name,
-          photoURL: p.photoURL,
-          partnerPhotoURL: p.partner?.photoURL
+          type: p.type,
+          userId: p.userId,
+          partner: p.partner ? { name: p.partner.name, type: p.partner.type, userId: p.partner.userId } : undefined
         })));
         const participantsAdded = await addParticipants(tournamentId, participants);
 
@@ -2502,6 +2541,7 @@
                 participants = [...participants, participant];
               }}
               existingParticipants={participants}
+              excludedUserIds={participants.flatMap(p => [p.userId, p.partner?.userId].filter((id): id is string => !!id))}
               theme={$adminTheme}
             />
           {:else}
@@ -2590,7 +2630,7 @@
                   >
                     <span class="chip-name">{participant.partner ? (participant.teamName || `${participant.name} / ${participant.partner.name}`) : participant.name}</span>
                     {#if participant.partner}
-                      <span class="chip-pair-badge">👥</span>
+                      <button class="chip-edit" onclick={() => startEditParticipant(participant)} title="Editar nombre artístico">✏️</button>
                     {:else if participant.type === 'REGISTERED' && participant.rankingSnapshot}
                       <span class="chip-rank">{participant.rankingSnapshot}</span>
                     {/if}
@@ -2598,6 +2638,34 @@
                   </div>
                 {/each}
               </div>
+
+              <!-- Edit participant modal -->
+              {#if editingParticipant}
+                <div class="edit-modal-overlay" onclick={cancelEditParticipant}>
+                  <div class="edit-modal" onclick={(e) => e.stopPropagation()}>
+                    <h3>Editar pareja</h3>
+                    <div class="edit-modal-players">
+                      <span class="player-badge" class:registered={editingParticipant.type === 'REGISTERED'}>{editingParticipant.name}</span>
+                      <span class="player-sep">/</span>
+                      <span class="player-badge" class:registered={editingParticipant.partner?.type === 'REGISTERED'}>{editingParticipant.partner?.name}</span>
+                    </div>
+                    <div class="edit-modal-field">
+                      <label>{m.wizard_teamName()}</label>
+                      <input
+                        type="text"
+                        bind:value={editTeamName}
+                        placeholder={`${editingParticipant.name} / ${editingParticipant.partner?.name}`}
+                        maxlength="40"
+                        class="input-field"
+                      />
+                    </div>
+                    <div class="edit-modal-actions">
+                      <button class="btn-cancel" onclick={cancelEditParticipant}>{m.common_cancel()}</button>
+                      <button class="btn-save" onclick={saveEditParticipant}>{m.common_save()}</button>
+                    </div>
+                  </div>
+                </div>
+              {/if}
             {/if}
           </div>
         </div>
@@ -6437,6 +6505,159 @@
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .chip-remove:hover {
     background: #ef4444;
     color: white;
+  }
+
+  .chip-edit {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: #e5e7eb;
+    border: none;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .chip-edit:hover {
+    background: #3b82f6;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .chip-edit {
+    background: #2d3748;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .chip-edit:hover {
+    background: #3b82f6;
+  }
+
+  /* Edit participant modal */
+  .edit-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .edit-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 1.25rem;
+    width: 90%;
+    max-width: 360px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .edit-modal {
+    background: #1a2332;
+    border: 1px solid #2d3748;
+  }
+
+  .edit-modal h3 {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .edit-modal-players {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .edit-modal-players {
+    background: #0f172a;
+  }
+
+  .player-badge {
+    padding: 0.25rem 0.5rem;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .player-badge.registered {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .player-badge {
+    background: #78350f;
+    color: #fcd34d;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .player-badge.registered {
+    background: #1e3a5f;
+    color: #93c5fd;
+  }
+
+  .player-sep {
+    color: #9ca3af;
+    font-weight: 500;
+  }
+
+  .edit-modal-field {
+    margin-bottom: 1rem;
+  }
+
+  .edit-modal-field label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+  }
+
+  .edit-modal-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .btn-cancel, .btn-save {
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-cancel {
+    background: #e5e7eb;
+    color: #374151;
+  }
+
+  .btn-cancel:hover {
+    background: #d1d5db;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .btn-cancel {
+    background: #374151;
+    color: #d1d5db;
+  }
+
+  .btn-save {
+    background: var(--primary);
+    color: white;
+  }
+
+  .btn-save:hover {
+    opacity: 0.9;
   }
 
   /* Validation - Compact */

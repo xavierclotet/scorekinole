@@ -143,8 +143,24 @@ Complete tournament administration system for professional Crokinole events:
 - **Real-time scoring**: Live score entry and updates
 - **20s tracking** (optional): Center shot counting
 - **Hammer display** (optional): Visual hammer indicator
-- **No-show handling**: Walkover support
+- **No-show handling**: Walkover (WO) support for participants who don't show up
+- **Disqualification (DSQ)**: Remove participants from tournament with automatic opponent advancement
 - **Network status indicator**: Visual feedback for connection state and sync status when saving results
+
+#### **Walkover (WO) & Disqualification (DSQ)**
+- **Walkover (WO)**: When a participant doesn't show up for a match
+  - Opponent automatically wins the match
+  - Match marked as "WALKOVER" status
+  - Visual indicator: Orange "WO" badge next to participant name
+  - Name displayed with strikethrough
+- **Disqualification (DSQ)**: When a participant is removed from tournament
+  - All pending matches automatically resolved: opponent wins by walkover
+  - Winner advances to next round automatically
+  - Visual indicator: Red "DSQ" badge next to participant name
+  - Name displayed with strikethrough
+  - Disqualified participants excluded from bracket generation in transition phase
+  - Auto-fix on bracket load: any pending matches vs DSQ participants are resolved
+- **Auto-table reassignment**: When bracket loads, tables are automatically reassigned to all playable matches
 
 #### **Visualization**
 - **Beautiful bracket display**: Visual connectors between matches

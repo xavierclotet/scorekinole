@@ -112,9 +112,10 @@
 	});
 
 	// Final standings (top 4) - uses finalPosition if available
+	// Exclude disqualified participants (they don't have positions in final classification)
 	let finalStandings = $derived(
 		tournament?.participants
-			.filter(p => p.finalPosition !== undefined && p.finalPosition > 0)
+			.filter(p => p.finalPosition !== undefined && p.finalPosition > 0 && (p.status === 'ACTIVE' || !p.status))
 			.toSorted((a, b) => (a.finalPosition || 99) - (b.finalPosition || 99))
 			.slice(0, 4) || []
 	);

@@ -151,10 +151,20 @@ export async function generateSwissPairings(
     // Get previous pairings
     const previousPairings = group?.pairings || [];
 
-    // Generate new pairings
+    // Filter out disqualified and withdrawn participants
+    const activeParticipants = tournament.participants.filter(
+      p => p.status !== 'DISQUALIFIED' && p.status !== 'WITHDRAWN'
+    );
+    const activeParticipantIds = new Set(activeParticipants.map(p => p.id));
+
+    // Also filter standings to only include active participants
+    const activeStandings = standings.filter(s => activeParticipantIds.has(s.participantId));
+    console.log(`🎯 Swiss pairings: ${activeParticipants.length}/${tournament.participants.length} active participants`);
+
+    // Generate new pairings (only with active participants)
     const matches = generateSwissPairingsAlgorithm(
-      tournament.participants,
-      standings,
+      activeParticipants,
+      activeStandings,
       previousPairings,
       roundNumber
     );

@@ -63,6 +63,11 @@
   let isSearching = $derived(searchQuery.trim().length > 0);
   let isFiltering = $derived(filterRole !== 'all' || filterType !== 'all');
 
+  // Normalize text for accent-insensitive search (e.g., "nu" matches "nú")
+  function normalizeText(text: string): string {
+    return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
   let filteredUsers = $derived(users.filter((user) => {
     if (filterRole === 'admin' && !user.isAdmin) return false;
 
@@ -72,11 +77,11 @@
     if (filterType === 'merged' && !user.mergedFrom) return false;
 
     if (isSearching) {
-      const q = searchQuery.toLowerCase();
+      const q = normalizeText(searchQuery);
       return (
-        user.playerName?.toLowerCase().includes(q) ||
-        user.email?.toLowerCase().includes(q) ||
-        user.userId.toLowerCase().includes(q)
+        normalizeText(user.playerName ?? '').includes(q) ||
+        normalizeText(user.email ?? '').includes(q) ||
+        normalizeText(user.userId).includes(q)
       );
     }
     return true;

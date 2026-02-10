@@ -1063,5 +1063,20 @@
   "tournaments_statusLive": "EN VIU",
   "admin_addQuotaNextYear": "Afegir quota per a {year}",
   "admin_pastQuotas": "Quotes anteriors",
-  "admin_quotaReason_autoRegister": "Autoregistre"
+  "admin_quotaReason_autoRegister": "Autoregistre",
+  "admin_asCollaborator": "{count} torneig(s) com a col·laborador",
+  "admin_asOwner": "{count} torneig(s) com a propietari",
+  "admin_asParticipant": "{count} torneig(s) com a participant",
+  "admin_cannotDeleteHasOwnership": "No es pot eliminar: transfereix la propietat primer",
+  "admin_collaboratorWillBeRemoved": "S'eliminarà com a col·laborador automàticament",
+  "admin_disqualify": "Desqualificar",
+  "admin_disqualifyConfirm": "Esteu segur de voler desqualificar {name} ?",
+  "admin_disqualifyConfirmTitle": "Confirmar desqualificació",
+  "admin_disqualifyWarning": "El participant no apareixerà a la classificació final i no rebrà punts de rànquing.",
+  "admin_disqualified": "Desqualificat",
+  "admin_disqualifySuccess": "{name} ha estat desqualificat",
+  "admin_loadingDependencies": "Comprovant dependències...",
+  "admin_noDependencies": "Sense enllaços",
+  "admin_venuesAsOwner": "{count} venue(s) com a propietari",
+  "admin_userDependencies": "Vinculacions"
 }

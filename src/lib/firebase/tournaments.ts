@@ -37,12 +37,16 @@ import { browser } from '$app/environment';
  * Firestore doesn't accept undefined values
  */
 function cleanUndefined<T>(obj: T): T {
-  if (obj === null || obj === undefined) {
+  if (obj === null) {
     return obj;
   }
 
+  if (obj === undefined) {
+    return null as T; // Convert undefined to null for Firestore
+  }
+
   if (Array.isArray(obj)) {
-    return obj.map(item => cleanUndefined(item)) as T;
+    return obj.map(item => cleanUndefined(item)).filter(item => item !== undefined) as T;
   }
 
   if (typeof obj === 'object') {
@@ -1072,6 +1076,14 @@ export async function checkTournamentKeyExists(
  * @param query Search query (name or email)
  * @returns Array of user profiles
  */
+/**
+ * Remove accents/diacritics from a string for accent-insensitive search
+ * "Núria" -> "Nuria", "José" -> "Jose"
+ */
+function removeAccents(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 export async function searchUsers(searchQuery: string): Promise<UserProfile[]> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
@@ -1087,7 +1099,8 @@ export async function searchUsers(searchQuery: string): Promise<UserProfile[]> {
     const snapshot = await getDocs(usersRef);
 
     const users: UserProfile[] = [];
-    const queryLower = searchQuery.toLowerCase();
+    // Normalize query: lowercase and remove accents
+    const queryNormalized = removeAccents(searchQuery.toLowerCase());
 
     snapshot.forEach(docSnap => {
       const data = docSnap.data() as UserProfile;
@@ -1097,8 +1110,12 @@ export async function searchUsers(searchQuery: string): Promise<UserProfile[]> {
         return;
       }
 
-      const nameMatch = data.playerName?.toLowerCase().includes(queryLower);
-      const emailMatch = data.email?.toLowerCase().includes(queryLower);
+      // Normalize name and email for comparison
+      const nameNormalized = removeAccents(data.playerName?.toLowerCase() || '');
+      const emailLower = data.email?.toLowerCase() || '';
+
+      const nameMatch = nameNormalized.includes(queryNormalized);
+      const emailMatch = emailLower.includes(queryNormalized);
 
       if (nameMatch || emailMatch) {
         users.push({

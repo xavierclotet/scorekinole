@@ -141,6 +141,12 @@
     return getParticipantDisplayName(participant, tournament.gameType === 'doubles');
   }
 
+  // Check if participant is disqualified
+  function isDisqualified(participantId: string): boolean {
+    const participant = participantMap.get(participantId);
+    return participant?.status === 'DISQUALIFIED';
+  }
+
   function getTiedWithNames(tiedWith: string[] | undefined): string {
     if (!tiedWith || tiedWith.length === 0) return '';
     return tiedWith.map(id => getParticipantName(id)).join(', ');
@@ -551,6 +557,7 @@
           {@const showTieStyles = qualificationMode === 'WINS'}
           {@const halfwayIndex = Math.ceil(standings.length / 2) - 1}
           {@const isHalfwayRow = idx === halfwayIndex && standings.length > 1}
+          {@const disqualified = isDisqualified(standing.participantId)}
           <tr
             class:selected={isSelected}
             class:has-tie={hasTie && showTieStyles && !isSelected}
@@ -577,7 +584,10 @@
             </td>
             <td class="name-col">
               <div class="name-cell">
-                <span class="player-name">{getParticipantName(standing.participantId)}</span>
+                <span class="player-name" class:disqualified>{getParticipantName(standing.participantId)}</span>
+                {#if disqualified}
+                  <span class="disqualified-badge" title={m.admin_disqualified()}>{m.admin_disqualified()}</span>
+                {/if}
                 {#if !isSwiss && qualificationMode === 'WINS' && isFirstInMultiTie(standing.participantId)}
                   <!-- First player in 3+ tie group - show mini-league button (only for Round Robin with WINS mode) -->
                   <button
@@ -849,6 +859,25 @@
 
   .player-name {
     flex-shrink: 0;
+  }
+
+  .player-name.disqualified {
+    text-decoration: line-through;
+    color: #9ca3af;
+  }
+
+  /* Disqualified badge */
+  .disqualified-badge {
+    display: inline-block;
+    margin-left: 0.2rem;
+    padding: 0.1rem 0.25rem;
+    background: #fef2f2;
+    color: #dc2626;
+    font-size: 0.55rem;
+    font-weight: 700;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
   }
 
   .tie-actions {
@@ -1368,6 +1397,16 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) tr.at-cutoff-tie:hover {
     background: rgba(245, 158, 11, 0.3);
+  }
+
+  /* Dark mode disqualified styles */
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .player-name.disqualified {
+    color: #6b7280;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .disqualified-badge {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
   }
 
   /* Dark mode modal */

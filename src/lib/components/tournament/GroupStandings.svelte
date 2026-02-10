@@ -18,6 +18,8 @@
     // Number of participants that will qualify (for cutoff tie highlighting)
     // If null/undefined, no cutoff highlighting will be shown
     qualifyingCount?: number | null;
+    // Callback when admin wants to disqualify a participant
+    onDisqualify?: (participantId: string, participantName: string) => void;
   }
 
   let {
@@ -27,7 +29,8 @@
     qualificationMode = 'WINS',
     enableTiebreaker = true,
     isDoubles = false,
-    qualifyingCount = null
+    qualifyingCount = null,
+    onDisqualify
   }: Props = $props();
 
   // Use qualificationMode if provided
@@ -63,6 +66,12 @@
     const participant = participantMap.get(participantId);
     if (!participant) return 'Unknown';
     return getParticipantDisplayName(participant, isDoubles);
+  }
+
+  // Check if participant is disqualified
+  function isDisqualified(participantId: string): boolean {
+    const participant = participantMap.get(participantId);
+    return participant?.status === 'DISQUALIFIED';
   }
 
   // Get names of participants in a tie
@@ -293,6 +302,20 @@
               {/if}
               {#if standing.qualifiedForFinal}
                 <span class="qualified-badge">✓</span>
+              {/if}
+              {#if isDisqualified(standing.participantId)}
+                <span class="disqualified-badge" title={m.admin_disqualified()}>{m.admin_disqualified()}</span>
+              {:else if onDisqualify}
+                <button
+                  class="disqualify-btn"
+                  onclick={(e: MouseEvent) => { e.stopPropagation(); onDisqualify(standing.participantId, getParticipantName(standing.participantId)); }}
+                  title={m.admin_disqualify()}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                  </svg>
+                </button>
               {/if}
             </span>
           </td>
@@ -542,6 +565,46 @@
     display: block;
   }
 
+  /* Disqualify button (admin action) */
+  .disqualify-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.3rem;
+    padding: 0.2rem;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    opacity: 0.7;
+  }
+
+  .disqualify-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+    opacity: 1;
+  }
+
+  .disqualify-btn svg {
+    display: block;
+  }
+
+  /* Disqualified badge */
+  .disqualified-badge {
+    display: inline-block;
+    margin-left: 0.3rem;
+    padding: 0.1rem 0.3rem;
+    background: #fef2f2;
+    color: #dc2626;
+    font-size: 0.55rem;
+    font-weight: 600;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
   .position-badge.tied {
     background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
     color: white;
@@ -654,6 +717,12 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.at-cutoff-tie:not(.qualified):hover {
     background: rgba(245, 158, 11, 0.3);
+  }
+
+  /* Dark mode disqualified badge */
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .disqualified-badge {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
   }
 
   /* Responsive */

@@ -32,6 +32,17 @@
     return getParticipantDisplayName(participant, isDoubles);
   }
 
+  // Check if participant is disqualified
+  function isDisqualified(participantId: string): boolean {
+    const participant = participantMap.get(participantId);
+    return participant?.status === 'DISQUALIFIED';
+  }
+
+  // Derived: check if either participant is disqualified
+  let isDisqualifiedA = $derived(isDisqualified(match.participantA));
+  let isDisqualifiedB = $derived(isDisqualified(match.participantB));
+  let hasDisqualified = $derived(isDisqualifiedA || isDisqualifiedB);
+
   // Get status display
   function getStatusDisplay(status: string): { text: string; color: string } {
     const statusMap: Record<string, { text: string; color: string }> = {
@@ -49,6 +60,9 @@
 
   // Check if match is a tie (no winner but match is completed)
   let isTie = $derived((match.status === 'COMPLETED' || match.status === 'WALKOVER') && !match.winner);
+
+  // Check if match has a winner (for loser styling)
+  let isMatchDecided = $derived((match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.winner);
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -57,7 +71,8 @@
   class:compact
   class:clickable={isClickable}
   class:bye={isBye}
-  class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+  class:completed={match.status === 'COMPLETED'}
+  class:walkover={match.status === 'WALKOVER'}
   class:in-progress={match.status === 'IN_PROGRESS'}
   onclick={() => isClickable && onMatchClick && onMatchClick(match)}
   onkeydown={(e) => isClickable && e.key === 'Enter' && onMatchClick && onMatchClick(match)}
@@ -68,9 +83,11 @@
   <div class="match-row">
     <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
 
-    <div class="participant left" class:winner={match.winner === match.participantA} class:tie={isTie}>
+    <div class="participant left" class:winner={match.winner === match.participantA} class:loser={isMatchDecided && match.winner !== match.participantA} class:tie={isTie} class:disqualified={isDisqualifiedA}>
       <span class="name">{getParticipantName(match.participantA)}</span>
-      {#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
+      {#if isDisqualifiedA}
+        <span class="dsq-badge">DSQ</span>
+      {:else if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
         <span class="t20">🎯{match.total20sA ?? 0}</span>
       {/if}
     </div>
@@ -78,13 +95,13 @@
     <div class="score-center">
       {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
         {#if gameMode === 'rounds'}
-          <span class="score" class:winner-a={match.winner === match.participantA}>{match.totalPointsA || 0}</span>
+          <span class="score" class:winner-a={match.winner === match.participantA} class:loser-a={isMatchDecided && match.winner !== match.participantA}>{match.totalPointsA || 0}</span>
           <span class="sep">-</span>
-          <span class="score" class:winner-b={match.winner === match.participantB}>{isBye ? '-' : (match.totalPointsB || 0)}</span>
+          <span class="score" class:winner-b={match.winner === match.participantB} class:loser-b={isMatchDecided && match.winner !== match.participantB && !isBye}>{isBye ? '-' : (match.totalPointsB || 0)}</span>
         {:else}
-          <span class="score" class:winner-a={match.winner === match.participantA}>{match.gamesWonA || 0}</span>
+          <span class="score" class:winner-a={match.winner === match.participantA} class:loser-a={isMatchDecided && match.winner !== match.participantA}>{match.gamesWonA || 0}</span>
           <span class="sep">-</span>
-          <span class="score" class:winner-b={match.winner === match.participantB}>{isBye ? '-' : (match.gamesWonB || 0)}</span>
+          <span class="score" class:winner-b={match.winner === match.participantB} class:loser-b={isMatchDecided && match.winner !== match.participantB && !isBye}>{isBye ? '-' : (match.gamesWonB || 0)}</span>
         {/if}
       {:else if match.status === 'IN_PROGRESS'}
         {#if gameMode === 'rounds'}
@@ -101,8 +118,10 @@
       {/if}
     </div>
 
-    <div class="participant right" class:winner={match.winner === match.participantB} class:tie={isTie} class:bye-participant={isBye}>
-      {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
+    <div class="participant right" class:winner={match.winner === match.participantB} class:loser={isMatchDecided && match.winner !== match.participantB && !isBye} class:tie={isTie} class:bye-participant={isBye} class:disqualified={isDisqualifiedB}>
+      {#if isDisqualifiedB}
+        <span class="dsq-badge">DSQ</span>
+      {:else if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
         <span class="t20">🎯{match.total20sB ?? 0}</span>
       {/if}
       <span class="name">{getParticipantName(match.participantB)}</span>
@@ -147,6 +166,11 @@
   .match-card.in-progress {
     border-left: 3px solid #f59e0b;
     background: #fffbeb;
+  }
+
+  .match-card.walkover {
+    border-left: 3px solid #dc2626;
+    background: #fef2f2;
   }
 
   .match-card.bye {
@@ -204,6 +228,11 @@
     font-weight: 700;
   }
 
+  .participant.loser .name {
+    color: #f59e0b;
+    font-weight: 600;
+  }
+
   .participant.tie .name {
     color: #6b7280;
   }
@@ -217,6 +246,24 @@
     font-size: 0.65rem;
     color: #f59e0b;
     flex-shrink: 0;
+  }
+
+  .participant.disqualified .name {
+    color: #dc2626 !important;
+    text-decoration: line-through;
+    opacity: 0.7;
+  }
+
+  .dsq-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: white;
+    background: #dc2626;
+    padding: 0.1rem 0.25rem;
+    border-radius: 3px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
   }
 
   .score-center {
@@ -241,6 +288,11 @@
   .score-center .score.winner-a,
   .score-center .score.winner-b {
     color: #059669;
+  }
+
+  .score-center .score.loser-a,
+  .score-center .score.loser-b {
+    color: #f59e0b;
   }
 
   .score-center .sep {
@@ -298,6 +350,14 @@
     background: rgba(245, 158, 11, 0.1);
   }
 
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.walkover {
+    background: rgba(220, 38, 38, 0.1);
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.disqualified .name {
+    color: #f87171 !important;
+  }
+
   :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.bye {
     background: #0f1419;
   }
@@ -308,6 +368,10 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.winner .name {
     color: #10b981;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.loser .name {
+    color: #fbbf24;
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.tie .name {
@@ -325,6 +389,11 @@
   :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.winner-a,
   :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.winner-b {
     color: #10b981;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.loser-a,
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.loser-b {
+    color: #fbbf24;
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .pending {

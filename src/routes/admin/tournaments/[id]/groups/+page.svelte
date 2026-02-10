@@ -23,6 +23,7 @@
   import { generateSwissPairings } from '$lib/firebase/tournamentGroups';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import { getUserProfile } from '$lib/firebase/userProfile';
+  import { disqualifyParticipant } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
   import { Check, X } from '@lucide/svelte';
 
@@ -43,6 +44,11 @@
   let unsubscribe: (() => void) | null = $state(null);
   let showTimeBreakdown = $state(false);
   let timeBreakdown: TimeBreakdown | null = $state(null);
+
+  // Disqualify confirmation
+  let showDisqualifyConfirm = $state(false);
+  let disqualifyTarget = $state<{ id: string; name: string } | null>(null);
+  let isDisqualifying = $state(false);
 
   // Swiss rounds configuration
   let editedSwissRounds = $state(0);
@@ -670,19 +676,60 @@
         toastMessage = m.admin_groupStageCompletedTransition();
         toastType = 'success';
         showToast = true;
+        // Keep loading visible during navigation - don't reset isTransitioning
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}/transition`), 1500);
+        return; // Exit without resetting isTransitioning
       } else {
         toastMessage = m.admin_errorCompletingGroupStage();
         toastType = 'error';
         showToast = true;
+        isTransitioning = false;
       }
     } catch (err) {
       console.error('Error completing group stage:', err);
       toastMessage = m.admin_errorCompletingGroupStage();
       toastType = 'error';
       showToast = true;
-    } finally {
       isTransitioning = false;
+    }
+  }
+
+  function handleDisqualify(participantId: string, participantName: string) {
+    disqualifyTarget = { id: participantId, name: participantName };
+    showDisqualifyConfirm = true;
+  }
+
+  function closeDisqualifyModal() {
+    showDisqualifyConfirm = false;
+    disqualifyTarget = null;
+  }
+
+  async function confirmDisqualify() {
+    if (!disqualifyTarget || !tournamentId) return;
+
+    isDisqualifying = true;
+    try {
+      const success = await disqualifyParticipant(tournamentId, disqualifyTarget.id);
+      if (success) {
+        toastMessage = m.admin_disqualifySuccess({ name: disqualifyTarget.name });
+        toastType = 'success';
+        showToast = true;
+        closeDisqualifyModal();
+        // Close the match dialog too
+        showMatchDialog = false;
+        selectedMatch = null;
+      } else {
+        toastMessage = m.admin_errorSavingChanges();
+        toastType = 'error';
+        showToast = true;
+      }
+    } catch (err) {
+      console.error('Error disqualifying participant:', err);
+      toastMessage = m.admin_errorSavingChanges();
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      isDisqualifying = false;
     }
   }
 </script>
@@ -836,7 +883,7 @@
           </div>
         {/if}
 
-        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} onGenerateNextRound={handleGenerateNextRound} />
+        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} onGenerateNextRound={handleGenerateNextRound} onDisqualify={handleDisqualify} />
       {/if}
     </div>
   </div>
@@ -878,6 +925,48 @@
     </div>
   {/if}
 
+  <!-- Disqualify Confirmation Modal -->
+  {#if showDisqualifyConfirm && disqualifyTarget}
+    <div
+      class="modal-backdrop"
+      style="z-index: 1100;"
+      data-theme={$adminTheme}
+      onclick={closeDisqualifyModal}
+      onkeydown={(e) => e.key === 'Escape' && closeDisqualifyModal()}
+      role="presentation"
+    >
+      <div class="confirm-modal disqualify-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div class="modal-header danger">
+          <div class="header-icon danger">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+          </div>
+          <h2>{m.admin_disqualifyConfirmTitle()}</h2>
+          <button class="close-btn" onclick={closeDisqualifyModal} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="tournament-name">{disqualifyTarget.name}</div>
+          <p class="info-text">{m.admin_disqualifyConfirm({ name: disqualifyTarget.name })}</p>
+          <p class="warning-text">{m.admin_disqualifyWarning()}</p>
+        </div>
+        <div class="confirm-actions">
+          <button class="cancel-btn" onclick={closeDisqualifyModal}>{m.common_cancel()}</button>
+          <button class="confirm-btn danger" onclick={confirmDisqualify} disabled={isDisqualifying}>
+            {#if isDisqualifying}
+              {m.admin_disqualifying?.() || '...'}
+            {:else}
+              {m.admin_disqualify()}
+            {/if}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Match Result Dialog -->
   {#if showMatchDialog && selectedMatch && tournament}
     <MatchResultDialog
@@ -889,6 +978,7 @@
       onclose={handleCloseDialog}
       onsave={handleSaveResult}
       onnoshow={handleNoShow}
+      ondisqualify={handleDisqualify}
     />
   {/if}
 </AdminGuard>
@@ -1363,6 +1453,56 @@
   }
 
   .confirm-btn:hover {
+    filter: brightness(1.1);
+  }
+
+  .confirm-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Danger styles for disqualify modal */
+  .modal-header.danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  }
+
+  .header-icon.danger {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .modal-header.danger h2 {
+    color: white;
+  }
+
+  .modal-header.danger .close-btn {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .modal-header.danger .close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+  }
+
+  .warning-text {
+    color: #dc2626;
+    font-size: 0.75rem;
+    margin: 0.5rem 0 0 0;
+    line-height: 1.4;
+    padding: 0.5rem;
+    background: #fef2f2;
+    border-radius: 4px;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .warning-text {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+  }
+
+  .confirm-btn.danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  }
+
+  .confirm-btn.danger:hover:not(:disabled) {
     filter: brightness(1.1);
   }
 

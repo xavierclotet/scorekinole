@@ -26,6 +26,7 @@
   } from '$lib/firebase/tournamentBracket';
   import { isSuperAdmin } from '$lib/firebase/admin';
   import { getUserProfile } from '$lib/firebase/userProfile';
+  import { disqualifyParticipant, fixDisqualifiedMatches } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, BracketMatch, GroupMatch, ConsolationBracket, TournamentParticipant } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
   import { isBye, isLoserPlaceholder, parseLoserPlaceholder } from '$lib/algorithms/bracket';
@@ -55,6 +56,11 @@
   let timeBreakdown = $state<TimeBreakdown | null>(null);
   let isGeneratingConsolation = $state(false);
   let isRepairing = $state(false);
+
+  // Disqualify confirmation
+  let showDisqualifyConfirm = $state(false);
+  let disqualifyTarget = $state<{ id: string; name: string } | null>(null);
+  let isDisqualifying = $state(false);
 
   // Broken matches detection (completed but winner not advanced)
   interface BrokenMatch {
@@ -448,6 +454,17 @@
         toastType = 'warning';
         showToast = true;
         setTimeout(() => goto(`/admin/tournaments/${tournamentId}`), 1500);
+      } else {
+        // Auto-fix any pending matches against disqualified participants
+        const fixedDSQ = await fixDisqualifiedMatches(tournamentId);
+
+        // Auto-reassign tables to ensure all playable matches have a table
+        const tableResult = await reassignTables(tournamentId);
+
+        if (fixedDSQ || tableResult.success) {
+          // Reload tournament to get updated data
+          tournament = await getTournament(tournamentId);
+        }
       }
     } catch (err) {
       console.error('Error loading tournament:', err);
@@ -542,6 +559,27 @@
       WALKOVER: { text: 'Walkover', color: '#8b5cf6' }
     };
     return statusMap[status] || { text: status, color: '#6b7280' };
+  }
+
+  // Check if a participant is disqualified
+  function isParticipantDisqualified(participantId: string | undefined): boolean {
+    if (!participantId || !tournament) return false;
+    const participant = tournament.participants.find(p => p.id === participantId);
+    return participant?.status === 'DISQUALIFIED';
+  }
+
+  // Get status display for a match, checking for disqualification
+  function getMatchStatusDisplay(match: { status: string; participantA?: string; participantB?: string }): { text: string; color: string } {
+    if (match.status === 'WALKOVER') {
+      // Check if WALKOVER is due to disqualification
+      const isDisqualifiedA = isParticipantDisqualified(match.participantA);
+      const isDisqualifiedB = isParticipantDisqualified(match.participantB);
+      if (isDisqualifiedA || isDisqualifiedB) {
+        return { text: m.admin_disqualified?.() || 'DQ', color: '#ef4444' }; // Red for disqualification
+      }
+      return { text: 'Walkover', color: '#8b5cf6' }; // Purple for regular WO
+    }
+    return getStatusDisplay(match.status);
   }
 
   function getTournamentStatusColor(status: string): string {
@@ -863,6 +901,45 @@
   function handleCloseDialog() {
     showMatchDialog = false;
     selectedMatch = null;
+  }
+
+  function handleDisqualify(participantId: string, participantName: string) {
+    disqualifyTarget = { id: participantId, name: participantName };
+    showDisqualifyConfirm = true;
+  }
+
+  function closeDisqualifyModal() {
+    showDisqualifyConfirm = false;
+    disqualifyTarget = null;
+  }
+
+  async function confirmDisqualify() {
+    if (!disqualifyTarget || !tournamentId) return;
+
+    isDisqualifying = true;
+    try {
+      const success = await disqualifyParticipant(tournamentId, disqualifyTarget.id);
+      if (success) {
+        toastMessage = m.admin_disqualifySuccess({ name: disqualifyTarget.name });
+        toastType = 'success';
+        showToast = true;
+        closeDisqualifyModal();
+        // Close the match dialog too since the participant was disqualified
+        showMatchDialog = false;
+        selectedMatch = null;
+      } else {
+        toastMessage = m.admin_errorSavingChanges();
+        toastType = 'error';
+        showToast = true;
+      }
+    } catch (err) {
+      console.error('Error disqualifying participant:', err);
+      toastMessage = m.admin_errorSavingChanges();
+      toastType = 'error';
+      showToast = true;
+    } finally {
+      isDisqualifying = false;
+    }
   }
 
   /**
@@ -2008,6 +2085,8 @@
                   {@const livePointsB = currentGameRounds.reduce((sum, r) => sum + (r.pointsB || 0), 0)}
                   {@const gamesLeaderA = match.status === 'IN_PROGRESS' && (match.gamesWonA || 0) > (match.gamesWonB || 0)}
                   {@const gamesLeaderB = match.status === 'IN_PROGRESS' && (match.gamesWonB || 0) > (match.gamesWonA || 0)}
+                  {@const disqualifiedA = isParticipantDisqualified(match.participantA)}
+                  {@const disqualifiedB = isParticipantDisqualified(match.participantB)}
                   <div
                     class="bracket-match"
                     class:clickable={match.participantA && match.participantB && !isByeMatch(match)}
@@ -2025,12 +2104,17 @@
                     <div
                       class="match-participant"
                       class:winner={match.winner === match.participantA}
+                      class:loser={match.winner && match.winner !== match.participantA}
                       class:tbd={!match.participantA}
                       class:bye={isBye(match.participantA)}
                       class:games-leader={gamesLeaderA}
+                      class:disqualified={disqualifiedA}
                     >
                       {@render participantAvatar(match.participantA, 'sm')}
-                      <span class="participant-name">{getParticipantName(match.participantA)}</span>
+                      <span class="participant-name" class:disqualified={disqualifiedA}>{getParticipantName(match.participantA)}</span>
+                      {#if disqualifiedA}
+                        <span class="dsq-badge">DSQ</span>
+                      {/if}
                       {#if match.seedA}
                         <span class="seed">#{match.seedA}</span>
                       {/if}
@@ -2050,12 +2134,17 @@
                     <div
                       class="match-participant"
                       class:winner={match.winner === match.participantB}
+                      class:loser={match.winner && match.winner !== match.participantB && !isBye(match.participantB)}
                       class:tbd={!match.participantB}
                       class:bye={isBye(match.participantB)}
                       class:games-leader={gamesLeaderB}
+                      class:disqualified={disqualifiedB}
                     >
                       {@render participantAvatar(match.participantB, 'sm')}
-                      <span class="participant-name">{getParticipantName(match.participantB)}</span>
+                      <span class="participant-name" class:disqualified={disqualifiedB}>{getParticipantName(match.participantB)}</span>
+                      {#if disqualifiedB}
+                        <span class="dsq-badge">DSQ</span>
+                      {/if}
                       {#if match.seedB}
                         <span class="seed">#{match.seedB}</span>
                       {/if}
@@ -2071,7 +2160,7 @@
                     </div>
 
                     {#if match.participantA && match.participantB}
-                      {@const statusInfo = getStatusDisplay(match.status)}
+                      {@const statusInfo = getMatchStatusDisplay(match)}
                       <div class="status-badge" style="background: {statusInfo.color}">
                         {statusInfo.text}
                       </div>
@@ -2126,6 +2215,8 @@
             {@const thirdLivePointsB = thirdCurrentGameRounds.reduce((sum, r) => sum + (r.pointsB || 0), 0)}
             {@const thirdGamesLeaderA = thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonA || 0) > (thirdPlaceMatch.gamesWonB || 0)}
             {@const thirdGamesLeaderB = thirdPlaceMatch.status === 'IN_PROGRESS' && (thirdPlaceMatch.gamesWonB || 0) > (thirdPlaceMatch.gamesWonA || 0)}
+            {@const thirdDisqualifiedA = isParticipantDisqualified(thirdPlaceMatch.participantA)}
+            {@const thirdDisqualifiedB = isParticipantDisqualified(thirdPlaceMatch.participantB)}
             <div class="bracket-round third-place-round">
               <h2 class="round-name third-place">{m.tournament_thirdFourthPlace()}</h2>
               <div class="matches-column">
@@ -2145,11 +2236,16 @@
                   <div
                     class="match-participant"
                     class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
+                    class:loser={thirdPlaceMatch.winner && thirdPlaceMatch.winner !== thirdPlaceMatch.participantA}
                     class:tbd={!thirdPlaceMatch.participantA}
                     class:games-leader={thirdGamesLeaderA}
+                    class:disqualified={thirdDisqualifiedA}
                   >
                     {@render participantAvatar(thirdPlaceMatch.participantA, 'sm')}
-                    <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
+                    <span class="participant-name" class:disqualified={thirdDisqualifiedA}>{getParticipantName(thirdPlaceMatch.participantA)}</span>
+                    {#if thirdDisqualifiedA}
+                      <span class="dsq-badge">DSQ</span>
+                    {/if}
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
                       <span class="score">{showGamesWon ? (thirdPlaceMatch.gamesWonA || 0) : (thirdPlaceMatch.totalPointsA || 0)}</span>
                       {#if tournament.show20s && thirdPlaceMatch.total20sA !== undefined}
@@ -2166,11 +2262,16 @@
                   <div
                     class="match-participant"
                     class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
+                    class:loser={thirdPlaceMatch.winner && thirdPlaceMatch.winner !== thirdPlaceMatch.participantB}
                     class:tbd={!thirdPlaceMatch.participantB}
                     class:games-leader={thirdGamesLeaderB}
+                    class:disqualified={thirdDisqualifiedB}
                   >
                     {@render participantAvatar(thirdPlaceMatch.participantB, 'sm')}
-                    <span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
+                    <span class="participant-name" class:disqualified={thirdDisqualifiedB}>{getParticipantName(thirdPlaceMatch.participantB)}</span>
+                    {#if thirdDisqualifiedB}
+                      <span class="dsq-badge">DSQ</span>
+                    {/if}
                     {#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
                       <span class="score">{showGamesWon ? (thirdPlaceMatch.gamesWonB || 0) : (thirdPlaceMatch.totalPointsB || 0)}</span>
                       {#if tournament.show20s && thirdPlaceMatch.total20sB !== undefined}
@@ -2183,7 +2284,7 @@
                   </div>
 
                   {#if thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
-                    {@const statusInfo = getStatusDisplay(thirdPlaceMatch.status)}
+                    {@const statusInfo = getMatchStatusDisplay(thirdPlaceMatch)}
                     <div class="status-badge" style="background: {statusInfo.color}">
                       {statusInfo.text}
                     </div>
@@ -2280,6 +2381,8 @@
                           {@const isMatchBye = (isByeA || isByeB) && !isBothBye}
                           {@const finalRoundMatches = r16Bracket.rounds[r16Bracket.totalRounds - 1]?.matches.length || 1}
                           {@const positionLabel = getConsolationPositionLabel(r16Bracket.startPosition, r16Bracket.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
+                          {@const consDisqualifiedA = isParticipantDisqualified(match.participantA)}
+                          {@const consDisqualifiedB = isParticipantDisqualified(match.participantB)}
                           {#if !isBothBye}
                           <div class="consolation-match-wrapper">
                             {#if positionLabel}
@@ -2298,13 +2401,18 @@
                             <div
                               class="match-participant"
                               class:winner={match.winner === match.participantA}
+                              class:loser={match.winner && match.winner !== match.participantA && !isByeA}
                               class:tbd={!match.participantA || isPlaceholderA}
                               class:bye={isByeA}
+                              class:disqualified={consDisqualifiedA}
                             >
                               {#if !isPlaceholderA && !isByeA}
                                 {@render participantAvatar(match.participantA, 'sm')}
                               {/if}
-                              <span class="participant-name">{displayNameA}</span>
+                              <span class="participant-name" class:disqualified={consDisqualifiedA}>{displayNameA}</span>
+                              {#if consDisqualifiedA}
+                                <span class="dsq-badge">DSQ</span>
+                              {/if}
                               {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                                 <span class="score">{showGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
                                 {#if tournament.show20s && match.total20sA !== undefined}
@@ -2323,13 +2431,18 @@
                             <div
                               class="match-participant"
                               class:winner={match.winner === match.participantB}
+                              class:loser={match.winner && match.winner !== match.participantB && !isByeB}
                               class:tbd={!match.participantB || isPlaceholderB}
                               class:bye={isByeB}
+                              class:disqualified={consDisqualifiedB}
                             >
                               {#if !isPlaceholderB && !isByeB}
                                 {@render participantAvatar(match.participantB, 'sm')}
                               {/if}
-                              <span class="participant-name">{displayNameB}</span>
+                              <span class="participant-name" class:disqualified={consDisqualifiedB}>{displayNameB}</span>
+                              {#if consDisqualifiedB}
+                                <span class="dsq-badge">DSQ</span>
+                              {/if}
                               {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                                 <span class="score">{showGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
                                 {#if tournament.show20s && match.total20sB !== undefined}
@@ -2344,7 +2457,7 @@
                             </div>
 
                             {#if hasRealParticipants}
-                              {@const statusInfo = getStatusDisplay(match.status)}
+                              {@const statusInfo = getMatchStatusDisplay(match)}
                               <div class="status-badge" style="background: {statusInfo.color}">
                                 {statusInfo.text}
                               </div>
@@ -2385,6 +2498,8 @@
                           {@const isMatchBye = (isByeA || isByeB) && !isBothBye}
                           {@const finalRoundMatches = qfBracket.rounds[qfBracket.totalRounds - 1]?.matches.length || 1}
                           {@const positionLabel = getConsolationPositionLabel(qfBracket.startPosition, qfBracket.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
+                          {@const qfDisqualifiedA = isParticipantDisqualified(match.participantA)}
+                          {@const qfDisqualifiedB = isParticipantDisqualified(match.participantB)}
                           {#if !isBothBye}
                           <div class="consolation-match-wrapper">
                             {#if positionLabel}
@@ -2403,13 +2518,18 @@
                               <div
                                 class="match-participant"
                                 class:winner={match.winner === match.participantA}
+                                class:loser={match.winner && match.winner !== match.participantA && !isByeA}
                                 class:tbd={!match.participantA || isPlaceholderA}
                                 class:bye={isByeA}
+                                class:disqualified={qfDisqualifiedA}
                               >
                                 {#if !isPlaceholderA && !isByeA}
                                   {@render participantAvatar(match.participantA, 'sm')}
                                 {/if}
-                                <span class="participant-name">{displayNameA}</span>
+                                <span class="participant-name" class:disqualified={qfDisqualifiedA}>{displayNameA}</span>
+                                {#if qfDisqualifiedA}
+                                  <span class="dsq-badge">DSQ</span>
+                                {/if}
                                 {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                                   <span class="score">{showGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
                                   {#if tournament.show20s && match.total20sA !== undefined}
@@ -2428,13 +2548,18 @@
                               <div
                                 class="match-participant"
                                 class:winner={match.winner === match.participantB}
+                                class:loser={match.winner && match.winner !== match.participantB && !isByeB}
                                 class:tbd={!match.participantB || isPlaceholderB}
                                 class:bye={isByeB}
+                                class:disqualified={qfDisqualifiedB}
                               >
                                 {#if !isPlaceholderB && !isByeB}
                                   {@render participantAvatar(match.participantB, 'sm')}
                                 {/if}
-                                <span class="participant-name">{displayNameB}</span>
+                                <span class="participant-name" class:disqualified={qfDisqualifiedB}>{displayNameB}</span>
+                                {#if qfDisqualifiedB}
+                                  <span class="dsq-badge">DSQ</span>
+                                {/if}
                                 {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                                   <span class="score">{showGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
                                   {#if tournament.show20s && match.total20sB !== undefined}
@@ -2449,7 +2574,7 @@
                               </div>
 
                               {#if hasRealParticipants}
-                                {@const statusInfo = getStatusDisplay(match.status)}
+                                {@const statusInfo = getMatchStatusDisplay(match)}
                                 <div class="status-badge" style="background: {statusInfo.color}">
                                   {statusInfo.text}
                                 </div>
@@ -2492,7 +2617,48 @@
     onclose={handleCloseDialog}
     onsave={handleSaveMatch}
     onnoshow={handleNoShow}
+    ondisqualify={handleDisqualify}
   />
+{/if}
+
+<!-- Disqualify Confirmation Modal -->
+{#if showDisqualifyConfirm && disqualifyTarget}
+  <div
+    class="modal-backdrop"
+    style="z-index: 1100;"
+    data-theme={$adminTheme}
+    onclick={closeDisqualifyModal}
+    onkeydown={(e) => e.key === 'Escape' && closeDisqualifyModal()}
+    role="presentation"
+  >
+    <div class="confirm-modal disqualify-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div class="modal-header danger">
+        <div class="header-icon danger">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+          </svg>
+        </div>
+        <h2>{m.admin_disqualifyConfirmTitle()}</h2>
+        <button class="close-btn" onclick={closeDisqualifyModal} aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="participant-name">{disqualifyTarget.name}</div>
+        <p class="info-text">{m.admin_disqualifyConfirm({ name: disqualifyTarget.name })}</p>
+        <p class="warning-text">{m.admin_disqualifyWarning()}</p>
+      </div>
+      <div class="confirm-actions">
+        <button class="cancel-btn" onclick={closeDisqualifyModal}>{m.common_cancel()}</button>
+        <button class="confirm-btn danger" onclick={confirmDisqualify} disabled={isDisqualifying}>
+          {#if isDisqualifying}
+            ...
+          {:else}
+            {m.admin_disqualify()}
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <Toast bind:visible={showToast} message={toastMessage} type={toastType} />
@@ -3054,6 +3220,17 @@
     color: #10b981;
   }
 
+  .match-participant.loser {
+    background: #fffbeb;
+    color: #b45309;
+    box-shadow: 0 0 0 1px #f59e0b;
+  }
+
+  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .match-participant.loser {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+  }
+
   /* Líder en partidas ganadas (durante IN_PROGRESS) */
   .match-participant.games-leader {
     background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(109, 40, 217, 0.1) 100%);
@@ -3088,8 +3265,36 @@
     text-overflow: ellipsis;
   }
 
+  .participant-name.disqualified {
+    text-decoration: line-through;
+    color: #9ca3af;
+  }
+
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .participant-name {
     color: #e1e8ed;
+  }
+
+  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .participant-name.disqualified {
+    color: #6b7280;
+  }
+
+  .dsq-badge {
+    padding: 0.1rem 0.2rem;
+    background: #fef2f2;
+    color: #dc2626;
+    font-size: 0.5rem;
+    font-weight: 700;
+    border-radius: 2px;
+    margin-left: 0.2rem;
+  }
+
+  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .dsq-badge {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+
+  .match-participant.disqualified {
+    opacity: 0.7;
   }
 
   .seed {
@@ -4234,12 +4439,21 @@
     font-weight: 600;
   }
 
+  .match-participant.loser {
+    color: #f59e0b;
+    font-weight: 500;
+  }
+
   .consolation-section:is([data-theme='dark'], [data-theme='violet']) .match-participant {
     color: #94a3b8;
   }
 
   .consolation-section:is([data-theme='dark'], [data-theme='violet']) .match-participant.winner {
     color: #10b981;
+  }
+
+  .consolation-section:is([data-theme='dark'], [data-theme='violet']) .match-participant.loser {
+    color: #fbbf24;
   }
 
   @media (max-width: 640px) {
@@ -4322,5 +4536,179 @@
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .pair-avatars .avatar-img,
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .pair-avatars .avatar-placeholder {
     border-color: var(--bg-card, #1e1e2e);
+  }
+
+  /* Disqualify Modal Styles */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .confirm-modal {
+    background: white;
+    border-radius: 10px;
+    max-width: 340px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal {
+    background: #1a2332;
+  }
+
+  .confirm-modal .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .modal-header.danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    border-bottom: none;
+  }
+
+  .header-icon.danger {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: white;
+  }
+
+  .modal-header.danger h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: white;
+    flex: 1;
+  }
+
+  .modal-header.danger .close-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    font-size: 1.2rem;
+  }
+
+  .modal-header.danger .close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .confirm-modal .modal-body {
+    padding: 1rem;
+  }
+
+  .confirm-modal .participant-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 0.5rem;
+  }
+
+  .confirm-modal .info-text {
+    color: #64748b;
+    font-size: 0.8rem;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal .info-text {
+    color: #8b9bb3;
+  }
+
+  .confirm-modal .warning-text {
+    color: #dc2626;
+    font-size: 0.75rem;
+    margin: 0.5rem 0 0 0;
+    line-height: 1.4;
+    padding: 0.5rem;
+    background: #fef2f2;
+    border-radius: 4px;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal .warning-text {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-actions {
+    border-color: #2d3748;
+  }
+
+  .cancel-btn {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    background: #f3f4f6;
+    color: #374151;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .cancel-btn {
+    background: #0f1419;
+    color: #e1e8ed;
+  }
+
+  .cancel-btn:hover {
+    background: #e5e7eb;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .cancel-btn:hover {
+    background: #2d3748;
+  }
+
+  .confirm-btn {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .confirm-btn.danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  }
+
+  .confirm-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+
+  .confirm-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 </style>
