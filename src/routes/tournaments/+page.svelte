@@ -72,6 +72,9 @@
 			}
 		}
 
+		// Sort by date descending (newest first)
+		result.sort((a, b) => (b.tournamentDate || 0) - (a.tournamentDate || 0));
+
 		return result;
 	});
 

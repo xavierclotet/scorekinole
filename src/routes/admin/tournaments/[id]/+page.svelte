@@ -455,7 +455,7 @@
               <button class="action-btn primary" onclick={confirmStart} disabled={isStarting}>
                 {isStarting ? m.admin_starting() + '...' : m.admin_start()}
               </button>
-              <button class="action-btn" onclick={() => goto(`/admin/tournaments/create?edit=${tournamentId}`)}>
+              <button class="action-btn" onclick={() => goto(tournament.isImported ? `/admin/tournaments/import?edit=${tournamentId}` : `/admin/tournaments/create?edit=${tournamentId}`)}>
                 {m.admin_edit()}
               </button>
               <button class="action-btn danger" onclick={confirmCancel}>
@@ -666,7 +666,7 @@
                   </span>
                 {/each}
               </div>
-              <button class="edit-participants-btn" onclick={() => goto(`/admin/tournaments/create?edit=${tournamentId}&step=4`)}>
+              <button class="edit-participants-btn" onclick={() => goto(tournament.isImported ? `/admin/tournaments/import?edit=${tournamentId}` : `/admin/tournaments/create?edit=${tournamentId}&step=4`)}>
                 ✏️ {m.admin_editParticipants()}
               </button>
             </section>

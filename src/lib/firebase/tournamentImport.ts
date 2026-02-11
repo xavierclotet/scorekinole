@@ -79,6 +79,7 @@ export interface HistoricalParticipantInput {
 
 export interface HistoricalGroupStageInput {
   numGroups: number;
+  qualificationMode?: 'WINS' | 'POINTS';
   groups: HistoricalGroupInput[];
 }
 
@@ -90,7 +91,7 @@ export interface HistoricalGroupInput {
 export interface HistoricalStandingInput {
   participantName: string;
   position: number;
-  points: number;          // Classification points (2 per win, 1 per tie)
+  points: number;          // Crokinole points scored (total game points)
   total20s?: number;
 }
 
@@ -302,13 +303,13 @@ export async function createHistoricalTournament(
   const creatorName = userProfile?.playerName || user.name;
 
   try {
-    const tournamentId = `tournament-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tournamentId = `tournament-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const tournamentKey = await generateUniqueKey();
 
     // Create participant map for name -> id lookup
     const participantMap = new Map<string, string>();
     const participants: TournamentParticipant[] = input.participants.map((p, index) => {
-      const id = `participant-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
+      const id = `participant-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 8)}`;
       const fullName = p.partnerName ? `${p.name} / ${p.partnerName}` : p.name;
       participantMap.set(fullName.toLowerCase(), id);
       participantMap.set(p.name.toLowerCase(), id);
@@ -365,9 +366,11 @@ export async function createHistoricalTournament(
           matchesWon: 0,     // Not tracked in simplified import
           matchesLost: 0,    // Not tracked in simplified import
           matchesTied: 0,    // Not tracked in simplified import
-          points: s.points,
+          // For imported tournaments: put crokinole points in both fields
+          // so data shows regardless of qualificationMode (WINS or POINTS)
+          points: s.points || 0,
           total20s: s.total20s || 0,
-          totalPointsScored: 0,  // Not tracked in simplified import
+          totalPointsScored: s.points || 0,
           qualifiedForFinal: true // All are qualified in historical
         }));
 
@@ -389,7 +392,8 @@ export async function createHistoricalTournament(
         gameMode: 'points',
         pointsToWin: 7,
         matchesToWin: 1,
-        numGroups: input.groupStage.numGroups
+        numGroups: input.groupStage.numGroups,
+        qualificationMode: input.groupStage.qualificationMode || 'WINS'
       };
     }
 
@@ -419,6 +423,8 @@ export async function createHistoricalTournament(
       };
     };
 
+    // BYE matches are already calculated in the import wizard (step 4)
+    // via addByeMatchesToBrackets() in knockoutStageParser.ts
     const buildBracket = (bracketInput: HistoricalBracketInput): BracketWithConfig => {
       const rounds: BracketRound[] = bracketInput.rounds.map((r, rIndex) => ({
         roundNumber: rIndex + 1,
@@ -721,7 +727,7 @@ export async function createUpcomingTournament(
     const userName = profile?.name || user.displayName || 'Unknown';
 
     // Generate tournament ID and key
-    const tournamentId = `tournament-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tournamentId = `tournament-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const tournamentKey = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     // Build minimal tournament document (no finalStage, no groupStage, no participants)
@@ -831,7 +837,7 @@ export async function completeUpcomingTournament(
     // Create participant map for name -> id lookup
     const participantMap = new Map<string, string>();
     const participants: TournamentParticipant[] = input.participants.map((p, index) => {
-      const participantId = `participant-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
+      const participantId = `participant-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 8)}`;
       const fullName = p.partnerName ? `${p.name} / ${p.partnerName}` : p.name;
       participantMap.set(fullName.toLowerCase(), participantId);
       participantMap.set(p.name.toLowerCase(), participantId);
@@ -867,6 +873,10 @@ export async function completeUpcomingTournament(
 
     // Helper to find participant ID by name
     const findParticipantId = (name: string): string => {
+      // BYE is a special case - return 'BYE' directly
+      if (name.toUpperCase() === 'BYE') {
+        return 'BYE';
+      }
       const foundId = participantMap.get(name.toLowerCase());
       if (!foundId) {
         console.warn(`Participant not found: ${name}`);
@@ -886,9 +896,11 @@ export async function completeUpcomingTournament(
           matchesWon: 0,
           matchesLost: 0,
           matchesTied: 0,
-          points: s.points,
+          // For imported tournaments: put crokinole points in both fields
+          // so data shows regardless of qualificationMode (WINS or POINTS)
+          points: s.points || 0,
           total20s: s.total20s || 0,
-          totalPointsScored: 0,
+          totalPointsScored: s.points || 0,
           qualifiedForFinal: true
         }));
 
@@ -910,7 +922,8 @@ export async function completeUpcomingTournament(
         gameMode: 'points',
         pointsToWin: 7,
         matchesToWin: 1,
-        numGroups: input.groupStage.numGroups
+        numGroups: input.groupStage.numGroups,
+        qualificationMode: input.groupStage.qualificationMode || 'WINS'
       };
     }
 
@@ -940,6 +953,8 @@ export async function completeUpcomingTournament(
       };
     };
 
+    // BYE matches are already calculated in the import wizard (step 4)
+    // via addByeMatchesToBrackets() in knockoutStageParser.ts
     const buildBracket = (bracketInput: HistoricalBracketInput): BracketWithConfig => {
       const rounds: BracketRound[] = bracketInput.rounds.map((r, rIndex) => ({
         roundNumber: rIndex + 1,

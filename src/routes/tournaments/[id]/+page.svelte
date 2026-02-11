@@ -310,6 +310,8 @@
 	function getParticipantName(participantId: string | undefined): string {
 		if (!participantId) return m.common_tbd();
 		if (isBye(participantId)) return 'BYE';
+		// Check for unknown-BYE (from imported tournaments with BYE matches)
+		if (participantId.toUpperCase().includes('BYE')) return 'BYE';
 		if (!tournament) return m.common_unknown();
 		const participant = tournament.participants.find(p => p.id === participantId);
 		if (!participant) return m.common_unknown();
@@ -937,9 +939,11 @@
 												<tr>
 													<th class="pos-col">#</th>
 													<th class="name-col">{m.common_player()}</th>
-													<th class="stat-col" title="Victorias">V</th>
-													<th class="stat-col" title="Empates">E</th>
-													<th class="stat-col" title="Derrotas">P</th>
+													{#if hasMatchDetails}
+														<th class="stat-col" title="Victorias">V</th>
+														<th class="stat-col" title="Empates">E</th>
+														<th class="stat-col" title="Derrotas">P</th>
+													{/if}
 													<th class="stat-col" title="20s totales">20s</th>
 													<th class="stat-col" class:primary-col={qualificationMode === 'POINTS'} title="Puntos totales de crokinole">PT</th>
 													<th class="stat-col" class:primary-col={qualificationMode === 'WINS'} title="Puntos por victoria">PV</th>
@@ -950,11 +954,13 @@
 													<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 														<td class="pos-col">{standing.position}</td>
 														<td class="name-col">{getParticipantName(standing.participantId)}</td>
-														<td class="stat-col">{standing.matchesWon ?? 0}</td>
-														<td class="stat-col">{standing.matchesTied ?? 0}</td>
-														<td class="stat-col">{standing.matchesLost ?? 0}</td>
+														{#if hasMatchDetails}
+															<td class="stat-col">{standing.matchesWon ?? 0}</td>
+															<td class="stat-col">{standing.matchesTied ?? 0}</td>
+															<td class="stat-col">{standing.matchesLost ?? 0}</td>
+														{/if}
 														<td class="stat-col">{standing.total20s ?? 0}</td>
-														<td class="stat-col" class:primary-col={qualificationMode === 'POINTS'}>{standing.totalPointsScored ?? 0}</td>
+														<td class="stat-col" class:primary-col={qualificationMode === 'POINTS'}>{standing.totalPointsScored || standing.points || 0}</td>
 														<td class="stat-col" class:primary-col={qualificationMode === 'WINS'}>{standing.points}</td>
 													</tr>
 												{/each}
@@ -1067,9 +1073,11 @@
 											<tr>
 												<th class="pos-col">#</th>
 												<th class="name-col">{m.common_player()}</th>
-												<th class="stat-col" title="Victorias">V</th>
-												<th class="stat-col" title="Empates">E</th>
-												<th class="stat-col" title="Derrotas">P</th>
+												{#if hasMatchDetails}
+													<th class="stat-col" title="Victorias">V</th>
+													<th class="stat-col" title="Empates">E</th>
+													<th class="stat-col" title="Derrotas">P</th>
+												{/if}
 												<th class="stat-col" title="20s totales">20s</th>
 												<th class="stat-col" class:primary-col={qualificationMode === 'POINTS'} title="Puntos totales de crokinole">PT</th>
 												<th class="stat-col" class:primary-col={qualificationMode === 'WINS'} title="Puntos por victoria">PV</th>
@@ -1080,11 +1088,13 @@
 												<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 													<td class="pos-col">{standing.position}</td>
 													<td class="name-col">{getParticipantName(standing.participantId)}</td>
-													<td class="stat-col">{standing.matchesWon ?? 0}</td>
-													<td class="stat-col">{standing.matchesTied ?? 0}</td>
-													<td class="stat-col">{standing.matchesLost ?? 0}</td>
+													{#if hasMatchDetails}
+														<td class="stat-col">{standing.matchesWon ?? 0}</td>
+														<td class="stat-col">{standing.matchesTied ?? 0}</td>
+														<td class="stat-col">{standing.matchesLost ?? 0}</td>
+													{/if}
 													<td class="stat-col">{standing.total20s ?? 0}</td>
-													<td class="stat-col" class:primary-col={qualificationMode === 'POINTS'}>{standing.totalPointsScored ?? 0}</td>
+													<td class="stat-col" class:primary-col={qualificationMode === 'POINTS'}>{standing.totalPointsScored || standing.points || 0}</td>
 													<td class="stat-col" class:primary-col={qualificationMode === 'WINS'}>{standing.points}</td>
 												</tr>
 											{/each}
@@ -1205,7 +1215,6 @@
 										class:active={activeParallelBracket === index}
 										onclick={() => activeParallelBracket = index}
 									>
-										<span class="tab-label">{pb.label}</span>
 										{pb.name}
 									</button>
 								{/each}
@@ -1245,11 +1254,15 @@
 										<h3 class="round-name">{translateRoundName(round.name)}</h3>
 										<div class="matches-column">
 											{#each round.matches as match}
+												{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
+												{@const isByeB = match.participantB?.toUpperCase().includes('BYE')}
+												{@const winnerIsA = isByeB || match.winner === match.participantA}
+												{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 												{#if !isByeMatch(match)}
 													<div class="bracket-match" class:completed={match.status === 'COMPLETED'} class:has-video={match.videoId}>
 														<div
 															class="match-participant"
-															class:winner={match.winner === match.participantA}
+															class:winner={winnerIsA}
 															class:tbd={!match.participantA}
 														>
 															<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -1260,7 +1273,7 @@
 														<div class="vs-divider"></div>
 														<div
 															class="match-participant"
-															class:winner={match.winner === match.participantB}
+															class:winner={winnerIsB}
 															class:tbd={!match.participantB}
 														>
 															<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -2455,8 +2468,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		color: white;
+		background: var(--primary);
+		color: var(--primary-foreground);
 		font-weight: 600;
 		font-size: calc(var(--avatar-size) * 0.45);
 	}
@@ -2688,9 +2701,9 @@
 
 	.standings-table {
 		width: 100%;
-		min-width: 380px;
 		border-collapse: collapse;
 		font-size: 0.8rem;
+		table-layout: fixed;
 	}
 
 	.standings-table th,
@@ -2731,9 +2744,9 @@
 		padding-left: calc(0.35rem - 2px);
 	}
 
-	.pos-col { width: 28px; text-align: center; }
-	.name-col { flex: 1; min-width: 80px; }
-	.stat-col { width: 32px; text-align: center; font-variant-numeric: tabular-nums; }
+	.pos-col { width: 24px; text-align: center; }
+	.name-col { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.stat-col { width: 28px; text-align: center; font-variant-numeric: tabular-nums; }
 
 	/* Primary column (used for qualification ranking) */
 	.standings-table th.primary-col,
@@ -3255,8 +3268,8 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 0.6rem 0.75rem;
-		background: #0f1419;
-		transition: background 0.15s;
+		background: #1a1f2e;
+		transition: all 0.15s;
 	}
 
 	.match-participant:first-child {
@@ -3268,7 +3281,7 @@
 	}
 
 	.match-participant.winner {
-		background: rgba(16, 185, 129, 0.12);
+		background: #1a1f2e;
 	}
 
 	.match-participant.tbd {
@@ -3277,7 +3290,7 @@
 
 	.participant-name {
 		font-size: 0.85rem;
-		color: #e1e8ed;
+		color: #6b7280;
 		font-weight: 500;
 		flex: 1;
 		min-width: 0;
@@ -3286,21 +3299,33 @@
 		white-space: nowrap;
 	}
 
+	/* Winner styling - green name and score */
 	.match-participant.winner .participant-name {
 		color: #10b981;
-		font-weight: 700;
+		font-weight: 600;
+	}
+
+	/* Loser styling - muted red/gray name */
+	.bracket-match.completed .match-participant:not(.winner) .participant-name {
+		color: #9ca3af;
 	}
 
 	.score {
 		font-size: 0.85rem;
 		font-weight: 700;
-		color: #8b9bb3;
+		color: #6b7280;
 		min-width: 24px;
 		text-align: right;
 	}
 
+	/* Winner score - green */
 	.match-participant.winner .score {
 		color: #10b981;
+	}
+
+	/* Loser score - muted */
+	.bracket-match.completed .match-participant:not(.winner) .score {
+		color: #6b7280;
 	}
 
 	.vs-divider {
@@ -3385,6 +3410,19 @@
 		.video-match-title {
 			max-width: 160px;
 		}
+
+		/* Standings table mobile optimizations */
+		.standings-table {
+			font-size: 0.7rem;
+		}
+
+		.standings-table th,
+		.standings-table td {
+			padding: 0.3rem 0.2rem;
+		}
+
+		.pos-col { width: 20px; }
+		.stat-col { width: 24px; }
 	}
 
 	/* Light theme */
@@ -3694,19 +3732,32 @@
 	}
 
 	.detail-container[data-theme='light'] .match-participant {
-		background: #f5f7fa;
+		background: #f8fafc;
 	}
 
 	.detail-container[data-theme='light'] .match-participant.winner {
-		background: rgba(16, 185, 129, 0.08);
+		background: #f8fafc;
 	}
 
 	.detail-container[data-theme='light'] .participant-name {
-		color: #1a202c;
+		color: #9ca3af;
+	}
+
+	.detail-container[data-theme='light'] .match-participant.winner .participant-name {
+		color: #059669;
+		font-weight: 600;
+	}
+
+	.detail-container[data-theme='light'] .bracket-match.completed .match-participant:not(.winner) .participant-name {
+		color: #9ca3af;
 	}
 
 	.detail-container[data-theme='light'] .score {
-		color: #4a5568;
+		color: #9ca3af;
+	}
+
+	.detail-container[data-theme='light'] .match-participant.winner .score {
+		color: #059669;
 	}
 
 	.detail-container[data-theme='light'] .vs-divider {

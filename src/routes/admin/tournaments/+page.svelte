@@ -512,18 +512,20 @@
                   {tournament.gameType === 'singles' ? '1v1' : '2v2'}
                 </td>
                 <td class="mode-cell hide-mobile">
-                  {#if tournament.groupStage?.type}
-                    <span class="mode-group">
-                      {tournament.groupStage.type === 'SWISS' ? m.admin_swissSystem() : 'RR'}
-                    </span>
-                    <span class="mode-separator">+</span>
-                  {/if}
-                  {#if tournament.finalStage?.mode === 'PARALLEL_BRACKETS'}
-                    <span class="mode-final">{tournament.finalStage.parallelBrackets?.length || 1}B</span>
-                  {:else if tournament.finalStage?.mode === 'SPLIT_DIVISIONS'}
-                    <span class="mode-final">2B</span>
-                  {:else}
-                    <span class="mode-final">1B</span>
+                  {#if !tournament.isImported}
+                    {#if tournament.groupStage?.type}
+                      <span class="mode-group">
+                        {tournament.groupStage.type === 'SWISS' ? m.admin_swissSystem() : 'RR'}
+                      </span>
+                      <span class="mode-separator">+</span>
+                    {/if}
+                    {#if tournament.finalStage?.mode === 'PARALLEL_BRACKETS'}
+                      <span class="mode-final">{tournament.finalStage.parallelBrackets?.length || 1}B</span>
+                    {:else if tournament.finalStage?.mode === 'SPLIT_DIVISIONS'}
+                      <span class="mode-final">2B</span>
+                    {:else}
+                      <span class="mode-final">1B</span>
+                    {/if}
                   {/if}
                 </td>
                 <td class="participants-cell">

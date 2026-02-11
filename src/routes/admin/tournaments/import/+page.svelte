@@ -26,11 +26,20 @@
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import CountrySelect from '$lib/components/CountrySelect.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
+  import { parseGroupStageText, serializeGroupStageData, getPlaceholderText, type ParseResult, type ParsedGroup } from '$lib/utils/groupStageParser';
+  import {
+    parseKnockoutStageText,
+    serializeKnockoutStageData,
+    convertToHistoricalBrackets,
+    getKnockoutPlaceholderText,
+    addByeMatchesToBrackets,
+    type KnockoutParseResult
+  } from '$lib/utils/knockoutStageParser';
   import * as m from '$lib/paraglide/messages.js';
 
   // Wizard state
   let currentStep = $state(1);
-  const totalSteps = 5;
+  const totalSteps = 4;
 
   // LocalStorage key for draft
   const STORAGE_KEY = 'tournamentImportDraft';
@@ -102,6 +111,7 @@
       gameType = tournament.gameType || 'singles';
       rankingEnabled = tournament.rankingConfig?.enabled || false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      qualificationMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || 'WINS';
       description = tournament.description || '';
       externalLink = tournament.externalLink || '';
       posterUrl = tournament.posterUrl || '';
@@ -120,7 +130,7 @@
         }));
       }
 
-      // Pre-populate Step 3: Group Stage (if any)
+      // Pre-populate Step 2: Group Stage (if any) - now combined with participants
       if (tournament.groupStage) {
         hasGroupStage = true;
         numGroups = tournament.groupStage.numGroups || tournament.groupStage.groups?.length || 2;
@@ -135,12 +145,25 @@
               total20s: s.total20s || 0
             })) || []
           }));
+
+          // Serialize groups to textarea format for editing
+          const groupsForSerialization = groups.map(g => ({
+            name: g.name,
+            standings: g.standings.map(s => ({
+              participantName: s.participantName,
+              points: s.points,
+              total20s: s.total20s
+            }))
+          }));
+          groupStageText = serializeGroupStageData(groupsForSerialization, gameType);
+          parsePhase = 'preview'; // Show preview directly
         }
       } else {
         hasGroupStage = false;
+        parsePhase = 'preview'; // No groups, go to preview
       }
 
-      // Pre-populate Step 4: Final Stage (if any)
+      // Pre-populate Step 3: Final Stage (if any)
       if (tournament.finalStage?.parallelBrackets) {
         numBrackets = tournament.finalStage.parallelBrackets.length;
         brackets = tournament.finalStage.parallelBrackets.map(nb => ({
@@ -164,6 +187,32 @@
             })) || []
           })) || []
         }));
+
+        // Serialize brackets to textarea format for editing
+        const bracketsForSerialization = brackets.map(b => ({
+          name: b.name,
+          label: b.label,
+          sourcePositions: b.sourcePositions,
+          rounds: b.rounds.map(r => ({
+            name: r.name,
+            matches: r.matches.map(m => ({
+              participantAName: m.participantAName,
+              participantBName: m.participantBName,
+              scoreA: m.scoreA,
+              scoreB: m.scoreB
+            }))
+          }))
+        }));
+        knockoutStageText = serializeKnockoutStageData(bracketsForSerialization);
+        knockoutParsePhase = 'preview';
+        knockoutParseResult = {
+          success: true,
+          brackets: [],
+          errors: [],
+          warnings: [],
+          totalMatches: brackets.reduce((sum, b) => sum + b.rounds.reduce((rSum, r) => rSum + r.matches.length, 0), 0),
+          totalRounds: brackets.reduce((sum, b) => sum + b.rounds.length, 0)
+        };
       }
 
       console.log('✅ Tournament loaded for editing:', tournament.name);
@@ -194,6 +243,7 @@
       gameType = tournament.gameType || 'singles';
       rankingEnabled = tournament.rankingConfig?.enabled || false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      qualificationMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || 'WINS';
       description = '';  // Clear notes for new tournament
       externalLink = tournament.externalLink || '';
       posterUrl = tournament.posterUrl || '';
@@ -217,25 +267,25 @@
         }));
       }
 
-      // Pre-populate Step 3: Group Stage structure (if any) - but clear results
+      // Pre-populate Step 2: Group Stage structure (if any) - but clear results
       if (tournament.groupStage) {
         hasGroupStage = true;
         numGroups = tournament.groupStage.numGroups || tournament.groupStage.groups?.length || 2;
-        // Keep structure but clear standings (will be recreated on save)
+        // Clear groups - user will input new data via textarea
         groups = [];
+        groupStageText = ''; // Clear text for fresh input
+        parsePhase = 'input'; // Start in input mode for duplicate
       } else {
         hasGroupStage = false;
+        parsePhase = 'preview'; // No groups, go to preview
       }
 
-      // Pre-populate Step 4: Final Stage structure (if any) - keep bracket structure
+      // Pre-populate Step 3: Final Stage structure (if any) - clear for fresh input
       if (tournament.finalStage?.parallelBrackets) {
         numBrackets = tournament.finalStage.parallelBrackets.length;
-        brackets = tournament.finalStage.parallelBrackets.map(nb => ({
-          name: nb.name,
-          label: nb.label,
-          sourcePositions: nb.sourcePositions || [],
-          rounds: []  // Clear matches, they'll be populated fresh
-        }));
+        brackets = [];  // Clear brackets - user will input new data via textarea
+        knockoutStageText = '';  // Clear text for fresh input
+        knockoutParsePhase = 'input';  // Start in input mode for duplicate
       }
 
       console.log('✅ Tournament loaded for duplication:', tournament.name);
@@ -257,6 +307,7 @@
   let gameType = $state<'singles' | 'doubles'>('singles');
   let rankingEnabled = $state(false);
   let selectedTier = $state<TournamentTier>('CLUB');
+  let qualificationMode = $state<'WINS' | 'POINTS'>('WINS');
   let description = $state('');
   let externalLink = $state('');
   let posterUrl = $state('');
@@ -285,6 +336,13 @@
   let searchLoading = $state(false);
   let batchInput = $state('');
   let showBatchInput = $state(false);
+
+  // Combined participants & groups input (new textarea-based approach)
+  let groupStageText = $state('');
+  let parsePhase = $state<'input' | 'preview'>('input');
+  let parseResult = $state<ParseResult | null>(null);
+  let isParsing = $state(false);
+  let registeredUsersMap = $state<Map<string, { userId: string; name: string }>>(new Map());
 
   // Handler for PairSelector (doubles mode)
   function handlePairAdd(participant: Partial<TournamentParticipant>) {
@@ -363,6 +421,12 @@
   }
 
   let brackets = $state<BracketEntry[]>([]);
+
+  // Knockout stage textarea approach (new)
+  let knockoutStageText = $state('');
+  let knockoutParsePhase = $state<'input' | 'preview'>('input');
+  let knockoutParseResult = $state<import('$lib/utils/knockoutStageParser').KnockoutParseResult | null>(null);
+  let isParsingKnockout = $state(false);
 
   // Derived: sorted participants
   let sortedParticipants = $derived(
@@ -666,6 +730,220 @@
     saveDraft();
   }
 
+  // Parse group stage text and search for registered users
+  async function handleParseGroupStage() {
+    if (!groupStageText.trim()) return;
+
+    isParsing = true;
+    parseResult = null;
+    registeredUsersMap.clear();
+
+    try {
+      // First parse the text (pass gameType for doubles support)
+      const result = parseGroupStageText(groupStageText, gameType);
+
+      if (!result.success) {
+        parseResult = result;
+        isParsing = false;
+        return;
+      }
+
+      // Collect all unique participant names
+      const allNames = new Set<string>();
+      for (const group of result.groups) {
+        for (const participant of group.participants) {
+          allNames.add(participant.name);
+        }
+      }
+
+      // Search for each name in Firebase to find registered users
+      const newRegisteredMap = new Map<string, { oderId: string; name: string }>();
+
+      for (const name of allNames) {
+        try {
+          const users = await searchUsers(name);
+          // Find exact match (case-insensitive)
+          const exactMatch = users.find(u =>
+            (u.playerName || '').toLowerCase() === name.toLowerCase() ||
+            (u.name || '').toLowerCase() === name.toLowerCase()
+          );
+          if (exactMatch && exactMatch.userId) {
+            newRegisteredMap.set(name.toLowerCase(), {
+              oderId: exactMatch.userId,
+              name: exactMatch.playerName || exactMatch.name || name
+            });
+          }
+        } catch (error) {
+          console.warn(`Error searching for user ${name}:`, error);
+        }
+      }
+
+      registeredUsersMap = newRegisteredMap;
+
+      // Build participants array from parsed data
+      const newParticipants: ParticipantEntry[] = [];
+      const seenNames = new Set<string>();
+
+      for (const group of result.groups) {
+        for (const participant of group.participants) {
+          const lowerName = participant.name.toLowerCase();
+          if (seenNames.has(lowerName)) continue;
+          seenNames.add(lowerName);
+
+          const registered = registeredUsersMap.get(lowerName);
+
+          // For doubles, use player1Name as the main name if available
+          const mainName = gameType === 'doubles' && participant.player1Name
+            ? participant.player1Name
+            : (registered?.name || participant.name);
+
+          const entry: ParticipantEntry = {
+            id: `p-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+            name: mainName,
+            oderId: registered?.oderId,
+            isRegistered: !!registered
+          };
+
+          // For doubles, add partner info
+          if (gameType === 'doubles' && participant.player2Name) {
+            entry.partnerName = participant.player2Name;
+            // TODO: Could search for partner in registered users too
+          }
+
+          // If there's a team name, we could store it somewhere
+          // For now, the display name is used for matching
+
+          newParticipants.push(entry);
+        }
+      }
+
+      participants = newParticipants;
+
+      // Build groups array from parsed data
+      const newGroups: GroupEntry[] = result.groups.map(g => ({
+        name: g.name,
+        standings: g.participants.map(p => {
+          const participantEntry = newParticipants.find(
+            np => np.name.toLowerCase() === p.name.toLowerCase() ||
+                  (registeredUsersMap.get(p.name.toLowerCase())?.name || '').toLowerCase() === np.name.toLowerCase()
+          );
+          return {
+            participantId: participantEntry?.id || '',
+            participantName: participantEntry?.name || p.name,
+            position: p.position,
+            points: p.points,
+            total20s: p.twenties
+          };
+        })
+      }));
+
+      groups = newGroups;
+      numGroups = newGroups.length;
+      hasGroupStage = true;
+
+      parseResult = result;
+      parsePhase = 'preview';
+      saveDraft();
+
+    } catch (error) {
+      console.error('Error parsing group stage:', error);
+      parseResult = {
+        success: false,
+        groups: [],
+        errors: [m.import_parseError()],
+        warnings: [],
+        totalParticipants: 0
+      };
+    } finally {
+      isParsing = false;
+    }
+  }
+
+  // Handle skip group stage (no groups mode)
+  function handleSkipGroupStage() {
+    hasGroupStage = false;
+    groups = [];
+    parsePhase = 'preview';
+    saveDraft();
+  }
+
+  // Go back to input phase to edit text
+  function handleBackToInput() {
+    parsePhase = 'input';
+  }
+
+  // Parse knockout stage text
+  async function handleParseKnockoutStage() {
+    if (!knockoutStageText.trim()) return;
+
+    isParsingKnockout = true;
+    knockoutParseResult = null;
+
+    try {
+      const result = parseKnockoutStageText(knockoutStageText);
+
+      if (!result.success) {
+        knockoutParseResult = result;
+        isParsingKnockout = false;
+        return;
+      }
+
+      // Convert parsed brackets to the internal format
+      const historicalBrackets = convertToHistoricalBrackets(result.brackets);
+
+      // Build the brackets array for the wizard
+      const newBrackets: BracketEntry[] = historicalBrackets.map(hb => ({
+        name: hb.name,
+        label: hb.label,
+        sourcePositions: hb.sourcePositions,
+        rounds: hb.rounds.map(r => ({
+          id: crypto.randomUUID(),
+          name: r.name,
+          matches: r.matches.map(m => ({
+            id: crypto.randomUUID(),
+            participantAId: '',  // Will be matched later or created as new
+            participantAName: m.participantAName,
+            participantBId: '',
+            participantBName: m.participantBName,
+            scoreA: m.scoreA ?? 0,
+            scoreB: m.scoreB ?? 0,
+            twentiesA: 0,
+            twentiesB: 0,
+            isWalkover: false
+          }))
+        }))
+      }));
+
+      // Calculate and add BYE matches for proper bracket structure
+      const bracketsWithByes = addByeMatchesToBrackets(newBrackets);
+
+      brackets = bracketsWithByes;
+      numBrackets = bracketsWithByes.length;
+
+      knockoutParseResult = result;
+      knockoutParsePhase = 'preview';
+      saveDraft();
+
+    } catch (error) {
+      console.error('Error parsing knockout stage:', error);
+      knockoutParseResult = {
+        success: false,
+        brackets: [],
+        errors: [m.import_parseError()],
+        warnings: [],
+        totalMatches: 0,
+        totalRounds: 0
+      };
+    } finally {
+      isParsingKnockout = false;
+    }
+  }
+
+  // Go back to knockout input phase
+  function handleBackToKnockoutInput() {
+    knockoutParsePhase = 'input';
+  }
+
   // Remove participant
   function removeParticipant(id: string) {
     participants = participants.filter(p => p.id !== id);
@@ -693,6 +971,40 @@
     groups[groupIndex].standings.forEach((s, i) => {
       s.position = i + 1;
     });
+  }
+
+  // Helper to get the next round name based on the previous round's name
+  function getNextRoundName(prevRoundName: string): string {
+    // Check for R32 patterns (all languages)
+    if (
+      prevRoundName.includes('32') ||
+      prevRoundName.toLowerCase().includes('setzens') ||
+      prevRoundName.toLowerCase().includes('dieciseis')
+    ) {
+      return m.import_round16();
+    }
+    // Check for R16 patterns (Octavos, Round of 16, Vuitens)
+    if (
+      prevRoundName.includes('16') ||
+      prevRoundName.toLowerCase().includes('octav') ||
+      prevRoundName.toLowerCase().includes('vuiten')
+    ) {
+      return m.import_quarterfinals();
+    }
+    // Check for Quarterfinals patterns (Cuartos, Quarterfinals, Quarts)
+    if (
+      prevRoundName.toLowerCase().includes('cuarto') ||
+      prevRoundName.toLowerCase().includes('quarter') ||
+      prevRoundName.toLowerCase().includes('quart')
+    ) {
+      return m.import_semifinals();
+    }
+    // Check for Semifinals patterns
+    if (prevRoundName.toLowerCase().includes('semi')) {
+      return m.import_final();
+    }
+    // Default: use match count logic
+    return m.import_final();
   }
 
   // Add round to bracket
@@ -726,21 +1038,12 @@
       }
     } else {
       // Subsequent rounds: half the previous round's matches
-      const prevRoundMatches = brackets[bracketIndex].rounds[currentRounds - 1]?.matches.length || 2;
+      const prevRound = brackets[bracketIndex].rounds[currentRounds - 1];
+      const prevRoundMatches = prevRound?.matches.length || 2;
       numMatches = Math.max(1, Math.floor(prevRoundMatches / 2));
 
-      // Determine round name based on number of matches
-      if (numMatches === 1) {
-        roundName = m.import_final();
-      } else if (numMatches === 2) {
-        roundName = m.import_semifinals();
-      } else if (numMatches <= 4) {
-        roundName = m.import_quarterfinals();
-      } else if (numMatches <= 8) {
-        roundName = m.import_round16();
-      } else {
-        roundName = m.import_round32();
-      }
+      // Determine round name based on previous round's name (logical progression)
+      roundName = getNextRoundName(prevRound?.name || '');
     }
 
     // Create empty matches with unique IDs
@@ -835,10 +1138,11 @@
         break;
 
       case 2:
+        // Combined participants & groups step
+        if (parsePhase === 'input' && hasGroupStage) {
+          errors.push(m.import_mustParseFirst());
+        }
         if (participants.length < 2) errors.push(m.import_minParticipants());
-        break;
-
-      case 3:
         if (hasGroupStage) {
           for (let i = 0; i < groups.length; i++) {
             if (groups[i].standings.length < 2) {
@@ -848,10 +1152,22 @@
         }
         break;
 
-      case 4:
-        for (let i = 0; i < brackets.length; i++) {
-          if (brackets[i].rounds.length === 0) {
-            errors.push(m.import_minRoundsBracket({ label: brackets[i].label }));
+      case 3:
+        // Knockout stage - now uses textarea parsing
+        if (knockoutParsePhase === 'input') {
+          errors.push(m.import_mustParseFirst());
+        } else {
+          // Only check these if we're in preview phase
+          if (!knockoutParseResult || !knockoutParseResult.success) {
+            errors.push(m.import_parseError());
+          }
+          if (brackets.length === 0) {
+            errors.push(m.import_noBracketsFound());
+          }
+          for (let i = 0; i < brackets.length; i++) {
+            if (brackets[i].rounds.length === 0) {
+              errors.push(m.import_minRoundsBracket({ label: brackets[i].label }));
+            }
           }
         }
         break;
@@ -901,6 +1217,7 @@
     if (hasGroupStage && groups.length > 0) {
       groupStageInput = {
         numGroups: groups.length,
+        qualificationMode,
         groups: groups.map(g => ({
           name: g.name,
           standings: g.standings.map(s => ({
@@ -1052,7 +1369,7 @@
 
     savingBasicInfo = true;
     try {
-      const updates: Partial<HistoricalTournamentInput> = {
+      const updates: Partial<HistoricalTournamentInput> & Record<string, unknown> = {
         name: name.trim(),
         tournamentDate: new Date(tournamentDate).getTime(),
         city: city.trim(),
@@ -1060,7 +1377,9 @@
         gameType,
         rankingConfig: rankingEnabled
           ? { enabled: true, tier: selectedTier }
-          : { enabled: false }
+          : { enabled: false },
+        // Use Firestore dot notation for nested field update
+        'groupStage.qualificationMode': qualificationMode
       };
 
       if (edition !== undefined && edition !== null) {
@@ -1080,7 +1399,7 @@
       }
       updates.isTest = isTest;
 
-      const success = await updateHistoricalTournament(editTournamentId, updates);
+      const success = await updateHistoricalTournament(editTournamentId, updates as Partial<HistoricalTournamentInput>);
 
       if (success) {
         showToastMessage(m.wizard_saveAsUpcomingSuccess(), 'success');
@@ -1215,9 +1534,8 @@
             <div class="step-number">{i + 1}</div>
             <div class="step-label">
               {#if i === 0}{m.wizard_stepInfo()}
-              {:else if i === 1}{m.wizard_stepPlayers()}
-              {:else if i === 2}{m.import_groupStage()}
-              {:else if i === 3}{m.import_knockoutStage()}
+              {:else if i === 1}{m.import_participantsAndGroups()}
+              {:else if i === 2}{m.import_knockoutStage()}
               {:else}{m.wizard_stepReview()}
               {/if}
             </div>
@@ -1331,6 +1649,33 @@
                   </select>
                 {/if}
               </div>
+
+              <div class="info-field">
+                <span class="field-label">{m.wizard_classificationType()}</span>
+                <div class="classification-row">
+                  <div class="toggle-group">
+                    <button
+                      type="button"
+                      class="toggle-btn"
+                      class:active={qualificationMode === 'WINS'}
+                      onclick={() => qualificationMode = 'WINS'}
+                    >
+                      {m.tournament_byWins()}
+                    </button>
+                    <button
+                      type="button"
+                      class="toggle-btn"
+                      class:active={qualificationMode === 'POINTS'}
+                      onclick={() => qualificationMode = 'POINTS'}
+                    >
+                      {m.scoring_points()}
+                    </button>
+                  </div>
+                  <span class="classification-hint">
+                    {qualificationMode === 'WINS' ? m.wizard_classificationWinsHint() : m.wizard_classificationPointsHint()}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1383,376 +1728,260 @@
         </div>
 
       {:else if currentStep === 2}
-        <!-- Step 2: Participants -->
+        <!-- Step 2: Participants & Groups (Combined) -->
         <div class="step-container">
-          <h2>{m.wizard_participants()}</h2>
+          <h2>{m.import_participantsAndGroups()}</h2>
 
-          {#if gameType === 'doubles'}
-            <!-- Doubles: PairSelector + Batch add for team names -->
-            <div class="info-section">
-              <div class="info-section-header">{m.wizard_addPair()}</div>
-              <div class="info-grid">
-                <div class="info-field full-width">
-                  <PairSelector
-                    onadd={handlePairAdd}
-                    existingParticipants={participants.map(p => ({ id: p.id, name: p.name }))}
-                    excludedUserIds={excludedUserIds}
-                    theme={$adminTheme}
-                  />
-                </div>
-              </div>
-            </div>
+          {#if parsePhase === 'input'}
+            <!-- Input Phase: Two-column layout -->
+            <div class="group-input-layout">
+              <!-- Left column: Textarea -->
+              <div class="input-column">
+                <textarea
+                  bind:value={groupStageText}
+                  placeholder={getPlaceholderText(gameType)}
+                  class="input-field textarea group-stage-textarea"
+                ></textarea>
 
-            <!-- Batch input for team names (doubles) -->
-            <div class="info-section">
-              <button class="info-section-header clickable" onclick={() => showBatchInput = !showBatchInput}>
-                {m.import_batchAdd()} {showBatchInput ? '▼' : '▶'}
-              </button>
-              {#if showBatchInput}
-                <div class="info-grid">
-                  <div class="info-field full-width">
-                    <textarea
-                      bind:value={batchInput}
-                      placeholder={m.import_batchHintDoubles()}
-                      class="input-field textarea"
-                      rows="4"
-                    ></textarea>
-                    <button class="add-batch-btn" onclick={addBatchParticipants}>
-                      + {m.import_addTeam()}
-                    </button>
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {:else}
-            <!-- Singles: Search for individual players -->
-            <div class="info-section">
-              <div class="info-section-header">{m.import_searchPlayer()}</div>
-              <div class="info-grid">
-                <div class="info-field full-width">
-                  <div class="search-input-wrapper">
-                    <input
-                      type="text"
-                      bind:value={searchQuery}
-                      oninput={handleSearchInput}
-                      placeholder={m.import_searchPlayer()}
-                      class="input-field search-input"
-                    />
-                    {#if searchLoading}
-                      <div class="search-spinner">
-                        <LoadingSpinner size="small" />
-                      </div>
-                    {/if}
-                  </div>
-
-                  {#if searchResults.length > 0}
-                    <div class="search-results">
-                      {#each searchResults as user}
-                        <button class="search-result" onclick={() => addParticipantFromSearch(user)}>
-                          <span class="result-name">{user.playerName || 'Usuario'}</span>
-                          <span class="result-add">+</span>
-                        </button>
-                      {/each}
-                    </div>
-                  {:else if searchQuery.length >= 2 && !searchLoading}
-                    <div class="search-results">
-                      <button class="search-result guest" onclick={addGuestParticipant}>
-                        <span class="result-name">+ "{searchQuery}"</span>
-                        <span class="result-badge guest">{m.import_createAsGuest()}</span>
-                      </button>
-                    </div>
-                  {/if}
-                </div>
-              </div>
-            </div>
-
-            <!-- Batch input (singles) -->
-            <div class="info-section">
-              <button class="info-section-header clickable" onclick={() => showBatchInput = !showBatchInput}>
-                {m.import_batchAdd()} {showBatchInput ? '▼' : '▶'}
-              </button>
-              {#if showBatchInput}
-                <div class="info-grid">
-                  <div class="info-field full-width">
-                    <textarea
-                      bind:value={batchInput}
-                      placeholder={m.import_batchHint()}
-                      class="input-field textarea"
-                      rows="4"
-                    ></textarea>
-                    <button class="add-batch-btn" onclick={addBatchParticipants}>
-                      + {m.import_addParticipant()}
-                    </button>
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {/if}
-
-          <!-- Participants list -->
-          <div class="info-section">
-            <div class="info-section-header">{m.import_participantsCount({ count: participants.length })}</div>
-            <div class="info-grid">
-              <div class="info-field full-width">
-                {#if participants.length === 0}
-                  <p class="empty-message">{m.import_noParticipantsYet()}</p>
-                {:else}
-                  <div class="participants-grid">
-                    {#each sortedParticipants as participant}
-                      <div class="participant-item" class:registered={participant.isRegistered}>
-                        <span class="participant-name">
-                          {#if participant.partner}
-                            <span class="pair-badge">👥</span>
-                          {/if}
-                          {participant.name}
-                        </span>
-                        <button class="remove-btn" onclick={() => removeParticipant(participant.id)}>
-                          ×
-                        </button>
-                      </div>
+                {#if parseResult && !parseResult.success}
+                  <div class="parse-errors">
+                    {#each parseResult.errors as error}
+                      <div class="parse-error">{error}</div>
                     {/each}
                   </div>
                 {/if}
+
+                <div class="parse-actions">
+                  <button
+                    class="analyze-btn"
+                    onclick={handleParseGroupStage}
+                    disabled={isParsing || !groupStageText.trim()}
+                  >
+                    {#if isParsing}
+                      <LoadingSpinner size="small" />
+                      <span>{m.import_searchingUsers()}</span>
+                    {:else}
+                      <span>{m.import_parse()}</span>
+                    {/if}
+                  </button>
+
+                  <button class="skip-btn" onclick={handleSkipGroupStage}>
+                    {m.import_skipGroupStage()}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Right column: Format help -->
+              <div class="help-column">
+                <div class="help-card">
+                  <div class="help-title">Formato</div>
+                  <div class="help-content">
+                    <p>Cada grupo empieza con su <strong>nombre</strong>, seguido de los participantes:</p>
+                    <pre class="format-example">Group 1
+Harry Rowe,63,90
+Chris Robinson,58,70
+Tom Hodgetts,51,77
+
+Group 2
+Dan Rowe,61,128
+Antonio Cuaresma,49,115</pre>
+                    <div class="format-legend">
+                      <div class="legend-item">
+                        <span class="legend-label">Formato:</span>
+                        <code>Nombre,Puntos,20s</code>
+                      </div>
+                      <div class="legend-item">
+                        <span class="legend-label">Separador:</span>
+                        <span>Línea en blanco entre grupos</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+
+          {:else}
+            <!-- Preview Phase: Show parsed data -->
+            <div class="preview-header">
+              <button class="btn-back" onclick={handleBackToInput}>
+                ← {m.import_editInput()}
+              </button>
+            </div>
+
+            {#if hasGroupStage && parseResult?.success}
+              <div class="preview-summary">
+                <span class="summary-item">
+                  <strong>{groups.length}</strong> {groups.length === 1 ? 'grupo' : 'grupos'}
+                </span>
+                <span class="summary-divider">·</span>
+                <span class="summary-item">
+                  <strong>{participants.length}</strong> participantes
+                </span>
+                <span class="summary-divider">·</span>
+                <span class="summary-item registered-count">
+                  <strong>{participants.filter(p => p.isRegistered).length}</strong> registrados
+                </span>
+              </div>
+
+              <!-- Preview Groups -->
+              {#each groups as group}
+                <div class="info-section preview-group">
+                  <div class="info-section-header">{group.name}</div>
+                  <div class="preview-table-wrapper">
+                    <table class="preview-table">
+                      <thead>
+                        <tr>
+                          <th class="col-pos">#</th>
+                          <th class="col-name">{m.common_name()}</th>
+                          <th class="col-num">{m.import_pointsShort()}</th>
+                          <th class="col-num">{m.import_twentiesShort()}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {#each group.standings as standing, i}
+                          {@const participant = participants.find(p => p.id === standing.participantId)}
+                          <tr class:zebra={i % 2 === 1}>
+                            <td class="position-cell">{standing.position}</td>
+                            <td class="name-cell">
+                              <span class="participant-name">{standing.participantName}</span>
+                              {#if participant?.isRegistered}
+                                <span class="registered-badge" title="Usuario registrado">✓</span>
+                              {/if}
+                            </td>
+                            <td class="num-cell">{standing.points}</td>
+                            <td class="num-cell">{standing.total20s}</td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              {/each}
+
+            {:else if !hasGroupStage}
+              <!-- No group stage mode -->
+              <div class="info-section">
+                <div class="no-groups-message">
+                  <p>{m.import_skipGroupStageHint()}</p>
+                  <p class="participant-count">{participants.length} participantes añadidos</p>
+                </div>
+              </div>
+
+              <!-- Show participants list for no-group mode -->
+              {#if participants.length > 0}
+                <div class="info-section">
+                  <div class="info-section-header">{m.import_participantsCount({ count: participants.length })}</div>
+                  <div class="participants-grid preview-participants">
+                    {#each sortedParticipants as participant}
+                      <div class="participant-item" class:registered={participant.isRegistered}>
+                        <span class="participant-name">{participant.name}</span>
+                        {#if participant.isRegistered}
+                          <span class="registered-badge">✓</span>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            {/if}
+          {/if}
         </div>
 
       {:else if currentStep === 3}
-        <!-- Step 3: Group Stage -->
+        <!-- Step 3: Knockout Stage -->
         <div class="step-container">
-          <h2>{m.import_groupStage()}</h2>
+          <h2>{m.import_knockoutStage()}</h2>
 
-          <div class="info-section">
-            <div class="info-section-header">{m.wizard_configuration()}</div>
-            <div class="info-grid config-grid">
-              <div class="info-field">
-                <label class="checkbox-label">
-                  <input type="checkbox" bind:checked={hasGroupStage} />
-                  <span>{m.import_hasGroupStage()}</span>
-                </label>
-              </div>
+          {#if knockoutParsePhase === 'input'}
+            <!-- Input Phase: Textarea for pasting knockout data -->
+            <div class="info-section">
+              <div class="info-section-header">{m.import_pasteKnockoutData()}</div>
+              <p class="input-hint">{m.import_pasteKnockoutDataHint()}</p>
+              <textarea
+                class="group-stage-textarea"
+                bind:value={knockoutStageText}
+                placeholder={getKnockoutPlaceholderText(true)}
+                rows="16"
+              ></textarea>
 
-              {#if hasGroupStage}
-                <div class="info-field">
-                  <label for="numGroups">{m.import_numGroups()}</label>
-                  <select id="numGroups" bind:value={numGroups} class="input-field" style="width: 100px;">
-                    {#each [1, 2, 3, 4] as n}
-                      <option value={n}>{n}</option>
-                    {/each}
-                  </select>
-                </div>
-              {/if}
+              <button
+                class="analyze-btn"
+                onclick={handleParseKnockoutStage}
+                disabled={isParsingKnockout || !knockoutStageText.trim()}
+              >
+                {#if isParsingKnockout}
+                  <span class="spinner"></span>
+                  {m.import_parsing()}
+                {:else}
+                  {m.import_parse()}
+                {/if}
+              </button>
             </div>
-          </div>
 
-          {#if hasGroupStage}
-            <!-- Groups -->
-            {#each groups as group, groupIndex}
-              <div class="info-section group-section">
-                <div class="info-section-header group-header">
-                  <span>{group.name}</span>
-                  <button class="add-row-btn-inline" onclick={() => addStandingRow(groupIndex)}>
-                    + {m.import_addRow()}
-                  </button>
+            <!-- Show errors/warnings if any -->
+            {#if knockoutParseResult && !knockoutParseResult.success}
+              <div class="parse-errors">
+                {#each knockoutParseResult.errors as error}
+                  <div class="parse-error">{error}</div>
+                {/each}
+              </div>
+            {/if}
+
+          {:else}
+            <!-- Preview Phase: Show parsed brackets -->
+            <div class="info-section">
+              <div class="info-section-header-row">
+                <span>{m.import_knockoutParseSummary({ brackets: brackets.length, rounds: knockoutParseResult?.totalRounds || 0, matches: knockoutParseResult?.totalMatches || 0 })}</span>
+                <button class="edit-link" onclick={handleBackToKnockoutInput}>{m.import_editInput()}</button>
+              </div>
+            </div>
+
+            <!-- Brackets Preview -->
+            {#each brackets as bracket}
+              <div class="bracket-card bracket-{bracket.label.toLowerCase()}">
+                <div class="bracket-card-header">
+                  <div class="bracket-title">
+                    <span class="bracket-label-pill">{bracket.label}</span>
+                    <span class="bracket-name">{bracket.name}</span>
+                  </div>
                 </div>
-                <div class="standings-wrapper">
-                  <table class="standings-table">
-                    <thead>
-                      <tr>
-                        <th class="col-pos">#</th>
-                        <th class="col-name">{m.common_name()}</th>
-                        <th class="col-num">{m.import_pointsShort()}</th>
-                        <th class="col-num">{m.import_twentiesShort()}</th>
-                        <th class="col-action"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {#each group.standings as standing, standingIndex}
-                        {@const availableParticipants = sortedParticipants.filter(p =>
-                          p.id === standing.participantId || !assignedParticipantIds().has(p.id)
-                        )}
-                        <tr class:zebra={standingIndex % 2 === 1}>
-                          <td class="position-cell">{standing.position}</td>
-                          <td>
-                            <select
-                              bind:value={standing.participantId}
-                              class="input-field compact participant-dropdown"
-                              onchange={() => {
-                                standing.participantName = getParticipantName(standing.participantId);
-                                const pointsInput = document.getElementById(`points-${groupIndex}-${standingIndex}`);
-                                if (pointsInput && standing.participantId) {
-                                  pointsInput.focus();
-                                  (pointsInput as HTMLInputElement).select();
-                                }
-                              }}
-                            >
-                              <option value="">{m.import_selectParticipant()}</option>
-                              {#each availableParticipants as p}
-                                <option value={p.id}>{p.name}</option>
-                              {/each}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              id="points-{groupIndex}-{standingIndex}"
-                              type="number"
-                              bind:value={standing.points}
-                              min="0"
-                              class="input-field compact number-input"
-                              onfocus={(e) => (e.target as HTMLInputElement).select()}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              id="twenties-{groupIndex}-{standingIndex}"
-                              type="number"
-                              bind:value={standing.total20s}
-                              min="0"
-                              class="input-field compact number-input"
-                              onfocus={(e) => (e.target as HTMLInputElement).select()}
-                            />
-                          </td>
-                          <td>
-                            <button class="remove-btn small" onclick={() => removeStandingRow(groupIndex, standingIndex)}>
-                              ×
-                            </button>
-                          </td>
-                        </tr>
-                      {/each}
-                    </tbody>
-                  </table>
-                  {#if group.standings.length === 0}
-                    <div class="empty-group-hint">{m.import_addRowHint()}</div>
-                  {/if}
+
+                <div class="bracket-content">
+                  {#each bracket.rounds as round}
+                    <div class="round-card">
+                      <div class="round-card-header">
+                        <span class="round-name">{round.name}</span>
+                        <span class="round-match-count">{round.matches.length} {round.matches.length === 1 ? 'partido' : 'partidos'}</span>
+                      </div>
+
+                      <div class="matches-preview">
+                        {#each round.matches as match}
+                          {@const hasWinner = match.scoreA !== match.scoreB}
+                          <div class="match-preview-row" class:complete={hasWinner}>
+                            <span class="match-player" class:winner={match.scoreA > match.scoreB && hasWinner}>{match.participantAName || '—'}</span>
+                            <span class="match-score">{match.scoreA} - {match.scoreB}</span>
+                            <span class="match-player" class:winner={match.scoreB > match.scoreA && hasWinner}>{match.participantBName || '—'}</span>
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/each}
                 </div>
               </div>
             {/each}
+
+            <!-- Warnings if any -->
+            {#if knockoutParseResult?.warnings && knockoutParseResult.warnings.length > 0}
+              <div class="parse-warnings">
+                {#each knockoutParseResult.warnings as warning}
+                  <div class="parse-warning">{warning}</div>
+                {/each}
+              </div>
+            {/if}
           {/if}
         </div>
 
       {:else if currentStep === 4}
-        <!-- Step 4: Knockout Stage -->
-        <div class="step-container">
-          <h2>{m.import_knockoutStage()}</h2>
-
-          <!-- Config: Number of brackets -->
-          <div class="knockout-config">
-            <label for="numBrackets">{m.import_numBrackets()}:</label>
-            <select id="numBrackets" bind:value={numBrackets} class="input-field brackets-select">
-              {#each [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as n}
-                <option value={n}>{n}</option>
-              {/each}
-            </select>
-          </div>
-
-          <!-- Brackets -->
-          {#each brackets as bracket, bracketIndex}
-            <div class="bracket-card bracket-{bracket.label.toLowerCase()}">
-              <div class="bracket-card-header">
-                <div class="bracket-title">
-                  <span class="bracket-label-pill">{bracket.label}</span>
-                  <span class="bracket-name">{bracket.name}</span>
-                </div>
-                <button class="add-round-btn-compact" onclick={() => addRound(bracketIndex)}>
-                  + {m.import_addRound()}
-                </button>
-              </div>
-
-              <div class="bracket-content">
-                {#if bracket.rounds.length === 0}
-                  <div class="empty-bracket-hint">{m.import_clickAddRound()}</div>
-                {:else}
-                  {#each bracket.rounds as round, roundIndex (round.id)}
-                    <div class="round-card">
-                      <div class="round-card-header">
-                        <span class="round-name">{round.name}</span>
-                        <div class="round-actions">
-                          <span class="round-match-count">{round.matches.length} {round.matches.length === 1 ? 'partido' : 'partidos'}</span>
-                          <button class="round-delete" onclick={() => removeRound(bracketIndex, roundIndex)} title="Eliminar ronda">×</button>
-                        </div>
-                      </div>
-
-                      <div class="matches-grid">
-                        {#each round.matches as match, matchIndex (match.id)}
-                          {@const usedInRound = getUsedParticipantsInRound(bracketIndex, roundIndex, matchIndex)}
-                          {@const usedInOtherBrackets = getUsedParticipantsInOtherBrackets(bracketIndex)}
-                          {@const matchId = `b${bracketIndex}-r${roundIndex}-m${matchIndex}`}
-                          {@const hasWinner = match.scoreA !== match.scoreB && match.participantAId && match.participantBId}
-
-                          <div class="match-card" class:complete={hasWinner}>
-                            <div class="match-players">
-                              <div class="player-row" class:winner={match.scoreA > match.scoreB && hasWinner}>
-                                <select
-                                  id="{matchId}-a"
-                                  class="player-select"
-                                  bind:value={match.participantAId}
-                                  onchange={() => {
-                                    match.participantAName = getParticipantName(match.participantAId);
-                                    const scoreA = document.getElementById(`${matchId}-scoreA`);
-                                    if (scoreA && match.participantAId) scoreA.focus();
-                                  }}
-                                >
-                                  <option value="">— Seleccionar —</option>
-                                  {#each sortedParticipants as p (p.id)}
-                                    {@const isUsed = (usedInRound.has(p.id) || usedInOtherBrackets.has(p.id) || p.id === match.participantBId) && p.id !== match.participantAId}
-                                    <option value={p.id} disabled={isUsed}>{p.name}{isUsed ? ' ✓' : ''}</option>
-                                  {/each}
-                                </select>
-                                <input
-                                  id="{matchId}-scoreA"
-                                  type="number"
-                                  class="score-field"
-                                  bind:value={match.scoreA}
-                                  min="0"
-                                  placeholder="0"
-                                  onfocus={(e) => e.currentTarget.select()}
-                                />
-                              </div>
-                              <div class="vs-divider">vs</div>
-                              <div class="player-row" class:winner={match.scoreB > match.scoreA && hasWinner}>
-                                <select
-                                  id="{matchId}-b"
-                                  class="player-select"
-                                  bind:value={match.participantBId}
-                                  onchange={() => {
-                                    match.participantBName = getParticipantName(match.participantBId);
-                                  }}
-                                >
-                                  <option value="">— Seleccionar —</option>
-                                  {#each sortedParticipants as p (p.id)}
-                                    {@const isUsed = (usedInRound.has(p.id) || usedInOtherBrackets.has(p.id) || p.id === match.participantAId) && p.id !== match.participantBId}
-                                    <option value={p.id} disabled={isUsed}>{p.name}{isUsed ? ' ✓' : ''}</option>
-                                  {/each}
-                                </select>
-                                <input
-                                  id="{matchId}-scoreB"
-                                  type="number"
-                                  class="score-field"
-                                  bind:value={match.scoreB}
-                                  min="0"
-                                  placeholder="0"
-                                  onfocus={(e) => e.currentTarget.select()}
-                                />
-                              </div>
-                            </div>
-                            <button class="match-remove" onclick={() => removeMatch(bracketIndex, roundIndex, matchIndex)}>×</button>
-                          </div>
-                        {/each}
-
-                        <button class="add-match-card" onclick={() => addMatch(bracketIndex, roundIndex)}>
-                          + Partido
-                        </button>
-                      </div>
-                    </div>
-                  {/each}
-                {/if}
-              </div>
-            </div>
-          {/each}
-        </div>
-
-      {:else if currentStep === 5}
         <!-- Step 5: Review - Professional & Compact -->
         <div class="step-container review-step">
           <!-- Tournament Header Card -->
@@ -2289,6 +2518,22 @@
     color: #8b9bb3;
   }
 
+  /* Input hint */
+  .input-hint {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.7rem;
+    color: #718096;
+    background: #f7fafc;
+    border-bottom: 1px solid #e8e8e8;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .input-hint {
+    color: #8b9bb3;
+    background: #1a2028;
+    border-bottom-color: #2d3748;
+  }
+
   .info-section-header.clickable {
     cursor: pointer;
     transition: background 0.2s;
@@ -2460,6 +2705,376 @@
     min-height: 60px;
   }
 
+  /* Group input layout - two columns same height */
+  .group-input-layout {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  @media (max-width: 768px) {
+    .group-input-layout {
+      grid-template-columns: 1fr;
+    }
+    .help-column {
+      order: -1;
+    }
+    .group-stage-textarea {
+      min-height: 280px;
+    }
+  }
+
+  .input-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .group-stage-textarea {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    flex: 1;
+    width: 100%;
+    resize: none;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.75rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .group-stage-textarea {
+    background: #1f2937;
+    border-color: #374151;
+    color: #e5e7eb;
+  }
+
+  .group-stage-textarea:focus {
+    outline: none;
+    border-color: var(--primary, #3b82f6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  }
+
+  .help-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .help-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .help-card {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .help-title {
+    background: #f3f4f6;
+    padding: 0.6rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .help-title {
+    background: #374151;
+    color: #9ca3af;
+    border-color: #4b5563;
+  }
+
+  .help-content {
+    padding: 0.75rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .help-content p {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin: 0 0 0.5rem 0;
+    line-height: 1.4;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .help-content p {
+    color: #9ca3af;
+  }
+
+  .format-example {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    white-space: pre;
+    overflow-x: auto;
+    margin-bottom: 0.75rem;
+    color: #374151;
+    flex: 1;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .format-example {
+    background: #111827;
+    border-color: #374151;
+    color: #d1d5db;
+  }
+
+  .format-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .legend-item {
+    font-size: 0.7rem;
+    color: #6b7280;
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .legend-item {
+    color: #9ca3af;
+  }
+
+  .legend-label {
+    font-weight: 500;
+  }
+
+  .legend-item code {
+    background: #e5e7eb;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.65rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .legend-item code {
+    background: #374151;
+  }
+
+  .parse-errors {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .parse-errors {
+    background: #7f1d1d20;
+    border-color: #7f1d1d;
+  }
+
+  .parse-error {
+    color: #dc2626;
+    font-size: 0.75rem;
+    padding: 0.15rem 0;
+  }
+
+  .parse-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .analyze-btn {
+    background: var(--primary, #3b82f6);
+    color: white;
+    border: none;
+    padding: 0 1.25rem;
+    height: 2.25rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    transition: background 0.15s;
+    min-width: 18rem;
+  }
+
+  .analyze-btn:hover:not(:disabled) {
+    background: var(--primary-hover, #2563eb);
+  }
+
+  .analyze-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .skip-btn {
+    background: transparent;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+    padding: 0 1rem;
+    height: 2.25rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .skip-btn:hover {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .skip-btn {
+    color: #9ca3af;
+    border-color: #4b5563;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .skip-btn:hover {
+    background: #374151;
+    color: #d1d5db;
+  }
+
+  /* Preview phase styles */
+  .preview-header {
+    margin-bottom: 1rem;
+  }
+
+  .btn-back {
+    background: transparent;
+    color: var(--primary, #3b82f6);
+    border: none;
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  .btn-back:hover {
+    text-decoration: underline;
+  }
+
+  .preview-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: #f0fdf4;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .preview-summary {
+    background: #16a34a20;
+  }
+
+  .summary-divider {
+    color: #9ca3af;
+  }
+
+  .registered-count {
+    color: #16a34a;
+  }
+
+  .preview-group {
+    margin-bottom: 1rem;
+  }
+
+  .preview-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .preview-table th,
+  .preview-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .preview-table th,
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .preview-table td {
+    border-bottom-color: #374151;
+  }
+
+  .preview-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #6b7280;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .preview-table th {
+    background: #1f2937;
+    color: #9ca3af;
+  }
+
+  .preview-table tbody tr:hover {
+    background: #f9fafb;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .preview-table tbody tr:hover {
+    background: #1f293750;
+  }
+
+  .preview-table tbody tr.zebra {
+    background: #f9fafb50;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .preview-table tbody tr.zebra {
+    background: #1f293730;
+  }
+
+  .preview-table .position-cell {
+    width: 40px;
+    text-align: center;
+    font-weight: 600;
+    color: #6b7280;
+  }
+
+  .preview-table .name-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .preview-table .num-cell {
+    width: 60px;
+    text-align: center;
+  }
+
+  .registered-badge {
+    background: #16a34a;
+    color: white;
+    font-size: 0.65rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+  }
+
+  .no-groups-message {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+  }
+
+  .preview-participants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
   .optional {
     font-weight: normal;
     color: #9ca3af;
@@ -2494,13 +3109,14 @@
 
   .toggle-btn {
     flex: 1;
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 1.25rem;
     border: none;
     background: white;
     color: #666;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s;
+    white-space: nowrap;
   }
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .toggle-btn {
@@ -2533,6 +3149,24 @@
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .toggle-btn.active {
     background: var(--primary);
     color: white;
+  }
+
+  /* Classification row */
+  .classification-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .classification-hint {
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-style: italic;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .classification-hint {
+    color: #9ca3af;
   }
 
   /* Search */
@@ -3222,6 +3856,75 @@
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 0.5rem;
     padding: 0.75rem;
+  }
+
+  /* Knockout Preview Styles */
+  .matches-preview {
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .match-preview-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    font-size: 0.8rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .match-preview-row {
+    background: #0f1419;
+    border-color: #2d3748;
+  }
+
+  .match-preview-row.complete {
+    border-color: #10b981;
+  }
+
+  .match-preview-row .match-player {
+    color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .match-preview-row .match-player:first-child {
+    text-align: right;
+  }
+
+  .match-preview-row .match-player:last-child {
+    text-align: left;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .match-preview-row .match-player {
+    color: #e1e8ed;
+  }
+
+  .match-preview-row .match-player.winner {
+    font-weight: 600;
+    color: #059669;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .match-preview-row .match-player.winner {
+    color: #10b981;
+  }
+
+  .match-preview-row .match-score {
+    font-weight: 700;
+    color: #6b7280;
+    font-size: 0.85rem;
+    min-width: 50px;
+    text-align: center;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .match-preview-row .match-score {
+    color: #9ca3af;
   }
 
   .match-card {
