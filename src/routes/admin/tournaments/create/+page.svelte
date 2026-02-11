@@ -3488,32 +3488,6 @@
     border-left-color: #4299e1;
   }
 
-  /* Participants limit indicators */
-  .participants-limit-info {
-    background: #e8f4fd;
-    border: 1px solid #b3d7f5;
-    border-radius: 6px;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 0.75rem;
-    font-size: 0.8rem;
-    color: #1a5a96;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .participants-limit-info {
-    background: #1a3a5c;
-    border-color: #2a5a8c;
-    color: #a0c4e8;
-  }
-
-  .extra-tables-hint {
-    color: #e67e22;
-    font-weight: 500;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .extra-tables-hint {
-    color: #f5a623;
-  }
-
   /* Step 1: Basic Info - Section Layout */
   .step-basic {
     display: flex;
@@ -3691,26 +3665,6 @@
     grid-template-columns: 200px 70px 1fr;
   }
 
-  .location-grid {
-    grid-template-columns: 1fr 1fr 140px;
-  }
-
-  .config-grid {
-    grid-template-columns: 160px 1fr 1fr;
-  }
-
-  .field-spacer {
-    height: 0.5rem;
-  }
-
-  .links-field {
-    min-width: 0;
-  }
-
-  .desc-field {
-    flex: 1;
-  }
-
   .desc-textarea {
     flex: 1;
     min-height: 4.5rem;
@@ -3855,10 +3809,6 @@
     color: white;
   }
 
-  .desc-field {
-    flex: 1;
-  }
-
   @media (max-width: 600px) {
     .id-grid {
       grid-template-columns: 1fr 70px;
@@ -3870,18 +3820,6 @@
 
     .id-grid .key-field {
       grid-column: 1;
-    }
-
-    .location-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .location-grid .info-field:last-child {
-      grid-column: 1 / -1;
-    }
-
-    .config-grid {
-      grid-template-columns: 1fr;
     }
 
     .type-field {

@@ -26,22 +26,25 @@
 </script>
 
 <DropdownMenu.Root>
-	<DropdownMenu.Trigger asChild>
-		<button
-			class="flex items-center justify-center size-9 rounded-full bg-transparent border-none text-foreground/70 cursor-pointer transition-all duration-200 hover:text-foreground hover:bg-foreground/10 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-			aria-label="Profile"
-		>
-			{#if $currentUser?.photoURL}
-				<Avatar.Root class="size-7 ring-2 ring-foreground/20 transition-all duration-200 hover:ring-foreground/40">
-					<Avatar.Image src={$currentUser.photoURL} alt="" referrerpolicy="no-referrer" />
-					<Avatar.Fallback class="text-xs font-medium bg-gradient-to-br from-primary/80 to-primary text-primary-foreground">
-						{$currentUser.email?.charAt(0).toUpperCase() || '?'}
-					</Avatar.Fallback>
-				</Avatar.Root>
-			{:else}
-				<User class="size-5" />
-			{/if}
-		</button>
+	<DropdownMenu.Trigger>
+		{#snippet child({ props })}
+			<button
+				{...props}
+				class="flex items-center justify-center size-9 rounded-full bg-transparent border-none text-foreground/70 cursor-pointer transition-all duration-200 hover:text-foreground hover:bg-foreground/10 focus:outline-none focus:ring-2 focus:ring-foreground/20"
+				aria-label="Profile"
+			>
+				{#if $currentUser?.photoURL}
+					<Avatar.Root class="size-7 ring-2 ring-foreground/20 transition-all duration-200 hover:ring-foreground/40">
+						<Avatar.Image src={$currentUser.photoURL} alt="" referrerpolicy="no-referrer" />
+						<Avatar.Fallback class="text-xs font-medium bg-linear-to-br from-primary/80 to-primary text-primary-foreground">
+							{$currentUser.email?.charAt(0).toUpperCase() || '?'}
+						</Avatar.Fallback>
+					</Avatar.Root>
+				{:else}
+					<User class="size-5" />
+				{/if}
+			</button>
+		{/snippet}
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Portal>
 		<DropdownMenu.Content class="w-64 p-0 shadow-xl border-border/50" align="end" sideOffset={8}>
@@ -50,7 +53,7 @@
 				<div class="flex items-center gap-3 px-4 py-4 bg-muted/30 border-b border-border/50">
 					<Avatar.Root class="size-11 ring-2 ring-border/50 flex-shrink-0">
 						<Avatar.Image src={$currentUser.photoURL} alt="" referrerpolicy="no-referrer" />
-						<Avatar.Fallback class="text-base font-semibold bg-gradient-to-br from-primary/80 to-primary text-primary-foreground">
+						<Avatar.Fallback class="text-base font-semibold bg-linear-to-br from-primary/80 to-primary text-primary-foreground">
 							{$currentUser.email?.charAt(0).toUpperCase() || '?'}
 						</Avatar.Fallback>
 					</Avatar.Root>

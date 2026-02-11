@@ -414,51 +414,6 @@
 		gap: 0.75rem;
 	}
 
-	.nav-btn {
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.15);
-		border-radius: 6px;
-		color: rgba(255, 255, 255, 0.7);
-		cursor: pointer;
-		transition: all 0.2s;
-		padding: 0.4rem 0.7rem;
-		font-size: 0.8rem;
-		font-weight: 500;
-	}
-
-	.nav-btn:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
-	}
-
-	.landing[data-theme='light'] .nav-btn,
-	.landing[data-theme='violet-light'] .nav-btn {
-		background: rgba(0, 0, 0, 0.05);
-		border-color: rgba(0, 0, 0, 0.15);
-		color: rgba(0, 0, 0, 0.6);
-	}
-
-	.landing[data-theme='light'] .nav-btn:hover,
-	.landing[data-theme='violet-light'] .nav-btn:hover {
-		background: rgba(0, 0, 0, 0.1);
-		color: #1a1a2e;
-	}
-
-	.icon-btn {
-		width: 32px;
-		height: 32px;
-		padding: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: 50%;
-	}
-
-	.icon-btn svg {
-		width: 16px;
-		height: 16px;
-	}
-
 	/* Content */
 	.content {
 		flex: 1;

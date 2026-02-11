@@ -1319,19 +1319,9 @@
     font-weight: 600;
   }
 
-  .mode-final.split {
-    background: linear-gradient(135deg, #fcd34d 0%, #c0c0c0 100%);
-    color: #1f2937;
-  }
-
   .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .mode-final {
     background: #374151;
     color: #d1d5db;
-  }
-
-  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .mode-final.split {
-    background: linear-gradient(135deg, #b8860b 0%, #808080 100%);
-    color: #f9fafb;
   }
 
   /* Modal Styles */

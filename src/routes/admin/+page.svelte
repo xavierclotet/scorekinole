@@ -123,13 +123,6 @@
     margin-bottom: 2rem;
   }
 
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 2rem;
-  }
-
   .header-content {
     text-align: center;
   }
@@ -265,10 +258,6 @@
       min-height: auto;
     }
 
-    .header-top {
-      margin-bottom: 0.5rem;
-    }
-
     .admin-header {
       margin-bottom: 0.75rem;
     }
@@ -329,10 +318,6 @@
   @media (max-width: 768px) and (orientation: portrait) {
     .admin-container {
       padding: 1rem 1rem;
-    }
-
-    .header-top {
-      margin-bottom: 1rem;
     }
 
     .admin-header {

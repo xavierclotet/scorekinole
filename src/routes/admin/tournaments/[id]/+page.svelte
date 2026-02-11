@@ -1821,12 +1821,6 @@
       padding: 0.15rem 0.4rem;
     }
 
-    .header-progress {
-      width: 100%;
-      margin-left: 0;
-      margin-top: 0.2rem;
-    }
-
     .header-actions {
       flex-shrink: 0;
       gap: 0.25rem;
