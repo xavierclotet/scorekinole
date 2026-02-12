@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.13] - 2026-02-12
+- Simplify update modal to always open GitHub releases page
+- Fix "failed to fetch" error by removing fetch-based download
+
 ## [2.4.12] - 2026-02-12
 - Fix Google profile photos not loading (add referrerpolicy="no-referrer")
 - Add preconnect hints for Google user content images
