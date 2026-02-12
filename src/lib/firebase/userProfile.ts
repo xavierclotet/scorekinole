@@ -96,9 +96,11 @@ export async function saveUserProfile(playerName: string): Promise<UserProfile |
     // For NEW users only: auto-assign admin status and initial quota
     if (isNewUser) {
       profile.isAdmin = true;
+      profile.canImportTournaments = true;
+      profile.canAutofill = true;
       profile.quotaEntries = createInitialQuota(currentYear, 1);
       profile.createdAt = serverTimestamp();
-      console.log('🎉 New user - auto-assigning admin + 1 live tournament quota for', currentYear);
+      console.log('🎉 New user - auto-assigning admin + canImportTournaments + canAutofill + 1 live tournament quota for', currentYear);
     }
 
     await setDoc(profileRef, profile, { merge: true });

@@ -47,7 +47,7 @@
 		{/snippet}
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Portal>
-		<DropdownMenu.Content class="w-64 p-0 shadow-xl border-border/50" align="end" sideOffset={8}>
+		<DropdownMenu.Content class="w-52 p-0 shadow-xl border-border/50" align="end" sideOffset={8}>
 			{#if $currentUser}
 				<!-- User info header -->
 				<div class="flex items-center gap-3 px-4 py-4 bg-muted/30 border-b border-border/50">
