@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.12] - 2026-02-12
+- Fix Google profile photos not loading (add referrerpolicy="no-referrer")
+- Add preconnect hints for Google user content images
+
 ## [2.4.11] - 2026-02-12
 - Fix APK download error by using browser instead of native fetch
 - Remove unused Capacitor plugins (filesystem, file-opener)
