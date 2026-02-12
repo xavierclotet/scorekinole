@@ -254,48 +254,11 @@ Need help or want to report a bug?
 
 ---
 
-## 📋 Recent Updates
+## 📋 Changelog
 
-### v2.1.5 (Latest - 2026-01-22)
-- Fixed rankings table column alignment (points vs tournaments)
+See [CHANGELOG.md](CHANGELOG.md) for a complete list of changes in each version.
 
-### v2.1.4 (2026-01-21)
-- Fixed tiebreaker algorithm for group standings
-- GroupStandings now uses pre-calculated positions from tiebreaker
-- Improved head-to-head resolution for multi-player ties
-- Added recalculate standings button for completed tournaments
-- Visual tie indicators for unresolved ties
-
-### v2.1.0 (2026-01-12)
-- Major tournament system restructuring
-- Moved game configuration to phase-specific objects (groupStage/finalStage)
-- Improved bracket visualization with connecting arrows
-- Fixed tournament validation and participant management
-- Enhanced UI/UX for tournament creation and management
-- Centered final match in bracket view between semifinals
-
-### v2.0.12 (2026-01-08)
-- Improved points mode display in admin matches
-- Enhanced game mode visualization
-
-### v2.0.11
-- Fixed Firebase configuration for Google Sign-In in production builds
-
-### v2.0.8
-- Fixed match history rounds accumulation bug
-- Fixed 20s counter duplication issue
-- Enhanced 20s input dialog (now mandatory for accuracy)
-
-### v2.0.2
-- Optimized settings layout for better mobile experience
-- Improved responsive design for all screen sizes
-- Timer configuration enhancements
-
-### Earlier Versions
-- Match history with cloud sync
-- Google Authentication
-- Edit match functionality
-- Native Android app release
+---
 
 ## 🛠️ Tech Stack
 
