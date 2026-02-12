@@ -433,6 +433,13 @@
     [...participants].sort((a, b) => a.name.localeCompare(b.name))
   );
 
+  // Derived: whether Next button should be disabled (for Step 3 with unknown participants)
+  let hasBlockingErrors = $derived(
+    currentStep === 3 &&
+    knockoutParseResult?.unknownParticipants &&
+    knockoutParseResult.unknownParticipants.length > 0
+  );
+
   // Derived: available participants for dropdowns (not yet assigned to a group)
   let assignedParticipantIds = $derived(() => {
     const ids = new Set<string>();
@@ -880,7 +887,16 @@
     knockoutParseResult = null;
 
     try {
-      const result = parseKnockoutStageText(knockoutStageText);
+      // Get valid participant names from Step 2 for validation
+      const validParticipantNames = participants.map(p => {
+        // For doubles, include both player names
+        if (gameType === 'doubles' && p.partnerName) {
+          return [p.name, p.partnerName];
+        }
+        return [p.name];
+      }).flat();
+
+      const result = parseKnockoutStageText(knockoutStageText, { validParticipantNames });
 
       if (!result.success) {
         knockoutParseResult = result;
@@ -1168,6 +1184,10 @@
             if (brackets[i].rounds.length === 0) {
               errors.push(m.import_minRoundsBracket({ label: brackets[i].label }));
             }
+          }
+          // Block if there are unknown participants
+          if (knockoutParseResult?.unknownParticipants && knockoutParseResult.unknownParticipants.length > 0) {
+            errors.push(m.import_hasUnknownParticipants({ count: knockoutParseResult.unknownParticipants.length }));
           }
         }
         break;
@@ -1970,7 +1990,27 @@ Antonio Cuaresma,49,115</pre>
               </div>
             {/each}
 
-            <!-- Warnings if any -->
+            <!-- Unknown participants warnings -->
+            {#if knockoutParseResult?.unknownParticipants && knockoutParseResult.unknownParticipants.length > 0}
+              <div class="parse-warnings unknown-participants-warning">
+                <div class="warning-header">
+                  <div class="warning-header-left">
+                    <span class="warning-title">{m.import_unknownParticipantsTitle({ count: knockoutParseResult.unknownParticipants.length })}</span>
+                    <span class="warning-hint">{m.import_unknownParticipantsHint()}</span>
+                  </div>
+                  <button class="warning-edit-btn" onclick={handleBackToKnockoutInput}>
+                    {m.import_editInput()}
+                  </button>
+                </div>
+                <div class="warning-list">
+                  {#each knockoutParseResult.unknownParticipants as name}
+                    <div class="parse-warning">{m.import_unknownParticipant({ name })}</div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            <!-- Other warnings if any -->
             {#if knockoutParseResult?.warnings && knockoutParseResult.warnings.length > 0}
               <div class="parse-warnings">
                 {#each knockoutParseResult.warnings as warning}
@@ -2124,7 +2164,7 @@ Antonio Cuaresma,49,115</pre>
         {/if}
 
         {#if currentStep < totalSteps}
-          <button class="nav-button primary" onclick={nextStep}>
+          <button class="nav-button primary" onclick={nextStep} disabled={hasBlockingErrors}>
             {m.wizard_next()} →
           </button>
         {:else}
@@ -2518,6 +2558,53 @@ Antonio Cuaresma,49,115</pre>
     color: #8b9bb3;
   }
 
+  /* Summary header row for Step 3 */
+  .info-section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    padding: 0.875rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #86efac;
+    box-shadow: 0 2px 6px rgba(34, 197, 94, 0.1);
+  }
+
+  .info-section-header-row > span:first-child {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #166534;
+    letter-spacing: -0.01em;
+  }
+
+  .info-section-header-row .edit-link {
+    background: #22c55e;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.875rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(34, 197, 94, 0.3);
+  }
+
+  .info-section-header-row .edit-link:hover {
+    background: #16a34a;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4);
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .info-section-header-row {
+    background: linear-gradient(135deg, #14532d30 0%, #15803d20 100%);
+    border-color: #22c55e50;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .info-section-header-row > span:first-child {
+    color: #86efac;
+  }
+
   /* Input hint */
   .input-hint {
     margin: 0;
@@ -2878,6 +2965,144 @@ Antonio Cuaresma,49,115</pre>
     color: #dc2626;
     font-size: 0.75rem;
     padding: 0.15rem 0;
+  }
+
+  /* Unknown participants warning box */
+  .parse-warnings {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #f59e0b;
+    border-left: 4px solid #f59e0b;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .parse-warnings {
+    background: linear-gradient(135deg, #78350f20 0%, #92400e20 100%);
+    border-color: #b45309;
+  }
+
+  .parse-warnings::before {
+    content: '⚠️';
+    font-size: 1.1rem;
+    margin-right: 0.5rem;
+  }
+
+  .parse-warning {
+    color: #92400e;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.35rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .parse-warning::before {
+    content: '•';
+    color: #f59e0b;
+    font-weight: 700;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .parse-warning {
+    color: #fbbf24;
+  }
+
+  /* Unknown participants warning - enhanced styling */
+  .unknown-participants-warning {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .unknown-participants-warning::before {
+    display: none;
+  }
+
+  .warning-header {
+    background: linear-gradient(135deg, #fcd34d 0%, #f59e0b 100%);
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .warning-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .warning-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #78350f;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .warning-title::before {
+    content: '⚠️';
+    font-size: 1rem;
+  }
+
+  .warning-hint {
+    font-size: 0.75rem;
+    color: #92400e;
+    font-weight: 500;
+  }
+
+  .warning-edit-btn {
+    background: #78350f;
+    color: #fef3c7;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(120, 53, 15, 0.3);
+  }
+
+  .warning-edit-btn:hover {
+    background: #451a03;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(120, 53, 15, 0.4);
+  }
+
+  .warning-list {
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .warning-header {
+    background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .warning-title {
+    color: #fef3c7;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .warning-hint {
+    color: #fcd34d;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .warning-edit-btn {
+    background: #fef3c7;
+    color: #78350f;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .warning-edit-btn:hover {
+    background: white;
   }
 
   .parse-actions {

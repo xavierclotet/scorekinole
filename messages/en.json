@@ -1108,5 +1108,9 @@
   "ranking_standings": "Classification",
   "tournament_hideMatches": "Hide matches",
   "tournament_showMatches": "Show matches",
-  "tournament_tryChangingFilters": "Try changing the filters"
+  "tournament_tryChangingFilters": "Try changing the filters",
+  "import_unknownParticipant": "\" {name} \" is not in the list of participants",
+  "import_unknownParticipantsTitle": "{count} unrecognized participant(s)",
+  "import_unknownParticipantsHint": "These names do not match the participants in Step 2. Correct the names or go back to add them.",
+  "import_hasUnknownParticipants": "There are {count} participant(s) in the results that are not listed in Step 2. Correct the names before continuing."
 }

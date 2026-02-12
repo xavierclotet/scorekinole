@@ -45,6 +45,8 @@ export interface KnockoutParseResult {
 	brackets: ParsedKnockoutBracket[];
 	errors: string[];
 	warnings: string[];
+	/** Names found in matches that don't match any participant from the provided valid list */
+	unknownParticipants: string[];
 	totalMatches: number;
 	totalRounds: number;
 }
@@ -165,10 +167,20 @@ function parseMatchLine(
 }
 
 /**
+ * Options for knockout stage parser
+ */
+export interface KnockoutParseOptions {
+	/** List of valid participant names for validation */
+	validParticipantNames?: string[];
+}
+
+/**
  * Main parser function
  * Parses text input into structured knockout stage data
+ * @param text - The text to parse
+ * @param options - Optional configuration including valid participant names for validation
  */
-export function parseKnockoutStageText(text: string): KnockoutParseResult {
+export function parseKnockoutStageText(text: string, options?: KnockoutParseOptions): KnockoutParseResult {
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const brackets: ParsedKnockoutBracket[] = [];
@@ -179,6 +191,7 @@ export function parseKnockoutStageText(text: string): KnockoutParseResult {
 			brackets: [],
 			errors: ['El texto está vacío'],
 			warnings: [],
+			unknownParticipants: [],
 			totalMatches: 0,
 			totalRounds: 0
 		};
@@ -308,11 +321,41 @@ export function parseKnockoutStageText(text: string): KnockoutParseResult {
 		}
 	}
 
+	// Validate participant names against provided list
+	const unknownParticipants: string[] = [];
+	if (options?.validParticipantNames && options.validParticipantNames.length > 0) {
+		const validNamesLower = new Set(options.validParticipantNames.map(n => n.toLowerCase().trim()));
+		const unknownNames = new Set<string>();
+
+		for (const bracket of brackets) {
+			for (const round of bracket.rounds) {
+				for (const match of round.matches) {
+					// Check participant A
+					if (match.participantAName && match.participantAName.toLowerCase() !== 'bye') {
+						if (!validNamesLower.has(match.participantAName.toLowerCase().trim())) {
+							unknownNames.add(match.participantAName);
+						}
+					}
+					// Check participant B
+					if (match.participantBName && match.participantBName.toLowerCase() !== 'bye') {
+						if (!validNamesLower.has(match.participantBName.toLowerCase().trim())) {
+							unknownNames.add(match.participantBName);
+						}
+					}
+				}
+			}
+		}
+
+		// Store unknown names (sorted) - warnings will be formatted by the caller
+		unknownParticipants.push(...Array.from(unknownNames).sort());
+	}
+
 	return {
 		success: errors.length === 0,
 		brackets,
 		errors,
 		warnings,
+		unknownParticipants,
 		totalMatches,
 		totalRounds
 	};

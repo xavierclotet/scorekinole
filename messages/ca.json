@@ -1108,5 +1108,9 @@
   "ranking_standings": "Classificació",
   "tournament_hideMatches": "Amagar partits",
   "tournament_showMatches": "Mostra partits",
-  "tournament_tryChangingFilters": "Proveu de canviar els filtres"
+  "tournament_tryChangingFilters": "Proveu de canviar els filtres",
+  "import_unknownParticipant": "\" {name} \" no és a la llista de participants",
+  "import_unknownParticipantsTitle": "{count} participant(s) no reconegut(s)",
+  "import_unknownParticipantsHint": "Aquests noms no coincideixen amb els participants del Step 2. Corregeix els noms o torna enrere per afegir-los.",
+  "import_hasUnknownParticipants": "Hi ha {count} participant(s) en els resultats que no són a la llista del Step 2. Corregeix els noms abans de continuar."
 }
