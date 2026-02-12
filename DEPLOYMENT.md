@@ -269,6 +269,11 @@ firebase functions:log --only onUserCreated     # Solo una función
 firebase functions:log --only onTournamentComplete
 ```
 
+En PowerShell (Windows):
+```powershell
+firebase functions:log --only onUserCreated | Select-Object -First 20
+```
+
 ### Gestión de Secrets
 ```bash
 firebase functions:secrets:set SECRET_NAME      # Crear/actualizar secret
