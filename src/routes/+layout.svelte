@@ -94,9 +94,12 @@
 				currentUser.update(u => u ? { ...u, name: playerName } : null);
 				needsProfileSetup.set(false);
 				console.log('✅ Profile setup completed');
+			} else {
+				throw new Error('No se pudo guardar el perfil');
 			}
 		} catch (error) {
 			console.error('❌ Error completing profile setup:', error);
+			throw error; // Re-throw so modal can display error
 		}
 	}
 </script>

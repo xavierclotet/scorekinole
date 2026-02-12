@@ -5,7 +5,7 @@
 
 	interface Props {
 		isOpen?: boolean;
-		onsave?: (playerName: string) => void;
+		onsave?: (playerName: string) => void | Promise<void>;
 	}
 
 	let { isOpen = false, onsave }: Props = $props();
@@ -31,10 +31,11 @@
 		error = '';
 
 		try {
-			onsave?.(playerNameInput.trim());
+			await onsave?.(playerNameInput.trim());
 		} catch (err: any) {
 			console.error('Error saving profile:', err);
 			error = err.message || 'Error saving profile';
+		} finally {
 			isLoading = false;
 		}
 	}

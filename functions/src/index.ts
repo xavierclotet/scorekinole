@@ -3,10 +3,15 @@
  * Handles tournament completion and user profile updates
  */
 
-import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/firestore";
+import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue, Firestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
+
+// Telegram secrets
+const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
+const telegramChatId = defineSecret("TELEGRAM_CHAT_ID");
 
 // Lazy initialization
 let db: Firestore | null = null;
@@ -530,6 +535,62 @@ export const onTournamentComplete = onDocumentUpdated(
       logger.info(`Updated participant rankings and userIds in tournament ${tournamentId}`);
     } catch (error) {
       logger.error("Error updating tournament participants:", error);
+    }
+  }
+);
+
+/**
+ * Cloud Function: Notify admin via Telegram when a new user registers
+ * Triggers when a new user document is created in Firestore
+ */
+export const onUserCreated = onDocumentCreated(
+  {
+    document: "users/{userId}",
+    region: "europe-west1",
+    secrets: [telegramBotToken, telegramChatId],
+  },
+  async (event) => {
+    const userData = event.data?.data();
+    if (!userData) {
+      logger.warn("No user data in creation event");
+      return;
+    }
+
+    const { playerName, email, authProvider } = userData;
+
+    // Only notify for Google sign-ups (not GUEST users created by system)
+    if (authProvider !== "google") {
+      logger.info(`Skipping notification for non-Google user: ${playerName}`);
+      return;
+    }
+
+    const message =
+      `🆕 *Nuevo usuario en Scorekinole*\n\n` +
+      `👤 *Nombre:* ${playerName || "Sin nombre"}\n` +
+      `📧 *Email:* ${email || "Sin email"}`;
+
+    try {
+      const response = await fetch(
+        `https://api.telegram.org/bot${telegramBotToken.value()}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: telegramChatId.value(),
+            text: message,
+            parse_mode: "Markdown",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error("Telegram API error:", errorText);
+      } else {
+        logger.info(`Telegram notification sent for new user: ${email}`);
+      }
+    } catch (error) {
+      logger.error("Error sending Telegram notification:", error);
     }
   }
 );

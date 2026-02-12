@@ -222,4 +222,60 @@ firebase deploy --only firestore:rules
 
 ---
 
+## ☁️ Cloud Functions
+
+El proyecto tiene 2 Cloud Functions en `functions/src/index.ts`:
+
+### 1. `onTournamentComplete`
+**Trigger**: Cuando un documento en `tournaments/{tournamentId}` cambia su `status` a `COMPLETED`
+
+**Función**: Actualiza el ranking de cada participante:
+- Calcula puntos según tier (CLUB, REGIONAL, NATIONAL, MAJOR) y posición final
+- Añade el registro del torneo al historial de cada usuario (`tournaments[]`)
+- Crea usuarios GUEST automáticamente si no existen
+- En torneos de dobles, añade puntos a ambos jugadores
+
+### 2. `onUserCreated`
+**Trigger**: Cuando se crea un nuevo documento en `users/{userId}`
+
+**Función**: Envía notificación por Telegram al admin cuando un usuario se registra con Google.
+
+**Secrets requeridos**:
+```bash
+firebase functions:secrets:set TELEGRAM_BOT_TOKEN
+firebase functions:secrets:set TELEGRAM_CHAT_ID
+```
+
+**Setup del bot de Telegram**:
+1. Habla con `@BotFather` en Telegram → `/newbot` → guarda el token
+2. Habla con `@userinfobot` para obtener tu chat_id
+3. Envía un mensaje a tu bot para activar el chat
+4. Configura los secrets y despliega
+
+### Deploy de Functions
+```bash
+cd functions
+npm run build       # Compilar TypeScript
+npm run deploy      # Deploy a Firebase
+
+# O desde la raíz:
+firebase deploy --only functions
+```
+
+### Ver logs
+```bash
+firebase functions:log                          # Todos los logs
+firebase functions:log --only onUserCreated     # Solo una función
+firebase functions:log --only onTournamentComplete
+```
+
+### Gestión de Secrets
+```bash
+firebase functions:secrets:set SECRET_NAME      # Crear/actualizar secret
+firebase functions:secrets:access SECRET_NAME   # Ver valor actual
+firebase functions:secrets:prune               # Eliminar versiones no usadas
+```
+
+---
+
 **🎯 Tip**: Usa `npm run build:apk` para generar APK completo con un solo comando.
