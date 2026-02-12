@@ -14,23 +14,23 @@
 
 	let { isOpen = false, latestVersion, downloadUrl, onclose }: Props = $props();
 
-	let isDownloading = $state(false);
+	// GitHub releases page as fallback (always works)
+	const releasesUrl = 'https://github.com/xavierclotet/scorekinole/releases/latest';
 
 	async function handleDownload() {
-		isDownloading = true;
 		try {
-			// Open in external browser - handles GitHub redirects properly
-			await Browser.open({ url: downloadUrl });
+			// Try to open in external browser
+			await Browser.open({ url: releasesUrl });
 			onclose?.();
 		} catch (error) {
-			console.error('Failed to open download URL:', error);
-		} finally {
-			isDownloading = false;
+			console.error('Failed to open browser:', error);
+			// Fallback: use window.open
+			window.open(releasesUrl, '_blank');
+			onclose?.();
 		}
 	}
 
 	function dismiss() {
-		if (isDownloading) return;
 		dismissVersion(latestVersion);
 		onclose?.();
 	}
@@ -64,15 +64,11 @@
 			</div>
 
 			<div class="footer">
-				<button class="btn secondary" onclick={dismiss} type="button" disabled={isDownloading}>
+				<button class="btn secondary" onclick={dismiss} type="button">
 					{m.common_later()}
 				</button>
-				<button class="btn primary" onclick={handleDownload} type="button" disabled={isDownloading}>
-					{#if isDownloading}
-						<span class="spinner"></span>
-					{:else}
-						{m.update_download()}
-					{/if}
+				<button class="btn primary" onclick={handleDownload} type="button">
+					{m.update_download()}
 				</button>
 			</div>
 		</div>
@@ -195,18 +191,13 @@
 		gap: 0.5rem;
 	}
 
-	.btn:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
 	.btn.secondary {
 		background: var(--secondary);
 		border: 1px solid var(--border);
 		color: var(--muted-foreground);
 	}
 
-	.btn.secondary:hover:not(:disabled) {
+	.btn.secondary:hover {
 		background: var(--accent);
 		color: var(--foreground);
 	}
@@ -218,25 +209,12 @@
 		min-width: 100px;
 	}
 
-	.btn.primary:hover:not(:disabled) {
+	.btn.primary:hover {
 		background: color-mix(in srgb, var(--primary) 25%, transparent);
 	}
 
-	.btn:active:not(:disabled) {
+	.btn:active {
 		transform: scale(0.98);
-	}
-
-	.spinner {
-		width: 14px;
-		height: 14px;
-		border: 2px solid transparent;
-		border-top-color: var(--primary);
-		border-radius: 50%;
-		animation: spin 0.8s linear infinite;
-	}
-
-	@keyframes spin {
-		to { transform: rotate(360deg); }
 	}
 
 	/* Mobile */
