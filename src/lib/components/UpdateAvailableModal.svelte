@@ -1,10 +1,8 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
 	import { APP_VERSION } from '$lib/constants';
-	import { Capacitor } from '@capacitor/core';
 	import { Browser } from '@capacitor/browser';
 	import { dismissVersion } from '$lib/utils/versionCheck';
-	import { downloadAndInstallApk, extractApkFilename, type DownloadProgress } from '$lib/utils/apkInstaller';
 	import { theme } from '$lib/stores/theme';
 
 	interface Props {
@@ -16,29 +14,18 @@
 
 	let { isOpen = false, latestVersion, downloadUrl, onclose }: Props = $props();
 
-	let downloadState = $state<DownloadProgress | null>(null);
-	let isDownloading = $derived(downloadState?.status === 'downloading' || downloadState?.status === 'opening');
+	let isDownloading = $state(false);
 
 	async function handleDownload() {
-		// On Android, use native download + install
-		if (Capacitor.getPlatform() === 'android') {
-			const filename = extractApkFilename(downloadUrl);
-
-			const success = await downloadAndInstallApk(
-				downloadUrl,
-				filename,
-				(progress) => {
-					downloadState = progress;
-				}
-			);
-
-			if (success) {
-				onclose?.();
-			}
-		} else {
-			// On web, just open the URL
+		isDownloading = true;
+		try {
+			// Open in external browser - handles GitHub redirects properly
 			await Browser.open({ url: downloadUrl });
 			onclose?.();
+		} catch (error) {
+			console.error('Failed to open download URL:', error);
+		} finally {
+			isDownloading = false;
 		}
 	}
 
@@ -46,20 +33,6 @@
 		if (isDownloading) return;
 		dismissVersion(latestVersion);
 		onclose?.();
-	}
-
-	function getStatusText(): string {
-		if (!downloadState) return '';
-		switch (downloadState.status) {
-			case 'downloading':
-				return `${m.update_downloading()} ${downloadState.progress}%`;
-			case 'opening':
-				return m.update_installing();
-			case 'error':
-				return downloadState.error || 'Error';
-			default:
-				return '';
-		}
 	}
 </script>
 
@@ -88,21 +61,6 @@
 						<span class="version-value latest">{latestVersion}</span>
 					</div>
 				</div>
-
-				{#if isDownloading}
-					<div class="progress-container">
-						<div class="progress-bar">
-							<div class="progress-fill" style="width: {downloadState?.progress ?? 0}%"></div>
-						</div>
-						<span class="progress-text">{getStatusText()}</span>
-					</div>
-				{/if}
-
-				{#if downloadState?.status === 'error'}
-					<div class="error-message">
-						{downloadState.error}
-					</div>
-				{/if}
 			</div>
 
 			<div class="footer">
@@ -214,42 +172,6 @@
 
 	.version-value.latest {
 		color: var(--primary);
-	}
-
-	.progress-container {
-		margin-top: 1rem;
-	}
-
-	.progress-bar {
-		height: 6px;
-		background: var(--secondary);
-		border-radius: 3px;
-		overflow: hidden;
-	}
-
-	.progress-fill {
-		height: 100%;
-		background: var(--primary);
-		border-radius: 3px;
-		transition: width 0.2s ease;
-	}
-
-	.progress-text {
-		display: block;
-		margin-top: 0.5rem;
-		font-size: 0.75rem;
-		color: var(--muted-foreground);
-		text-align: center;
-	}
-
-	.error-message {
-		margin-top: 0.75rem;
-		padding: 0.5rem 0.75rem;
-		background: rgba(239, 68, 68, 0.1);
-		border: 1px solid rgba(239, 68, 68, 0.3);
-		border-radius: 6px;
-		font-size: 0.75rem;
-		color: #ef4444;
 	}
 
 	.footer {
