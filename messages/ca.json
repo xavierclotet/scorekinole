@@ -1100,5 +1100,13 @@
   "import_knockoutParseSummary": "{brackets} brackets · {rounds} rondes · {matches} partits",
   "import_noBracketsFound": "No es van trobar brackets al text",
   "update_downloading": "Descarregant",
-  "update_installing": "Obrint instal·lador..."
+  "update_installing": "Obrint instal·lador...",
+  "admin_disqualifying": "Desqualificant...",
+  "bracket_positions": "Posicions",
+  "common_noResults": "Sense resultats",
+  "common_search": "Cerca",
+  "ranking_standings": "Classificació",
+  "tournament_hideMatches": "Amagar partits",
+  "tournament_showMatches": "Mostra partits",
+  "tournament_tryChangingFilters": "Proveu de canviar els filtres"
 }

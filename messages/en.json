@@ -1100,5 +1100,13 @@
   "import_knockoutParseSummary": "{brackets} brackets · {rounds} rounds · {matches} matches",
   "import_noBracketsFound": "No brackets were found in the text",
   "update_downloading": "Downloading",
-  "update_installing": "Opening installer..."
+  "update_installing": "Opening installer...",
+  "admin_disqualifying": "Disqualifying...",
+  "bracket_positions": "Positions",
+  "common_noResults": "No results",
+  "common_search": "Look for",
+  "ranking_standings": "Classification",
+  "tournament_hideMatches": "Hide matches",
+  "tournament_showMatches": "Show matches",
+  "tournament_tryChangingFilters": "Try changing the filters"
 }
