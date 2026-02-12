@@ -1098,5 +1098,7 @@
   "import_pasteKnockoutData": "Enganxar dades de fase eliminatòria",
   "import_pasteKnockoutDataHint": "Format: [Nom Bracket] en una línia, després nom de fase (Semifinals, Final...), i partits com Jugador1,Jugador2,PuntosA,PuntosB",
   "import_knockoutParseSummary": "{brackets} brackets · {rounds} rondes · {matches} partits",
-  "import_noBracketsFound": "No es van trobar brackets al text"
+  "import_noBracketsFound": "No es van trobar brackets al text",
+  "update_downloading": "Descarregant",
+  "update_installing": "Obrint instal·lador..."
 }

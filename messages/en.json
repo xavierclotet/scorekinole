@@ -1098,5 +1098,7 @@
   "import_pasteKnockoutData": "Paste knockout phase data",
   "import_pasteKnockoutDataHint": "Format: [Bracket Name] on one line, then phase name (Semifinals, Final...), and matches as Player1,Player2,PointsA,PointsB",
   "import_knockoutParseSummary": "{brackets} brackets · {rounds} rounds · {matches} matches",
-  "import_noBracketsFound": "No brackets were found in the text"
+  "import_noBracketsFound": "No brackets were found in the text",
+  "update_downloading": "Downloading",
+  "update_installing": "Opening installer..."
 }

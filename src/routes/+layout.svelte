@@ -108,11 +108,11 @@
 	onsave={handleProfileComplete}
 />
 
-{#if updateInfo}
+{#if updateInfo && showUpdateModal}
 	<UpdateAvailableModal
-		isOpen={showUpdateModal}
-		latestVersion={updateInfo.latestVersion || ''}
+		isOpen={true}
+		latestVersion={updateInfo.latestVersion ?? ''}
 		downloadUrl={updateInfo.downloadUrl}
-		onclose={() => showUpdateModal = false}
+		onclose={() => { showUpdateModal = false; }}
 	/>
 {/if}

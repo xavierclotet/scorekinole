@@ -933,6 +933,8 @@
   "update_available": "Actualización Disponible",
   "update_currentVersion": "Versión actual",
   "update_download": "Descargar",
+  "update_downloading": "Descargando",
+  "update_installing": "Abriendo instalador...",
   "update_latestVersion": "Última versión",
   "update_newVersionAvailable": "Hay una nueva versión disponible. Actualiza para obtener las últimas mejoras y correcciones.",
   "video_invalidUrl": "URL de YouTube no válida",

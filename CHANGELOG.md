@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.9] - 2026-02-12
+- Native APK download with progress bar and auto-install trigger
+- Add Capacitor Filesystem and File Opener plugins
+- Redesign UpdateAvailableModal with theme support and download progress
+
 ## [2.4.8] - 2026-02-12
 - Full theme support for light/violet-light modes across all components
 - Fix ThemeToggle to preserve color theme when switching light/dark modes
