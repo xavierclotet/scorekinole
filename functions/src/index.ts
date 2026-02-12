@@ -540,7 +540,38 @@ export const onTournamentComplete = onDocumentUpdated(
 );
 
 /**
+ * Send a Telegram message (helper function)
+ */
+async function sendTelegramMessage(message: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${telegramBotToken.value()}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: telegramChatId.value(),
+          text: message,
+          parse_mode: "Markdown",
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error("Telegram API error:", errorText);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    logger.error("Error sending Telegram message:", error);
+    return false;
+  }
+}
+
+/**
  * Cloud Function: Notify admin via Telegram when a new user registers
+ * Also checks for suspicious activity (duplicate IP/fingerprint)
  * Triggers when a new user document is created in Firestore
  */
 export const onUserCreated = onDocumentCreated(
@@ -551,23 +582,120 @@ export const onUserCreated = onDocumentCreated(
   },
   async (event) => {
     const userData = event.data?.data();
+    const userId = event.params.userId;
+
     if (!userData) {
       logger.warn("No user data in creation event");
       return;
     }
 
-    const { playerName, email, authProvider } = userData;
+    const { playerName, email, authProvider, registrationIP, deviceFingerprint } = userData;
 
-    // Only notify for Google sign-ups (not GUEST users created by system)
+    // Only process Google sign-ups (not GUEST users created by system)
     if (authProvider !== "google") {
       logger.info(`Skipping notification for non-Google user: ${playerName}`);
       return;
     }
 
+    // Send new user notification
     const message =
       `🆕 *Nuevo usuario en Scorekinole*\n\n` +
       `👤 *Nombre:* ${playerName || "Sin nombre"}\n` +
       `📧 *Email:* ${email || "Sin email"}`;
+
+    await sendTelegramMessage(message);
+    logger.info(`Telegram notification sent for new user: ${email}`);
+
+    // Check for suspicious activity (duplicate IP or fingerprint)
+    if (registrationIP && registrationIP !== "unknown") {
+      try {
+        const sameIPUsers = await getDb()
+          .collection("users")
+          .where("registrationIP", "==", registrationIP)
+          .where("authProvider", "==", "google")
+          .get();
+
+        if (sameIPUsers.size > 1) {
+          const otherUsers = sameIPUsers.docs
+            .filter((doc) => doc.id !== userId)
+            .map((doc) => doc.data().playerName || doc.data().email || doc.id)
+            .slice(0, 5); // Max 5 users in alert
+
+          const alertMessage =
+            `⚠️ *Posibles cuentas duplicadas*\n\n` +
+            `🔴 *Misma IP:* ${registrationIP}\n` +
+            `👤 *Nuevo:* ${playerName}\n` +
+            `👥 *Existentes:* ${otherUsers.join(", ")}\n` +
+            `📊 *Total cuentas:* ${sameIPUsers.size}`;
+
+          await sendTelegramMessage(alertMessage);
+          logger.warn(`Duplicate IP detected: ${registrationIP} (${sameIPUsers.size} accounts)`);
+        }
+      } catch (error) {
+        logger.error("Error checking for duplicate IPs:", error);
+      }
+    }
+
+    if (deviceFingerprint && deviceFingerprint !== "server") {
+      try {
+        const sameFingerprintUsers = await getDb()
+          .collection("users")
+          .where("deviceFingerprint", "==", deviceFingerprint)
+          .where("authProvider", "==", "google")
+          .get();
+
+        if (sameFingerprintUsers.size > 1) {
+          const otherUsers = sameFingerprintUsers.docs
+            .filter((doc) => doc.id !== userId)
+            .map((doc) => doc.data().playerName || doc.data().email || doc.id)
+            .slice(0, 5);
+
+          const alertMessage =
+            `⚠️ *Posible mismo dispositivo*\n\n` +
+            `🔴 *Fingerprint:* ${deviceFingerprint.slice(0, 8)}...\n` +
+            `👤 *Nuevo:* ${playerName}\n` +
+            `👥 *Existentes:* ${otherUsers.join(", ")}\n` +
+            `📊 *Total cuentas:* ${sameFingerprintUsers.size}`;
+
+          await sendTelegramMessage(alertMessage);
+          logger.warn(`Duplicate fingerprint detected: ${deviceFingerprint} (${sameFingerprintUsers.size} accounts)`);
+        }
+      } catch (error) {
+        logger.error("Error checking for duplicate fingerprints:", error);
+      }
+    }
+  }
+);
+
+/**
+ * Cloud Function: Notify admin via Telegram when a tournament is created
+ * Triggers when a new tournament document is created in Firestore
+ */
+export const onTournamentCreated = onDocumentCreated(
+  {
+    document: "tournaments/{tournamentId}",
+    region: "europe-west1",
+    secrets: [telegramBotToken, telegramChatId],
+  },
+  async (event) => {
+    const tournamentData = event.data?.data();
+    if (!tournamentData) {
+      logger.warn("No tournament data in creation event");
+      return;
+    }
+
+    const { name, createdByName, gameType, isImported, participants } = tournamentData;
+    const participantCount = participants?.length || 0;
+    const tournamentType = isImported ? "IMPORTED" : "LIVE";
+    const emoji = isImported ? "📥" : "🏆";
+    const typeLabel = isImported ? "Importado" : "En vivo";
+
+    const message =
+      `${emoji} *Nuevo torneo ${typeLabel}*\n\n` +
+      `📋 *Nombre:* ${name || "Sin nombre"}\n` +
+      `👤 *Creado por:* ${createdByName || "Desconocido"}\n` +
+      `🎮 *Tipo:* ${gameType === "doubles" ? "Dobles" : "Singles"}\n` +
+      `👥 *Participantes:* ${participantCount}`;
 
     try {
       const response = await fetch(
@@ -587,7 +715,7 @@ export const onUserCreated = onDocumentCreated(
         const errorText = await response.text();
         logger.error("Telegram API error:", errorText);
       } else {
-        logger.info(`Telegram notification sent for new user: ${email}`);
+        logger.info(`Telegram notification sent for new ${tournamentType} tournament: ${name}`);
       }
     } catch (error) {
       logger.error("Error sending Telegram notification:", error);

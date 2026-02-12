@@ -224,7 +224,7 @@ firebase deploy --only firestore:rules
 
 ## ☁️ Cloud Functions
 
-El proyecto tiene 2 Cloud Functions en `functions/src/index.ts`:
+El proyecto tiene 3 Cloud Functions en `functions/src/index.ts`:
 
 ### 1. `onTournamentComplete`
 **Trigger**: Cuando un documento en `tournaments/{tournamentId}` cambia su `status` a `COMPLETED`
@@ -239,6 +239,17 @@ El proyecto tiene 2 Cloud Functions en `functions/src/index.ts`:
 **Trigger**: Cuando se crea un nuevo documento en `users/{userId}`
 
 **Función**: Envía notificación por Telegram al admin cuando un usuario se registra con Google.
+
+También detecta actividad sospechosa:
+- **Misma IP**: Alerta si hay múltiples cuentas Google desde la misma IP
+- **Mismo dispositivo**: Alerta si el fingerprint del navegador coincide con otra cuenta
+
+### 3. `onTournamentCreated`
+**Trigger**: Cuando se crea un nuevo documento en `tournaments/{tournamentId}`
+
+**Función**: Envía notificación por Telegram al admin cuando alguien crea un torneo:
+- Diferencia entre torneos LIVE (🏆) e IMPORTED (📥)
+- Incluye: nombre, creador, tipo (singles/dobles), participantes
 
 **Secrets requeridos**:
 ```bash

@@ -6,6 +6,7 @@ import { browser } from '$app/environment';
 import type { TournamentRecord } from '$lib/types/tournament';
 import type { QuotaEntry } from '$lib/types/quota';
 import { createInitialQuota } from '$lib/types/quota';
+import { getDeviceInfo, type DeviceInfo } from '$lib/utils/deviceInfo';
 
 export interface UserProfile {
   playerName: string;
@@ -23,6 +24,10 @@ export interface UserProfile {
   authProvider?: 'google' | null;        // null = GUEST without auth
   mergedFrom?: string[];                 // IDs of GUEST users merged into this one
   mergedTo?: string;                     // ID of registered user this GUEST was merged to
+  // Device tracking (for fraud detection)
+  registrationIP?: string;               // IP address at registration
+  deviceFingerprint?: string;            // Browser/device fingerprint
+  deviceInfo?: DeviceInfo;               // Full device info
   updatedAt?: any;
   createdAt?: any;
 }
@@ -93,13 +98,25 @@ export async function saveUserProfile(playerName: string): Promise<UserProfile |
       updatedAt: serverTimestamp()
     };
 
-    // For NEW users only: auto-assign admin status and initial quota
+    // For NEW users only: auto-assign admin status, initial quota, and capture device info
     if (isNewUser) {
       profile.isAdmin = true;
       profile.canImportTournaments = true;
       profile.canAutofill = true;
       profile.quotaEntries = createInitialQuota(currentYear, 1);
       profile.createdAt = serverTimestamp();
+
+      // Capture device info for fraud detection
+      try {
+        const deviceInfo = await getDeviceInfo();
+        profile.registrationIP = deviceInfo.ip;
+        profile.deviceFingerprint = deviceInfo.fingerprint;
+        profile.deviceInfo = deviceInfo;
+        console.log('📱 Device info captured:', deviceInfo.ip, deviceInfo.fingerprint.slice(0, 8) + '...');
+      } catch (error) {
+        console.warn('⚠️ Could not capture device info:', error);
+      }
+
       console.log('🎉 New user - auto-assigning admin + canImportTournaments + canAutofill + 1 live tournament quota for', currentYear);
     }
 
