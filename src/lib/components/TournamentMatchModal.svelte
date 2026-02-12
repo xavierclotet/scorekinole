@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import * as m from '$lib/paraglide/messages.js';
+	import { theme } from '$lib/stores/theme';
 	import { currentUser } from '$lib/firebase/auth';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
 	import {
@@ -748,7 +749,7 @@
 {#if isOpen}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="modal-overlay" onclick={close}>
+	<div class="modal-overlay" data-theme={$theme} onclick={close}>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="modal" onclick={stopPropagation}>
@@ -1273,13 +1274,13 @@
 		width: 56px;
 		height: 56px;
 		border-radius: 50%;
-		background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.08) 100%);
-		border: 1px solid rgba(251, 191, 36, 0.25);
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		margin-bottom: 1rem;
-		color: #fbbf24;
+		color: var(--primary);
 	}
 
 	.key-description {
@@ -1333,8 +1334,8 @@
 
 	.key-input:focus {
 		outline: none;
-		border-color: rgba(251, 191, 36, 0.4);
-		background: rgba(251, 191, 36, 0.05);
+		border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+		background: color-mix(in srgb, var(--primary) 5%, transparent);
 	}
 
 	.key-input::placeholder {
@@ -1375,16 +1376,17 @@
 		width: 44px;
 		height: 44px;
 		flex-shrink: 0;
-		background: linear-gradient(135deg, rgba(251, 191, 36, 0.9) 0%, rgba(245, 158, 11, 0.9) 100%);
+		background: var(--primary);
 		border: none;
 		border-radius: 10px;
-		color: #1a1a2e;
+		color: var(--primary-foreground);
 		cursor: pointer;
 		transition: all 0.15s ease;
 	}
 
 	.search-btn:hover:not(:disabled) {
-		background: linear-gradient(135deg, rgba(251, 191, 36, 1) 0%, rgba(245, 158, 11, 1) 100%);
+		background: var(--primary);
+		filter: brightness(1.1);
 		transform: translateX(2px);
 	}
 
@@ -1580,8 +1582,8 @@
 	}
 
 	.group-header.in-progress {
-		background: rgba(251, 191, 36, 0.1);
-		border-color: rgba(251, 191, 36, 0.2);
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 20%, transparent);
 	}
 
 	/* Liga Oro - Gold gradient */
@@ -1612,7 +1614,7 @@
 	}
 
 	.group-header.in-progress .group-name {
-		color: #fcd34d;
+		color: var(--primary);
 	}
 
 	.group-round {
@@ -1751,13 +1753,13 @@
 
 	.match-row-btn .bracket-round {
 		font-family: 'Lexend', sans-serif;
-		color: #fcd34d;
+		color: var(--primary);
 		font-size: 0.6rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.02em;
 		padding: 0.15rem 0.35rem;
-		background: rgba(251, 191, 36, 0.15);
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
 		border-radius: 3px;
 		flex-shrink: 0;
 	}
@@ -1796,17 +1798,17 @@
 
 	/* In-progress matches */
 	.match-row-btn.in-progress {
-		border-color: rgba(251, 191, 36, 0.25);
-		background: rgba(251, 191, 36, 0.04);
+		border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+		background: color-mix(in srgb, var(--primary) 4%, transparent);
 	}
 
 	.match-row-btn.in-progress:hover {
-		border-color: rgba(251, 191, 36, 0.45);
-		background: rgba(251, 191, 36, 0.08);
+		border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 
 	.match-row-btn.in-progress .table-num {
-		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+		background: var(--primary);
 	}
 
 	.matches-list.in-progress {
@@ -1824,17 +1826,17 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.6rem 0.75rem;
-		background: rgba(251, 191, 36, 0.08);
-		border: 1px solid rgba(251, 191, 36, 0.2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
 		border-radius: 6px;
 		cursor: pointer;
 		transition: all 0.15s ease;
-		color: #fcd34d;
+		color: var(--primary);
 	}
 
 	.in-progress-accordion:hover {
-		background: rgba(251, 191, 36, 0.12);
-		border-color: rgba(251, 191, 36, 0.35);
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 35%, transparent);
 	}
 
 	.in-progress-accordion.expanded {
@@ -1860,12 +1862,12 @@
 	.accordion-warning {
 		display: flex;
 		align-items: center;
-		color: #fcd34d;
+		color: var(--primary);
 	}
 
 	.in-progress-content {
-		background: rgba(251, 191, 36, 0.04);
-		border: 1px solid rgba(251, 191, 36, 0.2);
+		background: color-mix(in srgb, var(--primary) 4%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
 		border-top: none;
 		border-radius: 0 0 6px 6px;
 		padding: 0.75rem;
@@ -1885,7 +1887,8 @@
 
 	.in-progress-hint {
 		font-family: 'Lexend', sans-serif;
-		color: rgba(251, 191, 36, 0.7);
+		color: var(--primary);
+		opacity: 0.7;
 		font-size: 0.7rem;
 		text-align: center;
 		margin: 0 0 0.75rem 0;

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
+	import { theme } from '$lib/stores/theme';
 	import { team1, team2 } from '$lib/stores/teams';
 
 	interface Props {
@@ -51,7 +52,7 @@
 
 {#if isOpen}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="modal-overlay" onclick={closeModal} role="button" tabindex="-1">
+	<div class="modal-overlay" data-theme={$theme} onclick={closeModal} role="button" tabindex="-1">
 		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 		<div class="modal-content" onclick={stopPropagation} role="dialog" tabindex="-1">
 			<h2>{m.scoring_colorFor()} {currentTeamName}</h2>
@@ -98,8 +99,8 @@
 	}
 
 	.modal-content {
-		background: linear-gradient(135deg, #1a1f35 0%, #151b2d 100%);
-		border: 2px solid rgba(0, 255, 136, 0.3);
+		background: var(--card);
+		border: 2px solid color-mix(in srgb, var(--primary) 30%, transparent);
 		border-radius: 16px;
 		padding: 2rem;
 		max-width: 600px;
@@ -122,7 +123,7 @@
 	}
 
 	h2 {
-		color: #00ff88;
+		color: var(--primary);
 		font-size: 1.8rem;
 		margin: 0 0 2rem 0;
 		text-align: center;
@@ -136,7 +137,7 @@
 		border: none;
 		font-size: 2rem;
 		cursor: pointer;
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--muted-foreground);
 		transition: color 0.2s;
 		width: 40px;
 		height: 40px;
@@ -146,7 +147,7 @@
 	}
 
 	.close-btn:hover {
-		color: #ff3366;
+		color: var(--destructive);
 	}
 
 	.color-grid {
@@ -171,8 +172,8 @@
 	}
 
 	.color-swatch.selected {
-		border-color: #00ff88;
-		box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+		border-color: var(--primary);
+		box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 60%, transparent);
 		transform: scale(1.05);
 	}
 

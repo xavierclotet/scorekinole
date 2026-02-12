@@ -79,7 +79,7 @@
 	}
 
 	.label {
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--muted-foreground);
 		font-size: 0.8rem;
 		font-weight: 500;
 	}
@@ -94,9 +94,9 @@
 		width: 28px;
 		height: 28px;
 		border-radius: 6px;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		background: rgba(255, 255, 255, 0.08);
-		color: rgba(255, 255, 255, 0.8);
+		border: 1px solid var(--border);
+		background: var(--secondary);
+		color: var(--foreground);
 		font-size: 1rem;
 		font-weight: 500;
 		cursor: pointer;
@@ -107,13 +107,13 @@
 	}
 
 	.control-btn:hover:not(:disabled) {
-		background: rgba(255, 255, 255, 0.15);
-		border-color: rgba(255, 255, 255, 0.3);
+		background: var(--accent);
+		border-color: var(--border);
 	}
 
 	.control-btn:active:not(:disabled) {
 		transform: scale(0.95);
-		background: rgba(255, 255, 255, 0.2);
+		background: var(--accent);
 	}
 
 	.control-btn:disabled {
@@ -126,13 +126,13 @@
 		text-align: center;
 		font-size: 1.1rem;
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.9);
+		color: var(--foreground);
 		user-select: none;
 	}
 
 	/* Focus styles */
 	.control-btn:focus-visible {
-		outline: 2px solid rgba(255, 255, 255, 0.4);
+		outline: 2px solid var(--primary);
 		outline-offset: 2px;
 	}
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
+	import { theme } from '$lib/stores/theme';
 	import type { MatchHistory } from '$lib/types/history';
 	import { isColorDark } from '$lib/utils/colors';
 
@@ -52,7 +53,7 @@
 </script>
 
 {#if isOpen}
-	<div class="overlay" onclick={close} onkeydown={handleKeydown} role="button" tabindex="-1">
+	<div class="overlay" data-theme={$theme} onclick={close} onkeydown={handleKeydown} role="button" tabindex="-1">
 		<div class="modal" onclick={stopPropagation} onkeydown={stopPropagation} role="dialog" tabindex="-1">
 			<div class="header">
 				<div class="header-title">
@@ -158,9 +159,9 @@
 	}
 
 	.modal {
-		background: #1a1d24;
+		background: var(--card);
 		border-radius: 10px;
-		border: 1px solid rgba(255, 255, 255, 0.06);
+		border: 1px solid var(--border);
 		width: 420px;
 		max-width: 92%;
 		max-height: 80vh;
@@ -174,7 +175,7 @@
 		justify-content: space-between;
 		align-items: center;
 		padding: 0.85rem 1rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		border-bottom: 1px solid var(--border);
 	}
 
 	.header-title {
@@ -186,15 +187,15 @@
 	.title {
 		font-size: 0.9rem;
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.9);
+		color: var(--foreground);
 	}
 
 	.counter {
 		font-size: 0.7rem;
 		font-weight: 500;
-		color: rgba(255, 255, 255, 0.4);
+		color: var(--muted-foreground);
 		padding: 0.15rem 0.4rem;
-		background: rgba(255, 255, 255, 0.04);
+		background: var(--secondary);
 		border-radius: 4px;
 	}
 
@@ -202,7 +203,7 @@
 		background: none;
 		border: none;
 		font-size: 1.4rem;
-		color: rgba(255, 255, 255, 0.4);
+		color: var(--muted-foreground);
 		cursor: pointer;
 		width: 28px;
 		height: 28px;
@@ -214,8 +215,8 @@
 	}
 
 	.close-btn:hover {
-		background: rgba(255, 255, 255, 0.06);
-		color: rgba(255, 255, 255, 0.8);
+		background: var(--accent);
+		color: var(--foreground);
 	}
 
 	.content {
@@ -229,7 +230,7 @@
 	}
 
 	.content::-webkit-scrollbar-thumb {
-		background: rgba(255, 255, 255, 0.1);
+		background: var(--muted);
 		border-radius: 2px;
 	}
 
@@ -239,7 +240,7 @@
 		justify-content: space-between;
 		gap: 0.75rem;
 		padding: 0.6rem 0.75rem;
-		background: rgba(255, 255, 255, 0.02);
+		background: var(--secondary);
 		border-radius: 6px;
 		margin-bottom: 0.35rem;
 		transition: background 0.15s;
@@ -250,7 +251,7 @@
 	}
 
 	.match-row.confirmed {
-		background: rgba(76, 175, 80, 0.06);
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
 	}
 
 	.match-info {
@@ -268,20 +269,21 @@
 	.event-name {
 		font-size: 0.8rem;
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.85);
+		color: var(--foreground);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
 	.phase-sep {
-		color: rgba(255, 255, 255, 0.2);
+		color: var(--muted-foreground);
 		font-size: 0.75rem;
+		opacity: 0.5;
 	}
 
 	.phase {
 		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.45);
+		color: var(--muted-foreground);
 		font-weight: 500;
 	}
 
@@ -294,7 +296,7 @@
 
 	.date {
 		font-size: 0.65rem;
-		color: rgba(255, 255, 255, 0.35);
+		color: var(--muted-foreground);
 	}
 
 	.teams-display {
@@ -319,7 +321,7 @@
 	}
 
 	.score {
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--muted-foreground);
 		font-weight: 600;
 		font-size: 0.7rem;
 	}
@@ -333,10 +335,10 @@
 	.team-btn {
 		width: 28px;
 		height: 28px;
-		border: 1px solid rgba(255, 255, 255, 0.1);
+		border: 1px solid var(--border);
 		border-radius: 4px;
-		background: rgba(255, 255, 255, 0.03);
-		color: rgba(255, 255, 255, 0.5);
+		background: var(--secondary);
+		color: var(--muted-foreground);
 		font-size: 0.7rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -344,28 +346,28 @@
 	}
 
 	.team-btn:hover {
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(255, 255, 255, 0.2);
-		color: rgba(255, 255, 255, 0.8);
+		background: var(--accent);
+		border-color: var(--border);
+		color: var(--foreground);
 	}
 
 	.team-btn.active {
-		background: rgba(76, 175, 80, 0.2);
-		border-color: rgba(76, 175, 80, 0.5);
-		color: #4caf50;
+		background: color-mix(in srgb, var(--primary) 20%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+		color: var(--primary);
 	}
 
 	.team-btn.skip.active {
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(255, 255, 255, 0.2);
-		color: rgba(255, 255, 255, 0.6);
+		background: var(--accent);
+		border-color: var(--border);
+		color: var(--muted-foreground);
 	}
 
 	.footer {
 		display: flex;
 		gap: 0.5rem;
 		padding: 0.75rem 1rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		border-top: 1px solid var(--border);
 	}
 
 	.btn {
@@ -379,25 +381,25 @@
 	}
 
 	.btn.secondary {
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		color: rgba(255, 255, 255, 0.7);
+		background: var(--secondary);
+		border: 1px solid var(--border);
+		color: var(--muted-foreground);
 	}
 
 	.btn.secondary:hover {
-		background: rgba(255, 255, 255, 0.08);
-		color: rgba(255, 255, 255, 0.9);
+		background: var(--accent);
+		color: var(--foreground);
 	}
 
 	.btn.primary {
-		background: rgba(76, 175, 80, 0.15);
-		border: 1px solid rgba(76, 175, 80, 0.3);
-		color: #4caf50;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+		color: var(--primary);
 	}
 
 	.btn.primary:hover:not(:disabled) {
-		background: rgba(76, 175, 80, 0.25);
-		border-color: rgba(76, 175, 80, 0.5);
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 50%, transparent);
 	}
 
 	.btn.primary:disabled {

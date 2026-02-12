@@ -121,9 +121,9 @@
 				</span>
 				<span class="score-divider">·</span>
 				<span class="match-score-header">
-					<span class="score-value" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : 'rgba(255,255,255,0.9)'};">{team1GamesWon}</span>
+					<span class="score-value" class:winner={team1GamesWon > team2GamesWon}>{team1GamesWon}</span>
 					<span class="score-separator">-</span>
-					<span class="score-value" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : 'rgba(255,255,255,0.9)'};">{team2GamesWon}</span>
+					<span class="score-value" class:winner={team2GamesWon > team1GamesWon}>{team2GamesWon}</span>
 					{#if (match.show20s ?? $gameSettings.show20s) && (team1Total20s > 0 || team2Total20s > 0)}
 						<span class="twenties-header">⭐{team1Total20s}-{team2Total20s}</span>
 					{/if}
@@ -257,7 +257,7 @@
 
 <style>
 	.history-entry {
-		background: rgba(255, 255, 255, 0.02);
+		background: var(--secondary);
 		border-radius: 8px;
 		padding: 0.85rem;
 		display: flex;
@@ -267,7 +267,7 @@
 	}
 
 	.history-entry:hover {
-		background: rgba(255, 255, 255, 0.04);
+		background: var(--accent);
 	}
 
 	.entry-header {
@@ -294,7 +294,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--muted-foreground);
 		font-size: 0.65rem;
 		transition: transform 0.2s;
 		margin-top: 0.15rem;
@@ -326,18 +326,19 @@
 
 	.title-text {
 		font-size: 0.95rem;
-		color: rgba(255, 255, 255, 0.9);
+		color: var(--foreground);
 		font-weight: 600;
 	}
 
 	.phase-separator {
-		color: rgba(255, 255, 255, 0.25);
+		color: var(--muted-foreground);
 		font-size: 0.85rem;
 		font-weight: 400;
+		opacity: 0.5;
 	}
 
 	.phase {
-		color: rgba(255, 255, 255, 0.55);
+		color: var(--muted-foreground);
 		font-weight: 500;
 		font-size: 0.85rem;
 	}
@@ -393,7 +394,7 @@
 
 	.entry-date {
 		font-size: 0.7rem;
-		color: rgba(255, 255, 255, 0.4);
+		color: var(--muted-foreground);
 		font-weight: 400;
 		margin-top: 0.1rem;
 	}
@@ -407,11 +408,11 @@
 
 	.config-badge {
 		font-size: 0.65rem;
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--muted-foreground);
 		font-weight: 500;
 		padding: 0.2rem 0.5rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: var(--secondary);
+		border: 1px solid var(--border);
 		border-radius: 4px;
 		white-space: nowrap;
 	}
@@ -436,15 +437,17 @@
 	}
 
 	.vs {
-		color: rgba(255, 255, 255, 0.35);
+		color: var(--muted-foreground);
 		font-size: 0.75rem;
 		font-weight: 400;
+		opacity: 0.7;
 	}
 
 	.score-divider {
-		color: rgba(255, 255, 255, 0.25);
+		color: var(--muted-foreground);
 		font-size: 0.9rem;
 		margin: 0 0.1rem;
+		opacity: 0.5;
 	}
 
 	.match-score-header {
@@ -452,7 +455,7 @@
 		align-items: center;
 		gap: 0.2rem;
 		padding: 0.2rem 0.5rem;
-		background: rgba(255, 255, 255, 0.06);
+		background: var(--muted);
 		border-radius: 4px;
 	}
 
@@ -461,10 +464,15 @@
 		font-size: 0.95rem;
 		min-width: 12px;
 		text-align: center;
+		color: var(--foreground);
+	}
+
+	.score-value.winner {
+		color: var(--primary);
 	}
 
 	.score-separator {
-		color: rgba(255, 255, 255, 0.4);
+		color: var(--muted-foreground);
 		font-size: 0.85rem;
 	}
 
@@ -482,7 +490,7 @@
 		gap: 0.6rem;
 		margin-top: 0.4rem;
 		padding-top: 0.6rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		border-top: 1px solid var(--border);
 	}
 
 	.delete-button {
@@ -515,7 +523,7 @@
 	}
 
 	.game-table {
-		background: rgba(255, 255, 255, 0.02);
+		background: var(--muted);
 		border-radius: 6px;
 		overflow: hidden;
 	}
@@ -528,10 +536,10 @@
 	}
 
 	.game-row.header {
-		background: rgba(255, 255, 255, 0.04);
+		background: var(--secondary);
 		font-weight: 600;
 		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--muted-foreground);
 		margin-bottom: 0.15rem;
 	}
 
@@ -543,7 +551,7 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		color: rgba(255, 255, 255, 0.85);
+		color: var(--foreground);
 		font-size: 0.8rem;
 	}
 
@@ -552,7 +560,7 @@
 		min-width: 36px;
 		text-align: center;
 		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--muted-foreground);
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
@@ -581,7 +589,7 @@
 		text-align: center;
 		font-weight: 600;
 		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--muted-foreground);
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
@@ -590,15 +598,15 @@
 
 	.game-row .total-col.total-score {
 		font-size: 0.95rem;
-		color: rgba(255, 255, 255, 0.9);
+		color: var(--foreground);
 	}
 
 	.game-row .total-col.total-score.winner {
-		color: #00ff88;
+		color: var(--primary);
 	}
 
 	.game-row.winner-row {
-		background: rgba(0, 255, 136, 0.06);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 		border-radius: 4px;
 	}
 
@@ -607,7 +615,7 @@
 		justify-content: flex-end;
 		gap: 0.4rem;
 		padding-top: 0.5rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		border-top: 1px solid var(--border);
 	}
 
 	/* Responsive */

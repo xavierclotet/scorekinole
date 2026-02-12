@@ -19,6 +19,8 @@
 	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
 	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
 	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { theme } from '$lib/stores/theme';
 	import { onReconnect, setSyncStatus } from '$lib/utils/networkStatus';
 	import {
 		gameTournamentContext,
@@ -1383,7 +1385,7 @@
 	<meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
-<div class="game-page">
+<div class="game-page" data-theme={$theme}>
 	<header class="game-header" class:tournament-mode={inTournamentMode}>
 		{#if inTournamentMode}
 			<!-- Tournament mode header - same style as normal mode -->
@@ -1417,6 +1419,7 @@
 
 			<div class="header-right">
 				<OfflineIndicator />
+				<ThemeToggle />
 				<button class="header-btn" onclick={handleSwitchSides} aria-label={m.scoring_switchSides()} title={m.scoring_switchSides()}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/></svg>
 				</button>
@@ -1477,6 +1480,7 @@
 
 			<div class="header-right">
 				<OfflineIndicator />
+				<ThemeToggle />
 				<button class="header-btn" onclick={() => showHistory = true} aria-label="History" title={m.history_matchHistory()}>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 				</button>
@@ -1752,8 +1756,8 @@
 		flex-direction: column;
 		padding: 0.5rem;
 		padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
-		background: linear-gradient(135deg, #0f1419 0%, #1a1f35 100%);
-		color: #fff;
+		background: linear-gradient(135deg, var(--game-bg-start) 0%, var(--game-bg-end) 100%);
+		color: var(--game-text);
 		overflow: hidden;
 	}
 
@@ -1769,8 +1773,8 @@
 
 	/* Tournament mode header styling */
 	.game-header.tournament-mode {
-		background: rgba(255, 255, 255, 0.03);
-		border: 1px solid rgba(255, 255, 255, 0.06);
+		background: var(--game-surface);
+		border: 1px solid var(--game-border);
 		border-radius: 10px;
 	}
 
@@ -1787,7 +1791,7 @@
 	}
 
 	.tournament-icon {
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--game-text-muted);
 		flex-shrink: 0;
 	}
 
@@ -1813,7 +1817,7 @@
 		font-family: 'Lexend', sans-serif;
 		font-size: 1.3rem;
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.95);
+		color: var(--primary);
 		background: none;
 		border: none;
 		padding: 0.3rem 0.6rem;
@@ -1828,16 +1832,16 @@
 	}
 
 	.header-title:hover {
-		background: rgba(255, 255, 255, 0.08);
-		color: white;
+		background: var(--game-surface-hover);
+		filter: brightness(1.15);
 	}
 
 	.header-title-placeholder {
-		color: rgba(255, 255, 255, 0.35);
+		color: var(--game-text-dim);
 	}
 
 	.header-separator {
-		color: rgba(255, 255, 255, 0.3);
+		color: var(--game-text-dim);
 		font-size: 0.9rem;
 		font-weight: 300;
 	}
@@ -1846,7 +1850,7 @@
 		font-family: 'Lexend', sans-serif;
 		font-size: 1.3rem;
 		font-weight: 600;
-		color: white;
+		color: var(--primary);
 		background: transparent;
 		border: none;
 		padding: 0;
@@ -1860,7 +1864,8 @@
 		font-family: 'Lexend', sans-serif;
 		font-size: 1.2rem;
 		font-weight: 500;
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--primary);
+		opacity: 0.7;
 		background: transparent;
 		padding: 0;
 		white-space: nowrap;
@@ -1895,9 +1900,10 @@
 		font-family: 'Lexend', sans-serif;
 		font-size: 1.1rem;
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.95);
-		background: rgba(255, 255, 255, 0.08);
-		border: 1px solid rgba(255, 255, 255, 0.2);
+		color: var(--game-text);
+		opacity: 0.95;
+		background: var(--game-surface-hover);
+		border: 1px solid var(--game-border);
 		border-radius: 6px;
 		padding: 0.3rem 0.6rem;
 		outline: none;
@@ -1907,8 +1913,8 @@
 	}
 
 	.header-input:focus {
-		background: rgba(255, 255, 255, 0.12);
-		border-color: rgba(255, 255, 255, 0.4);
+		background: var(--game-btn-bg-hover);
+		border-color: var(--game-text-muted);
 	}
 
 	.header-input-small {
@@ -1930,14 +1936,15 @@
 		background: none;
 		border: none;
 		border-radius: 6px;
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--game-text-muted);
 		cursor: pointer;
 		transition: all 0.15s;
 	}
 
 	.header-btn:hover {
-		background: rgba(255, 255, 255, 0.08);
-		color: rgba(255, 255, 255, 0.85);
+		background: var(--game-surface-hover);
+		color: var(--game-text);
+		opacity: 0.85;
 	}
 
 	.header-btn:active {
@@ -2096,10 +2103,10 @@
 		font-weight: 700;
 		font-family: 'Lexend', sans-serif;
 		line-height: 1;
-		color: rgba(255, 255, 255, 0.9);
+		color: var(--game-text);
 		background: rgba(0, 0, 0, 0.5);
 		backdrop-filter: blur(12px);
-		border: 1px solid rgba(255, 255, 255, 0.15);
+		border: 1px solid var(--game-border);
 		border-radius: 8px;
 		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 		cursor: ew-resize;
@@ -2449,8 +2456,8 @@
 	}
 
 	.newmatch-dialog {
-		background: #1a1d24;
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: var(--card);
+		border: 1px solid var(--game-border);
 		border-radius: 12px;
 		padding: 1.75rem;
 		width: min(340px, 85vw);
@@ -2466,9 +2473,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(100, 180, 120, 0.12);
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
 		border-radius: 50%;
-		color: #7cc98e;
+		color: var(--primary);
 	}
 
 	.newmatch-title {
@@ -2476,7 +2483,8 @@
 		font-family: 'Lexend', sans-serif;
 		font-size: 1rem;
 		font-weight: 500;
-		color: rgba(255, 255, 255, 0.85);
+		color: var(--game-text);
+		opacity: 0.85;
 		text-align: center;
 	}
 
@@ -2499,25 +2507,25 @@
 	}
 
 	.newmatch-btn.cancel {
-		background: rgba(255, 255, 255, 0.06);
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		color: rgba(255, 255, 255, 0.7);
+		background: var(--game-btn-bg);
+		border: 1px solid var(--game-btn-border);
+		color: var(--game-text-muted);
 	}
 
 	.newmatch-btn.cancel:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
+		background: var(--game-btn-bg-hover);
+		color: var(--game-text);
 	}
 
 	.newmatch-btn.confirm {
-		background: rgba(100, 180, 120, 0.15);
-		border: 1px solid rgba(100, 180, 120, 0.3);
-		color: #8cd89c;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+		color: var(--primary);
 	}
 
 	.newmatch-btn.confirm:hover {
-		background: rgba(100, 180, 120, 0.25);
-		border-color: rgba(100, 180, 120, 0.45);
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 45%, transparent);
 	}
 
 	.newmatch-btn:active {

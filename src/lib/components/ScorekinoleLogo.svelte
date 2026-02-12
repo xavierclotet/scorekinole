@@ -134,4 +134,22 @@
 	:global([data-theme='light']) .header-logo:hover .header-logo-version {
 		color: rgba(0, 0, 0, 0.5);
 	}
+
+	/* Violet-light theme */
+	:global([data-theme='violet-light']) .header-logo {
+		color: rgba(0, 0, 0, 0.75);
+	}
+
+	:global([data-theme='violet-light']) .header-logo-version {
+		color: rgba(0, 0, 0, 0.45);
+	}
+
+	:global([data-theme='violet-light']) .header-logo:hover {
+		color: rgba(0, 0, 0, 0.9);
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	:global([data-theme='violet-light']) .header-logo:hover .header-logo-version {
+		color: rgba(0, 0, 0, 0.5);
+	}
 </style>

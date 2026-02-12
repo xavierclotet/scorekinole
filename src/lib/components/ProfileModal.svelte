@@ -224,8 +224,7 @@
 					<p class="input-hint">{m.auth_playerNameDescription()}</p>
 				</div>
 
-				<!-- Color theme selector (admin only) -->
-				{#if isAdmin}
+				<!-- Color theme selector -->
 				<div class="edit-section">
 					<span class="edit-label">{m.profile_colorTheme()}</span>
 					<div class="color-selector">
@@ -249,7 +248,6 @@
 						</button>
 					</div>
 				</div>
-				{/if}
 
 				<!-- Actions -->
 				<div class="actions">

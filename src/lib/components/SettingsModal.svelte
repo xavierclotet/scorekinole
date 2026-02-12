@@ -326,7 +326,7 @@
 	}
 
 	.settings-section.disabled h3 {
-		color: rgba(255, 255, 255, 0.4);
+		color: var(--muted-foreground);
 	}
 
 	.toggle-item.disabled {
@@ -345,12 +345,12 @@
 	}
 
 	.settings-content::-webkit-scrollbar-thumb {
-		background: rgba(255, 255, 255, 0.15);
+		background: var(--muted);
 		border-radius: 2px;
 	}
 
 	.settings-content::-webkit-scrollbar-thumb:hover {
-		background: rgba(255, 255, 255, 0.25);
+		background: var(--muted-foreground);
 	}
 
 	/* Two-column layout for related settings */
@@ -365,7 +365,7 @@
 		flex-direction: column;
 		gap: 0.5rem;
 		padding: 0.75rem;
-		background: rgba(255, 255, 255, 0.02);
+		background: color-mix(in srgb, var(--muted) 50%, transparent);
 		border-radius: 8px;
 	}
 
@@ -380,7 +380,7 @@
 	.settings-section h3 {
 		margin: 0;
 		font-size: 0.7rem;
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--muted-foreground);
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
@@ -405,10 +405,10 @@
 
 	.mode-button {
 		padding: 0.55rem 0.75rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: var(--secondary);
+		border: 1px solid var(--border);
 		border-radius: 6px;
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--muted-foreground);
 		font-size: 0.85rem;
 		font-weight: 500;
 		cursor: pointer;
@@ -416,15 +416,15 @@
 	}
 
 	.mode-button:hover {
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(255, 255, 255, 0.2);
-		color: #fff;
+		background: var(--accent);
+		border-color: var(--border);
+		color: var(--foreground);
 	}
 
 	.mode-button.active {
-		background: rgba(74, 222, 128, 0.15);
-		color: #fff;
-		border-color: rgba(74, 222, 128, 0.4);
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--foreground);
+		border-color: color-mix(in srgb, var(--primary) 40%, transparent);
 		font-weight: 600;
 	}
 
@@ -447,8 +447,8 @@
 		justify-content: space-between;
 		gap: 0.5rem;
 		padding: 0.5rem 0.65rem;
-		background: rgba(255, 255, 255, 0.03);
-		border: 1px solid rgba(255, 255, 255, 0.06);
+		background: var(--secondary);
+		border: 1px solid var(--border);
 		border-radius: 6px;
 		cursor: pointer;
 		position: relative;
@@ -456,13 +456,14 @@
 	}
 
 	.toggle-item:hover {
-		background: rgba(255, 255, 255, 0.06);
-		border-color: rgba(255, 255, 255, 0.12);
+		background: var(--accent);
+		border-color: var(--border);
 	}
 
 	.toggle-label {
 		font-size: 0.8rem;
-		color: rgba(255, 255, 255, 0.8);
+		color: var(--foreground);
+		opacity: 0.8;
 		font-weight: 500;
 	}
 
@@ -477,7 +478,7 @@
 		position: relative;
 		width: 36px;
 		height: 20px;
-		background: rgba(255, 255, 255, 0.15);
+		background: var(--muted);
 		border-radius: 10px;
 		transition: all 0.2s ease;
 		flex-shrink: 0;
@@ -490,18 +491,18 @@
 		left: 2px;
 		width: 16px;
 		height: 16px;
-		background: rgba(255, 255, 255, 0.7);
+		background: var(--muted-foreground);
 		border-radius: 50%;
 		transition: all 0.2s ease;
 	}
 
 	.toggle-item input:checked ~ .toggle-switch {
-		background: #4ade80;
+		background: var(--primary);
 	}
 
 	.toggle-item input:checked ~ .toggle-switch::before {
 		transform: translateX(16px);
-		background: #fff;
+		background: var(--primary-foreground);
 	}
 
 	/* Responsive */
@@ -654,7 +655,8 @@
 		padding: 0.4rem 0.6rem;
 		background: transparent;
 		border: none;
-		color: rgba(255, 255, 255, 0.2);
+		color: var(--muted-foreground);
+		opacity: 0.5;
 		font-size: 0.65rem;
 		cursor: pointer;
 		transition: color 0.15s ease;
@@ -662,12 +664,12 @@
 	}
 
 	.clear-storage-btn:hover {
-		color: rgba(255, 255, 255, 0.4);
+		opacity: 0.8;
 	}
 
 	/* Actions Section */
 	.advanced-section {
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		border-top: 1px solid var(--border);
 		margin-top: 0.25rem;
 		padding-top: 0.5rem;
 	}
@@ -684,10 +686,10 @@
 		justify-content: center;
 		gap: 0.3rem;
 		padding: 0.55rem 0.75rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: var(--secondary);
+		border: 1px solid var(--border);
 		border-radius: 6px;
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--muted-foreground);
 		font-size: 0.85rem;
 		font-weight: 500;
 		cursor: pointer;
@@ -695,9 +697,9 @@
 	}
 
 	.action-button:hover {
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(255, 255, 255, 0.15);
-		color: #fff;
+		background: var(--accent);
+		border-color: var(--border);
+		color: var(--foreground);
 	}
 
 	.action-button:active {

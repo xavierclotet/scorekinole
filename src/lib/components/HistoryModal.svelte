@@ -515,9 +515,9 @@
 									{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1}
 										<div class="match-total-summary">
 											<span class="match-label">Match:</span>
-											<span class="match-result" style="color: {team1GamesWon > team2GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team1GamesWon}</span>
+											<span class="match-result" class:winner={team1GamesWon > team2GamesWon} class:tie={team1GamesWon === team2GamesWon}>{team1GamesWon}</span>
 											<span>-</span>
-											<span class="match-result" style="color: {team2GamesWon > team1GamesWon ? '#00ff88' : team1GamesWon === team2GamesWon ? '#888' : '#fff'};">{team2GamesWon}</span>
+											<span class="match-result" class:winner={team2GamesWon > team1GamesWon} class:tie={team1GamesWon === team2GamesWon}>{team2GamesWon}</span>
 											{#if $gameSettings.show20s}
 												{@const total20s = allGames.reduce((sum, g) => sum + (g.rounds?.reduce((s, r) => s + r.team1Twenty + r.team2Twenty, 0) ?? 0), 0)}
 												{#if total20s > 0}
@@ -877,7 +877,7 @@
 	.tabs {
 		display: flex;
 		gap: 0;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		border-bottom: 1px solid var(--border);
 		overflow-x: auto;
 		flex-shrink: 0;
 		margin-bottom: 1rem;
@@ -888,7 +888,7 @@
 		background: transparent;
 		border: none;
 		border-bottom: 2px solid transparent;
-		color: rgba(255, 255, 255, 0.45);
+		color: var(--muted-foreground);
 		font-size: 0.8rem;
 		font-weight: 500;
 		cursor: pointer;
@@ -897,12 +897,13 @@
 	}
 
 	.tab:hover {
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--foreground);
+		opacity: 0.7;
 	}
 
 	.tab.active {
-		color: rgba(255, 255, 255, 0.9);
-		border-bottom-color: rgba(255, 255, 255, 0.5);
+		color: var(--primary);
+		border-bottom-color: var(--primary);
 	}
 
 	.tab-content {
@@ -920,7 +921,7 @@
 	}
 
 	.current-match-info {
-		background: rgba(255, 255, 255, 0.02);
+		background: var(--secondary);
 		border-radius: 8px;
 		padding: 0.85rem;
 		display: flex;
@@ -932,17 +933,17 @@
 		margin: 0;
 		font-size: 0.95rem;
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.9);
+		color: var(--foreground);
 	}
 
 	.match-header .phase {
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--muted-foreground);
 		font-weight: 400;
 		font-size: 0.9rem;
 	}
 
 	.match-datetime {
-		color: rgba(255, 255, 255, 0.4);
+		color: var(--muted-foreground);
 		font-size: 0.75rem;
 	}
 
@@ -955,11 +956,11 @@
 
 	.config-badge {
 		font-size: 0.65rem;
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--muted-foreground);
 		font-weight: 500;
 		padding: 0.2rem 0.5rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: var(--secondary);
+		border: 1px solid var(--border);
 		border-radius: 4px;
 		white-space: nowrap;
 	}
@@ -969,7 +970,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.4rem;
-		background: rgba(0, 0, 0, 0.15);
+		background: var(--muted);
 		border-radius: 6px;
 		padding: 0.75rem;
 		margin: 0.25rem 0;
@@ -980,12 +981,13 @@
 		align-items: center;
 		gap: 0.4rem;
 		font-size: 0.8rem;
-		color: rgba(255, 255, 255, 0.75);
+		color: var(--foreground);
+		opacity: 0.75;
 	}
 
 	.game-result-summary .game-number {
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--muted-foreground);
 		min-width: 28px;
 	}
 
@@ -995,11 +997,12 @@
 
 	.game-result-summary .score {
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--foreground);
+		opacity: 0.7;
 	}
 
 	.game-result-summary .twenties-summary {
-		color: rgba(255, 200, 100, 0.8);
+		color: #f59e0b;
 		font-size: 0.75rem;
 		margin-left: 0.4rem;
 	}
@@ -1011,16 +1014,25 @@
 		font-size: 0.9rem;
 		font-weight: 600;
 		padding-top: 0.4rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.08);
+		border-top: 1px solid var(--border);
 		margin-top: 0.2rem;
 	}
 
 	.match-total-summary .match-label {
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--muted-foreground);
 	}
 
 	.match-total-summary .match-result {
 		font-size: 1rem;
+		color: var(--foreground);
+	}
+
+	.match-total-summary .match-result.winner {
+		color: var(--primary);
+	}
+
+	.match-total-summary .match-result.tie {
+		color: var(--muted-foreground);
 	}
 
 	.match-total-summary .match-twenties {
@@ -1036,23 +1048,24 @@
 	}
 
 	.game-table {
-		background: rgba(0, 0, 0, 0.12);
+		background: var(--muted);
 		border-radius: 6px;
 		overflow: hidden;
 		padding: 0.65rem;
 	}
 
 	.game-table.completed-game {
-		border: 1px solid rgba(255, 255, 255, 0.05);
+		border: 1px solid var(--border);
 	}
 
 	.game-table.current-game {
-		border: 1px solid rgba(100, 180, 150, 0.25);
-		background: rgba(100, 180, 150, 0.03);
+		border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+		background: color-mix(in srgb, var(--primary) 3%, transparent);
 	}
 
 	.in-progress-badge {
-		color: rgba(100, 200, 150, 0.8);
+		color: var(--primary);
+		opacity: 0.8;
 		font-size: 0.7rem;
 		font-weight: 500;
 	}
@@ -1080,11 +1093,11 @@
 	}
 
 	.game-row.header {
-		background: rgba(255, 255, 255, 0.03);
+		background: var(--secondary);
 		border-radius: 4px;
 		font-weight: 600;
 		font-size: 0.7rem;
-		color: rgba(255, 255, 255, 0.45);
+		color: var(--muted-foreground);
 		margin-bottom: 0.15rem;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
@@ -1096,14 +1109,14 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		color: rgba(255, 255, 255, 0.8);
+		color: var(--foreground);
 		font-size: 0.8rem;
 	}
 
 	.game-row .round-col {
 		text-align: center;
 		font-size: 0.8rem;
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--muted-foreground);
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
@@ -1136,7 +1149,7 @@
 		text-align: center;
 		font-weight: 600;
 		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--muted-foreground);
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
@@ -1145,7 +1158,7 @@
 
 	.game-row .total-col.total-score {
 		font-size: 0.9rem;
-		color: rgba(255, 255, 255, 0.85);
+		color: var(--foreground);
 	}
 
 	.history-list {
@@ -1160,7 +1173,7 @@
 		justify-content: center;
 		min-height: 150px;
 		text-align: center;
-		color: rgba(255, 255, 255, 0.35);
+		color: var(--muted-foreground);
 	}
 
 	.empty-state p {
@@ -1177,12 +1190,12 @@
 	}
 
 	.tab-content::-webkit-scrollbar-thumb {
-		background: rgba(255, 255, 255, 0.12);
+		background: var(--muted);
 		border-radius: 2px;
 	}
 
 	.tab-content::-webkit-scrollbar-thumb:hover {
-		background: rgba(255, 255, 255, 0.2);
+		background: var(--muted-foreground);
 	}
 
 	/* Editable values */
@@ -1198,7 +1211,7 @@
 	}
 
 	.editable-value:hover {
-		background: rgba(255, 255, 255, 0.1);
+		background: var(--accent);
 	}
 
 	.editable-twenty {
@@ -1218,20 +1231,20 @@
 
 	.edit-input {
 		width: 40px;
-		background: rgba(255, 255, 255, 0.08);
-		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: var(--secondary);
+		border: 1px solid var(--border);
 		border-radius: 3px;
 		padding: 0.15rem 0.25rem;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #fff;
+		color: var(--foreground);
 		text-align: center;
 	}
 
 	.edit-input:focus {
 		outline: none;
-		background: rgba(255, 255, 255, 0.12);
-		border-color: rgba(255, 255, 255, 0.35);
+		background: var(--accent);
+		border-color: var(--primary);
 	}
 
 	.edit-input-twenty {
@@ -1252,8 +1265,8 @@
 
 	/* Sync Button */
 	.sync-button {
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
 		border-radius: 4px;
 		padding: 0.25rem 0.5rem;
 		display: flex;
@@ -1261,7 +1274,7 @@
 		justify-content: center;
 		gap: 0.25rem;
 		cursor: pointer;
-		color: rgba(255, 255, 255, 0.65);
+		color: var(--primary);
 		transition: all 0.15s ease;
 		font-size: 0.7rem;
 		font-weight: 500;
@@ -1269,9 +1282,9 @@
 	}
 
 	.sync-button:hover:not(:disabled) {
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(255, 255, 255, 0.2);
-		color: rgba(255, 255, 255, 0.85);
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+		filter: brightness(1.1);
 	}
 
 	.sync-button:active:not(:disabled) {

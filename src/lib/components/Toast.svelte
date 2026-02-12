@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { theme } from '$lib/stores/theme';
+
 	interface Props {
 		message?: string;
 		visible?: boolean;
@@ -61,6 +63,7 @@
 	<div
 		class="toast-container"
 		class:exit={isExiting}
+		data-theme={$theme}
 		role="alert"
 		aria-live="polite"
 	>
@@ -125,12 +128,12 @@
 		align-items: center;
 		gap: 0.625rem;
 		padding: 0.625rem 0.875rem;
-		background: #1a1a2e;
+		background: var(--card);
 		border-radius: 10px;
 		box-shadow:
 			0 4px 6px -1px rgba(0, 0, 0, 0.2),
 			0 10px 15px -3px rgba(0, 0, 0, 0.3),
-			0 0 0 1px rgba(255, 255, 255, 0.05);
+			0 0 0 1px var(--border);
 	}
 
 	.toast-success {
@@ -146,7 +149,7 @@
 	}
 
 	.toast-info {
-		border-left: 4px solid #3b82f6;
+		border-left: 4px solid var(--primary);
 	}
 
 	.toast-icon-wrapper {
@@ -175,8 +178,8 @@
 	}
 
 	.toast-icon-info {
-		background: rgba(59, 130, 246, 0.15);
-		color: #3b82f6;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--primary);
 	}
 
 	.toast-icon {
@@ -188,7 +191,7 @@
 
 	.toast-message {
 		flex: 1;
-		color: #f1f5f9;
+		color: var(--foreground);
 		font-size: 0.8125rem;
 		font-weight: 500;
 		line-height: 1.3;
@@ -205,15 +208,15 @@
 		background: transparent;
 		border: none;
 		border-radius: 5px;
-		color: #64748b;
+		color: var(--muted-foreground);
 		cursor: pointer;
 		transition: all 0.15s ease;
 		flex-shrink: 0;
 	}
 
 	.toast-close:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #94a3b8;
+		background: var(--accent);
+		color: var(--foreground);
 	}
 
 	.toast-close:active {

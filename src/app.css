@@ -85,6 +85,24 @@
 	--link-card-border-hover: rgba(255, 255, 255, 0.2);
 	--link-card-text: rgba(255, 255, 255, 0.7);
 	--link-card-text-hover: #ffffff;
+
+	/* Game page colors (dark theme) */
+	--game-bg-start: #0f1419;
+	--game-bg-end: #1a1f35;
+	--game-text: #ffffff;
+	--game-text-muted: rgba(255, 255, 255, 0.5);
+	--game-text-dim: rgba(255, 255, 255, 0.35);
+	--game-border: rgba(255, 255, 255, 0.08);
+	--game-surface: rgba(255, 255, 255, 0.03);
+	--game-surface-hover: rgba(255, 255, 255, 0.08);
+	--game-btn-bg: rgba(255, 255, 255, 0.04);
+	--game-btn-bg-hover: rgba(255, 255, 255, 0.08);
+	--game-btn-border: rgba(255, 255, 255, 0.1);
+	--game-toggle-active: oklch(0.75 0.18 155);
+	--game-toggle-track: rgba(255, 255, 255, 0.15);
+	--game-toggle-knob: rgba(255, 255, 255, 0.7);
+	--game-scrollbar: rgba(255, 255, 255, 0.15);
+	--game-scrollbar-hover: rgba(255, 255, 255, 0.25);
 }
 
 /* Light theme - applied via data-theme="light" for compatibility with existing theme store */
@@ -149,6 +167,24 @@
 	--link-card-border-hover: rgba(0, 0, 0, 0.2);
 	--link-card-text: rgba(0, 0, 0, 0.6);
 	--link-card-text-hover: #1a1a2e;
+
+	/* Game page colors (light theme) */
+	--game-bg-start: #f0f4f8;
+	--game-bg-end: #e2e8f0;
+	--game-text: #1a202c;
+	--game-text-muted: rgba(0, 0, 0, 0.5);
+	--game-text-dim: rgba(0, 0, 0, 0.35);
+	--game-border: rgba(0, 0, 0, 0.1);
+	--game-surface: rgba(0, 0, 0, 0.03);
+	--game-surface-hover: rgba(0, 0, 0, 0.06);
+	--game-btn-bg: rgba(0, 0, 0, 0.04);
+	--game-btn-bg-hover: rgba(0, 0, 0, 0.08);
+	--game-btn-border: rgba(0, 0, 0, 0.12);
+	--game-toggle-active: oklch(0.55 0.2 155);
+	--game-toggle-track: rgba(0, 0, 0, 0.15);
+	--game-toggle-knob: rgba(0, 0, 0, 0.6);
+	--game-scrollbar: rgba(0, 0, 0, 0.15);
+	--game-scrollbar-hover: rgba(0, 0, 0, 0.25);
 }
 
 /* Also support .dark class for shadcn compatibility */
@@ -220,6 +256,24 @@
 	--link-card-text-hover: #ffffff;
 
 	--accent-green: #a855f7; /* For legacy CSS using this var */
+
+	/* Game page colors (violet dark theme) */
+	--game-bg-start: #0f1419;
+	--game-bg-end: #1a1f35;
+	--game-text: #ffffff;
+	--game-text-muted: rgba(255, 255, 255, 0.5);
+	--game-text-dim: rgba(255, 255, 255, 0.35);
+	--game-border: rgba(255, 255, 255, 0.08);
+	--game-surface: rgba(255, 255, 255, 0.03);
+	--game-surface-hover: rgba(255, 255, 255, 0.08);
+	--game-btn-bg: rgba(255, 255, 255, 0.04);
+	--game-btn-bg-hover: rgba(255, 255, 255, 0.08);
+	--game-btn-border: rgba(255, 255, 255, 0.1);
+	--game-toggle-active: oklch(0.7 0.2 285);
+	--game-toggle-track: rgba(255, 255, 255, 0.15);
+	--game-toggle-knob: rgba(255, 255, 255, 0.7);
+	--game-scrollbar: rgba(255, 255, 255, 0.15);
+	--game-scrollbar-hover: rgba(255, 255, 255, 0.25);
 }
 
 [data-theme='violet-light'] {
@@ -279,6 +333,24 @@
 	--link-card-text-hover: #1a1a2e;
 
 	--accent-green: #a855f7; /* For legacy CSS */
+
+	/* Game page colors (violet light theme) */
+	--game-bg-start: #f0f4f8;
+	--game-bg-end: #e2e8f0;
+	--game-text: #1a202c;
+	--game-text-muted: rgba(0, 0, 0, 0.5);
+	--game-text-dim: rgba(0, 0, 0, 0.35);
+	--game-border: rgba(0, 0, 0, 0.1);
+	--game-surface: rgba(0, 0, 0, 0.03);
+	--game-surface-hover: rgba(0, 0, 0, 0.06);
+	--game-btn-bg: rgba(0, 0, 0, 0.04);
+	--game-btn-bg-hover: rgba(0, 0, 0, 0.08);
+	--game-btn-border: rgba(0, 0, 0, 0.12);
+	--game-toggle-active: oklch(0.55 0.25 285);
+	--game-toggle-track: rgba(0, 0, 0, 0.15);
+	--game-toggle-knob: rgba(0, 0, 0, 0.6);
+	--game-scrollbar: rgba(0, 0, 0, 0.15);
+	--game-scrollbar-hover: rgba(0, 0, 0, 0.25);
 }
 
 /* ============================================

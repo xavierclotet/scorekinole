@@ -8,7 +8,7 @@
   let isGreen = $derived($adminTheme === 'dark' || $adminTheme === 'light');
 
   function toggleTheme() {
-    adminTheme.toggle();
+    adminTheme.toggleMode();
   }
 </script>
 
