@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.10] - 2026-02-12
+- Validate participant names in tournament import knockout results
+- Block navigation when unknown participants detected in Step 3
+- Add professional warning box with edit button for name mismatches
+
 ## [2.4.9] - 2026-02-12
 - Native APK download with progress bar and auto-install trigger
 - Add Capacitor Filesystem and File Opener plugins
