@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.14] - 2026-02-12
+- Add Telegram notifications for admin (new users, tournaments)
+- Add IP/device fingerprint tracking for fraud detection
+- Alert admin when duplicate accounts detected (same IP or device)
+- Add onTournamentCreated Cloud Function (LIVE vs IMPORTED)
+
 ## [2.4.13] - 2026-02-12
 - Simplify update modal to always open GitHub releases page
 - Fix "failed to fetch" error by removing fetch-based download
