@@ -187,7 +187,7 @@
       <div class="user-card">
         <div class="user-avatar-section">
           {#if user.photoURL}
-            <img src={user.photoURL} alt="" class="avatar" />
+            <img src={user.photoURL} alt="" class="avatar" referrerpolicy="no-referrer" />
           {:else}
             <div class="avatar-placeholder">
               {user.playerName?.charAt(0).toUpperCase() || '?'}

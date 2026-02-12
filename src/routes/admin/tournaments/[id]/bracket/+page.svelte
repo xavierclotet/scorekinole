@@ -1689,12 +1689,12 @@
       <!-- Doubles: show both avatars -->
       <div class="pair-avatars {sizeClass}">
         {#if participant.photoURL}
-          <img src={participant.photoURL} alt="" class="avatar-img first" />
+          <img src={participant.photoURL} alt="" class="avatar-img first" referrerpolicy="no-referrer" />
         {:else}
           <span class="avatar-placeholder first">{participant.name?.charAt(0) || '?'}</span>
         {/if}
         {#if participant.partner.photoURL}
-          <img src={participant.partner.photoURL} alt="" class="avatar-img second" />
+          <img src={participant.partner.photoURL} alt="" class="avatar-img second" referrerpolicy="no-referrer" />
         {:else}
           <span class="avatar-placeholder second">{participant.partner.name?.charAt(0) || '?'}</span>
         {/if}
@@ -1703,7 +1703,7 @@
       <!-- Singles: show single avatar -->
       <div class="single-avatar {sizeClass}">
         {#if participant.photoURL}
-          <img src={participant.photoURL} alt="" class="avatar-img" />
+          <img src={participant.photoURL} alt="" class="avatar-img" referrerpolicy="no-referrer" />
         {:else}
           <span class="avatar-placeholder">{participant.name?.charAt(0) || '?'}</span>
         {/if}

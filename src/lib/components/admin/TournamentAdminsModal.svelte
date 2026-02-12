@@ -377,7 +377,7 @@
 										</div>
 										<div class="admin-avatar small">
 											{#if admin.photoURL}
-												<img src={admin.photoURL} alt="" />
+												<img src={admin.photoURL} alt="" referrerpolicy="no-referrer" />
 											{:else}
 												<span>{admin.playerName?.charAt(0).toUpperCase() || '?'}</span>
 											{/if}

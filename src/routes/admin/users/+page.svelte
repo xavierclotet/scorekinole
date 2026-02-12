@@ -373,7 +373,7 @@
                 <td class="name-cell">
                   <div class="user-info">
                     {#if user.photoURL}
-                      <img src={user.photoURL} alt={user.playerName} class="user-avatar" />
+                      <img src={user.photoURL} alt={user.playerName} class="user-avatar" referrerpolicy="no-referrer" />
                     {:else}
                       <div class="user-avatar-placeholder">
                         {user.playerName?.charAt(0).toUpperCase() || '?'}
@@ -465,7 +465,7 @@
         <h3>{m.admin_deleteUser()}</h3>
         <div class="user-preview">
           {#if userToDelete.photoURL}
-            <img src={userToDelete.photoURL} alt="" class="preview-avatar" />
+            <img src={userToDelete.photoURL} alt="" class="preview-avatar" referrerpolicy="no-referrer" />
           {:else}
             <div class="preview-avatar-placeholder">
               {userToDelete.playerName?.charAt(0).toUpperCase() || '?'}

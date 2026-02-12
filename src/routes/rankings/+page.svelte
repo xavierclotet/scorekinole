@@ -260,7 +260,7 @@
 							<td class="player-cell">
 								<div class="player-info">
 									{#if player.photoURL}
-										<img src={player.photoURL} alt="" class="player-avatar" />
+										<img src={player.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
 									{:else}
 										<div class="player-avatar-placeholder">
 											{player.playerName.charAt(0).toUpperCase()}

@@ -55,7 +55,7 @@
 			<div class="modal-content">
 				{#if $currentUser?.photoURL}
 					<div class="user-photo">
-						<img src={$currentUser.photoURL} alt="" />
+						<img src={$currentUser.photoURL} alt="" referrerpolicy="no-referrer" />
 					</div>
 				{/if}
 
