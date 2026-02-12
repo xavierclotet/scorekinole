@@ -1,6 +1,8 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
 	import { APP_VERSION } from '$lib/constants';
+	import { Browser } from '@capacitor/browser';
+	import { dismissVersion } from '$lib/utils/versionCheck';
 	import Button from './Button.svelte';
 
 	interface Props {
@@ -12,12 +14,15 @@
 
 	let { isOpen = false, latestVersion, downloadUrl, onclose }: Props = $props();
 
-	function openDownload() {
-		window.open(downloadUrl, '_blank');
+	async function openDownload() {
+		// Open in system browser (Chrome) which properly handles APK downloads
+		await Browser.open({ url: downloadUrl });
 		onclose?.();
 	}
 
 	function dismiss() {
+		// Remember that user dismissed this version, won't show again until next version
+		dismissVersion(latestVersion);
 		onclose?.();
 	}
 </script>

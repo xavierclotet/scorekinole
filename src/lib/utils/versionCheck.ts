@@ -4,8 +4,7 @@ import { browser } from '$app/environment';
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/xavierclotet/scorekinole/releases/latest';
 const GITHUB_RELEASES_PAGE = 'https://github.com/xavierclotet/scorekinole/releases/latest';
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // Check every 6 hours
-const STORAGE_KEY = 'scorekinole_last_version_check';
+const DISMISSED_VERSION_KEY = 'scorekinole_dismissed_version';
 
 /**
  * Build direct APK download URL for a specific version
@@ -41,30 +40,28 @@ function isNewerVersion(current: string, latest: string): boolean {
 }
 
 /**
- * Check if we should perform a version check (rate limiting)
+ * Check if the user already dismissed the update modal for a specific version
  */
-function shouldCheckVersion(): boolean {
+function wasVersionDismissed(version: string): boolean {
 	if (!browser) return false;
 
 	try {
-		const lastCheck = localStorage.getItem(STORAGE_KEY);
-		if (!lastCheck) return true;
-
-		const lastCheckTime = parseInt(lastCheck, 10);
-		return Date.now() - lastCheckTime > CHECK_INTERVAL_MS;
+		const dismissedVersion = localStorage.getItem(DISMISSED_VERSION_KEY);
+		return dismissedVersion === version;
 	} catch {
-		return true;
+		return false;
 	}
 }
 
 /**
- * Mark that we performed a version check
+ * Mark that the user dismissed the update modal for a specific version
+ * Called when user clicks "Later"
  */
-function markVersionChecked(): void {
+export function dismissVersion(version: string): void {
 	if (!browser) return;
 
 	try {
-		localStorage.setItem(STORAGE_KEY, Date.now().toString());
+		localStorage.setItem(DISMISSED_VERSION_KEY, version);
 	} catch {
 		// Ignore storage errors
 	}
@@ -85,7 +82,8 @@ export function isNativeMobile(): boolean {
 
 /**
  * Check for available updates from GitHub releases
- * Only runs on native mobile platforms, once per day
+ * Always checks on app start (no rate limiting)
+ * Only shows update if user hasn't dismissed this specific version
  */
 export async function checkForUpdates(): Promise<VersionCheckResult> {
 	const result: VersionCheckResult = {
@@ -99,15 +97,10 @@ export async function checkForUpdates(): Promise<VersionCheckResult> {
 		return result;
 	}
 
-	// Rate limit checks
-	if (!shouldCheckVersion()) {
-		return result;
-	}
-
 	try {
 		const response = await fetch(GITHUB_RELEASES_API, {
 			headers: {
-				'Accept': 'application/vnd.github.v3+json'
+				Accept: 'application/vnd.github.v3+json'
 			}
 		});
 
@@ -120,20 +113,20 @@ export async function checkForUpdates(): Promise<VersionCheckResult> {
 		const latestVersion = data.tag_name || data.name;
 
 		if (latestVersion) {
-			result.latestVersion = latestVersion.replace(/^v/, '');
-			result.updateAvailable = isNewerVersion(APP_VERSION, latestVersion);
+			const cleanVersion = latestVersion.replace(/^v/, '');
+			result.latestVersion = cleanVersion;
+
+			// Check if newer AND not already dismissed by user
+			const isNewer = isNewerVersion(APP_VERSION, latestVersion);
+			const wasDismissed = wasVersionDismissed(cleanVersion);
+
+			result.updateAvailable = isNewer && !wasDismissed;
 
 			// Set direct APK download URL when update is available
 			if (result.updateAvailable) {
 				result.downloadUrl = buildApkDownloadUrl(latestVersion);
+				console.log(`📱 Update available: ${APP_VERSION} → ${cleanVersion}`);
 			}
-		}
-
-		// Mark as checked regardless of result
-		markVersionChecked();
-
-		if (result.updateAvailable) {
-			console.log(`📱 Update available: ${APP_VERSION} → ${result.latestVersion}`);
 		}
 
 		return result;
