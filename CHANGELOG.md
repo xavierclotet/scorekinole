@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.8] - 2026-02-12
+- Full theme support for light/violet-light modes across all components
+- Fix ThemeToggle to preserve color theme when switching light/dark modes
+- Make color theme selector available to all users in profile settings
+- Replace hardcoded colors with CSS variables for proper theming
+
 ## [2.4.7] - 2026-02-12
 - Fix APK download stuck at 100% using Capacitor Browser plugin
 - Remove 6-hour rate limiting for version checks
