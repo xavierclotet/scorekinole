@@ -3,7 +3,7 @@
   import { adminTheme } from '$lib/stores/theme';
   import type { AdminUserInfo } from '$lib/firebase/admin';
   import { updateUserProfile, toggleAdminStatus } from '$lib/firebase/admin';
-  import { getQuotaForYear, setQuotaForYear, type QuotaEntry } from '$lib/types/quota';
+  import { getQuotaForYear, getQuotaEntryForYear, setQuotaForYear, type QuotaEntry } from '$lib/types/quota';
   import { currentUser } from '$lib/firebase/auth';
   import { get } from 'svelte/store';
 
@@ -60,6 +60,20 @@
       .filter(e => e.year < currentYear)
       .sort((a, b) => b.year - a.year)
   );
+
+  // Get quota entries for current and next year (to show dates)
+  let currentYearEntry = $derived(getQuotaEntryForYear(user.quotaEntries, currentYear));
+  let nextYearEntry = $derived(getQuotaEntryForYear(user.quotaEntries, nextYear));
+
+  function formatQuotaDate(timestamp: number | undefined): string {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
+    });
+  }
 
   async function saveChanges() {
     if (!playerName.trim()) {
@@ -298,6 +312,9 @@
                   />
                   <span class="suffix">live</span>
                 </div>
+                {#if currentYearEntry?.createdAt}
+                  <span class="quota-date">{formatQuotaDate(currentYearEntry.createdAt)}</span>
+                {/if}
               </div>
 
               <!-- Next year quota (collapsible) -->
@@ -314,6 +331,9 @@
                     />
                     <span class="suffix">live</span>
                   </div>
+                  {#if nextYearEntry?.createdAt}
+                    <span class="quota-date">{formatQuotaDate(nextYearEntry.createdAt)}</span>
+                  {/if}
                 </div>
               {:else}
                 <button type="button" class="add-year-btn" onclick={() => { showNextYear = true; nextYearQuota = 1; }}>
@@ -818,6 +838,16 @@
   .input-with-suffix.compact input {
     padding-right: 2.5rem;
     text-align: center;
+  }
+
+  .quota-date {
+    font-size: 0.7rem;
+    color: #999;
+    margin-left: auto;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .quota-date {
+    color: #6b7a94;
   }
 
   .add-year-btn {

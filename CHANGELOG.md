@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.11] - 2026-02-12
+- Fix APK download error by using browser instead of native fetch
+- Remove unused Capacitor plugins (filesystem, file-opener)
+
 ## [2.4.10] - 2026-02-12
 - Validate participant names in tournament import knockout results
 - Block navigation when unknown participants detected in Step 3
