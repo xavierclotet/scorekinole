@@ -50,7 +50,7 @@
 		font-style: italic;
 		font-weight: 700;
 		font-size: 0.75rem;
-		color: #e85a5a;
+		color: #dc2626;
 		transform: rotate(-8deg);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
@@ -75,7 +75,8 @@
 	}
 
 	.header-logo:hover .header-logo-arena {
-		color: #ff6b6b;
+		color: #dc2626;
+		filter: brightness(1.15);
 	}
 
 	.header-logo:hover .header-logo-version {

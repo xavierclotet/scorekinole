@@ -4,7 +4,7 @@ import { browser } from '$app/environment';
 
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/xavierclotet/scorekinole/releases/latest';
 const GITHUB_RELEASES_PAGE = 'https://github.com/xavierclotet/scorekinole/releases/latest';
-const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000; // Check every 12 hours
+const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // Check every 6 hours
 const STORAGE_KEY = 'scorekinole_last_version_check';
 
 /**
