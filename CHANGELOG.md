@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.16] - 2026-02-13
+- Improve public tournament brackets: vertical layout without tabs, inline consolation
+- Add golden styling for final round names in brackets
+- Add match detail modal with round-by-round breakdown (click on completed matches)
+- Add hammer indicator in match detail modal (when showHammer enabled)
+- Fix theme support for violet-light in /tournaments page
+- Fix match-result-row font size consistency
+- Fix infinite loop in score tracking effect for live matches
+
 ## [2.4.15] - 2026-02-13
 - Stop creating GUEST users in /users on tournament completion
 - Only REGISTERED users appear in public rankings
