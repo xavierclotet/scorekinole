@@ -1084,6 +1084,40 @@ function removeAccents(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+export async function getAllRegisteredUsers(): Promise<(UserProfile & { userId: string })[]> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return [];
+  }
+
+  try {
+    const usersRef = collection(db!, 'users');
+    const snapshot = await getDocs(usersRef);
+
+    const users: (UserProfile & { userId: string })[] = [];
+
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data() as UserProfile;
+
+      // Skip merged users
+      if (data.mergedTo) {
+        return;
+      }
+
+      users.push({
+        ...data,
+        userId: docSnap.id,
+        playerName: data.playerName || 'Usuario'
+      });
+    });
+
+    return users;
+  } catch (error) {
+    console.error('❌ Error getting all users:', error);
+    return [];
+  }
+}
+
 export async function searchUsers(searchQuery: string): Promise<UserProfile[]> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');

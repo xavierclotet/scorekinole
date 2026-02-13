@@ -7,7 +7,7 @@ import { getTournament, updateTournament, updateTournamentPublic } from './tourn
 import { calculateRankingPoints } from '$lib/algorithms/ranking';
 import { calculateConsolationPositions } from '$lib/algorithms/bracket';
 import { browser } from '$app/environment';
-import { getOrCreateUserByName, getUserProfileById, removeTournamentRecord } from './userProfile';
+import { getUserProfileById, removeTournamentRecord } from './userProfile';
 import { savingParticipantResults } from '$lib/stores/tournament';
 import type { ConsolationBracket } from '$lib/types/tournament';
 import { getParticipantDisplayName } from '$lib/types/tournament';
@@ -39,18 +39,12 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
       tournament.participants.map(async (participant) => {
         let currentRanking = 0;
 
-        if (participant.userId) {
+        // Only REGISTERED users have ranking history in /users
+        // GUEST participants start with ranking 0
+        if (participant.type === 'REGISTERED' && participant.userId) {
           const profile = await getUserProfileById(participant.userId);
           if (profile?.ranking !== undefined) {
             currentRanking = profile.ranking;
-          }
-        } else {
-          const result = await getOrCreateUserByName(participant.name);
-          if (result) {
-            const profile = await getUserProfileById(result.userId);
-            if (profile?.ranking !== undefined) {
-              currentRanking = profile.ranking;
-            }
           }
         }
 
@@ -543,54 +537,26 @@ export async function applyRankingUpdates(
         rankingDelta: pointsEarned
       };
 
-      // DOUBLES: Process both members of the pair
+      // DOUBLES: Process both members of the pair (REGISTERED only)
+      // GUEST participants do NOT get entries in /users - their data stays in the tournament document
       if (isDoubles && participant.partner) {
         console.log(`🏅 Processing doubles: ${participant.name} / ${participant.partner.name}`);
 
-        // Member 1
-        let member1UserId: string | null = null;
+        // Member 1: Only process if REGISTERED
         if (participant.type === 'REGISTERED' && participant.userId) {
-          member1UserId = participant.userId;
-        } else {
-          const result = await getOrCreateUserByName(participant.name);
-          if (result) {
-            member1UserId = result.userId;
-          }
-        }
-        if (member1UserId) {
-          await addTournamentRecord(member1UserId, tournamentRecord, rankingAfter);
+          await addTournamentRecord(participant.userId, tournamentRecord, rankingAfter);
           console.log(`🏅 Added record for member 1: ${participant.name} (+${pointsEarned} points)`);
         }
 
-        // Member 2 (partner)
-        let member2UserId: string | null = null;
+        // Member 2: Only process if REGISTERED
         if (participant.partner.type === 'REGISTERED' && participant.partner.userId) {
-          member2UserId = participant.partner.userId;
-        } else {
-          const result = await getOrCreateUserByName(participant.partner.name);
-          if (result) {
-            member2UserId = result.userId;
-          }
-        }
-        if (member2UserId) {
-          await addTournamentRecord(member2UserId, tournamentRecord, rankingAfter);
+          await addTournamentRecord(participant.partner.userId, tournamentRecord, rankingAfter);
           console.log(`🏅 Added record for member 2: ${participant.partner.name} (+${pointsEarned} points)`);
         }
       } else {
-        // SINGLES: Process individual participant
-        let userId: string | null = null;
-
+        // SINGLES: Process individual participant (REGISTERED only)
         if (participant.type === 'REGISTERED' && participant.userId) {
-          userId = participant.userId;
-        } else {
-          const result = await getOrCreateUserByName(participant.name);
-          if (result) {
-            userId = result.userId;
-          }
-        }
-
-        if (userId) {
-          await addTournamentRecord(userId, tournamentRecord, rankingAfter);
+          await addTournamentRecord(participant.userId, tournamentRecord, rankingAfter);
           console.log(`🏅 Added record for: ${participant.name} (+${pointsEarned} points)`);
         }
       }
@@ -654,35 +620,16 @@ export async function revertTournamentRanking(tournamentId: string): Promise<boo
       // Treat missing status as ACTIVE for backward compatibility
       if (participant.status && participant.status !== 'ACTIVE') continue;
 
-      let userId: string | null = null;
-
+      // Only REGISTERED users have entries in /users to remove
+      // GUEST participants don't have /users entries
       if (participant.type === 'REGISTERED' && participant.userId) {
-        userId = participant.userId;
-      } else {
-        const result = await getOrCreateUserByName(participant.name);
-        if (result && !result.created) {
-          userId = result.userId;
-        }
-      }
-
-      if (userId) {
-        await removeTournamentRecord(userId, tournamentId);
+        await removeTournamentRecord(participant.userId, tournamentId);
       }
 
       if (tournament.gameType === 'doubles' && participant.partner) {
-        let partnerUserId: string | null = null;
-
+        // Only remove partner record if REGISTERED
         if (participant.partner.type === 'REGISTERED' && participant.partner.userId) {
-          partnerUserId = participant.partner.userId;
-        } else {
-          const result = await getOrCreateUserByName(participant.partner.name);
-          if (result && !result.created) {
-            partnerUserId = result.userId;
-          }
-        }
-
-        if (partnerUserId) {
-          await removeTournamentRecord(partnerUserId, tournamentId);
+          await removeTournamentRecord(participant.partner.userId, tournamentId);
         }
       }
     }

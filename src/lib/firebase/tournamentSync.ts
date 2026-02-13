@@ -453,5 +453,5 @@ export function subscribeToMatchStatus(
 
 // Re-export for convenience
 export { getTournament } from './tournaments';
-export { getPendingMatchesForUser, getAllPendingMatches, resumeTournamentMatch } from './tournamentMatches';
+export { getPendingMatchesForUser, getAllPendingMatches, getUserActiveMatches, resumeTournamentMatch } from './tournamentMatches';
 export type { PendingMatchInfo } from './tournamentMatches';

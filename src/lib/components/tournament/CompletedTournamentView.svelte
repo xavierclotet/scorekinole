@@ -369,7 +369,40 @@
     winner: (selectedMatch as any).winner,
     noShowParticipant: (selectedMatch as any).noShowParticipant
   } as GroupMatch : null);
+
+  // Check if participant (or partner) is registered
+  const isDoubles = $derived(tournament.gameType === 'doubles');
 </script>
+
+{#snippet participantNameWithBadge(participant: typeof tournament.participants[0])}
+  {#if isDoubles && participant.partner}
+    <!-- Doubles: show each player with their own registration indicator + teamName if exists -->
+    <span class="doubles-names">
+      <span class="player-name" class:registered={participant.type === 'REGISTERED'}>
+        {participant.name}
+        {#if participant.type === 'REGISTERED'}
+          <span class="reg-badge" title="Registrado">✓</span>
+        {/if}
+      </span>
+      <span class="separator">/</span>
+      <span class="player-name" class:registered={participant.partner.type === 'REGISTERED'}>
+        {participant.partner.name}
+        {#if participant.partner.type === 'REGISTERED'}
+          <span class="reg-badge" title="Registrado">✓</span>
+        {/if}
+      </span>
+      {#if participant.teamName}
+        <span class="team-name">({participant.teamName})</span>
+      {/if}
+    </span>
+  {:else}
+    <!-- Singles -->
+    {participant.name}
+    {#if participant.type === 'REGISTERED'}
+      <span class="reg-badge" title="Registrado">✓</span>
+    {/if}
+  {/if}
+{/snippet}
 
 <div class="completed-view">
   <!-- Final Standings with Ranking - Compact Grid Layout -->
@@ -411,7 +444,7 @@
           {@const pos = participant.finalPosition || 0}
           <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
             <span class="pos">{getPositionDisplay(pos)}</span>
-            <span class="name">{getParticipantDisplayName(participant, tournament.gameType === 'doubles')}</span>
+            <span class="name">{@render participantNameWithBadge(participant)}</span>
             {#if tournament.rankingConfig?.enabled}
               <span class="ranking">{participant.currentRanking}</span>
               <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
@@ -426,7 +459,7 @@
           {@const pos = participant.finalPosition || 0}
           <div class="standing-row" class:top-4={pos <= 4} class:first={pos === 1} class:second={pos === 2} class:third={pos === 3} class:fourth={pos === 4} class:zebra-odd={pos > 4 && pos % 2 === 1} class:zebra-even={pos > 4 && pos % 2 === 0}>
             <span class="pos">{getPositionDisplay(pos)}</span>
-            <span class="name">{getParticipantDisplayName(participant, tournament.gameType === 'doubles')}</span>
+            <span class="name">{@render participantNameWithBadge(participant)}</span>
             {#if tournament.rankingConfig?.enabled}
               <span class="ranking">{participant.currentRanking}</span>
               <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
@@ -1405,6 +1438,35 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .standing-row .name {
     color: #e1e8ed;
+  }
+
+  /* Registration badge for registered users */
+  .standing-row .name .reg-badge {
+    color: #10b981;
+    font-size: 0.65rem;
+    margin-left: 0.15rem;
+    vertical-align: super;
+  }
+
+  /* Doubles names styling */
+  .standing-row .name .doubles-names {
+    display: inline;
+  }
+
+  .standing-row .name .doubles-names .separator {
+    margin: 0 0.25rem;
+    opacity: 0.5;
+  }
+
+  .standing-row .name .doubles-names .player-name.registered {
+    font-weight: 500;
+  }
+
+  .standing-row .name .doubles-names .team-name {
+    margin-left: 0.35rem;
+    font-style: italic;
+    opacity: 0.7;
+    font-size: 0.85em;
   }
 
   .standing-row .ranking {

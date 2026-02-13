@@ -8,7 +8,7 @@
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
   import { adminTheme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
-  import { createTournament, searchUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
+  import { createTournament, searchUsers, getAllRegisteredUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
@@ -148,10 +148,24 @@
   );
 
   let searchQuery = $state('');
-  let searchResults = $state<(UserProfile & { userId: string })[]>([]);
+  let searchResultsRaw = $state<(UserProfile & { userId: string })[]>([]);
   let searchLoading = $state(false);
+
+  // Filter out users already added as participants (reactive - updates when participants change)
+  let searchResults = $derived.by(() => {
+    const addedUserIds = participants
+      .filter(p => p.type === 'REGISTERED' && p.userId)
+      .map(p => p.userId);
+    return searchResultsRaw.filter(u => !addedUserIds.includes(u.userId));
+  });
   let guestName = $state('');  // Input for guest player name
   let guestNameMatchedUser = $state<(UserProfile & { userId: string }) | null>(null);  // User that matches guest name
+
+  // Bulk guest entry
+  let bulkGuestText = $state('');  // Textarea for bulk guest entry
+  let bulkTestCount = $state(10);  // Number of test players to generate
+  let bulkErrors = $state<string[]>([]);  // Validation errors from bulk processing
+  let bulkProcessing = $state(false);  // Loading state for bulk processing
 
   // Tournament name search
   let tournamentNameResults = $state<TournamentNameInfo[]>([]);
@@ -869,17 +883,14 @@
 
   async function handleSearch() {
     if (searchQuery.length < 2) {
-      searchResults = [];
+      searchResultsRaw = [];
       return;
     }
 
     searchLoading = true;
     const results = await searchUsers(searchQuery) as (UserProfile & { userId: string })[];
-    // Filter out users already added as participants
-    const addedUserIds = participants
-      .filter(p => p.type === 'REGISTERED' && p.userId)
-      .map(p => p.userId);
-    searchResults = results.filter(u => !addedUserIds.includes(u.userId));
+    // Store raw results - filtering is done reactively via $derived
+    searchResultsRaw = results;
     searchLoading = false;
   }
 
@@ -998,8 +1009,7 @@
       }
     ];
 
-    // Remove added user from search results without clearing the search query
-    searchResults = searchResults.filter(u => u.userId !== user.userId);
+    // Note: User is automatically removed from searchResults via $derived filter
     saveDraft(); // Save after adding participant
   }
 
@@ -1047,6 +1057,193 @@
     guestName = `Player${participants.length + 1}`;
     guestNameMatchedUser = null;
     saveDraft(); // Save after adding guest
+  }
+
+  // Generate test players for bulk entry
+  function generateTestPlayers() {
+    const count = Math.min(Math.max(1, bulkTestCount), 100);
+    let lines: string[] = [];
+
+    if (gameType === 'doubles') {
+      // Generate pairs: "Player1 / Player2", "Player3 / Player4", etc.
+      for (let i = 0; i < count; i++) {
+        const p1 = i * 2 + 1;
+        const p2 = i * 2 + 2;
+        lines.push(`Player${p1} / Player${p2}`);
+      }
+    } else {
+      // Generate single players: "Player1", "Player2", etc.
+      for (let i = 1; i <= count; i++) {
+        lines.push(`Player${i}`);
+      }
+    }
+
+    bulkGuestText = lines.join('\n');
+    bulkErrors = [];
+  }
+
+  // Process bulk guest entry
+  async function processBulkGuests() {
+    if (!bulkGuestText.trim()) return;
+
+    bulkProcessing = true;
+    bulkErrors = [];
+
+    const lines = bulkGuestText.split('\n').filter(line => line.trim());
+    const newParticipants: Partial<TournamentParticipant>[] = [];
+    const errors: string[] = [];
+
+    // Get all registered users to check against
+    const allUsers = await getAllRegisteredUsers();
+    const userNameMap = new Map<string, UserProfile & { userId: string }>();
+    for (const user of allUsers) {
+      if (user.playerName) {
+        userNameMap.set(user.playerName.toLowerCase(), user);
+      }
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const lineNum = i + 1;
+
+      if (gameType === 'doubles') {
+        // Parse doubles format: "Player1 / Player2, team name" or "Player1 / Player2"
+        // First split by comma to separate optional team name
+        const commaIndex = line.indexOf(',');
+        let playersPart = line;
+        let teamName: string | undefined;
+
+        if (commaIndex !== -1) {
+          playersPart = line.substring(0, commaIndex).trim();
+          teamName = line.substring(commaIndex + 1).trim() || undefined;
+        }
+
+        // Now split players by " / "
+        const slashIndex = playersPart.indexOf(' / ');
+        if (slashIndex === -1) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDoublesFormat()}`);
+          continue;
+        }
+
+        const player1 = playersPart.substring(0, slashIndex).trim();
+        const player2 = playersPart.substring(slashIndex + 3).trim();
+
+        if (player1.length < 3) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: player1 })}`);
+          continue;
+        }
+        if (player2.length < 3) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: player2 })}`);
+          continue;
+        }
+
+        // Check if either player is registered
+        const user1 = userNameMap.get(player1.toLowerCase());
+        const user2 = userNameMap.get(player2.toLowerCase());
+
+        if (user1) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${player1}" ${m.wizard_bulkErrorIsRegistered()}`);
+          continue;
+        }
+        if (user2) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${player2}" ${m.wizard_bulkErrorIsRegistered()}`);
+          continue;
+        }
+
+        // Check for duplicate pair in existing participants
+        const isDuplicate = participants.some(p =>
+          (p.name?.toLowerCase() === player1.toLowerCase() && p.partner?.name?.toLowerCase() === player2.toLowerCase()) ||
+          (p.name?.toLowerCase() === player2.toLowerCase() && p.partner?.name?.toLowerCase() === player1.toLowerCase())
+        );
+        if (isDuplicate) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicatePair()}`);
+          continue;
+        }
+
+        // Check for duplicate in new participants being added
+        const isDuplicateNew = newParticipants.some(p =>
+          (p.name?.toLowerCase() === player1.toLowerCase() && p.partner?.name?.toLowerCase() === player2.toLowerCase()) ||
+          (p.name?.toLowerCase() === player2.toLowerCase() && p.partner?.name?.toLowerCase() === player1.toLowerCase())
+        );
+        if (isDuplicateNew) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicatePair()}`);
+          continue;
+        }
+
+        newParticipants.push({
+          id: crypto.randomUUID(),
+          type: 'GUEST',
+          name: player1,
+          partner: {
+            type: 'GUEST',
+            name: player2
+          },
+          teamName,
+          rankingSnapshot: 0,
+          currentRanking: 0,
+          status: 'ACTIVE'
+        });
+      } else {
+        // Singles format: just the player name
+        const playerName = line.trim();
+
+        if (playerName.length < 3) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: playerName })}`);
+          continue;
+        }
+
+        // Check if player is registered
+        const existingUser = userNameMap.get(playerName.toLowerCase());
+        if (existingUser) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${playerName}" ${m.wizard_bulkErrorIsRegistered()}`);
+          continue;
+        }
+
+        // Check for duplicate in existing participants
+        const isDuplicate = participants.some(p =>
+          p.name?.toLowerCase() === playerName.toLowerCase()
+        );
+        if (isDuplicate) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicateSingle()}`);
+          continue;
+        }
+
+        // Check for duplicate in new participants
+        const isDuplicateNew = newParticipants.some(p =>
+          p.name?.toLowerCase() === playerName.toLowerCase()
+        );
+        if (isDuplicateNew) {
+          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicateSingle()}`);
+          continue;
+        }
+
+        newParticipants.push({
+          type: 'GUEST',
+          name: playerName,
+          rankingSnapshot: 0
+        });
+      }
+    }
+
+    bulkProcessing = false;
+
+    if (errors.length > 0) {
+      bulkErrors = errors;
+      return;
+    }
+
+    // Add all new participants
+    if (newParticipants.length > 0) {
+      participants = [...participants, ...newParticipants];
+      bulkGuestText = '';
+      bulkErrors = [];
+      toastMessage = m.wizard_bulkSuccess({ count: newParticipants.length });
+      toastType = 'success';
+      showToast = true;
+      saveDraft();
+    }
   }
 
   function removeParticipant(participant: Partial<TournamentParticipant>) {
@@ -2608,6 +2805,79 @@
               </div>
             </div>
           {/if}
+
+          <!-- Bulk guest entry section -->
+          <div class="bulk-entry-section">
+            <div class="bulk-entry-header">
+              <span class="bulk-entry-divider"></span>
+              <span class="bulk-entry-label">{m.wizard_bulkEntryTitle()}</span>
+              <span class="bulk-entry-divider"></span>
+            </div>
+
+            <div class="bulk-entry-content">
+              <div class="bulk-entry-help">
+                {#if gameType === 'doubles'}
+                  <p>{m.wizard_bulkHelpDoubles()}</p>
+                  <code>Player1 / Player2, {m.wizard_teamNamePlaceholder()}</code>
+                  <code>Player3 / Player4</code>
+                {:else}
+                  <p>{m.wizard_bulkHelpSingles()}</p>
+                  <code>Player1</code>
+                  <code>Player2</code>
+                {/if}
+              </div>
+
+              <textarea
+                class="bulk-textarea"
+                bind:value={bulkGuestText}
+                placeholder={gameType === 'doubles'
+                  ? "Player1 / Player2\nPlayer3 / Player4, Los Tigres\n..."
+                  : "Player1\nPlayer2\nPlayer3\n..."}
+                rows="6"
+              ></textarea>
+
+              {#if bulkErrors.length > 0}
+                <div class="bulk-errors">
+                  {#each bulkErrors as error}
+                    <div class="bulk-error-item">⚠️ {error}</div>
+                  {/each}
+                </div>
+              {/if}
+
+              <div class="bulk-actions">
+                <div class="bulk-test-group">
+                  <label>{m.wizard_bulkTestLabel()}</label>
+                  <input
+                    type="number"
+                    class="bulk-test-input"
+                    bind:value={bulkTestCount}
+                    min="1"
+                    max="100"
+                  />
+                  <button
+                    type="button"
+                    class="bulk-test-btn"
+                    onclick={generateTestPlayers}
+                  >
+                    {m.wizard_bulkGenerateTest()}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  class="bulk-process-btn"
+                  onclick={processBulkGuests}
+                  disabled={!bulkGuestText.trim() || bulkProcessing}
+                >
+                  {#if bulkProcessing}
+                    {m.wizard_bulkProcessing()}
+                  {:else}
+                    {m.wizard_bulkProcess()}
+                  {/if}
+                </button>
+              </div>
+            </div>
+          </div>
 
           <!-- Participants list -->
           <div class="participants-list-section">
@@ -6279,6 +6549,220 @@
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .add-btn:disabled {
     background: #4a5568;
+  }
+
+  /* Bulk Entry Section */
+  .bulk-entry-section {
+    margin-top: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .bulk-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .bulk-entry-divider {
+    flex: 1;
+    height: 1px;
+    background: #e0e0e0;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-divider {
+    background: #3d4a5c;
+  }
+
+  .bulk-entry-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #888;
+    white-space: nowrap;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-label {
+    color: #8b9bb3;
+  }
+
+  .bulk-entry-content {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.875rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-content {
+    background: #151e2c;
+    border-color: #2d3748;
+  }
+
+  .bulk-entry-help {
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-help {
+    color: #8b9bb3;
+  }
+
+  .bulk-entry-help p {
+    margin: 0 0 0.25rem 0;
+  }
+
+  .bulk-entry-help code {
+    display: block;
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: #555;
+    background: #e8ecf1;
+    padding: 0.15rem 0.35rem;
+    border-radius: 3px;
+    margin: 0.15rem 0;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-help code {
+    background: #2d3748;
+    color: #a0aec0;
+  }
+
+  .bulk-textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 0.8rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #333;
+    resize: vertical;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-textarea {
+    background: #1a2332;
+    border-color: #3d4a5c;
+    color: #e2e8f0;
+  }
+
+  .bulk-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+
+  .bulk-errors {
+    margin-top: 0.5rem;
+    max-height: 120px;
+    overflow-y: auto;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 4px;
+    padding: 0.5rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-errors {
+    background: #2d1f1f;
+    border-color: #6b2c2c;
+  }
+
+  .bulk-error-item {
+    font-size: 0.7rem;
+    color: #dc2626;
+    padding: 0.15rem 0;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-error-item {
+    color: #f87171;
+  }
+
+  .bulk-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .bulk-test-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .bulk-test-group label {
+    font-size: 0.75rem;
+    color: #666;
+    font-weight: 500;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-group label {
+    color: #8b9bb3;
+  }
+
+  .bulk-test-input {
+    width: 60px;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: white;
+    color: #333;
+    text-align: center;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-input {
+    background: #1a2332;
+    border-color: #3d4a5c;
+    color: #e2e8f0;
+  }
+
+  .bulk-test-btn {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: #e5e7eb;
+    color: #374151;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-btn {
+    background: #3d4a5c;
+    color: #e2e8f0;
+  }
+
+  .bulk-test-btn:hover {
+    background: #d1d5db;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-btn:hover {
+    background: #4a5568;
+  }
+
+  .bulk-process-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .bulk-process-btn:hover:not(:disabled) {
+    background: #059669;
+  }
+
+  .bulk-process-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .participants-list-section {

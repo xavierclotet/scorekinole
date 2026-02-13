@@ -27,6 +27,7 @@
 		loadTournamentContext,
 		clearTournamentContext,
 		updateTournamentContext,
+		setTournamentContext,
 		type TournamentMatchContext
 	} from '$lib/stores/tournamentContext';
 	import {
@@ -35,6 +36,15 @@
 		abandonMatch as abandonTournamentMatchSync,
 		subscribeToMatchStatus
 	} from '$lib/firebase/tournamentSync';
+	import { getTournamentByKey } from '$lib/firebase/tournaments';
+	import {
+		getUserActiveMatches,
+		startTournamentMatch,
+		resumeTournamentMatch,
+		type PendingMatchInfo
+	} from '$lib/firebase/tournamentMatches';
+	import { currentUser } from '$lib/firebase/auth';
+	import { Loader2 } from '@lucide/svelte';
 
 	let showSettings = $state(false);
 	let showHistory = $state(false);
@@ -43,6 +53,7 @@
 	let showHammerDialog = $state(false);
 	let showNewMatchConfirm = $state(false);
 	let showTournamentModal = $state(false);
+	let isCheckingTournament = $state(false);
 	let showTournamentExitConfirm = $state(false);
 	let showTournamentResetConfirm = $state(false);
 	let isResettingTournament = $state(false);
@@ -656,6 +667,178 @@
 			const newSide = $gameTournamentContext.currentUserSide === 'A' ? 'B' : 'A';
 			updateTournamentContext({ currentUserSide: newSide });
 		}
+	}
+
+	/**
+	 * Handle join tournament button click
+	 * If user is logged in and has a saved tournament key with exactly 1 active match,
+	 * auto-start the match without showing the modal
+	 */
+	async function handleJoinTournament() {
+		const TOURNAMENT_KEY_STORAGE = 'tournamentKey';
+		const savedKey = localStorage.getItem(TOURNAMENT_KEY_STORAGE);
+
+		console.log('🎯 handleJoinTournament:', { savedKey, currentUser: $currentUser?.id });
+
+		// If no saved key or user not logged in, show modal
+		if (!savedKey || !$currentUser) {
+			console.log('❌ No saved key or not logged in, showing modal');
+			showTournamentModal = true;
+			return;
+		}
+
+		isCheckingTournament = true;
+
+		try {
+			// Fetch tournament by key (returns Tournament | null directly)
+			console.log('🔍 Fetching tournament by key:', savedKey);
+			const tournament = await getTournamentByKey(savedKey);
+			if (!tournament) {
+				console.log('❌ Tournament not found');
+				showTournamentModal = true;
+				return;
+			}
+
+			console.log('✅ Tournament found:', { id: tournament.id, status: tournament.status });
+
+			// Check tournament is active
+			if (!['IN_PROGRESS', 'GROUP_STAGE', 'FINAL_STAGE'].includes(tournament.status)) {
+				console.log('❌ Tournament not active, clearing key');
+				localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
+				showTournamentModal = true;
+				return;
+			}
+
+			// Get user's active matches (PENDING or IN_PROGRESS)
+			console.log('🔍 Getting user active matches for userId:', $currentUser.id);
+			const userMatches = await getUserActiveMatches(tournament, $currentUser.id);
+			console.log('📊 User matches found:', userMatches.length, userMatches);
+
+			// If exactly 1 match, auto-start
+			if (userMatches.length === 1) {
+				console.log('🚀 Auto-starting single match');
+				await autoStartMatch(tournament, userMatches[0]);
+				return;
+			}
+
+			// Otherwise show modal (0 or 2+ matches)
+			console.log('📋 Showing modal (matches !== 1)');
+			showTournamentModal = true;
+		} catch (error) {
+			console.error('Error checking tournament:', error);
+			showTournamentModal = true;
+		} finally {
+			isCheckingTournament = false;
+		}
+	}
+
+	/**
+	 * Auto-start a tournament match without showing the modal
+	 */
+	async function autoStartMatch(tournament: any, matchInfo: PendingMatchInfo) {
+		console.log('🎮 autoStartMatch called:', { matchId: matchInfo.match.id, status: matchInfo.match.status });
+		const isResuming = matchInfo.match.status === 'IN_PROGRESS';
+
+		// Start or resume match in Firebase
+		console.log('🔄 Starting match in Firebase...', { isResuming });
+		const result = await startTournamentMatch(
+			tournament.id,
+			matchInfo.match.id,
+			matchInfo.phase,
+			matchInfo.groupId,
+			isResuming
+		);
+
+		console.log('📡 startTournamentMatch result:', result);
+
+		if (!result.success) {
+			console.log('❌ Failed to start match, showing modal');
+			showTournamentModal = true;
+			return;
+		}
+
+		// Get existing rounds if resuming
+		let existingRounds: any[] = [];
+		let gamesWonA = 0;
+		let gamesWonB = 0;
+
+		if (isResuming) {
+			const resumeResult = await resumeTournamentMatch(
+				tournament.id,
+				matchInfo.match.id,
+				matchInfo.phase,
+				matchInfo.groupId
+			);
+			if (resumeResult.success && resumeResult.match) {
+				existingRounds = resumeResult.match.rounds || [];
+				gamesWonA = resumeResult.match.gamesWonA || 0;
+				gamesWonB = resumeResult.match.gamesWonB || 0;
+			}
+		}
+
+		// Detect user side
+		const userParticipant = tournament.participants.find((p: any) => p.userId === $currentUser?.id);
+		const side: 'A' | 'B' = userParticipant?.id === matchInfo.match.participantA ? 'A' : 'B';
+
+		// Get current user's ranking
+		let currentUserRanking: number | undefined;
+		if (userParticipant) {
+			currentUserRanking = userParticipant.currentRanking;
+		}
+
+		// Calculate current game number
+		const maxGameNumber = existingRounds.length > 0
+			? Math.max(...existingRounds.map((r: any) => r.gameNumber || 1))
+			: 1;
+
+		// Determine bracket type
+		const bracketType: 'gold' | 'silver' | undefined =
+			matchInfo.isSilverBracket ? 'silver' :
+			matchInfo.phase === 'FINAL' ? 'gold' : undefined;
+
+		// Get group stage info if applicable
+		const groupStageType = tournament.groupStage?.type;
+		const totalRounds = tournament.groupStage?.totalRounds;
+
+		// Build tournament context
+		const context: TournamentMatchContext = {
+			tournamentId: tournament.id,
+			tournamentKey: tournament.key,
+			tournamentName: tournament.name,
+			matchId: matchInfo.match.id,
+			phase: matchInfo.phase,
+			roundNumber: matchInfo.roundNumber,
+			totalRounds,
+			groupId: matchInfo.groupId,
+			groupName: matchInfo.groupName,
+			groupStageType,
+			bracketRoundName: matchInfo.bracketRoundName,
+			bracketType,
+			isConsolation: matchInfo.isConsolation || false,
+			participantAId: matchInfo.match.participantA || '',
+			participantBId: 'participantB' in matchInfo.match ? matchInfo.match.participantB || '' : '',
+			participantAName: matchInfo.participantAName,
+			participantBName: matchInfo.participantBName,
+			participantAPhotoURL: matchInfo.participantAPhotoURL,
+			participantBPhotoURL: matchInfo.participantBPhotoURL,
+			participantAPartnerPhotoURL: matchInfo.participantAPartnerPhotoURL,
+			participantBPartnerPhotoURL: matchInfo.participantBPartnerPhotoURL,
+			currentUserId: $currentUser?.id,
+			currentUserParticipantId: userParticipant?.id,
+			currentUserSide: side,
+			currentUserRanking,
+			gameConfig: matchInfo.gameConfig,
+			matchStartedAt: Date.now(),
+			existingRounds: existingRounds.length > 0 ? existingRounds : undefined,
+			currentGameData: (gamesWonA > 0 || gamesWonB > 0 || existingRounds.length > 0) ? {
+				gamesWonA,
+				gamesWonB,
+				currentGameNumber: maxGameNumber
+			} : undefined
+		};
+
+		setTournamentContext(context);
+		handleTournamentMatchStarted(context);
 	}
 
 	/**
@@ -1392,14 +1575,24 @@
 			<div class="header-left">
 				<span class="header-title tournament-title">
 					<svg class="tournament-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-					{$gameTournamentContext?.tournamentName}
+					<span class="tournament-name-text">{$gameTournamentContext?.tournamentName}</span>
 				</span>
 			</div>
 
 			<div class="header-center">
 				<span class="header-phase">
 					{#if $gameTournamentContext?.phase === 'GROUP'}
-						{m.tournament_groupStage() || 'Fase de Grupos'}
+						{#if $gameTournamentContext.groupStageType === 'SWISS'}
+							SS
+						{:else}
+							RR
+						{/if}
+						{#if $gameTournamentContext.roundNumber && $gameTournamentContext.totalRounds}
+							R{$gameTournamentContext.roundNumber}/{$gameTournamentContext.totalRounds}
+						{/if}
+						{#if $gameTournamentContext.groupName}
+							<span class="group-name">({$gameTournamentContext.groupName})</span>
+						{/if}
 					{:else}
 						{$gameTournamentContext?.bracketRoundName || 'Bracket'}
 						{#if $gameTournamentContext?.bracketType === 'gold'}
@@ -1578,11 +1771,16 @@
 		<!-- Tournament Mode Button -->
 		<button
 			class="floating-button tournament-button"
-			onclick={() => showTournamentModal = true}
+			onclick={handleJoinTournament}
 			aria-label={m.tournament_playMatch() || 'Jugar partido de torneo'}
 			title={m.tournament_playMatch() || 'Jugar partido de torneo'}
+			disabled={isCheckingTournament}
 		>
-			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+			{#if isCheckingTournament}
+				<Loader2 class="w-[18px] h-[18px] animate-spin" />
+			{:else}
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+			{/if}
 		</button>
 	{:else}
 		<!-- Tournament Reset Button - only in tournament mode -->
@@ -1784,6 +1982,7 @@
 		align-items: center;
 		gap: 0.4rem;
 		cursor: default;
+		max-width: 400px;
 	}
 
 	.tournament-title:hover {
@@ -1793,6 +1992,12 @@
 	.tournament-icon {
 		color: var(--game-text-muted);
 		flex-shrink: 0;
+	}
+
+	.tournament-name-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	/* Normal mode header - minimal clean design */
@@ -1827,7 +2032,7 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		max-width: 280px;
+		max-width: 400px;
 		letter-spacing: 0.02em;
 	}
 

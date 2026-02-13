@@ -142,53 +142,6 @@ export async function getPlayerName(): Promise<string> {
 }
 
 /**
- * Get or create a user by exact name match
- * Used for GUEST participants - creates a new user without auth if not found
- *
- * @param name Exact player name to search for
- * @returns Object with userId and whether it was newly created
- */
-export async function getOrCreateUserByName(name: string): Promise<{ userId: string; created: boolean } | null> {
-  if (!browser || !isFirebaseEnabled()) {
-    console.warn('Firebase disabled');
-    return null;
-  }
-
-  try {
-    const usersRef = collection(db!, 'users');
-
-    // Search for exact name match (case-sensitive)
-    const q = query(usersRef, where('playerName', '==', name));
-    const snapshot = await getDocs(q);
-
-    if (!snapshot.empty) {
-      // Found existing user with this name
-      const existingDoc = snapshot.docs[0];
-      console.log(`✅ Found existing user "${name}" with ID: ${existingDoc.id}`);
-      return { userId: existingDoc.id, created: false };
-    }
-
-    // Create new GUEST user (no auth)
-    const newUserData: Partial<UserProfile> = {
-      playerName: name,
-      email: null,
-      photoURL: null,
-      authProvider: null,
-      tournaments: [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-
-    const newDocRef = await addDoc(usersRef, newUserData);
-    console.log(`✅ Created new GUEST user "${name}" with ID: ${newDocRef.id}`);
-    return { userId: newDocRef.id, created: true };
-  } catch (error) {
-    console.error('❌ Error in getOrCreateUserByName:', error);
-    return null;
-  }
-}
-
-/**
  * Add a tournament record to user's history
  * Prevents duplicates by checking if tournament already exists in history
  * Note: Ranking is calculated from tournaments, not stored separately

@@ -47,7 +47,10 @@ export interface TournamentMatchContext {
   matchId: string;
   phase: 'GROUP' | 'FINAL';
   roundNumber?: number;
+  totalRounds?: number;  // Total rounds in group stage
   groupId?: string;
+  groupName?: string;  // "Grupo A", "Grupo B", etc.
+  groupStageType?: 'ROUND_ROBIN' | 'SWISS';  // Type of group stage
   bracketRoundName?: string;  // "Octavos", "Cuartos", "Semifinales", "Final"
   bracketType?: 'gold' | 'silver';  // Which bracket: gold or silver
   isConsolation?: boolean;  // True if this is a consolation bracket match

@@ -989,7 +989,7 @@
 {#if isTransitioning}
   <div class="loading-overlay" data-theme={$adminTheme}>
     <div class="loading-content">
-      <LoadingSpinner size="large" message="Completando fase de grupos..." />
+      <LoadingSpinner size="large" message={m.admin_completingGroupStage()} />
     </div>
   </div>
 {/if}

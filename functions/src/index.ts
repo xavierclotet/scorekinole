@@ -124,40 +124,6 @@ function calculateRankingPoints(position: number, tier: TournamentTier): number 
 }
 
 /**
- * Get or create a user by name
- */
-async function getOrCreateUserByName(name: string): Promise<{ userId: string; created: boolean } | null> {
-  try {
-    const usersRef = getDb().collection("users");
-    const snapshot = await usersRef.where("playerName", "==", name).get();
-
-    if (!snapshot.empty) {
-      const existingDoc = snapshot.docs[0];
-      logger.info(`Found existing user "${name}" with ID: ${existingDoc.id}`);
-      return { userId: existingDoc.id, created: false };
-    }
-
-    // Create new GUEST user
-    const newUserData = {
-      playerName: name,
-      email: null,
-      photoURL: null,
-      authProvider: null,
-      tournaments: [],
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-
-    const newDocRef = await usersRef.add(newUserData);
-    logger.info(`Created new GUEST user "${name}" with ID: ${newDocRef.id}`);
-    return { userId: newDocRef.id, created: true };
-  } catch (error) {
-    logger.error("Error in getOrCreateUserByName:", error);
-    return null;
-  }
-}
-
-/**
  * Add tournament record to user profile
  * Note: Ranking is calculated from tournaments, not stored separately
  */
@@ -312,107 +278,53 @@ async function processParticipant(
     };
     await addPairTournamentRecord(participant.pairId, pairRecord);
 
-    // Get pair members and add individual records
+    // Get pair members and add individual records (REGISTERED only)
     const pair = await getPairById(participant.pairId);
     if (pair) {
-      // Member 1
-      let member1UserId: string | null = null;
+      // Member 1: Only process if REGISTERED
       if (pair.member1Type === "REGISTERED" && pair.member1UserId && !pair.member1UserId.startsWith("pair_")) {
-        member1UserId = pair.member1UserId;
-      } else {
-        const userResult = await getOrCreateUserByName(pair.member1Name);
-        if (userResult) {
-          member1UserId = userResult.userId;
-        }
-      }
-      if (member1UserId) {
-        await addTournamentRecord(member1UserId, tournamentRecord);
+        await addTournamentRecord(pair.member1UserId, tournamentRecord);
       }
 
-      // Member 2
-      let member2UserId: string | null = null;
+      // Member 2: Only process if REGISTERED
       if (pair.member2Type === "REGISTERED" && pair.member2UserId && !pair.member2UserId.startsWith("pair_")) {
-        member2UserId = pair.member2UserId;
-      } else {
-        const userResult = await getOrCreateUserByName(pair.member2Name);
-        if (userResult) {
-          member2UserId = userResult.userId;
-        }
-      }
-      if (member2UserId) {
-        await addTournamentRecord(member2UserId, tournamentRecord);
+        await addTournamentRecord(pair.member2UserId, tournamentRecord);
       }
     }
     // Legacy pairs don't need userId updates in tournament (they use pairId)
     return result;
   }
 
-  // DOUBLES: Process both members using their REAL names
-  // participant.name = Player 1's real name (always)
-  // participant.partner.name = Player 2's real name (always)
-  // participant.teamName = Optional artistic name (ignored for ranking)
+  // DOUBLES: Process both members using their REAL names (REGISTERED only)
+  // GUEST participants do NOT get entries in /users - their data stays in the tournament document
   if (tournament.gameType === "doubles" && participant.partner) {
     logger.info(`Processing doubles participant: ${participant.name} / ${participant.partner.name}` +
       (participant.teamName ? ` (team: ${participant.teamName})` : ""));
 
-    // Member 1: Use userId if REGISTERED, otherwise use real name
-    let member1UserId: string | null = null;
+    // Member 1: Only process if REGISTERED
     if (participant.type === "REGISTERED" && participant.userId) {
-      member1UserId = participant.userId;
-    } else {
-      // participant.name always contains the real name now
-      const userResult = await getOrCreateUserByName(participant.name);
-      if (userResult) {
-        member1UserId = userResult.userId;
-        // Track that we need to update this participant's userId
-        result.userId = userResult.userId;
-      }
-    }
-    if (member1UserId) {
-      await addTournamentRecord(member1UserId, tournamentRecord);
+      await addTournamentRecord(participant.userId, tournamentRecord);
     }
 
-    // Member 2: Use userId if REGISTERED, otherwise use real name
-    let member2UserId: string | null = null;
+    // Member 2: Only process if REGISTERED
     if (participant.partner.type === "REGISTERED" && participant.partner.userId) {
-      member2UserId = participant.partner.userId;
-    } else {
-      // partner.name always contains the real name
-      const userResult = await getOrCreateUserByName(participant.partner.name);
-      if (userResult) {
-        member2UserId = userResult.userId;
-        // Track that we need to update the partner's userId
-        result.partnerUserId = userResult.userId;
-      }
-    }
-    if (member2UserId) {
-      await addTournamentRecord(member2UserId, tournamentRecord);
+      await addTournamentRecord(participant.partner.userId, tournamentRecord);
     }
 
     return result;
   }
 
-  // SINGLES: Individual participant
+  // SINGLES: Individual participant (REGISTERED only)
+  // GUEST participants do NOT get entries in /users - their data stays in the tournament document
   // Skip if name looks like a pair team name (contains " / ")
   if (participant.name.includes(" / ")) {
     logger.warn(`Skipping participant "${participant.name}" - looks like a pair team name, not an individual player`);
     return result;
   }
 
-  let userId: string | null = null;
+  // Only process if REGISTERED
   if (participant.type === "REGISTERED" && participant.userId) {
-    userId = participant.userId;
-  } else {
-    const userResult = await getOrCreateUserByName(participant.name);
-    if (userResult) {
-      userId = userResult.userId;
-      // Track that we need to update this participant's userId
-      result.userId = userResult.userId;
-    }
-  }
-
-  if (userId) {
-    await addTournamentRecord(userId, tournamentRecord);
+    await addTournamentRecord(participant.userId, tournamentRecord);
   }
 
   return result;
