@@ -27,8 +27,8 @@
 	let activeBracketTab = $state<'gold' | 'silver'>('gold');
 	let activeParallelBracket = $state(0);
 
-	// Score change tracking for bracket matches
-	let prevScores = $state<Map<string, { a: number; b: number }>>(new Map());
+	// Score change tracking for bracket matches (use plain JS objects to avoid reactivity loops)
+	const prevScoresMap = new Map<string, { a: number; b: number }>();
 	let changedScores = $state<Set<string>>(new Set());
 
 	// Derived data
@@ -210,7 +210,7 @@
 		const newChanged = new Set<string>();
 		allMatches.forEach(match => {
 			if (match.status === 'IN_PROGRESS') {
-				const prev = prevScores.get(match.id);
+				const prev = prevScoresMap.get(match.id);
 				const currentA = match.totalPointsA || 0;
 				const currentB = match.totalPointsB || 0;
 
@@ -223,14 +223,13 @@
 					}, 600);
 				}
 
-				prevScores.set(match.id, { a: currentA, b: currentB });
+				prevScoresMap.set(match.id, { a: currentA, b: currentB });
 			}
 		});
 
 		if (newChanged.size > 0) {
 			changedScores = new Set([...changedScores, ...newChanged]);
 		}
-		prevScores = new Map(prevScores);
 	});
 
 	// Helper to check if a match score changed
