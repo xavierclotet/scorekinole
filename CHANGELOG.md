@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.15] - 2026-02-13
+- Stop creating GUEST users in /users on tournament completion
+- Only REGISTERED users appear in public rankings
+- Add registration indicators (✓) in Final Standings for doubles
+- Show teamName alongside player names in doubles standings
+- Fix reactive search when removing participants in tournament wizard
+
 ## [2.4.14] - 2026-02-12
 - Add Telegram notifications for admin (new users, tournaments)
 - Add IP/device fingerprint tracking for fraud detection
