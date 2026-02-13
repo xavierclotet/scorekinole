@@ -785,6 +785,7 @@
 									<div class="round-header" class:final-round={isFinalRound}>
 										<span class="round-name">{translateRoundName(round.name)}</span>
 											{#if bracketScoringLabel}
+												<span class="scoring-sep">·</span>
 												<span class="scoring-label">{bracketScoringLabel}</span>
 											{/if}
 									</div>
@@ -1070,6 +1071,7 @@
 										<div class="round-header" class:final-round={isFinalRound}>
 											<span class="round-name">{translateRoundName(round.name)}</span>
 											{#if bracketScoringLabel}
+												<span class="scoring-sep">·</span>
 												<span class="scoring-label">{bracketScoringLabel}</span>
 											{/if}
 										</div>
@@ -1354,6 +1356,7 @@
 										<div class="round-header" class:final-round={isFinalRound}>
 											<span class="round-name">{translateRoundName(round.name)}</span>
 											{#if bracketScoringLabel}
+												<span class="scoring-sep">·</span>
 												<span class="scoring-label">{bracketScoringLabel}</span>
 											{/if}
 										</div>
@@ -1471,6 +1474,7 @@
 									<div class="round-header" class:final-round={isFinalRound}>
 										<span class="round-name">{translateRoundName(round.name)}</span>
 											{#if bracketScoringLabel}
+												<span class="scoring-sep">·</span>
 												<span class="scoring-label">{bracketScoringLabel}</span>
 											{/if}
 									</div>
@@ -2424,6 +2428,12 @@
 		color: #eab308;
 	}
 
+	.scoring-sep {
+		color: #6b7280;
+		margin: 0 0.3rem;
+		font-size: 0.6rem;
+	}
+
 	.scoring-label {
 		font-size: 0.55rem;
 		font-weight: 600;
@@ -2431,7 +2441,6 @@
 		background: rgba(255, 255, 255, 0.08);
 		padding: 0.1rem 0.35rem;
 		border-radius: 3px;
-		margin-left: 0.4rem;
 		letter-spacing: 0.02em;
 	}
 
@@ -2975,6 +2984,11 @@
 	:global([data-theme='light']) .round-header.final-round,
 	:global([data-theme='violet-light']) .round-header.final-round {
 		background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.1) 100%);
+	}
+
+	:global([data-theme='light']) .scoring-sep,
+	:global([data-theme='violet-light']) .scoring-sep {
+		color: #94a3b8;
 	}
 
 	:global([data-theme='light']) .scoring-label,
