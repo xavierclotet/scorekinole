@@ -27,6 +27,10 @@
 	let activeBracketTab = $state<'gold' | 'silver'>('gold');
 	let activeParallelBracket = $state(0);
 
+	// Score change tracking for bracket matches
+	let prevScores = $state<Map<string, { a: number; b: number }>>(new Map());
+	let changedScores = $state<Set<string>>(new Set());
+
 	// Derived data
 	let isGroupStage = $derived(tournament.status === 'GROUP_STAGE');
 	let isTransition = $derived(tournament.status === 'TRANSITION');
@@ -180,6 +184,60 @@
 		}
 	});
 
+	// Track score changes in bracket matches for animation
+	$effect(() => {
+		if (!isFinalStage) return;
+
+		const allMatches: BracketMatch[] = [];
+
+		// Collect all matches from brackets
+		if (goldBracket?.rounds) {
+			goldBracket.rounds.forEach(r => allMatches.push(...r.matches));
+			if (goldBracket.thirdPlaceMatch) allMatches.push(goldBracket.thirdPlaceMatch);
+		}
+		if (silverBracket?.rounds) {
+			silverBracket.rounds.forEach(r => allMatches.push(...r.matches));
+			if (silverBracket.thirdPlaceMatch) allMatches.push(silverBracket.thirdPlaceMatch);
+		}
+		parallelBrackets.forEach(pb => {
+			if (pb.bracket?.rounds) {
+				pb.bracket.rounds.forEach(r => allMatches.push(...r.matches));
+				if (pb.bracket.thirdPlaceMatch) allMatches.push(pb.bracket.thirdPlaceMatch);
+			}
+		});
+
+		// Check for score changes
+		const newChanged = new Set<string>();
+		allMatches.forEach(match => {
+			if (match.status === 'IN_PROGRESS') {
+				const prev = prevScores.get(match.id);
+				const currentA = match.totalPointsA || 0;
+				const currentB = match.totalPointsB || 0;
+
+				if (prev && (prev.a !== currentA || prev.b !== currentB)) {
+					newChanged.add(match.id);
+					// Clear animation after 600ms
+					setTimeout(() => {
+						changedScores.delete(match.id);
+						changedScores = new Set(changedScores);
+					}, 600);
+				}
+
+				prevScores.set(match.id, { a: currentA, b: currentB });
+			}
+		});
+
+		if (newChanged.size > 0) {
+			changedScores = new Set([...changedScores, ...newChanged]);
+		}
+		prevScores = new Map(prevScores);
+	});
+
+	// Helper to check if a match score changed
+	function hasScoreChanged(matchId: string): boolean {
+		return changedScores.has(matchId);
+	}
+
 	// Helper functions
 	function getPhaseLabel(status: string | undefined): string {
 		switch (status) {
@@ -230,6 +288,29 @@
 		if (legacyMatch) return `${m.tournament_group()} ${legacyMatch[1]}`;
 		return name;
 	}
+
+	// Get scoring config label for bracket display (e.g., "7P", "4R", "Pg2")
+	function getBracketScoringLabel(): string {
+		const config = tournament.finalStage;
+		if (!config) return '';
+
+		const mode = config.scoringMode || tournament.scoringMode || 'points';
+		const pointsToWin = config.pointsToWin || tournament.pointsToWin || 7;
+		const roundsToPlay = config.roundsToPlay || tournament.roundsToPlay || 4;
+		const matchesToWinFinal = config.matchesToWin || 1;
+
+		let label = mode === 'rounds'
+			? `${roundsToPlay}R`
+			: `${pointsToWin}P`;
+
+		if (matchesToWinFinal > 1) {
+			label += ` Pg${matchesToWinFinal}`;
+		}
+
+		return label;
+	}
+
+	let bracketScoringLabel = $derived(getBracketScoringLabel());
 
 	function getGroupRounds(group: Group): Array<{ roundNumber: number; matches: GroupMatch[] }> {
 		const data = group.schedule || group.pairings;
@@ -703,6 +784,9 @@
 								<div class="bracket-column" class:has-next={roundIndex < goldBracket.rounds.length - 1} style="--round-index: {roundIndex}">
 									<div class="round-header" class:final-round={isFinalRound}>
 										<span class="round-name">{translateRoundName(round.name)}</span>
+											{#if bracketScoringLabel}
+												<span class="scoring-label">{bracketScoringLabel}</span>
+											{/if}
 									</div>
 									<div class="round-matches">
 										{#each round.matches as match, matchIndex (match.id)}
@@ -748,7 +832,7 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'}>
+														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																{match.totalPointsA || match.gamesWonA || 0}
 															{/if}
@@ -778,7 +862,7 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'}>
+														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																{match.totalPointsB || match.gamesWonB || 0}
 															{/if}
@@ -838,7 +922,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'}>
+												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsA || tpm.gamesWonA || 0}
 													{/if}
@@ -862,7 +946,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'}>
+												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsB || tpm.gamesWonB || 0}
 													{/if}
@@ -985,6 +1069,9 @@
 									<div class="bracket-column" class:has-next={roundIndex < silverBracket.rounds.length - 1} style="--round-index: {roundIndex}">
 										<div class="round-header" class:final-round={isFinalRound}>
 											<span class="round-name">{translateRoundName(round.name)}</span>
+											{#if bracketScoringLabel}
+												<span class="scoring-label">{bracketScoringLabel}</span>
+											{/if}
 										</div>
 										<div class="round-matches">
 											{#each round.matches as match (match.id)}
@@ -1030,7 +1117,7 @@
 															</div>
 														{/if}
 														{#if !isByeMatchFlag}
-															<span class="player-score" class:live={match.status === 'IN_PROGRESS'}>
+															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																	{match.totalPointsA || match.gamesWonA || 0}
 																{/if}
@@ -1060,7 +1147,7 @@
 															</div>
 														{/if}
 														{#if !isByeMatchFlag}
-															<span class="player-score" class:live={match.status === 'IN_PROGRESS'}>
+															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																	{match.totalPointsB || match.gamesWonB || 0}
 																{/if}
@@ -1118,7 +1205,7 @@
 															{/if}
 														</div>
 													{/if}
-													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'}>
+													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
 														{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 															{tpm.totalPointsA || tpm.gamesWonA || 0}
 														{/if}
@@ -1140,7 +1227,7 @@
 															{/if}
 														</div>
 													{/if}
-													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'}>
+													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
 														{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 															{tpm.totalPointsB || tpm.gamesWonB || 0}
 														{/if}
@@ -1266,6 +1353,9 @@
 									<div class="bracket-column" class:has-next={roundIndex < currentPB.bracket.rounds.length - 1} style="--round-index: {roundIndex}">
 										<div class="round-header" class:final-round={isFinalRound}>
 											<span class="round-name">{translateRoundName(round.name)}</span>
+											{#if bracketScoringLabel}
+												<span class="scoring-label">{bracketScoringLabel}</span>
+											{/if}
 										</div>
 										<div class="round-matches">
 											{#each round.matches as match (match.id)}
@@ -1311,7 +1401,7 @@
 															</div>
 														{/if}
 														{#if !isByeMatchFlag}
-															<span class="player-score" class:live={match.status === 'IN_PROGRESS'}>
+															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																	{match.totalPointsA || match.gamesWonA || 0}
 																{/if}
@@ -1341,7 +1431,7 @@
 															</div>
 														{/if}
 														{#if !isByeMatchFlag}
-															<span class="player-score" class:live={match.status === 'IN_PROGRESS'}>
+															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																	{match.totalPointsB || match.gamesWonB || 0}
 																{/if}
@@ -1380,6 +1470,9 @@
 								<div class="bracket-column" class:has-next={roundIndex < goldBracket.rounds.length - 1} style="--round-index: {roundIndex}">
 									<div class="round-header" class:final-round={isFinalRound}>
 										<span class="round-name">{translateRoundName(round.name)}</span>
+											{#if bracketScoringLabel}
+												<span class="scoring-label">{bracketScoringLabel}</span>
+											{/if}
 									</div>
 									<div class="round-matches">
 										{#each round.matches as match (match.id)}
@@ -1425,7 +1518,7 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'}>
+														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																{match.totalPointsA || match.gamesWonA || 0}
 															{/if}
@@ -1455,7 +1548,7 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'}>
+														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																{match.totalPointsB || match.gamesWonB || 0}
 															{/if}
@@ -1512,7 +1605,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'}>
+												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsA || tpm.gamesWonA || 0}
 													{/if}
@@ -1534,7 +1627,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'}>
+												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsB || tpm.gamesWonB || 0}
 													{/if}
@@ -2331,6 +2424,17 @@
 		color: #eab308;
 	}
 
+	.scoring-label {
+		font-size: 0.55rem;
+		font-weight: 600;
+		color: #8b9bb3;
+		background: rgba(255, 255, 255, 0.08);
+		padding: 0.1rem 0.35rem;
+		border-radius: 3px;
+		margin-left: 0.4rem;
+		letter-spacing: 0.02em;
+	}
+
 	.round-matches {
 		display: flex;
 		flex-direction: column;
@@ -2462,18 +2566,21 @@
 	/* Live Badge */
 	.live-badge {
 		position: absolute;
-		top: 0;
-		right: 0;
+		bottom: -0.5rem;
+		left: 50%;
+		transform: translateX(-50%);
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
 		padding: 0.2rem 0.5rem;
 		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-		border-radius: 0 6px 0 6px;
+		border-radius: 4px;
 		font-size: 0.6rem;
 		font-weight: 700;
 		color: white;
 		letter-spacing: 0.05em;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+		z-index: 10;
 	}
 
 	.live-badge.compact {
@@ -2589,9 +2696,20 @@
 		animation: pulse-score 2s ease-in-out infinite;
 	}
 
+	.player-score.score-changed {
+		animation: score-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+		color: #10b981 !important;
+	}
+
 	@keyframes pulse-score {
 		0%, 100% { opacity: 1; }
 		50% { opacity: 0.6; }
+	}
+
+	@keyframes score-pop {
+		0% { transform: scale(1); }
+		30% { transform: scale(1.4); }
+		100% { transform: scale(1); }
 	}
 
 	.match-divider {
@@ -2857,6 +2975,12 @@
 	:global([data-theme='light']) .round-header.final-round,
 	:global([data-theme='violet-light']) .round-header.final-round {
 		background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.1) 100%);
+	}
+
+	:global([data-theme='light']) .scoring-label,
+	:global([data-theme='violet-light']) .scoring-label {
+		color: #64748b;
+		background: rgba(0, 0, 0, 0.05);
 	}
 
 	:global([data-theme='light']) .bracket-column.third-place-column,
