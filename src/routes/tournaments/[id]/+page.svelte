@@ -2079,6 +2079,7 @@
 	}, {} as Record<number, typeof selectedMatch.rounds>) ?? {}}
 	{@const gameNumbers = Object.keys(roundsByGame).map(Number).sort((a, b) => a - b)}
 	{@const show20s = tournament?.show20s ?? false}
+	{@const showHammer = tournament?.showHammer ?? false}
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
@@ -2144,6 +2145,24 @@
 								</tr>
 							</thead>
 							<tbody>
+								<!-- Hammer row (if showHammer and any round has hammer data) -->
+								{#if showHammer && gameRounds.some(r => r.hammerSide)}
+									<tr class="hammer-row">
+										<td class="player-col hammer-label">🔨</td>
+										{#each gameRounds as round}
+											<td class="round-col hammer-cell">
+												{#if round.hammerSide === 'A'}
+													<span class="hammer-indicator">▲</span>
+												{:else if round.hammerSide === 'B'}
+													<span class="hammer-indicator">▼</span>
+												{:else}
+													<span class="hammer-indicator empty">-</span>
+												{/if}
+											</td>
+										{/each}
+										<td class="total-col"></td>
+									</tr>
+								{/if}
 								<!-- Player A row -->
 								<tr class:row-winner={gameTotalA > gameTotalB}>
 									<td class="player-col">{getParticipantName(selectedMatch.participantA)}</td>
@@ -5090,6 +5109,35 @@
 		color: #8b9bb3;
 		line-height: 1;
 		margin-top: 1px;
+	}
+
+	/* Hammer row */
+	.rounds-table .hammer-row {
+		background: rgba(255, 255, 255, 0.02);
+		border-bottom: 1px solid rgba(45, 55, 72, 0.3) !important;
+	}
+
+	.rounds-table .hammer-row td {
+		padding: 0.25rem 0.3rem;
+		font-size: 0.7rem;
+	}
+
+	.rounds-table .hammer-label {
+		font-size: 0.7rem;
+		color: #8b9bb3;
+	}
+
+	.rounds-table .hammer-cell {
+		color: #8b9bb3;
+	}
+
+	.rounds-table .hammer-indicator {
+		font-size: 0.6rem;
+		color: #f59e0b;
+	}
+
+	.rounds-table .hammer-indicator.empty {
+		color: #4a5568;
 	}
 
 	.rounds-table .total-col {

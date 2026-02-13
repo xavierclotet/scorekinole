@@ -35,6 +35,7 @@ export interface MatchRound {
   pointsB: number | null;
   twentiesA: number;
   twentiesB: number;
+  hammerSide?: 'A' | 'B' | null;  // Which participant had the hammer in this round
 }
 
 /**

@@ -432,6 +432,7 @@ export interface BracketMatch {
     pointsB: number | null;
     twentiesA: number;
     twentiesB: number;
+    hammerSide?: 'A' | 'B' | null;  // Which participant had the hammer in this round
   }>;
 
   // No-show

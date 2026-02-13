@@ -665,91 +665,91 @@
 		}
 	}
 
-	/* Light theme */
-	.tournaments-container[data-theme='light'] {
+	/* Light theme (including violet-light) */
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) {
 		background: #f5f7fa;
 	}
 
-	.tournaments-container[data-theme='light'] .page-header {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .page-header {
 		background: #ffffff;
 		border-bottom-color: #e2e8f0;
 	}
 
-	.tournaments-container[data-theme='light'] .title-section h1 {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .title-section h1 {
 		color: #1a202c;
 	}
 
-	.tournaments-container[data-theme='light'] .count-badge {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .count-badge {
 		background: #e2e8f0;
 		color: #4a5568;
 	}
 
-	.tournaments-container[data-theme='light'] .filter-tab {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .filter-tab {
 		background: #ffffff;
 		border-color: #e2e8f0;
 		color: #4a5568;
 	}
 
-	.tournaments-container[data-theme='light'] .filter-tab:hover {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .filter-tab:hover {
 		background: #f7fafc;
 		border-color: #667eea;
 	}
 
-	.tournaments-container[data-theme='light'] .filter-select {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .filter-select {
 		background-color: #ffffff;
 		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5568' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
 		border-color: #e2e8f0;
 		color: #1a202c;
 	}
 
-	.tournaments-container[data-theme='light'] .filter-select option {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .filter-select option {
 		background: #ffffff;
 		color: #1a202c;
 	}
 
-	.tournaments-container[data-theme='light'] .clear-filters-btn {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .clear-filters-btn {
 		background: #ffffff;
 		border-color: #e2e8f0;
 		color: #4a5568;
 	}
 
-	.tournaments-container[data-theme='light'] .clear-filters-btn:hover {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .clear-filters-btn:hover {
 		background: rgba(239, 68, 68, 0.05);
 	}
 
-	.tournaments-container[data-theme='light'] .results-info {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .results-info {
 		color: #718096;
 	}
 
-	.tournaments-container[data-theme='light'] .spinner {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .spinner {
 		border-color: #e2e8f0;
 		border-top-color: #667eea;
 	}
 
-	.tournaments-container[data-theme='light'] .loading-state p {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .loading-state p {
 		color: #718096;
 	}
 
-	.tournaments-container[data-theme='light'] .empty-icon svg {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .empty-icon svg {
 		stroke: #a0aec0;
 	}
 
-	.tournaments-container[data-theme='light'] .empty-state h3 {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .empty-state h3 {
 		color: #1a202c;
 	}
 
-	.tournaments-container[data-theme='light'] .reset-filters-btn {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .reset-filters-btn {
 		background: #ffffff;
 		border-color: #e2e8f0;
 		color: #4a5568;
 	}
 
-	.tournaments-container[data-theme='light'] .load-more-hint,
-	.tournaments-container[data-theme='light'] .end-of-list {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .load-more-hint,
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .end-of-list {
 		color: #718096;
 	}
 
-	.tournaments-container[data-theme='light'] .end-of-list {
+	.tournaments-container:is([data-theme='light'], [data-theme='violet-light']) .end-of-list {
 		border-top-color: #e2e8f0;
 	}
 </style>

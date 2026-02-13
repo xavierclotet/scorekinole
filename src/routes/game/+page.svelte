@@ -1319,6 +1319,7 @@
 			pointsB: number | null;
 			twentiesA: number;
 			twentiesB: number;
+			hammerSide?: 'A' | 'B' | null;
 		}> = [];
 
 		// Use currentMatch which has games with rounds (currentMatchGames doesn't have rounds)
@@ -1361,6 +1362,13 @@
 							const pointsB = isUserSideA ? round.team2Points : round.team1Points;
 							const twentiesA = isUserSideA ? (round.team1Twenty || 0) : (round.team2Twenty || 0);
 							const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
+							// Convert hammerTeam (1 or 2) to hammerSide ('A' or 'B') based on user side
+							let hammerSide: 'A' | 'B' | null = null;
+							if (round.hammerTeam === 1) {
+								hammerSide = isUserSideA ? 'A' : 'B';
+							} else if (round.hammerTeam === 2) {
+								hammerSide = isUserSideA ? 'B' : 'A';
+							}
 
 							allRounds.push({
 								gameNumber: gameIndex + 1,
@@ -1368,7 +1376,8 @@
 								pointsA,
 								pointsB,
 								twentiesA,
-								twentiesB
+								twentiesB,
+								hammerSide
 							});
 						});
 					}
@@ -1391,6 +1400,13 @@
 				const pointsB = isUserSideA ? round.team2Points : round.team1Points;
 				const twentiesA = isUserSideA ? (round.team1Twenty || 0) : (round.team2Twenty || 0);
 				const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
+				// Convert hammerTeam (1 or 2) to hammerSide ('A' or 'B') based on user side
+				let hammerSide: 'A' | 'B' | null = null;
+				if (round.hammerTeam === 1) {
+					hammerSide = isUserSideA ? 'A' : 'B';
+				} else if (round.hammerTeam === 2) {
+					hammerSide = isUserSideA ? 'B' : 'A';
+				}
 
 				allRounds.push({
 					gameNumber: currentGameNumber,
@@ -1398,7 +1414,8 @@
 					pointsA,
 					pointsB,
 					twentiesA,
-					twentiesB
+					twentiesB,
+					hammerSide
 				});
 			});
 		}
