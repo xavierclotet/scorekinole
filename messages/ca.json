@@ -1156,5 +1156,6 @@
   "stats_losses": "Pèrdues",
   "stats_ties": "Empats",
   "stats_wins": "Guanyades",
-  "stats_twentiesAccuracy": "Fiabilitat 20s"
+  "stats_twentiesAccuracy": "Fiabilitat 20s",
+  "stats_allResults": "Tots resultats"
 }
