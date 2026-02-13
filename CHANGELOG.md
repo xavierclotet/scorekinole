@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.17] - 2026-02-13
+- Add personal statistics dashboard (/my-stats) for logged-in users
+- Show match history from both friendly matches and tournaments
+- Add filters by type, mode, result, and opponent
+- Fix tournament round sync after page reload
+- Improve English translations for my-stats page
+
 ## [2.4.16] - 2026-02-13
 - Improve public tournament brackets: vertical layout without tabs, inline consolation
 - Add golden styling for final round names in brackets
