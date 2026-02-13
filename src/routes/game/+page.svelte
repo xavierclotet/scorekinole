@@ -5,9 +5,9 @@
 	import { language } from '$lib/stores/language';
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides } from '$lib/stores/teams';
+	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, updateTeam } from '$lib/stores/teams';
 	import { timeRemaining, resetTimer, cleanupTimer } from '$lib/stores/timer';
-	import { loadMatchState, resetMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchGames, lastRoundPoints } from '$lib/stores/matchState';
+	import { loadMatchState, resetMatchState, saveMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchRounds, currentMatchGames, lastRoundPoints, matchState } from '$lib/stores/matchState';
 	import { loadHistory, startCurrentMatch, currentMatch } from '$lib/stores/history';
 	import TeamCard from '$lib/components/TeamCard.svelte';
 	import Timer from '$lib/components/Timer.svelte';
@@ -87,23 +87,11 @@
 		}
 	})());
 
-	// Friendly match format string (e.g., "4R", "7p", "7p ×2")
-	let friendlyMatchFormat = $derived((() => {
-		if (inTournamentMode) return '';
-		if ($gameSettings.gameMode === 'rounds') {
-			return `${$gameSettings.roundsToPlay || 4}R`;
-		} else {
-			const points = $gameSettings.pointsToWin || 7;
-			const matches = $gameSettings.matchesToWin || 1;
-			if (matches > 1) {
-				return `${points}p ×${matches}`;
-			}
-			return `${points}p`;
-		}
-	})());
-
 	// Track if tournament match completion has been sent
 	let tournamentMatchCompletedSent = $state(false);
+
+	// localStorage key for pre-tournament team data backup
+	const PRE_TOURNAMENT_BACKUP_KEY = 'crokinolePreTournamentBackup';
 
 	// References to TeamCard components to call their methods
 	let teamCard1: any;
@@ -111,12 +99,6 @@
 
 	// Round completion data stored temporarily while 20s dialog is shown
 	let pendingRoundData = $state<{ winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number } | null>(null);
-
-	// Event info editing state
-	let editingEventTitle = $state(false);
-	let editingMatchPhase = $state(false);
-	let eventTitleInput = $state<HTMLInputElement | null>(null);
-	let matchPhaseInput = $state<HTMLInputElement | null>(null);
 
 	// Match score indicator - swipe to cycle size
 	let swipeStartX = $state(0);
@@ -236,6 +218,7 @@
 		if (savedContext) {
 			// First apply the saved context (for offline support)
 			applyTournamentConfig(savedContext);
+
 			// Subscribe to match status changes (detect if admin completes match externally)
 			setupMatchStatusSubscription(savedContext);
 
@@ -364,11 +347,65 @@
 	}
 
 	/**
+	 * Exit tournament mode - clears context, resets settings, and restores team data
+	 */
+	function exitTournamentMode() {
+		clearTournamentContext();
+
+		// Restore pre-tournament data if available
+		const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
+		if (backupStr) {
+			try {
+				const backup = JSON.parse(backupStr);
+
+				// Restore team data
+				updateTeam(1, { name: backup.team1Name, color: backup.team1Color });
+				updateTeam(2, { name: backup.team2Name, color: backup.team2Color });
+
+				// Restore game settings
+				gameSettings.update(s => ({
+					...s,
+					eventTitle: '',
+					matchPhase: '',
+					gameMode: backup.gameMode ?? s.gameMode,
+					pointsToWin: backup.pointsToWin ?? s.pointsToWin,
+					roundsToPlay: backup.roundsToPlay ?? s.roundsToPlay,
+					matchesToWin: backup.matchesToWin ?? s.matchesToWin,
+					show20s: backup.show20s ?? s.show20s,
+					showHammer: backup.showHammer ?? s.showHammer,
+					gameType: backup.gameType ?? s.gameType,
+					timerMinutes: backup.timerMinutes ?? s.timerMinutes,
+					timerSeconds: backup.timerSeconds ?? s.timerSeconds,
+					showTimer: backup.showTimer ?? s.showTimer
+				}));
+
+				// Reset and stop timer with restored settings
+				const totalSeconds = (backup.timerMinutes ?? 5) * 60 + (backup.timerSeconds ?? 0);
+				resetTimer(totalSeconds);
+
+				localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
+				console.log('♻️ Restored pre-tournament data:', backup);
+			} catch (e) {
+				console.error('Failed to restore pre-tournament backup:', e);
+				localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
+				// Still clear event title/phase even if restore fails
+				gameSettings.update(s => ({ ...s, eventTitle: '', matchPhase: '' }));
+			}
+		} else {
+			// No backup, just clear event title and phase
+			gameSettings.update(s => ({ ...s, eventTitle: '', matchPhase: '' }));
+			// Reset timer with current settings
+			const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
+			resetTimer(totalSeconds);
+		}
+	}
+
+	/**
 	 * Handle acknowledgment of externally completed match
 	 */
 	function handleExternalCompletionAck() {
 		showMatchCompletedExternally = false;
-		clearTournamentContext();
+		exitTournamentMode();
 		isInExtraRounds = false;
 		// Reset to normal game mode
 		resetTeams();
@@ -380,8 +417,6 @@
 	 * This ensures that if the page is reloaded, we restore the match state from Firebase
 	 */
 	async function syncWithFirebaseOnLoad(savedContext: TournamentMatchContext) {
-		console.log('🔄 Syncing with Firebase on load...');
-
 		try {
 			const result = await resumeTournamentMatch(
 				savedContext.tournamentId,
@@ -396,11 +431,9 @@
 			}
 
 			const firebaseMatch = result.match;
-			console.log('📡 Firebase match state:', firebaseMatch);
 
 			// Check if match is already completed - if so, show modal and exit tournament mode
 			if (firebaseMatch.status === 'COMPLETED' || firebaseMatch.status === 'WALKOVER') {
-				console.log('⚠️ Match was already completed, exiting tournament mode');
 				externalMatchWinner = firebaseMatch.winner === savedContext.participantAId
 					? savedContext.participantAName
 					: savedContext.participantBName;
@@ -412,12 +445,28 @@
 			const firebaseRounds = (firebaseMatch as any).rounds || [];
 			const localRounds = savedContext.existingRounds || [];
 
-			console.log('📊 Comparing rounds:', {
-				firebaseRounds: firebaseRounds.length,
-				localRounds: localRounds.length
-			});
+			// Check if user has added local rounds that aren't in Firebase yet
+			const currentLocalRounds = get(currentGameRounds);
+			const hasMoreLocalRounds = currentLocalRounds.length > firebaseRounds.length;
 
-			// If Firebase has different data, update context and reapply
+			// If user has more local rounds than Firebase, DON'T overwrite - user's data is newer
+			if (hasMoreLocalRounds) {
+				console.log('⏭️ User has more local rounds than Firebase - keeping local data as source of truth');
+				// Just update the context with local rounds for persistence
+				updateTournamentContext({
+					existingRounds: currentLocalRounds.map((r, idx) => ({
+						gameNumber: savedContext.currentGameData?.currentGameNumber || 1,
+						roundInGame: idx + 1,
+						pointsA: savedContext.currentUserSide === 'A' ? r.team1Points : r.team2Points,
+						pointsB: savedContext.currentUserSide === 'A' ? r.team2Points : r.team1Points,
+						twentiesA: savedContext.currentUserSide === 'A' ? (r.team1Twenty || 0) : (r.team2Twenty || 0),
+						twentiesB: savedContext.currentUserSide === 'A' ? (r.team2Twenty || 0) : (r.team1Twenty || 0)
+					}))
+				});
+				return;
+			}
+
+			// If Firebase has more/different data and user hasn't added local rounds, update
 			if (firebaseRounds.length !== localRounds.length ||
 				(firebaseMatch as any).gamesWonA !== savedContext.currentGameData?.gamesWonA ||
 				(firebaseMatch as any).gamesWonB !== savedContext.currentGameData?.gamesWonB) {
@@ -451,24 +500,31 @@
 		}
 	}
 
+	// Track if tournament config has been applied to avoid race conditions
+	let lastAppliedContextId: string | null = null;
+
 	/**
 	 * Apply tournament configuration to game settings and teams
 	 */
-	function applyTournamentConfig(context: TournamentMatchContext) {
+	function applyTournamentConfig(context: TournamentMatchContext, forceApply = false) {
 		const config = context.gameConfig;
 		const isUserSideA = context.currentUserSide === 'A';
+
+		// Create a unique ID for this context based on rounds count
+		const contextId = `${context.matchId}-${context.existingRounds?.length || 0}`;
+
+		// Skip if we already applied this exact context (prevent race conditions with async sync)
+		// But allow if user might have added new rounds locally
+		const currentLocalRounds = get(currentGameRounds);
+		if (!forceApply && lastAppliedContextId === contextId && currentLocalRounds.length > 0) {
+			console.log('⏭️ Skipping duplicate applyTournamentConfig - already applied and have local rounds');
+			return;
+		}
+		lastAppliedContextId = contextId;
 
 		// Reset completion flag when starting/resuming a tournament match
 		tournamentMatchCompletedSent = false;
 		isInExtraRounds = false;
-		console.log('🔄 tournamentMatchCompletedSent reset to false, isInExtraRounds reset to false');
-
-		console.log('🎯 applyTournamentConfig llamado:', {
-			existingRounds: context.existingRounds,
-			currentGameData: context.currentGameData,
-			isUserSideA,
-			gameConfig: config
-		});
 
 		// Apply game settings from tournament
 		gameSettings.update(s => ({
@@ -504,13 +560,6 @@
 			// Get rounds for current game only
 			const currentGameRoundsData = context.existingRounds.filter(r => r.gameNumber === currentGameNumber);
 
-			console.log('📊 Procesando rondas existentes:', {
-				totalRounds: context.existingRounds.length,
-				currentGameNumber,
-				roundsForCurrentGame: currentGameRoundsData.length,
-				rawRounds: currentGameRoundsData
-			});
-
 			currentGameRoundsData.forEach(r => {
 				const pointsA = r.pointsA || 0;
 				const pointsB = r.pointsB || 0;
@@ -539,14 +588,6 @@
 					initialMatches2 = currentGameData.gamesWonA;
 				}
 			}
-
-			console.log('📥 Valores calculados para restaurar:', {
-				initialPoints1, initialPoints2,
-				initialRounds1, initialRounds2,
-				initialMatches1, initialMatches2
-			});
-		} else {
-			console.log('🆕 Partido nuevo - sin datos existentes');
 		}
 
 		// Set team names and initial state from tournament participants
@@ -621,9 +662,19 @@
 				};
 			});
 
-			// Restaurar en los stores
+			// Restaurar en los stores (tanto individual como matchState para mantenerlos sincronizados)
 			currentGameRounds.set(restoredRounds);
+			currentMatchRounds.set(restoredRounds); // CRÍTICO: También restaurar currentMatchRounds para saveGameAndCheckMatchComplete
 			roundsPlayed.set(restoredRounds.length);
+			// IMPORTANTE: También actualizar matchState para que addRound() funcione correctamente
+			matchState.update(state => ({
+				...state,
+				currentGameRounds: restoredRounds,
+				currentMatchRounds: restoredRounds,
+				roundsPlayed: restoredRounds.length
+			}));
+			// CRÍTICO: Guardar a localStorage para que loadMatchState no sobrescriba con datos vacíos
+			saveMatchState();
 
 			// IMPORTANTE: Restaurar los juegos completados en currentMatchGames
 			// Esto es necesario para que showNextGameButton funcione correctamente
@@ -696,18 +747,8 @@
 
 			if (completedGames.length > 0) {
 				currentMatchGames.set(completedGames);
-				console.log('🎮 Juegos completados restaurados en currentMatchGames:', completedGames.length);
 			}
-
-			console.log('📋 Rondas restauradas en currentGameRounds:', restoredRounds.length);
 		}
-
-		console.log('✅ Estado final de equipos:', {
-			team1: { name: team1Name, points: initialPoints1, matches: initialMatches1 },
-			team2: { name: team2Name, points: initialPoints2, matches: initialMatches2 },
-			lastRoundPoints: { team1: initialPoints1, team2: initialPoints2 },
-			currentGameRoundsRestored: context.existingRounds?.filter(r => r.gameNumber === (context.currentGameData?.currentGameNumber || 1)).length || 0
-		});
 
 		// Reset timer
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
@@ -718,6 +759,33 @@
 	 * Handle tournament match started from modal
 	 */
 	function handleTournamentMatchStarted(context: TournamentMatchContext) {
+		// Save current (friendly) data as backup ONLY if no backup exists
+		// This preserves the original friendly settings across multiple tournament matches
+		if (!localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)) {
+			const backup = {
+				// Team data
+				team1Name: $team1.name,
+				team1Color: $team1.color,
+				team2Name: $team2.name,
+				team2Color: $team2.color,
+				// Game settings
+				gameMode: $gameSettings.gameMode,
+				pointsToWin: $gameSettings.pointsToWin,
+				roundsToPlay: $gameSettings.roundsToPlay,
+				matchesToWin: $gameSettings.matchesToWin,
+				show20s: $gameSettings.show20s,
+				showHammer: $gameSettings.showHammer,
+				gameType: $gameSettings.gameType,
+				// Timer settings
+				timerMinutes: $gameSettings.timerMinutes,
+				timerSeconds: $gameSettings.timerSeconds,
+				showTimer: $gameSettings.showTimer
+			};
+			localStorage.setItem(PRE_TOURNAMENT_BACKUP_KEY, JSON.stringify(backup));
+			console.log('💾 Saved pre-tournament data to localStorage:', backup);
+		}
+
+		// Apply tournament config (context already set by modal)
 		applyTournamentConfig(context);
 
 		// Subscribe to match status changes (detect if admin completes match externally)
@@ -936,7 +1004,7 @@
 		// The rounds are already synced, so another user (or this user) can resume later
 
 		// Clear local context only
-		clearTournamentContext();
+		exitTournamentMode();
 		showTournamentExitConfirm = false;
 
 		// Reset local game state
@@ -968,7 +1036,7 @@
 		}
 
 		// Clear local context
-		clearTournamentContext();
+		exitTournamentMode();
 		showTournamentExitConfirm = false;
 
 		// Reset game state
@@ -992,7 +1060,6 @@
 		if (!context || tournamentMatchCompletedSent) return;
 
 		tournamentMatchCompletedSent = true;
-		console.log('🏆 Tournament match complete, sending results...');
 
 		// IMPORTANT: First, save the current game data to ensure we have all rounds
 		// This must happen BEFORE currentMatch gets cleared by completeCurrentMatch
@@ -1014,12 +1081,6 @@
 		// Use the rounds from the saved context (which includes all games)
 		// This is more reliable than reading from currentMatch which may be cleared
 		const contextRounds = savedData?.allRounds || context.existingRounds || [];
-
-		console.log('🔍 handleTournamentMatchComplete - using context rounds:', {
-			savedDataRounds: savedData?.allRounds?.length || 0,
-			contextExistingRounds: context.existingRounds?.length || 0,
-			totalRounds: contextRounds.length
-		});
 
 		// Calculate totals from context rounds
 		let totalPointsA = 0;
@@ -1100,7 +1161,7 @@
 		// NO reseteamos el estado aquí - dejamos que el usuario vea el resultado final
 		// El reset se hará cuando se inicie un nuevo partido de torneo
 		// Solo limpiamos el contexto del torneo para que no se vuelva a enviar
-		clearTournamentContext();
+		exitTournamentMode();
 		isInExtraRounds = false;
 	}
 
@@ -1116,7 +1177,7 @@
 	function handleResetMatch() {
 		// Clear any stale tournament context when starting a new friendly match
 		if ($gameTournamentContext) {
-			clearTournamentContext();
+			exitTournamentMode();
 		}
 
 		resetTeams();
@@ -1327,11 +1388,6 @@
 		const currentRounds = get(currentGameRounds);
 		const currentGameNumber = context.currentGameData?.currentGameNumber || 1;
 
-		console.log('🔍 SYNC - current.games:', current?.games?.length || 0, 'currentRounds:', currentRounds.length, 'contextExistingRounds:', context.existingRounds?.length || 0);
-		if (current?.games?.length) {
-			console.log('🔍 SYNC - partidas guardadas:', current.games.map((g, i) => `P${i+1}: ${g.rounds?.length || 0} rondas`));
-		}
-
 		// IMPORTANT: Get ONLY rounds from PREVIOUS games (not current game) from context.existingRounds
 		// This is needed for resumed matches where previous games are stored in Firebase
 		// We NEVER use existingRounds for the current game - always use currentRounds as the source of truth
@@ -1341,7 +1397,6 @@
 
 		// If we have previous rounds from context but not in current.games, use context as source
 		if (hasExistingPreviousRounds && !hasCurrentGamesWithRounds) {
-			console.log('📋 Using context.existingRounds for previous games (resumed match)');
 			existingPreviousRounds.forEach(round => {
 				allRounds.push({
 					gameNumber: round.gameNumber,
@@ -1612,53 +1667,6 @@
 			});
 		}
 	}
-
-	// Event info editing functions
-	function startEditingEventTitle() {
-		editingEventTitle = true;
-		setTimeout(() => {
-			if (eventTitleInput) {
-				eventTitleInput.focus();
-				eventTitleInput.select();
-			}
-		}, 10);
-	}
-
-	function startEditingMatchPhase() {
-		editingMatchPhase = true;
-		setTimeout(() => {
-			if (matchPhaseInput) {
-				matchPhaseInput.focus();
-				matchPhaseInput.select();
-			}
-		}, 10);
-	}
-
-	function saveEventTitle() {
-		editingEventTitle = false;
-		gameSettings.save();
-	}
-
-	function saveMatchPhase() {
-		editingMatchPhase = false;
-		gameSettings.save();
-	}
-
-	function handleEventTitleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
-			saveEventTitle();
-		} else if (e.key === 'Escape') {
-			editingEventTitle = false;
-		}
-	}
-
-	function handleMatchPhaseKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
-			saveMatchPhase();
-		} else if (e.key === 'Escape') {
-			editingMatchPhase = false;
-		}
-	}
 </script>
 
 <svelte:head>
@@ -1724,45 +1732,6 @@
 			</div>
 
 			<div class="header-center">
-				{#if editingEventTitle}
-					<input
-						bind:this={eventTitleInput}
-						bind:value={$gameSettings.eventTitle}
-						onblur={saveEventTitle}
-						onkeydown={handleEventTitleKeydown}
-						class="header-input"
-						placeholder={m.scoring_eventTitle()}
-					/>
-				{:else if $gameSettings.eventTitle && $gameSettings.eventTitle !== 'Scorekinole'}
-					<button class="header-title" onclick={startEditingEventTitle}>
-						{$gameSettings.eventTitle}
-					</button>
-				{/if}
-
-				{#if $gameSettings.matchPhase || editingMatchPhase}
-					{#if $gameSettings.eventTitle && $gameSettings.eventTitle !== 'Scorekinole'}
-						<span class="header-separator">·</span>
-					{/if}
-					{#if editingMatchPhase}
-						<input
-							bind:this={matchPhaseInput}
-							bind:value={$gameSettings.matchPhase}
-							onblur={saveMatchPhase}
-							onkeydown={handleMatchPhaseKeydown}
-							class="header-input header-input-small"
-							placeholder={m.scoring_matchPhase()}
-						/>
-					{:else}
-						<button class="header-phase" onclick={startEditingMatchPhase}>
-							{$gameSettings.matchPhase}
-						</button>
-					{/if}
-				{/if}
-
-				{#if friendlyMatchFormat}
-					<span class="header-format">{friendlyMatchFormat}</span>
-				{/if}
-
 				{#if $gameSettings.showTimer}
 					<Timer size="small" />
 				{/if}

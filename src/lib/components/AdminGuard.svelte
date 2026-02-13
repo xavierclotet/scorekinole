@@ -1,27 +1,24 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { currentUser } from '$lib/firebase/auth';
   import { canAccessAdmin, adminCheckLoading } from '$lib/stores/admin';
   import * as m from '$lib/paraglide/messages.js';
-  import { onMount } from 'svelte';
 
-  let hasChecked = false;
+  let hasChecked = $state(false);
 
-  onMount(() => {
-    // Wait for admin check to complete
-    const unsubscribe = adminCheckLoading.subscribe((loading) => {
-      if (!loading && !hasChecked) {
-        hasChecked = true;
+  // Use $effect to react to both stores simultaneously
+  // This ensures we only redirect after both stores have their final values
+  $effect(() => {
+    const loading = $adminCheckLoading;
+    const hasAccess = $canAccessAdmin;
 
-        // Redirect if not admin
-        if (!$canAccessAdmin) {
-          console.warn('Access denied: User is not admin');
-          goto('/');
-        }
+    if (!loading && !hasChecked) {
+      hasChecked = true;
+
+      if (!hasAccess) {
+        console.warn('Access denied: User is not admin');
+        goto('/');
       }
-    });
-
-    return unsubscribe;
+    }
   });
 </script>
 

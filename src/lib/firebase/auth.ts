@@ -28,6 +28,9 @@ export interface User {
 // Current user store (reactive)
 export const currentUser = writable<User | null>(null);
 
+// Flag to indicate Firebase Auth has completed its first check (restored session or confirmed no session)
+export const authInitialized = writable<boolean>(false);
+
 // Flag to indicate user needs to complete their profile (no document in users collection)
 export const needsProfileSetup = writable<boolean>(false);
 
@@ -152,6 +155,7 @@ export function initAuthListener(): void {
 
   if (!isFirebaseEnabled()) {
     console.log('Firebase disabled - using local auth only');
+    authInitialized.set(true);
     return;
   }
 
@@ -200,5 +204,9 @@ export function initAuthListener(): void {
       currentUser.set(null);
       needsProfileSetup.set(false);
     }
+
+    // Mark auth as initialized AFTER currentUser has its final value
+    // This ensures derived stores see the complete state
+    authInitialized.set(true);
   });
 }

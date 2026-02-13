@@ -10,7 +10,7 @@
   import { goto } from '$app/navigation';
   import { getTournamentsPaginated, deleteTournament as deleteTournamentFirebase } from '$lib/firebase/tournaments';
   import { currentUser } from '$lib/firebase/auth';
-  import { isSuperAdminUser } from '$lib/stores/admin';
+  import { isSuperAdminUser, adminCheckLoading, canAccessAdmin } from '$lib/stores/admin';
   import type { Tournament } from '$lib/types/tournament';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
@@ -80,13 +80,22 @@
     return tournament.adminIds?.length || 0;
   }
 
-  onMount(async () => {
+  let hasLoadedData = false;
+
+  onMount(() => {
     // Load testFilter from localStorage
     const savedTestFilter = localStorage.getItem('adminTestFilter');
     if (savedTestFilter && ['all', 'real', 'test'].includes(savedTestFilter)) {
       testFilter = savedTestFilter as 'all' | 'real' | 'test';
     }
-    await loadInitialTournaments();
+  });
+
+  // Load tournaments only after admin check is complete and user has access
+  $effect(() => {
+    if (!$adminCheckLoading && $canAccessAdmin && !hasLoadedData) {
+      hasLoadedData = true;
+      loadInitialTournaments();
+    }
   });
 
   // Save testFilter to localStorage when it changes

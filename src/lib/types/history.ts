@@ -40,6 +40,9 @@ export interface MatchHistory {
     matchPhase?: string;
     showHammer?: boolean;
     show20s?: boolean;
+    // For imported tournaments without detailed rounds
+    total20sTeam1?: number;
+    total20sTeam2?: number;
     syncStatus?: 'local' | 'synced' | 'pending' | 'error';
     savedBy?: {
         userId: string;
