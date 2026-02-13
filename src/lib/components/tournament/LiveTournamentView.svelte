@@ -28,6 +28,7 @@
 	let activeParallelBracket = $state(0);
 
 	// Score change tracking for bracket matches (use plain JS objects to avoid reactivity loops)
+	// Track changes per side: "matchId:A" or "matchId:B"
 	const prevScoresMap = new Map<string, { a: number; b: number }>();
 	let changedScores = $state<Set<string>>(new Set());
 
@@ -206,7 +207,7 @@
 			}
 		});
 
-		// Check for score changes
+		// Check for score changes (per side: A or B)
 		const newChanged = new Set<string>();
 		allMatches.forEach(match => {
 			if (match.status === 'IN_PROGRESS') {
@@ -214,13 +215,23 @@
 				const currentA = match.totalPointsA || 0;
 				const currentB = match.totalPointsB || 0;
 
-				if (prev && (prev.a !== currentA || prev.b !== currentB)) {
-					newChanged.add(match.id);
-					// Clear animation after 600ms
-					setTimeout(() => {
-						changedScores.delete(match.id);
-						changedScores = new Set(changedScores);
-					}, 600);
+				if (prev) {
+					if (prev.a !== currentA) {
+						const key = `${match.id}:A`;
+						newChanged.add(key);
+						setTimeout(() => {
+							changedScores.delete(key);
+							changedScores = new Set(changedScores);
+						}, 600);
+					}
+					if (prev.b !== currentB) {
+						const key = `${match.id}:B`;
+						newChanged.add(key);
+						setTimeout(() => {
+							changedScores.delete(key);
+							changedScores = new Set(changedScores);
+						}, 600);
+					}
 				}
 
 				prevScoresMap.set(match.id, { a: currentA, b: currentB });
@@ -232,9 +243,13 @@
 		}
 	});
 
-	// Helper to check if a match score changed
-	function hasScoreChanged(matchId: string): boolean {
-		return changedScores.has(matchId);
+	// Helper to check if a specific side's score changed
+	function hasScoreChangedA(matchId: string): boolean {
+		return changedScores.has(`${matchId}:A`);
+	}
+
+	function hasScoreChangedB(matchId: string): boolean {
+		return changedScores.has(`${matchId}:B`);
 	}
 
 	// Helper functions
@@ -288,28 +303,37 @@
 		return name;
 	}
 
-	// Get scoring config label for bracket display (e.g., "7P", "4R", "Pg2")
-	function getBracketScoringLabel(): string {
-		const config = tournament.finalStage;
-		if (!config) return '';
+	// Get scoring config label for a specific bracket and round (e.g., "7P", "4R", "Pg2")
+	function getScoringLabelForRound(bracketConfig: import('$lib/types/tournament').BracketConfig | undefined, roundName: string): string {
+		if (!bracketConfig) return '';
 
-		const mode = config.scoringMode || tournament.scoringMode || 'points';
-		const pointsToWin = config.pointsToWin || tournament.pointsToWin || 7;
-		const roundsToPlay = config.roundsToPlay || tournament.roundsToPlay || 4;
-		const matchesToWinFinal = config.matchesToWin || 1;
+		// Determine which phase config to use based on round name
+		const normalizedName = roundName.toLowerCase();
+		let phaseConfig: import('$lib/types/tournament').PhaseConfig;
+
+		if ((normalizedName.includes('final') && !normalizedName.includes('semi')) || normalizedName === 'final') {
+			phaseConfig = bracketConfig.final;
+		} else if (normalizedName.includes('semi')) {
+			phaseConfig = bracketConfig.semifinal;
+		} else {
+			phaseConfig = bracketConfig.earlyRounds;
+		}
+
+		const mode = phaseConfig.gameMode;
+		const pointsToWin = phaseConfig.pointsToWin || 7;
+		const roundsToPlay = phaseConfig.roundsToPlay || 4;
+		const matchesToWin = phaseConfig.matchesToWin || 1;
 
 		let label = mode === 'rounds'
 			? `${roundsToPlay}R`
 			: `${pointsToWin}P`;
 
-		if (matchesToWinFinal > 1) {
-			label += ` Pg${matchesToWinFinal}`;
+		if (matchesToWin > 1) {
+			label += ` Pg${matchesToWin}`;
 		}
 
 		return label;
 	}
-
-	let bracketScoringLabel = $derived(getBracketScoringLabel());
 
 	function getGroupRounds(group: Group): Array<{ roundNumber: number; matches: GroupMatch[] }> {
 		const data = group.schedule || group.pairings;
@@ -780,12 +804,13 @@
 						<div class="bracket-grid">
 							{#each goldBracket.rounds as round, roundIndex (round.name || roundIndex)}
 								{@const isFinalRound = roundIndex === goldBracket.rounds.length - 1}
+								{@const scoringLabel = getScoringLabelForRound(goldBracket.config, round.name)}
 								<div class="bracket-column" class:has-next={roundIndex < goldBracket.rounds.length - 1} style="--round-index: {roundIndex}">
 									<div class="round-header" class:final-round={isFinalRound}>
 										<span class="round-name">{translateRoundName(round.name)}</span>
-											{#if bracketScoringLabel}
+											{#if scoringLabel}
 												<span class="scoring-sep">·</span>
-												<span class="scoring-label">{bracketScoringLabel}</span>
+												<span class="scoring-label">{scoringLabel}</span>
 											{/if}
 									</div>
 									<div class="round-matches">
@@ -832,7 +857,7 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
+														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																{match.totalPointsA || match.gamesWonA || 0}
 															{/if}
@@ -862,7 +887,7 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
+														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																{match.totalPointsB || match.gamesWonB || 0}
 															{/if}
@@ -888,9 +913,14 @@
 								{@const tpmWinnerIsB = tpm.winner === tpm.participantB}
 								{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 								{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
+								{@const tpmScoringLabel = getScoringLabelForRound(goldBracket.config, 'Semifinales')}
 								<div class="bracket-column third-place-column">
 									<div class="round-header third-place-header">
 										<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'}</span>
+										{#if tpmScoringLabel}
+											<span class="scoring-sep">·</span>
+											<span class="scoring-label">{tpmScoringLabel}</span>
+										{/if}
 									</div>
 									<div class="round-matches">
 										<div
@@ -922,7 +952,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
+												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsA || tpm.gamesWonA || 0}
 													{/if}
@@ -946,7 +976,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
+												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsB || tpm.gamesWonB || 0}
 													{/if}
@@ -1066,12 +1096,13 @@
 							<div class="bracket-grid">
 								{#each silverBracket.rounds as round, roundIndex (round.name || roundIndex)}
 									{@const isFinalRound = roundIndex === silverBracket.rounds.length - 1}
+									{@const scoringLabel = getScoringLabelForRound(silverBracket.config, round.name)}
 									<div class="bracket-column" class:has-next={roundIndex < silverBracket.rounds.length - 1} style="--round-index: {roundIndex}">
 										<div class="round-header" class:final-round={isFinalRound}>
 											<span class="round-name">{translateRoundName(round.name)}</span>
-											{#if bracketScoringLabel}
+											{#if scoringLabel}
 												<span class="scoring-sep">·</span>
-												<span class="scoring-label">{bracketScoringLabel}</span>
+												<span class="scoring-label">{scoringLabel}</span>
 											{/if}
 										</div>
 										<div class="round-matches">
@@ -1118,7 +1149,7 @@
 															</div>
 														{/if}
 														{#if !isByeMatchFlag}
-															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
+															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(match.id)}>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																	{match.totalPointsA || match.gamesWonA || 0}
 																{/if}
@@ -1148,7 +1179,7 @@
 															</div>
 														{/if}
 														{#if !isByeMatchFlag}
-															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
+															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(match.id)}>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																	{match.totalPointsB || match.gamesWonB || 0}
 																{/if}
@@ -1174,9 +1205,14 @@
 									{@const tpmWinnerIsB = tpm.winner === tpm.participantB}
 									{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 									{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
+									{@const tpmScoringLabel = getScoringLabelForRound(silverBracket.config, 'Semifinales')}
 									<div class="bracket-column third-place-column">
 										<div class="round-header third-place-header">
 											<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'}</span>
+											{#if tpmScoringLabel}
+												<span class="scoring-sep">·</span>
+												<span class="scoring-label">{tpmScoringLabel}</span>
+											{/if}
 										</div>
 										<div class="round-matches">
 											<div
@@ -1206,7 +1242,7 @@
 															{/if}
 														</div>
 													{/if}
-													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
+													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(tpm.id)}>
 														{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 															{tpm.totalPointsA || tpm.gamesWonA || 0}
 														{/if}
@@ -1228,7 +1264,7 @@
 															{/if}
 														</div>
 													{/if}
-													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
+													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(tpm.id)}>
 														{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 															{tpm.totalPointsB || tpm.gamesWonB || 0}
 														{/if}
@@ -1351,12 +1387,13 @@
 							<div class="bracket-grid">
 								{#each currentPB.bracket.rounds as round, roundIndex (round.name || roundIndex)}
 									{@const isFinalRound = roundIndex === currentPB.bracket.rounds.length - 1}
+									{@const scoringLabel = getScoringLabelForRound(currentPB.bracket.config, round.name)}
 									<div class="bracket-column" class:has-next={roundIndex < currentPB.bracket.rounds.length - 1} style="--round-index: {roundIndex}">
 										<div class="round-header" class:final-round={isFinalRound}>
 											<span class="round-name">{translateRoundName(round.name)}</span>
-											{#if bracketScoringLabel}
+											{#if scoringLabel}
 												<span class="scoring-sep">·</span>
-												<span class="scoring-label">{bracketScoringLabel}</span>
+												<span class="scoring-label">{scoringLabel}</span>
 											{/if}
 										</div>
 										<div class="round-matches">
@@ -1403,7 +1440,7 @@
 															</div>
 														{/if}
 														{#if !isByeMatchFlag}
-															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
+															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(match.id)}>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																	{match.totalPointsA || match.gamesWonA || 0}
 																{/if}
@@ -1433,7 +1470,7 @@
 															</div>
 														{/if}
 														{#if !isByeMatchFlag}
-															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
+															<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(match.id)}>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																	{match.totalPointsB || match.gamesWonB || 0}
 																{/if}
@@ -1469,12 +1506,13 @@
 						<div class="bracket-grid">
 							{#each goldBracket.rounds as round, roundIndex (round.name || roundIndex)}
 								{@const isFinalRound = roundIndex === goldBracket.rounds.length - 1}
+								{@const scoringLabel = getScoringLabelForRound(goldBracket.config, round.name)}
 								<div class="bracket-column" class:has-next={roundIndex < goldBracket.rounds.length - 1} style="--round-index: {roundIndex}">
 									<div class="round-header" class:final-round={isFinalRound}>
 										<span class="round-name">{translateRoundName(round.name)}</span>
-											{#if bracketScoringLabel}
+											{#if scoringLabel}
 												<span class="scoring-sep">·</span>
-												<span class="scoring-label">{bracketScoringLabel}</span>
+												<span class="scoring-label">{scoringLabel}</span>
 											{/if}
 									</div>
 									<div class="round-matches">
@@ -1521,7 +1559,7 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
+														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																{match.totalPointsA || match.gamesWonA || 0}
 															{/if}
@@ -1551,7 +1589,7 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(match.id)}>
+														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																{match.totalPointsB || match.gamesWonB || 0}
 															{/if}
@@ -1576,9 +1614,14 @@
 								{@const tpmWinnerIsB = tpm.winner === tpm.participantB}
 								{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 								{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
+								{@const tpmScoringLabel = getScoringLabelForRound(goldBracket.config, 'Semifinales')}
 								<div class="bracket-column third-place-column">
 									<div class="round-header third-place-header">
 										<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'}</span>
+										{#if tpmScoringLabel}
+											<span class="scoring-sep">·</span>
+											<span class="scoring-label">{tpmScoringLabel}</span>
+										{/if}
 									</div>
 									<div class="round-matches">
 										<div
@@ -1608,7 +1651,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
+												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsA || tpm.gamesWonA || 0}
 													{/if}
@@ -1630,7 +1673,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChanged(tpm.id)}>
+												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsB || tpm.gamesWonB || 0}
 													{/if}
@@ -2706,7 +2749,7 @@
 
 	.player-score.score-changed {
 		animation: score-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-		color: #10b981 !important;
+		color: var(--primary) !important;
 	}
 
 	@keyframes pulse-score {

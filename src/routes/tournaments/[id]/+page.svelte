@@ -8,9 +8,8 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 	import { theme } from '$lib/stores/theme';
-	import type { Tournament, BracketMatch } from '$lib/types/tournament';
+	import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
 	import { isBye } from '$lib/algorithms/bracket';
-	import { calculateRankingPoints } from '$lib/algorithms/ranking';
 	import { translateCountry } from '$lib/utils/countryTranslations';
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
 	import LiveBadge from '$lib/components/LiveBadge.svelte';
@@ -33,6 +32,10 @@
 	// Video modal state
 	let showVideoModal = $state(false);
 	let videoMatch = $state<BracketMatch | null>(null);
+
+	// Match detail modal state
+	let showMatchDetail = $state(false);
+	let selectedMatch = $state<BracketMatch | null>(null);
 
 	// Translation state
 	let translating = $state(false);
@@ -288,12 +291,14 @@
 			if (!tournament) {
 				error = true;
 			} else {
-				// Check if user can edit (creator or superadmin)
+				// Check if user can edit (owner, collaborator, or superadmin)
 				const user = $currentUser;
 				if (user) {
-					const isCreator = tournament.createdBy?.userId === user.id;
+					const ownerId = tournament.ownerId || tournament.createdBy?.userId;
+					const isOwner = ownerId === user.id;
+					const isCollaborator = tournament.adminIds?.includes(user.id) || false;
 					const superAdmin = await isSuperAdmin();
-					canEdit = isCreator || superAdmin;
+					canEdit = isOwner || isCollaborator || superAdmin;
 				}
 			}
 		} catch (err) {
@@ -732,9 +737,6 @@
 													<span class="podium-rank">{entry.position}</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
-													{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier}
-														<span class="podium-points">+{calculateRankingPoints(entry.position, tournament.rankingConfig.tier)}</span>
-													{/if}
 												</li>
 											{/each}
 										</ol>
@@ -761,9 +763,6 @@
 													<span class="podium-rank">{entry.position}</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
-													{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier}
-														<span class="podium-points">+{calculateRankingPoints(entry.position, tournament.rankingConfig.tier)}</span>
-													{/if}
 												</li>
 											{/each}
 										</ol>
@@ -782,9 +781,6 @@
 													<span class="podium-rank">{silverPosition}</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
-													{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier}
-														<span class="podium-points">+{calculateRankingPoints(silverPosition, tournament.rankingConfig.tier)}</span>
-													{/if}
 												</li>
 											{/each}
 										</ol>
@@ -804,9 +800,6 @@
 									<span class="podium-rank">{participant.finalPosition}</span>
 									{@render participantAvatar(participant.id, 'md')}
 									<span class="podium-name">{getParticipantName(participant.id)}</span>
-									{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier && participant.finalPosition}
-										<span class="podium-points">+{calculateRankingPoints(participant.finalPosition, tournament.rankingConfig.tier)}</span>
-									{/if}
 								</li>
 							{/each}
 						</ol>
@@ -822,9 +815,6 @@
 								<span class="podium-rank">1</span>
 								{@render participantAvatar(tournament.finalStage.winner, 'md')}
 								<span class="podium-name">{getParticipantName(tournament.finalStage.winner)}</span>
-								{#if tournament.rankingConfig?.enabled && tournament.rankingConfig?.tier}
-									<span class="podium-points">+{calculateRankingPoints(1, tournament.rankingConfig.tier)}</span>
-								{/if}
 							</li>
 						</ol>
 					</div>
@@ -950,9 +940,9 @@
 														<th class="stat-col" title="Empates">E</th>
 														<th class="stat-col" title="Derrotas">P</th>
 													{/if}
-													<th class="stat-col" title="20s totales">20s</th>
 													<th class="stat-col" class:primary-col={qualificationMode === 'POINTS'} title="Puntos totales de crokinole">PT</th>
 													<th class="stat-col" class:primary-col={qualificationMode === 'WINS'} title="Puntos por victoria">PV</th>
+													<th class="stat-col" title="20s totales">20s</th>
 												</tr>
 											</thead>
 											<tbody>
@@ -965,9 +955,9 @@
 															<td class="stat-col">{standing.matchesTied ?? 0}</td>
 															<td class="stat-col">{standing.matchesLost ?? 0}</td>
 														{/if}
-														<td class="stat-col">{standing.total20s ?? 0}</td>
 														<td class="stat-col" class:primary-col={qualificationMode === 'POINTS'}>{standing.totalPointsScored || standing.points || 0}</td>
 														<td class="stat-col" class:primary-col={qualificationMode === 'WINS'}>{standing.points}</td>
+														<td class="stat-col">{standing.total20s ?? 0}</td>
 													</tr>
 												{/each}
 											</tbody>
@@ -1046,7 +1036,14 @@
 												<div class="matches-list flex flex-col gap-1.5">
 													{#each round.matches as match}
 														{#if match.participantB !== 'BYE'}
-															<div class={['match-result-row max-w-full', match.status === 'COMPLETED' && 'completed']}>
+															<button
+																class={['match-result-row max-w-full', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+																onclick={() => { if (match.rounds?.length) { selectedMatch = match as unknown as BracketMatch; showMatchDetail = true; } }}
+																disabled={!match.rounds?.length}
+															>
+																{#if match.tableNumber != null}
+																	<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
+																{/if}
 																<span class="match-player" class:winner={match.winner === match.participantA}>
 																	{getParticipantName(match.participantA)}
 																</span>
@@ -1060,7 +1057,7 @@
 																<span class="match-player" class:winner={match.winner === match.participantB}>
 																	{getParticipantName(match.participantB)}
 																</span>
-															</div>
+															</button>
 														{/if}
 													{/each}
 												</div>
@@ -1084,9 +1081,9 @@
 													<th class="stat-col" title="Empates">E</th>
 													<th class="stat-col" title="Derrotas">P</th>
 												{/if}
-												<th class="stat-col" title="20s totales">20s</th>
 												<th class="stat-col" class:primary-col={qualificationMode === 'POINTS'} title="Puntos totales de crokinole">PT</th>
 												<th class="stat-col" class:primary-col={qualificationMode === 'WINS'} title="Puntos por victoria">PV</th>
+												<th class="stat-col" title="20s totales">20s</th>
 											</tr>
 										</thead>
 										<tbody>
@@ -1099,9 +1096,9 @@
 														<td class="stat-col">{standing.matchesTied ?? 0}</td>
 														<td class="stat-col">{standing.matchesLost ?? 0}</td>
 													{/if}
-													<td class="stat-col">{standing.total20s ?? 0}</td>
 													<td class="stat-col" class:primary-col={qualificationMode === 'POINTS'}>{standing.totalPointsScored || standing.points || 0}</td>
 													<td class="stat-col" class:primary-col={qualificationMode === 'WINS'}>{standing.points}</td>
+													<td class="stat-col">{standing.total20s ?? 0}</td>
 												</tr>
 											{/each}
 										</tbody>
@@ -1141,7 +1138,14 @@
 													<div class="matches-list">
 														{#each round.matches as match}
 															{#if match.participantB !== 'BYE'}
-																<div class="match-result-row" class:completed={match.status === 'COMPLETED'}>
+																<button
+																	class={['match-result-row', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+																	onclick={() => { if (match.rounds?.length) { selectedMatch = match as unknown as BracketMatch; showMatchDetail = true; } }}
+																	disabled={!match.rounds?.length}
+																>
+																	{#if match.tableNumber}
+																		<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
+																	{/if}
 																	<span class="match-player" class:winner={match.winner === match.participantA}>
 																		{getParticipantName(match.participantA)}
 																	</span>
@@ -1155,7 +1159,7 @@
 																	<span class="match-player" class:winner={match.winner === match.participantB}>
 																		{getParticipantName(match.participantB)}
 																	</span>
-																</div>
+																</button>
 															{/if}
 														{/each}
 													</div>
@@ -1185,34 +1189,480 @@
 					</h2>
 				{/if}
 
-					<!-- Bracket panel with integrated tabs -->
-				<div class="bracket-panel" class:gold-active={activeTab === 'gold'} class:silver-active={activeTab === 'silver'}>
-					<!-- Division tabs for SPLIT_DIVISIONS (not for parallel brackets) -->
-					{#if isSplitDivisions && !isParallelBrackets}
-						<div class="panel-header">
-							<div class="division-tabs">
-								<button
-									class="division-tab"
-									class:active={activeTab === 'gold'}
-									onclick={() => activeTab = 'gold'}
-								>
-									<span class="tab-icon gold">●</span>
-									{m.bracket_gold()}
-								</button>
-								<button
-									class="division-tab"
-									class:active={activeTab === 'silver'}
-									onclick={() => activeTab = 'silver'}
-								>
-									<span class="tab-icon silver">●</span>
-									{m.bracket_silver()}
-								</button>
+					<!-- Bracket panels - vertical layout without tabs for SPLIT_DIVISIONS -->
+				{#if isSplitDivisions && !isParallelBrackets}
+					<!-- Gold Bracket -->
+					{#if goldBracket && goldBracket.rounds?.length > 0}
+						<div class="bracket-division-section gold">
+							<div class="division-header">
+								<span class="division-icon gold">●</span>
+								<span class="division-name">{m.bracket_gold()}</span>
 							</div>
+							<div class="bracket-wrapper">
+								<div class="bracket-container">
+									{#each goldBracket.rounds as round, roundIndex}
+										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
+										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
+										{#if hasEnoughVisibleMatches}
+										<div class="bracket-round" style="--round-index: {roundIndex}">
+											<h3 class="round-name">{translateRoundName(round.name)}</h3>
+											<div class="matches-column">
+												{#each round.matches as match}
+													{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
+													{@const isByeB = match.participantB?.toUpperCase().includes('BYE')}
+													{@const winnerIsA = isByeB || match.winner === match.participantA}
+													{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
+													{#if !isByeMatch(match)}
+														<!-- svelte-ignore a11y_click_events_have_key_events -->
+														<!-- svelte-ignore a11y_no_static_element_interactions -->
+														<div
+															class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.videoId && 'has-video', match.rounds?.length && 'has-detail']}
+															onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+														>
+															<div
+																class="match-participant"
+																class:winner={winnerIsA}
+																class:tbd={!match.participantA}
+															>
+																<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																{/if}
+															</div>
+															<div class="vs-divider"></div>
+															<div
+																class="match-participant"
+																class:winner={winnerIsB}
+																class:tbd={!match.participantB}
+															>
+																<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																{/if}
+															</div>
+															{#if match.videoId}
+																<button
+																	class="video-badge"
+																	onclick={() => { videoMatch = match; showVideoModal = true; }}
+																	title={m.video_watchVideo?.() ?? 'Ver video'}
+																>
+																	<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+																		<polygon points="5 3 19 12 5 21 5 3"></polygon>
+																	</svg>
+																</button>
+															{/if}
+														</div>
+													{/if}
+												{/each}
+												<!-- Horizontal connectors between pairs -->
+												{#if roundIndex < goldBracket.rounds.length - 1}
+													{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
+														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
+													{/each}
+												{/if}
+											</div>
+										</div>
+										{/if}
+									{/each}
+
+									<!-- Gold third place match -->
+									{#if goldBracket.thirdPlaceMatch && !isByeMatch(goldBracket.thirdPlaceMatch)}
+										{@const thirdMatch = goldBracket.thirdPlaceMatch}
+										<div class="bracket-round third-place">
+											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
+											<div class="matches-column">
+												<!-- svelte-ignore a11y_click_events_have_key_events -->
+												<!-- svelte-ignore a11y_no_static_element_interactions -->
+												<div
+													class={['bracket-match', thirdMatch.status === 'COMPLETED' && 'completed', thirdMatch.videoId && 'has-video', thirdMatch.rounds?.length && 'has-detail']}
+													onclick={() => { if (thirdMatch.rounds?.length) { selectedMatch = thirdMatch; showMatchDetail = true; } }}
+												>
+													<div
+														class="match-participant"
+														class:winner={thirdMatch.winner === thirdMatch.participantA}
+														class:tbd={!thirdMatch.participantA}
+													>
+														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
+														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
+															<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
+														{/if}
+													</div>
+													<div class="vs-divider"></div>
+													<div
+														class="match-participant"
+														class:winner={thirdMatch.winner === thirdMatch.participantB}
+														class:tbd={!thirdMatch.participantB}
+													>
+														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
+														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
+															<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
+														{/if}
+													</div>
+													{#if thirdMatch.videoId}
+														<button
+															class="video-badge"
+															onclick={() => { videoMatch = thirdMatch; showVideoModal = true; }}
+															title={m.video_watchVideo?.() ?? 'Ver video'}
+														>
+															<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+																<polygon points="5 3 19 12 5 21 5 3"></polygon>
+															</svg>
+														</button>
+													{/if}
+												</div>
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
+
+							<!-- Gold consolation brackets inline -->
+							{#if goldConsolationBrackets.length > 0}
+								{@const r16Bracket = goldConsolationBrackets.find(c => c.source === 'R16')}
+								{@const qfBracket = goldConsolationBrackets.find(c => c.source === 'QF')}
+								<div class="consolation-inline">
+									{#if r16Bracket}
+										<div class="consolation-bracket-card">
+											<h4 class="consolation-bracket-title">
+												{m.bracket_positions?.({ start: r16Bracket.startPosition, end: r16Bracket.startPosition + (Math.pow(2, r16Bracket.totalRounds) - 1) }) ?? `Posiciones ${r16Bracket.startPosition}º-${r16Bracket.startPosition + Math.pow(2, r16Bracket.totalRounds) - 1}º`}
+											</h4>
+											<div class="bracket-wrapper consolation">
+												<div class="bracket-container">
+													{#each r16Bracket.rounds as round, roundIndex}
+														<div class="bracket-round" style="--round-index: {roundIndex}">
+															<h3 class="round-name">{round.name}</h3>
+															<div class="matches-column">
+																{#each round.matches as match}
+																	{#if !isByeMatch(match)}
+																		<!-- svelte-ignore a11y_click_events_have_key_events -->
+																		<!-- svelte-ignore a11y_no_static_element_interactions -->
+																		<div
+																			class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+																			onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+																		>
+																			<div
+																				class="match-participant"
+																				class:winner={match.winner === match.participantA}
+																				class:tbd={!match.participantA}
+																			>
+																				<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																				{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																					<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																				{/if}
+																			</div>
+																			<div class="vs-divider"></div>
+																			<div
+																				class="match-participant"
+																				class:winner={match.winner === match.participantB}
+																				class:tbd={!match.participantB}
+																			>
+																				<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																				{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																					<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																				{/if}
+																			</div>
+																		</div>
+																	{/if}
+																{/each}
+															</div>
+														</div>
+													{/each}
+												</div>
+											</div>
+										</div>
+									{/if}
+									{#if qfBracket}
+										<div class="consolation-bracket-card">
+											<h4 class="consolation-bracket-title">
+												{m.bracket_positions?.({ start: qfBracket.startPosition, end: qfBracket.startPosition + (Math.pow(2, qfBracket.totalRounds) - 1) }) ?? `Posiciones ${qfBracket.startPosition}º-${qfBracket.startPosition + Math.pow(2, qfBracket.totalRounds) - 1}º`}
+											</h4>
+											<div class="bracket-wrapper consolation">
+												<div class="bracket-container">
+													{#each qfBracket.rounds as round, roundIndex}
+														<div class="bracket-round" style="--round-index: {roundIndex}">
+															<h3 class="round-name">{round.name}</h3>
+															<div class="matches-column">
+																{#each round.matches as match}
+																	{#if !isByeMatch(match)}
+																		<!-- svelte-ignore a11y_click_events_have_key_events -->
+																		<!-- svelte-ignore a11y_no_static_element_interactions -->
+																		<div
+																			class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+																			onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+																		>
+																			<div
+																				class="match-participant"
+																				class:winner={match.winner === match.participantA}
+																				class:tbd={!match.participantA}
+																			>
+																				<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																				{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																					<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																				{/if}
+																			</div>
+																			<div class="vs-divider"></div>
+																			<div
+																				class="match-participant"
+																				class:winner={match.winner === match.participantB}
+																				class:tbd={!match.participantB}
+																			>
+																				<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																				{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																					<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																				{/if}
+																			</div>
+																		</div>
+																	{/if}
+																{/each}
+															</div>
+														</div>
+													{/each}
+												</div>
+											</div>
+										</div>
+									{/if}
+								</div>
+							{/if}
 						</div>
 					{/if}
 
-					<!-- Parallel brackets tabs (A/B/C Finals) -->
-					{#if isParallelBrackets && parallelBrackets.length > 0}
+					<!-- Silver Bracket -->
+					{#if silverBracket && silverBracket.rounds?.length > 0}
+						<div class="bracket-division-section silver">
+							<div class="division-header">
+								<span class="division-icon silver">●</span>
+								<span class="division-name">{m.bracket_silver()}</span>
+							</div>
+							<div class="bracket-wrapper">
+								<div class="bracket-container">
+									{#each silverBracket.rounds as round, roundIndex}
+										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
+										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
+										{#if hasEnoughVisibleMatches}
+										<div class="bracket-round" style="--round-index: {roundIndex}">
+											<h3 class="round-name">{translateRoundName(round.name)}</h3>
+											<div class="matches-column">
+												{#each round.matches as match}
+													{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
+													{@const isByeB = match.participantB?.toUpperCase().includes('BYE')}
+													{@const winnerIsA = isByeB || match.winner === match.participantA}
+													{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
+													{#if !isByeMatch(match)}
+														<!-- svelte-ignore a11y_click_events_have_key_events -->
+														<!-- svelte-ignore a11y_no_static_element_interactions -->
+														<div
+															class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.videoId && 'has-video', match.rounds?.length && 'has-detail']}
+															onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+														>
+															<div
+																class="match-participant"
+																class:winner={winnerIsA}
+																class:tbd={!match.participantA}
+															>
+																<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																{/if}
+															</div>
+															<div class="vs-divider"></div>
+															<div
+																class="match-participant"
+																class:winner={winnerIsB}
+																class:tbd={!match.participantB}
+															>
+																<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																{/if}
+															</div>
+															{#if match.videoId}
+																<button
+																	class="video-badge"
+																	onclick={() => { videoMatch = match; showVideoModal = true; }}
+																	title={m.video_watchVideo?.() ?? 'Ver video'}
+																>
+																	<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+																		<polygon points="5 3 19 12 5 21 5 3"></polygon>
+																	</svg>
+																</button>
+															{/if}
+														</div>
+													{/if}
+												{/each}
+												<!-- Horizontal connectors between pairs -->
+												{#if roundIndex < silverBracket.rounds.length - 1}
+													{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
+														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
+													{/each}
+												{/if}
+											</div>
+										</div>
+										{/if}
+									{/each}
+
+									<!-- Silver third place match -->
+									{#if silverBracket.thirdPlaceMatch && !isByeMatch(silverBracket.thirdPlaceMatch)}
+										{@const thirdMatch = silverBracket.thirdPlaceMatch}
+										<div class="bracket-round third-place">
+											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
+											<div class="matches-column">
+												<!-- svelte-ignore a11y_click_events_have_key_events -->
+												<!-- svelte-ignore a11y_no_static_element_interactions -->
+												<div
+													class={['bracket-match', thirdMatch.status === 'COMPLETED' && 'completed', thirdMatch.videoId && 'has-video', thirdMatch.rounds?.length && 'has-detail']}
+													onclick={() => { if (thirdMatch.rounds?.length) { selectedMatch = thirdMatch; showMatchDetail = true; } }}
+												>
+													<div
+														class="match-participant"
+														class:winner={thirdMatch.winner === thirdMatch.participantA}
+														class:tbd={!thirdMatch.participantA}
+													>
+														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
+														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
+															<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
+														{/if}
+													</div>
+													<div class="vs-divider"></div>
+													<div
+														class="match-participant"
+														class:winner={thirdMatch.winner === thirdMatch.participantB}
+														class:tbd={!thirdMatch.participantB}
+													>
+														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
+														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
+															<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
+														{/if}
+													</div>
+													{#if thirdMatch.videoId}
+														<button
+															class="video-badge"
+															onclick={() => { videoMatch = thirdMatch; showVideoModal = true; }}
+															title={m.video_watchVideo?.() ?? 'Ver video'}
+														>
+															<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+																<polygon points="5 3 19 12 5 21 5 3"></polygon>
+															</svg>
+														</button>
+													{/if}
+												</div>
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
+
+							<!-- Silver consolation brackets inline -->
+							{#if silverConsolationBrackets.length > 0}
+								{@const r16Bracket = silverConsolationBrackets.find(c => c.source === 'R16')}
+								{@const qfBracket = silverConsolationBrackets.find(c => c.source === 'QF')}
+								<div class="consolation-inline">
+									{#if r16Bracket}
+										<div class="consolation-bracket-card">
+											<h4 class="consolation-bracket-title">
+												{m.bracket_positions?.({ start: r16Bracket.startPosition, end: r16Bracket.startPosition + (Math.pow(2, r16Bracket.totalRounds) - 1) }) ?? `Posiciones ${r16Bracket.startPosition}º-${r16Bracket.startPosition + Math.pow(2, r16Bracket.totalRounds) - 1}º`}
+											</h4>
+											<div class="bracket-wrapper consolation">
+												<div class="bracket-container">
+													{#each r16Bracket.rounds as round, roundIndex}
+														<div class="bracket-round" style="--round-index: {roundIndex}">
+															<h3 class="round-name">{round.name}</h3>
+															<div class="matches-column">
+																{#each round.matches as match}
+																	{#if !isByeMatch(match)}
+																		<!-- svelte-ignore a11y_click_events_have_key_events -->
+																		<!-- svelte-ignore a11y_no_static_element_interactions -->
+																		<div
+																			class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+																			onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+																		>
+																			<div
+																				class="match-participant"
+																				class:winner={match.winner === match.participantA}
+																				class:tbd={!match.participantA}
+																			>
+																				<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																				{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																					<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																				{/if}
+																			</div>
+																			<div class="vs-divider"></div>
+																			<div
+																				class="match-participant"
+																				class:winner={match.winner === match.participantB}
+																				class:tbd={!match.participantB}
+																			>
+																				<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																				{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																					<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																				{/if}
+																			</div>
+																		</div>
+																	{/if}
+																{/each}
+															</div>
+														</div>
+													{/each}
+												</div>
+											</div>
+										</div>
+									{/if}
+									{#if qfBracket}
+										<div class="consolation-bracket-card">
+											<h4 class="consolation-bracket-title">
+												{m.bracket_positions?.({ start: qfBracket.startPosition, end: qfBracket.startPosition + (Math.pow(2, qfBracket.totalRounds) - 1) }) ?? `Posiciones ${qfBracket.startPosition}º-${qfBracket.startPosition + Math.pow(2, qfBracket.totalRounds) - 1}º`}
+											</h4>
+											<div class="bracket-wrapper consolation">
+												<div class="bracket-container">
+													{#each qfBracket.rounds as round, roundIndex}
+														<div class="bracket-round" style="--round-index: {roundIndex}">
+															<h3 class="round-name">{round.name}</h3>
+															<div class="matches-column">
+																{#each round.matches as match}
+																	{#if !isByeMatch(match)}
+																		<!-- svelte-ignore a11y_click_events_have_key_events -->
+																		<!-- svelte-ignore a11y_no_static_element_interactions -->
+																		<div
+																			class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+																			onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+																		>
+																			<div
+																				class="match-participant"
+																				class:winner={match.winner === match.participantA}
+																				class:tbd={!match.participantA}
+																			>
+																				<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																				{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																					<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																				{/if}
+																			</div>
+																			<div class="vs-divider"></div>
+																			<div
+																				class="match-participant"
+																				class:winner={match.winner === match.participantB}
+																				class:tbd={!match.participantB}
+																			>
+																				<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																				{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																					<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																				{/if}
+																			</div>
+																		</div>
+																	{/if}
+																{/each}
+															</div>
+														</div>
+													{/each}
+												</div>
+											</div>
+										</div>
+									{/if}
+								</div>
+							{/if}
+						</div>
+					{/if}
+				{:else if isParallelBrackets && parallelBrackets.length > 0}
+					<!-- Parallel brackets (A/B/C Finals) - keep tabs -->
+					<div class="bracket-panel">
 						<div class="panel-header">
 							<div class="division-tabs parallel">
 								{#each parallelBrackets as pb, index}
@@ -1226,33 +1676,131 @@
 								{/each}
 							</div>
 						</div>
-					{/if}
+						{#if currentBracket && rounds.length > 0}
+							<div class="bracket-wrapper">
+								<div class="bracket-container">
+									{#each rounds as round, roundIndex}
+										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
+										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
+										{#if hasEnoughVisibleMatches}
+										<div class="bracket-round" style="--round-index: {roundIndex}">
+											<h3 class="round-name">{translateRoundName(round.name)}</h3>
+											<div class="matches-column">
+												{#each round.matches as match}
+													{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
+													{@const isByeB = match.participantB?.toUpperCase().includes('BYE')}
+													{@const winnerIsA = isByeB || match.winner === match.participantA}
+													{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
+													{#if !isByeMatch(match)}
+														<!-- svelte-ignore a11y_click_events_have_key_events -->
+														<!-- svelte-ignore a11y_no_static_element_interactions -->
+														<div
+															class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.videoId && 'has-video', match.rounds?.length && 'has-detail']}
+															onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+														>
+															<div
+																class="match-participant"
+																class:winner={winnerIsA}
+																class:tbd={!match.participantA}
+															>
+																<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																{/if}
+															</div>
+															<div class="vs-divider"></div>
+															<div
+																class="match-participant"
+																class:winner={winnerIsB}
+																class:tbd={!match.participantB}
+															>
+																<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																{/if}
+															</div>
+															{#if match.videoId}
+																<button
+																	class="video-badge"
+																	onclick={() => { videoMatch = match; showVideoModal = true; }}
+																	title={m.video_watchVideo?.() ?? 'Ver video'}
+																>
+																	<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+																		<polygon points="5 3 19 12 5 21 5 3"></polygon>
+																	</svg>
+																</button>
+															{/if}
+														</div>
+													{/if}
+												{/each}
+												<!-- Horizontal connectors between pairs -->
+												{#if roundIndex < rounds.length - 1}
+													{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
+														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
+													{/each}
+												{/if}
+											</div>
+										</div>
+										{/if}
+									{/each}
 
-					<!-- Main/Consolation toggle (only show if consolation brackets exist) -->
-					{#if hasConsolation}
-						<div class="bracket-view-toggle">
-							<button
-								class="view-toggle-btn"
-								class:active={bracketView === 'main'}
-								onclick={() => bracketView = 'main'}
-							>
-								🏆 {m.bracket_winners?.() ?? 'Ganadores'}
-							</button>
-							<button
-								class="view-toggle-btn"
-								class:active={bracketView === 'consolation'}
-								onclick={() => bracketView = 'consolation'}
-							>
-								🎯 {m.bracket_consolation?.() ?? 'Consolación'}
-							</button>
-						</div>
-					{/if}
-
-					<!-- Main Bracket visualization -->
-					{#if bracketView === 'main' && currentBracket && rounds.length > 0}
+									<!-- Third place match -->
+									{#if thirdPlaceMatch && !isByeMatch(thirdPlaceMatch)}
+										<div class="bracket-round third-place">
+											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
+											<div class="matches-column">
+												<!-- svelte-ignore a11y_click_events_have_key_events -->
+												<!-- svelte-ignore a11y_no_static_element_interactions -->
+												<div
+													class={['bracket-match', thirdPlaceMatch.status === 'COMPLETED' && 'completed', thirdPlaceMatch.videoId && 'has-video', thirdPlaceMatch.rounds?.length && 'has-detail']}
+													onclick={() => { if (thirdPlaceMatch.rounds?.length) { selectedMatch = thirdPlaceMatch; showMatchDetail = true; } }}
+												>
+													<div
+														class="match-participant"
+														class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
+														class:tbd={!thirdPlaceMatch.participantA}
+													>
+														<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
+														{#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
+															<span class="score">{thirdPlaceMatch.totalPointsA || thirdPlaceMatch.gamesWonA || 0}</span>
+														{/if}
+													</div>
+													<div class="vs-divider"></div>
+													<div
+														class="match-participant"
+														class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
+														class:tbd={!thirdPlaceMatch.participantB}
+													>
+														<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
+														{#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
+															<span class="score">{thirdPlaceMatch.totalPointsB || thirdPlaceMatch.gamesWonB || 0}</span>
+														{/if}
+													</div>
+													{#if thirdPlaceMatch.videoId}
+														<button
+															class="video-badge"
+															onclick={() => { videoMatch = thirdPlaceMatch; showVideoModal = true; }}
+															title={m.video_watchVideo?.() ?? 'Ver video'}
+														>
+															<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+																<polygon points="5 3 19 12 5 21 5 3"></polygon>
+															</svg>
+														</button>
+													{/if}
+												</div>
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
+						{/if}
+					</div>
+				{:else if goldBracket && goldBracket.rounds?.length > 0}
+					<!-- Single bracket mode (no split divisions, no parallel) -->
+					<div class="bracket-panel">
 						<div class="bracket-wrapper">
 							<div class="bracket-container">
-								{#each rounds as round, roundIndex}
+								{#each goldBracket.rounds as round, roundIndex}
 									{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
 									{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
 									{#if hasEnoughVisibleMatches}
@@ -1265,7 +1813,12 @@
 												{@const winnerIsA = isByeB || match.winner === match.participantA}
 												{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 												{#if !isByeMatch(match)}
-													<div class="bracket-match" class:completed={match.status === 'COMPLETED'} class:has-video={match.videoId}>
+													<!-- svelte-ignore a11y_click_events_have_key_events -->
+													<!-- svelte-ignore a11y_no_static_element_interactions -->
+													<div
+														class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.videoId && 'has-video', match.rounds?.length && 'has-detail']}
+														onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+													>
 														<div
 															class="match-participant"
 															class:winner={winnerIsA}
@@ -1302,7 +1855,7 @@
 												{/if}
 											{/each}
 											<!-- Horizontal connectors between pairs -->
-											{#if roundIndex < rounds.length - 1}
+											{#if roundIndex < goldBracket.rounds.length - 1}
 												{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
 													<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
 												{/each}
@@ -1313,36 +1866,42 @@
 								{/each}
 
 								<!-- Third place match -->
-								{#if thirdPlaceMatch && !isByeMatch(thirdPlaceMatch)}
+								{#if goldBracket.thirdPlaceMatch && !isByeMatch(goldBracket.thirdPlaceMatch)}
+									{@const thirdMatch = goldBracket.thirdPlaceMatch}
 									<div class="bracket-round third-place">
 										<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
 										<div class="matches-column">
-											<div class="bracket-match" class:completed={thirdPlaceMatch.status === 'COMPLETED'} class:has-video={thirdPlaceMatch.videoId}>
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<div
+												class={['bracket-match', thirdMatch.status === 'COMPLETED' && 'completed', thirdMatch.videoId && 'has-video', thirdMatch.rounds?.length && 'has-detail']}
+												onclick={() => { if (thirdMatch.rounds?.length) { selectedMatch = thirdMatch; showMatchDetail = true; } }}
+											>
 												<div
 													class="match-participant"
-													class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
-													class:tbd={!thirdPlaceMatch.participantA}
+													class:winner={thirdMatch.winner === thirdMatch.participantA}
+													class:tbd={!thirdMatch.participantA}
 												>
-													<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
-													{#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
-														<span class="score">{thirdPlaceMatch.totalPointsA || thirdPlaceMatch.gamesWonA || 0}</span>
+													<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
+													{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
+														<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
 													{/if}
 												</div>
 												<div class="vs-divider"></div>
 												<div
 													class="match-participant"
-													class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
-													class:tbd={!thirdPlaceMatch.participantB}
+													class:winner={thirdMatch.winner === thirdMatch.participantB}
+													class:tbd={!thirdMatch.participantB}
 												>
-													<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
-													{#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
-														<span class="score">{thirdPlaceMatch.totalPointsB || thirdPlaceMatch.gamesWonB || 0}</span>
+													<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
+													{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
+														<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
 													{/if}
 												</div>
-												{#if thirdPlaceMatch.videoId}
+												{#if thirdMatch.videoId}
 													<button
 														class="video-badge"
-														onclick={() => { videoMatch = thirdPlaceMatch; showVideoModal = true; }}
+														onclick={() => { videoMatch = thirdMatch; showVideoModal = true; }}
 														title={m.video_watchVideo?.() ?? 'Ver video'}
 													>
 														<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -1356,109 +1915,116 @@
 								{/if}
 							</div>
 						</div>
-					{/if}
 
-					<!-- Consolation Brackets visualization -->
-					{#if bracketView === 'consolation' && consolationBrackets.length > 0}
-						{@const r16Bracket = consolationBrackets.find(c => c.source === 'R16')}
-						{@const qfBracket = consolationBrackets.find(c => c.source === 'QF')}
-						<div class="consolation-section">
-							<!-- R16 consolation (9º-16º) if exists -->
-							{#if r16Bracket}
-								<div class="consolation-bracket-card">
-									<h4 class="consolation-bracket-title">
-										🎯 {m.bracket_positions?.({ start: r16Bracket.startPosition, end: r16Bracket.startPosition + (Math.pow(2, r16Bracket.totalRounds) - 1) }) ?? `Posiciones ${r16Bracket.startPosition}º-${r16Bracket.startPosition + Math.pow(2, r16Bracket.totalRounds) - 1}º`}
-									</h4>
-									<div class="bracket-wrapper consolation">
-										<div class="bracket-container">
-											{#each r16Bracket.rounds as round, roundIndex}
-												<div class="bracket-round" style="--round-index: {roundIndex}">
-													<h3 class="round-name">{round.name}</h3>
-													<div class="matches-column">
-														{#each round.matches as match}
-															{#if !isByeMatch(match)}
-																<div class="bracket-match" class:completed={match.status === 'COMPLETED'}>
+						<!-- Single bracket consolation brackets -->
+						{#if goldConsolationBrackets.length > 0}
+							{@const r16Bracket = goldConsolationBrackets.find(c => c.source === 'R16')}
+							{@const qfBracket = goldConsolationBrackets.find(c => c.source === 'QF')}
+							<div class="consolation-inline">
+								{#if r16Bracket}
+									<div class="consolation-bracket-card">
+										<h4 class="consolation-bracket-title">
+											{m.bracket_positions?.({ start: r16Bracket.startPosition, end: r16Bracket.startPosition + (Math.pow(2, r16Bracket.totalRounds) - 1) }) ?? `Posiciones ${r16Bracket.startPosition}º-${r16Bracket.startPosition + Math.pow(2, r16Bracket.totalRounds) - 1}º`}
+										</h4>
+										<div class="bracket-wrapper consolation">
+											<div class="bracket-container">
+												{#each r16Bracket.rounds as round, roundIndex}
+													<div class="bracket-round" style="--round-index: {roundIndex}">
+														<h3 class="round-name">{round.name}</h3>
+														<div class="matches-column">
+															{#each round.matches as match}
+																{#if !isByeMatch(match)}
+																	<!-- svelte-ignore a11y_click_events_have_key_events -->
+																	<!-- svelte-ignore a11y_no_static_element_interactions -->
 																	<div
-																		class="match-participant"
-																		class:winner={match.winner === match.participantA}
-																		class:tbd={!match.participantA}
+																		class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+																		onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
 																	>
-																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
-																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
-																		{/if}
+																		<div
+																			class="match-participant"
+																			class:winner={match.winner === match.participantA}
+																			class:tbd={!match.participantA}
+																		>
+																			<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																			{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																				<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																			{/if}
+																		</div>
+																		<div class="vs-divider"></div>
+																		<div
+																			class="match-participant"
+																			class:winner={match.winner === match.participantB}
+																			class:tbd={!match.participantB}
+																		>
+																			<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																			{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																				<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																			{/if}
+																		</div>
 																	</div>
-																	<div class="vs-divider"></div>
-																	<div
-																		class="match-participant"
-																		class:winner={match.winner === match.participantB}
-																		class:tbd={!match.participantB}
-																	>
-																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
-																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
-																		{/if}
-																	</div>
-																</div>
-															{/if}
-														{/each}
+																{/if}
+															{/each}
+														</div>
 													</div>
-												</div>
-											{/each}
+												{/each}
+											</div>
 										</div>
 									</div>
-								</div>
-							{/if}
-
-							<!-- QF consolation (5º-8º) if exists -->
-							{#if qfBracket}
-								<div class="consolation-bracket-card">
-									<h4 class="consolation-bracket-title">
-										🎯 {m.bracket_positions?.({ start: qfBracket.startPosition, end: qfBracket.startPosition + (Math.pow(2, qfBracket.totalRounds) - 1) }) ?? `Posiciones ${qfBracket.startPosition}º-${qfBracket.startPosition + Math.pow(2, qfBracket.totalRounds) - 1}º`}
-									</h4>
-									<div class="bracket-wrapper consolation">
-										<div class="bracket-container">
-											{#each qfBracket.rounds as round, roundIndex}
-												<div class="bracket-round" style="--round-index: {roundIndex}">
-													<h3 class="round-name">{round.name}</h3>
-													<div class="matches-column">
-														{#each round.matches as match}
-															{#if !isByeMatch(match)}
-																<div class="bracket-match" class:completed={match.status === 'COMPLETED'}>
+								{/if}
+								{#if qfBracket}
+									<div class="consolation-bracket-card">
+										<h4 class="consolation-bracket-title">
+											{m.bracket_positions?.({ start: qfBracket.startPosition, end: qfBracket.startPosition + (Math.pow(2, qfBracket.totalRounds) - 1) }) ?? `Posiciones ${qfBracket.startPosition}º-${qfBracket.startPosition + Math.pow(2, qfBracket.totalRounds) - 1}º`}
+										</h4>
+										<div class="bracket-wrapper consolation">
+											<div class="bracket-container">
+												{#each qfBracket.rounds as round, roundIndex}
+													<div class="bracket-round" style="--round-index: {roundIndex}">
+														<h3 class="round-name">{round.name}</h3>
+														<div class="matches-column">
+															{#each round.matches as match}
+																{#if !isByeMatch(match)}
+																	<!-- svelte-ignore a11y_click_events_have_key_events -->
+																	<!-- svelte-ignore a11y_no_static_element_interactions -->
 																	<div
-																		class="match-participant"
-																		class:winner={match.winner === match.participantA}
-																		class:tbd={!match.participantA}
+																		class={['bracket-match', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+																		onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
 																	>
-																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
-																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
-																		{/if}
+																		<div
+																			class="match-participant"
+																			class:winner={match.winner === match.participantA}
+																			class:tbd={!match.participantA}
+																		>
+																			<span class="participant-name">{getParticipantName(match.participantA)}</span>
+																			{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																				<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																			{/if}
+																		</div>
+																		<div class="vs-divider"></div>
+																		<div
+																			class="match-participant"
+																			class:winner={match.winner === match.participantB}
+																			class:tbd={!match.participantB}
+																		>
+																			<span class="participant-name">{getParticipantName(match.participantB)}</span>
+																			{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+																				<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																			{/if}
+																		</div>
 																	</div>
-																	<div class="vs-divider"></div>
-																	<div
-																		class="match-participant"
-																		class:winner={match.winner === match.participantB}
-																		class:tbd={!match.participantB}
-																	>
-																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
-																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
-																		{/if}
-																	</div>
-																</div>
-															{/if}
-														{/each}
+																{/if}
+															{/each}
+														</div>
 													</div>
-												</div>
-											{/each}
+												{/each}
+											</div>
 										</div>
 									</div>
-								</div>
-							{/if}
-						</div>
-					{/if}
-				</div>
+								{/if}
+							</div>
+						{/if}
+					</div>
+				{/if}
 			</section>
 		{/if}
 	{/if}
@@ -1499,6 +2065,125 @@
 				<span class="video-modal-score">
 					{videoMatch.totalPointsA || videoMatch.gamesWonA || 0} - {videoMatch.totalPointsB || videoMatch.gamesWonB || 0}
 				</span>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Match Detail Modal -->
+{#if showMatchDetail && selectedMatch}
+	{@const roundsByGame = selectedMatch.rounds?.reduce((acc, r) => {
+		if (!acc[r.gameNumber]) acc[r.gameNumber] = [];
+		acc[r.gameNumber].push(r);
+		return acc;
+	}, {} as Record<number, typeof selectedMatch.rounds>) ?? {}}
+	{@const gameNumbers = Object.keys(roundsByGame).map(Number).sort((a, b) => a - b)}
+	{@const show20s = tournament?.show20s ?? false}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div
+		class="match-detail-overlay"
+		data-theme={$theme}
+		onclick={() => showMatchDetail = false}
+		onkeydown={(e) => e.key === 'Escape' && (showMatchDetail = false)}
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+	>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="match-detail-modal" onclick={(e) => e.stopPropagation()}>
+			<button class="match-detail-close" onclick={() => showMatchDetail = false} aria-label="Cerrar">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+					<path d="M18 6L6 18M6 6l12 12"/>
+				</svg>
+			</button>
+
+			<div class="match-detail-header">
+				<div class="match-detail-players">
+					<span class="player-name" class:is-winner={selectedMatch.winner === selectedMatch.participantA}>
+						{getParticipantName(selectedMatch.participantA)}
+					</span>
+					<span class="vs-badge">vs</span>
+					<span class="player-name" class:is-winner={selectedMatch.winner === selectedMatch.participantB}>
+						{getParticipantName(selectedMatch.participantB)}
+					</span>
+				</div>
+				<div class="match-detail-final-score">
+					<span class="final-score" class:winner={selectedMatch.winner === selectedMatch.participantA}>
+						{selectedMatch.totalPointsA ?? selectedMatch.gamesWonA ?? 0}
+					</span>
+					<span class="score-sep">-</span>
+					<span class="final-score" class:winner={selectedMatch.winner === selectedMatch.participantB}>
+						{selectedMatch.totalPointsB ?? selectedMatch.gamesWonB ?? 0}
+					</span>
+				</div>
+			</div>
+
+			<div class="match-detail-body">
+				{#each gameNumbers as gameNum}
+					{@const gameRounds = roundsByGame[gameNum] || []}
+					{@const gameTotalA = gameRounds.reduce((sum, r) => sum + (r.pointsA ?? 0), 0)}
+					{@const gameTotalB = gameRounds.reduce((sum, r) => sum + (r.pointsB ?? 0), 0)}
+					{@const game20sA = gameRounds.reduce((sum, r) => sum + (r.twentiesA ?? 0), 0)}
+					{@const game20sB = gameRounds.reduce((sum, r) => sum + (r.twentiesB ?? 0), 0)}
+					<div class="game-section">
+						{#if gameNumbers.length > 1}
+							<div class="game-header">
+								<span class="game-label">{m.history_game?.()} {gameNum}</span>
+								<span class="game-score">{gameTotalA} - {gameTotalB}</span>
+							</div>
+						{/if}
+						<table class="rounds-table horizontal">
+							<thead>
+								<tr>
+									<th class="player-col"></th>
+									{#each gameRounds as round}
+										<th class="round-col">R{round.roundInGame}</th>
+									{/each}
+									<th class="total-col">{m.history_total?.() ?? 'Total'}</th>
+								</tr>
+							</thead>
+							<tbody>
+								<!-- Player A row -->
+								<tr class:row-winner={gameTotalA > gameTotalB}>
+									<td class="player-col">{getParticipantName(selectedMatch.participantA)}</td>
+									{#each gameRounds as round}
+										<td class="round-col" class:round-winner={(round.pointsA ?? 0) > (round.pointsB ?? 0)}>
+											<span class="round-points">{round.pointsA ?? '-'}</span>
+											{#if show20s && round.twentiesA > 0}
+												<span class="round-twenties">{round.twentiesA}</span>
+											{/if}
+										</td>
+									{/each}
+									<td class="total-col" class:game-winner={gameTotalA > gameTotalB}>
+										<span class="total-points">{gameTotalA}</span>
+										{#if show20s && game20sA > 0}
+											<span class="total-twenties">{game20sA}</span>
+										{/if}
+									</td>
+								</tr>
+								<!-- Player B row -->
+								<tr class:row-winner={gameTotalB > gameTotalA}>
+									<td class="player-col">{getParticipantName(selectedMatch.participantB)}</td>
+									{#each gameRounds as round}
+										<td class="round-col" class:round-winner={(round.pointsB ?? 0) > (round.pointsA ?? 0)}>
+											<span class="round-points">{round.pointsB ?? '-'}</span>
+											{#if show20s && round.twentiesB > 0}
+												<span class="round-twenties">{round.twentiesB}</span>
+											{/if}
+										</td>
+									{/each}
+									<td class="total-col" class:game-winner={gameTotalB > gameTotalA}>
+										<span class="total-points">{gameTotalB}</span>
+										{#if show20s && game20sB > 0}
+											<span class="total-twenties">{game20sB}</span>
+										{/if}
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				{/each}
 			</div>
 		</div>
 	</div>
@@ -2757,20 +3442,27 @@
 		padding-left: calc(0.35rem - 2px);
 	}
 
-	.pos-col { width: 24px; text-align: center; }
-	.name-col { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.stat-col { width: 28px; text-align: center; font-variant-numeric: tabular-nums; }
+	.standings-table .pos-col { width: 24px; text-align: center; }
+	.standings-table .name-col { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.standings-table .stat-col { width: 32px; text-align: center !important; font-variant-numeric: tabular-nums; }
 
-	/* Primary column (used for qualification ranking) */
+	/* Primary column (used for qualification ranking) - highlighted with border */
 	.standings-table th.primary-col,
 	.standings-table td.primary-col {
-		background: rgba(16, 185, 129, 0.12);
-		color: #10b981;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--primary);
 		font-weight: 700;
+		border-left: 2px solid var(--primary);
+		border-right: 2px solid var(--primary);
 	}
 
 	.standings-table th.primary-col {
-		background: rgba(16, 185, 129, 0.18);
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
+		border-top: 2px solid var(--primary);
+	}
+
+	.standings-table tbody tr:last-child td.primary-col {
+		border-bottom: 2px solid var(--primary);
 	}
 
 	/* Row hover for better readability */
@@ -2779,7 +3471,7 @@
 	}
 
 	.standings-table tbody tr:hover td.primary-col {
-		background: rgba(16, 185, 129, 0.2);
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
 	}
 
 	/* Standings Legend */
@@ -2887,6 +3579,16 @@
 
 	.match-result-row.completed {
 		background: rgba(0, 0, 0, 0.3);
+	}
+
+	.match-table {
+		font-size: 0.65rem;
+		font-weight: 600;
+		color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		padding: 0.15rem 0.35rem;
+		border-radius: 3px;
+		flex-shrink: 0;
 	}
 
 	.match-player {
@@ -3004,6 +3706,85 @@
 
 	.division-tab.active .tab-label {
 		color: #818cf8;
+	}
+
+	/* Bracket Division Section (vertical layout for gold/silver) */
+	.bracket-division-section {
+		background: #1a2332;
+		border: 1px solid #2d3748;
+		border-radius: 12px;
+		overflow: hidden;
+		margin-bottom: 1.5rem;
+	}
+
+	.bracket-division-section:last-child {
+		margin-bottom: 0;
+	}
+
+	.bracket-division-section.gold {
+		border-color: rgba(245, 158, 11, 0.3);
+	}
+
+	.bracket-division-section.silver {
+		border-color: rgba(156, 163, 175, 0.3);
+	}
+
+	.division-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: rgba(0, 0, 0, 0.2);
+		border-bottom: 1px solid #2d3748;
+	}
+
+	.bracket-division-section.gold .division-header {
+		border-bottom-color: rgba(245, 158, 11, 0.2);
+	}
+
+	.bracket-division-section.silver .division-header {
+		border-bottom-color: rgba(156, 163, 175, 0.2);
+	}
+
+	.division-icon {
+		font-size: 0.75rem;
+	}
+
+	.division-icon.gold {
+		color: #f59e0b;
+	}
+
+	.division-icon.silver {
+		color: #9ca3af;
+	}
+
+	.division-name {
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: #e1e8ed;
+	}
+
+	.bracket-division-section .bracket-wrapper {
+		padding: 1rem;
+	}
+
+	/* Consolation brackets shown inline below main bracket */
+	.consolation-inline {
+		padding: 0 1rem 1rem;
+		border-top: 1px dashed rgba(255, 255, 255, 0.1);
+		margin-top: 0.5rem;
+	}
+
+	.consolation-inline .consolation-bracket-card {
+		margin-top: 1rem;
+	}
+
+	.consolation-inline .consolation-bracket-title {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: #8b9bb3;
+		margin-bottom: 0.75rem;
+		padding-left: 0.25rem;
 	}
 
 	/* Bracket Panel */
@@ -3132,10 +3913,10 @@
 		display: none;
 	}
 
-	/* Bracket */
+	/* Bracket - horizontal scroll only, no vertical */
 	.bracket-wrapper {
 		overflow-x: auto;
-		overflow-y: visible;
+		overflow-y: hidden;
 		padding: 1rem;
 		-webkit-overflow-scrolling: touch;
 	}
@@ -3165,6 +3946,16 @@
 		padding: 0.3rem 0.8rem;
 		border-radius: 6px;
 		box-shadow: 0 2px 6px rgba(180, 137, 94, 0.3);
+	}
+
+	/* Final round (last round before 3rd place, or last round if no 3rd place) - golden styling */
+	.bracket-round:last-child:not(.third-place) .round-name,
+	.bracket-round:nth-last-child(2):not(.third-place):has(+ .third-place) .round-name {
+		background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+		color: #78350f;
+		padding: 0.3rem 0.8rem;
+		border-radius: 6px;
+		box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
 	}
 
 	/* Bronze connector from final to 3rd place */
@@ -3448,8 +4239,14 @@
 			padding: 0.3rem 0.2rem;
 		}
 
-		.pos-col { width: 20px; }
-		.stat-col { width: 24px; }
+		.standings-table .pos-col { width: 20px; }
+		.standings-table .stat-col { width: 24px; }
+
+		/* Match result row mobile - match standings table font size */
+		.match-result-row,
+		button.match-result-row {
+			font-size: 0.7rem;
+		}
 	}
 
 	/* Light theme */
@@ -3589,12 +4386,12 @@
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-table th.primary-col,
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-table td.primary-col {
-		background: rgba(16, 185, 129, 0.1);
-		color: #059669;
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
+		color: var(--primary);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-table th.primary-col {
-		background: rgba(16, 185, 129, 0.15);
+		background: color-mix(in srgb, var(--primary) 20%, transparent);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-table tbody tr:hover td {
@@ -3602,7 +4399,7 @@
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-table tbody tr:hover td.primary-col {
-		background: rgba(16, 185, 129, 0.18);
+		background: color-mix(in srgb, var(--primary) 22%, transparent);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-legend {
@@ -3649,6 +4446,11 @@
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.completed {
 		background: rgba(0, 0, 0, 0.04);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-table {
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
+		color: var(--primary);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player {
@@ -3701,6 +4503,53 @@
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .division-tab .tab-icon.silver {
 		color: #6b7280;
+	}
+
+	/* Bracket division section light theme */
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-division-section {
+		background: #ffffff;
+		border-color: #e2e8f0;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-division-section.gold {
+		border-color: rgba(217, 119, 6, 0.35);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-division-section.silver {
+		border-color: rgba(107, 114, 128, 0.35);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .division-header {
+		background: rgba(0, 0, 0, 0.02);
+		border-bottom-color: #e2e8f0;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-division-section.gold .division-header {
+		border-bottom-color: rgba(217, 119, 6, 0.2);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-division-section.silver .division-header {
+		border-bottom-color: rgba(107, 114, 128, 0.2);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .division-name {
+		color: #1a202c;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .division-icon.gold {
+		color: #d97706;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .division-icon.silver {
+		color: #6b7280;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-inline {
+		border-top-color: rgba(0, 0, 0, 0.08);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-inline .consolation-bracket-title {
+		color: #4a5568;
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-panel {
@@ -4021,6 +4870,421 @@
 			flex-shrink: 0;
 			padding: 1rem;
 			padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+		}
+	}
+
+	/* Match Detail Modal */
+	.match-detail-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.8);
+		z-index: 1000;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1rem;
+		backdrop-filter: blur(4px);
+	}
+
+	.match-detail-modal {
+		background: #1a2332;
+		border-radius: 12px;
+		width: min(94vw, 560px);
+		max-height: 85vh;
+		overflow: hidden;
+		position: relative;
+		border: 1px solid #2d3748;
+		box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.match-detail-close {
+		position: absolute;
+		top: 10px;
+		right: 10px;
+		background: rgba(0, 0, 0, 0.4);
+		border: none;
+		border-radius: 50%;
+		width: 32px;
+		height: 32px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #a0aec0;
+		transition: background 0.15s, color 0.15s;
+		z-index: 10;
+	}
+
+	.match-detail-close:hover {
+		background: rgba(0, 0, 0, 0.6);
+		color: #fff;
+	}
+
+	.match-detail-header {
+		padding: 1.25rem 1rem 1rem;
+		background: linear-gradient(135deg, #1e293b 0%, #1a2332 100%);
+		border-bottom: 1px solid #2d3748;
+		text-align: center;
+	}
+
+	.match-detail-players {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.75rem;
+	}
+
+	.match-detail-players .player-name {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #e1e8ed;
+		max-width: 220px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.match-detail-players .player-name.is-winner {
+		color: #10b981;
+	}
+
+	.match-detail-players .vs-badge {
+		font-size: 0.75rem;
+		color: #6b7a94;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.match-detail-final-score {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+	}
+
+	.match-detail-final-score .final-score {
+		font-size: 1.75rem;
+		font-weight: 700;
+		color: #6b7a94;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.match-detail-final-score .final-score.winner {
+		color: #10b981;
+	}
+
+	.match-detail-final-score .score-sep {
+		font-size: 1.5rem;
+		color: #4a5568;
+	}
+
+	.match-detail-body {
+		padding: 0.75rem;
+		overflow-y: auto;
+		flex: 1;
+	}
+
+	.game-section {
+		margin-bottom: 0.75rem;
+	}
+
+	.game-section:last-child {
+		margin-bottom: 0;
+	}
+
+	.game-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.4rem 0.6rem;
+		background: rgba(255, 255, 255, 0.03);
+		border-radius: 6px;
+		margin-bottom: 0.5rem;
+	}
+
+	.game-label {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: #8b9bb3;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.game-score {
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: #e1e8ed;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.rounds-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.95rem;
+	}
+
+	.rounds-table.horizontal {
+		table-layout: auto;
+	}
+
+	.rounds-table th {
+		padding: 0.4rem 0.3rem;
+		text-align: center;
+		font-weight: 600;
+		color: #6b7a94;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+		border-bottom: 1px solid #2d3748;
+	}
+
+	.rounds-table td {
+		padding: 0.5rem 0.3rem;
+		text-align: center;
+		color: #c5d0db;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.rounds-table tbody tr {
+		border-bottom: 1px solid rgba(45, 55, 72, 0.4);
+	}
+
+	.rounds-table tbody tr:last-child {
+		border-bottom: none;
+	}
+
+	.rounds-table .player-col {
+		text-align: left;
+		font-weight: 600;
+		color: #e1e8ed;
+		padding-left: 0.5rem;
+		padding-right: 0.5rem;
+		max-width: 180px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.rounds-table .round-col {
+		min-width: 32px;
+		vertical-align: middle;
+	}
+
+	.rounds-table .round-col.round-winner .round-points {
+		color: #10b981;
+		font-weight: 700;
+	}
+
+	.rounds-table .round-points {
+		display: block;
+		line-height: 1.2;
+	}
+
+	.rounds-table .round-twenties {
+		display: block;
+		font-size: 0.6rem;
+		color: #8b9bb3;
+		line-height: 1;
+		margin-top: 1px;
+	}
+
+	.rounds-table .total-col {
+		font-weight: 700;
+		color: #e1e8ed;
+		border-left: 1px solid #2d3748;
+		padding-left: 0.5rem;
+		vertical-align: middle;
+	}
+
+	.rounds-table .total-points {
+		display: block;
+		line-height: 1.2;
+	}
+
+	.rounds-table .total-twenties {
+		display: block;
+		font-size: 0.6rem;
+		color: #8b9bb3;
+		line-height: 1;
+		margin-top: 1px;
+		font-weight: 500;
+	}
+
+	.rounds-table .total-col.game-winner .total-points {
+		color: #10b981;
+	}
+
+	.rounds-table tr.row-winner .player-col {
+		color: #10b981;
+	}
+
+	/* Match result row clickable styles */
+	button.match-result-row {
+		background: transparent;
+		border: none;
+		cursor: default;
+		font-family: inherit;
+		font-size: 0.8rem;
+		text-align: inherit;
+		width: 100%;
+	}
+
+	button.match-result-row.has-detail {
+		cursor: pointer;
+	}
+
+	button.match-result-row.has-detail:hover {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	button.match-result-row:disabled {
+		cursor: default;
+		opacity: 1;
+	}
+
+	/* Bracket match clickable styles */
+	.bracket-match.has-detail {
+		cursor: pointer;
+		transition: transform 0.1s ease, box-shadow 0.1s ease;
+	}
+
+	.bracket-match.has-detail:hover {
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+	}
+
+	/* Light theme for match detail modal */
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-modal {
+		background: #fff;
+		border-color: #e2e8f0;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-header {
+		background: linear-gradient(135deg, #f8fafc 0%, #fff 100%);
+		border-bottom-color: #e2e8f0;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-players .player-name {
+		color: #1a202c;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .final-score {
+		color: #718096;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .score-sep {
+		color: #cbd5e0;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-close {
+		background: rgba(0, 0, 0, 0.05);
+		color: #718096;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-close:hover {
+		background: rgba(0, 0, 0, 0.1);
+		color: #1a202c;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .game-header {
+		background: rgba(0, 0, 0, 0.02);
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .game-label {
+		color: #718096;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .game-score {
+		color: #1a202c;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table th {
+		color: #718096;
+		border-bottom-color: #e2e8f0;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table td {
+		color: #4a5568;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table tbody tr {
+		border-bottom-color: #edf2f7;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .player-col {
+		color: #1a202c;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .total-col {
+		color: #1a202c;
+		border-left-color: #e2e8f0;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .round-twenties,
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .total-twenties {
+		color: #718096;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table tr.row-winner .player-col {
+		color: #059669;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .round-col.round-winner .round-points {
+		color: #059669;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .total-col.game-winner .total-points {
+		color: #059669;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-players .player-name.is-winner {
+		color: #059669;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .final-score.winner {
+		color: #059669;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) button.match-result-row.has-detail:hover {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	/* Responsive match detail modal */
+	@media (max-width: 480px) {
+		.match-detail-modal {
+			width: 100%;
+			max-height: 90vh;
+			border-radius: 16px 16px 0 0;
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+		}
+
+		.match-detail-overlay {
+			align-items: flex-end;
+			padding: 0;
+		}
+
+		.match-detail-players .player-name {
+			max-width: 140px;
+			font-size: 0.9rem;
+		}
+
+		.rounds-table .player-col {
+			max-width: 120px;
+		}
+
+		.rounds-table {
+			font-size: 0.75rem;
+		}
+
+		.rounds-table th {
+			font-size: 0.65rem;
 		}
 	}
 </style>
