@@ -1804,6 +1804,19 @@ export async function abandonTournamentMatch(
 
     let matchFound = false;
 
+    // Helper to reset all match data
+    const resetMatchData = (match: any) => {
+      match.status = 'PENDING';
+      match.startedAt = undefined;
+      match.rounds = undefined;
+      match.gamesWonA = undefined;
+      match.gamesWonB = undefined;
+      match.totalPointsA = undefined;
+      match.totalPointsB = undefined;
+      match.total20sA = undefined;
+      match.total20sB = undefined;
+    };
+
     if (phase === 'GROUP' && tournament.groupStage) {
       for (const group of tournament.groupStage.groups) {
         if (groupId && group.id !== groupId) continue;
@@ -1812,9 +1825,7 @@ export async function abandonTournamentMatch(
           for (const round of group.schedule) {
             const matchIndex = round.matches.findIndex(m => m.id === matchId);
             if (matchIndex !== -1) {
-              round.matches[matchIndex].status = 'PENDING';
-              round.matches[matchIndex].startedAt = undefined;
-              round.matches[matchIndex].rounds = undefined;
+              resetMatchData(round.matches[matchIndex]);
               matchFound = true;
               break;
             }
@@ -1825,9 +1836,7 @@ export async function abandonTournamentMatch(
           for (const pairing of group.pairings) {
             const matchIndex = pairing.matches.findIndex(m => m.id === matchId);
             if (matchIndex !== -1) {
-              pairing.matches[matchIndex].status = 'PENDING';
-              pairing.matches[matchIndex].startedAt = undefined;
-              pairing.matches[matchIndex].rounds = undefined;
+              resetMatchData(pairing.matches[matchIndex]);
               matchFound = true;
               break;
             }
@@ -1850,13 +1859,8 @@ export async function abandonTournamentMatch(
         (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
       );
 
-      const resetMatch = (match: any) => {
-        match.status = 'PENDING';
-        match.startedAt = undefined;
-        match.rounds = undefined;
-        match.gamesWonA = undefined;
-        match.gamesWonB = undefined;
-      };
+      // Use the same resetMatchData helper for FINAL phase
+      const resetMatch = resetMatchData;
 
       // Check gold bracket
       if (tournament.finalStage.goldBracket?.rounds) {

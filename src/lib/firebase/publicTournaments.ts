@@ -12,7 +12,8 @@ import {
 	doc,
 	query,
 	orderBy,
-	Timestamp
+	Timestamp,
+	onSnapshot
 } from 'firebase/firestore';
 import { browser } from '$app/environment';
 
@@ -149,6 +150,106 @@ export async function getPublicTournaments(
 	} catch (error) {
 		console.error('❌ Error getting public tournaments:', error);
 		return [];
+	}
+}
+
+/**
+ * Subscribe to public tournaments in real-time
+ * Returns an unsubscribe function
+ */
+export function subscribeToPublicTournaments(
+	onUpdate: (tournaments: TournamentListItem[]) => void,
+	onError?: (error: Error) => void
+): () => void {
+	if (!browser || !isFirebaseEnabled()) {
+		console.warn('Firebase disabled');
+		onUpdate([]);
+		return () => {};
+	}
+
+	try {
+		const tournamentsRef = collection(db!, 'tournaments');
+		const q = query(tournamentsRef, orderBy('tournamentDate', 'asc'));
+
+		const unsubscribe = onSnapshot(
+			q,
+			(snapshot) => {
+				const now = Date.now();
+				const tournaments: TournamentListItem[] = [];
+
+				snapshot.forEach((docSnap) => {
+					const data = docSnap.data() as Tournament;
+
+					// Extract tournamentDate
+					let tournamentDate: number | undefined;
+					if (data.tournamentDate) {
+						tournamentDate =
+							data.tournamentDate instanceof Timestamp
+								? data.tournamentDate.toMillis()
+								: data.tournamentDate;
+					}
+
+					// Skip test tournaments from public view
+					if (data.isTest === true) return;
+
+					// Count active participants
+					const participantsCount =
+						data.participants?.filter((p) => p.status === 'ACTIVE').length || 0;
+
+					tournaments.push({
+						id: docSnap.id,
+						name: data.name,
+						edition: data.edition,
+						country: data.country,
+						city: data.city,
+						address: data.address,
+						tournamentDate,
+						status: data.status,
+						gameType: data.gameType,
+						participantsCount,
+						tier: data.rankingConfig?.enabled ? data.rankingConfig.tier : undefined,
+						createdAt:
+							data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+						isImported: data.isImported,
+						posterUrl: data.posterUrl
+					});
+				});
+
+				// Sort: future tournaments first (by date asc), then past (by date desc)
+				tournaments.sort((a, b) => {
+					const aDate = a.tournamentDate || 0;
+					const bDate = b.tournamentDate || 0;
+					const aIsFuture = aDate > now;
+					const bIsFuture = bDate > now;
+
+					// Future tournaments come first
+					if (aIsFuture && !bIsFuture) return -1;
+					if (!aIsFuture && bIsFuture) return 1;
+
+					// Within same category, sort appropriately
+					if (aIsFuture && bIsFuture) {
+						// Future: ascending (closest first)
+						return aDate - bDate;
+					} else {
+						// Past: descending (most recent first)
+						return bDate - aDate;
+					}
+				});
+
+				console.log(`✅ Real-time update: ${tournaments.length} public tournaments`);
+				onUpdate(tournaments);
+			},
+			(error) => {
+				console.error('❌ Error in tournament subscription:', error);
+				onError?.(error);
+			}
+		);
+
+		return unsubscribe;
+	} catch (error) {
+		console.error('❌ Error setting up tournament subscription:', error);
+		onError?.(error instanceof Error ? error : new Error(String(error)));
+		return () => {};
 	}
 }
 

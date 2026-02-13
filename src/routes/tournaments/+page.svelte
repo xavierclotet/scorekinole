@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import * as m from '$lib/paraglide/messages.js';
 	import {
-		getPublicTournaments,
+		subscribeToPublicTournaments,
 		getAvailableTournamentYears,
 		getAvailableTournamentCountries,
 		type TournamentListItem
@@ -99,20 +99,28 @@
 		}
 	});
 
+	// Subscription cleanup
+	let unsubscribe: (() => void) | null = $state(null);
+
 	onMount(async () => {
-		await loadData();
+		await loadFilters();
+		setupSubscription();
+
+		return () => {
+			// Cleanup subscription on unmount
+			if (unsubscribe) {
+				unsubscribe();
+			}
+		};
 	});
 
-	async function loadData() {
-		isLoading = true;
+	async function loadFilters() {
 		try {
-			const [tournaments, years, countries] = await Promise.all([
-				getPublicTournaments({}),
+			const [years, countries] = await Promise.all([
 				getAvailableTournamentYears(),
 				getAvailableTournamentCountries()
 			]);
 
-			allTournaments = tournaments;
 			availableYears = years;
 			availableCountries = countries;
 
@@ -124,10 +132,23 @@
 				}
 			}
 		} catch (error) {
-			console.error('Error loading tournaments:', error);
-		} finally {
-			isLoading = false;
+			console.error('Error loading filters:', error);
 		}
+	}
+
+	function setupSubscription() {
+		isLoading = true;
+
+		unsubscribe = subscribeToPublicTournaments(
+			(tournaments) => {
+				allTournaments = tournaments;
+				isLoading = false;
+			},
+			(error) => {
+				console.error('Error in tournament subscription:', error);
+				isLoading = false;
+			}
+		);
 	}
 
 	function loadMore() {

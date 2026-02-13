@@ -23,6 +23,8 @@
     totalRounds?: number | null;
     // Whether this is a doubles tournament (affects name display)
     isDoubles?: boolean;
+    // Number of games to win (Pg1, Pg2, etc.)
+    matchesToWin?: number;
   }
 
   let {
@@ -36,7 +38,8 @@
     expandedRoundsState = null,
     onExpandedRoundsChange,
     totalRounds = null,
-    isDoubles = false
+    isDoubles = false,
+    matchesToWin = 1
   }: Props = $props();
 
   // Internal state (used when no external state is provided)
@@ -178,6 +181,7 @@
                 {onMatchClick}
                 {gameMode}
                 {isDoubles}
+                {matchesToWin}
               />
             {/each}
           </div>

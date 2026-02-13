@@ -476,8 +476,8 @@
       country = tournament.country || '';
       city = tournament.city || '';
       address = tournament.address || '';
-      // Set date to today for the new tournament
-      tournamentDate = new Date().toISOString().split('T')[0];
+      // Keep original tournament date
+      tournamentDate = tournament.tournamentDate ? new Date(tournament.tournamentDate).toISOString().split('T')[0] : '';
       gameType = tournament.gameType;
 
       // Step 2

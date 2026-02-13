@@ -1126,5 +1126,14 @@
   "wizard_bulkErrorNameTooShort": "\" {name} \" must have at least 3 characters",
   "wizard_bulkErrorIsRegistered": "He's already registered. Add him from the user search.",
   "wizard_bulkErrorDuplicatePair": "This couple already exists",
-  "wizard_bulkErrorDuplicateSingle": "This player already exists"
+  "wizard_bulkErrorDuplicateSingle": "This player already exists",
+  "tournament_bracketInProgress": "Qualifying rounds in progress",
+  "tournament_matchesLostShort": "D",
+  "tournament_matchesPlayedShort": "PJ",
+  "tournament_matchesWonShort": "V",
+  "tournament_matchPlural": "matches",
+  "tournament_matchSingular": "game",
+  "tournament_inPlay": "live",
+  "tournament_noDataAvailable": "No data available",
+  "tournament_transitionDescription": "Preparing for the final phase..."
 }

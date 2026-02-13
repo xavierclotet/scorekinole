@@ -544,7 +544,7 @@
   "tournament_refreshMatches": "Actualitzar partits",
   "tournament_results": "Resultats",
   "tournament_round": "Ronda",
-  "tournament_schedule": "Calendari",
+  "tournament_schedule": "Enfrontaments",
   "tournament_searching": "Cercant...",
   "tournament_searchingTournament": "Cercant torneig...",
   "tournament_selectYourMatch": "Selecciona el teu Partit",
@@ -1126,5 +1126,14 @@
   "wizard_bulkErrorNameTooShort": "\" {name} \" ha de tenir almenys 3 caràcters",
   "wizard_bulkErrorIsRegistered": "ja està registrat. Afegeix-ho des de la cerca d'usuaris.",
   "wizard_bulkErrorDuplicatePair": "Aquesta parella ja existeix",
-  "wizard_bulkErrorDuplicateSingle": "Aquest jugador ja existeix"
+  "wizard_bulkErrorDuplicateSingle": "Aquest jugador ja existeix",
+  "tournament_bracketInProgress": "Eliminatòries en curs",
+  "tournament_matchesLostShort": "D",
+  "tournament_matchesPlayedShort": "PJ",
+  "tournament_matchesWonShort": "V",
+  "tournament_matchPlural": "partits",
+  "tournament_matchSingular": "partit",
+  "tournament_inPlay": "en joc",
+  "tournament_noDataAvailable": "No hi ha dades disponibles",
+  "tournament_transitionDescription": "Preparant la fase final..."
 }

@@ -535,6 +535,7 @@
                     onExpandedRoundsChange={(expanded) => setGroupExpandedRounds(group.id, expanded)}
                     {totalRounds}
                     isDoubles={tournament.gameType === 'doubles'}
+                    matchesToWin={tournament.groupStage?.matchesToWin || 1}
                   />
                 {:else}
                   <GroupStandings

@@ -288,10 +288,13 @@
 
 	.card.has-poster .card-main,
 	.card.has-poster .card-footer,
-	.card.has-poster .live-indicator,
 	.card.has-poster .participants-section {
 		position: relative;
 		z-index: 1;
+	}
+
+	.card.has-poster .live-indicator {
+		z-index: 10;
 	}
 
 	.card:hover {
@@ -321,6 +324,7 @@
 
 	.card-main {
 		display: flex;
+		align-items: flex-start;
 		gap: 0.875rem;
 		padding: 1rem;
 		flex: 1;
@@ -493,9 +497,9 @@
 
 	.live-indicator {
 		position: absolute;
-		right: 0.95rem;
-		bottom: calc(100% - 4.8rem);
-		z-index: 2;
+		top: 3.5rem;
+		right: 0.75rem;
+		z-index: 10;
 	}
 
 	.participants {

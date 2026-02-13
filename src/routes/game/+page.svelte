@@ -231,12 +231,16 @@
 		loadMatchState();
 		loadHistory();
 
-		// Load tournament context if any
+		// Load tournament context if any and sync with Firebase (source of truth)
 		const savedContext = loadTournamentContext();
 		if (savedContext) {
+			// First apply the saved context (for offline support)
 			applyTournamentConfig(savedContext);
 			// Subscribe to match status changes (detect if admin completes match externally)
 			setupMatchStatusSubscription(savedContext);
+
+			// Then sync with Firebase to get the latest data (source of truth)
+			syncWithFirebaseOnLoad(savedContext);
 		}
 
 		// Start current match if not already started
@@ -369,6 +373,82 @@
 		// Reset to normal game mode
 		resetTeams();
 		resetMatchState();
+	}
+
+	/**
+	 * Sync with Firebase on page load to get the latest match state (source of truth)
+	 * This ensures that if the page is reloaded, we restore the match state from Firebase
+	 */
+	async function syncWithFirebaseOnLoad(savedContext: TournamentMatchContext) {
+		console.log('🔄 Syncing with Firebase on load...');
+
+		try {
+			const result = await resumeTournamentMatch(
+				savedContext.tournamentId,
+				savedContext.matchId,
+				savedContext.phase,
+				savedContext.groupId
+			);
+
+			if (!result.success || !result.match) {
+				console.warn('⚠️ Could not sync with Firebase:', result.error);
+				return;
+			}
+
+			const firebaseMatch = result.match;
+			console.log('📡 Firebase match state:', firebaseMatch);
+
+			// Check if match is already completed - if so, show modal and exit tournament mode
+			if (firebaseMatch.status === 'COMPLETED' || firebaseMatch.status === 'WALKOVER') {
+				console.log('⚠️ Match was already completed, exiting tournament mode');
+				externalMatchWinner = firebaseMatch.winner === savedContext.participantAId
+					? savedContext.participantAName
+					: savedContext.participantBName;
+				showMatchCompletedExternally = true;
+				return;
+			}
+
+			// Check if Firebase has more recent data (more rounds)
+			const firebaseRounds = (firebaseMatch as any).rounds || [];
+			const localRounds = savedContext.existingRounds || [];
+
+			console.log('📊 Comparing rounds:', {
+				firebaseRounds: firebaseRounds.length,
+				localRounds: localRounds.length
+			});
+
+			// If Firebase has different data, update context and reapply
+			if (firebaseRounds.length !== localRounds.length ||
+				(firebaseMatch as any).gamesWonA !== savedContext.currentGameData?.gamesWonA ||
+				(firebaseMatch as any).gamesWonB !== savedContext.currentGameData?.gamesWonB) {
+
+				console.log('🔄 Firebase has updated data, reapplying...');
+
+				// Update context with Firebase data
+				const updatedContext: TournamentMatchContext = {
+					...savedContext,
+					existingRounds: firebaseRounds,
+					currentGameData: {
+						gamesWonA: (firebaseMatch as any).gamesWonA || 0,
+						gamesWonB: (firebaseMatch as any).gamesWonB || 0,
+						currentGameNumber: ((firebaseMatch as any).gamesWonA || 0) + ((firebaseMatch as any).gamesWonB || 0) + 1
+					}
+				};
+
+				// Update the store and localStorage
+				setTournamentContext(updatedContext);
+
+				// Reapply config with updated data
+				applyTournamentConfig(updatedContext);
+
+				console.log('✅ Match state synced from Firebase');
+			} else {
+				console.log('✅ Local data matches Firebase, no sync needed');
+			}
+		} catch (error) {
+			console.error('❌ Error syncing with Firebase on load:', error);
+			// Continue with local data if Firebase sync fails
+		}
 	}
 
 	/**

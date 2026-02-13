@@ -10,6 +10,7 @@
     compact?: boolean;
     gameMode?: 'points' | 'rounds'; // Game mode to determine what to display
     isDoubles?: boolean; // Whether this is a doubles tournament
+    matchesToWin?: number; // Number of games to win (Pg1, Pg2, etc.)
   }
 
   let {
@@ -18,8 +19,38 @@
     onMatchClick,
     compact = false,
     gameMode = 'points',
-    isDoubles = false
+    isDoubles = false,
+    matchesToWin = 1
   }: Props = $props();
+
+  // If Pg1, always show total points instead of games won (0-1 doesn't make sense)
+  let showTotalPoints = $derived(gameMode === 'rounds' || matchesToWin === 1);
+
+  // Track score changes for animation
+  let prevScoreA = $state<number | undefined>(undefined);
+  let prevScoreB = $state<number | undefined>(undefined);
+  let scoreChangedA = $state(false);
+  let scoreChangedB = $state(false);
+
+  // Current scores for display
+  let currentScoreA = $derived(match.totalPointsA || 0);
+  let currentScoreB = $derived(match.totalPointsB || 0);
+
+  // Detect score changes and trigger animation
+  $effect(() => {
+    if (match.status === 'IN_PROGRESS') {
+      if (prevScoreA !== undefined && currentScoreA !== prevScoreA) {
+        scoreChangedA = true;
+        setTimeout(() => scoreChangedA = false, 600);
+      }
+      if (prevScoreB !== undefined && currentScoreB !== prevScoreB) {
+        scoreChangedB = true;
+        setTimeout(() => scoreChangedB = false, 600);
+      }
+      prevScoreA = currentScoreA;
+      prevScoreB = currentScoreB;
+    }
+  });
 
   // Create participant map for quick lookup
   let participantMap = $derived(new Map(participants.map(p => [p.id, p])));
@@ -81,7 +112,9 @@
 >
   <!-- Compact single-row layout -->
   <div class="match-row">
-    <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
+    {#if !isBye && match.tableNumber}
+      <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
+    {/if}
 
     <div class="participant left" class:winner={match.winner === match.participantA} class:loser={isMatchDecided && match.winner !== match.participantA} class:tie={isTie} class:disqualified={isDisqualifiedA}>
       <span class="name">{getParticipantName(match.participantA)}</span>
@@ -94,25 +127,22 @@
 
     <div class="score-center">
       {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-        {#if gameMode === 'rounds'}
+        {#if showTotalPoints}
+          <!-- Show total points for rounds mode OR when Pg1 (single game to win) -->
           <span class="score" class:winner-a={match.winner === match.participantA} class:loser-a={isMatchDecided && match.winner !== match.participantA}>{match.totalPointsA || 0}</span>
           <span class="sep">-</span>
           <span class="score" class:winner-b={match.winner === match.participantB} class:loser-b={isMatchDecided && match.winner !== match.participantB && !isBye}>{isBye ? '-' : (match.totalPointsB || 0)}</span>
         {:else}
+          <!-- Show games won for points mode with Pg2+ -->
           <span class="score" class:winner-a={match.winner === match.participantA} class:loser-a={isMatchDecided && match.winner !== match.participantA}>{match.gamesWonA || 0}</span>
           <span class="sep">-</span>
           <span class="score" class:winner-b={match.winner === match.participantB} class:loser-b={isMatchDecided && match.winner !== match.participantB && !isBye}>{isBye ? '-' : (match.gamesWonB || 0)}</span>
         {/if}
       {:else if match.status === 'IN_PROGRESS'}
-        {#if gameMode === 'rounds'}
-          <span class="score live">{match.totalPointsA || 0}</span>
-          <span class="sep">-</span>
-          <span class="score live">{isBye ? '-' : (match.totalPointsB || 0)}</span>
-        {:else}
-          <span class="score live">{match.gamesWonA || 0}</span>
-          <span class="sep">-</span>
-          <span class="score live">{isBye ? '-' : (match.gamesWonB || 0)}</span>
-        {/if}
+        <!-- Always show totalPoints for live matches (running score: 2-0, 3-1, etc.) -->
+        <span class="score live" class:score-changed={scoreChangedA}>{currentScoreA}</span>
+        <span class="sep">-</span>
+        <span class="score live" class:score-changed={scoreChangedB}>{isBye ? '-' : currentScoreB}</span>
       {:else}
         <span class="pending">vs</span>
       {/if}
@@ -200,7 +230,7 @@
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 1.5rem;
     min-width: 0;
   }
 
@@ -311,11 +341,23 @@
   .score-center .score.live {
     color: #f59e0b;
     animation: pulse-score 2s ease-in-out infinite;
+    transition: transform 0.15s ease-out;
+  }
+
+  .score-center .score.score-changed {
+    animation: score-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    color: #10b981;
   }
 
   @keyframes pulse-score {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
+  }
+
+  @keyframes score-pop {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.4); }
+    100% { transform: scale(1); }
   }
 
   .status-dot {
