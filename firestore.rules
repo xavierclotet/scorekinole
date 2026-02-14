@@ -70,6 +70,29 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Match invitations for friendly matches
+    // Allows registered users to invite others via QR code/link
+    match /matchInvites/{inviteId} {
+      // Anyone can read invites (to validate invite codes)
+      allow read: if true;
+
+      // Authenticated users can create invites (must be the host)
+      allow create: if isAuthenticated() &&
+        request.resource.data.hostUserId == request.auth.uid;
+
+      // Host can update/cancel, or guest can accept pending invites
+      allow update: if isAuthenticated() && (
+        resource.data.hostUserId == request.auth.uid ||
+        (resource.data.status == 'pending' &&
+         request.resource.data.status == 'accepted' &&
+         request.resource.data.guestUserId == request.auth.uid)
+      );
+
+      // Host can delete their own invites
+      allow delete: if isAuthenticated() &&
+        resource.data.hostUserId == request.auth.uid;
+    }
+
     // Venues collection - for tournament locations
     match /venues/{venueId} {
       // Admins can read venues (query filters by ownerId in code)

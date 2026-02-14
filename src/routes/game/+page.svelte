@@ -44,7 +44,26 @@
 		type PendingMatchInfo
 	} from '$lib/firebase/tournamentMatches';
 	import { currentUser } from '$lib/firebase/auth';
+	import { getPlayerName } from '$lib/firebase/userProfile';
 	import { Loader2 } from '@lucide/svelte';
+	import InvitePlayerModal from '$lib/components/InvitePlayerModal.svelte';
+	import { assignUserToTeam, unassignUserFromTeam } from '$lib/stores/teams';
+	import {
+		activeInvite,
+		isInviteModalOpen,
+		setActiveInvite,
+		clearActiveInvite,
+		openInviteModal,
+		closeInviteModal,
+		setInviteUnsubscribe,
+		isInviteAccepted,
+		acceptedGuest
+	} from '$lib/stores/matchInvite';
+	import {
+		createInvite,
+		cancelInvite,
+		subscribeToInvite
+	} from '$lib/firebase/matchInvites';
 
 	let showSettings = $state(false);
 	let showHistory = $state(false);
@@ -65,6 +84,20 @@
 
 	// Tournament mode state
 	let inTournamentMode = $derived(!!$gameTournamentContext);
+
+	// Check if current user is already assigned to a team
+	let userAssignedTeam = $derived((() => {
+		if (!$currentUser) return null;
+		if ($team1.userId === $currentUser.id) return 1;
+		if ($team2.userId === $currentUser.id) return 2;
+		return null;
+	})());
+
+	// Whether to show the assign/invite button for each team
+	// Show button in all cases when logged in (different actions based on state)
+	let canAssignUserToTeam1 = $derived(!inTournamentMode && !!$currentUser);
+	let canAssignUserToTeam2 = $derived(!inTournamentMode && !!$currentUser);
+
 
 	// Effective settings: use tournament config when in tournament mode, otherwise gameSettings
 	let effectiveShowHammer = $derived(inTournamentMode
@@ -347,56 +380,54 @@
 	}
 
 	/**
-	 * Exit tournament mode - clears context, resets settings, and restores team data
+	 * Exit tournament mode - clears context only, keeps current display state
+	 * Pre-tournament data is restored later when user starts a new friendly match
 	 */
 	function exitTournamentMode() {
 		clearTournamentContext();
+		// Clear event title/phase since we're no longer in tournament mode
+		gameSettings.update((s) => ({ ...s, eventTitle: '', matchPhase: '' }));
+	}
 
-		// Restore pre-tournament data if available
+	/**
+	 * Restore pre-tournament settings and team data from backup
+	 * Called when starting a new friendly match after a tournament
+	 */
+	function restorePreTournamentData() {
 		const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
-		if (backupStr) {
-			try {
-				const backup = JSON.parse(backupStr);
+		if (!backupStr) return;
 
-				// Restore team data
-				updateTeam(1, { name: backup.team1Name, color: backup.team1Color });
-				updateTeam(2, { name: backup.team2Name, color: backup.team2Color });
+		try {
+			const backup = JSON.parse(backupStr);
 
-				// Restore game settings
-				gameSettings.update(s => ({
-					...s,
-					eventTitle: '',
-					matchPhase: '',
-					gameMode: backup.gameMode ?? s.gameMode,
-					pointsToWin: backup.pointsToWin ?? s.pointsToWin,
-					roundsToPlay: backup.roundsToPlay ?? s.roundsToPlay,
-					matchesToWin: backup.matchesToWin ?? s.matchesToWin,
-					show20s: backup.show20s ?? s.show20s,
-					showHammer: backup.showHammer ?? s.showHammer,
-					gameType: backup.gameType ?? s.gameType,
-					timerMinutes: backup.timerMinutes ?? s.timerMinutes,
-					timerSeconds: backup.timerSeconds ?? s.timerSeconds,
-					showTimer: backup.showTimer ?? s.showTimer
-				}));
+			// Restore team data
+			updateTeam(1, { name: backup.team1Name, color: backup.team1Color });
+			updateTeam(2, { name: backup.team2Name, color: backup.team2Color });
 
-				// Reset and stop timer with restored settings
-				const totalSeconds = (backup.timerMinutes ?? 5) * 60 + (backup.timerSeconds ?? 0);
-				resetTimer(totalSeconds);
+			// Restore game settings
+			gameSettings.update((s) => ({
+				...s,
+				gameMode: backup.gameMode ?? s.gameMode,
+				pointsToWin: backup.pointsToWin ?? s.pointsToWin,
+				roundsToPlay: backup.roundsToPlay ?? s.roundsToPlay,
+				matchesToWin: backup.matchesToWin ?? s.matchesToWin,
+				show20s: backup.show20s ?? s.show20s,
+				showHammer: backup.showHammer ?? s.showHammer,
+				gameType: backup.gameType ?? s.gameType,
+				timerMinutes: backup.timerMinutes ?? s.timerMinutes,
+				timerSeconds: backup.timerSeconds ?? s.timerSeconds,
+				showTimer: backup.showTimer ?? s.showTimer
+			}));
 
-				localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
-				console.log('♻️ Restored pre-tournament data:', backup);
-			} catch (e) {
-				console.error('Failed to restore pre-tournament backup:', e);
-				localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
-				// Still clear event title/phase even if restore fails
-				gameSettings.update(s => ({ ...s, eventTitle: '', matchPhase: '' }));
-			}
-		} else {
-			// No backup, just clear event title and phase
-			gameSettings.update(s => ({ ...s, eventTitle: '', matchPhase: '' }));
-			// Reset timer with current settings
-			const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
+			// Reset and stop timer with restored settings
+			const totalSeconds = (backup.timerMinutes ?? 5) * 60 + (backup.timerSeconds ?? 0);
 			resetTimer(totalSeconds);
+
+			localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
+			console.log('♻️ Restored pre-tournament data:', backup);
+		} catch (e) {
+			console.error('Failed to restore pre-tournament backup:', e);
+			localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
 		}
 	}
 
@@ -928,12 +959,6 @@
 		const userParticipant = tournament.participants.find((p: any) => p.userId === $currentUser?.id);
 		const side: 'A' | 'B' = userParticipant?.id === matchInfo.match.participantA ? 'A' : 'B';
 
-		// Get current user's ranking
-		let currentUserRanking: number | undefined;
-		if (userParticipant) {
-			currentUserRanking = userParticipant.currentRanking;
-		}
-
 		// Calculate current game number
 		const maxGameNumber = existingRounds.length > 0
 			? Math.max(...existingRounds.map((r: any) => r.gameNumber || 1))
@@ -974,7 +999,6 @@
 			currentUserId: $currentUser?.id,
 			currentUserParticipantId: userParticipant?.id,
 			currentUserSide: side,
-			currentUserRanking,
 			gameConfig: matchInfo.gameConfig,
 			matchStartedAt: Date.now(),
 			existingRounds: existingRounds.length > 0 ? existingRounds : undefined,
@@ -1180,6 +1204,9 @@
 			exitTournamentMode();
 		}
 
+		// Restore pre-tournament data if available (names, colors, settings)
+		restorePreTournamentData();
+
 		resetTeams();
 		resetMatchState();
 		isInExtraRounds = false;
@@ -1274,6 +1301,132 @@
 	function openColorPicker(team: 1 | 2) {
 		colorPickerTeam = team;
 		showColorPicker = true;
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	// Match Invitation Handlers (Friendly Mode)
+	// ─────────────────────────────────────────────────────────────────────────────
+
+	/**
+	 * Handle when user wants to assign themselves to a team
+	 */
+	async function handleAssignUser(teamNumber: 1 | 2) {
+		if (!$currentUser) return;
+
+		// Check if user is already assigned to the OTHER team
+		const otherTeam = teamNumber === 1 ? 2 : 1;
+		const otherTeamData = teamNumber === 1 ? $team2 : $team1;
+		const thisTeamData = teamNumber === 1 ? $team1 : $team2;
+
+		// If user is assigned to the other team and clicking on empty team, open invite modal
+		if (otherTeamData.userId === $currentUser.id && !thisTeamData.userId) {
+			openInviteModal();
+			return;
+		}
+
+		// Otherwise, assign the user to this team
+		const playerName = await getPlayerName();
+		const displayName = playerName || $currentUser.name || 'Player';
+
+		assignUserToTeam(teamNumber, $currentUser.id, displayName, $currentUser.photoURL);
+	}
+
+	/**
+	 * Handle when user wants to unassign from a team
+	 */
+	function handleUnassignUser(teamNumber: 1 | 2) {
+		unassignUserFromTeam(teamNumber);
+
+		// If there's an active invite and user unassigns from the host team, cancel the invite
+		if ($activeInvite && $activeInvite.hostTeamNumber === teamNumber) {
+			handleCancelInvite();
+		}
+	}
+
+	/**
+	 * Handle creating an invitation for the other player
+	 */
+	async function handleCreateInvite() {
+		if (!$currentUser) return;
+
+		// Determine which team the user is assigned to
+		const t1 = get(team1);
+		const t2 = get(team2);
+		let hostTeamNumber: 1 | 2;
+
+		if (t1.userId === $currentUser.id) {
+			hostTeamNumber = 1;
+		} else if (t2.userId === $currentUser.id) {
+			hostTeamNumber = 2;
+		} else {
+			// User not assigned to any team, can't invite
+			console.warn('Cannot create invite: user not assigned to any team');
+			return;
+		}
+
+		const hostTeam = hostTeamNumber === 1 ? t1 : t2;
+		const settings = get(gameSettings);
+
+		// Create the invite
+		const invite = await createInvite({
+			hostUserId: $currentUser.id,
+			hostUserName: hostTeam.name || $currentUser.name || 'Host',
+			hostUserPhotoURL: $currentUser.photoURL,
+			hostTeamNumber,
+			matchContext: {
+				team1Name: t1.name || m.scoring_teamName(),
+				team1Color: t1.color,
+				team2Name: t2.name || m.scoring_teamName(),
+				team2Color: t2.color,
+				gameMode: settings.gameMode,
+				pointsToWin: settings.pointsToWin,
+				roundsToPlay: settings.roundsToPlay,
+				matchesToWin: settings.matchesToWin
+			}
+		});
+
+		if (invite) {
+			setActiveInvite(invite);
+
+			// Subscribe to real-time updates
+			const unsubscribe = subscribeToInvite(invite.id, (updatedInvite) => {
+				if (updatedInvite) {
+					setActiveInvite(updatedInvite);
+
+					// If invite was accepted, update team2 with guest info
+					if (updatedInvite.status === 'accepted' && updatedInvite.guestUserId) {
+						const guestTeam = updatedInvite.guestTeamNumber || (hostTeamNumber === 1 ? 2 : 1);
+						assignUserToTeam(
+							guestTeam,
+							updatedInvite.guestUserId,
+							updatedInvite.guestUserName || 'Guest',
+							updatedInvite.guestUserPhotoURL
+						);
+					}
+				}
+			});
+
+			setInviteUnsubscribe(unsubscribe);
+			openInviteModal();
+		}
+	}
+
+	/**
+	 * Handle canceling an active invite
+	 */
+	async function handleCancelInvite() {
+		if ($activeInvite) {
+			await cancelInvite($activeInvite.id);
+			clearActiveInvite();
+		}
+		closeInviteModal();
+	}
+
+	/**
+	 * Handle closing the invite modal
+	 */
+	function handleCloseInviteModal() {
+		closeInviteModal();
 	}
 
 	function handleHammerSelected() {
@@ -1759,10 +1912,13 @@
 			teamNumber={1}
 			isMatchComplete={isMatchComplete}
 			currentGameNumber={$currentMatchGames.length}
+			canAssignUser={canAssignUserToTeam1}
 			onchangeColor={() => openColorPicker(1)}
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 			onextraRound={handleExtraRound}
+			onassignUser={() => handleAssignUser(1)}
+			onunassignUser={() => handleUnassignUser(1)}
 		/>
 
 		<!-- Tie Overlay - shown between the two cards when match ends in tie -->
@@ -1788,10 +1944,13 @@
 			teamNumber={2}
 			isMatchComplete={isMatchComplete}
 			currentGameNumber={$currentMatchGames.length}
+			canAssignUser={canAssignUserToTeam2}
 			onchangeColor={() => openColorPicker(2)}
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 			onextraRound={handleExtraRound}
+			onassignUser={() => handleAssignUser(2)}
+			onunassignUser={() => handleUnassignUser(2)}
 		/>
 	</div>
 
@@ -1848,6 +2007,7 @@
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
 			{/if}
 		</button>
+
 	{:else}
 		<!-- Tournament Reset Button - only in tournament mode -->
 		<button
@@ -2008,6 +2168,12 @@
 	onmatchstarted={handleTournamentMatchStarted}
 />
 
+<!-- Match Invite Modal (Friendly Mode) -->
+<InvitePlayerModal
+	isOpen={$isInviteModalOpen}
+	onclose={handleCloseInviteModal}
+	oncancel={handleCancelInvite}
+/>
 
 <style>
 	.game-page {
@@ -2655,6 +2821,20 @@
 	.tournament-button {
 		left: auto;
 		right: 1.5rem;
+	}
+
+	/* Invite Player Button */
+	.invite-button {
+		left: auto;
+		right: 5rem;
+		background: rgba(100, 200, 150, 0.15);
+		color: rgba(100, 200, 150, 0.9);
+		border-color: rgba(100, 200, 150, 0.25);
+	}
+
+	.invite-button:hover {
+		background: rgba(100, 200, 150, 0.25);
+		border-color: rgba(100, 200, 150, 0.4);
 	}
 
 	/* Reset Tournament Button */

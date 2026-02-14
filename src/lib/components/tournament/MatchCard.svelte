@@ -112,8 +112,12 @@
 >
   <!-- Compact single-row layout -->
   <div class="match-row">
-    {#if !isBye && match.tableNumber}
-      <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
+    {#if !isBye}
+      {#if match.tableNumber}
+        <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
+      {:else if match.status === 'PENDING'}
+        <span class="table-num tbd">TBD</span>
+      {/if}
     {/if}
 
     <div class="participant left" class:winner={match.winner === match.participantA} class:loser={isMatchDecided && match.winner !== match.participantA} class:tie={isTie} class:disqualified={isDisqualifiedA}>
@@ -224,6 +228,12 @@
     border-radius: 3px;
     min-width: 1.6rem;
     text-align: center;
+  }
+
+  .table-num.tbd {
+    background: #9ca3af;
+    color: white;
+    font-style: italic;
   }
 
   .participant {

@@ -190,8 +190,7 @@
         name: p2Selected.name,
         photoURL: p2Selected.photoURL
       },
-      rankingSnapshot: 0,
-      currentRanking: 0,
+      rankingSnapshot: 0, // Calculated via syncParticipantRankings when tournament starts
       status: 'ACTIVE'
     };
 

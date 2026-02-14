@@ -317,7 +317,6 @@ export async function createHistoricalTournament(
         type: p.oderId ? 'REGISTERED' : 'GUEST',
         name: p.name,
         rankingSnapshot: 0,
-        currentRanking: 0,
         status: 'ACTIVE'
       };
 
@@ -844,7 +843,6 @@ export async function completeUpcomingTournament(
         type: p.oderId ? 'REGISTERED' : 'GUEST',
         name: p.name,
         rankingSnapshot: 0,
-        currentRanking: 0,
         status: 'ACTIVE'
       };
 

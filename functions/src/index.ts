@@ -47,8 +47,7 @@ interface TournamentParticipant {
   name: string;                    // Player 1's REAL name (always)
   teamName?: string;               // Optional artistic team name for display
   status: "ACTIVE" | "WITHDRAWN" | "DISQUALIFIED";
-  rankingSnapshot?: number;
-  currentRanking?: number;
+  rankingSnapshot?: number;        // Used for seeding (calculated at tournament start)
   finalPosition?: number;
   // Legacy pair mode fields (deprecated - use partner instead)
   participantMode?: "individual" | "pair";
@@ -414,12 +413,8 @@ export const onTournamentComplete = onDocumentUpdated(
       const updatedParticipants = afterData.participants.map((p) => {
         let updated = { ...p };
 
-        // Apply ranking updates (treat missing status as ACTIVE for legacy data)
-        // DISQUALIFIED participants should NOT receive ranking points
-        if ((p.status === "ACTIVE" || !p.status) && p.finalPosition) {
-          const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
-          updated.currentRanking = (p.rankingSnapshot || 0) + pointsEarned;
-        }
+        // Note: Points earned can be calculated anytime with calculateRankingPoints(finalPosition, tier)
+        // No need to store currentRanking - it's redundant
 
         // Apply userId updates (for GUEST participants that were created/found)
         const userIdUpdate = userIdUpdates.get(p.id);

@@ -10,14 +10,12 @@ interface AdminState {
   loading: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  canAutofill: boolean;
 }
 
 const defaultState: AdminState = {
   loading: true,
   isAdmin: false,
-  isSuperAdmin: false,
-  canAutofill: false
+  isSuperAdmin: false
 };
 
 /**
@@ -44,7 +42,7 @@ export const adminState = derived<
 
     // Auth initialized but no user - not admin, done loading
     if (!$currentUser) {
-      set({ loading: false, isAdmin: false, isSuperAdmin: false, canAutofill: false });
+      set({ loading: false, isAdmin: false, isSuperAdmin: false });
       return;
     }
 
@@ -57,13 +55,12 @@ export const adminState = derived<
         set({
           loading: false,
           isAdmin: profile?.isAdmin === true,
-          isSuperAdmin: profile?.isSuperAdmin === true,
-          canAutofill: profile?.canAutofill === true
+          isSuperAdmin: profile?.isSuperAdmin === true
         });
       })
       .catch((error) => {
         console.error('Error checking admin status:', error);
-        set({ loading: false, isAdmin: false, isSuperAdmin: false, canAutofill: false });
+        set({ loading: false, isAdmin: false, isSuperAdmin: false });
       });
   },
   defaultState
@@ -83,11 +80,6 @@ export const isAdminUser = derived(adminState, ($state) => $state.isAdmin);
  * Super Admin status (derived from adminState)
  */
 export const isSuperAdminUser = derived(adminState, ($state) => $state.isSuperAdmin);
-
-/**
- * Can use autofill buttons (derived from adminState)
- */
-export const canAutofillUser = derived(adminState, ($state) => $state.canAutofill);
 
 /**
  * Derived store: Can access admin panel

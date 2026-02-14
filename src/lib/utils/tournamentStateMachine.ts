@@ -192,7 +192,7 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
     // Initialize single group for Swiss
     const group = {
       id: 'swiss-group',
-      name: 'Sistema Suizo',
+      name: 'SINGLE_GROUP',
       participants: updatedParticipants.map(p => p.id),
       pairings: [{
         roundNumber: 1,

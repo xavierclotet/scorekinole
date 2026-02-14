@@ -161,9 +161,8 @@ export interface TournamentParticipant {
   };
 
   // Ranking tracking
-  rankingSnapshot: number;     // Ranking at tournament start
-  currentRanking: number;      // Current ranking (updated after tournament)
-  finalPosition?: number;      // Actual final rank
+  rankingSnapshot: number;     // Ranking at tournament start (used for seeding)
+  finalPosition?: number;      // Final position in tournament (used to calculate points earned)
 
   // Status
   status: ParticipantStatus;
@@ -237,7 +236,7 @@ export interface GroupMatch {
   groupId?: string;            // ID of the group this match belongs to
   participantA: string;        // Participant ID
   participantB: string;        // Participant ID or 'BYE'
-  tableNumber?: number;
+  tableNumber?: number;        // Table assignment (undefined = TBD, waiting for table)
   status: MatchStatus;
 
   // Results

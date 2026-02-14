@@ -9,25 +9,35 @@
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { get } from 'svelte/store';
 	import type { Team } from '$lib/types/team';
+	import PlayerAssignButton from './PlayerAssignButton.svelte';
 
 	interface Props {
 		teamNumber?: 1 | 2;
 		isMatchComplete?: boolean;
 		currentGameNumber?: number;
+		/** Whether user can assign themselves to this team (requires login) */
+		canAssignUser?: boolean;
 		onroundComplete?: (data: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number }) => void;
 		onchangeColor?: () => void;
 		onextraRound?: (data: { roundNumber: number }) => void;
 		ontournamentMatchComplete?: () => void;
+		/** Called when user wants to assign themselves to this team */
+		onassignUser?: () => void;
+		/** Called when user wants to unassign from this team */
+		onunassignUser?: () => void;
 	}
 
 	let {
 		teamNumber = 1,
 		isMatchComplete = false,
 		currentGameNumber = 1,
+		canAssignUser = false,
 		onroundComplete,
 		onchangeColor,
 		onextraRound,
-		ontournamentMatchComplete
+		ontournamentMatchComplete,
+		onassignUser,
+		onunassignUser
 	}: Props = $props();
 
 	// Tournament mode detection
@@ -668,15 +678,26 @@
 					onmouseup={(e) => e.stopPropagation()}
 				/>
 			{:else}
-				<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<span
-					class="team-name-display"
-					onclick={startEditingName}
-					ontouchend={startEditingName}
-				>
-					{team.name || m.scoring_teamName()}
-				</span>
+				<div class="friendly-player-display">
+					{#if canAssignUser}
+						<PlayerAssignButton
+							isAssigned={!!team.userId}
+							userPhotoURL={team.userPhotoURL}
+							userName={team.name}
+							onassign={onassignUser}
+							onunassign={onunassignUser}
+						/>
+					{/if}
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<span
+						class="team-name-display"
+						onclick={startEditingName}
+						ontouchend={startEditingName}
+					>
+						{team.name || m.scoring_teamName()}
+					</span>
+				</div>
 			{/if}
 			{#if effectiveShowHammer && team.hasHammer}
 				<div class="hammer-indicator" title={m.scoring_hammer()}>
@@ -747,7 +768,8 @@
 
 	.team-header button,
 	.team-header input,
-	.team-header .team-name-display {
+	.team-header .team-name-display,
+	.team-header .friendly-player-display {
 		pointer-events: auto;
 	}
 
@@ -831,7 +853,7 @@
 		font-weight: 600;
 		text-align: center;
 		padding: 0.25rem 0.5rem;
-		max-width: 70%;
+		max-width: 85%;
 		width: auto;
 		min-width: 80px;
 		transition: all 0.2s ease;
@@ -856,7 +878,7 @@
 		font-weight: 600;
 		text-align: center;
 		padding: 0.25rem 0.5rem;
-		max-width: 70%;
+		max-width: 100%;
 		line-height: 1.2;
 		/* Allow text to wrap */
 		white-space: normal;
@@ -869,6 +891,15 @@
 
 	.team-name-display:hover {
 		border-bottom-color: color-mix(in srgb, var(--text-color) 40%, transparent);
+	}
+
+	/* Friendly match player display (with assign button) */
+	.friendly-player-display {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 0.5rem;
+		position: relative;
 	}
 
 	/* Tournament player display */

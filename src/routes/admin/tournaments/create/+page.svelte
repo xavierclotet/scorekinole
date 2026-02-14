@@ -6,6 +6,7 @@
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
+  import SinglesPlayerSelector from '$lib/components/tournament/SinglesPlayerSelector.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
   import { Textarea } from '$lib/components/ui/textarea';
   import { adminTheme } from '$lib/stores/theme';
@@ -1345,8 +1346,7 @@
               photoURL: user2?.photoURL || undefined
             },
             teamName,
-            rankingSnapshot: 0, // Ranking is calculated dynamically, not stored in user profile
-            currentRanking: 0,
+            rankingSnapshot: 0, // Calculated via syncParticipantRankings when tournament starts
             status: 'ACTIVE'
           });
         } else {
@@ -2960,9 +2960,11 @@
           <!-- Counter bar -->
           <div class="participants-counter" class:warning={textareaParticipantCount > maxPlayersForTables}>
             <span class="counter-text">
-              {textareaParticipantCount} {textareaParticipantCount === 1 ? m.wizard_playersSingular() : m.wizard_players()}
               {#if gameType === 'doubles'}
-                ({textareaParticipantCount * 2} jugadores)
+                {textareaParticipantCount} {textareaParticipantCount === 1 ? m.wizard_pairSingular() : m.wizard_pairs()}
+                ({textareaParticipantCount * 2} {m.wizard_players()})
+              {:else}
+                {textareaParticipantCount} {textareaParticipantCount === 1 ? m.wizard_playersSingular() : m.wizard_players()}
               {/if}
             </span>
             <span class="counter-label">
@@ -2991,42 +2993,14 @@
             />
           {:else}
             <!-- Singles: Individual player selector -->
-            <div class="add-row">
-              <div class="add-field search-field">
-                <!-- svelte-ignore a11y_label_has_associated_control -->
-                <label>{m.wizard_searchRegistered()}</label>
-                <div class="search-box">
-                  <input
-                    type="text"
-                    bind:value={searchQuery}
-                    placeholder="Nombre o email..."
-                    class="input-field"
-                    autocomplete="off"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    data-form-type="other"
-                  />
-                  {#if searchLoading}
-                    <span class="search-loading">⏳</span>
-                  {/if}
-                  {#if searchResults.length > 0}
-                    <div class="search-results">
-                      {#each searchResults.slice(0, 6) as user}
-                        <button
-                          class="search-result-item"
-                          onclick={() => addRegisteredUser({ ...user, userId: user.userId || '' })}
-                        >
-                          <span class="result-name">{user.playerName}</span>
-                          <span class="result-add">+</span>
-                        </button>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-              </div>
-
-            </div>
+            <SinglesPlayerSelector
+              onadd={(name, _isRegistered) => {
+                // Add player name to textarea
+                bulkGuestText = name + (bulkGuestText.trim() ? '\n' + bulkGuestText : '');
+                saveDraft();
+              }}
+              excludedNames={textareaNames}
+            />
           {/if}
 
           <!-- Bulk guest entry section -->

@@ -558,15 +558,6 @@
 				? selectedMatch.match.participantA
 				: ('participantB' in selectedMatch.match ? selectedMatch.match.participantB : '');
 
-			// Get current user's ranking (only for logged-in users)
-			let currentUserRanking: number | undefined;
-			if ($currentUser && participantId) {
-				const userParticipant = tournament.participants.find(p => p.id === participantId);
-				if (userParticipant) {
-					currentUserRanking = userParticipant.currentRanking;
-				}
-			}
-
 			// Get existing match data (rounds, gamesWon) for resuming
 			// IMPORTANT: When resuming, fetch fresh data from Firebase to get latest rounds
 			let existingRounds: any[] = [];
@@ -652,7 +643,6 @@
 				currentUserId: $currentUser?.id,
 				currentUserParticipantId: participantId,
 				currentUserSide: selectedSide,
-				currentUserRanking,
 				gameConfig: selectedMatch.gameConfig,
 				matchStartedAt: Date.now(),
 				existingRounds: existingRounds.length > 0 ? existingRounds : undefined,

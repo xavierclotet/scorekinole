@@ -221,14 +221,16 @@ function createByeMatch(participantId: string, roundNumber: number): GroupMatch 
 /**
  * Assign tables to matches with variety optimization
  *
- * Tries to maximize variety of tables each participant uses
- * CRITICAL: Ensures no table is used twice in the same round
+ * Only assigns tables up to the number of available tables.
+ * Matches without tables show "TBD" and get assigned when a table frees up.
+ *
+ * CRITICAL: No table is duplicated within the same round.
  *
  * @param matches Matches to assign tables
  * @param totalTables Total number of tables available
  * @param tableHistory History of table usage per participant
  * @param tablesAlreadyUsed Tables already used in this round (for cross-group coordination)
- * @returns Matches with table assignments
+ * @returns Matches with table assignments (some may have no table if more matches than tables)
  */
 export function assignTablesWithVariety(
   matches: GroupMatch[],
@@ -252,9 +254,9 @@ export function assignTablesWithVariety(
     const usedByB = tableHistory.get(match.participantB) || [];
 
     // Find the best available table that:
-    // 1. Is NOT already used in this round (CRITICAL)
+    // 1. Is NOT already used in this round (CRITICAL - no duplicates)
     // 2. Has least usage by both participants historically
-    let bestTable = 1;
+    let bestTable: number | null = null;
     let minUsage = Infinity;
 
     for (let table = 1; table <= totalTables; table++) {
@@ -272,6 +274,12 @@ export function assignTablesWithVariety(
         minUsage = totalUsage;
         bestTable = table;
       }
+    }
+
+    // If no table available, leave tableNumber undefined (will show TBD)
+    if (bestTable === null) {
+      // No table assigned - match will wait for a table to free up
+      continue;
     }
 
     match.tableNumber = bestTable;

@@ -21,6 +21,15 @@ export interface Team {
     hasWon: boolean;
     /** Whether this team has the hammer (starts second) */
     hasHammer: boolean;
+
+    // ─────────────────────────────────────────────────────────────────
+    // User association (for friendly matches with registered players)
+    // ─────────────────────────────────────────────────────────────────
+
+    /** Firebase user ID of the player assigned to this team (optional) */
+    userId?: string | null;
+    /** Profile photo URL of the assigned player (optional) */
+    userPhotoURL?: string | null;
 }
 
 /**

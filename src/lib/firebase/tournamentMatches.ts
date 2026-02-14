@@ -38,6 +38,45 @@ function cleanUndefined<T>(obj: T): T {
 }
 
 /**
+ * Reassign a freed table to a pending match without a table
+ * Called after a match completes to dynamically assign tables
+ *
+ * @param tournament Tournament object
+ * @param freedTable Table number that was freed
+ * @param groupIndex Index of the group
+ * @param roundIndex Index of the round (schedule or pairings)
+ */
+function reassignFreedTable(
+  tournament: Tournament,
+  freedTable: number,
+  groupIndex: number,
+  roundIndex: number
+): void {
+  const group = tournament.groupStage?.groups[groupIndex];
+  if (!group) return;
+
+  // Get matches from the same round
+  const round = group.schedule
+    ? group.schedule[roundIndex]
+    : group.pairings?.[roundIndex];
+
+  if (!round) return;
+
+  // Find a pending match without a table assigned
+  for (const match of round.matches) {
+    if (
+      match.status === 'PENDING' &&
+      match.participantB !== 'BYE' &&
+      !match.tableNumber
+    ) {
+      match.tableNumber = freedTable;
+      console.log(`🎯 Reassigned table ${freedTable} to match ${match.id}`);
+      return; // Only reassign to one match
+    }
+  }
+}
+
+/**
  * Update match result
  *
  * @param tournamentId Tournament ID
@@ -174,6 +213,11 @@ export async function updateMatchResult(
     if (result.videoUrl !== undefined) {
       match.videoUrl = result.videoUrl;
       match.videoId = result.videoId;
+    }
+
+    // Reassign the freed table to a pending match without a table
+    if (match.tableNumber) {
+      reassignFreedTable(tournament, match.tableNumber, groupIndex, roundIndex);
     }
 
     if (!db) {

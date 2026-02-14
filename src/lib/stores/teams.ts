@@ -12,7 +12,10 @@ const defaultTeam: Team = {
     matches: 0,
     twenty: 0,
     hasWon: false,
-    hasHammer: false
+    hasHammer: false,
+    // User association fields (for friendly matches)
+    userId: null,
+    userPhotoURL: null
 };
 
 // Create writable stores for each team
@@ -38,18 +41,22 @@ export function resetTeams() {
     team2.subscribe(t => currentTeam2 = t)();
 
     // Reset only points, rounds, matches, twenty, and hasWon
-    // Preserve name and color
+    // Preserve name, color, and user assignment
     team1.set({
         ...defaultTeam,
         name: currentTeam1.name || 'Team 1',
         color: currentTeam1.color || '#00ff88',
-        hasHammer: currentTeam1.hasHammer // Also preserve hammer state
+        hasHammer: currentTeam1.hasHammer, // Also preserve hammer state
+        userId: currentTeam1.userId,       // Preserve user assignment
+        userPhotoURL: currentTeam1.userPhotoURL
     });
     team2.set({
         ...defaultTeam,
         name: currentTeam2.name || 'Team 2',
         color: currentTeam2.color || '#ff3366',
-        hasHammer: currentTeam2.hasHammer // Also preserve hammer state
+        hasHammer: currentTeam2.hasHammer, // Also preserve hammer state
+        userId: currentTeam2.userId,       // Preserve user assignment
+        userPhotoURL: currentTeam2.userPhotoURL
     });
 
     // Reset round counters
@@ -180,4 +187,59 @@ export function switchColors() {
     team1.update(team => ({ ...team, color: t2.color }));
     team2.update(team => ({ ...team, color: t1.color }));
     saveTeams();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// User Assignment Functions (for friendly matches)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Assign a user to a team
+ * Used in friendly matches to link a registered user to a team
+ */
+export function assignUserToTeam(
+    teamNumber: 1 | 2,
+    userId: string,
+    userName: string,
+    userPhotoURL: string | null
+): void {
+    updateTeam(teamNumber, {
+        userId,
+        name: userName,
+        userPhotoURL
+    });
+}
+
+/**
+ * Unassign a user from a team
+ * Keeps the team name but removes userId association
+ */
+export function unassignUserFromTeam(teamNumber: 1 | 2): void {
+    updateTeam(teamNumber, {
+        userId: null,
+        userPhotoURL: null
+    });
+}
+
+/**
+ * Clear all user assignments from both teams
+ * Called when starting a new match or resetting
+ */
+export function clearUserAssignments(): void {
+    team1.update(team => ({ ...team, userId: null, userPhotoURL: null }));
+    team2.update(team => ({ ...team, userId: null, userPhotoURL: null }));
+    saveTeams();
+}
+
+/**
+ * Check if a user is assigned to any team
+ * Returns the team number (1 or 2) or null if not assigned
+ */
+export function getUserTeamAssignment(userId: string): 1 | 2 | null {
+    const t1 = getCurrentTeam1();
+    const t2 = getCurrentTeam2();
+
+    if (t1.userId === userId) return 1;
+    if (t2.userId === userId) return 2;
+    return null;
 }

@@ -335,6 +335,12 @@
 		return tournament.participants.find(p => p.id === participantId) || null;
 	}
 
+	// Get participant ranking snapshot (seeding points)
+	function getParticipantRanking(participantId: string | undefined): number {
+		const participant = getParticipant(participantId);
+		return participant?.rankingSnapshot || 0;
+	}
+
 	// Check if this is a doubles tournament
 	let isDoubles = $derived(tournament?.gameType === 'doubles');
 
@@ -949,7 +955,12 @@
 												{#each group.standings.toSorted((a, b) => a.position - b.position) as standing}
 													<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 														<td class="pos-col">{standing.position}</td>
-														<td class="name-col">{getParticipantName(standing.participantId)}</td>
+														<td class="name-col">
+															{getParticipantName(standing.participantId)}
+															{#if getParticipantRanking(standing.participantId) > 0}
+																<span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
+															{/if}
+														</td>
 														{#if hasMatchDetails}
 															<td class="stat-col">{standing.matchesWon ?? 0}</td>
 															<td class="stat-col">{standing.matchesTied ?? 0}</td>
@@ -1090,7 +1101,12 @@
 											{#each group.standings.toSorted((a, b) => a.position - b.position) as standing}
 												<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 													<td class="pos-col">{standing.position}</td>
-													<td class="name-col">{getParticipantName(standing.participantId)}</td>
+													<td class="name-col">
+														{getParticipantName(standing.participantId)}
+														{#if getParticipantRanking(standing.participantId) > 0}
+															<span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
+														{/if}
+													</td>
 													{#if hasMatchDetails}
 														<td class="stat-col">{standing.matchesWon ?? 0}</td>
 														<td class="stat-col">{standing.matchesTied ?? 0}</td>
@@ -3464,6 +3480,14 @@
 	.standings-table .pos-col { width: 24px; text-align: center; }
 	.standings-table .name-col { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.standings-table .stat-col { width: 32px; text-align: center !important; font-variant-numeric: tabular-nums; }
+
+	.ranking-pts {
+		font-size: 0.6rem;
+		color: #9ca3af;
+		font-weight: 500;
+		margin-left: 0.2rem;
+		opacity: 0.8;
+	}
 
 	/* Primary column (used for qualification ranking) - highlighted with border */
 	.standings-table th.primary-col,

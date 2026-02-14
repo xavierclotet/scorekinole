@@ -39,7 +39,6 @@ export async function addParticipant(
     type: participantData.type || 'GUEST',
     name: participantData.name || 'Participante',
     rankingSnapshot: ranking,
-    currentRanking: ranking,
     status: 'ACTIVE'
   } as TournamentParticipant;
 
@@ -91,7 +90,6 @@ export async function addParticipants(
       type: participantData.type || 'GUEST',
       name: participantData.name || 'Participante',
       rankingSnapshot: ranking,
-      currentRanking: ranking,
       status: 'ACTIVE'
     } as TournamentParticipant;
 

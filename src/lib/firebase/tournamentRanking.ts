@@ -8,6 +8,7 @@ import { calculateRankingPoints } from '$lib/algorithms/ranking';
 import { calculateConsolationPositions } from '$lib/algorithms/bracket';
 import { browser } from '$app/environment';
 import { getUserProfileById, removeTournamentRecord } from './userProfile';
+import { calculateUserRanking } from './rankings';
 import { savingParticipantResults } from '$lib/stores/tournament';
 import type { ConsolationBracket } from '$lib/types/tournament';
 import { getParticipantDisplayName } from '$lib/types/tournament';
@@ -35,23 +36,24 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
   }
 
   try {
+    const currentYear = new Date().getFullYear();
     const updatedParticipants = await Promise.all(
       tournament.participants.map(async (participant) => {
-        let currentRanking = 0;
+        let rankingPoints = 0;
 
         // Only REGISTERED users have ranking history in /users
-        // GUEST participants start with ranking 0
+        // GUEST participants start with 0 points
         if (participant.type === 'REGISTERED' && participant.userId) {
           const profile = await getUserProfileById(participant.userId);
-          if (profile?.ranking !== undefined) {
-            currentRanking = profile.ranking;
+          if (profile?.tournaments) {
+            // Calculate Best-of-2 ranking points from tournament history
+            rankingPoints = calculateUserRanking(profile.tournaments, currentYear, 2);
           }
         }
 
         return {
           ...participant,
-          rankingSnapshot: currentRanking,
-          currentRanking: currentRanking
+          rankingSnapshot: rankingPoints
         };
       })
     );
@@ -562,22 +564,8 @@ export async function applyRankingUpdates(
       }
     }
 
-    // Update participant rankings in tournament document
-    // Note: userId updates are handled by the Cloud Function (onTournamentComplete)
-    const updatedParticipants = tournament.participants.map(p => {
-      if ((p.status === 'ACTIVE' || !p.status) && p.finalPosition) {
-        const pointsEarned = calculateRankingPoints(p.finalPosition, tier);
-        return {
-          ...p,
-          currentRanking: (p.rankingSnapshot || 0) + pointsEarned
-        };
-      }
-      return p;
-    });
-
-    await updateTournamentPublic(tournamentId, {
-      participants: updatedParticipants
-    });
+    // Note: Points earned can be calculated anytime with calculateRankingPoints(finalPosition, tier)
+    // No need to store currentRanking - it's redundant
 
     return true;
   } catch (error) {

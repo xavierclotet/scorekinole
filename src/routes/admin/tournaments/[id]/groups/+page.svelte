@@ -21,8 +21,6 @@
   import { completeMatch, markNoShow } from '$lib/firebase/tournamentSync';
   import { updateMatchResult } from '$lib/firebase/tournamentMatches'; // For autoFill (SuperAdmin only)
   import { generateSwissPairings } from '$lib/firebase/tournamentGroups';
-  import { isSuperAdmin } from '$lib/firebase/admin';
-  import { getUserProfile } from '$lib/firebase/userProfile';
   import { disqualifyParticipant } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
   import { Check, X } from '@lucide/svelte';
@@ -38,8 +36,6 @@
   let showMatchDialog = $state(false);
   let selectedMatch: GroupMatch | null = $state(null);
   let activeGroupId: string | null = $state(null);
-  let isSuperAdminUser = $state(false);
-  let canAutofillUser = $state(false);
   let isAutoFilling = $state(false);
   let unsubscribe: (() => void) | null = $state(null);
   let showTimeBreakdown = $state(false);
@@ -140,9 +136,6 @@
 
   onMount(async () => {
     await loadTournament();
-    isSuperAdminUser = await isSuperAdmin();
-    const profile = await getUserProfile();
-    canAutofillUser = profile?.canAutofill === true;
 
     // Subscribe to real-time updates from Firebase
     if (tournamentId) {
@@ -783,7 +776,7 @@
                 return matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
               })}
               {@const allMatchesComplete = allSwissRoundsComplete || allRoundRobinComplete}
-              {#if (isSuperAdminUser || canAutofillUser) && !allMatchesComplete}
+              {#if !allMatchesComplete}
                 <button
                   class="action-btn autofill"
                   onclick={autoFillAllMatches}
@@ -822,6 +815,12 @@
                 </button>
               {/if}
             {/if}
+            <a href="/tournaments/{tournamentId}" class="public-link" title="Ver página pública">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </a>
             <OfflineIndicator />
             <ThemeToggle />
           </div>
@@ -1071,6 +1070,38 @@
     transform: translateX(-2px);
     border-color: var(--primary);
     color: var(--primary);
+  }
+
+  .public-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: #f3f4f6;
+    color: #6b7280;
+    transition: all 0.15s ease;
+  }
+
+  .public-link:hover {
+    background: #e0f2fe;
+    color: #0284c7;
+  }
+
+  .public-link svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) .public-link {
+    background: #1f2937;
+    color: #9ca3af;
+  }
+
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) .public-link:hover {
+    background: #0c4a6e;
+    color: #7dd3fc;
   }
 
   .header-main {

@@ -6,6 +6,7 @@
   import { isBye } from '$lib/algorithms/bracket';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { calculateFinalPositions, applyRankingUpdates } from '$lib/firebase/tournamentRanking';
+  import { calculateRankingPoints } from '$lib/algorithms/ranking';
   import { updateMatchVideo } from '$lib/firebase/tournamentMatches';
   import { extractYouTubeId, isValidYouTubeUrl, getYouTubeThumbnail } from '$lib/utils/youtube';
   import * as m from '$lib/paraglide/messages.js';
@@ -223,9 +224,11 @@
     return `${pos1}º/${pos2}º`;
   }
 
-  // Calculate ranking delta for display
+  // Calculate ranking points earned based on final position and tier
   function getRankingDelta(participant: typeof tournament.participants[0]): number {
-    return participant.currentRanking - participant.rankingSnapshot;
+    if (!participant.finalPosition || !tournament.rankingConfig?.enabled) return 0;
+    const tier = tournament.rankingConfig?.tier || 'LOCAL';
+    return calculateRankingPoints(participant.finalPosition, tier);
   }
 
   // Handle match click to show details
@@ -433,7 +436,6 @@
         <div class="standings-header-row">
           <span class="pos"></span>
           <span class="name">{m.common_name()}</span>
-          <span class="ranking">Ranking</span>
           <span class="pts">Pts</span>
         </div>
       {/if}
@@ -446,7 +448,6 @@
             <span class="pos">{getPositionDisplay(pos)}</span>
             <span class="name">{@render participantNameWithBadge(participant)}</span>
             {#if tournament.rankingConfig?.enabled}
-              <span class="ranking">{participant.currentRanking}</span>
               <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
             {/if}
           </div>
@@ -461,7 +462,6 @@
             <span class="pos">{getPositionDisplay(pos)}</span>
             <span class="name">{@render participantNameWithBadge(participant)}</span>
             {#if tournament.rankingConfig?.enabled}
-              <span class="ranking">{participant.currentRanking}</span>
               <span class="pts">{pointsEarned > 0 ? `+${pointsEarned}` : pointsEarned}</span>
             {/if}
           </div>

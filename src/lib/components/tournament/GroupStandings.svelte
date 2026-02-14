@@ -74,6 +74,12 @@
     return participant?.status === 'DISQUALIFIED';
   }
 
+  // Get participant ranking snapshot (seeding points)
+  function getParticipantRanking(participantId: string): number {
+    const participant = participantMap.get(participantId);
+    return participant?.rankingSnapshot || 0;
+  }
+
   // Get names of participants in a tie
   function getTiedWithNames(tiedWith: string[] | undefined): string {
     if (!tiedWith || tiedWith.length === 0) return '';
@@ -282,6 +288,9 @@
           <td class="name-col">
             <span class="participant-name">
               {getParticipantName(standing.participantId)}
+              {#if getParticipantRanking(standing.participantId) > 0}
+                <span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
+              {/if}
               {#if enableTiebreaker && showTieStyles && isFirstInMultiTie(standing.participantId)}
                 <!-- First player in 3+ tie group - show mini-league button (only for WINS mode) -->
                 <button
@@ -507,6 +516,13 @@
     align-items: center;
     gap: 0.2rem;
     font-weight: 500;
+  }
+
+  .ranking-pts {
+    font-size: 0.6rem;
+    color: #9ca3af;
+    font-weight: 500;
+    opacity: 0.8;
   }
 
   .position-badge {

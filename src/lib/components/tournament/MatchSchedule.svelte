@@ -372,9 +372,9 @@
     animation: slideDown 0.15s ease-out;
   }
 
-  /* Doubles mode: 3 columns per row to accommodate longer team names */
+  /* Doubles mode: wider cards to accommodate longer team names */
   .matches-grid.doubles {
-    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
   }
 
   @keyframes slideDown {
@@ -533,7 +533,7 @@
     }
 
     .matches-grid.doubles {
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     }
 
     .empty-state {
