@@ -12,7 +12,7 @@
   import { adminTheme } from '$lib/stores/theme';
   import { adminState } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
-  import { createTournament, searchUsers, getAllRegisteredUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
+  import { createTournament, getAllRegisteredUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
@@ -140,8 +140,6 @@
 
   // Step 4: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
-
-  let searchQuery = $state('');
 
   // Bulk guest entry (declared early because textareaNames depends on it)
   let bulkGuestText = $state('');  // Textarea for bulk guest entry
@@ -962,23 +960,6 @@
     console.log('✅ Tournament draft cleared');
   }
 
-  async function handleSearch() {
-    console.log('🔎 handleSearch called, query:', searchQuery);
-    if (searchQuery.length < 2) {
-      searchResultsRaw = [];
-      return;
-    }
-
-    nameSearchLoading = true;
-    const results = await searchUsers(searchQuery) as (UserProfile & { userId: string })[];
-    console.log('🔎 Search results:', results.length, 'users found');
-    console.log('🔎 textareaNames has:', textareaNames.size, 'names:', Array.from(textareaNames));
-    console.log('🔎 bulkGuestText:', bulkGuestText.substring(0, 100));
-    // Store raw results - filtering is done reactively via $derived
-    searchResultsRaw = results;
-    nameSearchLoading = false;
-  }
-
   // Check if tournament key already exists (with debounce)
   async function checkKeyExists(keyValue: string) {
     // Clear previous timeout
@@ -1754,12 +1735,6 @@
       showToast = true;
     }
   }
-
-  // Effect to trigger search when searchQuery changes
-  $effect(() => {
-    searchQuery;  // Track dependency
-    handleSearch();
-  });
 
   // Clear analysis result when textarea changes (requires re-analysis)
   let lastAnalyzedText = $state('');

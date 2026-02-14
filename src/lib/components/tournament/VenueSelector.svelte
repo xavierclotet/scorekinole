@@ -15,11 +15,11 @@
 		// Callback when venue is selected or manual entry applied
 		onselect: (venue: { address?: string; city: string; country: string }) => void;
 
-		theme?: 'light' | 'dark';
+		theme?: 'light' | 'dark' | 'violet' | 'violet-light';
 	}
 
 	// Keep props as object for better reactivity
-	let props = $props<Props>();
+	let props: Props = $props();
 
 	// Derived values from props for reactivity
 	let currentAddress = $derived(props.address ?? '');
