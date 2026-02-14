@@ -4,7 +4,8 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, updateTeam } from '$lib/stores/teams';
 	import * as m from '$lib/paraglide/messages.js';
-	import { completeCurrentMatch, currentMatch, addGameToCurrentMatch } from '$lib/stores/history';
+	import { buildCompletedMatch, currentMatch, addGameToCurrentMatch } from '$lib/stores/history';
+	import { saveFriendlyMatchToFirestore } from '$lib/firebase/firestore';
 	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, currentMatchGames, currentMatchRounds, currentGameStartHammer, setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { get } from 'svelte/store';
@@ -500,14 +501,13 @@
 		// User will click "Next Game" button to continue
 	}
 
-	function saveMatchToHistory() {
+	async function saveMatchToHistory() {
 		const t1 = get(team1);
 		const t2 = get(team2);
 		const settings = get(gameSettings);
 		const current = get(currentMatch);
 
 		console.log('🔵 saveMatchToHistory called');
-		console.log('Current match:', current);
 
 		// Ensure we have a current match
 		if (!current) {
@@ -515,22 +515,13 @@
 			return;
 		}
 
-		console.log('Current match games:', current.games);
-		console.log('First game rounds:', current.games[0]?.rounds);
-
 		// Determine match winner based on games won
 		const team1GamesWon = current.games.filter(g => g.winner === 1).length;
 		const team2GamesWon = current.games.filter(g => g.winner === 2).length;
-		// Handle ties: if equal games won, winner is null
 		const matchWinner = team1GamesWon > team2GamesWon ? 1 : team2GamesWon > team1GamesWon ? 2 : null;
 
-		console.log('Team 1 games won:', team1GamesWon);
-		console.log('Team 2 games won:', team2GamesWon);
-		console.log('Match winner:', matchWinner);
-		console.log('Calling completeCurrentMatch...');
-
-		// Use games from currentMatch which already have rounds
-		completeCurrentMatch({
+		// Build completed match data (clears currentMatch)
+		const completedMatch = buildCompletedMatch({
 			team1Name: t1.name || 'Team 1',
 			team2Name: t2.name || 'Team 2',
 			team1Color: t1.color,
@@ -550,6 +541,19 @@
 			show20s: settings.show20s,
 			games: current.games
 		});
+
+		// Save to Firestore if at least one player is registered
+		const saved = await saveFriendlyMatchToFirestore(
+			completedMatch,
+			t1.userId,
+			t2.userId
+		);
+
+		if (saved) {
+			console.log('✅ Match saved to cloud:', saved.id);
+		} else {
+			console.log('ℹ️ Match not saved (no registered players)');
+		}
 	}
 
 	export function resetForNextGame() {

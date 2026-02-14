@@ -27,6 +27,73 @@ function generateMatchId(): string {
 }
 
 /**
+ * Save a friendly match directly to Firestore
+ * Only saves if at least one player has a userId
+ * @returns The saved match with syncStatus, or null if not saved
+ */
+export async function saveFriendlyMatchToFirestore(
+	match: MatchHistory,
+	team1UserId: string | null | undefined,
+	team2UserId: string | null | undefined
+): Promise<MatchHistory | null> {
+	if (!browser || !isFirebaseEnabled()) {
+		console.warn('Firebase disabled - match not saved');
+		return null;
+	}
+
+	// Only save if at least one player is registered
+	if (!team1UserId && !team2UserId) {
+		console.log('No registered players - match not saved to cloud');
+		return null;
+	}
+
+	// Get current user for savedBy field (if logged in)
+	const user = get(currentUser);
+
+	try {
+		const matchId = match.id || generateMatchId();
+		const matchRef = doc(db!, 'matches', matchId);
+
+		const matchData: MatchHistory = {
+			...match,
+			id: matchId,
+			savedBy: user
+				? {
+						userId: user.id,
+						userName: user.name || 'Unknown',
+						userEmail: user.email || ''
+					}
+				: undefined,
+			players: {
+				team1: {
+					name: match.team1Name,
+					userId: team1UserId || null
+				},
+				team2: {
+					name: match.team2Name,
+					userId: team2UserId || null
+				}
+			},
+			syncStatus: 'synced'
+		};
+
+		const firestoreData = {
+			...matchData,
+			syncedAt: serverTimestamp(),
+			status: 'active'
+		};
+
+		await setDoc(matchRef, firestoreData);
+		console.log('✅ Friendly match saved to Firestore:', matchId);
+
+		return matchData;
+	} catch (error) {
+		console.error('❌ Error saving friendly match:', error);
+		return null;
+	}
+}
+
+/**
  * Sync match to Firestore (root-level matches collection)
  */
 export async function syncMatchToCloud(

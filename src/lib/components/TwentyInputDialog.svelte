@@ -5,10 +5,28 @@
 
 	interface Props {
 		isOpen?: boolean;
+		/** Edit mode: editing an existing round's 20s */
+		editMode?: boolean;
+		/** Initial value for team 1 (used in edit mode) */
+		initialTeam1Value?: number;
+		/** Initial value for team 2 (used in edit mode) */
+		initialTeam2Value?: number;
+		/** Round number being edited (for display) */
+		roundNumber?: number;
 		onclose?: () => void;
+		/** Callback when values are confirmed in edit mode */
+		oneditConfirm?: (team1Value: number, team2Value: number) => void;
 	}
 
-	let { isOpen = $bindable(false), onclose }: Props = $props();
+	let {
+		isOpen = $bindable(false),
+		editMode = false,
+		initialTeam1Value = 0,
+		initialTeam2Value = 0,
+		roundNumber = 0,
+		onclose,
+		oneditConfirm
+	}: Props = $props();
 
 	let team1Name = $derived($team1.name || 'Team 1');
 	let team2Name = $derived($team2.name || 'Team 2');
@@ -32,10 +50,18 @@
 	// Reset values when dialog opens (using $effect.pre to run before render)
 	$effect.pre(() => {
 		if (isOpen && !wasOpen) {
-			// Dialog just opened - reset values and record open time
-			team1Twenty = null;
-			team2Twenty = null;
+			// Dialog just opened - record open time
 			openTime = Date.now();
+
+			if (editMode) {
+				// Edit mode: pre-select initial values
+				team1Twenty = initialTeam1Value;
+				team2Twenty = initialTeam2Value;
+			} else {
+				// Normal mode: reset values
+				team1Twenty = null;
+				team2Twenty = null;
+			}
 		}
 		wasOpen = isOpen;
 	});
@@ -93,8 +119,8 @@
 			return;
 		}
 		team1Twenty = count;
-		// Auto-save and close when both teams have values
-		if (team2Twenty !== null) {
+		// Auto-save and close when both teams have values (only in normal mode)
+		if (!editMode && team2Twenty !== null) {
 			saveAndClose();
 		}
 	}
@@ -105,27 +131,41 @@
 			return;
 		}
 		team2Twenty = count;
-		// Auto-save and close when both teams have values
-		if (team1Twenty !== null) {
+		// Auto-save and close when both teams have values (only in normal mode)
+		if (!editMode && team1Twenty !== null) {
 			saveAndClose();
 		}
 	}
 
 	function saveAndClose() {
 		if (team1Twenty !== null && team2Twenty !== null) {
-			team1.update(t => ({ ...t, twenty: team1Twenty as number }));
-			team2.update(t => ({ ...t, twenty: team2Twenty as number }));
+			if (editMode) {
+				// Edit mode: call the edit confirm callback
+				oneditConfirm?.(team1Twenty, team2Twenty);
+			} else {
+				// Normal mode: update team stores
+				team1.update(t => ({ ...t, twenty: team1Twenty as number }));
+				team2.update(t => ({ ...t, twenty: team2Twenty as number }));
+			}
 			close();
 		}
 	}
 
 	function close() {
-		// Only allow closing if both teams have selected a value
-		if (team1Twenty === null || team2Twenty === null) {
+		// In normal mode, only allow closing if both teams have selected a value
+		if (!editMode && (team1Twenty === null || team2Twenty === null)) {
 			return; // Don't close if values not selected
 		}
 
 		// Reset values
+		team1Twenty = null;
+		team2Twenty = null;
+		isOpen = false;
+		onclose?.();
+	}
+
+	function cancelEdit() {
+		// Only available in edit mode
 		team1Twenty = null;
 		team2Twenty = null;
 		isOpen = false;
@@ -144,7 +184,13 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="dialog" onclick={stopPropagation}>
-			<p class="title">{m.scoring_twentyDialogTitle()}</p>
+			<p class="title">
+				{#if editMode && roundNumber > 0}
+					{m.scoring_edit20sTitle({ n: roundNumber.toString() })}
+				{:else}
+					{m.scoring_twentyDialogTitle()}
+				{/if}
+			</p>
 			<div class="teams">
 				<div class="team-column">
 					<span class="team-name" style="color: {team1HeaderColor}">{team1Name}</span>
@@ -178,6 +224,17 @@
 					</div>
 				</div>
 			</div>
+
+			{#if editMode}
+				<div class="edit-actions">
+					<button class="action-btn cancel-btn" onclick={cancelEdit}>
+						{m.common_cancel()}
+					</button>
+					<button class="action-btn save-btn" onclick={saveAndClose}>
+						{m.common_save()}
+					</button>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -271,6 +328,51 @@
 		color: var(--text-selected);
 	}
 
+	.edit-actions {
+		display: flex;
+		justify-content: center;
+		gap: 1rem;
+		margin-top: 1.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.action-btn {
+		padding: 0.6rem 1.5rem;
+		border-radius: 8px;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.9rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.cancel-btn {
+		background: transparent;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.cancel-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+		border-color: rgba(255, 255, 255, 0.3);
+	}
+
+	.save-btn {
+		background: var(--primary);
+		border: none;
+		color: var(--primary-foreground);
+	}
+
+	.save-btn:hover {
+		background: color-mix(in srgb, var(--primary) 85%, black);
+	}
+
+	.save-btn:active,
+	.cancel-btn:active {
+		transform: scale(0.97);
+	}
+
 	@media (max-width: 480px) {
 		.dialog {
 			padding: 1.25rem;
@@ -300,6 +402,16 @@
 		.num-btn {
 			font-size: 1.8rem;
 			border-radius: 6px;
+		}
+
+		.edit-actions {
+			margin-top: 1rem;
+			padding-top: 0.75rem;
+		}
+
+		.action-btn {
+			padding: 0.5rem 1.25rem;
+			font-size: 0.85rem;
 		}
 	}
 
@@ -335,6 +447,16 @@
 			font-size: 1.6rem;
 			aspect-ratio: auto;
 			padding: 0.35rem 0.5rem;
+		}
+
+		.edit-actions {
+			margin-top: 0.75rem;
+			padding-top: 0.5rem;
+		}
+
+		.action-btn {
+			padding: 0.4rem 1rem;
+			font-size: 0.8rem;
 		}
 	}
 </style>

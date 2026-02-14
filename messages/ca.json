@@ -125,7 +125,7 @@
   "admin_matchConfiguration": "Configuració de Partits",
   "admin_matchDuration": "Durada de Partits",
   "admin_matchDurationDesc": "Temps mitjà per partit en minuts",
-  "admin_matchManagement": "Gestió de Partits",
+  "admin_matchManagement": "Gestió de Partits Amistosos",
   "admin_matchType": "Tipus de partida",
   "admin_matches": "partits",
   "admin_matchesFilledAuto": "{n} partits auto-omplerts",
@@ -1154,7 +1154,7 @@
   "stats_tournament": "Torneig",
   "stats_tournamentOnly": "Tornejos",
   "stats_winRate": "% Victòria",
-  "stats_won": "Bestiar",
+  "stats_won": "Guanyada",
   "stats_losses": "Pèrdues",
   "stats_ties": "Empats",
   "stats_wins": "Guanyades",
@@ -1204,5 +1204,7 @@
   "invite_expiresIn": "Expira en {minutes}:{seconds}",
   "join_declineInvite": "Rebutjar",
   "invite_playerDeclined": "{name} ha rebutjat la invitació",
-  "invite_inviteAnother": "Convidar un altre jugador"
+  "invite_inviteAnother": "Convidar un altre jugador",
+  "scoring_edit20s": "Editar 20s",
+  "scoring_edit20sTitle": "Editeu 20s de R {n}"
 }

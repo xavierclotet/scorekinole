@@ -186,7 +186,15 @@
 	async function handleCancelInvite() {
 		if (!$activeInvite) return;
 
-		await cancelInvite($activeInvite.id);
+		const result = await cancelInvite($activeInvite.id);
+
+		if (result === 'already_accepted') {
+			// Guest already accepted! Don't clear - the subscription will update the UI
+			console.log('Cannot cancel: guest already accepted the invite');
+			return;
+		}
+
+		// Successfully cancelled or other error - clear the invite
 		clearActiveInvite();
 		qrCodeSvg = '';
 	}

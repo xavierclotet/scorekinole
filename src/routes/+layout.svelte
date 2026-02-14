@@ -6,7 +6,6 @@
 	import { loadMatchState } from '$lib/stores/matchState';
 	import { loadTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { loadHistory } from '$lib/stores/history';
 	import { initAuthListener, needsProfileSetup, currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import { checkForUpdates, type VersionCheckResult } from '$lib/utils/versionCheck';
@@ -65,7 +64,6 @@
 		gameSettings.load();
 		loadTeams();
 		loadMatchState();
-		loadHistory();
 
 		// Initialize Firebase auth listener
 		initAuthListener();

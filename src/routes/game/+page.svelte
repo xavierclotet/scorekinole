@@ -1,18 +1,17 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { get } from 'svelte/store';
-	import { goto } from '$app/navigation';
 	import { language } from '$lib/stores/language';
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, updateTeam } from '$lib/stores/teams';
 	import { timeRemaining, resetTimer, cleanupTimer } from '$lib/stores/timer';
 	import { loadMatchState, resetMatchState, saveMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchRounds, currentMatchGames, lastRoundPoints, matchState } from '$lib/stores/matchState';
-	import { loadHistory, startCurrentMatch, currentMatch } from '$lib/stores/history';
+	import { startCurrentMatch, currentMatch, updateCurrentMatchRound } from '$lib/stores/history';
 	import TeamCard from '$lib/components/TeamCard.svelte';
 	import Timer from '$lib/components/Timer.svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
-	import HistoryModal from '$lib/components/HistoryModal.svelte';
+	import RoundsPanel from '$lib/components/RoundsPanel.svelte';
 	import ColorPickerModal from '$lib/components/ColorPickerModal.svelte';
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
@@ -51,22 +50,14 @@
 	import {
 		activeInvite,
 		isInviteModalOpen,
-		setActiveInvite,
 		clearActiveInvite,
 		openInviteModal,
 		closeInviteModal,
-		setInviteUnsubscribe,
-		isInviteAccepted,
-		acceptedGuest
 	} from '$lib/stores/matchInvite';
 	import {
-		createInvite,
-		cancelInvite,
-		subscribeToInvite
-	} from '$lib/firebase/matchInvites';
+		cancelInvite	} from '$lib/firebase/matchInvites';
 
 	let showSettings = $state(false);
-	let showHistory = $state(false);
 	let showColorPicker = $state(false);
 	let colorPickerTeam = $state<1 | 2>(1);
 	let showHammerDialog = $state(false);
@@ -84,14 +75,6 @@
 
 	// Tournament mode state
 	let inTournamentMode = $derived(!!$gameTournamentContext);
-
-	// Check if current user is already assigned to a team
-	let userAssignedTeam = $derived((() => {
-		if (!$currentUser) return null;
-		if ($team1.userId === $currentUser.id) return 1;
-		if ($team2.userId === $currentUser.id) return 2;
-		return null;
-	})());
 
 	// Whether to show the assign/invite button for each team
 	// Show button in all cases when logged in (different actions based on state)
@@ -126,62 +109,17 @@
 	// localStorage key for pre-tournament team data backup
 	const PRE_TOURNAMENT_BACKUP_KEY = 'crokinolePreTournamentBackup';
 
-	// References to TeamCard components to call their methods
+	// Reference to TeamCard component to call its methods (only need one since it updates both teams)
 	let teamCard1: any;
-	let teamCard2: any;
 
 	// Round completion data stored temporarily while 20s dialog is shown
 	let pendingRoundData = $state<{ winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number } | null>(null);
 
-	// Match score indicator - swipe to cycle size
-	let swipeStartX = $state(0);
-	let swipeStartY = $state(0);
-	const SWIPE_THRESHOLD = 30; // px minimum to trigger swipe
-
-	function handleMatchScoreSwipeStart(e: TouchEvent | MouseEvent) {
-		if ('touches' in e) {
-			swipeStartX = e.touches[0].clientX;
-			swipeStartY = e.touches[0].clientY;
-		} else {
-			swipeStartX = e.clientX;
-			swipeStartY = e.clientY;
-		}
-	}
-
-	function handleMatchScoreSwipeEnd(e: TouchEvent | MouseEvent) {
-		let endX: number;
-		let endY: number;
-
-		if ('changedTouches' in e) {
-			endX = e.changedTouches[0].clientX;
-			endY = e.changedTouches[0].clientY;
-		} else {
-			endX = e.clientX;
-			endY = e.clientY;
-		}
-
-		const deltaX = endX - swipeStartX;
-		const deltaY = Math.abs(endY - swipeStartY);
-
-		// Only trigger if horizontal movement > threshold and more horizontal than vertical
-		if (Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > deltaY) {
-			if (deltaX > 0) {
-				// Swipe right - increase size
-				cycleMatchScoreSize(1);
-			} else {
-				// Swipe left - decrease size
-				cycleMatchScoreSize(-1);
-			}
-		}
-	}
-
-	function cycleMatchScoreSize(direction: 1 | -1) {
-		const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
-		const currentIndex = sizes.indexOf($gameSettings.matchScoreSize || 'medium');
-		const nextIndex = (currentIndex + direction + sizes.length) % sizes.length;
-		gameSettings.update(s => ({ ...s, matchScoreSize: sizes[nextIndex] }));
-		gameSettings.save();
-	}
+	// 20s editing state (for RoundsPanel)
+	let isEditing20s = $state(false);
+	let editing20sRoundIndex = $state(-1);
+	let editing20sTeam1Value = $state(0);
+	let editing20sTeam2Value = $state(0);
 
 	// Bind showTwentyDialog to the store
 	let showTwentyDialog = $derived($twentyDialogPending);
@@ -244,7 +182,6 @@
 		gameSettings.load();
 		loadTeams();
 		loadMatchState();
-		loadHistory();
 
 		// Load tournament context if any and sync with Firebase (source of truth)
 		const savedContext = loadTournamentContext();
@@ -1314,7 +1251,6 @@
 		if (!$currentUser) return;
 
 		// Check if user is already assigned to the OTHER team
-		const otherTeam = teamNumber === 1 ? 2 : 1;
 		const otherTeamData = teamNumber === 1 ? $team2 : $team1;
 		const thisTeamData = teamNumber === 1 ? $team1 : $team2;
 
@@ -1344,79 +1280,21 @@
 	}
 
 	/**
-	 * Handle creating an invitation for the other player
-	 */
-	async function handleCreateInvite() {
-		if (!$currentUser) return;
-
-		// Determine which team the user is assigned to
-		const t1 = get(team1);
-		const t2 = get(team2);
-		let hostTeamNumber: 1 | 2;
-
-		if (t1.userId === $currentUser.id) {
-			hostTeamNumber = 1;
-		} else if (t2.userId === $currentUser.id) {
-			hostTeamNumber = 2;
-		} else {
-			// User not assigned to any team, can't invite
-			console.warn('Cannot create invite: user not assigned to any team');
-			return;
-		}
-
-		const hostTeam = hostTeamNumber === 1 ? t1 : t2;
-		const settings = get(gameSettings);
-
-		// Create the invite
-		const invite = await createInvite({
-			hostUserId: $currentUser.id,
-			hostUserName: hostTeam.name || $currentUser.name || 'Host',
-			hostUserPhotoURL: $currentUser.photoURL,
-			hostTeamNumber,
-			matchContext: {
-				team1Name: t1.name || m.scoring_teamName(),
-				team1Color: t1.color,
-				team2Name: t2.name || m.scoring_teamName(),
-				team2Color: t2.color,
-				gameMode: settings.gameMode,
-				pointsToWin: settings.pointsToWin,
-				roundsToPlay: settings.roundsToPlay,
-				matchesToWin: settings.matchesToWin
-			}
-		});
-
-		if (invite) {
-			setActiveInvite(invite);
-
-			// Subscribe to real-time updates
-			const unsubscribe = subscribeToInvite(invite.id, (updatedInvite) => {
-				if (updatedInvite) {
-					setActiveInvite(updatedInvite);
-
-					// If invite was accepted, update team2 with guest info
-					if (updatedInvite.status === 'accepted' && updatedInvite.guestUserId) {
-						const guestTeam = updatedInvite.guestTeamNumber || (hostTeamNumber === 1 ? 2 : 1);
-						assignUserToTeam(
-							guestTeam,
-							updatedInvite.guestUserId,
-							updatedInvite.guestUserName || 'Guest',
-							updatedInvite.guestUserPhotoURL
-						);
-					}
-				}
-			});
-
-			setInviteUnsubscribe(unsubscribe);
-			openInviteModal();
-		}
-	}
-
-	/**
 	 * Handle canceling an active invite
+	 * Handles race condition: if guest already accepted, don't clear the invite
 	 */
 	async function handleCancelInvite() {
 		if ($activeInvite) {
-			await cancelInvite($activeInvite.id);
+			const result = await cancelInvite($activeInvite.id);
+
+			if (result === 'already_accepted') {
+				// Guest already accepted! Don't clear - the subscription will update the UI
+				// The invite modal will show the accepted state with guest info
+				console.log('Cannot cancel: guest already accepted the invite');
+				return;
+			}
+
+			// Successfully cancelled or other error - clear and close
 			clearActiveInvite();
 		}
 		closeInviteModal();
@@ -1476,11 +1354,38 @@
 	}
 
 	function handleTwentyInputClose() {
+		// If we're in edit mode, just close and reset
+		if (isEditing20s) {
+			isEditing20s = false;
+			editing20sRoundIndex = -1;
+			return;
+		}
+
 		// Clear the pending flag when dialog closes
 		setTwentyDialogPending(false);
 
 		// After 20s are entered, finalize the round
 		finalizeRoundWithData();
+	}
+
+	// Handle 20s editing from RoundsPanel
+	function handleEdit20s(roundIndex: number, team1Value: number, team2Value: number) {
+		editing20sRoundIndex = roundIndex;
+		editing20sTeam1Value = team1Value;
+		editing20sTeam2Value = team2Value;
+		isEditing20s = true;
+	}
+
+	// Handle 20s edit confirmation
+	function handleEdit20sConfirm(team1Value: number, team2Value: number) {
+		if (editing20sRoundIndex >= 0) {
+			updateCurrentMatchRound(editing20sRoundIndex, {
+				team1Twenty: team1Value,
+				team2Twenty: team2Value
+			});
+		}
+		isEditing20s = false;
+		editing20sRoundIndex = -1;
 	}
 
 	async function finalizeRoundWithData() {
@@ -1893,9 +1798,6 @@
 			<div class="header-right">
 				<OfflineIndicator />
 				<ThemeToggle />
-				<button class="header-btn" onclick={() => showHistory = true} aria-label="History" title={m.history_matchHistory()}>
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-				</button>
 				<button class="header-btn" onclick={() => showSettings = true} aria-label="Settings" title={m.common_settings()}>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 				</button>
@@ -1903,8 +1805,10 @@
 		{/if}
 	</header>
 
-
-
+	<!-- Rounds Panel - show in friendly mode when: 20s enabled, rounds mode, or multi-game -->
+	{#if !inTournamentMode && ($gameSettings.show20s || $gameSettings.gameMode === 'rounds' || $gameSettings.matchesToWin > 1) && ($currentMatch?.rounds?.length || $currentMatch?.games?.length)}
+		<RoundsPanel onedit20s={$gameSettings.show20s ? handleEdit20s : undefined} />
+	{/if}
 
 	<div class="teams-container">
 		<TeamCard
@@ -1940,7 +1844,6 @@
 		{/if}
 
 		<TeamCard
-			bind:this={teamCard2}
 			teamNumber={2}
 			isMatchComplete={isMatchComplete}
 			currentGameNumber={$currentMatchGames.length}
@@ -1954,29 +1857,6 @@
 		/>
 	</div>
 
-	<!-- Floating Match Score Indicators - swipe horizontally to resize -->
-	{#if $gameSettings.gameMode === 'points' && $gameSettings.matchesToWin > 1}
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div
-			class="match-score-left match-score-{$gameSettings.matchScoreSize || 'medium'}"
-			onmousedown={handleMatchScoreSwipeStart}
-			onmouseup={handleMatchScoreSwipeEnd}
-			ontouchstart={handleMatchScoreSwipeStart}
-			ontouchend={handleMatchScoreSwipeEnd}
-			role="status"
-			aria-label="Match score - swipe to resize"
-		>{team1GamesWon}</div>
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div
-			class="match-score-right match-score-{$gameSettings.matchScoreSize || 'medium'}"
-			onmousedown={handleMatchScoreSwipeStart}
-			onmouseup={handleMatchScoreSwipeEnd}
-			ontouchstart={handleMatchScoreSwipeStart}
-			ontouchend={handleMatchScoreSwipeEnd}
-			role="status"
-			aria-label="Match score - swipe to resize"
-		>{team2GamesWon}</div>
-	{/if}
 
 	<!-- Next Game Button -->
 	{#if showNextGameButton}
@@ -2153,12 +2033,16 @@
 </div>
 
 <SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
-<HistoryModal isOpen={showHistory} onClose={() => showHistory = false} />
 <ColorPickerModal bind:isOpen={showColorPicker} teamNumber={colorPickerTeam} />
 <HammerDialog isOpen={showHammerDialog} onclose={handleHammerSelected} />
 <TwentyInputDialog
-	isOpen={showTwentyDialog}
+	isOpen={showTwentyDialog || isEditing20s}
+	editMode={isEditing20s}
+	initialTeam1Value={editing20sTeam1Value}
+	initialTeam2Value={editing20sTeam2Value}
+	roundNumber={editing20sRoundIndex >= 0 ? ($currentMatch?.rounds?.[editing20sRoundIndex]?.roundNumber ?? editing20sRoundIndex + 1) : 0}
 	onclose={handleTwentyInputClose}
+	oneditConfirm={handleEdit20sConfirm}
 />
 
 <!-- Tournament Match Modal -->
@@ -2172,7 +2056,6 @@
 <InvitePlayerModal
 	isOpen={$isInviteModalOpen}
 	onclose={handleCloseInviteModal}
-	oncancel={handleCancelInvite}
 />
 
 <style>
@@ -2528,87 +2411,6 @@
 		}
 	}
 
-	/* Match Score Indicators - positioned on each side, swipe to resize */
-	.match-score-left,
-	.match-score-right {
-		position: fixed;
-		bottom: 8px;
-		z-index: 50;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-weight: 700;
-		font-family: 'Lexend', sans-serif;
-		line-height: 1;
-		color: var(--game-text);
-		background: rgba(0, 0, 0, 0.5);
-		backdrop-filter: blur(12px);
-		border: 1px solid var(--game-border);
-		border-radius: 8px;
-		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-		cursor: ew-resize;
-		transition: all 0.2s ease;
-		-webkit-tap-highlight-color: transparent;
-		touch-action: none;
-		user-select: none;
-	}
-
-	.match-score-left {
-		left: 50%;
-		transform: translateX(calc(-50% - 20px));
-	}
-
-	.match-score-right {
-		left: 50%;
-		transform: translateX(calc(-50% + 20px));
-	}
-
-	/* Match Score Sizes */
-	.match-score-small {
-		width: 32px;
-		height: 28px;
-		font-size: 1.1rem;
-		border-radius: 6px;
-	}
-
-	.match-score-small.match-score-left {
-		transform: translateX(calc(-50% - 20px));
-	}
-
-	.match-score-small.match-score-right {
-		transform: translateX(calc(-50% + 20px));
-	}
-
-	.match-score-medium {
-		width: 44px;
-		height: 38px;
-		font-size: 1.5rem;
-		border-radius: 10px;
-	}
-
-	.match-score-medium.match-score-left {
-		transform: translateX(calc(-50% - 26px));
-	}
-
-	.match-score-medium.match-score-right {
-		transform: translateX(calc(-50% + 26px));
-	}
-
-	.match-score-large {
-		width: 56px;
-		height: 48px;
-		font-size: 1.9rem;
-		border-radius: 12px;
-	}
-
-	.match-score-large.match-score-left {
-		transform: translateX(calc(-50% - 32px));
-	}
-
-	.match-score-large.match-score-right {
-		transform: translateX(calc(-50% + 32px));
-	}
-
 	.next-game-container {
 		position: fixed;
 		top: 50%;
@@ -2701,20 +2503,6 @@
 		.teams-container {
 			grid-template-columns: 1fr;
 		}
-
-		/* In portrait/single column, match score stays at bottom */
-		.match-score-left,
-		.match-score-right {
-			bottom: 8px;
-		}
-
-		/* Slightly smaller gaps on mobile */
-		.match-score-small.match-score-left { transform: translateX(calc(-50% - 12px)); }
-		.match-score-small.match-score-right { transform: translateX(calc(-50% + 12px)); }
-		.match-score-medium.match-score-left { transform: translateX(calc(-50% - 18px)); }
-		.match-score-medium.match-score-right { transform: translateX(calc(-50% + 18px)); }
-		.match-score-large.match-score-left { transform: translateX(calc(-50% - 24px)); }
-		.match-score-large.match-score-right { transform: translateX(calc(-50% + 24px)); }
 	}
 
 	@media (max-width: 480px) {

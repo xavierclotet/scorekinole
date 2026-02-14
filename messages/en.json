@@ -125,7 +125,7 @@
   "admin_matchConfiguration": "Match Configuration",
   "admin_matchDuration": "Match Duration",
   "admin_matchDurationDesc": "Average time per match in minutes",
-  "admin_matchManagement": "Match Management",
+  "admin_matchManagement": "Friendly Match Management",
   "admin_matchType": "Match type",
   "admin_matches": "matches",
   "admin_matchesFilledAuto": "{n} matches auto-filled",
@@ -1204,5 +1204,7 @@
   "invite_expiresIn": "Expires in {minutes}:{seconds}",
   "join_declineInvite": "Decline",
   "invite_playerDeclined": "{name} has declined the invitation",
-  "invite_inviteAnother": "Invite another player"
+  "invite_inviteAnother": "Invite another player",
+  "scoring_edit20s": "Edit 20s",
+  "scoring_edit20sTitle": "Edit 20s of R {n}"
 }

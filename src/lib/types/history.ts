@@ -66,5 +66,3 @@ export interface CurrentMatch {
     games: MatchGame[];
     rounds: MatchRound[];
 }
-
-export type HistoryTab = 'current' | 'history';

@@ -1,7 +1,7 @@
 import { writable, get } from 'svelte/store';
 import type { MatchState, GameData, RoundData } from '$lib/types/team';
 import { browser } from '$app/environment';
-import { currentMatch, saveCurrentMatch, resetCurrentMatch } from './history';
+import { resetCurrentMatch, addRoundToCurrentMatch } from './history';
 import type { MatchRound } from '$lib/types/history';
 
 const defaultMatchState: MatchState = {
@@ -223,37 +223,14 @@ export function completeRound(team1Points: number, team2Points: number, team1Twe
 function updateCurrentMatchRounds(team1Points: number, team2Points: number, team1Twenty: number, team2Twenty: number, hammerTeam: 1 | 2 | null, roundNumber: number) {
     if (!browser) return;
 
-    currentMatch.update(match => {
-        // If no match exists, create one
-        if (!match) {
-            return {
-                startTime: Date.now(),
-                games: [],
-                rounds: [{
-                    team1Points,
-                    team2Points,
-                    team1Twenty,
-                    team2Twenty,
-                    hammerTeam,
-                    roundNumber
-                }]
-            };
-        }
+    const newRound: MatchRound = {
+        team1Points,
+        team2Points,
+        team1Twenty,
+        team2Twenty,
+        hammerTeam,
+        roundNumber
+    };
 
-        const newRound: MatchRound = {
-            team1Points,
-            team2Points,
-            team1Twenty,
-            team2Twenty,
-            hammerTeam,
-            roundNumber
-        };
-
-        return {
-            ...match,
-            rounds: [...match.rounds, newRound]
-        };
-    });
-
-    saveCurrentMatch();
+    addRoundToCurrentMatch(newRound);
 }

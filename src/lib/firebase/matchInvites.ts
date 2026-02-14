@@ -324,8 +324,11 @@ export async function declineInvite(
 
 /**
  * Cancel an invitation (called by the host)
+ * Only cancels if the invite is still pending (not already accepted/declined)
+ * Returns 'cancelled' if successfully cancelled, 'already_accepted' if guest already accepted,
+ * or false on error
  */
-export async function cancelInvite(inviteId: string): Promise<boolean> {
+export async function cancelInvite(inviteId: string): Promise<'cancelled' | 'already_accepted' | false> {
 	if (!browser || !isFirebaseEnabled() || !db) {
 		return false;
 	}
@@ -349,12 +352,22 @@ export async function cancelInvite(inviteId: string): Promise<boolean> {
 			return false;
 		}
 
+		// Check if invite is still pending - prevent race condition
+		if (invite.status !== 'pending') {
+			console.warn('Cannot cancel invite that is not pending:', invite.status);
+			// If already accepted, return special value so caller can handle appropriately
+			if (invite.status === 'accepted') {
+				return 'already_accepted';
+			}
+			return false;
+		}
+
 		// Update status to cancelled
 		const inviteRef = doc(db, 'matchInvites', inviteId);
 		await updateDoc(inviteRef, { status: 'cancelled' });
 
 		console.log(`Cancelled invite: ${invite.inviteCode}`);
-		return true;
+		return 'cancelled';
 	} catch (error) {
 		console.error('Error cancelling invite:', error);
 		return false;

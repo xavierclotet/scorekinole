@@ -56,7 +56,7 @@
 			{#if $currentUser}
 				<!-- User info header -->
 				<div class="flex items-center gap-3 px-4 py-4 bg-muted/30 border-b border-border/50">
-					<Avatar.Root class="size-11 ring-2 ring-border/50 flex-shrink-0">
+					<Avatar.Root class="size-11 ring-2 ring-border/50 shrink-0">
 						<Avatar.Image src={$currentUser.photoURL} alt="" referrerpolicy="no-referrer" />
 						<Avatar.Fallback class="text-base font-semibold bg-linear-to-br from-primary/80 to-primary text-primary-foreground">
 							{$currentUser.email?.charAt(0).toUpperCase() || '?'}
