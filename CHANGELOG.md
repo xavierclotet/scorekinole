@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.19] - 2026-02-14
+- Add draggable RoundsPanel showing round-by-round results during game
+- Display winner name per round for better readability (no team colors)
+- Improve match invitation countdown and decline functionality
+- Remove legacy HistoryModal, HistoryEntry, SyncConfirmModal components
+- Add tournament data structure documentation
+
 ## [2.4.18] - 2026-02-14
 - Add match invitation system for friendly matches with QR codes
 - Users can assign themselves to a team and invite another player via link
