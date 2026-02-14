@@ -9,6 +9,8 @@ import type { TournamentRecord, TournamentTier } from '$lib/types/tournament';
 import {
   collection,
   getDocs,
+  doc,
+  getDoc,
   query,
   where,
   Timestamp
@@ -171,6 +173,72 @@ export function getAvailableYears(tournamentsMap: Map<string, TournamentInfo>): 
   });
   // Sort descending (newest first)
   return Array.from(years).sort((a, b) => b - a);
+}
+
+/**
+ * Get a user's current ranking by their userId
+ * Fetches user profile and calculates Best-of-N ranking
+ *
+ * @param userId - Firestore user ID
+ * @param year - Year to filter (defaults to current year)
+ * @param bestOfN - Number of best results to count (defaults to 2)
+ * @returns Total ranking points, or 0 if user not found
+ */
+export async function getUserRanking(
+  userId: string,
+  year: number = new Date().getFullYear(),
+  bestOfN: number = 2
+): Promise<number> {
+  if (!browser || !isFirebaseEnabled()) {
+    return 0;
+  }
+
+  try {
+    const userRef = doc(db!, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      return 0;
+    }
+
+    const profile = userSnap.data() as UserProfile;
+    return calculateUserRanking(profile.tournaments, year, bestOfN);
+  } catch (error) {
+    console.error('Error getting user ranking:', error);
+    return 0;
+  }
+}
+
+/**
+ * Calculate a single user's ranking using Best-of-N system
+ * Used for tournament seeding when adding participants
+ *
+ * @param tournaments - User's tournament records
+ * @param year - Year to filter (defaults to current year)
+ * @param bestOfN - Number of best results to count (defaults to 2)
+ * @returns Total ranking points (sum of top N results)
+ */
+export function calculateUserRanking(
+  tournaments: TournamentRecord[] | undefined,
+  year: number = new Date().getFullYear(),
+  bestOfN: number = 2
+): number {
+  if (!tournaments?.length) return 0;
+
+  // Filter tournaments by year
+  const tournamentsThisYear = tournaments.filter(record => {
+    const recordYear = new Date(record.tournamentDate).getFullYear();
+    return recordYear === year;
+  });
+
+  if (tournamentsThisYear.length === 0) return 0;
+
+  // Sort by points (rankingDelta) descending and take top N
+  const sorted = [...tournamentsThisYear].sort((a, b) => b.rankingDelta - a.rankingDelta);
+  const topN = sorted.slice(0, bestOfN);
+
+  // Sum points
+  return topN.reduce((sum, t) => sum + t.rankingDelta, 0);
 }
 
 /**

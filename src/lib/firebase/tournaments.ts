@@ -199,6 +199,12 @@ export async function checkTournamentQuota(): Promise<{
     }
 
     const profile = await getUserProfile();
+
+    // Log warning if profile is null - may indicate race condition
+    if (!profile) {
+      console.warn('checkTournamentQuota: getUserProfile() returned null - user profile may not be loaded yet');
+    }
+
     const currentYear = new Date().getFullYear();
 
     // 1. Try new quota system first (quotaEntries array)
@@ -211,7 +217,9 @@ export async function checkTournamentQuota(): Promise<{
     }
 
     // If max is 0, user cannot create tournaments
+    // Note: This could be a race condition if profile wasn't loaded yet
     if (maxTournaments === 0) {
+      console.warn('checkTournamentQuota: maxTournaments is 0, profile loaded:', !!profile);
       return { canCreate: false, used: 0, limit: 0, isSuperAdmin: false };
     }
 

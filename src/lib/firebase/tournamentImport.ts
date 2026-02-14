@@ -129,7 +129,6 @@ export interface UserSearchResult {
   userId: string;
   name: string;
   playerName?: string;
-  ranking: number;
 }
 
 /**
@@ -204,8 +203,7 @@ export async function searchUsersByName(searchQuery: string): Promise<UserSearch
         resultsMap.set(doc.id, {
           userId: doc.id,
           name: data.name || '',
-          playerName: data.playerName || data.name || '',
-          ranking: data.ranking || 1500
+          playerName: data.playerName || data.name || ''
         });
       });
     } catch (e) {
@@ -229,8 +227,7 @@ export async function searchUsersByName(searchQuery: string): Promise<UserSearch
             resultsMap.set(doc.id, {
               userId: doc.id,
               name: data.name || '',
-              playerName: data.playerName || data.name || '',
-              ranking: data.ranking || 1500
+              playerName: data.playerName || data.name || ''
             });
           }
         });

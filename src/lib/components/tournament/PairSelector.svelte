@@ -1,4 +1,9 @@
 <script lang="ts">
+  import { tick } from 'svelte';
+  import { ChevronsUpDown, UserPlus, X, User, Plus } from '@lucide/svelte';
+  import * as Command from '$lib/components/ui/command';
+  import * as Popover from '$lib/components/ui/popover';
+  import { Button } from '$lib/components/ui/button';
   import { searchUsers } from '$lib/firebase/tournaments';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentParticipant } from '$lib/types/tournament';
@@ -8,7 +13,7 @@
     onadd: (participant: Partial<TournamentParticipant>) => void;
     existingParticipants?: Partial<TournamentParticipant>[];
     excludedUserIds?: string[];
-    theme?: 'light' | 'dark';
+    excludedNames?: Set<string>;
   }
 
   interface SelectedMember {
@@ -18,103 +23,139 @@
     photoURL?: string;
   }
 
-  let { onadd, existingParticipants = [], excludedUserIds = [], theme = 'light' }: Props = $props();
+  // Extended type to include ranking from search results
+  type UserWithRanking = UserProfile & { userId: string; ranking?: number };
+
+  let { onadd, existingParticipants = [], excludedUserIds = [], excludedNames = new Set() }: Props = $props();
 
   // Player 1
-  let p1 = $state('');
-  let p1RawResults = $state<(UserProfile & { userId: string })[]>([]);
+  let p1Open = $state(false);
+  let p1Query = $state('');
+  let p1RawResults = $state<UserWithRanking[]>([]);
   let p1Loading = $state(false);
   let p1Selected = $state<SelectedMember | null>(null);
+  let p1TriggerRef = $state<HTMLButtonElement | null>(null);
 
   // Player 2
-  let p2 = $state('');
-  let p2RawResults = $state<(UserProfile & { userId: string })[]>([]);
+  let p2Open = $state(false);
+  let p2Query = $state('');
+  let p2RawResults = $state<UserWithRanking[]>([]);
   let p2Loading = $state(false);
   let p2Selected = $state<SelectedMember | null>(null);
+  let p2TriggerRef = $state<HTMLButtonElement | null>(null);
 
   let teamName = $state('');
   let adding = $state(false);
 
   let canAdd = $derived(p1Selected && p2Selected && !adding);
 
-  // Filter results to exclude already selected players
+  // Filter results to exclude already selected players and names in textarea
   let p1Results = $derived(
     p1RawResults.filter(u =>
       !(p2Selected?.type === 'REGISTERED' && p2Selected.userId === u.userId) &&
-      !excludedUserIds.includes(u.userId)
+      !excludedUserIds.includes(u.userId) &&
+      !excludedNames.has(u.playerName?.toLowerCase() || '')
     )
   );
 
   let p2Results = $derived(
     p2RawResults.filter(u =>
       !(p1Selected?.type === 'REGISTERED' && p1Selected.userId === u.userId) &&
-      !excludedUserIds.includes(u.userId)
+      !excludedUserIds.includes(u.userId) &&
+      !excludedNames.has(u.playerName?.toLowerCase() || '')
     )
   );
 
-  let p1Timeout: ReturnType<typeof setTimeout> | null = null;
-  let p2Timeout: ReturnType<typeof setTimeout> | null = null;
+  // Can add as guest flags
+  let canAddP1Guest = $derived(p1Query.trim().length >= 3 && !p1Loading && p1Results.length === 0);
+  let canAddP2Guest = $derived(p2Query.trim().length >= 3 && !p2Loading && p2Results.length === 0);
 
-  // Search player 1
-  $effect(() => {
-    if (p1Timeout) clearTimeout(p1Timeout);
-    if (!p1 || p1.length < 2 || p1Selected) { p1RawResults = []; return; }
+  // Search handlers
+  async function handleP1Search(query: string) {
+    p1Query = query;
+    if (query.length < 2) {
+      p1RawResults = [];
+      return;
+    }
     p1Loading = true;
-    p1Timeout = setTimeout(async () => {
-      const res = await searchUsers(p1) as (UserProfile & { userId: string })[];
-      p1RawResults = res;
-      p1Loading = false;
-    }, 250);
-  });
+    const res = await searchUsers(query) as UserWithRanking[];
+    p1RawResults = res;
+    p1Loading = false;
+  }
 
-  // Search player 2
-  $effect(() => {
-    if (p2Timeout) clearTimeout(p2Timeout);
-    if (!p2 || p2.length < 2 || p2Selected) { p2RawResults = []; return; }
+  async function handleP2Search(query: string) {
+    p2Query = query;
+    if (query.length < 2) {
+      p2RawResults = [];
+      return;
+    }
     p2Loading = true;
-    p2Timeout = setTimeout(async () => {
-      const res = await searchUsers(p2) as (UserProfile & { userId: string })[];
-      p2RawResults = res;
-      p2Loading = false;
-    }, 250);
-  });
+    const res = await searchUsers(query) as UserWithRanking[];
+    p2RawResults = res;
+    p2Loading = false;
+  }
 
-  function selectP1(user: UserProfile & { userId: string }) {
+  function selectP1(user: UserWithRanking) {
     p1Selected = {
       type: 'REGISTERED',
       userId: user.userId,
       name: user.playerName,
       photoURL: user.photoURL || undefined
     };
-    p1 = user.playerName;
+    p1Query = '';
     p1RawResults = [];
+    closeP1AndFocus();
   }
 
-  function selectP2(user: UserProfile & { userId: string }) {
+  function selectP2(user: UserWithRanking) {
     p2Selected = {
       type: 'REGISTERED',
       userId: user.userId,
       name: user.playerName,
       photoURL: user.photoURL || undefined
     };
-    p2 = user.playerName;
+    p2Query = '';
     p2RawResults = [];
+    closeP2AndFocus();
   }
 
   function setP1Guest() {
-    if (p1.trim().length < 3) return;
-    p1Selected = { type: 'GUEST', name: p1.trim() };
+    if (p1Query.trim().length < 3) return;
+    p1Selected = { type: 'GUEST', name: p1Query.trim() };
+    p1Query = '';
     p1RawResults = [];
+    closeP1AndFocus();
   }
 
   function setP2Guest() {
-    if (p2.trim().length < 3) return;
-    p2Selected = { type: 'GUEST', name: p2.trim() };
+    if (p2Query.trim().length < 3) return;
+    p2Selected = { type: 'GUEST', name: p2Query.trim() };
+    p2Query = '';
     p2RawResults = [];
+    closeP2AndFocus();
   }
 
-  function clearP1() { p1Selected = null; p1 = ''; p1RawResults = []; }
-  function clearP2() { p2Selected = null; p2 = ''; p2RawResults = []; }
+  function closeP1AndFocus() {
+    p1Open = false;
+    tick().then(() => p1TriggerRef?.focus());
+  }
+
+  function closeP2AndFocus() {
+    p2Open = false;
+    tick().then(() => p2TriggerRef?.focus());
+  }
+
+  function clearP1() {
+    p1Selected = null;
+    p1Query = '';
+    p1RawResults = [];
+  }
+
+  function clearP2() {
+    p2Selected = null;
+    p2Query = '';
+    p2RawResults = [];
+  }
 
   function addPair() {
     if (!p1Selected || !p2Selected) return;
@@ -123,7 +164,6 @@
     // Check for duplicate pair (same two players)
     const isDuplicate = existingParticipants.some(ep => {
       if (!ep.partner) return false;
-      // Check both combinations using real names
       const existingP1 = ep.userId || ep.name;
       const existingP2 = ep.partner.userId || ep.partner.name;
       const newP1 = p1Selected!.userId || p1Selected!.name;
@@ -137,33 +177,23 @@
       return;
     }
 
-    // Create participant with REAL names (teamName is optional for display)
     const participant: Partial<TournamentParticipant> = {
       id: crypto.randomUUID(),
-      name: p1Selected.name,              // Player 1's REAL name
+      name: p1Selected.name,
       type: p1Selected.type,
       userId: p1Selected.userId,
       photoURL: p1Selected.photoURL,
-      teamName: teamName.trim() || undefined,  // Optional artistic name
+      teamName: teamName.trim() || undefined,
       partner: {
         type: p2Selected.type,
         userId: p2Selected.userId,
-        name: p2Selected.name,            // Player 2's REAL name
+        name: p2Selected.name,
         photoURL: p2Selected.photoURL
       },
       rankingSnapshot: 0,
       currentRanking: 0,
       status: 'ACTIVE'
     };
-
-    console.log('👥 PairSelector adding:', {
-      name: participant.name,
-      type: participant.type,
-      userId: participant.userId,
-      partnerName: participant.partner?.name,
-      partnerType: participant.partner?.type,
-      partnerUserId: participant.partner?.userId
-    });
 
     onadd(participant);
     clearP1();
@@ -173,329 +203,250 @@
   }
 </script>
 
-<div class="pair-selector" data-theme={theme}>
-  <div class="add-row">
-    <!-- Player 1 -->
-    <div class="add-field player-field">
-      <label>{m.wizard_player1()}</label>
-      <div class="player-box">
-        {#if p1Selected}
-          <span class="player-chip" class:guest={p1Selected.type === 'GUEST'}>
-            {p1Selected.name}
-            <button class="chip-clear" onclick={clearP1}>×</button>
-          </span>
+<div class="grid grid-cols-[1fr_auto_1fr_1.2fr] gap-3 items-start max-md:grid-cols-2 max-md:gap-2">
+  <!-- Player 1 -->
+  <div class="flex flex-col gap-1.5">
+    <!-- svelte-ignore a11y_label_has_associated_control -->
+    <label class="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide">
+      {m.wizard_player1()}
+    </label>
+    {#if p1Selected}
+      <div class={[
+        "group flex items-center gap-2 h-8 px-2.5 rounded-md border text-sm font-medium transition-all duration-200",
+        p1Selected.type === 'GUEST'
+          ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300"
+          : "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300"
+      ]}>
+        {#if p1Selected.type === 'GUEST'}
+          <UserPlus class="w-3.5 h-3.5 shrink-0 opacity-70" />
         {:else}
-          <div class="player-search">
-            <input
-              type="text"
-              bind:value={p1}
-              placeholder={m.wizard_searchOrGuest()}
-              class="player-input"
-              autocomplete="off"
-            />
-            {#if p1Loading}<span class="mini-loading">⏳</span>{/if}
-          </div>
-          {#if p1Results.length > 0}
-            <div class="player-results">
-              {#each p1Results.slice(0, 4) as u}
-                <button onclick={() => selectP1(u)}>{u.playerName}</button>
-              {/each}
-            </div>
-          {/if}
-          {#if p1.length >= 3 && !p1Loading && p1Results.length === 0}
-            <button class="add-guest-btn" onclick={setP1Guest}>+ inv "{p1}"</button>
-          {/if}
+          <User class="w-3.5 h-3.5 shrink-0 opacity-70" />
         {/if}
-      </div>
-    </div>
-
-    <span class="pair-sep">/</span>
-
-    <!-- Player 2 -->
-    <div class="add-field player-field">
-      <label>{m.wizard_player2()}</label>
-      <div class="player-box">
-        {#if p2Selected}
-          <span class="player-chip" class:guest={p2Selected.type === 'GUEST'}>
-            {p2Selected.name}
-            <button class="chip-clear" onclick={clearP2}>×</button>
-          </span>
-        {:else}
-          <div class="player-search">
-            <input
-              type="text"
-              bind:value={p2}
-              placeholder={m.wizard_searchOrGuest()}
-              class="player-input"
-              autocomplete="off"
-            />
-            {#if p2Loading}<span class="mini-loading">⏳</span>{/if}
-          </div>
-          {#if p2Results.length > 0}
-            <div class="player-results">
-              {#each p2Results.slice(0, 4) as u}
-                <button onclick={() => selectP2(u)}>{u.playerName}</button>
-              {/each}
-            </div>
-          {/if}
-          {#if p2.length >= 3 && !p2Loading && p2Results.length === 0}
-            <button class="add-guest-btn" onclick={setP2Guest}>+ inv "{p2}"</button>
-          {/if}
-        {/if}
-      </div>
-    </div>
-
-    <!-- Team name & add -->
-    <div class="add-field team-field">
-      <label>{m.wizard_teamName()}</label>
-      <div class="team-input-group">
-        <input
-          type="text"
-          bind:value={teamName}
-          placeholder={m.wizard_teamNamePlaceholder()}
-          class="input-field"
-          maxlength="40"
-        />
-        <button class="add-btn" onclick={addPair} disabled={!canAdd}>
-          {adding ? '...' : '+'}
+        <span class="truncate flex-1 text-xs">{p1Selected.name}</span>
+        <button
+          onclick={clearP1}
+          class="w-5 h-5 flex items-center justify-center rounded-full opacity-60 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 transition-all shrink-0"
+        >
+          <X class="w-3.5 h-3.5" />
         </button>
       </div>
+    {:else}
+      <Popover.Root bind:open={p1Open}>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              bind:ref={p1TriggerRef}
+              variant="outline"
+              role="combobox"
+              aria-expanded={p1Open}
+              class="w-full justify-between h-8 text-xs"
+            >
+              <span class="text-muted-foreground truncate">{m.wizard_searchOrGuest()}</span>
+              <ChevronsUpDown class="ml-1 h-3 w-3 shrink-0 opacity-50" />
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="w-[250px] p-0" align="start">
+          <Command.Root shouldFilter={false}>
+            <Command.Input
+              placeholder="Nombre o email..."
+              value={p1Query}
+              oninput={(e) => handleP1Search(e.currentTarget.value)}
+              name="player1-search-nofill"
+              autocomplete="new-password"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck={false}
+              data-form-type="other"
+              data-lpignore="true"
+              data-1p-ignore="true"
+            />
+            <Command.List>
+              {#if p1Loading}
+                <Command.Loading>Buscando...</Command.Loading>
+              {:else if p1Query.length >= 2 && p1Results.length === 0 && !canAddP1Guest}
+                <Command.Empty>No se encontraron jugadores</Command.Empty>
+              {:else}
+                <Command.Group>
+                  {#each p1Results.slice(0, 6) as user}
+                    <Command.Item
+                      value={user.playerName || ''}
+                      onSelect={() => selectP1(user)}
+                      class="flex items-center justify-between cursor-pointer"
+                    >
+                      <div class="flex flex-col">
+                        <span class="font-medium text-sm">{user.playerName}</span>
+                        {#if user.email}
+                          <span class="text-xs text-muted-foreground">{user.email}</span>
+                        {/if}
+                      </div>
+                    </Command.Item>
+                  {/each}
+                </Command.Group>
+              {/if}
+              {#if canAddP1Guest}
+                <Command.Group>
+                  <Command.Item
+                    value="__guest__"
+                    onSelect={setP1Guest}
+                    class="flex items-center gap-2 cursor-pointer text-amber-600 dark:text-amber-400"
+                  >
+                    <UserPlus class="w-4 h-4" />
+                    <span class="text-sm">Añadir invitado "{p1Query}"</span>
+                  </Command.Item>
+                </Command.Group>
+              {/if}
+            </Command.List>
+          </Command.Root>
+        </Popover.Content>
+      </Popover.Root>
+    {/if}
+  </div>
+
+  <div class="flex flex-col gap-1.5 max-md:hidden">
+    <span class="text-[0.7rem] invisible">.</span>
+    <span class="h-8 flex items-center justify-center text-muted-foreground font-medium text-lg">/</span>
+  </div>
+
+  <!-- Player 2 -->
+  <div class="flex flex-col gap-1.5">
+    <!-- svelte-ignore a11y_label_has_associated_control -->
+    <label class="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide">
+      {m.wizard_player2()}
+    </label>
+    {#if p2Selected}
+      <div class={[
+        "group flex items-center gap-2 h-8 px-2.5 rounded-md border text-sm font-medium transition-all duration-200",
+        p2Selected.type === 'GUEST'
+          ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300"
+          : "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300"
+      ]}>
+        {#if p2Selected.type === 'GUEST'}
+          <UserPlus class="w-3.5 h-3.5 shrink-0 opacity-70" />
+        {:else}
+          <User class="w-3.5 h-3.5 shrink-0 opacity-70" />
+        {/if}
+        <span class="truncate flex-1 text-xs">{p2Selected.name}</span>
+        <button
+          onclick={clearP2}
+          class="w-5 h-5 flex items-center justify-center rounded-full opacity-60 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 transition-all shrink-0"
+        >
+          <X class="w-3.5 h-3.5" />
+        </button>
+      </div>
+    {:else}
+      <Popover.Root bind:open={p2Open}>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              bind:ref={p2TriggerRef}
+              variant="outline"
+              role="combobox"
+              aria-expanded={p2Open}
+              class="w-full justify-between h-8 text-xs"
+            >
+              <span class="text-muted-foreground truncate">{m.wizard_searchOrGuest()}</span>
+              <ChevronsUpDown class="ml-1 h-3 w-3 shrink-0 opacity-50" />
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="w-[250px] p-0" align="start">
+          <Command.Root shouldFilter={false}>
+            <Command.Input
+              placeholder="Nombre o email..."
+              value={p2Query}
+              oninput={(e) => handleP2Search(e.currentTarget.value)}
+              name="player2-search-nofill"
+              autocomplete="new-password"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck={false}
+              data-form-type="other"
+              data-lpignore="true"
+              data-1p-ignore="true"
+            />
+            <Command.List>
+              {#if p2Loading}
+                <Command.Loading>Buscando...</Command.Loading>
+              {:else if p2Query.length >= 2 && p2Results.length === 0 && !canAddP2Guest}
+                <Command.Empty>No se encontraron jugadores</Command.Empty>
+              {:else}
+                <Command.Group>
+                  {#each p2Results.slice(0, 6) as user}
+                    <Command.Item
+                      value={user.playerName || ''}
+                      onSelect={() => selectP2(user)}
+                      class="flex items-center justify-between cursor-pointer"
+                    >
+                      <div class="flex flex-col">
+                        <span class="font-medium text-sm">{user.playerName}</span>
+                        {#if user.email}
+                          <span class="text-xs text-muted-foreground">{user.email}</span>
+                        {/if}
+                      </div>
+                    </Command.Item>
+                  {/each}
+                </Command.Group>
+              {/if}
+              {#if canAddP2Guest}
+                <Command.Group>
+                  <Command.Item
+                    value="__guest__"
+                    onSelect={setP2Guest}
+                    class="flex items-center gap-2 cursor-pointer text-amber-600 dark:text-amber-400"
+                  >
+                    <UserPlus class="w-4 h-4" />
+                    <span class="text-sm">Añadir invitado "{p2Query}"</span>
+                  </Command.Item>
+                </Command.Group>
+              {/if}
+            </Command.List>
+          </Command.Root>
+        </Popover.Content>
+      </Popover.Root>
+    {/if}
+  </div>
+
+  <!-- Team name & add -->
+  <div class="flex flex-col gap-1.5 max-md:col-span-2">
+    <!-- svelte-ignore a11y_label_has_associated_control -->
+    <label class="text-[0.7rem] font-semibold text-muted-foreground uppercase tracking-wide">
+      {m.wizard_teamName()}
+    </label>
+    <div class="flex items-center gap-2">
+      <input
+        type="text"
+        bind:value={teamName}
+        placeholder={m.wizard_teamNamePlaceholder()}
+        class="h-8 text-xs flex-1 px-2.5 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+        maxlength={40}
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        data-form-type="other"
+        data-lpignore="true"
+      />
+      <Button
+        onclick={addPair}
+        disabled={!canAdd}
+        size="sm"
+        class={[
+          "h-8 min-w-[100px] px-4 gap-2 font-semibold transition-all duration-200",
+          canAdd
+            ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm hover:shadow-md"
+            : "opacity-40"
+        ]}
+      >
+        {#if adding}
+          <span class="animate-spin text-sm">⏳</span>
+        {:else}
+          <Plus class="w-4 h-4" />
+          <span class="text-sm">{m.common_add()}</span>
+        {/if}
+      </Button>
     </div>
   </div>
 </div>
-
-<style>
-  .pair-selector {
-    --bg: #fff;
-    --bg-input: #fff;
-    --bg-hover: #f1f5f9;
-    --border: #e2e8f0;
-    --txt: #1e293b;
-    --txt-muted: #64748b;
-    --primary: #3b82f6;
-    --primary-hover: #2563eb;
-    --chip-bg: #dbeafe;
-    --chip-txt: #1e40af;
-    --guest-bg: #fef3c7;
-    --guest-txt: #92400e;
-  }
-
-  .pair-selector:is([data-theme='dark'], [data-theme='violet']) {
-    --bg: #1a2332;
-    --bg-input: #0f172a;
-    --bg-hover: #1e293b;
-    --border: #334155;
-    --txt: #f1f5f9;
-    --txt-muted: #94a3b8;
-    --chip-bg: #1e3a5f;
-    --chip-txt: #93c5fd;
-    --guest-bg: #78350f;
-    --guest-txt: #fcd34d;
-  }
-
-  .add-row {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr 1.2fr;
-    gap: 0.75rem;
-    align-items: start;
-  }
-
-  .add-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-
-  .add-field label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--txt-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-  }
-
-  .pair-sep {
-    color: var(--txt-muted);
-    font-weight: 500;
-    padding-top: 1.6rem;
-    font-size: 1.1rem;
-  }
-
-  .team-input-group {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .input-field {
-    flex: 1;
-    padding: 0.45rem 0.6rem;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    font-size: 0.8rem;
-    background: var(--bg-input);
-    color: var(--txt);
-  }
-  .input-field:focus {
-    outline: none;
-    border-color: var(--primary);
-  }
-  .input-field::placeholder {
-    color: var(--txt-muted);
-  }
-
-  .mini-loading {
-    font-size: 0.75rem;
-    position: absolute;
-    right: 0.5rem;
-  }
-
-  .player-box {
-    position: relative;
-    min-height: 32px;
-  }
-
-  .player-search {
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
-  .player-input {
-    width: 100%;
-    padding: 0.45rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    font-size: 0.8rem;
-    background: var(--bg-input);
-    color: var(--txt);
-  }
-  .player-input:focus {
-    outline: none;
-    border-color: var(--primary);
-  }
-  .player-input::placeholder {
-    color: var(--txt-muted);
-  }
-
-  .player-results {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    margin-top: 2px;
-    z-index: 30;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-  }
-
-  .player-results button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.4rem 0.6rem;
-    border: none;
-    background: transparent;
-    color: var(--txt);
-    font-size: 0.8rem;
-    cursor: pointer;
-    text-align: left;
-  }
-  .player-results button:hover {
-    background: var(--bg-hover);
-  }
-
-  .player-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.35rem 0.5rem;
-    background: var(--chip-bg);
-    color: var(--chip-txt);
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .player-chip.guest {
-    background: var(--guest-bg);
-    color: var(--guest-txt);
-  }
-
-  .chip-clear {
-    width: 14px;
-    height: 14px;
-    padding: 0;
-    border: none;
-    background: rgba(0, 0, 0, 0.1);
-    color: inherit;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 0.65rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .chip-clear:hover {
-    background: rgba(0, 0, 0, 0.2);
-  }
-
-  .add-guest-btn {
-    width: 100%;
-    margin-top: 0.25rem;
-    padding: 0.3rem;
-    background: transparent;
-    border: 1px dashed var(--border);
-    border-radius: 4px;
-    color: var(--txt-muted);
-    font-size: 0.7rem;
-    cursor: pointer;
-    text-align: center;
-  }
-  .add-guest-btn:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-
-  .add-btn {
-    padding: 0.45rem 0.75rem;
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-  .add-btn:hover:not(:disabled) {
-    background: var(--primary-hover);
-  }
-  .add-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  @media (max-width: 700px) {
-    .add-row {
-      grid-template-columns: 1fr 1fr;
-      gap: 0.6rem;
-    }
-    .pair-sep {
-      display: none;
-    }
-    .team-field {
-      grid-column: span 2;
-    }
-  }
-</style>

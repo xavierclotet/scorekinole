@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
+  import { Textarea } from '$lib/components/ui/textarea';
   import { adminTheme } from '$lib/stores/theme';
+  import { adminState } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
   import { createTournament, searchUsers, getAllRegisteredUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
@@ -151,21 +154,76 @@
   let searchResultsRaw = $state<(UserProfile & { userId: string })[]>([]);
   let searchLoading = $state(false);
 
-  // Filter out users already added as participants (reactive - updates when participants change)
-  let searchResults = $derived.by(() => {
-    const addedUserIds = participants
-      .filter(p => p.type === 'REGISTERED' && p.userId)
-      .map(p => p.userId);
-    return searchResultsRaw.filter(u => !addedUserIds.includes(u.userId));
-  });
-  let guestName = $state('');  // Input for guest player name
-  let guestNameMatchedUser = $state<(UserProfile & { userId: string }) | null>(null);  // User that matches guest name
-
-  // Bulk guest entry
+  // Bulk guest entry (declared early because textareaNames depends on it)
   let bulkGuestText = $state('');  // Textarea for bulk guest entry
   let bulkTestCount = $state(10);  // Number of test players to generate
   let bulkErrors = $state<string[]>([]);  // Validation errors from bulk processing
   let bulkProcessing = $state(false);  // Loading state for bulk processing
+
+  // Extract names from textarea for filtering search results
+  let textareaNames = $derived.by(() => {
+    const names = new Set<string>();
+    const lines = bulkGuestText.split('\n').filter(l => l.trim());
+    for (const line of lines) {
+      if (gameType === 'doubles') {
+        const commaIndex = line.indexOf(',');
+        const playersPart = commaIndex !== -1 ? line.substring(0, commaIndex).trim() : line.trim();
+        // Check for " / " or "/"
+        let slashIndex = playersPart.indexOf(' / ');
+        let slashLen = 3;
+        if (slashIndex === -1) {
+          slashIndex = playersPart.indexOf('/');
+          slashLen = 1;
+        }
+        if (slashIndex !== -1) {
+          const name1 = playersPart.substring(0, slashIndex).trim().toLowerCase();
+          const name2 = playersPart.substring(slashIndex + slashLen).trim().toLowerCase();
+          names.add(name1);
+          names.add(name2);
+        }
+      } else {
+        names.add(line.trim().toLowerCase());
+      }
+    }
+    return names;
+  });
+
+  // Filter out users already in textarea (by name match)
+  let searchResults = $derived(
+    searchResultsRaw.filter(u =>
+      !textareaNames.has(u.playerName?.toLowerCase() || '')
+    )
+  );
+  let guestName = $state('');  // Input for guest player name
+  let guestNameMatchedUser = $state<(UserProfile & { userId: string }) | null>(null);  // User that matches guest name
+
+  // Analysis preview state
+  let analysisResult = $state<{
+    total: number;
+    registered: number;
+    guests: number;
+    registeredNames: string[];
+  } | null>(null);
+  let analysisValid = $state(false);  // True only after successful analysis with no errors
+
+  // Count valid lines in textarea (for participant count display)
+  let textareaParticipantCount = $derived(
+    bulkGuestText.split('\n').filter(line => line.trim().length >= 3).length
+  );
+
+  // Convert participants array to textarea text format
+  function participantsToText(participantsList: Partial<TournamentParticipant>[], isDoubles: boolean): string {
+    return participantsList.map(p => {
+      if (isDoubles && p.partner) {
+        // Doubles format: "Player1 / Player2, TeamName" or "Player1 / Player2"
+        const names = `${p.name} / ${p.partner.name}`;
+        return p.teamName ? `${names}, ${p.teamName}` : names;
+      } else {
+        // Singles format: just the name
+        return p.name || '';
+      }
+    }).filter(line => line.trim()).join('\n');
+  }
 
   // Tournament name search
   let tournamentNameResults = $state<TournamentNameInfo[]>([]);
@@ -183,6 +241,12 @@
   // Validation
   let validationErrors = $state<string[]>([]);
   let validationWarnings = $state<string[]>([]);
+
+  // Check if Next button should be disabled (step 4 has special validation)
+  let nextButtonDisabled = $derived(
+    validationErrors.length > 0 ||
+    (currentStep === 4 && (textareaParticipantCount < 2 || !analysisValid || bulkErrors.length > 0))
+  );
 
   // Field-specific error checks
   let keyHasError = $derived(touchedFields.has('key') && (!/^[A-Z0-9]{6}$/.test(key) || keyCheckResult?.exists));
@@ -236,8 +300,42 @@
 
   onMount(async () => {
     // Check quota first (not needed for edit mode)
+    // Race condition fix: adminState may not have loaded correctly on first try
+    // We retry the quota check if we get suspicious results (0/0 limit)
     quotaLoading = true;
-    quotaInfo = await checkTournamentQuota();
+
+    const loadQuotaWithRetry = async (retryCount = 0): Promise<void> => {
+      // Check store first - it may have updated since last check
+      const currentState = get(adminState);
+
+      if (currentState.isSuperAdmin) {
+        // SuperAdmin detected from store - bypass quota check entirely
+        quotaInfo = { canCreate: true, used: 0, limit: Infinity, isSuperAdmin: true };
+        return;
+      }
+
+      // Regular admin - check quota via Firebase
+      const result = await checkTournamentQuota();
+
+      // If Firebase says superAdmin, trust it
+      if (result.isSuperAdmin) {
+        quotaInfo = { canCreate: true, used: 0, limit: Infinity, isSuperAdmin: true };
+        return;
+      }
+
+      // Detect suspicious result: limit is 0 AND canCreate is false
+      // This usually means the profile wasn't loaded correctly (race condition)
+      if (!result.canCreate && result.limit === 0 && result.used === 0 && retryCount < 3) {
+        console.warn(`Quota check returned 0/0, retrying... (attempt ${retryCount + 1})`);
+        // Wait a bit for Firebase to settle, then retry
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return loadQuotaWithRetry(retryCount + 1);
+      }
+
+      quotaInfo = result;
+    };
+
+    await loadQuotaWithRetry();
     quotaLoading = false;
 
     // Check if in edit or duplicate mode
@@ -403,8 +501,8 @@
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
-      // Step 4 - Load participants (preserve all participant fields, filter out undefined)
-      participants = tournament.participants.map(p => {
+      // Step 4 - Load participants into textarea (edit mode uses textarea-based editing)
+      const loadedParticipants = tournament.participants.map(p => {
         const participant: Partial<TournamentParticipant> = {
           id: p.id,
           type: p.type,
@@ -426,7 +524,12 @@
         return participant;
       });
 
-      guestName = `Player${participants.length + 1}`;
+      // Convert participants to textarea text format for editing
+      bulkGuestText = participantsToText(loadedParticipants, tournament.gameType === 'doubles');
+      // Keep participants array empty - will be populated when processing textarea
+      participants = [];
+
+      guestName = `Player${loadedParticipants.length + 1}`;
 
       // Step 5 - Load time configuration
       if (tournament.timeConfig) {
@@ -624,7 +727,12 @@
         };
       }));
 
-      guestName = `Player${participants.length + 1}`;
+      // Convert participants to textarea text format for editing
+      bulkGuestText = participantsToText(participants, tournament.gameType === 'doubles');
+      // Keep participants array empty - will be populated when processing textarea
+      participants = [];
+
+      guestName = `Player${bulkGuestText.split('\n').filter(l => l.trim()).length + 1}`;
 
       // Step 5 - Copy time configuration
       if (tournament.timeConfig) {
@@ -882,6 +990,7 @@
   }
 
   async function handleSearch() {
+    console.log('🔎 handleSearch called, query:', searchQuery);
     if (searchQuery.length < 2) {
       searchResultsRaw = [];
       return;
@@ -889,6 +998,9 @@
 
     searchLoading = true;
     const results = await searchUsers(searchQuery) as (UserProfile & { userId: string })[];
+    console.log('🔎 Search results:', results.length, 'users found');
+    console.log('🔎 textareaNames has:', textareaNames.size, 'names:', Array.from(textareaNames));
+    console.log('🔎 bulkGuestText:', bulkGuestText.substring(0, 100));
     // Store raw results - filtering is done reactively via $derived
     searchResultsRaw = results;
     searchLoading = false;
@@ -989,28 +1101,40 @@
   }
 
   function addRegisteredUser(user: UserProfile & { userId?: string }) {
-    const alreadyAdded = participants.some(p => p.userId === user.userId);
-    if (alreadyAdded) {
-      toastMessage = 'Este usuario ya está agregado';
+    const playerName = user.playerName || '';
+
+    // Check if already in textarea (case-insensitive)
+    const lines = bulkGuestText.split('\n').map(l => l.trim().toLowerCase());
+    const alreadyInText = lines.some(line => {
+      if (gameType === 'doubles') {
+        // For doubles, check if name appears in either player position
+        const slashIndex = line.indexOf(' / ');
+        if (slashIndex === -1) return line === playerName.toLowerCase();
+        const player1 = line.substring(0, slashIndex).trim();
+        const commaIndex = line.indexOf(',');
+        const player2 = commaIndex !== -1
+          ? line.substring(slashIndex + 3, commaIndex).trim()
+          : line.substring(slashIndex + 3).trim();
+        return player1 === playerName.toLowerCase() || player2 === playerName.toLowerCase();
+      }
+      return line === playerName.toLowerCase();
+    });
+
+    if (alreadyInText) {
+      toastMessage = 'Este usuario ya está en la lista';
       toastType = 'warning';
       showToast = true;
       return;
     }
 
-    participants = [
-      ...participants,
-      {
-        type: 'REGISTERED',
-        userId: user.userId,
-        name: user.playerName,
-        email: user.email || undefined,
-        photoURL: user.photoURL || undefined,
-        rankingSnapshot: user.ranking || 0
-      }
-    ];
+    // Prepend to textarea
+    bulkGuestText = playerName + (bulkGuestText.trim() ? '\n' + bulkGuestText : '');
 
-    // Note: User is automatically removed from searchResults via $derived filter
-    saveDraft(); // Save after adding participant
+    // Clear search
+    searchQuery = '';
+    searchResultsRaw = [];
+
+    saveDraft();
   }
 
   async function checkGuestNameMatch() {
@@ -1078,171 +1202,244 @@
       }
     }
 
-    bulkGuestText = lines.join('\n');
+    // Prepend new lines to existing content
+    const newContent = lines.join('\n');
+    bulkGuestText = newContent + (bulkGuestText.trim() ? '\n' + bulkGuestText : '');
     bulkErrors = [];
   }
 
   // Process bulk guest entry
   async function processBulkGuests() {
-    if (!bulkGuestText.trim()) return;
-
-    bulkProcessing = true;
-    bulkErrors = [];
-
-    const lines = bulkGuestText.split('\n').filter(line => line.trim());
-    const newParticipants: Partial<TournamentParticipant>[] = [];
-    const errors: string[] = [];
-
-    // Get all registered users to check against
-    const allUsers = await getAllRegisteredUsers();
-    const userNameMap = new Map<string, UserProfile & { userId: string }>();
-    for (const user of allUsers) {
-      if (user.playerName) {
-        userNameMap.set(user.playerName.toLowerCase(), user);
-      }
-    }
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-
-      const lineNum = i + 1;
-
-      if (gameType === 'doubles') {
-        // Parse doubles format: "Player1 / Player2, team name" or "Player1 / Player2"
-        // First split by comma to separate optional team name
-        const commaIndex = line.indexOf(',');
-        let playersPart = line;
-        let teamName: string | undefined;
-
-        if (commaIndex !== -1) {
-          playersPart = line.substring(0, commaIndex).trim();
-          teamName = line.substring(commaIndex + 1).trim() || undefined;
-        }
-
-        // Now split players by " / "
-        const slashIndex = playersPart.indexOf(' / ');
-        if (slashIndex === -1) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDoublesFormat()}`);
-          continue;
-        }
-
-        const player1 = playersPart.substring(0, slashIndex).trim();
-        const player2 = playersPart.substring(slashIndex + 3).trim();
-
-        if (player1.length < 3) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: player1 })}`);
-          continue;
-        }
-        if (player2.length < 3) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: player2 })}`);
-          continue;
-        }
-
-        // Check if either player is registered
-        const user1 = userNameMap.get(player1.toLowerCase());
-        const user2 = userNameMap.get(player2.toLowerCase());
-
-        if (user1) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${player1}" ${m.wizard_bulkErrorIsRegistered()}`);
-          continue;
-        }
-        if (user2) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${player2}" ${m.wizard_bulkErrorIsRegistered()}`);
-          continue;
-        }
-
-        // Check for duplicate pair in existing participants
-        const isDuplicate = participants.some(p =>
-          (p.name?.toLowerCase() === player1.toLowerCase() && p.partner?.name?.toLowerCase() === player2.toLowerCase()) ||
-          (p.name?.toLowerCase() === player2.toLowerCase() && p.partner?.name?.toLowerCase() === player1.toLowerCase())
-        );
-        if (isDuplicate) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicatePair()}`);
-          continue;
-        }
-
-        // Check for duplicate in new participants being added
-        const isDuplicateNew = newParticipants.some(p =>
-          (p.name?.toLowerCase() === player1.toLowerCase() && p.partner?.name?.toLowerCase() === player2.toLowerCase()) ||
-          (p.name?.toLowerCase() === player2.toLowerCase() && p.partner?.name?.toLowerCase() === player1.toLowerCase())
-        );
-        if (isDuplicateNew) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicatePair()}`);
-          continue;
-        }
-
-        newParticipants.push({
-          id: crypto.randomUUID(),
-          type: 'GUEST',
-          name: player1,
-          partner: {
-            type: 'GUEST',
-            name: player2
-          },
-          teamName,
-          rankingSnapshot: 0,
-          currentRanking: 0,
-          status: 'ACTIVE'
-        });
-      } else {
-        // Singles format: just the player name
-        const playerName = line.trim();
-
-        if (playerName.length < 3) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: playerName })}`);
-          continue;
-        }
-
-        // Check if player is registered
-        const existingUser = userNameMap.get(playerName.toLowerCase());
-        if (existingUser) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${playerName}" ${m.wizard_bulkErrorIsRegistered()}`);
-          continue;
-        }
-
-        // Check for duplicate in existing participants
-        const isDuplicate = participants.some(p =>
-          p.name?.toLowerCase() === playerName.toLowerCase()
-        );
-        if (isDuplicate) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicateSingle()}`);
-          continue;
-        }
-
-        // Check for duplicate in new participants
-        const isDuplicateNew = newParticipants.some(p =>
-          p.name?.toLowerCase() === playerName.toLowerCase()
-        );
-        if (isDuplicateNew) {
-          errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicateSingle()}`);
-          continue;
-        }
-
-        newParticipants.push({
-          type: 'GUEST',
-          name: playerName,
-          rankingSnapshot: 0
-        });
-      }
-    }
-
-    bulkProcessing = false;
-
-    if (errors.length > 0) {
-      bulkErrors = errors;
+    if (!bulkGuestText.trim()) {
+      // Empty textarea = clear all participants
+      participants = [];
+      analysisResult = null;
+      analysisValid = false;
       return;
     }
 
-    // Add all new participants
-    if (newParticipants.length > 0) {
-      participants = [...participants, ...newParticipants];
-      bulkGuestText = '';
+    bulkProcessing = true;
+    bulkErrors = [];
+    analysisResult = null;
+    analysisValid = false;
+
+    try {
+      const lines = bulkGuestText.split('\n').filter(line => line.trim());
+      const newParticipants: Partial<TournamentParticipant>[] = [];
+      const errors: string[] = [];
+
+      // Get all registered users to detect registered players by name
+      const allUsers = await getAllRegisteredUsers();
+      const userNameMap = new Map<string, UserProfile & { userId: string }>();
+      for (const user of allUsers) {
+        if (user.playerName) {
+          userNameMap.set(user.playerName.toLowerCase(), user);
+        }
+      }
+
+      // Track all player names to detect duplicates (same player in multiple entries)
+      const allPlayerNames = new Map<string, number>(); // name -> line number where first seen
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const lineNum = i + 1;
+
+        if (gameType === 'doubles') {
+          // Parse doubles format: "Player1 / Player2, team name" or "Player1 / Player2"
+
+          // Check for multiple commas (invalid format like "a,,b,c")
+          const commaCount = (line.match(/,/g) || []).length;
+          if (commaCount > 1) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: Formato inválido (múltiples comas)`);
+            continue;
+          }
+
+          // First split by comma to separate optional team name
+          const commaIndex = line.indexOf(',');
+          let playersPart = line;
+          let teamName: string | undefined;
+
+          if (commaIndex !== -1) {
+            playersPart = line.substring(0, commaIndex).trim();
+            teamName = line.substring(commaIndex + 1).trim() || undefined;
+          }
+
+          // Check playersPart is not empty
+          if (!playersPart) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: Faltan nombres de jugadores`);
+            continue;
+          }
+
+          // Now split players by " / " (with spaces) or "/" (without spaces)
+          let slashIndex = playersPart.indexOf(' / ');
+          let slashLen = 3;
+          if (slashIndex === -1) {
+            slashIndex = playersPart.indexOf('/');
+            slashLen = 1;
+          }
+
+          if (slashIndex === -1) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDoublesFormat()}`);
+            continue;
+          }
+
+          const player1 = playersPart.substring(0, slashIndex).trim();
+          const player2 = playersPart.substring(slashIndex + slashLen).trim();
+
+          // Check names are not empty
+          if (!player1 || !player2) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: Nombres de jugadores vacíos`);
+            continue;
+          }
+
+          if (player1.length < 3) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: player1 })}`);
+            continue;
+          }
+          if (player2.length < 3) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: player2 })}`);
+            continue;
+          }
+
+          // Check if players are registered (to save their userId)
+          const user1 = userNameMap.get(player1.toLowerCase());
+          const user2 = userNameMap.get(player2.toLowerCase());
+
+          // Check for duplicate individual players (same player in multiple pairs)
+          const player1Lower = player1.toLowerCase();
+          const player2Lower = player2.toLowerCase();
+
+          // Check same player in both positions of the pair
+          if (player1Lower === player2Lower) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: No puedes poner el mismo jugador dos veces`);
+            continue;
+          }
+
+          const existingLine1 = allPlayerNames.get(player1Lower);
+          if (existingLine1 !== undefined) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${player1}" ya aparece en la línea ${existingLine1}`);
+            continue;
+          }
+          const existingLine2 = allPlayerNames.get(player2Lower);
+          if (existingLine2 !== undefined) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${player2}" ya aparece en la línea ${existingLine2}`);
+            continue;
+          }
+
+          // Add names to tracking map with their line number
+          allPlayerNames.set(player1Lower, lineNum);
+          allPlayerNames.set(player2Lower, lineNum);
+
+          newParticipants.push({
+            id: crypto.randomUUID(),
+            type: user1 ? 'REGISTERED' : 'GUEST',
+            name: user1 ? user1.playerName : player1,
+            userId: user1?.userId,
+            photoURL: user1?.photoURL || undefined,
+            partner: {
+              type: user2 ? 'REGISTERED' : 'GUEST',
+              name: user2 ? user2.playerName : player2,
+              userId: user2?.userId,
+              photoURL: user2?.photoURL || undefined
+            },
+            teamName,
+            rankingSnapshot: 0, // Ranking is calculated dynamically, not stored in user profile
+            currentRanking: 0,
+            status: 'ACTIVE'
+          });
+        } else {
+          // Singles format: just the player name
+          const playerName = line.trim();
+
+          // Check for invalid format (commas or slashes suggest doubles format)
+          if (playerName.includes(',') || playerName.includes('/')) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: Formato inválido para singles (usa un nombre por línea)`);
+            continue;
+          }
+
+          if (playerName.length < 3) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: playerName })}`);
+            continue;
+          }
+
+          // Check if player is registered (to save their userId)
+          const existingUser = userNameMap.get(playerName.toLowerCase());
+
+          // Check for duplicate in new participants
+          const isDuplicateNew = newParticipants.some(p =>
+            p.name?.toLowerCase() === playerName.toLowerCase()
+          );
+          if (isDuplicateNew) {
+            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicateSingle()}`);
+            continue;
+          }
+
+          if (existingUser) {
+            // Registered user - save with userId
+            newParticipants.push({
+              id: crypto.randomUUID(),
+              type: 'REGISTERED',
+              userId: existingUser.userId,
+              name: existingUser.playerName,
+              email: existingUser.email || undefined,
+              photoURL: existingUser.photoURL || undefined,
+              rankingSnapshot: 0, // Ranking is calculated dynamically
+              status: 'ACTIVE'
+            });
+          } else {
+            // Guest user
+            newParticipants.push({
+              id: crypto.randomUUID(),
+              type: 'GUEST',
+              name: playerName,
+              rankingSnapshot: 0,
+              status: 'ACTIVE'
+            });
+          }
+        }
+      }
+
+      if (errors.length > 0) {
+        bulkErrors = errors;
+        return;
+      }
+
+      // Replace participants with parsed list (textarea is the source of truth)
+      participants = newParticipants;
       bulkErrors = [];
-      toastMessage = m.wizard_bulkSuccess({ count: newParticipants.length });
-      toastType = 'success';
-      showToast = true;
+
+      // Count registered USERS (not participants) - for doubles, count each player separately
+      const registeredNames: string[] = [];
+      for (const p of newParticipants) {
+        if (p.type === 'REGISTERED' && p.name) {
+          registeredNames.push(p.name);
+        }
+        if (p.partner?.type === 'REGISTERED' && p.partner.name) {
+          registeredNames.push(p.partner.name);
+        }
+      }
+
+      // Calculate total users (for doubles: 2 per participant)
+      const totalUsers = gameType === 'doubles' ? newParticipants.length * 2 : newParticipants.length;
+      const guestUsers = totalUsers - registeredNames.length;
+
+      // Update analysis result for display (no toast - visual feedback is shown inline)
+      analysisResult = {
+        total: totalUsers,
+        registered: registeredNames.length,
+        guests: guestUsers,
+        registeredNames
+      };
+      analysisValid = true;  // Mark analysis as successful
+      lastAnalyzedText = bulkGuestText;  // Track what was analyzed
       saveDraft();
+    } catch (error) {
+      console.error('Error processing bulk guests:', error);
+      bulkErrors = ['Error al procesar: ' + (error instanceof Error ? error.message : 'Error desconocido')];
+    } finally {
+      bulkProcessing = false;
     }
   }
 
@@ -1325,20 +1522,32 @@
 
   function getStep4Errors(): string[] {
     const errors: string[] = [];
-    if (participants.length < 2) {
+    if (textareaParticipantCount < 2) {
       errors.push(m.wizard_errorMinParticipants());
+    } else if (bulkErrors.length > 0) {
+      // Analysis found errors
+      errors.push(`Hay ${bulkErrors.length} error(es) en la lista`);
     }
     return errors;
   }
 
   function getStep4Warnings(): string[] {
     const warnings: string[] = [];
+    if (textareaParticipantCount >= 2 && !analysisValid && bulkErrors.length === 0) {
+      // Require analysis before proceeding (shown as warning)
+      warnings.push(m.wizard_analyzeRequired());
+    }
     if (gameType === 'doubles') {
-      if (participants.length % 2 !== 0) {
+      if (textareaParticipantCount % 2 !== 0) {
         warnings.push(m.wizard_warningDoublesEven());
       }
     }
     return warnings;
+  }
+
+  // Step 4 requires analysis to be valid (blocking warning)
+  function isStep4Valid(): boolean {
+    return textareaParticipantCount >= 2 && analysisValid && bulkErrors.length === 0;
   }
 
   function getValidationForStep(step: number): [string[], string[]] {
@@ -1356,6 +1565,10 @@
 
   function validateCurrentStep(): boolean {
     [validationErrors, validationWarnings] = getValidationForStep(currentStep);
+    // Step 4 has special validation (analysis must be done)
+    if (currentStep === 4) {
+      return validationErrors.length === 0 && isStep4Valid();
+    }
     return validationErrors.length === 0;
   }
 
@@ -1364,6 +1577,7 @@
       return;
     }
 
+    // Validation passed - analysis was already done via button
     if (currentStep < totalSteps) {
       currentStep++;
       saveDraft(); // Save draft when moving forward
@@ -1438,6 +1652,9 @@
     }
 
     creating = true;
+
+    // Process textarea to populate participants array before saving
+    await processBulkGuests();
 
     try {
       const rankingConfig: RankingConfig = {
@@ -1687,6 +1904,31 @@
     handleSearch();
   });
 
+  // Clear analysis result when textarea changes (requires re-analysis)
+  let lastAnalyzedText = $state('');
+  $effect(() => {
+    if (bulkGuestText !== lastAnalyzedText) {
+      analysisResult = null;
+      analysisValid = false;
+    }
+  });
+
+  // Auto-analyze ONLY when first entering Step 4 with content (e.g., editing/duplicating a tournament)
+  // We track if we've already auto-analyzed to prevent loops
+  let hasAutoAnalyzedStep4 = $state(false);
+
+  $effect(() => {
+    // Only auto-analyze ONCE when entering step 4, not on every textarea change
+    if (currentStep === 4 && bulkGuestText.trim() && !hasAutoAnalyzedStep4 && !bulkProcessing) {
+      hasAutoAnalyzedStep4 = true;
+      processBulkGuests();
+    }
+    // Reset the flag when leaving step 4
+    if (currentStep !== 4) {
+      hasAutoAnalyzedStep4 = false;
+    }
+  });
+
   // Calculate max players based on tables and game type
   let playersPerTable = $derived(gameType === 'singles' ? 2 : 4);
   let maxPlayersForTables = $derived(numTables * playersPerTable);
@@ -1697,7 +1939,8 @@
     key; name; edition; country; city; gameType; gameMode; pointsToWin; roundsToPlay; matchesToWin;
     groupGameMode; groupPointsToWin; groupRoundsToPlay; groupMatchesToWin;
     finalPointsToWin; finalMatchesToWin; phaseType; numTables; numGroups;
-    numSwissRounds; participants.length; currentStep; keyCheckResult;
+    numSwissRounds; textareaParticipantCount; currentStep; keyCheckResult;
+    analysisValid; bulkErrors.length;  // Step 4 validation dependencies
     const result = getValidationForStep(currentStep);
     validationErrors = result[0];
     validationWarnings = result[1];
@@ -2715,15 +2958,15 @@
           <h2>👥 {m.wizard_participants()}</h2>
 
           <!-- Counter bar -->
-          <div class="participants-counter" class:warning={participants.length > maxPlayersForTables}>
+          <div class="participants-counter" class:warning={textareaParticipantCount > maxPlayersForTables}>
             <span class="counter-text">
-              {participants.length} {participants.length === 1 ? m.wizard_playersSingular() : m.wizard_players()}
+              {textareaParticipantCount} {textareaParticipantCount === 1 ? m.wizard_playersSingular() : m.wizard_players()}
               {#if gameType === 'doubles'}
-                ({participants.length * 2} jugadores)
+                ({textareaParticipantCount * 2} jugadores)
               {/if}
             </span>
             <span class="counter-label">
-              {#if participants.length > maxPlayersForTables}
+              {#if textareaParticipantCount > maxPlayersForTables}
                 ⚠️ {m.wizard_someRest({ max: maxPlayersForTables })}
               {:else}
                 {m.wizard_tablesParallel({ tables: numTables, tableWord: numTables === 1 ? m.wizard_table() : m.wizard_tablesPl(), max: maxPlayersForTables })}
@@ -2732,14 +2975,19 @@
           </div>
 
           {#if gameType === 'doubles'}
-            <!-- Doubles: Pair selector -->
+            <!-- Doubles: Pair selector - adds to textarea -->
             <PairSelector
               onadd={(participant) => {
-                participants = [...participants, participant];
+                // Convert participant to textarea line format
+                const names = `${participant.name} / ${participant.partner?.name}`;
+                const line = participant.teamName ? `${names}, ${participant.teamName}` : names;
+                // Prepend to textarea
+                bulkGuestText = line + (bulkGuestText.trim() ? '\n' + bulkGuestText : '');
+                saveDraft();
               }}
               existingParticipants={participants}
-              excludedUserIds={participants.flatMap(p => [p.userId, p.partner?.userId].filter((id): id is string => !!id))}
-              theme={$adminTheme}
+              excludedUserIds={[]}
+              excludedNames={textareaNames}
             />
           {:else}
             <!-- Singles: Individual player selector -->
@@ -2770,7 +3018,6 @@
                           onclick={() => addRegisteredUser({ ...user, userId: user.userId || '' })}
                         >
                           <span class="result-name">{user.playerName}</span>
-                          <span class="result-rank">{user.ranking || 0}</span>
                           <span class="result-add">+</span>
                         </button>
                       {/each}
@@ -2779,30 +3026,6 @@
                 </div>
               </div>
 
-              <div class="add-field guest-field">
-                <!-- svelte-ignore a11y_label_has_associated_control -->
-                <label>{m.wizard_addGuest()}</label>
-                <div class="guest-input-group">
-                  <input
-                    type="text"
-                    bind:value={guestName}
-                    placeholder="Nombre (mín. 3 chars)"
-                    class="input-field"
-                    onkeydown={(e) => {
-                      if (e.key === 'Enter' && guestName.trim().length >= 3) {
-                        addGuestPlayer();
-                      }
-                    }}
-                  />
-                  <button
-                    class="add-btn"
-                    onclick={addGuestPlayer}
-                    disabled={guestName.trim().length < 3}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
             </div>
           {/if}
 
@@ -2814,129 +3037,121 @@
               <span class="bulk-entry-divider"></span>
             </div>
 
-            <div class="bulk-entry-content">
-              <div class="bulk-entry-help">
-                {#if gameType === 'doubles'}
-                  <p>{m.wizard_bulkHelpDoubles()}</p>
-                  <code>Player1 / Player2, {m.wizard_teamNamePlaceholder()}</code>
-                  <code>Player3 / Player4</code>
-                {:else}
-                  <p>{m.wizard_bulkHelpSingles()}</p>
-                  <code>Player1</code>
-                  <code>Player2</code>
+            <div class="bulk-entry-layout">
+              <!-- Left: Textarea -->
+              <div class="bulk-entry-editor">
+                <Textarea
+                  bind:value={bulkGuestText}
+                  placeholder={gameType === 'doubles'
+                    ? "María García / Carlos López\nAna Pérez / Juan Martín, Los Tigres\nLaura Sánchez / Pedro Ruiz"
+                    : "María García\nCarlos López\nAna Pérez\nJuan Martín\nLaura Sánchez"}
+                  class="min-h-60 font-mono text-xs leading-relaxed resize-y bg-background"
+                />
+
+                {#if bulkErrors.length > 0}
+                  <div class="bulk-errors">
+                    {#each bulkErrors as error}
+                      <div class="bulk-error-item">⚠️ {error}</div>
+                    {/each}
+                  </div>
                 {/if}
-              </div>
 
-              <textarea
-                class="bulk-textarea"
-                bind:value={bulkGuestText}
-                placeholder={gameType === 'doubles'
-                  ? "Player1 / Player2\nPlayer3 / Player4, Los Tigres\n..."
-                  : "Player1\nPlayer2\nPlayer3\n..."}
-                rows="6"
-              ></textarea>
+                <!-- Actions below textarea -->
+                <div class="bulk-actions">
+                  <div class="bulk-test-group">
+                    <span class="bulk-test-label">{m.wizard_bulkTestLabel()}</span>
+                    <input
+                      type="number"
+                      class="bulk-test-input"
+                      bind:value={bulkTestCount}
+                      min="1"
+                      max="100"
+                    />
+                    <button
+                      type="button"
+                      class="bulk-test-btn"
+                      onclick={generateTestPlayers}
+                    >
+                      {m.wizard_bulkGenerateTest()}
+                    </button>
+                  </div>
 
-              {#if bulkErrors.length > 0}
-                <div class="bulk-errors">
-                  {#each bulkErrors as error}
-                    <div class="bulk-error-item">⚠️ {error}</div>
-                  {/each}
-                </div>
-              {/if}
-
-              <div class="bulk-actions">
-                <div class="bulk-test-group">
-                  <label>{m.wizard_bulkTestLabel()}</label>
-                  <input
-                    type="number"
-                    class="bulk-test-input"
-                    bind:value={bulkTestCount}
-                    min="1"
-                    max="100"
-                  />
                   <button
                     type="button"
-                    class="bulk-test-btn"
-                    onclick={generateTestPlayers}
+                    class="bulk-process-btn"
+                    onclick={processBulkGuests}
+                    disabled={!bulkGuestText.trim() || bulkProcessing}
                   >
-                    {m.wizard_bulkGenerateTest()}
+                    {#if bulkProcessing}
+                      {m.wizard_bulkProcessing()}
+                    {:else}
+                      {m.wizard_bulkAnalyze()}
+                    {/if}
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  class="bulk-process-btn"
-                  onclick={processBulkGuests}
-                  disabled={!bulkGuestText.trim() || bulkProcessing}
-                >
-                  {#if bulkProcessing}
-                    {m.wizard_bulkProcessing()}
-                  {:else}
-                    {m.wizard_bulkProcess()}
-                  {/if}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Participants list -->
-          <div class="participants-list-section">
-            <div class="list-header">
-              <span>{m.wizard_added()}</span>
-              <span class="list-count">{participants.length}</span>
-            </div>
-
-            {#if participants.length === 0}
-              <div class="empty-list">
-                {m.wizard_noParticipants()}
-              </div>
-            {:else}
-              <div class="participants-grid-2col">
-                {#each sortedParticipants as participant}
-                  <div
-                    class="participant-chip"
-                    class:registered={participant.type === 'REGISTERED'}
-                    class:pair={!!participant.partner}
-                  >
-                    <span class="chip-name">{participant.partner ? (participant.teamName || `${participant.name} / ${participant.partner.name}`) : participant.name}</span>
-                    {#if participant.partner}
-                      <button class="chip-edit" onclick={() => startEditParticipant(participant)} title="Editar nombre artístico">✏️</button>
-                    {:else if participant.type === 'REGISTERED' && participant.rankingSnapshot}
-                      <span class="chip-rank">{participant.rankingSnapshot}</span>
+                <!-- Analysis result -->
+                {#if analysisResult && bulkErrors.length === 0}
+                  <div class="analysis-result">
+                    <div class="analysis-summary">
+                      <span class="analysis-total">✓ {analysisResult.total} {analysisResult.total === 1 ? m.wizard_playersSingular() : m.wizard_players()}</span>
+                      <span class="analysis-registered">👤 {analysisResult.registered} {m.wizard_registered()}</span>
+                      <span class="analysis-guests">🎭 {analysisResult.guests} guests</span>
+                    </div>
+                    {#if analysisResult.registeredNames.length > 0}
+                      <div class="analysis-names">
+                        <span class="analysis-names-label">{m.wizard_registeredUsers()}:</span>
+                        <span class="analysis-names-list">{analysisResult.registeredNames.join(', ')}</span>
+                      </div>
                     {/if}
-                    <button class="chip-remove" onclick={() => removeParticipant(participant)}>×</button>
                   </div>
-                {/each}
+                {/if}
               </div>
 
-              <!-- Edit participant modal -->
-              {#if editingParticipant}
-                <div class="edit-modal-overlay" onclick={cancelEditParticipant}>
-                  <div class="edit-modal" onclick={(e) => e.stopPropagation()}>
-                    <h3>Editar pareja</h3>
-                    <div class="edit-modal-players">
-                      <span class="player-badge" class:registered={editingParticipant.type === 'REGISTERED'}>{editingParticipant.name}</span>
-                      <span class="player-sep">/</span>
-                      <span class="player-badge" class:registered={editingParticipant.partner?.type === 'REGISTERED'}>{editingParticipant.partner?.name}</span>
+              <!-- Right: Format guide -->
+              <div class="bulk-entry-guide">
+                <div class="guide-header">
+                  <span class="guide-title">{m.wizard_formatGuide()}</span>
+                </div>
+
+                <div class="guide-content">
+                  {#if gameType === 'doubles'}
+                    <div class="guide-section">
+                      <div class="guide-section-title">{m.wizard_basicFormat()}</div>
+                      <div class="guide-example">
+                        <code>Player1 / Player2</code>
+                      </div>
+                      <p class="guide-note">{m.wizard_separateSlash()}</p>
                     </div>
-                    <div class="edit-modal-field">
-                      <label>{m.wizard_teamName()}</label>
-                      <input
-                        type="text"
-                        bind:value={editTeamName}
-                        placeholder={`${editingParticipant.name} / ${editingParticipant.partner?.name}`}
-                        maxlength="40"
-                        class="input-field"
-                      />
+
+                    <div class="guide-section">
+                      <div class="guide-section-title">{m.wizard_withTeamName()}</div>
+                      <div class="guide-example">
+                        <code>Player1 / Player2, Team</code>
+                      </div>
+                      <p class="guide-note">{m.wizard_teamNameOptional()}</p>
                     </div>
-                    <div class="edit-modal-actions">
-                      <button class="btn-cancel" onclick={cancelEditParticipant}>{m.common_cancel()}</button>
-                      <button class="btn-save" onclick={saveEditParticipant}>{m.common_save()}</button>
+                  {:else}
+                    <div class="guide-section">
+                      <div class="guide-section-title">{m.wizard_basicFormat()}</div>
+                      <div class="guide-example">
+                        <code>Player Name</code>
+                      </div>
+                      <p class="guide-note">{m.wizard_onePerLine()}</p>
                     </div>
+                  {/if}
+
+                  <div class="guide-section guide-tips">
+                    <div class="guide-section-title">{m.wizard_tips()}</div>
+                    <ul class="guide-list">
+                      <li>{m.wizard_tipMinChars()}</li>
+                      <li>{m.wizard_tipAutoDetect()}</li>
+                      <li>{m.wizard_tipEmptyLines()}</li>
+                    </ul>
                   </div>
                 </div>
-              {/if}
-            {/if}
+              </div>
+            </div>
           </div>
         </div>
       {/if}
@@ -3079,7 +3294,7 @@
                   </div>
                   <div class="review-row">
                     <span class="review-label">{m.wizard_participants()}</span>
-                    <span class="review-value">{participants.length}</span>
+                    <span class="review-value">{textareaParticipantCount}</span>
                   </div>
                 </div>
               </div>
@@ -3093,17 +3308,17 @@
                   <div class="accordion-title">
                     <span class="review-icon">👥</span>
                     <span>{m.wizard_participants()}</span>
-                    <span class="participant-count">{participants.length}</span>
+                    <span class="participant-count">{textareaParticipantCount}</span>
                   </div>
                   <span class="accordion-chevron">›</span>
                 </button>
                 {#if participantsExpanded}
                   <div class="accordion-body">
                     <div class="participants-grid">
-                      {#each sortedParticipants as participant, i}
-                        <div class="participant-item" class:registered={participant.type === 'REGISTERED'}>
+                      {#each bulkGuestText.split('\n').filter(l => l.trim().length >= 3) as line, i}
+                        <div class="participant-item">
                           <span class="participant-number">{i + 1}</span>
-                          <span class="participant-name">{participant.name}</span>
+                          <span class="participant-name">{line.trim()}</span>
                         </div>
                       {/each}
                     </div>
@@ -3292,7 +3507,7 @@
               {/if}
             </button>
           {/if}
-          <button class="nav-button primary" onclick={nextStep} disabled={validationErrors.length > 0}>
+          <button class="nav-button primary" onclick={nextStep} disabled={nextButtonDisabled}>
             {m.wizard_next()} →
           </button>
         </div>
@@ -6551,7 +6766,7 @@
     background: #4a5568;
   }
 
-  /* Bulk Entry Section */
+  /* Bulk Entry Section - Professional Two-Column Layout */
   .bulk-entry-section {
     margin-top: 1.25rem;
     margin-bottom: 1rem;
@@ -6561,23 +6776,25 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.625rem;
   }
 
   .bulk-entry-divider {
     flex: 1;
     height: 1px;
-    background: #e0e0e0;
+    background: linear-gradient(90deg, transparent, #d1d5db 20%, #d1d5db 80%, transparent);
   }
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-divider {
-    background: #3d4a5c;
+    background: linear-gradient(90deg, transparent, #3d4a5c 20%, #3d4a5c 80%, transparent);
   }
 
   .bulk-entry-label {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #888;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     white-space: nowrap;
   }
 
@@ -6585,173 +6802,144 @@
     color: #8b9bb3;
   }
 
-  .bulk-entry-content {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 0.875rem;
+  /* Two-column layout */
+  .bulk-entry-layout {
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    gap: 0.875rem;
+    align-items: stretch;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-content {
-    background: #151e2c;
-    border-color: #2d3748;
+  @media (max-width: 768px) {
+    .bulk-entry-layout {
+      grid-template-columns: 1fr;
+    }
+    .bulk-entry-guide {
+      order: -1;
+    }
   }
 
-  .bulk-entry-help {
-    font-size: 0.75rem;
-    color: #666;
-    margin-bottom: 0.5rem;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-help {
-    color: #8b9bb3;
-  }
-
-  .bulk-entry-help p {
-    margin: 0 0 0.25rem 0;
-  }
-
-  .bulk-entry-help code {
-    display: block;
-    font-family: monospace;
-    font-size: 0.7rem;
-    color: #555;
-    background: #e8ecf1;
-    padding: 0.15rem 0.35rem;
-    border-radius: 3px;
-    margin: 0.15rem 0;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-help code {
-    background: #2d3748;
-    color: #a0aec0;
-  }
-
-  .bulk-textarea {
-    width: 100%;
-    min-height: 120px;
-    padding: 0.5rem;
-    font-family: monospace;
-    font-size: 0.8rem;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: white;
-    color: #333;
-    resize: vertical;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-textarea {
-    background: #1a2332;
-    border-color: #3d4a5c;
-    color: #e2e8f0;
-  }
-
-  .bulk-textarea:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  /* Left column: Editor */
+  .bulk-entry-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
   }
 
   .bulk-errors {
-    margin-top: 0.5rem;
-    max-height: 120px;
+    max-height: 80px;
     overflow-y: auto;
     background: #fef2f2;
     border: 1px solid #fecaca;
-    border-radius: 4px;
-    padding: 0.5rem;
+    border-radius: 5px;
+    padding: 0.5rem 0.625rem;
   }
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-errors {
-    background: #2d1f1f;
-    border-color: #6b2c2c;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
   }
 
   .bulk-error-item {
     font-size: 0.7rem;
     color: #dc2626;
-    padding: 0.15rem 0;
+    padding: 0.1rem 0;
   }
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-error-item {
     color: #f87171;
   }
 
+  /* Compact inline actions bar */
   .bulk-actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    margin-top: 0.75rem;
-    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-actions {
+    background: #1e293b;
+    border-color: #334155;
   }
 
   .bulk-test-group {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.375rem;
   }
 
-  .bulk-test-group label {
-    font-size: 0.75rem;
-    color: #666;
+  .bulk-test-label {
+    font-size: 0.7rem;
+    color: #64748b;
     font-weight: 500;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-group label {
-    color: #8b9bb3;
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-label {
+    color: #94a3b8;
   }
 
   .bulk-test-input {
-    width: 60px;
-    padding: 0.35rem 0.5rem;
-    font-size: 0.8rem;
-    border: 1px solid #d1d5db;
+    width: 44px;
+    padding: 0.25rem 0.375rem;
+    font-size: 0.75rem;
+    border: 1px solid #e2e8f0;
     border-radius: 4px;
-    background: white;
-    color: #333;
+    background: #fff;
+    color: #1e293b;
     text-align: center;
   }
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-input {
-    background: #1a2332;
-    border-color: #3d4a5c;
+    background: #0f172a;
+    border-color: #334155;
     color: #e2e8f0;
   }
 
+  .bulk-test-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
   .bulk-test-btn {
-    padding: 0.35rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
     font-weight: 500;
-    background: #e5e7eb;
-    color: #374151;
-    border: none;
+    background: #fff;
+    color: #475569;
+    border: 1px solid #e2e8f0;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s;
   }
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-btn {
-    background: #3d4a5c;
-    color: #e2e8f0;
+    background: #0f172a;
+    border-color: #334155;
+    color: #cbd5e1;
   }
 
   .bulk-test-btn:hover {
-    background: #d1d5db;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
   }
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-btn:hover {
-    background: #4a5568;
+    background: #334155;
   }
 
   .bulk-process-btn {
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.75rem;
     font-weight: 600;
     background: #10b981;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 5px;
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -6763,6 +6951,215 @@
   .bulk-process-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* Right column: Format guide */
+  .bulk-entry-guide {
+    display: flex;
+    flex-direction: column;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-guide {
+    background: #0f172a;
+    border-color: #1e293b;
+  }
+
+  .guide-header {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-header {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .guide-title {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-title {
+    color: #94a3b8;
+  }
+
+  .guide-content {
+    flex: 1;
+    padding: 0.625rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .guide-section {
+    margin-bottom: 0.625rem;
+  }
+
+  .guide-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .guide-section-title {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.25rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-section-title {
+    color: #94a3b8;
+  }
+
+  .guide-example {
+    margin-bottom: 0.25rem;
+  }
+
+  .guide-example code {
+    display: inline-block;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+    font-size: 0.7rem;
+    color: #0f172a;
+    background: #e2e8f0;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid #cbd5e1;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-example code {
+    background: #1e293b;
+    border-color: #334155;
+    color: #e2e8f0;
+  }
+
+  .guide-note {
+    font-size: 0.65rem;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.35;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-note {
+    color: #94a3b8;
+  }
+
+  .guide-tips {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-tips {
+    border-color: #1e293b;
+  }
+
+  .guide-list {
+    margin: 0;
+    padding-left: 0.875rem;
+    list-style: none;
+  }
+
+  .guide-list li {
+    font-size: 0.65rem;
+    color: #64748b;
+    line-height: 1.4;
+    position: relative;
+  }
+
+  .guide-list li::before {
+    content: "•";
+    position: absolute;
+    left: -0.625rem;
+    color: #94a3b8;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-list li {
+    color: #94a3b8;
+  }
+
+  /* Analysis result - Compact inline */
+  .analysis-result {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.625rem;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 5px;
+    flex-wrap: wrap;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-result {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+
+  .analysis-summary {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .analysis-total {
+    color: #059669;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-total {
+    color: #34d399;
+  }
+
+  .analysis-registered {
+    color: #2563eb;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-registered {
+    color: #60a5fa;
+  }
+
+  .analysis-guests {
+    color: #64748b;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-guests {
+    color: #94a3b8;
+  }
+
+  .analysis-names {
+    font-size: 0.7rem;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-names {
+    color: #94a3b8;
+  }
+
+  .analysis-names-label {
+    font-weight: 600;
+  }
+
+  .analysis-names-list {
+    color: #2563eb;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-names-list {
+    color: #60a5fa;
   }
 
   .participants-list-section {
@@ -7084,7 +7481,6 @@
 
   /* Validation - Compact */
   .validation-messages {
-    margin-top: 1rem;
     padding: 0.75rem;
     border-radius: 6px;
     font-size: 0.8rem;
