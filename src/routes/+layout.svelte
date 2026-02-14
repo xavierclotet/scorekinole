@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { loadMatchState } from '$lib/stores/matchState';
@@ -32,7 +32,7 @@
 	let showUpdateModal = $state(false);
 
 	// Don't show update modal when playing a game
-	let isOnGamePage = $derived($page.url.pathname === '/game');
+	let isOnGamePage = $derived(page.url.pathname === '/game');
 
 	async function setupBackButtonHandler() {
 		try {

@@ -1,16 +1,17 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { Copy, Check, X, Loader2, UserCheck } from '@lucide/svelte';
+	import { onDestroy } from 'svelte';
+	import { Copy, Check, LoaderCircle, UserCheck, UserX, Clock } from '@lucide/svelte';
 	import QRCode from 'qrcode';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import * as m from '$lib/paraglide/messages.js';
-	import type { MatchInvite } from '$lib/types/matchInvite';
 	import {
 		createInvite,
 		cancelInvite,
 		subscribeToInvite,
-		getInviteUrl
+		getInviteUrl,
+		getInviteTimeRemaining,
+		isInviteExpired
 	} from '$lib/firebase/matchInvites';
 	import {
 		activeInvite,
@@ -35,11 +36,30 @@
 	let isCreating = $state(false);
 	let isCopied = $state(false);
 	let error = $state('');
+	let timeRemaining = $state(0);
+	let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
 	// Derive invite URL and state from the active invite
 	let inviteUrl = $derived($activeInvite ? getInviteUrl($activeInvite.inviteCode) : '');
 	let isAccepted = $derived($activeInvite?.status === 'accepted');
+	let isDeclined = $derived($activeInvite?.status === 'declined');
 	let guestName = $derived($activeInvite?.guestUserName || '');
+	let isExpired = $derived($activeInvite ? isInviteExpired($activeInvite) : false);
+
+	// Check if we need a fresh invite (no invite, or previous was accepted/expired/declined)
+	let needsNewInvite = $derived(
+		!$activeInvite ||
+		$activeInvite.status === 'accepted' ||
+		$activeInvite.status === 'declined' ||
+		$activeInvite.status === 'cancelled' ||
+		$activeInvite.status === 'expired' ||
+		isInviteExpired($activeInvite)
+	);
+
+	// Countdown display
+	let minutesLeft = $derived(Math.floor(timeRemaining / 60000));
+	let secondsLeft = $derived(Math.floor((timeRemaining % 60000) / 1000));
+	let formattedSeconds = $derived(secondsLeft.toString().padStart(2, '0'));
 
 	// Generate QR code when invite is created
 	$effect(() => {
@@ -62,12 +82,50 @@
 		}
 	});
 
+	// Update countdown timer
+	$effect(() => {
+		if ($activeInvite && !isAccepted && !isExpired) {
+			// Start countdown interval
+			if (countdownInterval) {
+				clearInterval(countdownInterval);
+			}
+
+			// Initial update
+			timeRemaining = getInviteTimeRemaining($activeInvite);
+
+			countdownInterval = setInterval(() => {
+				if ($activeInvite) {
+					timeRemaining = getInviteTimeRemaining($activeInvite);
+
+					// If expired, clear the interval and create a new invite
+					if (timeRemaining <= 0) {
+						clearInterval(countdownInterval!);
+						countdownInterval = null;
+						clearActiveInvite();
+						qrCodeSvg = '';
+						// Will trigger new invite creation via the other $effect
+					}
+				}
+			}, 1000);
+		} else if (countdownInterval) {
+			clearInterval(countdownInterval);
+			countdownInterval = null;
+		}
+	});
+
+	// Cleanup on destroy
+	onDestroy(() => {
+		if (countdownInterval) {
+			clearInterval(countdownInterval);
+		}
+	});
+
 	async function generateQRCode(url: string) {
 		try {
 			qrCodeSvg = await QRCode.toString(url, {
 				type: 'svg',
-				width: 200,
-				margin: 2,
+				width: 160,
+				margin: 1,
 				color: {
 					dark: '#000000',
 					light: '#ffffff'
@@ -86,8 +144,6 @@
 
 		try {
 			const playerName = await getPlayerName();
-			const hostTeam = hostTeamNumber === 1 ? $team1 : $team2;
-			const guestTeam = hostTeamNumber === 1 ? $team2 : $team1;
 
 			const invite = await createInvite({
 				hostUserId: $currentUser.id,
@@ -154,229 +210,340 @@
 		onclose?.();
 	}
 
-	// Create invite when modal opens if we don't have one
+	// Create invite when modal opens if we need one
 	$effect(() => {
-		if (isOpen && !$activeInvite && $currentUser) {
+		if (isOpen && needsNewInvite && $currentUser && !isCreating) {
+			// Clear old invite first
+			if ($activeInvite) {
+				clearActiveInvite();
+				qrCodeSvg = '';
+			}
 			handleCreateInvite();
 		}
 	});
 </script>
 
 <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-	<Dialog.Content class="max-w-sm">
-		<Dialog.Header>
-			<Dialog.Title>{m.invite_invitePlayer()}</Dialog.Title>
-		</Dialog.Header>
+	<Dialog.Content class="invite-modal">
+		{#if isCreating}
+			<div class="invite-state">
+				<LoaderCircle class="animate-spin" size={36} />
+				<p>{m.invite_createInvite()}...</p>
+			</div>
+		{:else if error}
+			<div class="invite-state">
+				<p class="error-text">{error}</p>
+				<Button onclick={handleCreateInvite} size="sm">
+					{m.tournament_tryAgain()}
+				</Button>
+			</div>
+		{:else if isAccepted}
+			<div class="invite-success">
+				<div class="success-icon">
+					<UserCheck size={28} />
+				</div>
+				<h3>{m.invite_playerJoined({ name: guestName })}</h3>
+				{#if $activeInvite?.guestUserPhotoURL}
+					<img
+						src={$activeInvite.guestUserPhotoURL}
+						alt={guestName}
+						class="guest-photo"
+					/>
+				{/if}
+				<Button onclick={handleClose} class="close-btn">
+					{m.common_close()}
+				</Button>
+			</div>
+		{:else if isDeclined}
+			<div class="invite-declined">
+				<div class="declined-icon">
+					<UserX size={28} />
+				</div>
+				<h3>{m.invite_playerDeclined({ name: guestName })}</h3>
+				{#if $activeInvite?.guestUserPhotoURL}
+					<img
+						src={$activeInvite.guestUserPhotoURL}
+						alt={guestName}
+						class="guest-photo"
+					/>
+				{/if}
+				<Button onclick={handleCreateInvite} class="close-btn">
+					{m.invite_inviteAnother()}
+				</Button>
+			</div>
+		{:else if $activeInvite}
+			<div class="invite-content">
+				<div class="modal-header">
+					<h2>{m.invite_invitePlayer()}</h2>
+					<p>{m.invite_scanQR()}</p>
+				</div>
 
-		<div class="invite-content">
-			{#if isCreating}
-				<div class="loading-state">
-					<Loader2 class="animate-spin" size={32} />
-					<p>{m.invite_createInvite()}...</p>
-				</div>
-			{:else if error}
-				<div class="error-state">
-					<p class="text-destructive">{error}</p>
-					<Button onclick={handleCreateInvite}>
-						{m.tournament_tryAgain()}
-					</Button>
-				</div>
-			{:else if isAccepted}
-				<div class="accepted-state">
-					<div class="accepted-icon">
-						<UserCheck size={48} />
-					</div>
-					<h3 class="accepted-title">{m.invite_playerJoined({ name: guestName })}</h3>
-					{#if $activeInvite?.guestUserPhotoURL}
-						<img
-							src={$activeInvite.guestUserPhotoURL}
-							alt={guestName}
-							class="guest-avatar"
-						/>
-					{/if}
-					<Button onclick={handleClose} class="mt-4">
-						{m.common_close()}
-					</Button>
-				</div>
-			{:else if $activeInvite}
-				<div class="invite-state">
-					<!-- QR Code -->
-					<div class="qr-container">
+				<div class="qr-section">
+					<div class="qr-frame">
 						{#if qrCodeSvg}
-							{@html qrCodeSvg}
+							<div class="qr-code">
+								{@html qrCodeSvg}
+							</div>
 						{:else}
 							<div class="qr-placeholder">
-								<Loader2 class="animate-spin" size={24} />
+								<LoaderCircle class="animate-spin" size={28} />
 							</div>
 						{/if}
 					</div>
+				</div>
 
-					<p class="scan-text">{m.invite_scanQR()}</p>
-
-					<!-- Invite Code -->
-					<div class="code-section">
-						<p class="code-label">{m.invite_orShareCode()}</p>
-						<div class="code-display">
-							<span class="code">{$activeInvite.inviteCode}</span>
-						</div>
-					</div>
-
-					<!-- Copy Link Button -->
-					<Button
-						variant="outline"
-						onclick={handleCopyLink}
-						class="copy-btn"
-					>
+				<div class="code-section">
+					<span class="invite-code">{$activeInvite.inviteCode}</span>
+					<button class="copy-btn" onclick={handleCopyLink}>
 						{#if isCopied}
-							<Check size={16} class="mr-2" />
+							<Check size={14} />
 							{m.invite_linkCopied()}
 						{:else}
-							<Copy size={16} class="mr-2" />
+							<Copy size={14} />
 							{m.invite_copyLink()}
 						{/if}
-					</Button>
+					</button>
+				</div>
 
-					<!-- Waiting indicator -->
-					<div class="waiting-section">
-						<Loader2 class="animate-spin" size={16} />
+				<div class="status-bar">
+					<div class="status-item">
+						<span class="pulse-dot"></span>
 						<span>{m.invite_waitingForPlayer()}</span>
 					</div>
-
-					<!-- Cancel button -->
-					<Button
-						variant="ghost"
-						onclick={handleCancelInvite}
-						class="cancel-btn"
-					>
-						{m.invite_cancelInvite()}
-					</Button>
+					<div class="status-item timer">
+						<Clock size={13} />
+						<span>{minutesLeft}:{formattedSeconds}</span>
+					</div>
 				</div>
-			{/if}
-		</div>
+
+				<button class="cancel-btn" onclick={handleCancelInvite}>
+					{m.invite_cancelInvite()}
+				</button>
+			</div>
+		{/if}
 	</Dialog.Content>
 </Dialog.Root>
 
 <style>
-	.invite-content {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		padding: 1rem 0;
-		min-height: 300px;
+	:global(.invite-modal) {
+		max-width: 380px !important;
+		padding: 0 !important;
+		overflow: hidden !important;
+		gap: 0 !important;
 	}
 
-	.loading-state,
-	.error-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 1rem;
-		flex: 1;
-	}
-
-	.accepted-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 1rem;
-		flex: 1;
-		text-align: center;
-	}
-
-	.accepted-icon {
-		color: var(--primary);
-	}
-
-	.accepted-title {
-		font-size: 1.25rem;
-		font-weight: 600;
-	}
-
-	.guest-avatar {
-		width: 64px;
-		height: 64px;
-		border-radius: 50%;
-		object-fit: cover;
+	:global(.invite-modal button[data-dialog-close]) {
+		cursor: pointer;
 	}
 
 	.invite-state {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: center;
+		padding: 3rem 1.5rem;
 		gap: 1rem;
-		width: 100%;
-	}
-
-	.qr-container {
-		background: white;
-		padding: 1rem;
-		border-radius: 12px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.qr-container :global(svg) {
-		width: 200px;
-		height: 200px;
-	}
-
-	.qr-placeholder {
-		width: 200px;
-		height: 200px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: #f0f0f0;
-		border-radius: 8px;
-	}
-
-	.scan-text {
 		color: var(--muted-foreground);
+	}
+
+	.invite-state .error-text {
+		color: var(--destructive);
 		font-size: 0.875rem;
 	}
 
-	.code-section {
+	.invite-success {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.5rem;
+		padding: 2rem 1.5rem;
+		gap: 0.75rem;
 	}
 
-	.code-label {
-		color: var(--muted-foreground);
-		font-size: 0.75rem;
+	.success-icon {
+		width: 56px;
+		height: 56px;
+		border-radius: 50%;
+		background: color-mix(in srgb, #22c55e 12%, transparent);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #22c55e;
+		margin-bottom: 0.5rem;
 	}
 
-	.code-display {
-		background: var(--muted);
-		padding: 0.5rem 1.5rem;
-		border-radius: 8px;
+	.invite-success h3 {
+		font-size: 1rem;
+		font-weight: 600;
+		text-align: center;
+		margin: 0;
 	}
 
-	.code {
-		font-family: monospace;
-		font-size: 1.5rem;
-		font-weight: 700;
-		letter-spacing: 0.2em;
+	.guest-photo {
+		width: 48px;
+		height: 48px;
+		border-radius: 50%;
+		object-fit: cover;
+		border: 2px solid color-mix(in srgb, #22c55e 30%, transparent);
 	}
 
-	.copy-btn {
+	:global(.close-btn) {
+		margin-top: 1rem;
 		width: 100%;
 	}
 
-	.waiting-section {
+	.invite-content {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.modal-header {
+		padding: 1.25rem 1.5rem 0;
+		text-align: center;
+	}
+
+	.modal-header h2 {
+		font-size: 1.125rem;
+		font-weight: 600;
+		margin: 0 0 0.25rem;
+		color: var(--foreground);
+	}
+
+	.modal-header p {
+		font-size: 0.8125rem;
+		color: var(--muted-foreground);
+		margin: 0;
+	}
+
+	.qr-section {
+		padding: 1.25rem 1.5rem 1rem;
+		display: flex;
+		justify-content: center;
+	}
+
+	.qr-frame {
+		background: white;
+		padding: 10px;
+		border-radius: 12px;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	}
+
+	.qr-code {
+		width: 160px;
+		height: 160px;
+	}
+
+	.qr-placeholder {
+		width: 160px;
+		height: 160px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--muted-foreground);
+		opacity: 0.5;
+	}
+
+	.code-section {
+		padding: 0 1.5rem 1.25rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.invite-code {
+		font-family: 'SF Mono', 'Fira Code', monospace;
+		font-size: 1.5rem;
+		font-weight: 700;
+		letter-spacing: 0.3em;
+		color: var(--foreground);
+		background: var(--muted);
+		padding: 0.625rem 1.25rem;
+		border-radius: 8px;
+	}
+
+	.copy-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		font-size: 0.8125rem;
+		color: var(--muted-foreground);
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0.375rem 0.75rem;
+		border-radius: 6px;
+		transition: all 0.15s ease;
+	}
+
+	.copy-btn:hover {
+		color: var(--foreground);
+		background: var(--muted);
+	}
+
+	.status-bar {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 1.5rem;
+		padding: 0.875rem 1.5rem;
+		background: var(--muted);
+		border-top: 1px solid var(--border);
+	}
+
+	.status-item {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		font-size: 0.8125rem;
 		color: var(--muted-foreground);
-		font-size: 0.875rem;
+	}
+
+	.status-item.timer {
+		font-family: 'SF Mono', 'Fira Code', monospace;
+		font-weight: 500;
+	}
+
+	.pulse-dot {
+		position: relative;
+		width: 8px;
+		height: 8px;
+	}
+
+	.pulse-dot::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background: var(--primary);
+		animation: pulse 2s ease-in-out infinite;
+	}
+
+	.pulse-dot::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background: var(--primary);
+	}
+
+	@keyframes pulse {
+		0%, 100% { transform: scale(1); opacity: 1; }
+		50% { transform: scale(2); opacity: 0; }
 	}
 
 	.cancel-btn {
+		width: 100%;
+		padding: 0.75rem;
+		font-size: 0.8125rem;
 		color: var(--muted-foreground);
-		font-size: 0.875rem;
+		background: none;
+		border: none;
+		border-top: 1px solid var(--border);
+		cursor: pointer;
+		transition: color 0.15s ease;
+	}
+
+	.cancel-btn:hover {
+		color: var(--destructive);
 	}
 </style>

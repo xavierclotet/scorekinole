@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
-	import { Loader2, CheckCircle, XCircle, AlertCircle, LogIn } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import { LoaderCircle, CircleCheck, CircleX, CircleAlert, LogIn } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
+	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
 	import * as m from '$lib/paraglide/messages.js';
 	import { currentUser, signInWithGoogle, authInitialized } from '$lib/firebase/auth';
 	import { getPlayerName } from '$lib/firebase/userProfile';
@@ -23,7 +23,7 @@
 	let success = $state(false);
 
 	// Get invite code from URL
-	let inviteCode = $derived($page.url.searchParams.get('invite') || '');
+	let inviteCode = $derived(page.url.searchParams.get('invite') || '');
 
 	// Load invite on mount
 	onMount(async () => {
@@ -161,32 +161,36 @@
 </svelte:head>
 
 <div class="join-page">
-	<div class="join-card">
+	<div class="join-container">
+		<div class="join-header">
+			<ScorekinoleLogo />
+		</div>
+		<div class="join-card">
 		{#if isLoading}
 			<div class="state-container">
-				<Loader2 class="animate-spin" size={48} />
+				<LoaderCircle class="animate-spin" size={48} />
 				<p>{m.common_loading()}...</p>
 			</div>
 		{:else if error}
 			<div class="state-container error">
-				<XCircle size={48} />
+				<CircleX size={48} />
 				<h2>{getErrorMessage()}</h2>
-				<Button href="/" variant="outline">
+				<Button href="/" variant="outline" style="padding: 0.75rem 2rem;">
 					{m.common_goHome()}
 				</Button>
 			</div>
 		{:else if success}
 			<div class="state-container success">
-				<CheckCircle size={64} />
+				<CircleCheck size={64} />
 				<h2>{m.join_successTitle()}</h2>
 				<p class="success-desc">
-					{m.join_successDesc({ name: invite?.hostUserName || '' })}
+					{m.join_successDesc({ name: invite?.guestUserName || '' })}
 				</p>
-				{#if invite?.hostUserPhotoURL}
+				{#if invite?.guestUserPhotoURL}
 					<img
-						src={invite.hostUserPhotoURL}
-						alt={invite.hostUserName}
-						class="host-avatar"
+						src={invite.guestUserPhotoURL}
+						alt={invite.guestUserName}
+						class="guest-avatar"
 					/>
 				{/if}
 			</div>
@@ -217,16 +221,13 @@
 							<span class="config-label">{m.scoring_gameMode()}</span>
 							<span class="config-value">
 								{invite.matchContext.gameMode === 'points'
-									? `${invite.matchContext.pointsToWin} ${m.scoring_points().toLowerCase()}`
-									: `${invite.matchContext.roundsToPlay} ${m.scoring_rounds().toLowerCase()}`}
+									? `${invite.matchContext.pointsToWin}p`
+									: `${invite.matchContext.roundsToPlay}r`}
+								{#if invite.matchContext.matchesToWin > 1}
+									<span class="matches-badge">{m.bracket_bestOf()}{invite.matchContext.matchesToWin}</span>
+								{/if}
 							</span>
 						</div>
-						{#if invite.matchContext.matchesToWin > 1}
-							<div class="config-item">
-								<span class="config-label">{m.scoring_matchesToWin()}</span>
-								<span class="config-value">{invite.matchContext.matchesToWin}</span>
-							</div>
-						{/if}
 					</div>
 				</div>
 
@@ -236,38 +237,41 @@
 						<Button
 							onclick={handleAccept}
 							disabled={isAccepting}
-							class="accept-btn"
+							class="accept-btn w-full"
 						>
 							{#if isAccepting}
-								<Loader2 class="animate-spin mr-2" size={16} />
+								<LoaderCircle class="animate-spin mr-2" size={16} />
 								{m.join_accepting()}
 							{:else}
-								<CheckCircle class="mr-2" size={16} />
+								<CircleCheck class="mr-2" size={16} />
 								{m.join_acceptInvite()}
 							{/if}
 						</Button>
 					{:else}
-						<div class="sign-in-prompt">
-							<AlertCircle size={20} />
-							<p>{m.join_signInToAccept()}</p>
+						<div class="sign-in-section">
+							<div class="sign-in-prompt">
+								<CircleAlert size={20} />
+								<p>{m.join_signInToAccept()}</p>
+							</div>
+							<Button
+								onclick={handleSignIn}
+								disabled={isSigningIn}
+								class="w-full"
+							>
+								{#if isSigningIn}
+									<LoaderCircle class="animate-spin mr-2" size={16} />
+									{m.auth_signingIn()}
+								{:else}
+									<LogIn class="mr-2" size={16} />
+									{m.auth_continueWithGoogle()}
+								{/if}
+							</Button>
 						</div>
-						<Button
-							onclick={handleSignIn}
-							disabled={isSigningIn}
-							class="sign-in-btn"
-						>
-							{#if isSigningIn}
-								<Loader2 class="animate-spin mr-2" size={16} />
-								{m.auth_signingIn()}
-							{:else}
-								<LogIn class="mr-2" size={16} />
-								{m.auth_continueWithGoogle()}
-							{/if}
-						</Button>
 					{/if}
 				</div>
 			</div>
 		{/if}
+		</div>
 	</div>
 </div>
 
@@ -281,12 +285,25 @@
 		background: var(--background);
 	}
 
+	.join-container {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1.5rem;
+		width: 100%;
+		max-width: 460px;
+	}
+
+	.join-header {
+		display: flex;
+		justify-content: center;
+	}
+
 	.join-card {
 		background: var(--card);
 		border-radius: 16px;
 		padding: 2rem;
 		width: 100%;
-		max-width: 400px;
 		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 	}
 
@@ -314,7 +331,7 @@
 		max-width: 280px;
 	}
 
-	.host-avatar {
+	.guest-avatar {
 		width: 64px;
 		height: 64px;
 		border-radius: 50%;
@@ -399,15 +416,30 @@
 
 	.config-value {
 		font-weight: 500;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.matches-badge {
+		background: var(--primary);
+		color: var(--primary-foreground);
+		font-size: 0.75rem;
+		padding: 0.125rem 0.375rem;
+		border-radius: 4px;
+		font-weight: 600;
 	}
 
 	.actions {
 		display: flex;
-		flex-direction: column;
-		gap: 1rem;
+		flex-direction: row;
+		gap: 0.75rem;
 	}
 
-	.accept-btn {
+	.sign-in-section {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
 		width: 100%;
 	}
 
@@ -418,9 +450,5 @@
 		gap: 0.5rem;
 		color: var(--muted-foreground);
 		font-size: 0.875rem;
-	}
-
-	.sign-in-btn {
-		width: 100%;
 	}
 </style>

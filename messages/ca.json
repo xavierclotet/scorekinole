@@ -281,7 +281,7 @@
   "auth_signingIn": "Iniciant sessió...",
   "auth_updateProfile": "Actualitzar Perfil",
   "auth_userId": "ID d'Usuari",
-  "bracket_bestOf": "Pg",
+  "bracket_bestOf": "Pg ",
   "bracket_clickToEdit": "Clic per editar",
   "bracket_configuration": "Configuració",
   "bracket_configurationError": "Error en guardar configuració",
@@ -1200,5 +1200,9 @@
   "join_pageTitle": "Unir-se a partida",
   "join_signInToAccept": "Inicia sessió per acceptar",
   "join_successDesc": "T'has unit a la partida de {name} . El resultat es desarà al vostre historial quan acabi.",
-  "join_successTitle": "T'has unit!"
+  "join_successTitle": "T'has unit!",
+  "invite_expiresIn": "Expira en {minutes}:{seconds}",
+  "join_declineInvite": "Rebutjar",
+  "invite_playerDeclined": "{name} ha rebutjat la invitació",
+  "invite_inviteAnother": "Convidar un altre jugador"
 }

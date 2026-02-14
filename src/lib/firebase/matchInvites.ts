@@ -3,6 +3,7 @@ import { currentUser } from './auth';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { MatchInvite, CreateInviteData, AcceptInviteData } from '$lib/types/matchInvite';
+import { PRODUCTION_URL } from '$lib/constants';
 import {
 	collection,
 	doc,
@@ -63,14 +64,28 @@ export function isInviteExpired(invite: MatchInvite): boolean {
 }
 
 /**
+ * Get the remaining time for an invite in milliseconds
+ * Returns 0 if expired
+ */
+export function getInviteTimeRemaining(invite: MatchInvite): number {
+	if (!invite.expiresAt) return 0;
+
+	const expiresAtMs =
+		invite.expiresAt instanceof Timestamp
+			? invite.expiresAt.toMillis()
+			: (invite.expiresAt as number);
+
+	const remaining = expiresAtMs - Date.now();
+	return remaining > 0 ? remaining : 0;
+}
+
+/**
  * Generate the full invite URL for a given code
+ * Always uses production URL to ensure QR codes work when scanned
  */
 export function getInviteUrl(inviteCode: string): string {
-	if (browser) {
-		const baseUrl = window.location.origin;
-		return `${baseUrl}/join?invite=${inviteCode}`;
-	}
-	return `/join?invite=${inviteCode}`;
+	// Always use production URL for invites so QR codes work
+	return `${PRODUCTION_URL}/join?invite=${inviteCode}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -256,6 +271,54 @@ export async function acceptInvite(
 	} catch (error) {
 		console.error('Error accepting invite:', error);
 		return null;
+	}
+}
+
+/**
+ * Decline an invitation (called by the guest)
+ * Updates the invitation status to 'declined' so the host is notified
+ */
+export async function declineInvite(
+	inviteCode: string,
+	guestData: AcceptInviteData
+): Promise<boolean> {
+	if (!browser || !isFirebaseEnabled() || !db) {
+		console.warn('Firebase disabled - cannot decline invite');
+		return false;
+	}
+
+	try {
+		const invite = await getInviteByCode(inviteCode);
+
+		if (!invite) {
+			console.warn('Invite not found:', inviteCode);
+			return false;
+		}
+
+		if (invite.status !== 'pending') {
+			console.warn('Invite is not pending:', invite.status);
+			return false;
+		}
+
+		if (isInviteExpired(invite)) {
+			console.warn('Invite has expired');
+			return false;
+		}
+
+		// Update invitation with declined status and guest info
+		const inviteRef = doc(db, 'matchInvites', invite.id);
+		await updateDoc(inviteRef, {
+			status: 'declined',
+			guestUserId: guestData.guestUserId,
+			guestUserName: guestData.guestUserName,
+			guestUserPhotoURL: guestData.guestUserPhotoURL
+		});
+
+		console.log(`Declined invite: ${inviteCode}`);
+		return true;
+	} catch (error) {
+		console.error('Error declining invite:', error);
+		return false;
 	}
 }
 

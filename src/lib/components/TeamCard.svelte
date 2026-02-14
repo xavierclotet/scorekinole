@@ -2,13 +2,12 @@
 	import { vibrate } from '$lib/utils/vibration';
 	import { getContrastColor } from '$lib/utils/colors';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { team1, team2, updateTeam, resetTeams } from '$lib/stores/teams';
+	import { team1, team2, updateTeam } from '$lib/stores/teams';
 	import * as m from '$lib/paraglide/messages.js';
-	import { completeCurrentMatch, startCurrentMatch, currentMatch, addGameToCurrentMatch, clearCurrentMatchRounds } from '$lib/stores/history';
-	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, resetMatchState, currentMatchGames, currentMatchRounds, currentGameStartHammer, setCurrentGameStartHammer } from '$lib/stores/matchState';
+	import { completeCurrentMatch, currentMatch, addGameToCurrentMatch } from '$lib/stores/history';
+	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, currentMatchGames, currentMatchRounds, currentGameStartHammer, setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { get } from 'svelte/store';
-	import type { Team } from '$lib/types/team';
 	import PlayerAssignButton from './PlayerAssignButton.svelte';
 
 	interface Props {

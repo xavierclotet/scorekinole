@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -72,7 +72,7 @@
   // Current view for split divisions
   let activeTab = $state<'gold' | 'silver'>('gold');
 
-  let tournamentId = $derived($page.params.id);
+  let tournamentId = $derived(page.params.id);
   let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
   let isSplitDivisions = $derived(tournament?.finalStage?.mode === 'SPLIT_DIVISIONS');
 

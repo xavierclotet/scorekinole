@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Tournament, GroupMatch, BracketMatch, NamedBracket } from '$lib/types/tournament';
+  import type { Tournament, GroupMatch, BracketMatch } from '$lib/types/tournament';
   import { getParticipantDisplayName } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
@@ -227,7 +227,7 @@
   // Calculate ranking points earned based on final position and tier
   function getRankingDelta(participant: typeof tournament.participants[0]): number {
     if (!participant.finalPosition || !tournament.rankingConfig?.enabled) return 0;
-    const tier = tournament.rankingConfig?.tier || 'LOCAL';
+    const tier = tournament.rankingConfig?.tier || 'CLUB';
     return calculateRankingPoints(participant.finalPosition, tier);
   }
 
@@ -1125,11 +1125,13 @@
     onkeydown={(e) => e.key === 'Escape' && closeVideoModal()}
     role="dialog"
     aria-modal="true"
+    tabindex="-1"
   >
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="video-modal" onclick={(e) => e.stopPropagation()}>
       <div class="video-modal-header">
         <h3>{m.video_matchVideo?.() ?? 'Video del Partido'}</h3>
-        <button class="close-btn" onclick={closeVideoModal}>
+        <button class="close-btn" onclick={closeVideoModal} aria-label={m.common_close()}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6l12 12"/>
           </svg>
@@ -1181,7 +1183,7 @@
         <button
           class="btn-save"
           onclick={saveVideo}
-          disabled={isSavingVideo || (videoEditUrl && !isVideoValid)}
+          disabled={isSavingVideo || (!!videoEditUrl && !isVideoValid)}
         >
           {isSavingVideo ? '...' : m.common_save()}
         </button>
@@ -1307,11 +1309,6 @@
 
   .standings-header-row .name {
     flex: 1;
-  }
-
-  .standings-header-row .ranking {
-    min-width: 2.5rem;
-    text-align: right;
   }
 
   .standings-header-row .pts {
@@ -1467,14 +1464,6 @@
     font-style: italic;
     opacity: 0.7;
     font-size: 0.85em;
-  }
-
-  .standing-row .ranking {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #667eea;
-    min-width: 2.5rem;
-    text-align: right;
   }
 
   .standing-row .pts {

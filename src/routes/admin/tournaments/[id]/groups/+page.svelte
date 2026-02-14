@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -50,7 +50,7 @@
   let editedSwissRounds = $state(0);
   let isSavingSwissRounds = $state(false);
 
-  let tournamentId = $derived($page.params.id);
+  let tournamentId = $derived(page.params.id);
 
   // Computed: whether Swiss rounds can be edited (value must be > current round)
   let isSwissTournament = $derived(tournament?.groupStage?.type === 'SWISS');

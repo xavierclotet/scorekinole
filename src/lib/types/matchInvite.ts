@@ -3,7 +3,7 @@ import type { Timestamp } from 'firebase/firestore';
 /**
  * Status of a match invitation
  */
-export type InviteStatus = 'pending' | 'accepted' | 'expired' | 'cancelled';
+export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
 
 /**
  * Match context stored with the invitation

@@ -281,7 +281,7 @@
   "auth_signingIn": "Signing in...",
   "auth_updateProfile": "Update Profile",
   "auth_userId": "User ID",
-  "bracket_bestOf": "Ft",
+  "bracket_bestOf": "Fw ",
   "bracket_clickToEdit": "Click to edit",
   "bracket_configuration": "Configuration",
   "bracket_configurationError": "Error saving configuration",
@@ -1200,5 +1200,9 @@
   "join_pageTitle": "Join game",
   "join_signInToAccept": "Log in to accept",
   "join_successDesc": "You have joined the game {name} . The result will be saved to your history when it finishes.",
-  "join_successTitle": "You've joined!"
+  "join_successTitle": "You've joined!",
+  "invite_expiresIn": "Expires in {minutes}:{seconds}",
+  "join_declineInvite": "Decline",
+  "invite_playerDeclined": "{name} has declined the invitation",
+  "invite_inviteAnother": "Invite another player"
 }

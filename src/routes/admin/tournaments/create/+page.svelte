@@ -141,19 +141,7 @@
   // Step 4: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
 
-  // Natural sort function for names (handles "Player1" vs "Player11" correctly)
-  function naturalSort(a: string, b: string): number {
-    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-  }
-
-  // Sorted participants for display
-  let sortedParticipants = $derived(
-    [...participants].sort((a, b) => naturalSort(a.name || '', b.name || ''))
-  );
-
   let searchQuery = $state('');
-  let searchResultsRaw = $state<(UserProfile & { userId: string })[]>([]);
-  let searchLoading = $state(false);
 
   // Bulk guest entry (declared early because textareaNames depends on it)
   let bulkGuestText = $state('');  // Textarea for bulk guest entry
@@ -188,15 +176,6 @@
     }
     return names;
   });
-
-  // Filter out users already in textarea (by name match)
-  let searchResults = $derived(
-    searchResultsRaw.filter(u =>
-      !textareaNames.has(u.playerName?.toLowerCase() || '')
-    )
-  );
-  let guestName = $state('');  // Input for guest player name
-  let guestNameMatchedUser = $state<(UserProfile & { userId: string }) | null>(null);  // User that matches guest name
 
   // Analysis preview state
   let analysisResult = $state<{
@@ -437,7 +416,7 @@
         // Final stage config from goldBracket.config
         if (tournament.finalStage?.goldBracket?.config) {
           const goldConfig = tournament.finalStage.goldBracket.config;
-          finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
+          finalStageMode = (tournament.finalStage.mode === 'SPLIT_DIVISIONS' ? 'SPLIT_DIVISIONS' : 'SINGLE_BRACKET');
           // Use final phase config as the main display values
           finalGameMode = goldConfig.final?.gameMode || 'points';
           finalPointsToWin = goldConfig.final?.pointsToWin || 7;
@@ -458,7 +437,7 @@
             silverMatchesToWin = 1;
           }
         } else if (tournament.finalStage) {
-          finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
+          finalStageMode = (tournament.finalStage.mode === 'SPLIT_DIVISIONS' ? 'SPLIT_DIVISIONS' : 'SINGLE_BRACKET');
           // Defaults
           finalGameMode = 'points';
           finalPointsToWin = 7;
@@ -529,8 +508,6 @@
       bulkGuestText = participantsToText(loadedParticipants, tournament.gameType === 'doubles');
       // Keep participants array empty - will be populated when processing textarea
       participants = [];
-
-      guestName = `Player${loadedParticipants.length + 1}`;
 
       // Step 5 - Load time configuration
       if (tournament.timeConfig) {
@@ -618,7 +595,7 @@
 
         if (tournament.finalStage?.goldBracket?.config) {
           const goldConfig = tournament.finalStage.goldBracket.config;
-          finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
+          finalStageMode = (tournament.finalStage.mode === 'SPLIT_DIVISIONS' ? 'SPLIT_DIVISIONS' : 'SINGLE_BRACKET');
           finalGameMode = goldConfig.final?.gameMode || 'points';
           finalPointsToWin = goldConfig.final?.pointsToWin || 7;
           finalRoundsToPlay = goldConfig.final?.roundsToPlay || 4;
@@ -636,7 +613,7 @@
             silverMatchesToWin = 1;
           }
         } else if (tournament.finalStage) {
-          finalStageMode = tournament.finalStage.mode || 'SINGLE_BRACKET';
+          finalStageMode = (tournament.finalStage.mode === 'SPLIT_DIVISIONS' ? 'SPLIT_DIVISIONS' : 'SINGLE_BRACKET');
           finalGameMode = 'points';
           finalPointsToWin = 7;
           finalRoundsToPlay = 4;
@@ -732,8 +709,6 @@
       bulkGuestText = participantsToText(participants, tournament.gameType === 'doubles');
       // Keep participants array empty - will be populated when processing textarea
       participants = [];
-
-      guestName = `Player${bulkGuestText.split('\n').filter(l => l.trim()).length + 1}`;
 
       // Step 5 - Copy time configuration
       if (tournament.timeConfig) {
@@ -862,9 +837,6 @@
 
       // Step 4
       participants = data.participants || [];
-
-      // Update guest name to next player number
-      guestName = `Player${participants.length + 1}`;
 
       // Step 5 - Time configuration
       tcMinutesPer4RoundsSingles = data.tcMinutesPer4RoundsSingles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles;
@@ -997,14 +969,14 @@
       return;
     }
 
-    searchLoading = true;
+    nameSearchLoading = true;
     const results = await searchUsers(searchQuery) as (UserProfile & { userId: string })[];
     console.log('🔎 Search results:', results.length, 'users found');
     console.log('🔎 textareaNames has:', textareaNames.size, 'names:', Array.from(textareaNames));
     console.log('🔎 bulkGuestText:', bulkGuestText.substring(0, 100));
     // Store raw results - filtering is done reactively via $derived
     searchResultsRaw = results;
-    searchLoading = false;
+    nameSearchLoading = false;
   }
 
   // Check if tournament key already exists (with debounce)
@@ -1099,89 +1071,6 @@
     city = venue.city;
     country = venue.country;
     saveDraft();
-  }
-
-  function addRegisteredUser(user: UserProfile & { userId?: string }) {
-    const playerName = user.playerName || '';
-
-    // Check if already in textarea (case-insensitive)
-    const lines = bulkGuestText.split('\n').map(l => l.trim().toLowerCase());
-    const alreadyInText = lines.some(line => {
-      if (gameType === 'doubles') {
-        // For doubles, check if name appears in either player position
-        const slashIndex = line.indexOf(' / ');
-        if (slashIndex === -1) return line === playerName.toLowerCase();
-        const player1 = line.substring(0, slashIndex).trim();
-        const commaIndex = line.indexOf(',');
-        const player2 = commaIndex !== -1
-          ? line.substring(slashIndex + 3, commaIndex).trim()
-          : line.substring(slashIndex + 3).trim();
-        return player1 === playerName.toLowerCase() || player2 === playerName.toLowerCase();
-      }
-      return line === playerName.toLowerCase();
-    });
-
-    if (alreadyInText) {
-      toastMessage = 'Este usuario ya está en la lista';
-      toastType = 'warning';
-      showToast = true;
-      return;
-    }
-
-    // Prepend to textarea
-    bulkGuestText = playerName + (bulkGuestText.trim() ? '\n' + bulkGuestText : '');
-
-    // Clear search
-    searchQuery = '';
-    searchResultsRaw = [];
-
-    saveDraft();
-  }
-
-  async function checkGuestNameMatch() {
-    if (!guestName || guestName.trim().length < 3) {
-      guestNameMatchedUser = null;
-      return;
-    }
-
-    // Search for exact name match (case-insensitive)
-    const results = await searchUsers(guestName.trim()) as (UserProfile & { userId: string })[];
-    const exactMatch = results.find(
-      u => u.playerName?.toLowerCase() === guestName.trim().toLowerCase()
-    );
-
-    guestNameMatchedUser = exactMatch || null;
-  }
-
-  async function addGuestPlayer() {
-    if (!guestName || guestName.trim().length < 3) return;
-
-    // Check for existing user with same name
-    await checkGuestNameMatch();
-
-    if (guestNameMatchedUser) {
-      // User exists - auto-fill search and show suggestion
-      searchQuery = guestName.trim();
-      await handleSearch();
-      toastMessage = `Existe un usuario registrado con el nombre "${guestName}". Añádelo desde la lista de usuarios.`;
-      toastType = 'warning';
-      showToast = true;
-      return;
-    }
-
-    participants = [
-      ...participants,
-      {
-        type: 'GUEST',
-        name: guestName.trim(),
-        rankingSnapshot: 0
-      }
-    ];
-
-    // Set next player number based on total participants
-    guestName = `Player${participants.length + 1}`;
-    guestNameMatchedUser = null;
-    saveDraft(); // Save after adding guest
   }
 
   // Generate test players for bulk entry
@@ -1441,38 +1330,6 @@
     } finally {
       bulkProcessing = false;
     }
-  }
-
-  function removeParticipant(participant: Partial<TournamentParticipant>) {
-    participants = participants.filter(p => p !== participant);
-    saveDraft(); // Save after removing participant
-  }
-
-  // Edit participant (for teamName in doubles)
-  let editingParticipant = $state<Partial<TournamentParticipant> | null>(null);
-  let editTeamName = $state('');
-
-  function startEditParticipant(participant: Partial<TournamentParticipant>) {
-    editingParticipant = participant;
-    editTeamName = participant.teamName || '';
-  }
-
-  function saveEditParticipant() {
-    if (!editingParticipant) return;
-    participants = participants.map(p => {
-      if (p === editingParticipant) {
-        return { ...p, teamName: editTeamName.trim() || undefined };
-      }
-      return p;
-    });
-    editingParticipant = null;
-    editTeamName = '';
-    saveDraft();
-  }
-
-  function cancelEditParticipant() {
-    editingParticipant = null;
-    editTeamName = '';
   }
 
   function getStep1Errors(): string[] {
@@ -3139,6 +2996,7 @@
             <!-- Duration & Breaks Row -->
             <div class="tc-row">
               <div class="tc-group">
+                <!-- svelte-ignore a11y_label_has_associated_control -->
                 <label class="tc-lbl">{m.admin_matchDuration()}</label>
                 <div class="tc-input-wrap">
                   {#if gameType === 'doubles'}

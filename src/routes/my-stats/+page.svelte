@@ -12,7 +12,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { ChevronLeft, ChevronRight, Trophy, Users, User } from '@lucide/svelte';
 	import SEO from '$lib/components/SEO.svelte';
-	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
+	import { SvelteSet } from 'svelte/reactivity';
 
 	// Data state
 	let isLoading = $state(true);

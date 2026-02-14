@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import * as m from '$lib/paraglide/messages.js';
 	import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
@@ -56,7 +56,7 @@
 	let selectedPlayerFilter = $state<string | undefined>(undefined);
 	let playerFilterOpen = $state(false);
 
-	let tournamentId = $derived($page.params.id);
+	let tournamentId = $derived(page.params.id);
 
 	// Check if tournament is LIVE
 	let isLive = $derived(
@@ -176,17 +176,8 @@
 	let rounds = $derived(currentBracket?.rounds || []);
 
 	// Consolation brackets support
-	let bracketView = $state<'main' | 'consolation'>('main');
 	let goldConsolationBrackets = $derived(goldBracket?.consolationBrackets || []);
 	let silverConsolationBrackets = $derived(silverBracket?.consolationBrackets || []);
-	let consolationBrackets = $derived(activeTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets);
-	let consolationEnabledValue = $derived(
-		tournament?.finalStage?.consolationEnabled ??
-		(tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled '] ??
-		tournament?.finalStage?.goldBracket?.config?.consolationEnabled ??
-		false
-	);
-	let hasConsolation = $derived(consolationEnabledValue && consolationBrackets.length > 0);
 
 	// Find all matches with video (for highlighting in Final Standings)
 	let matchesWithVideo = $derived((() => {
@@ -212,7 +203,7 @@
 	let thirdPlaceMatch = $derived(currentBracket?.thirdPlaceMatch);
 
 	// Qualification mode for group stage (WINS = victory points, POINTS = total crokinole points)
-	let qualificationMode = $derived(tournament?.groupStage?.config?.qualificationMode || 'WINS');
+	let qualificationMode = $derived(tournament?.groupStage?.qualificationMode || 'WINS');
 
 	// Single group detection for 2-column layout
 	let isSingleGroup = $derived((tournament?.groupStage?.groups?.length ?? 0) === 1);
@@ -440,16 +431,6 @@
 			newSet.add(groupId);
 		}
 		expandedGroupMatches = newSet;
-	}
-
-	function getGroupMatches(group: any): any[] {
-		// Get all matches from schedule (Round Robin) or pairings (Swiss)
-		if (group.schedule) {
-			return group.schedule.flatMap((r: any) => r.matches.map((m: any) => ({ ...m, roundNumber: r.roundNumber })));
-		} else if (group.pairings) {
-			return group.pairings.flatMap((p: any) => p.matches.map((m: any) => ({ ...m, roundNumber: p.roundNumber })));
-		}
-		return [];
 	}
 
 	function getGroupRounds(group: any): any[] {
@@ -1036,12 +1017,12 @@
 										{#each selectedPlayerFilter
 											? groupRounds.map(r => ({
 												...r,
-												matches: r.matches.filter(m =>
+												matches: r.matches.filter((m: GroupMatch) =>
 													m.participantA === selectedPlayerFilter ||
 													m.participantB === selectedPlayerFilter
 												)
 											})).filter(r => r.matches.length > 0)
-											: groupRounds as round, i}
+											: groupRounds as round}
 											<div class="round-section [&:not(:last-child)]:mb-3">
 												<h4 class="round-title">{m.tournament_round()} {round.roundNumber}</h4>
 												<div class="matches-list flex flex-col gap-1.5">

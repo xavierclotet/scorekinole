@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -59,7 +59,7 @@
   let editExternalLink = $state('');
   let editPosterUrl = $state('');
 
-  let tournamentId = $derived($page.params.id);
+  let tournamentId = $derived(page.params.id);
 
   // Fallback for consolationEnabled - check multiple locations due to migration
   let consolationEnabled = $derived(tournament?.finalStage?.consolationEnabled

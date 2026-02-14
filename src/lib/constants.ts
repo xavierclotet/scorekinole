@@ -2,6 +2,7 @@ import type { GameSettings } from './types/settings';
 
 export const APP_VERSION = '2.4.18';
 export const APP_NAME = 'Scorekinole';
+export const PRODUCTION_URL = 'https://scorekinole.web.app';
 
 /**
  * Batch size for Firestore bulk writes (autofill, simulate matches)
