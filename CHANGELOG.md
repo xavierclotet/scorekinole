@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.18] - 2026-02-14
+- Add match invitation system for friendly matches with QR codes
+- Users can assign themselves to a team and invite another player via link
+- Both players' stats tracked when guest accepts invitation
+- Add /join page for accepting match invitations
+- Improve tournament wizard step 4 with shadcn components
+- Add active matches panel in tournament bracket admin
+- Various Swiss algorithm and tournament display improvements
+
 ## [2.4.17] - 2026-02-13
 - Add personal statistics dashboard (/my-stats) for logged-in users
 - Show match history from both friendly matches and tournaments
