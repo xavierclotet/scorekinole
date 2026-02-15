@@ -10,6 +10,8 @@ export const PRODUCTION_URL = 'https://scorekinole.web.app';
  */
 export const FIRESTORE_BATCH_SIZE = 20;
 
+export const PAGE_SIZE = 15;
+
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
     appVersion: APP_VERSION,
     pointsToWin: 7,

@@ -39,8 +39,8 @@
 	let showDetailModal = false;
 
 	// Infinite scroll state
-	const ITEMS_PER_PAGE = 15;
-	let visibleCount = ITEMS_PER_PAGE;
+	import { PAGE_SIZE } from '$lib/constants';
+	let visibleCount = PAGE_SIZE;
 	let tableContainer: HTMLElement | null = null;
 	$: visiblePlayers = rankedPlayers.slice(0, visibleCount);
 	$: hasMore = visibleCount < rankedPlayers.length;
@@ -103,11 +103,11 @@
 		};
 
 		rankedPlayers = calculateRankings(users, tournamentsMap, filters);
-		visibleCount = ITEMS_PER_PAGE; // Reset visible count when filters change
+		visibleCount = PAGE_SIZE; // Reset visible count when filters change
 	}
 
 	function loadMore() {
-		visibleCount = Math.min(visibleCount + ITEMS_PER_PAGE, rankedPlayers.length);
+		visibleCount = Math.min(visibleCount + PAGE_SIZE, rankedPlayers.length);
 	}
 
 	function handleScroll(e: Event) {

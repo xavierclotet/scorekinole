@@ -5,7 +5,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, updateTeam } from '$lib/stores/teams';
-	import { timeRemaining, resetTimer, cleanupTimer } from '$lib/stores/timer';
+	import { timeRemaining, resetTimer, cleanupTimer, startTimer, stopTimer } from '$lib/stores/timer';
 	import { loadMatchState, resetMatchState, saveMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchRounds, currentMatchGames, lastRoundPoints, matchState } from '$lib/stores/matchState';
 	import { startCurrentMatch, currentMatch, updateCurrentMatchRound } from '$lib/stores/history';
 	import TeamCard from '$lib/components/TeamCard.svelte';
@@ -169,6 +169,13 @@
 	// 2. But on page reload, we don't restore the current completed game to currentMatchGames (to avoid double-counting)
 	// 3. The other conditions are sufficient: hasWon + !isMatchComplete + matchesToWin > 1 + points mode
 	let showNextGameButton = $derived(($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points');
+
+	// Auto-stop timer when match completes
+	$effect(() => {
+		if (isMatchComplete) {
+			stopTimer();
+		}
+	});
 
 	// Handler for tournament match complete event from TeamCard
 	// This is called BEFORE currentMatch is cleared, ensuring we have all data
@@ -718,9 +725,12 @@
 			}
 		}
 
-		// Reset timer
+		// Reset and auto-start timer for tournament match
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
+		if ($gameSettings.showTimer) {
+			startTimer();
+		}
 	}
 
 	/**
@@ -1020,6 +1030,7 @@
 		const context = $gameTournamentContext;
 		if (!context || tournamentMatchCompletedSent) return;
 
+		stopTimer();
 		tournamentMatchCompletedSent = true;
 
 		// IMPORTANT: First, save the current game data to ensure we have all rounds
@@ -1150,6 +1161,11 @@
 
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
+
+		// Auto-start timer if enabled
+		if ($gameSettings.showTimer) {
+			startTimer();
+		}
 	}
 
 	function handleNewMatchClick() {
@@ -1209,9 +1225,12 @@
 			// Reset lastRoundPoints
 			lastRoundPoints.set({ team1: 0, team2: 0 });
 
-			// Reset timer
+			// Reset and auto-start timer
 			const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 			resetTimer(totalSeconds);
+			if ($gameSettings.showTimer) {
+				startTimer();
+			}
 
 			// Sync empty state to Firebase when resetting
 			// This ensures the bracket view shows the reset state
@@ -1709,6 +1728,10 @@
 		// Reset timer to default value for the new game
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
+		// Auto-start timer for next game
+		if ($gameSettings.showTimer) {
+			startTimer();
+		}
 
 		// Actualizar el contexto local con el nuevo número de juego
 		if (inTournamentMode) {

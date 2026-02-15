@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import * as m from '$lib/paraglide/messages.js';
-	import { currentUser } from '$lib/firebase/auth';
+	import { currentUser, authInitialized } from '$lib/firebase/auth';
 	import { getMatchesFromCloud, getUserTournamentMatches } from '$lib/firebase/firestore';
 	import type { MatchHistory } from '$lib/types/history';
 	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
@@ -10,7 +9,8 @@
 	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { ChevronLeft, ChevronRight, Trophy, Users, User } from '@lucide/svelte';
+	import { PAGE_SIZE } from '$lib/constants';
+	import { ChevronRight, Clock, Trophy, Users, User } from '@lucide/svelte';
 	import SEO from '$lib/components/SEO.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
@@ -27,19 +27,22 @@
 	// Expanded matches for detail view
 	let expandedMatches = new SvelteSet<string>();
 
-	// Redirect if not logged in
+	// Redirect if not logged in (wait for auth to initialize first)
 	$effect(() => {
-		if (!$currentUser && !isLoading) {
+		if ($authInitialized && !$currentUser) {
 			goto('/');
 		}
 	});
 
-	onMount(async () => {
-		if (!$currentUser) {
-			isLoading = false;
-			return;
+	// Load matches once auth is ready
+	$effect(() => {
+		if ($authInitialized) {
+			if ($currentUser) {
+				loadMatches();
+			} else {
+				isLoading = false;
+			}
 		}
-		await loadMatches();
 	});
 
 	async function loadMatches() {
@@ -129,6 +132,30 @@
 			return true;
 		});
 	})());
+
+	// Infinite scroll
+	let visibleCount = $state(PAGE_SIZE);
+	let sentinelEl: HTMLDivElement | undefined = $state();
+
+	// Reset visible count when filters change
+	$effect(() => {
+		filterType; filterMode; filterResult; filterOpponent;
+		visibleCount = PAGE_SIZE;
+	});
+
+	// IntersectionObserver for infinite scroll
+	$effect(() => {
+		if (!sentinelEl) return;
+		const observer = new IntersectionObserver((entries) => {
+			if (entries[0].isIntersecting && visibleCount < filteredMatches.length) {
+				visibleCount += PAGE_SIZE;
+			}
+		}, { rootMargin: '200px' });
+		observer.observe(sentinelEl);
+		return () => observer.disconnect();
+	});
+
+	let visibleMatches = $derived(filteredMatches.slice(0, visibleCount));
 
 	// Calculate statistics from filtered matches
 	let stats = $derived((() => {
@@ -236,7 +263,16 @@
 
 	function formatDate(timestamp: number): string {
 		const date = new Date(timestamp);
-		return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
+		return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' })
+			+ ' ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+	}
+
+	function formatDuration(ms: number): string {
+		const totalSeconds = Math.floor(ms / 1000);
+		const minutes = Math.floor(totalSeconds / 60);
+		const seconds = totalSeconds % 60;
+		if (minutes === 0) return `${seconds}s`;
+		return `${minutes}min ${seconds}s`;
 	}
 
 	function toggleExpand(matchId: string) {
@@ -276,28 +312,34 @@
 		return { won, tied, score: `${userGames}-${oppGames}` };
 	}
 
-	// Get 20s for user in match
-	function getMatchTwenties(match: MatchHistory): number {
+	// Get 20s and percentage for user in match
+	function getMatchTwenties(match: MatchHistory): { count: number; percentage: string | null } {
 		const userTeam = getUserTeam(match);
-		if (!userTeam) return 0;
+		if (!userTeam) return { count: 0, percentage: null };
+
+		let totalTwenties = 0;
+		let totalRounds = 0;
 
 		// First try to get from detailed rounds
-		const fromRounds = match.games?.reduce(
-			(sum, game) =>
-				sum +
-				(game.rounds?.reduce(
-					(s, r) => s + (userTeam === 1 ? r.team1Twenty : r.team2Twenty),
-					0
-				) ?? 0),
-			0
-		) ?? 0;
-
-		// If no rounds data, use total20s from imported tournaments
-		if (fromRounds === 0) {
-			return userTeam === 1 ? (match.total20sTeam1 ?? 0) : (match.total20sTeam2 ?? 0);
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				totalTwenties += userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				totalRounds++;
+			}
 		}
 
-		return fromRounds;
+		// If no rounds data, use total20s from imported tournaments
+		if (totalRounds === 0) {
+			const count = userTeam === 1 ? (match.total20sTeam1 ?? 0) : (match.total20sTeam2 ?? 0);
+			return { count, percentage: null };
+		}
+
+		// Max 20s per round: 8 for singles, 12 for doubles
+		const maxPerRound = match.gameType === 'doubles' ? 12 : 8;
+		const maxPossible = totalRounds * maxPerRound;
+		const percentage = maxPossible > 0 ? ((totalTwenties / maxPossible) * 100).toFixed(0) : null;
+
+		return { count: totalTwenties, percentage };
 	}
 </script>
 
@@ -310,9 +352,6 @@
 	<header class="page-header">
 		<div class="header-row">
 			<div class="header-left">
-				<button class="back-btn" onclick={() => goto('/')} aria-label="Go back">
-					<ChevronLeft class="size-5" />
-				</button>
 				<ScorekinoleLogo />
 			</div>
 			<div class="header-center">
@@ -411,21 +450,21 @@
 							<span class="split-value">{stats.doublesPercentage}%</span>
 						</div>
 					</div>
-					<span class="stat-percent">⭐ {stats.totalTwenties}</span>
+					<span class="stat-percent">◎ {stats.totalTwenties}</span>
 					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
 				</div>
 			{:else if stats.singlesPercentage !== null}
 				<!-- Only singles -->
 				<div class="stat-card twenties">
 					<span class="stat-value">{stats.singlesPercentage}%</span>
-					<span class="stat-percent">⭐ {stats.singlesTwenties}</span>
+					<span class="stat-percent">◎ {stats.singlesTwenties}</span>
 					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
 				</div>
 			{:else if stats.doublesPercentage !== null}
 				<!-- Only doubles -->
 				<div class="stat-card twenties">
 					<span class="stat-value">{stats.doublesPercentage}%</span>
-					<span class="stat-percent">⭐ {stats.doublesTwenties}</span>
+					<span class="stat-percent">◎ {stats.doublesTwenties}</span>
 					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
 				</div>
 			{:else}
@@ -444,7 +483,7 @@
 			</div>
 		{:else}
 			<div class="match-list">
-				{#each filteredMatches as match (match.id)}
+				{#each visibleMatches as match (match.id)}
 					{@const result = getResultInfo(match)}
 					{@const isExpanded = expandedMatches.has(match.id)}
 					{@const twenties = getMatchTwenties(match)}
@@ -463,9 +502,15 @@
 							<div class="match-info">
 								<div class="match-date">
 									{#if isTournamentMatch(match) && match.eventTitle}
-										<span class="tournament-name">{match.eventTitle}</span> ·
+										<span class="tournament-name">{match.eventTitle}</span>
 									{/if}
-									{formatDate(match.startTime)}
+									<span class="date-time">
+										<Clock class="size-3" />
+										{formatDate(match.startTime)}
+										{#if match.duration > 0}
+											<span class="match-duration">({formatDuration(match.duration)})</span>
+										{/if}
+									</span>
 								</div>
 								<div class="match-chips">
 									{#if isTournamentMatch(match)}
@@ -494,8 +539,8 @@
 									{result.won ? m.stats_won() : result.tied ? 'Tie' : m.stats_lost()}
 								</span>
 								<span class="result-score">{result.score}</span>
-								{#if twenties > 0}
-									<span class="result-twenties">⭐{twenties}</span>
+								{#if twenties.count > 0}
+									<span class="result-twenties">◎{twenties.count}{#if twenties.percentage}&nbsp;· {twenties.percentage}%{/if}</span>
 								{/if}
 							</div>
 						</div>
@@ -533,7 +578,7 @@
 																{round.team1Points}
 															</span>
 															{#if match.show20s ?? $gameSettings.show20s}
-																<span class="twenty">⭐{round.team1Twenty}</span>
+																<span class="twenty">◎{round.team1Twenty}</span>
 															{/if}
 														</span>
 													{/each}
@@ -542,7 +587,7 @@
 														{#if match.show20s ?? $gameSettings.show20s}
 															{@const total20s = (game.rounds || []).reduce((sum, r) => sum + r.team1Twenty, 0)}
 															{#if total20s > 0}
-																<span class="twenty">⭐{total20s}</span>
+																<span class="twenty">◎{total20s}</span>
 															{/if}
 														{/if}
 													</span>
@@ -560,7 +605,7 @@
 																{round.team2Points}
 															</span>
 															{#if match.show20s ?? $gameSettings.show20s}
-																<span class="twenty">⭐{round.team2Twenty}</span>
+																<span class="twenty">◎{round.team2Twenty}</span>
 															{/if}
 														</span>
 													{/each}
@@ -569,7 +614,7 @@
 														{#if match.show20s ?? $gameSettings.show20s}
 															{@const total20s = (game.rounds || []).reduce((sum, r) => sum + r.team2Twenty, 0)}
 															{#if total20s > 0}
-																<span class="twenty">⭐{total20s}</span>
+																<span class="twenty">◎{total20s}</span>
 															{/if}
 														{/if}
 													</span>
@@ -582,7 +627,13 @@
 						{/if}
 					</div>
 				{/each}
+				{#if visibleCount < filteredMatches.length}
+					<div bind:this={sentinelEl} class="scroll-sentinel">
+						<div class="spinner small"></div>
+					</div>
+				{/if}
 			</div>
+			<div class="match-count">{visibleMatches.length} / {filteredMatches.length}</div>
 		{/if}
 	{/if}
 </div>
@@ -618,24 +669,6 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-shrink: 0;
-	}
-
-	.back-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		border-radius: 8px;
-		background: var(--muted);
-		border: none;
-		color: var(--foreground);
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-
-	.back-btn:hover {
-		background: var(--accent);
 	}
 
 	.header-center {
@@ -707,8 +740,8 @@
 	.stats-cards {
 		display: grid;
 		grid-template-columns: repeat(5, 1fr);
-		gap: 0.5rem;
-		margin-bottom: 1.5rem;
+		gap: 1rem;
+		margin-bottom: 1rem;
 	}
 
 	.stat-card {
@@ -717,6 +750,11 @@
 		border-radius: 10px;
 		padding: 0.75rem 0.5rem;
 		text-align: center;
+		transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+	}
+
+	.stat-card:hover {
+		background: color-mix(in srgb, var(--card) 95%, var(--foreground));
 	}
 
 	.stat-value {
@@ -745,11 +783,11 @@
 
 	/* Stat card variants */
 	.stat-card.won .stat-value {
-		color: #22c55e;
+		color: #3b9768;
 	}
 
 	.stat-card.won .stat-percent {
-		color: #22c55e;
+		color: #3b9768;
 	}
 
 	.stat-card.tied .stat-value {
@@ -757,15 +795,19 @@
 	}
 
 	.stat-card.lost .stat-value {
-		color: #ef4444;
+		color: #c04848;
 	}
 
 	.stat-card.lost .stat-percent {
-		color: #ef4444;
+		color: #c04848;
 	}
 
 	.stat-card.twenties .stat-value {
-		color: rgba(255, 200, 0, 0.9);
+		color: #b8862e;
+	}
+
+	.stat-card.twenties .stat-percent {
+		color: #b8862e;
 	}
 
 	/* Split stats for showing both singles and doubles */
@@ -784,7 +826,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.15rem;
-		color: rgba(255, 200, 0, 0.9);
+		color: #b8862e;
 	}
 
 	.split-value {
@@ -825,11 +867,29 @@
 		min-width: 120px;
 	}
 
+	.scroll-sentinel {
+		display: flex;
+		justify-content: center;
+		padding: 1rem;
+	}
+
+	.spinner.small {
+		width: 24px;
+		height: 24px;
+	}
+
+	.match-count {
+		text-align: center;
+		font-size: 0.7rem;
+		color: var(--muted-foreground);
+		padding: 0.5rem 0 1rem;
+	}
+
 	/* Match List */
 	.match-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(355px, 1fr));
+		gap: 1rem;
 	}
 
 	.match-item {
@@ -850,7 +910,7 @@
 
 	.match-header {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		gap: 0.75rem;
 		padding: 0.75rem 1rem;
 		cursor: pointer;
@@ -872,14 +932,26 @@
 	}
 
 	.match-date {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
 		font-size: 0.7rem;
 		color: var(--muted-foreground);
 		margin-bottom: 0.25rem;
+		flex-wrap: wrap;
+		overflow: hidden;
 	}
 
 	.tournament-name {
 		color: var(--foreground);
 		font-weight: 500;
+	}
+
+	.date-time {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		white-space: nowrap;
 	}
 
 	.match-chips {
@@ -901,8 +973,8 @@
 	}
 
 	.chip.tournament {
-		background: color-mix(in srgb, #22c55e 15%, transparent);
-		color: #22c55e;
+		background: color-mix(in srgb, #3b9768 15%, transparent);
+		color: #3b9768;
 	}
 
 	.chip.friendly {
@@ -940,13 +1012,18 @@
 	}
 
 	.match-result.won .result-label {
-		background: color-mix(in srgb, #22c55e 15%, transparent);
-		color: #22c55e;
+		background: color-mix(in srgb, #3b9768 15%, transparent);
+		color: #3b9768;
 	}
 
 	.match-result.lost .result-label {
-		background: color-mix(in srgb, #ef4444 15%, transparent);
-		color: #ef4444;
+		background: color-mix(in srgb, #c04848 15%, transparent);
+		color: #c04848;
+	}
+
+	.result-label {
+		background: var(--muted);
+		color: var(--muted-foreground);
 	}
 
 	.result-score {
@@ -956,7 +1033,7 @@
 
 	.result-twenties {
 		font-size: 0.7rem;
-		color: rgba(255, 200, 0, 0.9);
+		color: #b8862e;
 	}
 
 	/* Match Detail */
@@ -979,6 +1056,10 @@
 		color: var(--muted-foreground);
 	}
 
+	.match-duration {
+		opacity: 0.7;
+	}
+
 	/* Games Section */
 	.games-section {
 		display: flex;
@@ -989,7 +1070,7 @@
 	.game-table {
 		background: var(--card);
 		border-radius: 6px;
-		overflow: hidden;
+		overflow-x: auto;
 	}
 
 	.game-row {
@@ -1041,7 +1122,7 @@
 
 	.twenty {
 		font-size: 0.6rem;
-		color: rgba(255, 200, 0, 0.9);
+		color: #b8862e;
 	}
 
 	.game-row .total-col {

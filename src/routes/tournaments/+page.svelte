@@ -35,8 +35,8 @@
 	let translatedCountryOptions = $derived(getTranslatedCountryOptions(availableCountries));
 
 	// Infinite scroll state
-	const ITEMS_PER_PAGE = 10;
-	let visibleCount = $state(ITEMS_PER_PAGE);
+	import { PAGE_SIZE } from '$lib/constants';
+	let visibleCount = $state(PAGE_SIZE);
 	let gridContainer: HTMLElement | null = $state(null);
 
 	// Filtered tournaments
@@ -85,7 +85,7 @@
 	$effect(() => {
 		// Access derived to track
 		filteredTournaments;
-		visibleCount = ITEMS_PER_PAGE;
+		visibleCount = PAGE_SIZE;
 	});
 
 	// Auto-load more if container doesn't have scroll
@@ -152,7 +152,7 @@
 	}
 
 	function loadMore() {
-		visibleCount = Math.min(visibleCount + ITEMS_PER_PAGE, filteredTournaments.length);
+		visibleCount = Math.min(visibleCount + PAGE_SIZE, filteredTournaments.length);
 	}
 
 	function handleScroll(e: Event) {
