@@ -89,6 +89,18 @@
 	let canAssignPartnerToTeam1 = $derived(!inTournamentMode && !!$currentUser && $gameSettings.gameType === 'doubles');
 	let canAssignPartnerToTeam2 = $derived(!inTournamentMode && !!$currentUser && $gameSettings.gameType === 'doubles');
 
+	// Friendly match header info
+	let friendlyMatchTitle = $derived(
+		$gameSettings.gameType === 'doubles'
+			? m.scoring_friendlyDoubles()
+			: m.scoring_friendlySingles()
+	);
+	let friendlyMatchMode = $derived(
+		$gameSettings.gameMode === 'rounds'
+			? m.scoring_friendlyModeRounds({ n: $gameSettings.roundsToPlay })
+			: m.scoring_friendlyModePoints({ n: $gameSettings.pointsToWin })
+	);
+
 	// Effective settings: use tournament config when in tournament mode, otherwise gameSettings
 	let effectiveShowHammer = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
@@ -1859,12 +1871,17 @@
 				</button>
 			</div>
 		{:else}
-			<!-- Normal mode header - clean minimal design -->
+			<!-- Normal/Friendly mode header -->
 			<div class="header-left">
 				<ScorekinoleLogo />
+				<span class="header-separator">·</span>
+				<span class="header-title friendly-title">
+					<span class="friendly-title-text">{friendlyMatchTitle}</span>
+				</span>
 			</div>
 
 			<div class="header-center">
+				<span class="header-phase">{friendlyMatchMode}</span>
 				{#if $gameSettings.showTimer}
 					<Timer size="small" />
 				{/if}
@@ -2193,6 +2210,25 @@
 	}
 
 	.tournament-name-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* Friendly mode header styling */
+	.friendly-title {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		cursor: default;
+		max-width: 300px;
+	}
+
+	.friendly-title:hover {
+		background: none;
+	}
+
+	.friendly-title-text {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

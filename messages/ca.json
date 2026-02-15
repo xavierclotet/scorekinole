@@ -1226,5 +1226,9 @@
   "invite_tooltipInviteOpponent": "Convidar oponent",
   "invite_tooltipInviteOpponentPartner": "Convidar company rival",
   "scoring_partner": "Company",
-  "stats_duration": "Durada"
+  "stats_duration": "Durada",
+  "scoring_friendlyDoubles": "Amistós dobles",
+  "scoring_friendlyModePoints": "1r a {n}p",
+  "scoring_friendlyModeRounds": "{n} rondes",
+  "scoring_friendlySingles": "Amistós individual"
 }

@@ -1226,5 +1226,9 @@
   "invite_tooltipInviteOpponent": "Invite opponent",
   "invite_tooltipInviteOpponentPartner": "Invite opponent's partner",
   "scoring_partner": "Buddy",
-  "stats_duration": "Duration"
+  "stats_duration": "Duration",
+  "scoring_friendlyDoubles": "Doubles friendly",
+  "scoring_friendlyModePoints": "First to {n}p",
+  "scoring_friendlyModeRounds": "{n} rounds",
+  "scoring_friendlySingles": "Singles friendly"
 }
