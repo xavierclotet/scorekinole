@@ -184,29 +184,32 @@
 			isDragging = false;
 			if (hasMoved) {
 				savePosition();
+				// Reset hasMoved after a short delay to allow click events to check it first
+				setTimeout(() => {
+					hasMoved = false;
+				}, 50);
 			}
-			hasMoved = false;
 		}
 	}
 
 	// Global mouse/touch events for dragging
 	$effect(() => {
-		if (browser && isDragging) {
-			const onMove = (e: MouseEvent | TouchEvent) => handleDragMove(e);
-			const onEnd = () => handleDragEnd();
+		if (!browser || !isDragging) return;
 
-			window.addEventListener('mousemove', onMove);
-			window.addEventListener('mouseup', onEnd);
-			window.addEventListener('touchmove', onMove);
-			window.addEventListener('touchend', onEnd);
+		const onMove = (e: MouseEvent | TouchEvent) => handleDragMove(e);
+		const onEnd = () => handleDragEnd();
 
-			return () => {
-				window.removeEventListener('mousemove', onMove);
-				window.removeEventListener('mouseup', onEnd);
-				window.removeEventListener('touchmove', onMove);
-				window.removeEventListener('touchend', onEnd);
-			};
-		}
+		window.addEventListener('mousemove', onMove);
+		window.addEventListener('mouseup', onEnd);
+		window.addEventListener('touchmove', onMove);
+		window.addEventListener('touchend', onEnd);
+
+		return () => {
+			window.removeEventListener('mousemove', onMove);
+			window.removeEventListener('mouseup', onEnd);
+			window.removeEventListener('touchmove', onMove);
+			window.removeEventListener('touchend', onEnd);
+		};
 	});
 </script>
 
@@ -283,7 +286,7 @@
 								{:else if roundWinner === 2}
 									{team2Name}
 								{:else}
-									Tie
+									{m.scoring_tie()}
 								{/if}
 							</span>
 							<span class="round-20s">
