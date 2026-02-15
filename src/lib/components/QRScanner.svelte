@@ -575,6 +575,7 @@
 			height: 100%;
 			max-height: 100vh;
 			border-radius: 0;
+			padding-top: env(safe-area-inset-top, 0);
 		}
 
 		.scanner-viewport {
