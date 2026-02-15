@@ -2,6 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.22] - 2026-02-15
+- Add QR code scanning for tournament keys and friendly invite codes
+- New QRScanner component with camera toggle, flash, and manual fallback
+- Scanner button in /game header for quick tournament/invite joining
+- QR display button for admins to show tournament key as QR code
+- Android camera permission added for APK support
+- Doubles support for friendly matches with partner names
+- Show partner names in my-stats and HammerDialog
+- Friendly match header displays title and game mode
+
 ## [2.4.21] - 2026-02-15
 - Normalize line endings (CRLF to LF) across all source files
 - Fix Catalan translations (stats_myStatistics, stats_losses)
