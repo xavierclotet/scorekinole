@@ -11,6 +11,7 @@
 	import TournamentCard from '$lib/components/TournamentCard.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { getTranslatedCountryOptions } from '$lib/utils/countryTranslations';
 	import SEO from '$lib/components/SEO.svelte';
@@ -162,6 +163,15 @@
 		}
 	}
 
+	async function handleRefresh() {
+		// Reload filters and reset subscription
+		await loadFilters();
+		if (unsubscribe) {
+			unsubscribe();
+		}
+		setupSubscription();
+	}
+
 	function handleTournamentClick(tournament: TournamentListItem) {
 		goto(`/tournaments/${tournament.id}`);
 	}
@@ -204,6 +214,7 @@
 		</div>
 	</header>
 
+	<PullToRefresh onrefresh={handleRefresh}>
 	<div class="controls-section">
 		<div class="filter-tabs">
 			<button class="filter-tab" class:active={timeFilter === 'all'} onclick={() => (timeFilter = 'all')}>
@@ -303,6 +314,7 @@
 			{/if}
 		</div>
 	{/if}
+	</PullToRefresh>
 </div>
 
 <style>

@@ -16,6 +16,7 @@
 	import RankingDetailModal from '$lib/components/RankingDetailModal.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import { theme } from '$lib/stores/theme';
 	import SEO from '$lib/components/SEO.svelte';
 
@@ -164,6 +165,7 @@
 		</div>
 	</header>
 
+	<PullToRefresh onrefresh={loadData}>
 	<div class="controls-section">
 		<div class="filter-tabs">
 			<button
@@ -306,6 +308,7 @@
 			{/if}
 		</div>
 	{/if}
+	</PullToRefresh>
 </div>
 
 <RankingDetailModal isOpen={showDetailModal} player={selectedPlayer} bestOfN={bestOfN} onClose={closeModal} />

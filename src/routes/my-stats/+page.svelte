@@ -6,6 +6,7 @@
 	import type { MatchHistory } from '$lib/types/history';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { PAGE_SIZE } from '$lib/constants';
@@ -390,6 +391,7 @@
 		</div>
 	</header>
 
+	<PullToRefresh onrefresh={loadMatches}>
 	{#if isLoading}
 		<div class="loading-state">
 			<div class="spinner"></div>
@@ -673,6 +675,7 @@
 			<div class="match-count">{visibleMatches.length} / {filteredMatches.length}</div>
 		{/if}
 	{/if}
+	</PullToRefresh>
 </div>
 
 <style>
