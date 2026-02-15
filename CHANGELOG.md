@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.23] - 2026-02-15
+- Redesign consolation brackets with horizontal layout (admin-style)
+- Redesign landing page quick links and mobile carousel
+- Refactor language system with SSR support
+- Various UI improvements (ProfileModal, TournamentMatchModal)
+- Add AppMenu component
+- Fix safe area padding for notch in QR scanner
+
 ## [2.4.22] - 2026-02-15
 - Add QR code scanning for tournament keys and friendly invite codes
 - New QRScanner component with camera toggle, flash, and manual fallback
