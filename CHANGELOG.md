@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.20] - 2026-02-15
+- Fix race condition when editing 20s in friendly match (modal stopped opening)
+- Make entire RoundsPanel draggable, not just header
+- Fix click-through issue when tapping on expanded panel content
+- Replace hardcoded "Tie" text with translation
+
 ## [2.4.19] - 2026-02-14
 - Add draggable RoundsPanel showing round-by-round results during game
 - Display winner name per round for better readability (no team colors)
