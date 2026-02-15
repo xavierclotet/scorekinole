@@ -61,7 +61,8 @@
 			// Apply resistance to make it feel more natural
 			pullDistance = Math.min(diff * 0.5, threshold * 1.5);
 			// Prevent default scroll behavior while pulling
-			if (pullDistance > 10) {
+			// Only call preventDefault if the event is cancelable (not when scroll is in progress)
+			if (pullDistance > 10 && e.cancelable) {
 				e.preventDefault();
 			}
 		} else {
@@ -87,13 +88,23 @@
 			pullDistance = 0;
 		}
 	}
+
+	// Register touchmove with passive: false to allow preventDefault
+	$effect(() => {
+		if (!wrapperEl) return;
+
+		wrapperEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+		return () => {
+			wrapperEl.removeEventListener('touchmove', handleTouchMove);
+		};
+	});
 </script>
 
 <div
 	class="pull-to-refresh-wrapper"
 	bind:this={wrapperEl}
 	ontouchstart={handleTouchStart}
-	ontouchmove={handleTouchMove}
 	ontouchend={handleTouchEnd}
 	ontouchcancel={handleTouchEnd}
 >
