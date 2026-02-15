@@ -11,6 +11,7 @@
 	import { getParticipantDisplayName } from '$lib/types/tournament';
 	import { isBye } from '$lib/algorithms/bracket';
 	import MatchCard from './MatchCard.svelte';
+	import MatchResultDialog from './MatchResultDialog.svelte';
 
 	interface Props {
 		tournament: Tournament;
@@ -546,6 +547,43 @@
 	);
 	let hasConsolation = $derived(consolationEnabled && consolationBrackets.length > 0);
 
+	// Match details dialog state (for viewing completed matches)
+	let showMatchDialog = $state(false);
+	let selectedMatch = $state<GroupMatch | BracketMatch | null>(null);
+	let isBracketMatch = $state(false);
+
+	// Handle click on completed match to show details
+	function handleMatchClick(match: GroupMatch | BracketMatch, isBracket: boolean = false) {
+		// Only show details for completed matches
+		if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') return;
+		selectedMatch = match;
+		isBracketMatch = isBracket;
+		showMatchDialog = true;
+	}
+
+	function handleCloseDialog() {
+		showMatchDialog = false;
+		selectedMatch = null;
+	}
+
+	// Convert match to GroupMatch format for dialog
+	let dialogMatch = $derived(selectedMatch ? {
+		...selectedMatch,
+		id: selectedMatch.id,
+		participantA: (selectedMatch as any).participantA || '',
+		participantB: (selectedMatch as any).participantB || '',
+		status: selectedMatch.status,
+		gamesWonA: (selectedMatch as any).gamesWonA,
+		gamesWonB: (selectedMatch as any).gamesWonB,
+		totalPointsA: (selectedMatch as any).totalPointsA,
+		totalPointsB: (selectedMatch as any).totalPointsB,
+		total20sA: (selectedMatch as any).total20sA,
+		total20sB: (selectedMatch as any).total20sB,
+		rounds: (selectedMatch as any).rounds,
+		winner: (selectedMatch as any).winner,
+		noShowParticipant: (selectedMatch as any).noShowParticipant
+	} as GroupMatch : null);
+
 	// Bracket helpers
 	function translateRoundName(name: string): string {
 		const key = name.toLowerCase();
@@ -747,6 +785,7 @@
 															gameMode={gameMode as 'points' | 'rounds'}
 															{isDoubles}
 															{matchesToWin}
+															onMatchClick={(match.status === 'COMPLETED' || match.status === 'WALKOVER') ? () => handleMatchClick(match, false) : undefined}
 														/>
 													{/each}
 												</div>
@@ -822,12 +861,20 @@
 											{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 											{@const participantA = getParticipant(match.participantA || '')}
 											{@const participantB = getParticipant(match.participantB || '')}
+											{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
+											<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 											<div
 												class="match-card"
 												class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 												class:in-progress={match.status === 'IN_PROGRESS'}
 												class:pending={match.status === 'PENDING'}
 												class:bye-match={isByeMatchFlag}
+												class:clickable={isClickable}
+												onclick={() => isClickable && handleMatchClick(match, true)}
+												onkeydown={(e) => e.key === 'Enter' && isClickable && handleMatchClick(match, true)}
+												role={isClickable ? 'button' : undefined}
+												tabindex={isClickable ? 0 : undefined}
 											>
 												{#if match.status === 'IN_PROGRESS'}
 													<div class="live-badge">
@@ -914,6 +961,7 @@
 								{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 								{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
 								{@const tpmScoringLabel = getScoringLabelForRound(goldBracket.config, 'Semifinales')}
+								{@const tpmClickable = tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 								<div class="bracket-column third-place-column">
 									<div class="round-header third-place-header">
 										<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'}</span>
@@ -923,11 +971,18 @@
 										{/if}
 									</div>
 									<div class="round-matches">
+										<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+										<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 										<div
 											class="match-card"
 											class:completed={tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 											class:in-progress={tpm.status === 'IN_PROGRESS'}
 											class:pending={tpm.status === 'PENDING'}
+											class:clickable={tpmClickable}
+											onclick={() => tpmClickable && handleMatchClick(tpm, true)}
+											onkeydown={(e) => e.key === 'Enter' && tpmClickable && handleMatchClick(tpm, true)}
+											role={tpmClickable ? 'button' : undefined}
+											tabindex={tpmClickable ? 0 : undefined}
 										>
 											{#if tpm.status === 'IN_PROGRESS'}
 												<div class="live-badge">
@@ -1092,12 +1147,20 @@
 												{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 												{@const participantA = getParticipant(match.participantA || '')}
 												{@const participantB = getParticipant(match.participantB || '')}
+												{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
+												<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 												<div
 													class="match-card"
 													class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 													class:in-progress={match.status === 'IN_PROGRESS'}
 													class:pending={match.status === 'PENDING'}
 													class:bye-match={isByeMatchFlag}
+													class:clickable={isClickable}
+													onclick={() => isClickable && handleMatchClick(match, true)}
+													onkeydown={(e) => e.key === 'Enter' && isClickable && handleMatchClick(match, true)}
+													role={isClickable ? 'button' : undefined}
+													tabindex={isClickable ? 0 : undefined}
 												>
 													{#if match.status === 'IN_PROGRESS'}
 														<div class="live-badge">
@@ -1184,6 +1247,7 @@
 									{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 									{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
 									{@const tpmScoringLabel = getScoringLabelForRound(silverBracket.config, 'Semifinales')}
+									{@const tpmClickable = tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 									<div class="bracket-column third-place-column">
 										<div class="round-header third-place-header">
 											<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'}</span>
@@ -1193,11 +1257,18 @@
 											{/if}
 										</div>
 										<div class="round-matches">
+											<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 											<div
 												class="match-card"
 												class:completed={tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 												class:in-progress={tpm.status === 'IN_PROGRESS'}
 												class:pending={tpm.status === 'PENDING'}
+												class:clickable={tpmClickable}
+												onclick={() => tpmClickable && handleMatchClick(tpm, true)}
+												onkeydown={(e) => e.key === 'Enter' && tpmClickable && handleMatchClick(tpm, true)}
+												role={tpmClickable ? 'button' : undefined}
+												tabindex={tpmClickable ? 0 : undefined}
 											>
 												{#if tpm.status === 'IN_PROGRESS'}
 													<div class="live-badge">
@@ -1361,12 +1432,20 @@
 												{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 												{@const participantA = getParticipant(match.participantA || '')}
 												{@const participantB = getParticipant(match.participantB || '')}
+												{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
+												<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 												<div
 													class="match-card"
 													class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 													class:in-progress={match.status === 'IN_PROGRESS'}
 													class:pending={match.status === 'PENDING'}
 													class:bye-match={isByeMatchFlag}
+													class:clickable={isClickable}
+													onclick={() => isClickable && handleMatchClick(match, true)}
+													onkeydown={(e) => e.key === 'Enter' && isClickable && handleMatchClick(match, true)}
+													role={isClickable ? 'button' : undefined}
+													tabindex={isClickable ? 0 : undefined}
 												>
 													{#if match.status === 'IN_PROGRESS'}
 														<div class="live-badge">
@@ -1480,12 +1559,20 @@
 											{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 											{@const participantA = getParticipant(match.participantA || '')}
 											{@const participantB = getParticipant(match.participantB || '')}
+											{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
+											<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 											<div
 												class="match-card"
 												class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 												class:in-progress={match.status === 'IN_PROGRESS'}
 												class:pending={match.status === 'PENDING'}
 												class:bye-match={isByeMatchFlag}
+												class:clickable={isClickable}
+												onclick={() => isClickable && handleMatchClick(match, true)}
+												onkeydown={(e) => e.key === 'Enter' && isClickable && handleMatchClick(match, true)}
+												role={isClickable ? 'button' : undefined}
+												tabindex={isClickable ? 0 : undefined}
 											>
 												{#if match.status === 'IN_PROGRESS'}
 													<div class="live-badge">
@@ -1571,6 +1658,7 @@
 								{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 								{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
 								{@const tpmScoringLabel = getScoringLabelForRound(goldBracket.config, 'Semifinales')}
+								{@const tpmClickable = tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 								<div class="bracket-column third-place-column">
 									<div class="round-header third-place-header">
 										<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'}</span>
@@ -1580,11 +1668,18 @@
 										{/if}
 									</div>
 									<div class="round-matches">
+										<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+										<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 										<div
 											class="match-card"
 											class:completed={tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 											class:in-progress={tpm.status === 'IN_PROGRESS'}
 											class:pending={tpm.status === 'PENDING'}
+											class:clickable={tpmClickable}
+											onclick={() => tpmClickable && handleMatchClick(tpm, true)}
+											onkeydown={(e) => e.key === 'Enter' && tpmClickable && handleMatchClick(tpm, true)}
+											role={tpmClickable ? 'button' : undefined}
+											tabindex={tpmClickable ? 0 : undefined}
 										>
 											{#if tpm.status === 'IN_PROGRESS'}
 												<div class="live-badge">
@@ -1738,6 +1833,18 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Match Detail Dialog (readonly view for completed matches) -->
+{#if showMatchDialog && dialogMatch}
+	<MatchResultDialog
+		match={dialogMatch}
+		participants={tournament.participants}
+		{tournament}
+		visible={showMatchDialog}
+		isBracket={isBracketMatch}
+		onclose={handleCloseDialog}
+	/>
+{/if}
 
 <style>
 	.live-view {
@@ -2449,6 +2556,16 @@
 
 	.match-card.completed {
 		border-left: 3px solid #10b981;
+	}
+
+	.match-card.clickable {
+		cursor: pointer;
+	}
+
+	.match-card.clickable:hover {
+		transform: translateY(-1px);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		border-color: var(--primary, #667eea);
 	}
 
 	.match-card.in-progress {

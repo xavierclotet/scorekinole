@@ -18,6 +18,7 @@
 	import { getYouTubeEmbedUrl } from '$lib/utils/youtube';
 	import { translateText } from '$lib/utils/translate';
 	import { getLocale } from '$lib/paraglide/runtime.js';
+	import { calculateRankingPoints } from '$lib/algorithms/ranking';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Button } from '$lib/components/ui/button';
@@ -115,14 +116,20 @@
 		}
 	});
 
-	// Final standings (top 4) - uses finalPosition if available
+	// Final standings - uses finalPosition if available
 	// Exclude disqualified participants (they don't have positions in final classification)
 	let finalStandings = $derived(
 		tournament?.participants
 			.filter(p => p.finalPosition !== undefined && p.finalPosition > 0 && (p.status === 'ACTIVE' || !p.status))
-			.toSorted((a, b) => (a.finalPosition || 99) - (b.finalPosition || 99))
-			.slice(0, 4) || []
+			.toSorted((a, b) => (a.finalPosition || 99) - (b.finalPosition || 99)) || []
 	);
+
+	// Get ranking points earned based on final position and tier
+	function getRankingPoints(position: number): number {
+		if (!tournament?.rankingConfig?.enabled) return 0;
+		const tier = tournament.rankingConfig.tier || 'CLUB';
+		return calculateRankingPoints(position, tier);
+	}
 
 	// Check if both phases exist (with actual content)
 	let hasGroupStage = $derived(
@@ -450,28 +457,24 @@
 	{@const sizeClass = size === 'sm' ? 'avatar-sm' : size === 'lg' ? 'avatar-lg' : 'avatar-md'}
 	{#if participant}
 		{#if isDoubles && participant.partner}
-			<!-- Doubles: show both avatars -->
-			<div class="pair-avatars {sizeClass}">
-				{#if participant.photoURL}
-					<img src={participant.photoURL} alt="" class="avatar-img first" referrerpolicy="no-referrer" />
-				{:else}
-					<span class="avatar-placeholder first">{participant.name?.charAt(0) || '?'}</span>
-				{/if}
-				{#if participant.partner.photoURL}
-					<img src={participant.partner.photoURL} alt="" class="avatar-img second" referrerpolicy="no-referrer" />
-				{:else}
-					<span class="avatar-placeholder second">{participant.partner.name?.charAt(0) || '?'}</span>
-				{/if}
-			</div>
+			<!-- Doubles: show avatars only if they exist -->
+			{#if participant.photoURL || participant.partner.photoURL}
+				<div class="pair-avatars {sizeClass}">
+					{#if participant.photoURL}
+						<img src={participant.photoURL} alt="" class="avatar-img first" referrerpolicy="no-referrer" />
+					{/if}
+					{#if participant.partner.photoURL}
+						<img src={participant.partner.photoURL} alt="" class="avatar-img second" class:only={!participant.photoURL} referrerpolicy="no-referrer" />
+					{/if}
+				</div>
+			{/if}
 		{:else}
-			<!-- Singles: show single avatar -->
-			<div class="single-avatar {sizeClass}">
-				{#if participant.photoURL}
+			<!-- Singles: show avatar only if exists -->
+			{#if participant.photoURL}
+				<div class="single-avatar {sizeClass}">
 					<img src={participant.photoURL} alt="" class="avatar-img" referrerpolicy="no-referrer" />
-				{:else}
-					<span class="avatar-placeholder">{participant.name?.charAt(0) || '?'}</span>
-				{/if}
-			</div>
+				</div>
+			{/if}
 		{/if}
 	{/if}
 {/snippet}
@@ -706,8 +709,76 @@
 				{/if}
 
 				<!-- Final Standings (for completed tournaments) -->
-				{#if isCompleted && isParallelBrackets && parallelBrackets.length > 0}
-					<!-- For parallel brackets, show top 4 from each bracket -->
+				{#if isCompleted && !tournament.isImported && finalStandings.length > 0}
+					<!-- LIVE tournaments: show all participants with ranking points -->
+					{@const halfIndex = Math.ceil(finalStandings.length / 2)}
+					{@const leftColumn = finalStandings.slice(0, halfIndex)}
+					{@const rightColumn = finalStandings.slice(halfIndex)}
+					<div class="podium-section full-standings">
+						<div class="podium-header">
+							<span class="podium-title">{m.tournament_finalStandings()}</span>
+						</div>
+						<div class="standings-grid">
+							<div class="standings-column">
+								{#each leftColumn as participant}
+									{@const rankingPts = getRankingPoints(participant.finalPosition || 0)}
+									{@const isMedal = participant.finalPosition && participant.finalPosition <= 3}
+									<div class="standing-row" class:top-4={participant.finalPosition && participant.finalPosition <= 4}>
+										<span class="pos" class:medal={isMedal}>
+											{#if participant.finalPosition === 1}
+												🥇
+											{:else if participant.finalPosition === 2}
+												🥈
+											{:else if participant.finalPosition === 3}
+												🥉
+											{:else}
+												{participant.finalPosition}º
+											{/if}
+										</span>
+										<div class="participant-cell">
+											<span class="name">{getParticipantName(participant.id)}</span>
+											{@render participantAvatar(participant.id, 'sm')}
+										</div>
+										{#if tournament.rankingConfig?.enabled}
+											<span class="pts" class:zero={rankingPts === 0}>
+												{rankingPts > 0 ? `+${rankingPts}` : '0'}
+											</span>
+										{/if}
+									</div>
+								{/each}
+							</div>
+							<div class="standings-column">
+								{#each rightColumn as participant}
+									{@const rankingPts = getRankingPoints(participant.finalPosition || 0)}
+									{@const isMedal = participant.finalPosition && participant.finalPosition <= 3}
+									<div class="standing-row" class:top-4={participant.finalPosition && participant.finalPosition <= 4}>
+										<span class="pos" class:medal={isMedal}>
+											{#if participant.finalPosition === 1}
+												🥇
+											{:else if participant.finalPosition === 2}
+												🥈
+											{:else if participant.finalPosition === 3}
+												🥉
+											{:else}
+												{participant.finalPosition}º
+											{/if}
+										</span>
+										<div class="participant-cell">
+											<span class="name">{getParticipantName(participant.id)}</span>
+											{@render participantAvatar(participant.id, 'sm')}
+										</div>
+										{#if tournament.rankingConfig?.enabled}
+											<span class="pts" class:zero={rankingPts === 0}>
+												{rankingPts > 0 ? `+${rankingPts}` : '0'}
+											</span>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
+					</div>
+				{:else if isCompleted && tournament.isImported && isParallelBrackets && parallelBrackets.length > 0}
+					<!-- IMPORTED: parallel brackets - show top 4 from each -->
 					<div class="podium-section">
 						<div class="podium-header">
 							<span class="podium-title">{m.tournament_finalStandings()}</span>
@@ -721,7 +792,9 @@
 										<ol class="podium-list">
 											{#each top4 as entry}
 												<li class="podium-entry" data-position={entry.position}>
-													<span class="podium-rank">{entry.position}</span>
+													<span class="podium-rank" class:medal={entry.position <= 3}>
+														{#if entry.position === 1}🥇{:else if entry.position === 2}🥈{:else if entry.position === 3}🥉{:else}{entry.position}{/if}
+													</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
 												</li>
@@ -732,8 +805,8 @@
 							{/each}
 						</div>
 					</div>
-				{:else if isCompleted && isSplitDivisions && goldBracket}
-					<!-- For split divisions (Gold/Silver), show top 4 from each -->
+				{:else if isCompleted && tournament.isImported && isSplitDivisions && goldBracket}
+					<!-- IMPORTED: split divisions - show top 4 from gold/silver -->
 					<div class="podium-section">
 						<div class="podium-header">
 							<span class="podium-title">{m.tournament_finalStandings()}</span>
@@ -747,7 +820,9 @@
 										<ol class="podium-list">
 											{#each goldTop4 as entry}
 												<li class="podium-entry" data-position={entry.position}>
-													<span class="podium-rank">{entry.position}</span>
+													<span class="podium-rank" class:medal={entry.position <= 3}>
+														{#if entry.position === 1}🥇{:else if entry.position === 2}🥈{:else if entry.position === 3}🥉{:else}{entry.position}{/if}
+													</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
 												</li>
@@ -765,7 +840,9 @@
 											{#each silverTop4 as entry}
 												{@const silverPosition = entry.position + 4}
 												<li class="podium-entry" data-position={entry.position}>
-													<span class="podium-rank">{silverPosition}</span>
+													<span class="podium-rank">
+														{silverPosition}º
+													</span>
 													{@render participantAvatar(entry.participantId, 'sm')}
 													<span class="podium-name">{getParticipantName(entry.participantId)}</span>
 												</li>
@@ -776,21 +853,27 @@
 							{/if}
 						</div>
 					</div>
-				{:else if isCompleted && finalStandings.length > 0}
-					<div class="podium-section">
-						<div class="podium-header">
-							<span class="podium-title">{m.tournament_finalStandings()}</span>
+				{:else if isCompleted && tournament.isImported && goldBracket}
+					<!-- IMPORTED: single bracket - show top 4 -->
+					{@const top4 = getBracketTop4({ bracket: goldBracket })}
+					{#if top4.length > 0}
+						<div class="podium-section">
+							<div class="podium-header">
+								<span class="podium-title">{m.tournament_finalStandings()}</span>
+							</div>
+							<ol class="podium-list inline">
+								{#each top4 as entry}
+									<li class="podium-entry" data-position={entry.position}>
+										<span class="podium-rank" class:medal={entry.position <= 3}>
+											{#if entry.position === 1}🥇{:else if entry.position === 2}🥈{:else if entry.position === 3}🥉{:else}{entry.position}º{/if}
+										</span>
+										{@render participantAvatar(entry.participantId, 'md')}
+										<span class="podium-name">{getParticipantName(entry.participantId)}</span>
+									</li>
+								{/each}
+							</ol>
 						</div>
-						<ol class="podium-list inline">
-							{#each finalStandings as participant}
-								<li class="podium-entry" data-position={participant.finalPosition}>
-									<span class="podium-rank">{participant.finalPosition}</span>
-									{@render participantAvatar(participant.id, 'md')}
-									<span class="podium-name">{getParticipantName(participant.id)}</span>
-								</li>
-							{/each}
-						</ol>
-					</div>
+					{/if}
 				{:else if isCompleted && tournament.finalStage?.winner}
 					<!-- Fallback: just show winner if no finalPositions -->
 					<div class="podium-section">
@@ -2865,6 +2948,92 @@
 		margin-top: 1.25rem;
 	}
 
+	.podium-section.full-standings {
+		margin-top: 0.75rem;
+	}
+
+	.standings-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem 1rem;
+	}
+
+	@media (max-width: 480px) {
+		.standings-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.standings-column {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.standing-row {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.25rem 0.4rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+	}
+
+	.standing-row.top-4 {
+		background: rgba(16, 185, 129, 0.08);
+	}
+
+	.standing-row .pos {
+		min-width: 1.5rem;
+		text-align: center;
+		font-weight: 600;
+		color: #8b9bb3;
+		font-size: 0.7rem;
+	}
+
+	.standing-row .pos.medal {
+		font-size: 1.3rem;
+		line-height: 1;
+	}
+
+	.standing-row .participant-cell {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		min-width: 0;
+	}
+
+	.standing-row .name {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		color: #e1e8ed;
+	}
+
+	.standing-row .pts {
+		font-weight: 600;
+		color: #10b981;
+		font-size: 0.7rem;
+		min-width: 2rem;
+		text-align: right;
+	}
+
+	.standing-row .pts.zero {
+		color: #6b7a94;
+	}
+
+	/* Light mode */
+	:global([data-theme='light']) .standing-row .name,
+	:global([data-theme='violet-light']) .standing-row .name {
+		color: #374151;
+	}
+
+	:global([data-theme='light']) .standing-row.top-4,
+	:global([data-theme='violet-light']) .standing-row.top-4 {
+		background: rgba(16, 185, 129, 0.1);
+	}
+
 	.podium-header {
 		display: flex;
 		align-items: center;
@@ -3078,6 +3247,14 @@
 		color: #6b7a94;
 		background: #0f1419;
 		border-radius: 4px;
+	}
+
+	.podium-rank.medal {
+		width: auto;
+		height: auto;
+		background: transparent !important;
+		font-size: 1.3rem;
+		line-height: 1;
 		flex-shrink: 0;
 	}
 
@@ -3236,7 +3413,7 @@
 	.podium-group .podium-rank {
 		width: 18px;
 		height: 18px;
-		font-size: 0.65rem;
+		font-size: 1.1rem;
 	}
 
 	.podium-group .podium-name {
