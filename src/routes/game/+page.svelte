@@ -16,7 +16,9 @@
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
 	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
 	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
-	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
+	import AppMenu from '$lib/components/AppMenu.svelte';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { Settings, User, Users, Trophy } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { onReconnect, setSyncStatus } from '$lib/utils/networkStatus';
@@ -48,7 +50,8 @@
 	import QRScanner from '$lib/components/QRScanner.svelte';
 	import { QrCode } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
-	import { assignUserToTeam, unassignUserFromTeam, assignPartnerToTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
+	import { page } from '$app/state';
+	import { assignUserToTeam, unassignUserFromTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
 	import {
 		activeInvite,
 		isInviteModalOpen,
@@ -130,6 +133,10 @@
 	// Track if tournament match completion has been sent
 	let tournamentMatchCompletedSent = $state(false);
 
+	// Track if we just exited tournament mode (to prevent auto-restoration)
+	// This flag prevents restoring friendly match data until user explicitly clicks "New Match"
+	let justExitedTournamentMode = $state(false);
+
 	// localStorage key for pre-tournament team data backup
 	const PRE_TOURNAMENT_BACKUP_KEY = 'crokinolePreTournamentBackup';
 
@@ -209,6 +216,21 @@
 		}
 	}
 
+	// React to URL key parameter (works on initial load AND client-side navigation)
+	$effect(() => {
+		const urlKey = page.url.searchParams.get('key');
+		if (urlKey && /^[A-Za-z0-9]{6}$/i.test(urlKey)) {
+			// Save the key
+			localStorage.setItem('tournamentKey', urlKey.toUpperCase());
+			// Clean up the URL (remove the key parameter)
+			const newUrl = new URL(window.location.href);
+			newUrl.searchParams.delete('key');
+			window.history.replaceState({}, '', newUrl.pathname);
+			// Use the same logic as clicking the tournament button (auto-start if 1 match)
+			handleJoinTournament();
+		}
+	});
+
 	onMount(() => {
 		gameSettings.load();
 		loadTeams();
@@ -262,9 +284,39 @@
 			}
 		});
 
+		// Keyboard shortcuts for page-specific actions (QR Scanner, Settings)
+		function handleKeyboardShortcuts(e: KeyboardEvent) {
+			// Skip if any modal is open or if typing in an input
+			const hasModalOpen = showSettings || showQRScanner || showColorPicker || showHammerDialog ||
+				showNewMatchConfirm || showTournamentModal || showTournamentExitConfirm ||
+				showTournamentResetConfirm || showMatchCompletedExternally || $isInviteModalOpen;
+
+			if (hasModalOpen) return;
+			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+			const isMod = e.ctrlKey || e.metaKey;
+
+			// Ctrl/Cmd + Q - QR Scanner
+			if (isMod && e.key.toLowerCase() === 'q') {
+				e.preventDefault();
+				showQRScanner = true;
+				return;
+			}
+
+			// Ctrl/Cmd + , - Settings
+			if (isMod && e.key === ',') {
+				e.preventDefault();
+				showSettings = true;
+				return;
+			}
+		}
+
+		window.addEventListener('keydown', handleKeyboardShortcuts);
+
 		return () => {
 			unsubSettings();
 			unsubReconnect();
+			window.removeEventListener('keydown', handleKeyboardShortcuts);
 		};
 	});
 
@@ -354,13 +406,23 @@
 		clearTournamentContext();
 		// Clear event title/phase since we're no longer in tournament mode
 		gameSettings.update((s) => ({ ...s, eventTitle: '', matchPhase: '' }));
+		// Mark that we just exited tournament mode - prevents auto-restoration
+		justExitedTournamentMode = true;
 	}
 
 	/**
 	 * Restore pre-tournament settings and team data from backup
 	 * Called when starting a new friendly match after a tournament
+	 * @param force - If true, restore even if justExitedTournamentMode is true
 	 */
-	function restorePreTournamentData() {
+	function restorePreTournamentData(force = false) {
+		// Don't restore if we just exited tournament mode (unless forced)
+		// This prevents automatic restoration - user must explicitly start new friendly match
+		if (justExitedTournamentMode && !force) {
+			console.log('⏸️ Skipping pre-tournament restoration - just exited tournament mode');
+			return;
+		}
+
 		const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
 		if (!backupStr) return;
 
@@ -608,6 +670,8 @@
 		}
 
 		// DESPUÉS del reset: aplicar los valores iniciales
+		// IMPORTANTE: Limpiar datos de friendly matches (userId, partner, etc.)
+		// para evitar mezclar con datos del torneo
 		team1.update(t => ({
 			...t,
 			name: team1Name,
@@ -615,7 +679,11 @@
 			rounds: initialRounds1,
 			matches: initialMatches1,
 			twenty: 0,
-			hasWon: team1HasWon
+			hasWon: team1HasWon,
+			// Limpiar datos de friendly matches
+			userId: null,
+			userPhotoURL: null,
+			partner: undefined
 		}));
 
 		team2.update(t => ({
@@ -625,7 +693,11 @@
 			rounds: initialRounds2,
 			matches: initialMatches2,
 			twenty: 0,
-			hasWon: team2HasWon
+			hasWon: team2HasWon,
+			// Limpiar datos de friendly matches
+			userId: null,
+			userPhotoURL: null,
+			partner: undefined
 		}));
 
 		saveTeams();
@@ -760,6 +832,9 @@
 	 * Handle tournament match started from modal
 	 */
 	function handleTournamentMatchStarted(context: TournamentMatchContext) {
+		// Clear the "just exited tournament" flag since we're starting a new tournament match
+		justExitedTournamentMode = false;
+
 		// Save current (friendly) data as backup ONLY if no backup exists
 		// This preserves the original friendly settings across multiple tournament matches
 		if (!localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)) {
@@ -1212,8 +1287,11 @@
 			exitTournamentMode();
 		}
 
-		// Restore pre-tournament data if available (names, colors, settings)
-		restorePreTournamentData();
+		// User explicitly requested new match, so clear the "just exited tournament" flag
+		// and force restore pre-tournament data (names, colors, settings)
+		const wasJustExitedTournament = justExitedTournamentMode;
+		justExitedTournamentMode = false;
+		restorePreTournamentData(wasJustExitedTournament); // Force if coming from tournament
 
 		resetTeams();
 		resetMatchState();
@@ -1862,40 +1940,44 @@
 <div class="game-page" data-theme={$theme}>
 	<header class="game-header" class:tournament-mode={inTournamentMode}>
 		{#if inTournamentMode}
-			<!-- Tournament mode header - same style as normal mode -->
-			<div class="header-left">
-				<span class="header-title tournament-title">
-					<svg class="tournament-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-					<span class="tournament-name-text">{$gameTournamentContext?.tournamentName}</span>
-				</span>
+			<!-- Tournament mode header -->
+			<div class="header-left tournament-header-left">
+				<!-- Tournament info - flexible layout -->
+				<div class="tournament-info">
+					<div class="tournament-name-badge">
+						<Trophy class="size-4 text-primary/80 shrink-0" />
+						<span class="tournament-name-text">{$gameTournamentContext?.tournamentName}</span>
+						{#if $gameTournamentContext?.gameConfig?.gameType === 'doubles'}
+							<Users class="size-3.5 tournament-mode-icon" />
+						{:else}
+							<User class="size-3.5 tournament-mode-icon" />
+						{/if}
+					</div>
+					<span class="tournament-phase">
+						{#if $gameTournamentContext?.phase === 'GROUP'}
+							{#if $gameTournamentContext.groupStageType === 'SWISS'}SS{:else}RR{/if}
+							{#if $gameTournamentContext.roundNumber && $gameTournamentContext.totalRounds}
+								R{$gameTournamentContext.roundNumber}/{$gameTournamentContext.totalRounds}
+							{/if}
+							{#if $gameTournamentContext.groupName}
+								<span class="text-muted-foreground/60">({$gameTournamentContext.groupName})</span>
+							{/if}
+						{:else}
+							{$gameTournamentContext?.bracketRoundName || 'Bracket'}
+							{#if $gameTournamentContext?.bracketType === 'gold'}
+								<span class="text-amber-500 font-semibold ml-1">{m.scoring_gold()}</span>
+							{:else if $gameTournamentContext?.bracketType === 'silver'}
+								<span class="text-slate-400 font-semibold ml-1">{m.scoring_silver()}</span>
+							{/if}
+						{/if}
+						{#if tournamentMatchFormat}
+							<span class="text-muted-foreground/50 ml-1">· {tournamentMatchFormat}</span>
+						{/if}
+					</span>
+				</div>
 			</div>
 
 			<div class="header-center">
-				<span class="header-phase">
-					{#if $gameTournamentContext?.phase === 'GROUP'}
-						{#if $gameTournamentContext.groupStageType === 'SWISS'}
-							SS
-						{:else}
-							RR
-						{/if}
-						{#if $gameTournamentContext.roundNumber && $gameTournamentContext.totalRounds}
-							R{$gameTournamentContext.roundNumber}/{$gameTournamentContext.totalRounds}
-						{/if}
-						{#if $gameTournamentContext.groupName}
-							<span class="group-name">({$gameTournamentContext.groupName})</span>
-						{/if}
-					{:else}
-						{$gameTournamentContext?.bracketRoundName || 'Bracket'}
-						{#if $gameTournamentContext?.bracketType === 'gold'}
-							<span class="bracket-type gold">{m.scoring_gold()}</span>
-						{:else if $gameTournamentContext?.bracketType === 'silver'}
-							<span class="bracket-type silver">{m.scoring_silver()}</span>
-						{/if}
-					{/if}
-				</span>
-				{#if tournamentMatchFormat}
-					<span class="header-format">{tournamentMatchFormat}</span>
-				{/if}
 				{#if $gameSettings.showTimer}
 					<Timer size="small" />
 				{/if}
@@ -1914,15 +1996,38 @@
 		{:else}
 			<!-- Normal/Friendly mode header -->
 			<div class="header-left">
-				<ScorekinoleLogo />
-				<span class="header-separator">·</span>
-				<span class="header-title friendly-title">
-					<span class="friendly-title-text">{friendlyMatchTitle}</span>
-				</span>
+				<AppMenu showHome homeHref="/" currentPage="game">
+					<DropdownMenu.Item onclick={() => showQRScanner = true} class="cursor-pointer !pl-3 !pr-4 !py-2.5 !gap-2 rounded-lg transition-colors duration-150 hover:bg-accent group">
+						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
+							<QrCode class="size-4 text-primary" />
+						</div>
+						<span class="flex-1 font-medium">{m.scan_title()}</span>
+						<DropdownMenu.Shortcut>Ctrl+Q</DropdownMenu.Shortcut>
+					</DropdownMenu.Item>
+					<DropdownMenu.Item onclick={() => showSettings = true} class="cursor-pointer !pl-3 !pr-4 !py-2.5 !gap-2 rounded-lg transition-colors duration-150 hover:bg-accent group">
+						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
+							<Settings class="size-4 text-primary" />
+						</div>
+						<span class="flex-1 font-medium">{m.common_settings()}</span>
+						<DropdownMenu.Shortcut>Ctrl+,</DropdownMenu.Shortcut>
+					</DropdownMenu.Item>
+				</AppMenu>
+				<!-- Friendly match info badge -->
+				<div class="flex items-center gap-2.5">
+					<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 max-sm:px-2.5 max-sm:py-1">
+						{#if $gameSettings.gameType === 'doubles'}
+							<Users class="size-4 text-primary/80 max-sm:size-3.5" />
+						{:else}
+							<User class="size-4 text-primary/80 max-sm:size-3.5" />
+						{/if}
+						<span class="text-base font-semibold text-primary max-sm:text-sm">{friendlyMatchTitle}</span>
+					</div>
+					<span class="text-muted-foreground/40 text-base max-sm:text-sm">·</span>
+					<span class="text-base font-medium text-muted-foreground max-sm:text-sm">{friendlyMatchMode}</span>
+				</div>
 			</div>
 
 			<div class="header-center">
-				<span class="header-phase">{friendlyMatchMode}</span>
 				{#if $gameSettings.showTimer}
 					<Timer size="small" />
 				{/if}
@@ -1931,12 +2036,6 @@
 			<div class="header-right">
 				<OfflineIndicator />
 				<ThemeToggle />
-				<button class="header-btn" onclick={() => showQRScanner = true} aria-label={m.scan_title()} title={m.scan_title()}>
-					<QrCode size={15} />
-				</button>
-				<button class="header-btn" onclick={() => showSettings = true} aria-label="Settings" title={m.common_settings()}>
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-				</button>
 			</div>
 		{/if}
 	</header>
@@ -2242,30 +2341,68 @@
 		border-radius: 10px;
 	}
 
-	/* Tournament title with icon */
-	.tournament-title {
+	/* Tournament header layout */
+	.tournament-header-left {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	.tournament-info {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		cursor: default;
-		max-width: 400px;
+		gap: 0.625rem;
+		flex-wrap: wrap;
 	}
 
-	.tournament-title:hover {
-		background: none;
-	}
-
-	.tournament-icon {
-		color: var(--game-text-muted);
-		flex-shrink: 0;
+	.tournament-name-badge {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.375rem 0.75rem;
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
+		border-radius: 0.5rem;
+		max-width: 100%;
+		min-width: 0;
 	}
 
 	.tournament-name-text {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--primary);
+		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.tournament-phase {
+		font-size: 0.9rem;
+		font-weight: 500;
+		color: var(--muted-foreground);
 		white-space: nowrap;
 	}
 
+	.tournament-mode-icon {
+		color: var(--muted-foreground);
+		opacity: 0.6;
+		flex-shrink: 0;
+	}
+
+	@media (max-width: 640px) {
+		.tournament-name-badge {
+			padding: 0.25rem 0.625rem;
+		}
+
+		.tournament-name-text {
+			font-size: 0.875rem;
+		}
+
+		.tournament-phase {
+			font-size: 0.8rem;
+		}
+	}
+
+	
 	/* Friendly mode header styling */
 	.friendly-title {
 		display: flex;
@@ -2291,7 +2428,7 @@
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
-		gap: 0.25rem;
+		gap: 1rem;
 	}
 
 	.header-center {
@@ -2311,19 +2448,12 @@
 		background: none;
 		border: none;
 		padding: 0.3rem 0.6rem;
-		cursor: pointer;
 		border-radius: 6px;
-		transition: all 0.15s;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		max-width: 400px;
 		letter-spacing: 0.02em;
-	}
-
-	.header-title:hover {
-		background: var(--game-surface-hover);
-		filter: brightness(1.15);
 	}
 
 	.header-title-placeholder {

@@ -4,9 +4,8 @@
 	import { currentUser, authInitialized } from '$lib/firebase/auth';
 	import { getMatchesFromCloud, getUserTournamentMatches } from '$lib/firebase/firestore';
 	import type { MatchHistory } from '$lib/types/history';
-	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
+	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { PAGE_SIZE } from '$lib/constants';
@@ -380,13 +379,12 @@
 	<header class="page-header">
 		<div class="header-row">
 			<div class="header-left">
-				<ScorekinoleLogo />
+				<AppMenu showHome homeHref="/" currentPage="my-stats" />
 			</div>
 			<div class="header-center">
 				<h1>{m.stats_myStatistics()}</h1>
 			</div>
 			<div class="header-right">
-				<LanguageSelector />
 				<ThemeToggle />
 			</div>
 		</div>
@@ -706,7 +704,7 @@
 	.header-left {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 1rem;
 		flex-shrink: 0;
 	}
 

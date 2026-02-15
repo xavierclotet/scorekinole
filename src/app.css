@@ -38,7 +38,7 @@
 	--popover: oklch(0.17 0.02 250);
 	--popover-foreground: oklch(0.985 0 0);
 
-	--primary: oklch(0.75 0.18 155);
+	--primary: oklch(0.72 0.19 145);
 	--primary-foreground: oklch(0.15 0 0);
 
 	--secondary: oklch(0.269 0.02 250);
@@ -55,17 +55,17 @@
 
 	--border: oklch(0.3 0.02 250);
 	--input: oklch(0.3 0.02 250);
-	--ring: oklch(0.75 0.18 155);
+	--ring: oklch(0.72 0.19 145);
 
 	/* Sidebar colors */
 	--sidebar: oklch(0.145 0.02 250);
 	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.75 0.18 155);
+	--sidebar-primary: oklch(0.72 0.19 145);
 	--sidebar-primary-foreground: oklch(0.15 0 0);
 	--sidebar-accent: oklch(0.269 0.02 250);
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(0.3 0.02 250);
-	--sidebar-ring: oklch(0.75 0.18 155);
+	--sidebar-ring: oklch(0.72 0.19 145);
 
 	/* Radius tokens */
 	--radius: 0.5rem;
@@ -98,7 +98,7 @@
 	--game-btn-bg: rgba(255, 255, 255, 0.04);
 	--game-btn-bg-hover: rgba(255, 255, 255, 0.08);
 	--game-btn-border: rgba(255, 255, 255, 0.1);
-	--game-toggle-active: oklch(0.75 0.18 155);
+	--game-toggle-active: oklch(0.72 0.19 145);
 	--game-toggle-track: rgba(255, 255, 255, 0.15);
 	--game-toggle-knob: rgba(255, 255, 255, 0.7);
 	--game-scrollbar: rgba(255, 255, 255, 0.15);
@@ -124,7 +124,7 @@
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.145 0 0);
 
-	--primary: oklch(0.55 0.2 155);
+	--primary: oklch(0.52 0.18 145);
 	--primary-foreground: oklch(0.985 0 0);
 
 	--secondary: oklch(0.97 0 0);
@@ -141,16 +141,16 @@
 
 	--border: oklch(0.9 0 0);
 	--input: oklch(0.9 0 0);
-	--ring: oklch(0.55 0.2 155);
+	--ring: oklch(0.52 0.18 145);
 
 	--sidebar: oklch(0.985 0 0);
 	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.55 0.2 155);
+	--sidebar-primary: oklch(0.52 0.18 145);
 	--sidebar-primary-foreground: oklch(0.985 0 0);
 	--sidebar-accent: oklch(0.97 0 0);
 	--sidebar-accent-foreground: oklch(0.205 0 0);
 	--sidebar-border: oklch(0.9 0 0);
-	--sidebar-ring: oklch(0.55 0.2 155);
+	--sidebar-ring: oklch(0.52 0.18 145);
 
 	/* Feature card colors (landing page - light) */
 	--feature-card-bg: rgba(0, 0, 0, 0.02);
@@ -180,7 +180,7 @@
 	--game-btn-bg: rgba(0, 0, 0, 0.04);
 	--game-btn-bg-hover: rgba(0, 0, 0, 0.08);
 	--game-btn-border: rgba(0, 0, 0, 0.12);
-	--game-toggle-active: oklch(0.55 0.2 155);
+	--game-toggle-active: oklch(0.52 0.18 145);
 	--game-toggle-track: rgba(0, 0, 0, 0.15);
 	--game-toggle-knob: rgba(0, 0, 0, 0.6);
 	--game-scrollbar: rgba(0, 0, 0, 0.15);
@@ -198,46 +198,46 @@
    ============================================ */
 
 [data-theme='violet'] {
-	/* Base dark theme colors (same as :root) */
-	--bg-primary: #0a0e1a;
-	--bg-header: #151b2d;
-	--bg-modal: #1a1f35;
+	/* Base dark theme colors with subtle violet tint */
+	--bg-primary: #100a14;
+	--bg-header: #1a1420;
+	--bg-modal: #201828;
 	--text-primary: #ffffff;
-	--text-dim: #8899aa;
-	--divider: #2a3a4a;
+	--text-dim: #a090b0;
+	--divider: #352840;
 
-	--background: oklch(0.145 0.02 250);
+	--background: oklch(0.145 0.03 300);
 	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.17 0.02 250);
+	--card: oklch(0.17 0.03 300);
 	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.17 0.02 250);
+	--popover: oklch(0.17 0.03 300);
 	--popover-foreground: oklch(0.985 0 0);
 
-	/* Violet primary colors */
-	--primary: oklch(0.7 0.2 285);
-	--primary-foreground: oklch(0.15 0 0);
+	/* True violet primary - hue 300 */
+	--primary: oklch(0.68 0.2 300);
+	--primary-foreground: oklch(0.98 0 0);
 
-	--secondary: oklch(0.269 0.02 250);
+	--secondary: oklch(0.269 0.03 300);
 	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0.02 250);
-	--muted-foreground: oklch(0.6 0.02 220);
-	--accent: oklch(0.269 0.02 250);
+	--muted: oklch(0.269 0.03 300);
+	--muted-foreground: oklch(0.6 0.04 300);
+	--accent: oklch(0.269 0.03 300);
 	--accent-foreground: oklch(0.985 0 0);
 	--destructive: oklch(0.65 0.22 25);
 	--destructive-foreground: oklch(0.985 0 0);
-	--border: oklch(0.3 0.02 250);
-	--input: oklch(0.3 0.02 250);
-	--ring: oklch(0.7 0.2 285);
+	--border: oklch(0.3 0.03 300);
+	--input: oklch(0.3 0.03 300);
+	--ring: oklch(0.68 0.2 300);
 
 	/* Sidebar with violet */
-	--sidebar: oklch(0.145 0.02 250);
+	--sidebar: oklch(0.145 0.03 300);
 	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.7 0.2 285);
-	--sidebar-primary-foreground: oklch(0.15 0 0);
-	--sidebar-accent: oklch(0.269 0.02 250);
+	--sidebar-primary: oklch(0.68 0.2 300);
+	--sidebar-primary-foreground: oklch(0.98 0 0);
+	--sidebar-accent: oklch(0.269 0.03 300);
 	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(0.3 0.02 250);
-	--sidebar-ring: oklch(0.7 0.2 285);
+	--sidebar-border: oklch(0.3 0.03 300);
+	--sidebar-ring: oklch(0.68 0.2 300);
 
 	/* Feature card colors (dark) */
 	--feature-card-bg: rgba(255, 255, 255, 0.03);
@@ -255,11 +255,11 @@
 	--link-card-text: rgba(255, 255, 255, 0.7);
 	--link-card-text-hover: #ffffff;
 
-	--accent-green: #a855f7; /* For legacy CSS using this var */
+	--accent-green: #c084fc; /* True violet for legacy CSS */
 
 	/* Game page colors (violet dark theme) */
-	--game-bg-start: #0f1419;
-	--game-bg-end: #1a1f35;
+	--game-bg-start: #100a14;
+	--game-bg-end: #201828;
 	--game-text: #ffffff;
 	--game-text-muted: rgba(255, 255, 255, 0.5);
 	--game-text-dim: rgba(255, 255, 255, 0.35);
@@ -269,7 +269,7 @@
 	--game-btn-bg: rgba(255, 255, 255, 0.04);
 	--game-btn-bg-hover: rgba(255, 255, 255, 0.08);
 	--game-btn-border: rgba(255, 255, 255, 0.1);
-	--game-toggle-active: oklch(0.7 0.2 285);
+	--game-toggle-active: oklch(0.68 0.2 300);
 	--game-toggle-track: rgba(255, 255, 255, 0.15);
 	--game-toggle-knob: rgba(255, 255, 255, 0.7);
 	--game-scrollbar: rgba(255, 255, 255, 0.15);
@@ -277,44 +277,45 @@
 }
 
 [data-theme='violet-light'] {
-	/* Extend light theme */
-	--bg-primary: #f8fafc;
+	/* Light theme with subtle violet tint */
+	--bg-primary: #fcf8fc;
 	--bg-header: #ffffff;
 	--bg-modal: #ffffff;
-	--text-primary: #1a202c;
-	--text-dim: #64748b;
-	--divider: #e2e8f0;
+	--text-primary: #1a1520;
+	--text-dim: #705080;
+	--divider: #f0e8f0;
 
-	--background: oklch(0.985 0 0);
-	--foreground: oklch(0.145 0 0);
+	--background: oklch(0.985 0.015 300);
+	--foreground: oklch(0.145 0.025 300);
 	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
+	--card-foreground: oklch(0.145 0.025 300);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
+	--popover-foreground: oklch(0.145 0.025 300);
 
-	--primary: oklch(0.55 0.25 285);
+	/* True violet primary - hue 300, good contrast */
+	--primary: oklch(0.5 0.22 300);
 	--primary-foreground: oklch(0.98 0 0);
 
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.45 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
+	--secondary: oklch(0.97 0.015 300);
+	--secondary-foreground: oklch(0.205 0.025 300);
+	--muted: oklch(0.97 0.015 300);
+	--muted-foreground: oklch(0.45 0.03 300);
+	--accent: oklch(0.97 0.015 300);
+	--accent-foreground: oklch(0.205 0.025 300);
 	--destructive: oklch(0.55 0.22 25);
 	--destructive-foreground: oklch(0.985 0 0);
-	--border: oklch(0.9 0 0);
-	--input: oklch(0.9 0 0);
-	--ring: oklch(0.55 0.25 285);
+	--border: oklch(0.9 0.015 300);
+	--input: oklch(0.9 0.015 300);
+	--ring: oklch(0.5 0.22 300);
 
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.55 0.25 285);
+	--sidebar: oklch(0.985 0.015 300);
+	--sidebar-foreground: oklch(0.145 0.025 300);
+	--sidebar-primary: oklch(0.5 0.22 300);
 	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.9 0 0);
-	--sidebar-ring: oklch(0.55 0.25 285);
+	--sidebar-accent: oklch(0.97 0.015 300);
+	--sidebar-accent-foreground: oklch(0.205 0.025 300);
+	--sidebar-border: oklch(0.9 0.015 300);
+	--sidebar-ring: oklch(0.5 0.22 300);
 
 	/* Feature card colors (light) */
 	--feature-card-bg: rgba(0, 0, 0, 0.02);
@@ -330,14 +331,14 @@
 	--link-card-border: rgba(0, 0, 0, 0.1);
 	--link-card-border-hover: rgba(0, 0, 0, 0.2);
 	--link-card-text: rgba(0, 0, 0, 0.6);
-	--link-card-text-hover: #1a1a2e;
+	--link-card-text-hover: #1a1625;
 
-	--accent-green: #a855f7; /* For legacy CSS */
+	--accent-green: #a855f7; /* True violet for legacy CSS */
 
 	/* Game page colors (violet light theme) */
-	--game-bg-start: #f0f4f8;
-	--game-bg-end: #e2e8f0;
-	--game-text: #1a202c;
+	--game-bg-start: #fcf8fc;
+	--game-bg-end: #f0e8f5;
+	--game-text: #1a1520;
 	--game-text-muted: rgba(0, 0, 0, 0.5);
 	--game-text-dim: rgba(0, 0, 0, 0.35);
 	--game-border: rgba(0, 0, 0, 0.1);
@@ -346,7 +347,7 @@
 	--game-btn-bg: rgba(0, 0, 0, 0.04);
 	--game-btn-bg-hover: rgba(0, 0, 0, 0.08);
 	--game-btn-border: rgba(0, 0, 0, 0.12);
-	--game-toggle-active: oklch(0.55 0.25 285);
+	--game-toggle-active: oklch(0.5 0.22 300);
 	--game-toggle-track: rgba(0, 0, 0, 0.15);
 	--game-toggle-knob: rgba(0, 0, 0, 0.6);
 	--game-scrollbar: rgba(0, 0, 0, 0.15);

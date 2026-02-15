@@ -4,7 +4,7 @@
 	import { currentUser, signOut } from '$lib/firebase/auth';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Avatar from '$lib/components/ui/avatar';
-	import { User, LogOut, LogIn, ChevronRight, BarChart3 } from '@lucide/svelte';
+	import { User, LogOut, LogIn, ChevronRight } from '@lucide/svelte';
 
 	interface Props {
 		onlogin?: () => void;
@@ -19,10 +19,6 @@
 
 	function handleProfile() {
 		onprofile?.();
-	}
-
-	function handleMyStats() {
-		goto('/my-stats');
 	}
 
 	async function handleSignOut() {
@@ -82,17 +78,6 @@
 							<User class="size-4 text-muted-foreground group-hover:text-foreground transition-colors" />
 						</div>
 						<span class="flex-1 font-medium">{m.auth_myProfile()}</span>
-						<ChevronRight class="size-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
-					</DropdownMenu.Item>
-
-					<DropdownMenu.Item
-						onclick={handleMyStats}
-						class="cursor-pointer px-3 py-2.5 gap-3 rounded-lg transition-colors duration-150 hover:bg-accent group"
-					>
-						<div class="flex items-center justify-center size-8 rounded-md bg-muted/50 group-hover:bg-muted transition-colors">
-							<BarChart3 class="size-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-						</div>
-						<span class="flex-1 font-medium">{m.stats_myStatistics()}</span>
 						<ChevronRight class="size-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
 					</DropdownMenu.Item>
 

@@ -3,22 +3,96 @@
 	import { getUserProfile } from '$lib/firebase/userProfile';
 	import { uploadAvatar, deleteAvatar } from '$lib/firebase/avatarStorage';
 	import { adminTheme } from '$lib/stores/theme';
+	import { COUNTRY_CODES } from '$lib/constants';
+	import * as Popover from '$lib/components/ui/popover';
+	import * as Command from '$lib/components/ui/command';
+	import Check from '@lucide/svelte/icons/check';
+	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+
+	// Get translated country name by code
+	function getCountryName(code: string): string {
+		const translations: Record<string, () => string> = {
+			'AR': () => m.country_AR(),
+			'AU': () => m.country_AU(),
+			'AT': () => m.country_AT(),
+			'BE': () => m.country_BE(),
+			'BR': () => m.country_BR(),
+			'CA': () => m.country_CA(),
+			'CAT': () => m.country_CAT(),
+			'CL': () => m.country_CL(),
+			'CN': () => m.country_CN(),
+			'CO': () => m.country_CO(),
+			'CZ': () => m.country_CZ(),
+			'DE': () => m.country_DE(),
+			'DK': () => m.country_DK(),
+			'ES': () => m.country_ES(),
+			'FI': () => m.country_FI(),
+			'FR': () => m.country_FR(),
+			'GB': () => m.country_GB(),
+			'GR': () => m.country_GR(),
+			'HU': () => m.country_HU(),
+			'IE': () => m.country_IE(),
+			'IN': () => m.country_IN(),
+			'IS': () => m.country_IS(),
+			'IT': () => m.country_IT(),
+			'JP': () => m.country_JP(),
+			'KR': () => m.country_KR(),
+			'LU': () => m.country_LU(),
+			'MX': () => m.country_MX(),
+			'NL': () => m.country_NL(),
+			'NO': () => m.country_NO(),
+			'NZ': () => m.country_NZ(),
+			'PL': () => m.country_PL(),
+			'PT': () => m.country_PT(),
+			'RO': () => m.country_RO(),
+			'RU': () => m.country_RU(),
+			'SE': () => m.country_SE(),
+			'SG': () => m.country_SG(),
+			'CH': () => m.country_CH(),
+			'US': () => m.country_US(),
+			'UY': () => m.country_UY(),
+			'VE': () => m.country_VE(),
+			'ZA': () => m.country_ZA(),
+		};
+		return translations[code]?.() || code;
+	}
+
+	// Countries sorted by translated name
+	const sortedCountries = $derived(
+		COUNTRY_CODES.map(code => ({ code, name: getCountryName(code) }))
+			.sort((a, b) => a.name.localeCompare(b.name))
+	);
 
 	interface Props {
 		isOpen?: boolean;
 		user?: any;
 		isAdmin?: boolean;
 		onclose?: () => void;
-		onupdate?: (data: { playerName: string; photoURL?: string }) => void;
+		onupdate?: (data: { playerName: string; photoURL?: string; country?: string }) => void;
 	}
 
-	let { isOpen = $bindable(false), user = null, isAdmin = false, onclose, onupdate }: Props = $props();
+	let { isOpen = $bindable(false), user = null, isAdmin: _isAdmin = false, onclose, onupdate }: Props = $props();
 
 	let playerNameInput = $state('');
+	let countryCode = $state('');
 	let currentPhotoURL = $state<string | null>(null);
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let fileInput = $state<HTMLInputElement | null>(null);
+	let countrySearchOpen = $state(false);
+	let countrySearch = $state('');
+
+	// Filtered countries based on search
+	const filteredCountries = $derived(
+		sortedCountries.filter(country =>
+			country.name.toLowerCase().includes(countrySearch.toLowerCase())
+		)
+	);
+
+	// Get selected country display name
+	const selectedCountryName = $derived(
+		countryCode ? getCountryName(countryCode) : ''
+	);
 
 	// Color theme: 'green' or 'violet'
 	let colorScheme = $derived(
@@ -45,11 +119,13 @@
 			const profile = await getUserProfile();
 			playerNameInput = profile?.playerName || user.name || user.displayName || '';
 			currentPhotoURL = profile?.photoURL || user.photo || user.photoURL || null;
+			countryCode = profile?.country || '';
 			uploadError = null;
 		} catch (error) {
 			console.error('Error loading player data:', error);
 			playerNameInput = user.name || user.displayName || '';
 			currentPhotoURL = user.photo || user.photoURL || null;
+			countryCode = '';
 		}
 	}
 
@@ -60,7 +136,11 @@
 
 	function updateProfile() {
 		if (playerNameInput.trim()) {
-			onupdate?.({ playerName: playerNameInput.trim(), photoURL: currentPhotoURL || undefined });
+			onupdate?.({
+				playerName: playerNameInput.trim(),
+				photoURL: currentPhotoURL || undefined,
+				country: countryCode || undefined
+			});
 		}
 	}
 
@@ -126,17 +206,9 @@
 
 {#if isOpen}
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="modal-overlay" onclick={close} role="none">
+	<div class="modal-overlay" data-theme={$adminTheme} onclick={close} role="none">
 		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 		<div class="modal" onclick={stopPropagation} role="dialog" tabindex="-1">
-			<!-- Close button -->
-			<button class="close-btn" onclick={close} aria-label="Close">
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<line x1="18" y1="6" x2="6" y2="18"/>
-					<line x1="6" y1="6" x2="18" y2="18"/>
-				</svg>
-			</button>
-
 			{#if user}
 				<!-- Hidden file input -->
 				<input
@@ -147,109 +219,151 @@
 					style="display: none;"
 				/>
 
-				<!-- Profile header with photo -->
-				<div class="profile-header">
-					<div class="photo-container">
-						<button
-							class="photo-wrapper"
-							onclick={triggerFileSelect}
-							disabled={isUploading}
-							aria-label={m.profile_changePhoto()}
-						>
-							{#if currentPhotoURL}
-								<img src={currentPhotoURL} alt="" class="photo" />
-							{:else}
-								<div class="photo-placeholder">
-									{user.email?.charAt(0).toUpperCase() || '?'}
-								</div>
-							{/if}
-							<div class="photo-overlay" class:uploading={isUploading}>
-								{#if isUploading}
-									<svg class="spinner" viewBox="0 0 24 24">
-										<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.4" stroke-linecap="round"/>
-									</svg>
-								{:else}
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-										<circle cx="12" cy="13" r="4"/>
-									</svg>
-								{/if}
-							</div>
-						</button>
-						{#if currentPhotoURL && currentPhotoURL !== user?.googlePhotoURL}
+				<!-- Header with avatar and info -->
+				<div class="header">
+					<div class="header-content">
+						<div class="photo-container">
 							<button
-								class="delete-photo-btn"
-								onclick={handleDeleteAvatar}
+								class="photo-wrapper"
+								onclick={triggerFileSelect}
 								disabled={isUploading}
-								aria-label={m.profile_deletePhoto()}
-								title={m.profile_deletePhoto()}
+								aria-label={m.profile_changePhoto()}
 							>
-								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<line x1="18" y1="6" x2="6" y2="18"/>
-									<line x1="6" y1="6" x2="18" y2="18"/>
-								</svg>
+								{#if currentPhotoURL}
+									<img src={currentPhotoURL} alt="" class="photo" />
+								{:else}
+									<div class="photo-placeholder">
+										{user.email?.charAt(0).toUpperCase() || '?'}
+									</div>
+								{/if}
+								<div class="photo-overlay" class:uploading={isUploading}>
+									{#if isUploading}
+										<svg class="spinner" viewBox="0 0 24 24">
+											<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="31.4" stroke-linecap="round"/>
+										</svg>
+									{:else}
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+											<circle cx="12" cy="13" r="4"/>
+										</svg>
+									{/if}
+								</div>
 							</button>
-						{/if}
+							{#if currentPhotoURL && currentPhotoURL !== user?.googlePhotoURL}
+								<button
+									class="delete-photo-btn"
+									onclick={handleDeleteAvatar}
+									disabled={isUploading}
+									aria-label={m.profile_deletePhoto()}
+								>
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<line x1="18" y1="6" x2="6" y2="18"/>
+										<line x1="6" y1="6" x2="18" y2="18"/>
+									</svg>
+								</button>
+							{/if}
+						</div>
+						<div class="header-info">
+							<h2 class="header-title">{m.auth_myProfile()}</h2>
+							<span class="header-email">{user.email || '-'}</span>
+						</div>
 					</div>
-					<h2 class="profile-title">{m.auth_myProfile()}</h2>
+					<button class="close-btn" onclick={close} aria-label="Close">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="18" y1="6" x2="6" y2="18"/>
+							<line x1="6" y1="6" x2="18" y2="18"/>
+						</svg>
+					</button>
 					{#if uploadError}
 						<p class="upload-error">{uploadError}</p>
 					{/if}
 				</div>
 
-				<!-- Info grid -->
-				<div class="info-grid single">
-					<div class="info-item">
-						<span class="info-label">{m.auth_email()}</span>
-						<span class="info-value">{user.email || '-'}</span>
-					</div>
-				</div>
-
-				<!-- Editable section -->
-				<div class="edit-section">
-					<label for="profilePlayerNameInput" class="edit-label">
-						{m.auth_playerName()}
-					</label>
-					<div class="input-wrapper">
+				<!-- Form content -->
+				<div class="form-content">
+					<!-- Player name -->
+					<div class="field">
+						<label for="profilePlayerNameInput" class="field-label">{m.auth_playerName()}</label>
 						<input
 							id="profilePlayerNameInput"
 							type="text"
-							class="input"
+							class="field-input"
 							bind:value={playerNameInput}
 							placeholder={m.auth_enterPlayerName()}
 							maxlength="20"
 						/>
+						<span class="field-hint">{m.auth_playerNameDescription()}</span>
 					</div>
-					<p class="input-hint">{m.auth_playerNameDescription()}</p>
+
+					<!-- Country -->
+					<div class="field">
+						<span class="field-label">{m.profile_country()}</span>
+						<Popover.Root bind:open={countrySearchOpen}>
+							<Popover.Trigger class="country-trigger">
+								<span class={["country-trigger-text", !selectedCountryName && "placeholder"]}>
+									{selectedCountryName || m.profile_selectCountry()}
+								</span>
+								<ChevronsUpDown class="size-4 shrink-0 opacity-50" />
+							</Popover.Trigger>
+							<Popover.Content class="country-popover-content p-0 z-[1100]" align="start" sideOffset={4}>
+								<Command.Root shouldFilter={false}>
+									<Command.Input
+										placeholder={m.profile_searchCountry()}
+										bind:value={countrySearch}
+									/>
+									<Command.List class="max-h-[200px]">
+										<Command.Empty>{m.profile_noCountryFound()}</Command.Empty>
+										{#each filteredCountries as country}
+											<Command.Item
+												value={country.code}
+												onSelect={() => {
+													countryCode = country.code;
+													countrySearchOpen = false;
+													countrySearch = '';
+												}}
+											>
+												<Check class={["size-4 mr-2", countryCode === country.code ? "opacity-100" : "opacity-0"]} />
+												{country.name}
+											</Command.Item>
+										{/each}
+									</Command.List>
+								</Command.Root>
+							</Popover.Content>
+						</Popover.Root>
+					</div>
+
+					<!-- Color theme -->
+					<div class="field">
+						<span class="field-label">{m.profile_colorTheme()}</span>
+						<div class="flex items-center gap-3">
+							<button
+								class="theme-swatch"
+								class:selected={colorScheme === 'green'}
+								onclick={() => setColorScheme('green')}
+								aria-label={m.profile_themeGreen()}
+							>
+								<span class="swatch-color bg-emerald-500"></span>
+								{#if colorScheme === 'green'}
+									<Check class="swatch-check" />
+								{/if}
+							</button>
+							<button
+								class="theme-swatch"
+								class:selected={colorScheme === 'violet'}
+								onclick={() => setColorScheme('violet')}
+								aria-label={m.profile_themeViolet()}
+							>
+								<span class="swatch-color bg-violet-500"></span>
+								{#if colorScheme === 'violet'}
+									<Check class="swatch-check" />
+								{/if}
+							</button>
+						</div>
+					</div>
 				</div>
 
-				<!-- Color theme selector -->
-				<div class="edit-section">
-					<span class="edit-label">{m.profile_colorTheme()}</span>
-					<div class="color-selector">
-						<button
-							class="color-option"
-							class:selected={colorScheme === 'green'}
-							onclick={() => setColorScheme('green')}
-							title={m.profile_themeGreen()}
-						>
-							<span class="color-swatch green"></span>
-							<span class="color-name">{m.profile_themeGreen()}</span>
-						</button>
-						<button
-							class="color-option"
-							class:selected={colorScheme === 'violet'}
-							onclick={() => setColorScheme('violet')}
-							title={m.profile_themeViolet()}
-						>
-							<span class="color-swatch violet"></span>
-							<span class="color-name">{m.profile_themeViolet()}</span>
-						</button>
-					</div>
-				</div>
-
-				<!-- Actions -->
-				<div class="actions">
+				<!-- Footer -->
+				<div class="footer">
 					<button class="btn-cancel" onclick={close}>{m.common_cancel()}</button>
 					<button class="btn-save" onclick={updateProfile} disabled={!playerNameInput.trim()}>
 						{m.common_save()}
@@ -263,18 +377,15 @@
 <style>
 	.modal-overlay {
 		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(0, 0, 0, 0.75);
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
 		backdrop-filter: blur(4px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
-		padding: 1rem;
-		animation: fadeIn 0.15s ease-out;
+		padding: 16px;
+		animation: fadeIn 0.1s ease-out;
 	}
 
 	@keyframes fadeIn {
@@ -283,67 +394,82 @@
 	}
 
 	.modal {
-		background: #0f1218;
-		border: 1px solid rgba(255, 255, 255, 0.06);
-		border-radius: 16px;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 12px;
 		max-width: 360px;
 		width: 100%;
-		position: relative;
-		animation: modalSlide 0.2s ease-out;
-		overflow: hidden;
+		animation: modalSlide 0.12s ease-out;
+		box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.35);
 	}
 
 	@keyframes modalSlide {
-		from {
-			opacity: 0;
-			transform: translateY(-16px) scale(0.96);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0) scale(1);
-		}
+		from { opacity: 0; transform: translateY(-6px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	/* Header */
+	.header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		padding: 20px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.header-content {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+	}
+
+	.header-info {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.header-title {
+		margin: 0;
+		font-size: 16px;
+		font-weight: 600;
+		color: var(--foreground);
+	}
+
+	.header-email {
+		font-size: 12px;
+		color: var(--muted-foreground);
 	}
 
 	.close-btn {
-		position: absolute;
-		top: 0.75rem;
-		right: 0.75rem;
 		width: 28px;
 		height: 28px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(255, 255, 255, 0.05);
+		background: transparent;
 		border: none;
 		border-radius: 6px;
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--muted-foreground);
 		cursor: pointer;
-		transition: all 0.15s;
-		z-index: 10;
+		transition: color 0.1s, background 0.1s;
+		margin: -4px -4px 0 0;
 	}
 
 	.close-btn svg {
-		width: 14px;
-		height: 14px;
+		width: 16px;
+		height: 16px;
 	}
 
 	.close-btn:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
+		background: var(--secondary);
+		color: var(--foreground);
 	}
 
-	/* Profile header */
-	.profile-header {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		padding: 1.5rem 1.5rem 1rem;
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
-	}
-
+	/* Photo */
 	.photo-container {
 		position: relative;
-		margin-bottom: 0.75rem;
+		flex-shrink: 0;
 	}
 
 	.photo-wrapper {
@@ -353,55 +479,52 @@
 		padding: 0;
 		cursor: pointer;
 		border-radius: 50%;
-		transition: transform 0.15s;
+		transition: opacity 0.1s;
 	}
 
 	.photo-wrapper:hover {
-		transform: scale(1.05);
+		opacity: 0.9;
 	}
 
 	.photo-wrapper:disabled {
 		cursor: wait;
-		transform: none;
 	}
 
 	.photo {
-		width: 64px;
-		height: 64px;
+		width: 56px;
+		height: 56px;
 		border-radius: 50%;
 		object-fit: cover;
-		border: 2px solid rgba(255, 255, 255, 0.1);
 	}
 
 	.photo-placeholder {
-		width: 64px;
-		height: 64px;
+		width: 56px;
+		height: 56px;
 		border-radius: 50%;
-		background: linear-gradient(135deg, #1e3a5f 0%, #0d2137 100%);
-		border: 2px solid rgba(255, 255, 255, 0.1);
+		background: var(--secondary);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 1.5rem;
+		font-size: 20px;
 		font-weight: 600;
-		color: #64b5f6;
+		color: var(--primary);
 	}
 
 	.photo-overlay {
 		position: absolute;
 		inset: 0;
 		border-radius: 50%;
-		background: rgba(0, 0, 0, 0.6);
+		background: rgba(0, 0, 0, 0.4);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		opacity: 0;
-		transition: opacity 0.15s;
+		transition: opacity 0.1s;
 	}
 
 	.photo-overlay svg {
-		width: 20px;
-		height: 20px;
+		width: 18px;
+		height: 18px;
 		color: #fff;
 	}
 
@@ -411,7 +534,7 @@
 	}
 
 	.photo-overlay .spinner {
-		animation: spin 1s linear infinite;
+		animation: spin 0.7s linear infinite;
 	}
 
 	@keyframes spin {
@@ -421,30 +544,28 @@
 
 	.delete-photo-btn {
 		position: absolute;
-		top: -4px;
-		right: -4px;
-		width: 22px;
-		height: 22px;
+		top: -2px;
+		right: -2px;
+		width: 18px;
+		height: 18px;
 		border-radius: 50%;
-		background: #ef4444;
-		border: 2px solid #0f1218;
+		background: var(--destructive);
+		border: 2px solid var(--card);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		cursor: pointer;
-		transition: all 0.15s;
-		z-index: 5;
+		transition: transform 0.1s;
 	}
 
 	.delete-photo-btn svg {
-		width: 12px;
-		height: 12px;
-		color: #fff;
+		width: 8px;
+		height: 8px;
+		color: var(--destructive-foreground);
 	}
 
 	.delete-photo-btn:hover {
-		background: #dc2626;
-		transform: scale(1.1);
+		transform: scale(1.15);
 	}
 
 	.delete-photo-btn:disabled {
@@ -454,188 +575,182 @@
 	}
 
 	.upload-error {
-		margin: 0.5rem 0 0;
-		font-size: 0.75rem;
-		color: #ef4444;
+		position: absolute;
+		bottom: -20px;
+		left: 0;
+		right: 0;
+		font-size: 11px;
+		color: var(--destructive);
 		text-align: center;
+		white-space: nowrap;
 	}
 
-	.profile-title {
-		font-size: 1rem;
-		font-weight: 600;
-		color: #fff;
-		margin: 0;
-	}
-
-	/* Info grid */
-	.info-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1px;
-		background: rgba(255, 255, 255, 0.04);
-		border-top: 1px solid rgba(255, 255, 255, 0.04);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-	}
-
-	.info-grid.single {
-		grid-template-columns: 1fr;
-	}
-
-	.info-item {
+	/* Form content */
+	.form-content {
+		padding: 20px;
 		display: flex;
 		flex-direction: column;
-		gap: 0.2rem;
-		padding: 0.75rem 1rem;
-		background: #0f1218;
+		gap: 20px;
 	}
 
-	.info-label {
-		font-size: 0.65rem;
-		font-weight: 500;
-		color: rgba(255, 255, 255, 0.4);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-	}
-
-	.info-value {
-		font-size: 0.8rem;
-		color: rgba(255, 255, 255, 0.85);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	/* Edit section */
-	.edit-section {
-		padding: 1rem 1.25rem;
-	}
-
-	.edit-label {
-		display: block;
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: rgba(255, 255, 255, 0.7);
-		margin-bottom: 0.5rem;
-	}
-
-	.input-wrapper {
-		position: relative;
-	}
-
-	.input {
-		width: 100%;
-		padding: 0.625rem 0.875rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 8px;
-		color: #fff;
-		font-size: 0.875rem;
-		transition: all 0.15s;
-	}
-
-	.input:focus {
-		outline: none;
-		border-color: rgba(59, 130, 246, 0.5);
-		background: rgba(255, 255, 255, 0.06);
-		box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-	}
-
-	.input::placeholder {
-		color: rgba(255, 255, 255, 0.3);
-	}
-
-	.input-hint {
-		margin: 0.375rem 0 0;
-		font-size: 0.7rem;
-		color: rgba(255, 255, 255, 0.35);
-	}
-
-	/* Color selector */
-	.color-selector {
+	.field {
 		display: flex;
-		gap: 0.75rem;
+		flex-direction: column;
+		gap: 6px;
 	}
 
-	.color-option {
+	.field-label {
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--foreground);
+	}
+
+	.field-input {
+		width: 100%;
+		padding: 10px 12px;
+		background: var(--background);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		color: var(--foreground);
+		font-size: 14px;
+		transition: border-color 0.1s;
+	}
+
+	.field-input:focus {
+		outline: none;
+		border-color: var(--primary);
+	}
+
+	.field-input::placeholder {
+		color: var(--muted-foreground);
+	}
+
+	/* Theme swatches */
+	.theme-swatch {
+		position: relative;
+		width: 36px;
+		height: 36px;
+		padding: 0;
+		border: 2px solid var(--border);
+		border-radius: 10px;
+		background: var(--background);
+		cursor: pointer;
+		transition: border-color 0.15s, transform 0.1s;
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 0.75rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 8px;
-		cursor: pointer;
-		transition: all 0.15s;
+		justify-content: center;
 	}
 
-	.color-option:hover {
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(255, 255, 255, 0.15);
+	.theme-swatch:hover {
+		border-color: var(--muted-foreground);
 	}
 
-	.color-option.selected {
-		border-color: var(--primary, #00ff88);
-		background: rgba(255, 255, 255, 0.06);
+	.theme-swatch.selected {
+		border-color: var(--foreground);
 	}
 
-	.color-swatch {
-		width: 20px;
-		height: 20px;
+	.theme-swatch:active {
+		transform: scale(0.95);
+	}
+
+	.swatch-color {
+		width: 22px;
+		height: 22px;
+		border-radius: 6px;
+	}
+
+	:global(.swatch-check) {
+		position: absolute;
+		bottom: -4px;
+		right: -4px;
+		width: 14px;
+		height: 14px;
+		padding: 2px;
+		background: var(--foreground);
+		color: var(--background);
 		border-radius: 50%;
-		border: 2px solid rgba(255, 255, 255, 0.2);
 	}
 
-	.color-swatch.green {
-		background: linear-gradient(135deg, #00ff88 0%, #10b981 100%);
-	}
-
-	.color-swatch.violet {
-		background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
-	}
-
-	.color-name {
-		font-size: 0.8rem;
-		color: rgba(255, 255, 255, 0.85);
-	}
-
-	/* Actions */
-	.actions {
+	/* Country combobox trigger */
+	:global(.country-trigger) {
+		width: 100%;
+		padding: 10px 12px;
+		background: var(--background);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		color: var(--foreground);
+		font-size: 14px;
+		cursor: pointer;
 		display: flex;
-		gap: 0.5rem;
-		padding: 0.75rem 1.25rem 1.25rem;
-		justify-content: flex-end;
+		align-items: center;
+		justify-content: space-between;
+		transition: border-color 0.1s;
+	}
+
+	:global(.country-trigger:hover) {
+		border-color: var(--muted-foreground);
+	}
+
+	:global(.country-trigger:focus) {
+		outline: none;
+		border-color: var(--primary);
+	}
+
+	:global(.country-trigger-text) {
+		text-align: left;
+	}
+
+	:global(.country-trigger-text.placeholder) {
+		color: var(--muted-foreground);
+	}
+
+	:global(.country-popover-content) {
+		width: var(--bits-popover-anchor-width) !important;
+		min-width: 200px;
+	}
+
+	.field-hint {
+		font-size: 12px;
+		color: var(--muted-foreground);
+	}
+
+	/* Footer */
+	.footer {
+		display: flex;
+		gap: 8px;
+		padding: 16px 20px;
+		border-top: 1px solid var(--border);
 	}
 
 	.btn-cancel,
 	.btn-save {
-		padding: 0.5rem 1rem;
-		font-size: 0.8rem;
+		flex: 1;
+		padding: 10px 16px;
+		font-size: 13px;
 		font-weight: 500;
-		border-radius: 6px;
+		border-radius: 8px;
 		cursor: pointer;
-		transition: all 0.15s;
+		transition: background 0.1s, opacity 0.1s;
 	}
 
 	.btn-cancel {
-		background: transparent;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		color: rgba(255, 255, 255, 0.7);
+		background: var(--secondary);
+		border: 1px solid var(--border);
+		color: var(--foreground);
 	}
 
 	.btn-cancel:hover {
-		background: rgba(255, 255, 255, 0.05);
-		border-color: rgba(255, 255, 255, 0.15);
-		color: #fff;
+		background: var(--muted);
 	}
 
 	.btn-save {
-		background: #3b82f6;
+		background: var(--primary);
 		border: none;
-		color: #fff;
+		color: var(--primary-foreground);
 	}
 
 	.btn-save:hover:not(:disabled) {
-		background: #2563eb;
+		opacity: 0.9;
 	}
 
 	.btn-save:disabled {
@@ -644,35 +759,35 @@
 	}
 
 	/* Responsive */
-	@media (max-width: 400px) {
+	@media (max-width: 380px) {
 		.modal {
 			max-width: 100%;
 		}
 
-		.profile-header {
-			padding: 1.25rem 1rem 0.875rem;
+		.header {
+			padding: 16px;
+		}
+
+		.form-content {
+			padding: 16px;
+		}
+
+		.footer {
+			padding: 12px 16px;
 		}
 
 		.photo,
 		.photo-placeholder {
-			width: 56px;
-			height: 56px;
+			width: 48px;
+			height: 48px;
 		}
 
 		.photo-placeholder {
-			font-size: 1.25rem;
+			font-size: 18px;
 		}
 
-		.info-item {
-			padding: 0.625rem 0.875rem;
-		}
-
-		.edit-section {
-			padding: 0.875rem 1rem;
-		}
-
-		.actions {
-			padding: 0.625rem 1rem 1rem;
+		.header-title {
+			font-size: 15px;
 		}
 	}
 </style>

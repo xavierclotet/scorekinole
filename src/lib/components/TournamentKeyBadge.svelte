@@ -1,6 +1,6 @@
 <script lang="ts">
 	import QRCode from 'qrcode';
-	import { QrCode, X } from '@lucide/svelte';
+	import { QrCode, X, Copy, Check } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages.js';
 	import { PRODUCTION_URL } from '$lib/constants';
 
@@ -13,8 +13,12 @@
 	let { tournamentKey, compact = false, showQRButton = false }: Props = $props();
 
 	let copied = $state(false);
+	let linkCopied = $state(false);
 	let showQRModal = $state(false);
 	let qrCodeSvg = $state('');
+
+	// Full URL for sharing
+	let tournamentUrl = $derived(`${PRODUCTION_URL}/game?key=${tournamentKey}`);
 
 	async function copyKey() {
 		if (!tournamentKey) return;
@@ -24,6 +28,16 @@
 			setTimeout(() => copied = false, 2000);
 		} catch (err) {
 			console.error('Error copying key:', err);
+		}
+	}
+
+	async function copyLink() {
+		try {
+			await navigator.clipboard.writeText(tournamentUrl);
+			linkCopied = true;
+			setTimeout(() => linkCopied = false, 2000);
+		} catch (err) {
+			console.error('Error copying link:', err);
 		}
 	}
 
@@ -85,7 +99,7 @@
 			title={m.tournament_showQR()}
 			aria-label={m.tournament_showQR()}
 		>
-			<QrCode size={compact ? 12 : 14} />
+			<QrCode size={compact ? 16 : 18} />
 		</button>
 	{/if}
 </div>
@@ -108,6 +122,15 @@
 					{@html qrCodeSvg}
 				</div>
 				<p class="qr-key-display">{tournamentKey}</p>
+				<button class="copy-link-btn" onclick={copyLink}>
+					{#if linkCopied}
+						<Check size={14} />
+						<span>{m.invite_linkCopied()}</span>
+					{:else}
+						<Copy size={14} />
+						<span>{m.invite_copyLink()}</span>
+					{/if}
+				</button>
 				<p class="qr-hint">{m.scan_instruction()}</p>
 			</div>
 		</div>
@@ -156,7 +179,7 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.25rem;
+		padding: 0.35rem;
 		background: rgba(59, 130, 246, 0.1);
 		border: 1px solid rgba(59, 130, 246, 0.3);
 		border-radius: 4px;
@@ -166,7 +189,7 @@
 	}
 
 	.qr-btn.compact {
-		padding: 0.15rem;
+		padding: 0.25rem;
 	}
 
 	.qr-btn:hover {
@@ -276,6 +299,28 @@
 		color: #60a5fa;
 		letter-spacing: 0.15em;
 		margin: 0;
+	}
+
+	.copy-link-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.5rem 1rem;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 8px;
+		color: rgba(255, 255, 255, 0.7);
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.8rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.copy-link-btn:hover {
+		background: rgba(255, 255, 255, 0.12);
+		border-color: rgba(255, 255, 255, 0.25);
+		color: rgba(255, 255, 255, 0.9);
 	}
 
 	.qr-hint {

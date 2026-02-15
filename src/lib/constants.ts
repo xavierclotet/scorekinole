@@ -62,3 +62,11 @@ export const DEVELOPED_COUNTRIES = [
     'Suecia',
     'Suiza'
 ];
+
+/** Country codes for user profiles (names come from translations) */
+export const COUNTRY_CODES = [
+    'AR', 'AU', 'AT', 'BE', 'BR', 'CA', 'CAT', 'CL', 'CN', 'CO',
+    'KR', 'CZ', 'DK', 'ES', 'US', 'FI', 'FR', 'DE', 'GR', 'HU',
+    'IN', 'IE', 'IS', 'IT', 'JP', 'LU', 'MX', 'NO', 'NZ', 'NL',
+    'PL', 'PT', 'GB', 'RO', 'RU', 'SG', 'ZA', 'SE', 'CH', 'UY', 'VE'
+] as const;

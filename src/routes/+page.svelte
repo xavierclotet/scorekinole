@@ -65,9 +65,9 @@
 		showProfile = true;
 	}
 
-	async function handleProfileUpdate({ playerName }: { playerName: string }) {
+	async function handleProfileUpdate({ playerName, country }: { playerName: string; country?: string }) {
 		try {
-			const result = await saveUserProfile(playerName);
+			const result = await saveUserProfile(playerName, { country });
 			if (result) {
 				currentUser.update(u => u ? { ...u, name: playerName } : null);
 			}
@@ -176,7 +176,7 @@
 				<Button
 					size="lg"
 					onclick={startScoring}
-					class="h-14 w-full max-w-[280px] gap-3 rounded-xl px-8 text-xl font-bold shadow-[0_4px_20px_rgba(0,255,136,0.25)] hover:shadow-[0_6px_28px_rgba(0,255,136,0.35)] hover:-translate-y-0.5 active:translate-y-0"
+					class="h-14 w-full max-w-[280px] gap-3 rounded-xl px-8 text-xl font-bold shadow-[0_4px_20px_color-mix(in_srgb,var(--primary)_25%,transparent)] hover:shadow-[0_6px_28px_color-mix(in_srgb,var(--primary)_35%,transparent)] hover:-translate-y-0.5 active:translate-y-0"
 				>
 					<Play class="size-6" />
 					{m.common_newGame()}
@@ -321,17 +321,6 @@
 		<div class="grid grid-cols-3 gap-2 w-full max-w-[320px]">
 			<Button
 				variant="ghost"
-				onclick={goToRankings}
-				class="flex-col h-auto min-h-[60px] gap-1 px-2 py-3 bg-[var(--link-card-bg)] border border-[var(--link-card-border)] text-[var(--link-card-text)] hover:bg-[var(--link-card-bg-hover)] hover:border-[var(--link-card-border-hover)] hover:text-[var(--link-card-text-hover)]"
-			>
-				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z"/>
-				</svg>
-				<span class="text-[0.7rem] font-medium">{m.common_rankings()}</span>
-			</Button>
-
-			<Button
-				variant="ghost"
 				onclick={() => goto('/tournaments')}
 				class="flex-col h-auto min-h-[60px] gap-1 px-2 py-3 bg-[var(--link-card-bg)] border border-[var(--link-card-border)] text-[var(--link-card-text)] hover:bg-[var(--link-card-bg-hover)] hover:border-[var(--link-card-border-hover)] hover:text-[var(--link-card-text-hover)]"
 			>
@@ -339,6 +328,17 @@
 					<path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
 				</svg>
 				<span class="text-[0.7rem] font-medium">{m.common_tournaments()}</span>
+			</Button>
+
+			<Button
+				variant="ghost"
+				onclick={goToRankings}
+				class="flex-col h-auto min-h-[60px] gap-1 px-2 py-3 bg-[var(--link-card-bg)] border border-[var(--link-card-border)] text-[var(--link-card-text)] hover:bg-[var(--link-card-bg-hover)] hover:border-[var(--link-card-border-hover)] hover:text-[var(--link-card-text-hover)]"
+			>
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z"/>
+				</svg>
+				<span class="text-[0.7rem] font-medium">{m.common_rankings()}</span>
 			</Button>
 
 			<Button
@@ -354,7 +354,7 @@
 		<!-- Support Section -->
 		<div class="support-section flex justify-center items-center mt-2">
 			<a href="https://ko-fi.com/I3I11SVYEM" target="_blank" rel="noopener noreferrer" class="kofi-btn">
-				<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+				<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
 					<path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667-2.059 3.015z"/>
 				</svg>
 				<span>{m.common_giveSupport()}</span>
@@ -462,8 +462,11 @@
 		font-family: 'Lexend', sans-serif;
 		font-size: 2.5rem;
 		font-weight: 700;
-		color: var(--primary);
 		letter-spacing: -0.01em;
+		background: linear-gradient(135deg, var(--primary) 0%, color-mix(in oklch, var(--primary), white 40%) 50%, var(--primary) 100%);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
 	}
 
 	.title-suffix {
@@ -578,13 +581,13 @@
 	.kofi-btn {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.6rem 1rem;
-		background: #10B981;
-		color: #fff;
-		border-radius: 8px;
+		gap: 0.35rem;
+		padding: 0.4rem 0.75rem;
+		background: var(--primary);
+		color: var(--primary-foreground);
+		border-radius: 6px;
 		font-family: 'Lexend', sans-serif;
-		font-size: 0.9rem;
+		font-size: 0.75rem;
 		font-weight: 500;
 		text-decoration: none;
 		transition: transform 0.2s, box-shadow 0.2s;
@@ -592,7 +595,7 @@
 
 	.kofi-btn:hover {
 		transform: translateY(-2px);
-		box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+		box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 40%, transparent);
 	}
 
 	.kofi-btn:active {

@@ -12,6 +12,7 @@ export interface UserProfile {
   playerName: string;
   email: string | null;
   photoURL: string | null;
+  country?: string;                // User's country code (ISO 3166-1 alpha-2)
   language?: 'es' | 'ca' | 'en';  // User's preferred language
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
@@ -70,7 +71,10 @@ export async function getUserProfile(): Promise<UserProfile | null> {
  * Save or update user profile
  * For NEW users: auto-assigns isAdmin=true and 1 live tournament quota for current year
  */
-export async function saveUserProfile(playerName: string): Promise<UserProfile | null> {
+export async function saveUserProfile(
+  playerName: string,
+  options?: { country?: string }
+): Promise<UserProfile | null> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled - profile not saved');
     return null;
@@ -98,6 +102,11 @@ export async function saveUserProfile(playerName: string): Promise<UserProfile |
       authProvider: 'google',
       updatedAt: serverTimestamp()
     };
+
+    // Add optional fields
+    if (options?.country !== undefined) {
+      profile.country = options.country || undefined; // Remove if empty string
+    }
 
     // For NEW users only: auto-assign admin status, initial quota, and capture device info
     if (isNewUser) {

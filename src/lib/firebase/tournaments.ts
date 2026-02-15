@@ -1029,6 +1029,76 @@ export async function getTournamentByKey(key: string): Promise<Tournament | null
 }
 
 /**
+ * Minimal tournament info for "my tournaments" listing
+ */
+export interface MyTournamentItem {
+  id: string;
+  name: string;
+  key: string;
+  status: TournamentStatus;
+  gameType: 'singles' | 'doubles';
+  participantsCount: number;
+}
+
+/**
+ * Get active tournaments where the current user is a participant
+ * Returns tournaments that are in GROUP_STAGE, TRANSITION, or FINAL_STAGE
+ *
+ * @returns Array of active tournaments where user is participant
+ */
+export async function getMyActiveTournaments(): Promise<MyTournamentItem[]> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return [];
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    console.warn('No user logged in');
+    return [];
+  }
+
+  try {
+    const tournamentsRef = collection(db!, 'tournaments');
+    // Get all active tournaments (not DRAFT, COMPLETED, or CANCELLED)
+    const q = query(
+      tournamentsRef,
+      where('status', 'in', ['GROUP_STAGE', 'TRANSITION', 'FINAL_STAGE']),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+
+    const myTournaments: MyTournamentItem[] = [];
+
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data() as Tournament;
+
+      // Check if user is a participant (either as player or partner)
+      const isParticipant = data.participants?.some(
+        p => p.userId === user.id || p.partner?.userId === user.id
+      );
+
+      if (isParticipant) {
+        myTournaments.push({
+          id: docSnap.id,
+          name: data.name,
+          key: data.key,
+          status: data.status,
+          gameType: data.gameType,
+          participantsCount: data.participants?.length || 0
+        });
+      }
+    }
+
+    console.log(`✅ Found ${myTournaments.length} active tournaments for user`);
+    return myTournaments;
+  } catch (error) {
+    console.error('❌ Error getting user active tournaments:', error);
+    return [];
+  }
+}
+
+/**
  * Check if a tournament key already exists
  * Returns the tournament ID and name if it exists, null otherwise
  *

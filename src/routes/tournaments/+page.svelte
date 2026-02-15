@@ -9,9 +9,8 @@
 		type TournamentListItem
 	} from '$lib/firebase/publicTournaments';
 	import TournamentCard from '$lib/components/TournamentCard.svelte';
-	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
+	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { getTranslatedCountryOptions } from '$lib/utils/countryTranslations';
 	import SEO from '$lib/components/SEO.svelte';
@@ -191,7 +190,7 @@
 	<header class="page-header">
 		<div class="header-row">
 			<div class="header-left">
-				<ScorekinoleLogo />
+				<AppMenu showHome homeHref="/" currentPage="tournaments" />
 			</div>
 			<div class="header-center">
 				<div class="title-section">
@@ -200,7 +199,6 @@
 				</div>
 			</div>
 			<div class="header-right">
-				<LanguageSelector />
 				<ThemeToggle />
 			</div>
 		</div>
@@ -338,7 +336,7 @@
 	.header-left {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 1rem;
 		flex-shrink: 0;
 	}
 

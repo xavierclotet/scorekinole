@@ -14,46 +14,47 @@
 		type RankingFilters
 	} from '$lib/firebase/rankings';
 	import RankingDetailModal from '$lib/components/RankingDetailModal.svelte';
-	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
+	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
 	import { theme } from '$lib/stores/theme';
 	import SEO from '$lib/components/SEO.svelte';
 
 	// Data state
-	let isLoading = true;
-	let users: UserWithId[] = [];
-	let tournamentsMap: Map<string, TournamentInfo> = new Map();
-	let rankedPlayers: RankedPlayer[] = [];
+	let isLoading = $state(true);
+	let users = $state<UserWithId[]>([]);
+	let tournamentsMap = $state<Map<string, TournamentInfo>>(new Map());
+	let rankedPlayers = $state<RankedPlayer[]>([]);
 
 	// Filter state
-	let selectedYear = new Date().getFullYear();
-	let availableYears: number[] = [];
-	let bestOfN = 2;
-	let filterType: 'all' | 'country' = 'all';
-	let selectedCountry = '';
-	let availableCountries: string[] = [];
+	let selectedYear = $state(new Date().getFullYear());
+	let availableYears = $state<number[]>([]);
+	let bestOfN = $state(2);
+	let filterType = $state<'all' | 'country'>('all');
+	let selectedCountry = $state('');
+	let availableCountries = $state<string[]>([]);
 
 	// Modal state
-	let selectedPlayer: RankedPlayer | null = null;
-	let showDetailModal = false;
+	let selectedPlayer = $state<RankedPlayer | null>(null);
+	let showDetailModal = $state(false);
 
 	// Infinite scroll state
 	import { PAGE_SIZE } from '$lib/constants';
-	let visibleCount = PAGE_SIZE;
-	let tableContainer: HTMLElement | null = null;
-	$: visiblePlayers = rankedPlayers.slice(0, visibleCount);
-	$: hasMore = visibleCount < rankedPlayers.length;
+	let visibleCount = $state(PAGE_SIZE);
+	let tableContainer = $state<HTMLElement | null>(null);
+	let visiblePlayers = $derived(rankedPlayers.slice(0, visibleCount));
+	let hasMore = $derived(visibleCount < rankedPlayers.length);
 
 	// Auto-load more if container doesn't have scroll (also triggers when filters change)
-	$: if (tableContainer && hasMore && !isLoading && rankedPlayers.length >= 0) {
-		// Use setTimeout to wait for DOM update after visiblePlayers changes
-		setTimeout(() => {
-			if (tableContainer && tableContainer.scrollHeight <= tableContainer.clientHeight) {
-				loadMore();
-			}
-		}, 0);
-	}
+	$effect(() => {
+		if (tableContainer && hasMore && !isLoading && rankedPlayers.length >= 0) {
+			// Use setTimeout to wait for DOM update after visiblePlayers changes
+			setTimeout(() => {
+				if (tableContainer && tableContainer.scrollHeight <= tableContainer.clientHeight) {
+					loadMore();
+				}
+			}, 0);
+		}
+	});
 
 	onMount(async () => {
 		await loadData();
@@ -121,9 +122,11 @@
 	}
 
 	// Reactive recalculation when filters change
-	$: if (!isLoading && (selectedYear || filterType || selectedCountry || bestOfN)) {
-		recalculateRankings();
-	}
+	$effect(() => {
+		if (!isLoading && (selectedYear || filterType || selectedCountry || bestOfN)) {
+			recalculateRankings();
+		}
+	});
 
 	function handlePlayerClick(player: RankedPlayer) {
 		selectedPlayer = player;
@@ -147,7 +150,7 @@
 	<header class="page-header">
 		<div class="header-row">
 			<div class="header-left">
-				<ScorekinoleLogo />
+				<AppMenu showHome homeHref="/" currentPage="rankings" />
 			</div>
 			<div class="header-center">
 				<div class="title-section">
@@ -156,7 +159,6 @@
 				</div>
 			</div>
 			<div class="header-right">
-				<LanguageSelector />
 				<ThemeToggle />
 			</div>
 		</div>
@@ -339,7 +341,7 @@
 	.header-left {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 1rem;
 		flex-shrink: 0;
 	}
 
