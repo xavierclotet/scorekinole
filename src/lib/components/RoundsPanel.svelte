@@ -23,6 +23,10 @@
 	let posX = $state(50); // percentage from left
 	let posY = $state(92); // percentage from top
 
+	// Track if we've moved enough to consider it a drag (vs a click)
+	let hasMoved = $state(false);
+	const DRAG_THRESHOLD = 5; // pixels before considering it a drag
+
 	// Load position from localStorage
 	$effect(() => {
 		if (browser) {
@@ -101,10 +105,21 @@
 	let shouldOpenUpward = $derived(posY > 50);
 
 	function toggleExpanded() {
+		// Ignore if we just finished dragging
+		if (hasMoved) return;
 		isExpanded = !isExpanded;
 	}
 
+	function selectGame(index: number) {
+		// Ignore if we just finished dragging
+		if (hasMoved) return;
+		selectedGameIndex = index;
+	}
+
 	function handleRoundClick(roundIndex: number) {
+		// Ignore click if we just finished dragging
+		if (hasMoved) return;
+
 		const game = displayGames[selectedGameIndex];
 		if (game && game.rounds[roundIndex]) {
 			const round = game.rounds[roundIndex];
@@ -116,16 +131,25 @@
 	}
 
 	// Dragging handlers
+	let initialClientX = $state(0);
+	let initialClientY = $state(0);
+
 	function handleDragStart(e: MouseEvent | TouchEvent) {
-		isDragging = true;
+		// Store initial position to detect if we've moved enough
 		if ('touches' in e) {
+			initialClientX = e.touches[0].clientX;
+			initialClientY = e.touches[0].clientY;
 			dragStartX = e.touches[0].clientX - (posX / 100) * window.innerWidth;
 			dragStartY = e.touches[0].clientY - (posY / 100) * window.innerHeight;
 		} else {
+			initialClientX = e.clientX;
+			initialClientY = e.clientY;
 			dragStartX = e.clientX - (posX / 100) * window.innerWidth;
 			dragStartY = e.clientY - (posY / 100) * window.innerHeight;
 		}
-		e.preventDefault();
+		isDragging = true;
+		hasMoved = false;
+		// Don't preventDefault here - allow clicks to work
 	}
 
 	function handleDragMove(e: MouseEvent | TouchEvent) {
@@ -140,14 +164,28 @@
 			clientY = e.clientY;
 		}
 
-		posX = Math.max(10, Math.min(90, ((clientX - dragStartX) / window.innerWidth) * 100));
-		posY = Math.max(10, Math.min(95, ((clientY - dragStartY) / window.innerHeight) * 100));
+		// Check if we've moved past the threshold
+		const deltaX = Math.abs(clientX - initialClientX);
+		const deltaY = Math.abs(clientY - initialClientY);
+
+		if (!hasMoved && (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD)) {
+			hasMoved = true;
+		}
+
+		// Only update position if we've moved past threshold
+		if (hasMoved) {
+			posX = Math.max(10, Math.min(90, ((clientX - dragStartX) / window.innerWidth) * 100));
+			posY = Math.max(10, Math.min(95, ((clientY - dragStartY) / window.innerHeight) * 100));
+		}
 	}
 
 	function handleDragEnd() {
 		if (isDragging) {
 			isDragging = false;
-			savePosition();
+			if (hasMoved) {
+				savePosition();
+			}
+			hasMoved = false;
 		}
 	}
 
@@ -178,15 +216,14 @@
 		class="rounds-panel"
 		class:expanded={isExpanded}
 		class:open-up={shouldOpenUpward}
+		class:dragging={isDragging && hasMoved}
 		style="left: {posX}%; top: {posY}%; transform: translate(-50%, -50%);"
+		onmousedown={handleDragStart}
+		ontouchstart={handleDragStart}
 	>
 		<!-- Header / Pill -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="panel-header"
-			onmousedown={handleDragStart}
-			ontouchstart={handleDragStart}
-		>
+		<div class="panel-header">
 			<button class="toggle-btn" onclick={toggleExpanded}>
 				<span class="header-text">
 					{m.scoring_rounds()} ({totalRounds})
@@ -219,7 +256,7 @@
 							<button
 								class="game-tab"
 								class:active={selectedGameIndex === index}
-								onclick={() => selectedGameIndex = index}
+								onclick={() => selectGame(index)}
 							>
 								P{game.gameNumber}
 							</button>
@@ -276,6 +313,11 @@
 		user-select: none;
 		display: flex;
 		flex-direction: column;
+		cursor: grab;
+	}
+
+	.rounds-panel.dragging {
+		cursor: grabbing;
 	}
 
 	.rounds-panel.expanded {
@@ -298,12 +340,7 @@
 	}
 
 	.panel-header {
-		cursor: grab;
 		padding: 0.4rem 0.6rem;
-	}
-
-	.panel-header:active {
-		cursor: grabbing;
 	}
 
 	.toggle-btn {
