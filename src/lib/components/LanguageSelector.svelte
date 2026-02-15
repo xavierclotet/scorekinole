@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { gameSettings } from '$lib/stores/gameSettings';
-	import { setLocale } from '$lib/paraglide/runtime.js';
+	import { setLocale, getLocale } from '$lib/paraglide/runtime.js';
+	import { currentUser } from '$lib/firebase/auth';
+	import { saveUserLanguage } from '$lib/firebase/userProfile';
 	import * as m from '$lib/paraglide/messages.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Button } from '$lib/components/ui/button';
@@ -12,13 +13,17 @@
 		{ code: 'en' as const, label: 'English', short: 'EN' }
 	];
 
-	let currentLang = $derived($gameSettings.language);
+	// Use Paraglide's getLocale() directly - reads from cookie
+	let currentLang = $derived(getLocale());
 
-	function selectLanguage(lang: 'es' | 'ca' | 'en') {
-		gameSettings.update((settings) => ({ ...settings, language: lang }));
-		gameSettings.save();
-		// setLocale triggers page reload to apply translations
+	async function selectLanguage(lang: 'es' | 'ca' | 'en') {
+		// setLocale updates the cookie and triggers page reload
 		setLocale(lang);
+
+		// If user is authenticated, also save to their profile
+		if ($currentUser) {
+			await saveUserLanguage(lang);
+		}
 	}
 
 	function isSelected(code: string) {

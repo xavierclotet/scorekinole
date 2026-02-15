@@ -19,9 +19,6 @@ export interface GameSettings {
     /** Whether to show the timer on the game screen */
     showTimer: boolean;
 
-    /** Active language: Spanish, Catalan, or English */
-    language: 'es' | 'ca' | 'en';
-
     /** Number of matches (games) to win the overall match */
     matchesToWin: number;
 

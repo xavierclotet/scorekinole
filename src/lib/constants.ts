@@ -18,7 +18,6 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     timerMinutes: 10,
     timerSeconds: 0,
     showTimer: true,
-    language: 'ca',
     matchesToWin: 1,
     show20s: false,
     showHammer: false,

@@ -1,5 +1,4 @@
 <script lang="ts">
-	// import { t } from '$lib/stores/language'; // Legacy - to remove after full migration
 	import * as m from '$lib/paraglide/messages.js';
 	import { getUserProfile } from '$lib/firebase/userProfile';
 	import { uploadAvatar, deleteAvatar } from '$lib/firebase/avatarStorage';

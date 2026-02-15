@@ -12,6 +12,7 @@ import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { setLocale } from '$lib/paraglide/runtime.js';
 
 // Google OAuth Web Client ID (for native authentication)
 const GOOGLE_WEB_CLIENT_ID = "648322505256-j4j11fqnr6p1minvnppodo02f2tbfejt.apps.googleusercontent.com";
@@ -183,7 +184,7 @@ export function initAuthListener(): void {
           console.log('✅ User has profile in Firestore');
           needsProfileSetup.set(false);
 
-          // Use Firestore profile data (custom photo, player name)
+          // Use Firestore profile data (custom photo, player name, language)
           const profile = userDocSnap.data();
           if (profile) {
             appUser = {
@@ -192,6 +193,12 @@ export function initAuthListener(): void {
               // Use custom photo if set, otherwise fall back to Google photo
               photoURL: profile.photoURL || googlePhotoURL
             };
+
+            // Apply user's language preference if set
+            if (profile.language && ['es', 'ca', 'en'].includes(profile.language)) {
+              console.log('🌐 Applying user language preference:', profile.language);
+              setLocale(profile.language, { reload: false });
+            }
           }
         }
       } catch (error) {

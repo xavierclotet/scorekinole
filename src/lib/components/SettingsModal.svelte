@@ -3,9 +3,11 @@
 	import NumberControl from './NumberControl.svelte';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import * as m from '$lib/paraglide/messages.js';
+	import { setLocale, getLocale } from '$lib/paraglide/runtime.js';
 	import { switchSides, switchColors } from '$lib/stores/teams';
 	import { gameTournamentContext, updateTournamentContext } from '$lib/stores/tournamentContext';
-	import type { Language } from '$lib/stores/language';
+	import { currentUser } from '$lib/firebase/auth';
+	import { saveUserLanguage } from '$lib/firebase/userProfile';
 	import type { GameSettings } from '$lib/types/settings';
 
 	interface Props {
@@ -19,10 +21,16 @@
 	let inTournamentMode = $derived(!!$gameTournamentContext);
 	let tournamentName = $derived($gameTournamentContext?.tournamentName || '');
 
-	// Auto-save: directly update the store on every change
-	function handleLanguageChange(lang: Language) {
-		gameSettings.update(s => ({ ...s, language: lang }));
-		gameSettings.save();
+	// Current language from Paraglide (reads from cookie)
+	let currentLang = $derived(getLocale());
+
+	// Handle language change - use Paraglide directly
+	async function handleLanguageChange(lang: 'es' | 'ca' | 'en') {
+		setLocale(lang);
+		// If user is authenticated, also save to their profile
+		if ($currentUser) {
+			await saveUserLanguage(lang);
+		}
 	}
 
 	function handleGameModeChange(mode: 'points' | 'rounds') {
@@ -244,7 +252,7 @@
 			<div class="button-group-three">
 				<button
 					class="mode-button"
-					class:active={$gameSettings.language === 'es'}
+					class:active={currentLang === 'es'}
 					onclick={() => handleLanguageChange('es')}
 					type="button"
 				>
@@ -252,7 +260,7 @@
 				</button>
 				<button
 					class="mode-button"
-					class:active={$gameSettings.language === 'ca'}
+					class:active={currentLang === 'ca'}
 					onclick={() => handleLanguageChange('ca')}
 					type="button"
 				>
@@ -260,7 +268,7 @@
 				</button>
 				<button
 					class="mode-button"
-					class:active={$gameSettings.language === 'en'}
+					class:active={currentLang === 'en'}
 					onclick={() => handleLanguageChange('en')}
 					type="button"
 				>

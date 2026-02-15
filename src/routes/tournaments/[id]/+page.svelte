@@ -17,7 +17,7 @@
 	import { isSuperAdmin } from '$lib/firebase/admin';
 	import { getYouTubeEmbedUrl } from '$lib/utils/youtube';
 	import { translateText } from '$lib/utils/translate';
-	import { language } from '$lib/stores/language';
+	import { getLocale } from '$lib/paraglide/runtime.js';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Button } from '$lib/components/ui/button';
@@ -222,7 +222,7 @@
 		const result = await translateText(
 			tournament.description,
 			'autodetect',
-			$language
+			getLocale()
 		);
 
 		if (result.success && result.translatedText) {

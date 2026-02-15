@@ -12,6 +12,7 @@ export interface UserProfile {
   playerName: string;
   email: string | null;
   photoURL: string | null;
+  language?: 'es' | 'ca' | 'en';  // User's preferred language
   isAdmin?: boolean;
   isSuperAdmin?: boolean;
   canAutofill?: boolean;           // Can use autofill buttons in groups/bracket pages
@@ -265,6 +266,35 @@ export async function removeTournamentRecord(
     return true;
   } catch (error) {
     console.error('❌ Error removing tournament record:', error);
+    return false;
+  }
+}
+
+/**
+ * Save user's language preference to their profile
+ * @param language The language code to save
+ */
+export async function saveUserLanguage(language: 'es' | 'ca' | 'en'): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    return false;
+  }
+
+  const user = get(currentUser);
+  if (!user) {
+    return false;
+  }
+
+  try {
+    const profileRef = doc(db!, 'users', user.id);
+    await setDoc(profileRef, {
+      language,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    console.log('✅ User language saved:', language);
+    return true;
+  } catch (error) {
+    console.error('❌ Error saving user language:', error);
     return false;
   }
 }

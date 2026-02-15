@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { get } from 'svelte/store';
-	import { language } from '$lib/stores/language';
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, updateTeam } from '$lib/stores/teams';
@@ -234,7 +233,6 @@
 		}
 
 		const unsubSettings = gameSettings.subscribe($settings => {
-			language.set($settings.language);
 			// Initialize timer if not set
 			if ($timeRemaining === 0) {
 				const totalSeconds = $settings.timerMinutes * 60 + $settings.timerSeconds;
@@ -2674,6 +2672,12 @@
 	@media (max-width: 600px) {
 		.teams-container {
 			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.header-phase {
+			display: none;
 		}
 	}
 

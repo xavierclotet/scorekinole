@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { language } from '$lib/stores/language';
 	import * as m from '$lib/paraglide/messages.js';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { canAccessAdmin } from '$lib/stores/admin';
@@ -46,14 +44,6 @@
 
 	let showProfile = false;
 	let showLogin = false;
-
-	onMount(() => {
-		gameSettings.load();
-		const unsubSettings = gameSettings.subscribe($settings => {
-			language.set($settings.language);
-		});
-		return () => unsubSettings();
-	});
 
 	function startScoring() {
 		goto('/game');

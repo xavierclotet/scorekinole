@@ -65,7 +65,7 @@
 		loadTeams();
 		loadMatchState();
 
-		// Initialize Firebase auth listener
+		// Initialize Firebase auth listener (also handles user language from profile)
 		initAuthListener();
 
 		// Setup Android back button handler

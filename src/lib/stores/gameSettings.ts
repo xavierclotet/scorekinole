@@ -19,8 +19,7 @@ function isValidGameSettings(data: unknown): data is GameSettings {
         typeof settings.pointsToWin === 'number' &&
         typeof settings.roundsToPlay === 'number' &&
         typeof settings.timerMinutes === 'number' &&
-        typeof settings.timerSeconds === 'number' &&
-        typeof settings.language === 'string'
+        typeof settings.timerSeconds === 'number'
     );
 }
 
