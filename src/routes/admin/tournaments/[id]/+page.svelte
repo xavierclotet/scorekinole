@@ -436,7 +436,7 @@
                   {tournament.participants.length} {m.admin_participants()}
                 </span>
                 {#if tournament.status !== 'COMPLETED' && tournament.status !== 'CANCELLED'}
-                  <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
+                  <TournamentKeyBadge tournamentKey={tournament.key} compact={true} showQRButton={true} />
                 {/if}
               </div>
             </div>

@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { QrCode } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages.js';
 	import { theme } from '$lib/stores/theme';
 	import { currentUser } from '$lib/firebase/auth';
+	import QRScanner from './QRScanner.svelte';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
 	import {
 		getPendingMatchesForUser,
@@ -70,6 +72,9 @@
 
 	// Show/hide tournament key
 	let showKey = $state(false);
+
+	// QR Scanner state
+	let showScanner = $state(false);
 
 	// Track if selected match is being resumed (IN_PROGRESS)
 	let isResumingMatch = $state(false);
@@ -696,6 +701,29 @@
 		showKey = !showKey;
 	}
 
+	function handleScanResult(data: string) {
+		// Extract tournament key from scanned data
+		const key = extractKeyFromScan(data);
+		if (key && key.length === 6) {
+			tournamentKey = key.toUpperCase();
+			showScanner = false;
+			searchTournament();
+		}
+	}
+
+	function extractKeyFromScan(data: string): string | null {
+		// If it's a URL, extract the key parameter
+		if (data.includes('key=')) {
+			const match = data.match(/[?&]key=([A-Za-z0-9]{6})/);
+			return match ? match[1] : null;
+		}
+		// If it's a direct 6-char code
+		if (/^[A-Za-z0-9]{6}$/.test(data.trim())) {
+			return data.trim();
+		}
+		return null;
+	}
+
 	function toggleInProgressMatches() {
 		showInProgressMatches = !showInProgressMatches;
 	}
@@ -790,6 +818,15 @@
 						<p class="key-hint">{m.tournament_keyHint()}</p>
 
 						<div class="key-input-group">
+							<!-- QR Scanner Button -->
+							<button
+								class="scan-btn"
+								onclick={() => showScanner = true}
+								title={m.tournament_scanQR()}
+								aria-label={m.tournament_scanQR()}
+							>
+								<QrCode size={18} />
+							</button>
 							<div class="key-input-wrapper">
 								<input
 									type="text"
@@ -1175,6 +1212,13 @@
 	</div>
 {/if}
 
+<!-- QR Scanner Modal -->
+<QRScanner
+	bind:isOpen={showScanner}
+	onScan={handleScanResult}
+	onClose={() => showScanner = false}
+/>
+
 <style>
 	.modal-overlay {
 		position: fixed;
@@ -1359,6 +1403,32 @@
 
 	.toggle-key-btn:hover {
 		color: rgba(255, 255, 255, 0.6);
+	}
+
+	/* Scan Button */
+	.scan-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		flex-shrink: 0;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 10px;
+		color: rgba(255, 255, 255, 0.7);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.scan-btn:hover {
+		background: rgba(255, 255, 255, 0.12);
+		color: #fff;
+		border-color: rgba(255, 255, 255, 0.2);
+	}
+
+	.scan-btn:active {
+		transform: scale(0.95);
 	}
 
 	/* Search Button */

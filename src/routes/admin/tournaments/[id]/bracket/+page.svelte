@@ -1728,7 +1728,7 @@
                   {getTournamentStatusText(tournament.status)}
                 </span>
                 {#if tournament.status !== 'COMPLETED'}
-                  <TournamentKeyBadge tournamentKey={tournament.key} compact={true} />
+                  <TournamentKeyBadge tournamentKey={tournament.key} compact={true} showQRButton={true} />
                 {/if}
               </div>
               {#if timeRemaining && tournament.status !== 'COMPLETED'}

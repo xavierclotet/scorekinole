@@ -1230,5 +1230,16 @@
   "scoring_friendlyDoubles": "Amistós dobles",
   "scoring_friendlyModePoints": "1r a {n}p",
   "scoring_friendlyModeRounds": "{n} rondes",
-  "scoring_friendlySingles": "Amistós individual"
+  "scoring_friendlySingles": "Amistós individual",
+  "scan_enableCamera": "Habilitar càmera",
+  "scan_instruction": "Apunta la càmera al codi QR",
+  "scan_invalidQR": "Codi QR no vàlid",
+  "scan_manualEntry": "Introduir codi manualment",
+  "scan_noCameraFound": "No s'ha trobat càmera",
+  "scan_permissionDenied": "Permís de càmera denegat",
+  "scan_switchCamera": "Canviar càmera",
+  "scan_title": "Escanejar QR",
+  "scan_toggleFlash": "Llanterna",
+  "tournament_showQR": "Mostra QR",
+  "tournament_scanQR": "Escanejar QR"
 }

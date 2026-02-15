@@ -209,9 +209,36 @@ Play casual games with friends without tournament integration:
 Play as part of an organized tournament:
 1. A tournament admin creates the tournament and adds you as participant
 2. In **/game**, tap the **trophy button (🏆)** at the bottom right → **Play Tournament Match**
-3. Enter the **tournament key** and your match will be loaded with locked settings
-4. Play your match - results sync **automatically** to the tournament
-5. Admins can view live results in the tournament dashboard
+3. Enter the **tournament key** manually OR **scan the QR code** (see QR Scanning below)
+4. Your match will be loaded with locked settings
+5. Play your match - results sync **automatically** to the tournament
+6. Admins can view live results in the tournament dashboard
+
+### 📷 QR Code Scanning
+
+Quickly join tournaments or friendly matches by scanning QR codes instead of typing codes manually.
+
+#### **For Players**
+- In **/game**, tap the **QR icon (📷)** in the header (top right)
+- Point your camera at the tournament QR code
+- The tournament key is auto-filled and your match loads automatically
+- Also works for friendly match invite codes
+
+#### **For Tournament Admins**
+- In the tournament admin view, click the **QR button** next to the tournament key badge
+- A modal displays a large QR code that players can scan
+- The QR encodes: `https://scorekinole.web.app/game?key=ABC123`
+- Print or display on screen for easy player access
+
+#### **Supported QR Formats**
+- Tournament key URL: `scorekinole.web.app/game?key=ABC123`
+- Friendly invite URL: `scorekinole.web.app/join?invite=XYZ789`
+- Direct 6-character codes: `ABC123`
+
+#### **Camera Permissions**
+- **Web**: Browser will prompt for camera access
+- **Android APK**: Camera permission is requested automatically
+- **Fallback**: If camera is denied, manual code entry is available
 
 ### Optional: Sign In with Google
 - On the landing page, tap the **profile icon** at the top right → **Log In**

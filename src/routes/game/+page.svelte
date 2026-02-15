@@ -46,6 +46,9 @@
 	import { getPlayerName } from '$lib/firebase/userProfile';
 	import { LoaderCircle } from '@lucide/svelte';
 	import InvitePlayerModal from '$lib/components/InvitePlayerModal.svelte';
+	import QRScanner from '$lib/components/QRScanner.svelte';
+	import { QrCode } from '@lucide/svelte';
+	import { goto } from '$app/navigation';
 	import { assignUserToTeam, unassignUserFromTeam, assignPartnerToTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
 	import {
 		activeInvite,
@@ -73,6 +76,9 @@
 	// Invite modal state
 	let currentInviteType = $state<'opponent' | 'my_partner' | 'opponent_partner'>('opponent');
 	let currentInviteHostTeam = $state<1 | 2>(1);
+
+	// QR Scanner state
+	let showQRScanner = $state(false);
 
 	// Unsubscribe function for match status listener
 	let unsubscribeMatchStatus: (() => void) | null = null;
@@ -812,6 +818,43 @@
 			const newSide = $gameTournamentContext.currentUserSide === 'A' ? 'B' : 'A';
 			updateTournamentContext({ currentUserSide: newSide });
 		}
+	}
+
+	/**
+	 * Handle QR scan result - can be tournament key or friendly invite code
+	 */
+	function handleQRScanResult(data: string) {
+		showQRScanner = false;
+
+		// Try to extract tournament key from URL (?key=ABC123)
+		const keyMatch = data.match(/[?&]key=([A-Za-z0-9]{6})/i);
+		if (keyMatch) {
+			// Tournament key - open tournament modal with pre-filled key
+			const key = keyMatch[1].toUpperCase();
+			localStorage.setItem('tournamentKey', key);
+			showTournamentModal = true;
+			return;
+		}
+
+		// Try to extract friendly invite code from URL (?invite=ABC123)
+		const inviteMatch = data.match(/[?&]invite=([A-Za-z0-9]{6})/i);
+		if (inviteMatch) {
+			// Friendly invite - redirect to join page
+			const code = inviteMatch[1].toUpperCase();
+			goto(`/join?invite=${code}`);
+			return;
+		}
+
+		// Direct 6-char code - could be either, assume tournament key for now
+		if (/^[A-Za-z0-9]{6}$/i.test(data.trim())) {
+			const code = data.trim().toUpperCase();
+			localStorage.setItem('tournamentKey', code);
+			showTournamentModal = true;
+			return;
+		}
+
+		// Unknown format - just open tournament modal
+		showTournamentModal = true;
 	}
 
 	/**
@@ -1890,6 +1933,9 @@
 			<div class="header-right">
 				<OfflineIndicator />
 				<ThemeToggle />
+				<button class="header-btn" onclick={() => showQRScanner = true} aria-label={m.scan_title()} title={m.scan_title()}>
+					<QrCode size={15} />
+				</button>
 				<button class="header-btn" onclick={() => showSettings = true} aria-label="Settings" title={m.common_settings()}>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 				</button>
@@ -2156,6 +2202,13 @@
 	hostTeamNumber={currentInviteHostTeam}
 	inviteType={currentInviteType}
 	onclose={handleCloseInviteModal}
+/>
+
+<!-- QR Scanner Modal -->
+<QRScanner
+	bind:isOpen={showQRScanner}
+	onScan={handleQRScanResult}
+	onClose={() => showQRScanner = false}
 />
 
 <style>

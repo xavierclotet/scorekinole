@@ -1230,5 +1230,16 @@
   "scoring_friendlyDoubles": "Doubles friendly",
   "scoring_friendlyModePoints": "First to {n}p",
   "scoring_friendlyModeRounds": "{n} rounds",
-  "scoring_friendlySingles": "Singles friendly"
+  "scoring_friendlySingles": "Singles friendly",
+  "scan_enableCamera": "Enable camera",
+  "scan_instruction": "Point the camera at the QR code",
+  "scan_invalidQR": "Invalid QR code",
+  "scan_manualEntry": "Enter code manually",
+  "scan_noCameraFound": "No camera found",
+  "scan_permissionDenied": "Camera permission denied",
+  "scan_switchCamera": "Change camera",
+  "scan_title": "Scan QR",
+  "scan_toggleFlash": "Flashlight",
+  "tournament_showQR": "Show QR code",
+  "tournament_scanQR": "Scan QR"
 }
