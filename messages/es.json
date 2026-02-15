@@ -468,6 +468,8 @@
   "common_liveTournaments": "Torneos en vivo",
   "common_tournamentAdmin": "Gestión de torneos",
   "common_rankings": "Rankings",
+  "common_tournaments": "Torneos",
+  "common_myStats": "Mis Stats",
   "common_yes": "Sí",
   "history_allMatchesAlreadySynced": "Todas las partidas ya están sincronizadas",
   "history_currentMatch": "Partida Actual",

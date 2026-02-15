@@ -1241,5 +1241,7 @@
   "scan_title": "Scan QR",
   "scan_toggleFlash": "Flashlight",
   "tournament_showQR": "Show QR code",
-  "tournament_scanQR": "Scan QR"
+  "tournament_scanQR": "Scan QR",
+  "common_tournaments": "Tournaments",
+  "common_myStats": "My Stats"
 }

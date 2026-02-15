@@ -1241,5 +1241,7 @@
   "scan_title": "Escanejar QR",
   "scan_toggleFlash": "Llanterna",
   "tournament_showQR": "Mostra QR",
-  "tournament_scanQR": "Escanejar QR"
+  "tournament_scanQR": "Escanejar QR",
+  "common_tournaments": "Tornejos",
+  "common_myStats": "Els meus Stats"
 }
