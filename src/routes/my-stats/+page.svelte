@@ -88,22 +88,46 @@
 		return null;
 	}
 
-	// Get opponent name
-	function getOpponentName(match: MatchHistory): string {
-		const userTeam = getUserTeam(match);
-		if (userTeam === 1) return match.team2Name || 'Unknown';
-		if (userTeam === 2) return match.team1Name || 'Unknown';
-		// Fallback: show both if user team unknown
-		return `${match.team1Name} vs ${match.team2Name}`;
+	// Get full team display name (player + partner for doubles)
+	function getTeamDisplayName(match: MatchHistory, teamNumber: 1 | 2): string {
+		const isDoubles = match.gameType === 'doubles';
+		const teamName = teamNumber === 1 ? match.team1Name : match.team2Name;
+		const partner = teamNumber === 1
+			? match.players?.team1?.partner
+			: match.players?.team2?.partner;
+
+		if (isDoubles && partner?.name) {
+			return `${teamName} & ${partner.name}`;
+		}
+		return teamName || 'Unknown';
 	}
 
-	// Get unique opponents from matches
+	// Get opponent name (with partner for doubles)
+	function getOpponentName(match: MatchHistory): string {
+		const userTeam = getUserTeam(match);
+		if (userTeam === 1) return getTeamDisplayName(match, 2);
+		if (userTeam === 2) return getTeamDisplayName(match, 1);
+		// Fallback: show both if user team unknown
+		return `${getTeamDisplayName(match, 1)} vs ${getTeamDisplayName(match, 2)}`;
+	}
+
+	// Get user's partner name (for doubles matches)
+	function getMyPartnerName(match: MatchHistory): string | null {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) return null;
+		const partner = userTeam === 1
+			? match.players?.team1?.partner
+			: match.players?.team2?.partner;
+		return partner?.name || null;
+	}
+
+	// Get unique opponents from matches (includes partner names for doubles)
 	let uniqueOpponents = $derived((() => {
 		const opponents = new SvelteSet<string>();
 		for (const match of matches) {
 			const userTeam = getUserTeam(match);
-			if (userTeam === 1 && match.team2Name) opponents.add(match.team2Name);
-			if (userTeam === 2 && match.team1Name) opponents.add(match.team1Name);
+			if (userTeam === 1) opponents.add(getTeamDisplayName(match, 2));
+			if (userTeam === 2) opponents.add(getTeamDisplayName(match, 1));
 		}
 		return Array.from(opponents).sort();
 	})());
@@ -535,7 +559,18 @@
 									</span>
 								</div>
 								<div class="match-opponent">
-									vs {getOpponentName(match)}
+									{#if match.gameType === 'doubles'}
+										{@const myPartner = getMyPartnerName(match)}
+										{#if myPartner}
+											<span class="with-partner">{m.scoring_partner()}: {myPartner}</span>
+											<span class="vs-separator">vs</span>
+											{getOpponentName(match)}
+										{:else}
+											vs {getOpponentName(match)}
+										{/if}
+									{:else}
+										vs {getOpponentName(match)}
+									{/if}
 								</div>
 							</div>
 							<div class="match-result" class:won={result.won} class:lost={!result.won && !result.tied}>
@@ -572,7 +607,7 @@
 
 												<!-- Team 1 Row -->
 												<div class="game-row" class:winner-row={game.winner === 1}>
-													<span class="team-name">{match.team1Name}</span>
+													<span class="team-name">{getTeamDisplayName(match, 1)}</span>
 													{#each game.rounds || [] as round, rIdx (rIdx)}
 														<span class="round-col">
 															<span class="points-with-hammer">
@@ -599,7 +634,7 @@
 
 												<!-- Team 2 Row -->
 												<div class="game-row" class:winner-row={game.winner === 2}>
-													<span class="team-name">{match.team2Name}</span>
+													<span class="team-name">{getTeamDisplayName(match, 2)}</span>
 													{#each game.rounds || [] as round, rIdx2 (rIdx2)}
 														<span class="round-col">
 															<span class="points-with-hammer">
@@ -994,9 +1029,19 @@
 	.match-opponent {
 		font-size: 0.85rem;
 		font-weight: 500;
-		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.with-partner {
+		color: var(--muted-foreground);
+		font-weight: 400;
+	}
+
+	.vs-separator {
+		color: var(--muted-foreground);
+		font-weight: 400;
+		margin: 0 0.35rem;
 	}
 
 	.match-result {
