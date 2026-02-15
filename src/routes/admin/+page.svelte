@@ -1,12 +1,12 @@
 <script lang="ts">
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-  import { Button } from '$lib/components/ui/button';
   import * as m from '$lib/paraglide/messages.js';
   import { currentUser } from '$lib/firebase/auth';
   import { adminTheme } from '$lib/stores/theme';
   import { isSuperAdminUser } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
+  import { ChevronLeft } from '@lucide/svelte';
 
   interface AdminSection {
     title: () => string;
@@ -56,14 +56,9 @@
 <AdminGuard>
   <div class="admin-page" data-theme={$adminTheme}>
     <nav class="navbar">
-      <Button
-          variant="outline"
-          size="sm"
-          onclick={() => goto('/')}
-          class="bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:text-primary font-semibold px-6"
-        >
-          ← {m.admin_backToHome()}
-        </Button>
+      <button class="back-btn" onclick={() => goto('/')} aria-label={m.admin_backToHome()}>
+          <ChevronLeft class="size-5" />
+        </button>
       <div class="theme-toggle-wrapper">
         <ThemeToggle />
       </div>
@@ -111,6 +106,27 @@
     align-items: center;
     padding: 1rem 1.25rem;
     position: relative;
+  }
+
+  .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .back-btn:hover {
+    transform: translateX(-2px);
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
   .admin-container {

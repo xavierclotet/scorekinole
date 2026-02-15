@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import SuperAdminGuard from '$lib/components/SuperAdminGuard.svelte';
   import MatchEditModal from '$lib/components/MatchEditModal.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -7,9 +6,11 @@
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
+  import { currentUser } from '$lib/firebase/auth';
   import { getMatchesPaginated, adminDeleteMatch } from '$lib/firebase/admin';
   import type { MatchHistory } from '$lib/types/history';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+  import { ArrowLeft, Search, Crown, Trash2, CircleAlert, Target } from '@lucide/svelte';
 
   let matches: MatchHistory[] = $state([]);
   let isLoading = $state(true);
@@ -35,7 +36,7 @@
 
   // Extract unique players from matches (by userId or name)
   interface PlayerOption {
-    id: string; // odId or name as fallback
+    id: string;
     name: string;
     isRegistered: boolean;
   }
@@ -43,7 +44,6 @@
     const playerMap = new Map<string, PlayerOption>();
 
     for (const match of matches) {
-      // Team 1
       const p1Id = match.players?.team1?.userId || match.team1Name;
       if (!playerMap.has(p1Id)) {
         playerMap.set(p1Id, {
@@ -53,7 +53,6 @@
         });
       }
 
-      // Team 2
       const p2Id = match.players?.team2?.userId || match.team2Name;
       if (!playerMap.has(p2Id)) {
         playerMap.set(p2Id, {
@@ -67,7 +66,6 @@
     return Array.from(playerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   })());
 
-  // For search: filter locally from loaded matches
   let isSearching = $derived(searchQuery.trim().length > 0);
   let isFiltering = $derived(filterType !== 'all');
   let isPlayerFiltering = $derived(playerFilter !== '');
@@ -87,7 +85,6 @@
     if (filterType === 'singles' && matchType !== 'singles') return false;
     if (filterType === 'doubles' && matchType !== 'doubles') return false;
 
-    // Filter by player
     if (isPlayerFiltering) {
       const p1Id = match.players?.team1?.userId || match.team1Name;
       const p2Id = match.players?.team2?.userId || match.team2Name;
@@ -109,8 +106,15 @@
 
   let displayTotal = $derived(isSearching || isFiltering || isPlayerFiltering ? filteredMatches.length : totalCount);
 
-  onMount(async () => {
-    await loadInitialMatches();
+  // Wait for auth before loading - prevents race condition where
+  // onMount fires before currentUser is set by the auth listener
+  let initialLoadDone = false;
+
+  $effect(() => {
+    if ($currentUser && !initialLoadDone) {
+      initialLoadDone = true;
+      loadInitialMatches();
+    }
   });
 
   async function loadInitialMatches() {
@@ -153,7 +157,6 @@
     const target = e.target as HTMLElement;
     const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
 
-    // Load more when 100px from bottom
     if (scrollBottom < 100 && hasMore && !isLoadingMore && !isSearching && !isPlayerFiltering) {
       loadMore();
     }
@@ -223,7 +226,6 @@
   }
 
   function getMatchType(match: MatchHistory): string {
-    // Use the gameType field directly from the match
     return match.gameType || 'singles';
   }
 
@@ -234,9 +236,9 @@
 
   function getGameModeInfo(match: MatchHistory): string {
     if (match.gameMode === 'points') {
-      return `${match.pointsToWin}p (${match.matchesToWin} games)`;
+      return `${match.pointsToWin}p · Pg${match.matchesToWin}`;
     } else if (match.gameMode === 'rounds') {
-      return `${match.roundsToPlay} rondas`;
+      return `${match.roundsToPlay}r`;
     }
     return match.gameMode || 'N/A';
   }
@@ -246,7 +248,9 @@
   <div class="matches-container" data-theme={$adminTheme}>
     <header class="page-header">
       <div class="header-row">
-        <button class="back-btn" onclick={() => goto('/admin')}>←</button>
+        <button class="back-btn" onclick={() => goto('/admin')}>
+          <ArrowLeft size={16} />
+        </button>
         <div class="header-main">
           <div class="title-section">
             <h1>{m.admin_matchManagement()}</h1>
@@ -257,11 +261,46 @@
           <ThemeToggle />
         </div>
       </div>
+
+      <div class="filters-row">
+        <div class="filter-tabs">
+          <button
+            class="filter-tab"
+            class:active={filterType === 'all'}
+            onclick={() => (filterType = 'all')}
+          >
+            {m.admin_all()} ({matches.length})
+          </button>
+          <button
+            class="filter-tab"
+            class:active={filterType === 'singles'}
+            onclick={() => (filterType = 'singles')}
+          >
+            {m.scoring_singles()} ({singlesCount})
+          </button>
+          <button
+            class="filter-tab"
+            class:active={filterType === 'doubles'}
+            onclick={() => (filterType = 'doubles')}
+          >
+            {m.scoring_doubles()} ({doublesCount})
+          </button>
+        </div>
+
+        <select bind:value={playerFilter} class="player-filter">
+          <option value="">{m.admin_allPlayers()}</option>
+          {#each uniquePlayers as player}
+            <option value={player.id}>
+              {player.isRegistered ? '● ' : '○ '}{player.name}
+            </option>
+          {/each}
+        </select>
+      </div>
     </header>
 
     <div class="controls-section">
       <div class="search-box">
-        <span class="search-icon">🔍</span>
+        <Search size={14} class="search-icon-svg" />
         <input
           type="text"
           bind:value={searchQuery}
@@ -269,55 +308,20 @@
           class="search-input"
         />
       </div>
-
-      <div class="filter-tabs">
-        <button
-          class="filter-tab"
-          class:active={filterType === 'all'}
-          onclick={() => (filterType = 'all')}
-        >
-          {m.admin_all()} ({matches.length})
-        </button>
-        <button
-          class="filter-tab"
-          class:active={filterType === 'singles'}
-          onclick={() => (filterType = 'singles')}
-        >
-          {m.scoring_singles()} ({singlesCount})
-        </button>
-        <button
-          class="filter-tab"
-          class:active={filterType === 'doubles'}
-          onclick={() => (filterType = 'doubles')}
-        >
-          {m.scoring_doubles()} ({doublesCount})
-        </button>
-      </div>
-
-      <div class="player-filter">
-        <select bind:value={playerFilter} class="player-select">
-          <option value="">{m.admin_allPlayers()}</option>
-          {#each uniquePlayers as player}
-            <option value={player.id}>
-              {player.isRegistered ? '👤 ' : '🎭 '}{player.name}
-            </option>
-          {/each}
-        </select>
-      </div>
     </div>
 
     {#if isLoading}
       <LoadingSpinner message={m.common_loading()} />
     {:else if errorMessage}
       <div class="error-box">
-        <div class="error-icon">⚠️</div>
+        <CircleAlert size={40} class="error-icon-svg" />
         <h3>{m.common_error()}</h3>
         <p>{errorMessage}</p>
         <button class="retry-btn" onclick={loadInitialMatches}>{m.admin_retry()}</button>
       </div>
     {:else if filteredMatches.length === 0}
       <div class="empty-state">
-        <div class="empty-icon">🎯</div>
+        <Target size={48} class="empty-icon-svg" />
         <h3>{m.admin_noMatchesFound()}</h3>
         <p>{searchQuery || filterType !== 'all' ? m.admin_noMatchesFilter() : m.admin_noMatchesYet()}</p>
       </div>
@@ -342,25 +346,18 @@
           </thead>
           <tbody>
             {#each filteredMatches as match (match.id)}
-              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-              <tr class="match-row" onclick={() => editMatch(match)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') editMatch(match); }}>
+              <tr class="match-row" onclick={() => editMatch(match)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') editMatch(match); }} role="button" tabindex="0">
                 <td class="players-cell">
                   <div class="players-info">
                     <div class="player-row">
-                      <span
-                        class="player-name"
-                        class:winner={match.winner === 1}
-                        style="color: {match.team1Color}"
-                      >{match.team1Name}</span>
-                      {#if match.winner === 1}<span class="winner-icon">👑</span>{/if}
+                      <span class="color-dot" style="background:{match.team1Color}"></span>
+                      <span class="player-name" class:winner={match.winner === 1}>{match.team1Name}</span>
+                      {#if match.winner === 1}<Crown size={10} class="winner-icon-svg" />{/if}
                     </div>
                     <div class="player-row">
-                      <span
-                        class="player-name"
-                        class:winner={match.winner === 2}
-                        style="color: {match.team2Color}"
-                      >{match.team2Name}</span>
-                      {#if match.winner === 2}<span class="winner-icon">👑</span>{/if}
+                      <span class="color-dot" style="background:{match.team2Color}"></span>
+                      <span class="player-name" class:winner={match.winner === 2}>{match.team2Name}</span>
+                      {#if match.winner === 2}<Crown size={10} class="winner-icon-svg" />{/if}
                     </div>
                   </div>
                 </td>
@@ -388,7 +385,7 @@
                   </div>
                 </td>
                 <td class="type-cell hide-mobile">
-                  <span class="type-badge" class:doubles={getMatchType(match) === 'doubles'}>
+                  <span class="type-badge">
                     {getMatchTypeLabel(match)}
                   </span>
                 </td>
@@ -406,18 +403,11 @@
                 </td>
                 <td class="actions-cell">
                   <button
-                    class="action-btn edit-btn"
-                    onclick={(e) => { e.stopPropagation(); editMatch(match); }}
-                    title={m.admin_editMatch()}
-                  >
-                    ✏️
-                  </button>
-                  <button
                     class="action-btn delete-btn"
                     onclick={(e) => { e.stopPropagation(); confirmDelete(match); }}
                     title={m.common_delete()}
                   >
-                    🗑️
+                    <Trash2 size={14} />
                   </button>
                 </td>
               </tr>
@@ -456,11 +446,11 @@
         <h3>{m.admin_deleteMatch()}</h3>
         <div class="match-preview">
           <div class="preview-players">
-            <span class="preview-color" style="background: {matchToDelete.team1Color}"></span>
+            <span class="color-dot" style="background: {matchToDelete.team1Color}"></span>
             <strong>{matchToDelete.team1Name}</strong>
             <span class="preview-vs">vs</span>
             <strong>{matchToDelete.team2Name}</strong>
-            <span class="preview-color" style="background: {matchToDelete.team2Color}"></span>
+            <span class="color-dot" style="background: {matchToDelete.team2Color}"></span>
           </div>
           <small class="preview-date">{formatDate(matchToDelete.startTime)}</small>
         </div>
@@ -517,7 +507,6 @@
     border: 1px solid #e5e7eb;
     background: white;
     color: #555;
-    font-size: 1.1rem;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -528,17 +517,12 @@
 
   .matches-container:is([data-theme='dark'], [data-theme='violet']) .back-btn {
     background: #0f1419;
-    color: #8b9bb3;
+    color: #fff;
     border-color: #2d3748;
   }
 
   .back-btn:hover {
     transform: translateX(-2px);
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-
-  .matches-container:is([data-theme='dark'], [data-theme='violet']) .back-btn:hover {
     border-color: var(--primary);
     color: var(--primary);
   }
@@ -560,22 +544,15 @@
     color: var(--primary);
     font-weight: 700;
     white-space: nowrap;
-    transition: color 0.3s;
   }
 
   .count-badge {
     padding: 0.2rem 0.6rem;
-    background: #f3f4f6;
-    color: #555;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
-    transition: all 0.3s;
-  }
-
-  .matches-container:is([data-theme='dark'], [data-theme='violet']) .count-badge {
-    background: #0f1419;
-    color: #8b9bb3;
   }
 
   .header-actions {
@@ -585,56 +562,25 @@
     flex-shrink: 0;
   }
 
-  /* Controls */
-  .controls-section {
+  /* Filters row (inside header) */
+  .filters-row {
     display: flex;
-    gap: 1rem;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
     align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 0.75rem;
   }
 
-  .search-box {
-    flex: 1;
-    min-width: 200px;
-    max-width: 300px;
-    position: relative;
-  }
-
-  .search-icon {
-    position: absolute;
-    left: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 1rem;
-  }
-
-  .search-input {
-    width: 100%;
-    padding: 0.5rem 0.75rem 0.5rem 2.5rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    background: white;
-    transition: all 0.2s;
-  }
-
-  .matches-container:is([data-theme='dark'], [data-theme='violet']) .search-input {
-    background: #1a2332;
-    border-color: #2d3748;
-    color: #e1e8ed;
-  }
-
-  .search-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+  .matches-container:is([data-theme='dark'], [data-theme='violet']) .filters-row {
+    border-top-color: #2d3748;
   }
 
   .filter-tabs {
     display: flex;
     gap: 0.25rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .filter-tab {
@@ -655,14 +601,12 @@
   }
 
   .filter-tab:hover:not(.active) {
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    background: #f5f5f5;
     border-color: var(--primary);
-    color: var(--primary);
   }
 
   .matches-container:is([data-theme='dark'], [data-theme='violet']) .filter-tab:hover:not(.active) {
     background: #2d3748;
-    color: var(--primary);
   }
 
   .filter-tab.active {
@@ -670,39 +614,100 @@
     color: white;
     border-color: var(--primary);
     font-weight: 600;
+    box-shadow: 0 2px 4px color-mix(in srgb, var(--primary) 40%, transparent);
+  }
+
+  .matches-container:is([data-theme='dark'], [data-theme='violet']) .filter-tab.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
   }
 
   /* Player filter */
   .player-filter {
-    min-width: 180px;
-  }
-
-  .player-select {
-    width: 100%;
-    padding: 0.4rem 0.6rem;
+    padding: 0.4rem 0.75rem;
+    background: white;
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 0.8rem;
-    background: white;
-    color: #333;
+    color: #555;
     cursor: pointer;
     transition: all 0.2s;
+    min-width: 100px;
+    flex-shrink: 0;
+    margin-left: auto;
   }
 
-  .matches-container:is([data-theme='dark'], [data-theme='violet']) .player-select {
-    background: #1a2332;
-    border-color: #2d3748;
-    color: #e1e8ed;
+  .player-filter:hover {
+    border-color: var(--primary);
   }
 
-  .player-select:focus {
+  .player-filter:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
   }
 
-  .player-select:hover {
+  .matches-container:is([data-theme='dark'], [data-theme='violet']) .player-filter {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #8b9bb3;
+  }
+
+  .matches-container:is([data-theme='dark'], [data-theme='violet']) .player-filter option {
+    background: #1a2332;
+    color: #8b9bb3;
+  }
+
+  /* Controls */
+  .controls-section {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    max-width: 300px;
+    position: relative;
+  }
+
+  .search-box :global(.search-icon-svg) {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    pointer-events: none;
+  }
+
+  .matches-container:is([data-theme='dark'], [data-theme='violet']) .search-box :global(.search-icon-svg) {
+    color: #6b7a94;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    transition: all 0.2s;
+  }
+
+  .matches-container:is([data-theme='dark'], [data-theme='violet']) .search-input {
+    background: #1a2332;
+    border-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .search-input:focus {
+    outline: none;
     border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
   }
 
   /* Results info */
@@ -721,7 +726,7 @@
   .table-container {
     overflow-x: auto;
     overflow-y: auto;
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 220px);
     background: white;
     border-radius: 6px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -812,6 +817,19 @@
     gap: 0.4rem;
   }
 
+  /* Color dot chip instead of colored text */
+  .color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  .matches-container:is([data-theme='dark'], [data-theme='violet']) .color-dot {
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
   .player-name {
     font-size: 0.82rem;
     white-space: nowrap;
@@ -823,8 +841,8 @@
     font-weight: 700;
   }
 
-  .winner-icon {
-    font-size: 0.7rem;
+  :global(.winner-icon-svg) {
+    color: #f59e0b;
     flex-shrink: 0;
   }
 
@@ -894,13 +912,15 @@
 
   /* Type cell */
   .type-badge {
-    padding: 0.2rem 0.5rem;
-    border-radius: 10px;
-    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
     font-weight: 600;
     background: var(--primary);
     color: white;
     white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
 
   /* Mode cell */
@@ -958,9 +978,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.85rem;
     transition: all 0.2s;
     background: transparent;
+    color: #999;
   }
 
   .action-btn:hover {
@@ -972,6 +992,7 @@
   }
 
   .action-btn.delete-btn:hover {
+    color: #ef4444;
     background: #fee2e2;
   }
 
@@ -1014,8 +1035,8 @@
     background: #1a2332;
   }
 
-  .error-icon {
-    font-size: 3rem;
+  :global(.error-icon-svg) {
+    color: #dc2626;
     margin-bottom: 1rem;
   }
 
@@ -1055,10 +1076,13 @@
     padding: 4rem 2rem;
   }
 
-  .empty-icon {
-    font-size: 5rem;
+  :global(.empty-icon-svg) {
+    color: #ccc;
     margin-bottom: 1rem;
-    opacity: 0.3;
+  }
+
+  .matches-container:is([data-theme='dark'], [data-theme='violet']) :global(.empty-icon-svg) {
+    color: #4a5568;
   }
 
   .empty-state h3 {
@@ -1147,12 +1171,6 @@
     color: #e1e8ed;
   }
 
-  .preview-color {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-
   .preview-vs {
     color: #999;
     font-weight: 400;
@@ -1228,8 +1246,17 @@
     }
 
     .page-header {
+      padding: 0.5rem 0.75rem;
       margin: -1rem -1rem 1rem -1rem;
-      padding: 0.75rem 1rem;
+    }
+
+    .header-row {
+      gap: 0.5rem;
+    }
+
+    .back-btn {
+      width: 32px;
+      height: 32px;
     }
 
     .controls-section {
@@ -1241,12 +1268,34 @@
       max-width: none;
     }
 
+    .filters-row {
+      flex-direction: column;
+      width: 100%;
+      gap: 0.5rem;
+    }
+
     .filter-tabs {
-      justify-content: center;
+      width: 100%;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+      flex-wrap: nowrap;
+    }
+
+    .filter-tab {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .player-filter {
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.75rem;
+      margin-left: 0;
     }
 
     .table-container {
-      max-height: calc(100vh - 220px);
+      max-height: calc(100vh - 260px);
     }
 
     .hide-mobile {

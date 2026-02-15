@@ -3,6 +3,7 @@
   import { adminTheme } from '$lib/stores/theme';
   import type { MatchHistory, MatchGame } from '$lib/types/history';
   import { updateMatch } from '$lib/firebase/admin';
+  import { Crown } from '@lucide/svelte';
 
   interface Props {
     match: MatchHistory;
@@ -17,10 +18,6 @@
   // svelte-ignore state_referenced_locally
   let team2Name = $state(match.team2Name);
   // svelte-ignore state_referenced_locally
-  let eventTitle = $state(match.eventTitle || '');
-  // svelte-ignore state_referenced_locally
-  let matchPhase = $state(match.matchPhase || '');
-  // svelte-ignore state_referenced_locally
   let gameType = $state<'singles' | 'doubles'>(match.gameType || 'singles');
 
   // Deep clone games to allow editing
@@ -30,7 +27,6 @@
   let selectedGameIndex = $state(0);
   let isSaving = $state(false);
   let errorMessage = $state('');
-  let activeTab: 'info' | 'rounds' = $state('info');
 
   async function saveChanges() {
     if (!team1Name.trim() || !team2Name.trim()) {
@@ -45,8 +41,6 @@
       const updates: Partial<MatchHistory> = {
         team1Name,
         team2Name,
-        eventTitle: eventTitle.trim() || undefined,
-        matchPhase: matchPhase.trim() || undefined,
         gameType,
         games: editableGames
       };
@@ -102,165 +96,121 @@
         <h2>{m.admin_editMatch()}</h2>
         <div class="match-meta">
           <span class="meta-badge">{formatDate(match.startTime)}</span>
-          <span class="meta-badge type">{match.gameType === 'doubles' ? m.scoring_doubles() : m.scoring_singles()}</span>
+          <span class="meta-badge type">{match.gameMode === 'points' ? `${match.pointsToWin}p · Pg${match.matchesToWin}` : `${match.roundsToPlay}r`}</span>
+          <select class="type-select" bind:value={gameType}>
+            <option value="singles">{m.scoring_singles()}</option>
+            <option value="doubles">{m.scoring_doubles()}</option>
+          </select>
         </div>
       </div>
       <button class="close-btn" onclick={onClose} aria-label="Close">×</button>
     </header>
 
-    <!-- Tabs -->
-    <nav class="tabs">
-      <button
-        class="tab"
-        class:active={activeTab === 'info'}
-        onclick={() => activeTab = 'info'}
-      >
-        {m.admin_basicInfo()}
-      </button>
-      <button
-        class="tab"
-        class:active={activeTab === 'rounds'}
-        onclick={() => activeTab = 'rounds'}
-      >
-        {m.admin_gamesAndRounds()}
-      </button>
-    </nav>
-
     <!-- Body -->
     <div class="modal-body">
-      {#if activeTab === 'info'}
-        <!-- Info Tab -->
-        <div class="form-section">
-          <div class="players-row">
-            <div class="player-input" style="--player-color: {match.team1Color}">
-              <label>
-                <span class="label-text">{m.admin_team1()}</span>
-                <input type="text" bind:value={team1Name} placeholder="Jugador 1" />
-              </label>
-            </div>
-            <span class="vs">vs</span>
-            <div class="player-input" style="--player-color: {match.team2Color}">
-              <label>
-                <span class="label-text">{m.admin_team2()}</span>
-                <input type="text" bind:value={team2Name} placeholder="Jugador 2" />
-              </label>
-            </div>
-          </div>
-
-          <div class="form-grid">
-            <label class="form-field">
-              <span class="label-text">{m.admin_eventTitleLabel()}</span>
-              <input type="text" bind:value={eventTitle} placeholder={m.admin_eventTitleExample()} />
-            </label>
-            <label class="form-field">
-              <span class="label-text">{m.admin_phaseLabel()}</span>
-              <input type="text" bind:value={matchPhase} placeholder={m.admin_phaseExample()} />
-            </label>
-            <label class="form-field">
-              <span class="label-text">{m.admin_matchType()}</span>
-              <select bind:value={gameType}>
-                <option value="singles">{m.scoring_singles()}</option>
-                <option value="doubles">{m.scoring_doubles()}</option>
-              </select>
-            </label>
-            <div class="form-field readonly">
-              <span class="label-text">{m.admin_modeLabel()}</span>
-              <span class="readonly-value">
-                {match.gameMode === 'points' ? `${match.pointsToWin} pts` : `${match.roundsToPlay} rondas`}
-              </span>
-            </div>
-          </div>
+      <!-- Players -->
+      <div class="players-row">
+        <div class="player-input">
+          <span class="color-dot" style="background:{match.team1Color}"></span>
+          <input type="text" bind:value={team1Name} placeholder="Jugador 1" />
         </div>
+        <span class="vs">vs</span>
+        <div class="player-input">
+          <input type="text" bind:value={team2Name} placeholder="Jugador 2" />
+          <span class="color-dot" style="background:{match.team2Color}"></span>
+        </div>
+      </div>
 
-      {:else}
-        <!-- Rounds Tab -->
-        <div class="rounds-section">
-          <!-- Game selector if multiple games -->
-          {#if editableGames.length > 1}
-            <div class="game-selector">
-              {#each editableGames as game, idx}
-                <button
-                  class="game-btn"
-                  class:active={selectedGameIndex === idx}
-                  onclick={() => selectedGameIndex = idx}
-                >
-                  {m.history_game()} {idx + 1}
-                  {#if game.winner}
-                    <span class="crown" style="color: {game.winner === 1 ? match.team1Color : match.team2Color}">👑</span>
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
+      <!-- Game selector if multiple games -->
+      {#if editableGames.length > 1}
+        <div class="game-selector">
+          {#each editableGames as game, idx}
+            <button
+              class="game-btn"
+              class:active={selectedGameIndex === idx}
+              onclick={() => selectedGameIndex = idx}
+            >
+              {m.history_game()} {idx + 1}
+              {#if game.winner}
+                <Crown size={10} class="crown-icon-svg" style="color: {game.winner === 1 ? match.team1Color : match.team2Color}" />
+              {/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
 
-          <!-- Rounds table -->
-          {#if editableGames[selectedGameIndex]}
-            <div class="rounds-table">
-              <div class="rounds-thead">
-                <span class="col-round">#</span>
-                <span class="col-player" style="color: {match.team1Color}">{team1Name.substring(0, 12)}</span>
-                <span class="col-player" style="color: {match.team2Color}">{team2Name.substring(0, 12)}</span>
+      <!-- Rounds table -->
+      {#if editableGames[selectedGameIndex]}
+        <div class="rounds-table">
+          <div class="rounds-thead" class:has-20s={match.show20s}>
+            <span class="col-round">#</span>
+            <span class="col-player">
+              <span class="color-dot small" style="background:{match.team1Color}"></span>
+              {team1Name.substring(0, 10)}
+            </span>
+            <span class="col-player">
+              <span class="color-dot small" style="background:{match.team2Color}"></span>
+              {team2Name.substring(0, 10)}
+            </span>
+            {#if match.show20s}
+              <span class="col-20s">20s</span>
+              <span class="col-20s">20s</span>
+            {/if}
+          </div>
+
+          <div class="rounds-tbody">
+            {#each editableGames[selectedGameIndex].rounds as round, idx}
+              <div class="round-row" class:has-20s={match.show20s}>
+                <span class="col-round">{idx + 1}</span>
+                <div class="col-player">
+                  <input
+                    type="number"
+                    min="0"
+                    max="2"
+                    bind:value={round.team1Points}
+                    class="pts-input"
+                    style="border-color: {match.team1Color}"
+                  />
+                </div>
+                <div class="col-player">
+                  <input
+                    type="number"
+                    min="0"
+                    max="2"
+                    bind:value={round.team2Points}
+                    class="pts-input"
+                    style="border-color: {match.team2Color}"
+                  />
+                </div>
                 {#if match.show20s}
-                  <span class="col-20s">20s</span>
-                  <span class="col-20s">20s</span>
-                {/if}
-              </div>
-
-              <div class="rounds-tbody">
-                {#each editableGames[selectedGameIndex].rounds as round, idx}
-                  <div class="round-row">
-                    <span class="col-round">{idx + 1}</span>
-                    <div class="col-player">
-                      <input
-                        type="number"
-                        min="0"
-                        max="2"
-                        bind:value={round.team1Points}
-                        class="pts-input"
-                        style="border-color: {match.team1Color}"
-                      />
-                    </div>
-                    <div class="col-player">
-                      <input
-                        type="number"
-                        min="0"
-                        max="2"
-                        bind:value={round.team2Points}
-                        class="pts-input"
-                        style="border-color: {match.team2Color}"
-                      />
-                    </div>
-                    {#if match.show20s}
-                      <div class="col-20s">
-                        <input type="number" min="0" max="12" bind:value={round.team1Twenty} class="twenty-input" />
-                      </div>
-                      <div class="col-20s">
-                        <input type="number" min="0" max="12" bind:value={round.team2Twenty} class="twenty-input" />
-                      </div>
-                    {/if}
+                  <div class="col-20s">
+                    <input type="number" min="0" max="12" bind:value={round.team1Twenty} class="twenty-input" />
                   </div>
-                {/each}
-              </div>
-
-              <div class="rounds-tfoot">
-                <span class="col-round">Σ</span>
-                <span class="col-player total" style="color: {match.team1Color}">
-                  {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + r.team1Points, 0)}
-                </span>
-                <span class="col-player total" style="color: {match.team2Color}">
-                  {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + r.team2Points, 0)}
-                </span>
-                {#if match.show20s}
-                  <span class="col-20s total">
-                    {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + (r.team1Twenty || 0), 0)}
-                  </span>
-                  <span class="col-20s total">
-                    {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + (r.team2Twenty || 0), 0)}
-                  </span>
+                  <div class="col-20s">
+                    <input type="number" min="0" max="12" bind:value={round.team2Twenty} class="twenty-input" />
+                  </div>
                 {/if}
               </div>
-            </div>
-          {/if}
+            {/each}
+          </div>
+
+          <div class="rounds-tfoot" class:has-20s={match.show20s}>
+            <span class="col-round">Σ</span>
+            <span class="col-player total">
+              {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + r.team1Points, 0)}
+            </span>
+            <span class="col-player total">
+              {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + r.team2Points, 0)}
+            </span>
+            {#if match.show20s}
+              <span class="col-20s total">
+                {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + (r.team1Twenty || 0), 0)}
+              </span>
+              <span class="col-20s total">
+                {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + (r.team2Twenty || 0), 0)}
+              </span>
+            {/if}
+          </div>
         </div>
       {/if}
 
@@ -297,7 +247,7 @@
     background: white;
     border-radius: 12px;
     width: 100%;
-    max-width: 580px;
+    max-width: 520px;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
@@ -314,7 +264,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid #e5e7eb;
   }
 
@@ -324,32 +274,55 @@
 
   .header-content h2 {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 700;
     color: var(--primary);
   }
 
   .match-meta {
     display: flex;
-    gap: 0.5rem;
-    margin-top: 0.35rem;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
   }
 
   .meta-badge {
-    font-size: 0.7rem;
-    padding: 0.15rem 0.4rem;
+    font-size: 0.65rem;
+    padding: 0.1rem 0.35rem;
     background: #f3f4f6;
     border-radius: 4px;
     color: #666;
   }
 
   .meta-badge.type {
-    background: var(--primary);
-    color: white;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
+    font-weight: 600;
   }
 
   .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .meta-badge {
     background: #0f1419;
+    color: #8b9bb3;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .meta-badge.type {
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+    color: var(--primary);
+  }
+
+  .type-select {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.3rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    color: #555;
+    cursor: pointer;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .type-select {
+    background: #0f1419;
+    border-color: #2d3748;
     color: #8b9bb3;
   }
 
@@ -378,176 +351,90 @@
     color: #e1e8ed;
   }
 
-  /* Tabs */
-  .tabs {
-    display: flex;
-    border-bottom: 1px solid #e5e7eb;
-    padding: 0 1.25rem;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .tabs {
-    border-color: #2d3748;
-  }
-
-  .tab {
-    padding: 0.6rem 1rem;
-    background: none;
-    border: none;
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: #666;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: all 0.15s;
-  }
-
-  .tab:hover {
-    color: #333;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .tab {
-    color: #8b9bb3;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .tab:hover {
-    color: #e1e8ed;
-  }
-
-  .tab.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
-    font-weight: 600;
-  }
-
   /* Body */
   .modal-body {
     flex: 1;
     overflow-y: auto;
-    padding: 1.25rem;
-  }
-
-  /* Info Tab */
-  .form-section {
+    padding: 1rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
+  /* Players row */
   .players-row {
     display: flex;
-    align-items: flex-end;
-    gap: 0.75rem;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .player-input {
     flex: 1;
-  }
-
-  .player-input label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #666;
-    margin-bottom: 0.25rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .player-input label {
-    color: #8b9bb3;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   .player-input input {
     width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 2px solid var(--player-color, #ddd);
-    border-radius: 6px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    background: white;
-    color: var(--player-color, #333);
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .player-input input {
-    background: #0f1419;
-  }
-
-  .player-input input:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
-  }
-
-  .vs {
-    font-size: 0.8rem;
-    color: #999;
-    font-weight: 500;
-    padding-bottom: 0.6rem;
-  }
-
-  .form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
-  }
-
-  .form-field input,
-  .form-field select {
-    width: 100%;
-    padding: 0.45rem 0.6rem;
+    padding: 0.4rem 0.6rem;
     border: 1px solid #ddd;
-    border-radius: 5px;
+    border-radius: 6px;
     font-size: 0.85rem;
+    font-weight: 600;
     background: white;
     color: #333;
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .form-field input,
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .form-field select {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .player-input input {
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
-  .form-field input:focus,
-  .form-field select:focus {
+  .player-input input:focus {
     outline: none;
     border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
   }
 
-  .form-field.readonly .readonly-value {
-    display: block;
-    padding: 0.45rem 0.6rem;
-    background: #f9fafb;
-    border-radius: 5px;
-    font-size: 0.85rem;
-    color: #666;
+  .color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .form-field.readonly .readonly-value {
-    background: #0f1419;
-    color: #8b9bb3;
+  .color-dot.small {
+    width: 7px;
+    height: 7px;
   }
 
-  /* Rounds Tab */
-  .rounds-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .color-dot {
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
+  .vs {
+    font-size: 0.75rem;
+    color: #999;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  /* Game selector */
   .game-selector {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.3rem;
     flex-wrap: wrap;
   }
 
   .game-btn {
-    padding: 0.35rem 0.65rem;
+    padding: 0.3rem 0.6rem;
     background: #f3f4f6;
     border: 1px solid #e5e7eb;
     border-radius: 4px;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 500;
     color: #555;
     cursor: pointer;
@@ -573,8 +460,8 @@
     color: white;
   }
 
-  .crown {
-    font-size: 0.75rem;
+  :global(.crown-icon-svg) {
+    flex-shrink: 0;
   }
 
   /* Rounds table */
@@ -592,21 +479,21 @@
   .round-row,
   .rounds-tfoot {
     display: grid;
-    grid-template-columns: 32px 1fr 1fr;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    grid-template-columns: 28px 1fr 1fr;
+    gap: 0.4rem;
+    padding: 0.4rem 0.6rem;
     align-items: center;
   }
 
-  .rounds-table:has(.col-20s) .rounds-thead,
-  .rounds-table:has(.col-20s) .round-row,
-  .rounds-table:has(.col-20s) .rounds-tfoot {
-    grid-template-columns: 32px 1fr 1fr 50px 50px;
+  .rounds-thead.has-20s,
+  .round-row.has-20s,
+  .rounds-tfoot.has-20s {
+    grid-template-columns: 28px 1fr 1fr 44px 44px;
   }
 
   .rounds-thead {
     background: white;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -632,23 +519,27 @@
   .col-round {
     text-align: center;
     color: #888;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
   }
 
   .col-player {
     text-align: center;
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
   }
 
   .col-player.total {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
 
   .col-20s {
     text-align: center;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: #888;
   }
 
@@ -660,10 +551,10 @@
   .pts-input,
   .twenty-input {
     width: 100%;
-    padding: 0.35rem;
+    padding: 0.3rem;
     border: 2px solid #ddd;
     border-radius: 4px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 700;
     text-align: center;
     background: white;
@@ -685,17 +576,16 @@
   .twenty-input {
     border-color: #ccc;
     font-weight: 500;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
   }
 
   /* Error */
   .error {
-    margin-top: 0.75rem;
-    padding: 0.6rem 0.75rem;
+    padding: 0.5rem 0.75rem;
     background: #fef2f2;
     color: #dc2626;
     border-radius: 5px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     border-left: 3px solid #dc2626;
   }
 
@@ -707,8 +597,8 @@
   /* Footer */
   .modal-footer {
     display: flex;
-    gap: 0.75rem;
-    padding: 1rem 1.25rem;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
     border-top: 1px solid #e5e7eb;
   }
 
@@ -719,8 +609,8 @@
   .btn-cancel,
   .btn-save {
     flex: 1;
-    padding: 0.55rem 1rem;
-    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
     font-weight: 600;
     border: none;
     border-radius: 6px;
@@ -759,7 +649,7 @@
   }
 
   /* Responsive */
-  @media (max-width: 600px) {
+  @media (max-width: 480px) {
     .modal {
       max-height: 90vh;
       border-radius: 12px 12px 0 0;
@@ -768,21 +658,17 @@
 
     .players-row {
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 0.35rem;
     }
 
     .vs {
       display: none;
     }
 
-    .form-grid {
-      grid-template-columns: 1fr;
-    }
-
     .rounds-thead,
     .round-row,
     .rounds-tfoot {
-      grid-template-columns: 28px 1fr 1fr !important;
+      grid-template-columns: 24px 1fr 1fr !important;
     }
 
     .col-20s {
