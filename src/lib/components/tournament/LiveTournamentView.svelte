@@ -1000,17 +1000,15 @@
 								{m.bracket_gold()} - {m.bracket_consolation?.() || 'Consolación'}
 							</h3>
 						</div>
-						<div class="consolation-grid">
+						<div class="consolation-unified">
 							{#each goldConsolationBrackets as cb, cbIndex (cb.positionLabel || cbIndex)}
-								<div class="consolation-bracket">
-									<div class="consolation-bracket-header">
-										<span class="consolation-label">{cb.positionLabel || `${cbIndex + 5}º-${cbIndex + 8}º`}</span>
-									</div>
-									{#if cb.rounds}
-										<div class="consolation-matches">
-											{#each cb.rounds as round (round.name)}
-												{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
-												{#if visibleMatches.length > 0}
+								{#if cb.rounds}
+									{#each cb.rounds as round, roundIndex (round.name)}
+										{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
+										{#if visibleMatches.length > 0}
+											<div class="consolation-round" class:qf-start={cbIndex > 0 && roundIndex === 0}>
+												<div class="consolation-round-header">{round.name}</div>
+												<div class="consolation-round-matches">
 													{#each round.matches as match (match.id)}
 														{#if !isByeMatch(match)}
 															{@const winnerIsA = match.winner === match.participantA}
@@ -1018,7 +1016,7 @@
 															{@const cParticipantA = getParticipant(match.participantA || '')}
 															{@const cParticipantB = getParticipant(match.participantB || '')}
 															<div
-																class="match-card compact"
+																class="consolation-match"
 																class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																class:in-progress={match.status === 'IN_PROGRESS'}
 															>
@@ -1027,44 +1025,24 @@
 																		<span class="live-pulse"></span>
 																	</div>
 																{/if}
-																<div class="match-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
-																	{#if match.seedA}
-																		<span class="seed">#{match.seedA}</span>
+																<div class="consolation-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
+																	<span class="consolation-name">{getParticipantName(match.participantA || '')}</span>
+																	{#if cParticipantA?.photoURL}
+																		<img src={cParticipantA.photoURL} alt="" class="consolation-avatar" />
 																	{/if}
-																	<span class="player-name">{getParticipantName(match.participantA || '')}</span>
-																	{#if cParticipantA?.photoURL || cParticipantA?.partner?.photoURL}
-																		<div class="player-avatars">
-																			{#if cParticipantA?.photoURL}
-																				<img src={cParticipantA.photoURL} alt="" class="player-avatar" />
-																			{/if}
-																			{#if isDoubles && cParticipantA?.partner?.photoURL}
-																				<img src={cParticipantA.partner.photoURL} alt="" class="player-avatar" />
-																			{/if}
-																		</div>
-																	{/if}
-																	<span class="player-score">
+																	<span class="consolation-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																			{match.totalPointsA || match.gamesWonA || 0}
 																		{/if}
 																	</span>
 																</div>
-																<div class="match-divider"></div>
-																<div class="match-player" class:winner={winnerIsB} class:tbd={!match.participantB}>
-																	{#if match.seedB}
-																		<span class="seed">#{match.seedB}</span>
+																<div class="consolation-divider"></div>
+																<div class="consolation-player" class:winner={winnerIsB} class:tbd={!match.participantB}>
+																	<span class="consolation-name">{getParticipantName(match.participantB || '')}</span>
+																	{#if cParticipantB?.photoURL}
+																		<img src={cParticipantB.photoURL} alt="" class="consolation-avatar" />
 																	{/if}
-																	<span class="player-name">{getParticipantName(match.participantB || '')}</span>
-																	{#if cParticipantB?.photoURL || cParticipantB?.partner?.photoURL}
-																		<div class="player-avatars">
-																			{#if cParticipantB?.photoURL}
-																				<img src={cParticipantB.photoURL} alt="" class="player-avatar" />
-																			{/if}
-																			{#if isDoubles && cParticipantB?.partner?.photoURL}
-																				<img src={cParticipantB.partner.photoURL} alt="" class="player-avatar" />
-																			{/if}
-																		</div>
-																	{/if}
-																	<span class="player-score">
+																	<span class="consolation-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																			{match.totalPointsB || match.gamesWonB || 0}
 																		{/if}
@@ -1073,11 +1051,11 @@
 															</div>
 														{/if}
 													{/each}
-												{/if}
-											{/each}
-										</div>
-									{/if}
-								</div>
+												</div>
+											</div>
+										{/if}
+									{/each}
+								{/if}
 							{/each}
 						</div>
 					</div>
@@ -1287,17 +1265,15 @@
 									{m.bracket_silver()} - {m.bracket_consolation?.() || 'Consolación'}
 								</h3>
 							</div>
-							<div class="consolation-grid">
+							<div class="consolation-unified">
 								{#each silverConsolationBrackets as cb, cbIndex (cb.positionLabel || cbIndex)}
-									<div class="consolation-bracket">
-										<div class="consolation-bracket-header">
-											<span class="consolation-label">{cb.positionLabel || `${cbIndex + 5}º-${cbIndex + 8}º`}</span>
-										</div>
-										{#if cb.rounds}
-											<div class="consolation-matches">
-												{#each cb.rounds as round (round.name)}
-													{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
-													{#if visibleMatches.length > 0}
+									{#if cb.rounds}
+										{#each cb.rounds as round, roundIndex (round.name)}
+											{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
+											{#if visibleMatches.length > 0}
+												<div class="consolation-round" class:qf-start={cbIndex > 0 && roundIndex === 0}>
+													<div class="consolation-round-header">{round.name}</div>
+													<div class="consolation-round-matches">
 														{#each round.matches as match (match.id)}
 															{#if !isByeMatch(match)}
 																{@const winnerIsA = match.winner === match.participantA}
@@ -1305,7 +1281,7 @@
 																{@const cParticipantA = getParticipant(match.participantA || '')}
 																{@const cParticipantB = getParticipant(match.participantB || '')}
 																<div
-																	class="match-card compact"
+																	class="consolation-match"
 																	class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	class:in-progress={match.status === 'IN_PROGRESS'}
 																>
@@ -1314,44 +1290,24 @@
 																			<span class="live-pulse"></span>
 																		</div>
 																	{/if}
-																	<div class="match-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
-																		{#if match.seedA}
-																			<span class="seed">#{match.seedA}</span>
+																	<div class="consolation-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
+																		<span class="consolation-name">{getParticipantName(match.participantA || '')}</span>
+																		{#if cParticipantA?.photoURL}
+																			<img src={cParticipantA.photoURL} alt="" class="consolation-avatar" />
 																		{/if}
-																		<span class="player-name">{getParticipantName(match.participantA || '')}</span>
-																		{#if cParticipantA?.photoURL || cParticipantA?.partner?.photoURL}
-																			<div class="player-avatars">
-																				{#if cParticipantA?.photoURL}
-																					<img src={cParticipantA.photoURL} alt="" class="player-avatar" />
-																				{/if}
-																				{#if isDoubles && cParticipantA?.partner?.photoURL}
-																					<img src={cParticipantA.partner.photoURL} alt="" class="player-avatar" />
-																				{/if}
-																			</div>
-																		{/if}
-																		<span class="player-score">
+																		<span class="consolation-score">
 																			{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																				{match.totalPointsA || match.gamesWonA || 0}
 																			{/if}
 																		</span>
 																	</div>
-																	<div class="match-divider"></div>
-																	<div class="match-player" class:winner={winnerIsB} class:tbd={!match.participantB}>
-																		{#if match.seedB}
-																			<span class="seed">#{match.seedB}</span>
+																	<div class="consolation-divider"></div>
+																	<div class="consolation-player" class:winner={winnerIsB} class:tbd={!match.participantB}>
+																		<span class="consolation-name">{getParticipantName(match.participantB || '')}</span>
+																		{#if cParticipantB?.photoURL}
+																			<img src={cParticipantB.photoURL} alt="" class="consolation-avatar" />
 																		{/if}
-																		<span class="player-name">{getParticipantName(match.participantB || '')}</span>
-																		{#if cParticipantB?.photoURL || cParticipantB?.partner?.photoURL}
-																			<div class="player-avatars">
-																				{#if cParticipantB?.photoURL}
-																					<img src={cParticipantB.photoURL} alt="" class="player-avatar" />
-																				{/if}
-																				{#if isDoubles && cParticipantB?.partner?.photoURL}
-																					<img src={cParticipantB.partner.photoURL} alt="" class="player-avatar" />
-																				{/if}
-																			</div>
-																		{/if}
-																		<span class="player-score">
+																		<span class="consolation-score">
 																			{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																				{match.totalPointsB || match.gamesWonB || 0}
 																			{/if}
@@ -1360,11 +1316,11 @@
 																</div>
 															{/if}
 														{/each}
-													{/if}
-												{/each}
-											</div>
-										{/if}
-									</div>
+													</div>
+												</div>
+											{/if}
+										{/each}
+									{/if}
 								{/each}
 							</div>
 						</div>
@@ -1699,17 +1655,15 @@
 								{m.bracket_consolation?.() || 'Consolación'}
 							</h3>
 						</div>
-						<div class="consolation-grid">
+						<div class="consolation-unified">
 							{#each goldConsolationBrackets as cb, cbIndex (cb.positionLabel || cbIndex)}
-								<div class="consolation-bracket">
-									<div class="consolation-bracket-header">
-										<span class="consolation-label">{cb.positionLabel || `${cbIndex + 5}º-${cbIndex + 8}º`}</span>
-									</div>
-									{#if cb.rounds}
-										<div class="consolation-matches">
-											{#each cb.rounds as round (round.name)}
-												{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
-												{#if visibleMatches.length > 0}
+								{#if cb.rounds}
+									{#each cb.rounds as round, roundIndex (round.name)}
+										{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
+										{#if visibleMatches.length > 0}
+											<div class="consolation-round" class:qf-start={cbIndex > 0 && roundIndex === 0}>
+												<div class="consolation-round-header">{round.name}</div>
+												<div class="consolation-round-matches">
 													{#each round.matches as match (match.id)}
 														{#if !isByeMatch(match)}
 															{@const winnerIsA = match.winner === match.participantA}
@@ -1717,7 +1671,7 @@
 															{@const cParticipantA = getParticipant(match.participantA || '')}
 															{@const cParticipantB = getParticipant(match.participantB || '')}
 															<div
-																class="match-card compact"
+																class="consolation-match"
 																class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																class:in-progress={match.status === 'IN_PROGRESS'}
 															>
@@ -1726,44 +1680,24 @@
 																		<span class="live-pulse"></span>
 																	</div>
 																{/if}
-																<div class="match-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
-																	{#if match.seedA}
-																		<span class="seed">#{match.seedA}</span>
+																<div class="consolation-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
+																	<span class="consolation-name">{getParticipantName(match.participantA || '')}</span>
+																	{#if cParticipantA?.photoURL}
+																		<img src={cParticipantA.photoURL} alt="" class="consolation-avatar" />
 																	{/if}
-																	<span class="player-name">{getParticipantName(match.participantA || '')}</span>
-																	{#if cParticipantA?.photoURL || cParticipantA?.partner?.photoURL}
-																		<div class="player-avatars">
-																			{#if cParticipantA?.photoURL}
-																				<img src={cParticipantA.photoURL} alt="" class="player-avatar" />
-																			{/if}
-																			{#if isDoubles && cParticipantA?.partner?.photoURL}
-																				<img src={cParticipantA.partner.photoURL} alt="" class="player-avatar" />
-																			{/if}
-																		</div>
-																	{/if}
-																	<span class="player-score">
+																	<span class="consolation-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																			{match.totalPointsA || match.gamesWonA || 0}
 																		{/if}
 																	</span>
 																</div>
-																<div class="match-divider"></div>
-																<div class="match-player" class:winner={winnerIsB} class:tbd={!match.participantB}>
-																	{#if match.seedB}
-																		<span class="seed">#{match.seedB}</span>
+																<div class="consolation-divider"></div>
+																<div class="consolation-player" class:winner={winnerIsB} class:tbd={!match.participantB}>
+																	<span class="consolation-name">{getParticipantName(match.participantB || '')}</span>
+																	{#if cParticipantB?.photoURL}
+																		<img src={cParticipantB.photoURL} alt="" class="consolation-avatar" />
 																	{/if}
-																	<span class="player-name">{getParticipantName(match.participantB || '')}</span>
-																	{#if cParticipantB?.photoURL || cParticipantB?.partner?.photoURL}
-																		<div class="player-avatars">
-																			{#if cParticipantB?.photoURL}
-																				<img src={cParticipantB.photoURL} alt="" class="player-avatar" />
-																			{/if}
-																			{#if isDoubles && cParticipantB?.partner?.photoURL}
-																				<img src={cParticipantB.partner.photoURL} alt="" class="player-avatar" />
-																			{/if}
-																		</div>
-																	{/if}
-																	<span class="player-score">
+																	<span class="consolation-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
 																			{match.totalPointsB || match.gamesWonB || 0}
 																		{/if}
@@ -1772,11 +1706,11 @@
 															</div>
 														{/if}
 													{/each}
-												{/if}
-											{/each}
-										</div>
-									{/if}
-								</div>
+												</div>
+											</div>
+										{/if}
+									{/each}
+								{/if}
 							{/each}
 						</div>
 					</div>
@@ -2575,10 +2509,10 @@
 		height: calc(100% + 0.5rem);
 	}
 	.bracket-column[style*="--round-index: 1"].has-next .match-card::before {
-		height: calc(200% + 1.5rem);
+		height: calc(200% + 1rem);
 	}
 	.bracket-column[style*="--round-index: 2"].has-next .match-card::before {
-		height: calc(400% + 3.5rem);
+		height: calc(400% + 2.3rem);
 	}
 	.bracket-column[style*="--round-index: 3"].has-next .match-card::before {
 		height: calc(800% + 7.5rem);
@@ -2833,6 +2767,123 @@
 		flex-direction: column;
 		gap: 0.5rem;
 		padding: 0.5rem;
+	}
+
+	/* New unified horizontal layout for consolation */
+	.consolation-unified {
+		display: flex;
+		flex-direction: row;
+		gap: 2.5rem;
+		overflow-x: auto;
+		padding: 1rem;
+		align-items: flex-start;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.consolation-round {
+		min-width: 180px;
+		flex-shrink: 0;
+	}
+
+	.consolation-round-header {
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: #64748b;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		margin-bottom: 0.75rem;
+		padding-bottom: 0.5rem;
+		border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.consolation-round-matches {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	/* Visual separator between R16 and QF sections */
+	.consolation-round.qf-start {
+		position: relative;
+		margin-left: 1.5rem;
+		padding-left: 1.5rem;
+	}
+
+	.consolation-round.qf-start::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 2px;
+		background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.15) 20%, rgba(255, 255, 255, 0.15) 80%, transparent);
+	}
+
+	.consolation-match {
+		background: rgba(0, 0, 0, 0.3);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 8px;
+		padding: 0.5rem;
+		position: relative;
+	}
+
+	.consolation-match.completed {
+		border-color: rgba(16, 185, 129, 0.3);
+	}
+
+	.consolation-match.in-progress {
+		border-color: rgba(251, 191, 36, 0.4);
+	}
+
+	.consolation-player {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.25rem 0;
+		font-size: 0.8rem;
+	}
+
+	.consolation-name {
+		flex: 1;
+		color: #94a3b8;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.consolation-player.winner .consolation-name {
+		color: #10b981;
+		font-weight: 600;
+	}
+
+	.consolation-player.tbd .consolation-name {
+		color: #4a5568;
+		font-style: italic;
+	}
+
+	.consolation-avatar {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		object-fit: cover;
+		flex-shrink: 0;
+	}
+
+	.consolation-score {
+		color: #64748b;
+		font-weight: 500;
+		min-width: 1.5rem;
+		text-align: right;
+	}
+
+	.consolation-player.winner .consolation-score {
+		color: #10b981;
+	}
+
+	.consolation-divider {
+		height: 1px;
+		background: rgba(255, 255, 255, 0.1);
+		margin: 0.25rem 0;
 	}
 
 	/* Light & Violet-Light themes */
@@ -3140,6 +3191,59 @@
 	:global([data-theme='light']) .bracket-column.third-place-column,
 	:global([data-theme='violet-light']) .bracket-column.third-place-column {
 		border-left-color: #e2e8f0;
+	}
+
+	/* Light theme consolation unified */
+	:global([data-theme='light']) .consolation-round-header,
+	:global([data-theme='violet-light']) .consolation-round-header {
+		color: #4a5568;
+		border-bottom-color: rgba(0, 0, 0, 0.1);
+	}
+
+	:global([data-theme='light']) .consolation-round.qf-start::before,
+	:global([data-theme='violet-light']) .consolation-round.qf-start::before {
+		background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.1) 20%, rgba(0, 0, 0, 0.1) 80%, transparent);
+	}
+
+	:global([data-theme='light']) .consolation-match,
+	:global([data-theme='violet-light']) .consolation-match {
+		background: #ffffff;
+		border-color: #e2e8f0;
+	}
+
+	:global([data-theme='light']) .consolation-match.completed,
+	:global([data-theme='violet-light']) .consolation-match.completed {
+		border-color: rgba(16, 185, 129, 0.3);
+	}
+
+	:global([data-theme='light']) .consolation-match.in-progress,
+	:global([data-theme='violet-light']) .consolation-match.in-progress {
+		border-color: rgba(217, 119, 6, 0.4);
+	}
+
+	:global([data-theme='light']) .consolation-name,
+	:global([data-theme='violet-light']) .consolation-name {
+		color: #64748b;
+	}
+
+	:global([data-theme='light']) .consolation-player.winner .consolation-name,
+	:global([data-theme='violet-light']) .consolation-player.winner .consolation-name {
+		color: #059669;
+	}
+
+	:global([data-theme='light']) .consolation-score,
+	:global([data-theme='violet-light']) .consolation-score {
+		color: #94a3b8;
+	}
+
+	:global([data-theme='light']) .consolation-player.winner .consolation-score,
+	:global([data-theme='violet-light']) .consolation-player.winner .consolation-score {
+		color: #059669;
+	}
+
+	:global([data-theme='light']) .consolation-divider,
+	:global([data-theme='violet-light']) .consolation-divider {
+		background: rgba(0, 0, 0, 0.08);
 	}
 
 	/* Responsive */
