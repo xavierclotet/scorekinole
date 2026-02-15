@@ -1377,6 +1377,9 @@
 	}
 
 	// Handle 20s edit confirmation
+	// NOTE: We do NOT reset isEditing20s here - handleTwentyInputClose() will do it
+	// This prevents a race condition where handleTwentyInputClose sees isEditing20s=false
+	// and incorrectly calls finalizeRoundWithData() for pending round data
 	function handleEdit20sConfirm(team1Value: number, team2Value: number) {
 		if (editing20sRoundIndex >= 0) {
 			updateCurrentMatchRound(editing20sRoundIndex, {
@@ -1384,8 +1387,8 @@
 				team2Twenty: team2Value
 			});
 		}
-		isEditing20s = false;
-		editing20sRoundIndex = -1;
+		// Do NOT set isEditing20s = false here!
+		// handleTwentyInputClose() will handle cleanup
 	}
 
 	async function finalizeRoundWithData() {
