@@ -597,15 +597,17 @@
 			games: current.games
 		});
 
-		// Save to Firestore if at least one player is registered (including partners)
+		// Save to Firestore if at least one player is registered
+		// Only pass partner info if it's a doubles match
+		const isDoublesMatch = settings.gameType === 'doubles';
 		const saved = await saveFriendlyMatchToFirestore(
 			completedMatch,
 			t1.userId,
 			t2.userId,
-			t1.partner?.userId ?? null,
-			t2.partner?.userId ?? null,
-			t1.partner?.name,
-			t2.partner?.name
+			isDoublesMatch ? (t1.partner?.userId ?? null) : null,
+			isDoublesMatch ? (t2.partner?.userId ?? null) : null,
+			isDoublesMatch ? t1.partner?.name : undefined,
+			isDoublesMatch ? t2.partner?.name : undefined
 		);
 
 		if (saved) {

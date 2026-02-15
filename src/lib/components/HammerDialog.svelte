@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { team1, team2 } from '$lib/stores/teams';
+	import { gameSettings } from '$lib/stores/gameSettings';
 	import * as m from '$lib/paraglide/messages.js';
 	import { setCurrentGameStartHammer } from '$lib/stores/matchState';
 
@@ -21,6 +22,26 @@
 
 	let team1TextColor = $derived($team1.color && isDarkColor($team1.color) ? '#ffffff' : '#1a1a1a');
 	let team2TextColor = $derived($team2.color && isDarkColor($team2.color) ? '#ffffff' : '#1a1a1a');
+
+	// Check if doubles mode
+	let isDoubles = $derived($gameSettings.gameType === 'doubles');
+
+	// Build display names (include partner in doubles mode)
+	let team1DisplayName = $derived((() => {
+		const mainName = $team1.name || 'Team 1';
+		if (isDoubles && $team1.partner?.name) {
+			return `${mainName} & ${$team1.partner.name}`;
+		}
+		return mainName;
+	})());
+
+	let team2DisplayName = $derived((() => {
+		const mainName = $team2.name || 'Team 2';
+		if (isDoubles && $team2.partner?.name) {
+			return `${mainName} & ${$team2.partner.name}`;
+		}
+		return mainName;
+	})());
 
 	function selectStartingTeam(teamNumber: 1 | 2) {
 		const hammerTeam = teamNumber === 1 ? 2 : 1;
@@ -59,14 +80,14 @@
 					style="--btn-color: {$team1.color}; --btn-text: {team1TextColor};"
 					onclick={() => selectStartingTeam(1)}
 				>
-					<span class="name">{$team1.name || 'Team 1'}</span>
+					<span class="name">{team1DisplayName}</span>
 				</button>
 				<button
 					class="option"
 					style="--btn-color: {$team2.color}; --btn-text: {team2TextColor};"
 					onclick={() => selectStartingTeam(2)}
 				>
-					<span class="name">{$team2.name || 'Team 2'}</span>
+					<span class="name">{team2DisplayName}</span>
 				</button>
 			</div>
 		</div>
