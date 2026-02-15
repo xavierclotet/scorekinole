@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.21] - 2026-02-15
+- Normalize line endings (CRLF to LF) across all source files
+- Fix Catalan translations (stats_myStatistics, stats_losses)
+- Redesign admin back button with ChevronLeft icon
+- Refactor MatchEditModal and admin matches page
+- Add project documentation (MatchHistory interfaces, Svelte 5 runes, doubles tournaments, network status, scoring terminology, tournament admin)
+
 ## [2.4.20] - 2026-02-15
 - Fix race condition when editing 20s in friendly match (modal stopped opening)
 - Make entire RoundsPanel draggable, not just header
