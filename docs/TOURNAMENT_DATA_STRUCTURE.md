@@ -30,6 +30,7 @@ This document describes all interfaces that compose a `Tournament` object in Sco
 - [24. CurrentMatch](#24-currentmatch)
 - [25. MatchGame](#25-matchgame)
 - [26. MatchRound](#26-matchround)
+- [27. MatchInvite (friendly match invitations)](#27-matchinvite-friendly-match-invitations)
 - [LIVE vs IMPORTED: Key Differences](#live-vs-imported-key-differences)
 - [Current Import Implementation](#current-import-implementation)
 - [Transforming IMPORTED to LIVE](#transforming-imported-to-live)
@@ -717,6 +718,71 @@ interface MatchRound {
   team2Twenty: number;
   hammerTeam: 1 | 2 | null;
   roundNumber: number;
+}
+```
+
+---
+
+## 27. MatchInvite (friendly match invitations)
+
+Used for inviting players to join friendly matches. Supports both singles and doubles.
+
+```typescript
+type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
+
+/**
+ * Type of invitation - determines where the guest joins
+ * - 'opponent': Guest joins opposite team as player (default, for singles or doubles main player)
+ * - 'my_partner': Guest joins host's team as partner (doubles only)
+ * - 'opponent_partner': Guest joins opposite team as partner (doubles only)
+ */
+type InviteType = 'opponent' | 'my_partner' | 'opponent_partner';
+
+interface MatchInvite {
+  id: string;
+  inviteCode: string;                        // 6-character alphanumeric code
+  createdAt: Timestamp;
+  expiresAt: Timestamp;                      // 1 hour from creation
+  status: InviteStatus;
+
+  // Host (inviter) information
+  hostUserId: string;
+  hostUserName: string;
+  hostUserPhotoURL: string | null;
+  hostTeamNumber: 1 | 2;
+  inviteType: InviteType;
+
+  // Guest (invitee) information - populated when accepted
+  guestUserId?: string;
+  guestUserName?: string;
+  guestUserPhotoURL?: string | null;
+  guestTeamNumber?: 1 | 2;
+  guestRole?: 'player' | 'partner';          // partner for doubles teammates
+
+  // Match context displayed to guest
+  matchContext: {
+    team1Name: string;
+    team1Color: string;
+    team2Name: string;
+    team2Color: string;
+    gameMode: 'points' | 'rounds';
+    pointsToWin: number;
+    roundsToPlay: number;
+    matchesToWin: number;
+  };
+}
+```
+
+**Store structure** (`stores/matchInvite.ts`):
+```typescript
+// Each invite type has its own active invitation (for doubles support)
+type ActiveInvitesMap = Record<InviteType, MatchInvite | null>;
+
+// Example: In doubles, host can have 3 active invites simultaneously
+{
+  opponent: MatchInvite,           // Code: "ABC123"
+  my_partner: MatchInvite,         // Code: "DEF456"
+  opponent_partner: MatchInvite    // Code: "GHI789"
 }
 ```
 

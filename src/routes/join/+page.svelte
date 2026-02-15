@@ -154,6 +154,33 @@
 				return m.common_error();
 		}
 	}
+
+	// Derive game type - fallback based on inviteType for old invites without gameType
+	let isDoubles = $derived((() => {
+		if (!invite) return false;
+		if (invite.matchContext.gameType) {
+			return invite.matchContext.gameType === 'doubles';
+		}
+		// Fallback: if inviteType involves partners, it's doubles
+		return invite.inviteType === 'my_partner' || invite.inviteType === 'opponent_partner';
+	})());
+
+	let gameTypeLabel = $derived(isDoubles ? m.join_doubles() : m.join_singles());
+
+	// Derive role description based on invite type
+	let roleDescription = $derived((() => {
+		if (!invite) return '';
+		const hostName = invite.hostUserName;
+		switch (invite.inviteType) {
+			case 'my_partner':
+				return m.join_roleMyPartner({ name: hostName });
+			case 'opponent_partner':
+				return m.join_roleOpponentPartner();
+			case 'opponent':
+			default:
+				return m.join_roleOpponent({ name: hostName });
+		}
+	})());
 </script>
 
 <svelte:head>
@@ -184,12 +211,12 @@
 				<CircleCheck size={64} />
 				<h2>{m.join_successTitle()}</h2>
 				<p class="success-desc">
-					{m.join_successDesc({ name: invite?.guestUserName || '' })}
+					{m.join_successDesc({ role: roleDescription, gameType: gameTypeLabel.toLowerCase() })}
 				</p>
-				{#if invite?.guestUserPhotoURL}
+				{#if invite?.hostUserPhotoURL}
 					<img
-						src={invite.guestUserPhotoURL}
-						alt={invite.guestUserName}
+						src={invite.hostUserPhotoURL}
+						alt={invite.hostUserName}
 						class="guest-avatar"
 					/>
 				{/if}
@@ -226,6 +253,13 @@
 								{#if invite.matchContext.matchesToWin > 1}
 									<span class="matches-badge">{m.bracket_bestOf()}{invite.matchContext.matchesToWin}</span>
 								{/if}
+							</span>
+						</div>
+						<div class="config-item">
+							<span class="config-label">{m.join_yourRole()}</span>
+							<span class="config-value">
+								<span class="game-type-badge">{gameTypeLabel}</span>
+								{roleDescription}
 							</span>
 						</div>
 					</div>
@@ -428,6 +462,17 @@
 		padding: 0.125rem 0.375rem;
 		border-radius: 4px;
 		font-weight: 600;
+	}
+
+	.game-type-badge {
+		background: var(--muted-foreground);
+		color: var(--card);
+		font-size: 0.6875rem;
+		padding: 0.125rem 0.375rem;
+		border-radius: 4px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
 	}
 
 	.actions {

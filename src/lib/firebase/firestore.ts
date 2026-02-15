@@ -34,15 +34,19 @@ function generateMatchId(): string {
 export async function saveFriendlyMatchToFirestore(
 	match: MatchHistory,
 	team1UserId: string | null | undefined,
-	team2UserId: string | null | undefined
+	team2UserId: string | null | undefined,
+	team1PartnerUserId?: string | null,
+	team2PartnerUserId?: string | null,
+	team1PartnerName?: string,
+	team2PartnerName?: string
 ): Promise<MatchHistory | null> {
 	if (!browser || !isFirebaseEnabled()) {
 		console.warn('Firebase disabled - match not saved');
 		return null;
 	}
 
-	// Only save if at least one player is registered
-	if (!team1UserId && !team2UserId) {
+	// Only save if at least one player is registered (including partners)
+	if (!team1UserId && !team2UserId && !team1PartnerUserId && !team2PartnerUserId) {
 		console.log('No registered players - match not saved to cloud');
 		return null;
 	}
@@ -67,11 +71,23 @@ export async function saveFriendlyMatchToFirestore(
 			players: {
 				team1: {
 					name: match.team1Name,
-					userId: team1UserId || null
+					userId: team1UserId || null,
+					...(team1PartnerName && {
+						partner: {
+							name: team1PartnerName,
+							userId: team1PartnerUserId || null
+						}
+					})
 				},
 				team2: {
 					name: match.team2Name,
-					userId: team2UserId || null
+					userId: team2UserId || null,
+					...(team2PartnerName && {
+						partner: {
+							name: team2PartnerName,
+							userId: team2PartnerUserId || null
+						}
+					})
 				}
 			},
 			syncStatus: 'synced'
@@ -271,15 +287,45 @@ export async function getMatchesFromCloud(): Promise<MatchHistory[]> {
 			console.warn('Query team2 failed:', err.message);
 		}
 
-		// Query 3: Fallback by savedBy.userId (for matches saved by this user)
+		// Query 3: Matches where user played as partner on team1 (only active)
 		try {
 			const q3 = query(
 				matchesRef,
-				where('savedBy.userId', '==', user.id),
+				where('players.team1.partner.userId', '==', user.id),
 				where('status', '==', 'active')
 			);
 			const snapshot3 = await getDocs(q3);
 			snapshot3.forEach((docSnap) => {
+				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
+			});
+		} catch (err: any) {
+			console.warn('Query team1 partner failed:', err.message);
+		}
+
+		// Query 4: Matches where user played as partner on team2 (only active)
+		try {
+			const q4 = query(
+				matchesRef,
+				where('players.team2.partner.userId', '==', user.id),
+				where('status', '==', 'active')
+			);
+			const snapshot4 = await getDocs(q4);
+			snapshot4.forEach((docSnap) => {
+				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
+			});
+		} catch (err: any) {
+			console.warn('Query team2 partner failed:', err.message);
+		}
+
+		// Query 5: Fallback by savedBy.userId (for matches saved by this user)
+		try {
+			const q5 = query(
+				matchesRef,
+				where('savedBy.userId', '==', user.id),
+				where('status', '==', 'active')
+			);
+			const snapshot5 = await getDocs(q5);
+			snapshot5.forEach((docSnap) => {
 				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
 			});
 		} catch (err: any) {
@@ -462,15 +508,45 @@ export async function getDeletedMatchesFromCloud(): Promise<MatchHistory[]> {
 			console.warn('Query deleted team2 failed:', err.message);
 		}
 
-		// Query 3: Fallback by savedBy.userId
+		// Query 3: Deleted matches where user played as partner on team1
 		try {
 			const q3 = query(
 				matchesRef,
-				where('savedBy.userId', '==', user.id),
+				where('players.team1.partner.userId', '==', user.id),
 				where('status', '==', 'deleted')
 			);
 			const snapshot3 = await getDocs(q3);
 			snapshot3.forEach((docSnap) => {
+				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
+			});
+		} catch (err: any) {
+			console.warn('Query deleted team1 partner failed:', err.message);
+		}
+
+		// Query 4: Deleted matches where user played as partner on team2
+		try {
+			const q4 = query(
+				matchesRef,
+				where('players.team2.partner.userId', '==', user.id),
+				where('status', '==', 'deleted')
+			);
+			const snapshot4 = await getDocs(q4);
+			snapshot4.forEach((docSnap) => {
+				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
+			});
+		} catch (err: any) {
+			console.warn('Query deleted team2 partner failed:', err.message);
+		}
+
+		// Query 5: Fallback by savedBy.userId
+		try {
+			const q5 = query(
+				matchesRef,
+				where('savedBy.userId', '==', user.id),
+				where('status', '==', 'deleted')
+			);
+			const snapshot5 = await getDocs(q5);
+			snapshot5.forEach((docSnap) => {
 				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
 			});
 		} catch (err: any) {

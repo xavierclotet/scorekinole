@@ -145,6 +145,7 @@ export async function createInvite(data: CreateInviteData): Promise<MatchInvite 
 			hostUserName: data.hostUserName,
 			hostUserPhotoURL: data.hostUserPhotoURL,
 			hostTeamNumber: data.hostTeamNumber,
+			inviteType: data.inviteType || 'opponent',
 			matchContext: data.matchContext
 		};
 
@@ -246,8 +247,29 @@ export async function acceptInvite(
 			return null;
 		}
 
-		// Determine guest team number (opposite of host)
-		const guestTeamNumber: 1 | 2 = invite.hostTeamNumber === 1 ? 2 : 1;
+		// Determine guest team number and role based on invite type
+		const inviteType = invite.inviteType || 'opponent';
+		let guestTeamNumber: 1 | 2;
+		let guestRole: 'player' | 'partner';
+
+		switch (inviteType) {
+			case 'my_partner':
+				// Partner joins host's team as partner
+				guestTeamNumber = invite.hostTeamNumber;
+				guestRole = 'partner';
+				break;
+			case 'opponent_partner':
+				// Opponent's partner joins opposite team as partner
+				guestTeamNumber = invite.hostTeamNumber === 1 ? 2 : 1;
+				guestRole = 'partner';
+				break;
+			case 'opponent':
+			default:
+				// Opponent joins opposite team as player
+				guestTeamNumber = invite.hostTeamNumber === 1 ? 2 : 1;
+				guestRole = 'player';
+				break;
+		}
 
 		// Update invitation with guest info
 		const inviteRef = doc(db, 'matchInvites', invite.id);
@@ -256,7 +278,8 @@ export async function acceptInvite(
 			guestUserId: guestData.guestUserId,
 			guestUserName: guestData.guestUserName,
 			guestUserPhotoURL: guestData.guestUserPhotoURL,
-			guestTeamNumber
+			guestTeamNumber,
+			guestRole
 		});
 
 		// Return updated invitation
@@ -266,7 +289,8 @@ export async function acceptInvite(
 			guestUserId: guestData.guestUserId,
 			guestUserName: guestData.guestUserName,
 			guestUserPhotoURL: guestData.guestUserPhotoURL,
-			guestTeamNumber
+			guestTeamNumber,
+			guestRole
 		};
 	} catch (error) {
 		console.error('Error accepting invite:', error);

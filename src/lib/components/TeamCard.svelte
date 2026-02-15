@@ -2,12 +2,13 @@
 	import { vibrate } from '$lib/utils/vibration';
 	import { getContrastColor } from '$lib/utils/colors';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { team1, team2, updateTeam } from '$lib/stores/teams';
+	import { team1, team2, updateTeam, updatePartnerName } from '$lib/stores/teams';
 	import * as m from '$lib/paraglide/messages.js';
 	import { buildCompletedMatch, currentMatch, addGameToCurrentMatch } from '$lib/stores/history';
 	import { saveFriendlyMatchToFirestore } from '$lib/firebase/firestore';
 	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, currentMatchGames, currentMatchRounds, currentGameStartHammer, setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
+	import { currentUser } from '$lib/firebase/auth';
 	import { get } from 'svelte/store';
 	import PlayerAssignButton from './PlayerAssignButton.svelte';
 
@@ -17,6 +18,8 @@
 		currentGameNumber?: number;
 		/** Whether user can assign themselves to this team (requires login) */
 		canAssignUser?: boolean;
+		/** Whether user can assign a partner to this team (doubles mode, requires login) */
+		canAssignPartner?: boolean;
 		onroundComplete?: (data: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number }) => void;
 		onchangeColor?: () => void;
 		onextraRound?: (data: { roundNumber: number }) => void;
@@ -25,6 +28,10 @@
 		onassignUser?: () => void;
 		/** Called when user wants to unassign from this team */
 		onunassignUser?: () => void;
+		/** Called when user wants to assign a partner to this team */
+		onassignPartner?: () => void;
+		/** Called when user wants to unassign partner from this team */
+		onunassignPartner?: () => void;
 	}
 
 	let {
@@ -32,12 +39,15 @@
 		isMatchComplete = false,
 		currentGameNumber = 1,
 		canAssignUser = false,
+		canAssignPartner = false,
 		onroundComplete,
 		onchangeColor,
 		onextraRound,
 		ontournamentMatchComplete,
 		onassignUser,
-		onunassignUser
+		onunassignUser,
+		onassignPartner,
+		onunassignPartner
 	}: Props = $props();
 
 	// Tournament mode detection
@@ -93,9 +103,54 @@
 	// Check if we have any photo to display
 	let hasAnyPhoto = $derived(!!playerPhotoURL || !!partnerPhotoURL);
 
+	// Determine which team the current user is assigned to (if any)
+	let userAssignedTeam = $derived(
+		$currentUser?.id === $team1.userId ? 1 :
+		$currentUser?.id === $team2.userId ? 2 : null
+	);
+
+	// Derive tooltips for the assign buttons
+	// For user button: if user is already on OTHER team, this button invites opponent
+	// For partner button: depends on whether this is user's team or opponent's team
+	let isDoubles = $derived($gameSettings.gameType === 'doubles');
+
+	let userButtonTooltip = $derived((() => {
+		if (!$currentUser) return '';
+		// If assigned, let PlayerAssignButton handle it (shows "Unassign {name}")
+		if (team.userId) return '';
+		// If user is on the OTHER team, clicking here invites opponent
+		if (userAssignedTeam && userAssignedTeam !== teamNumber) {
+			return m.invite_tooltipInviteOpponent();
+		}
+		// User not assigned anywhere - show assign self tooltip
+		return m.invite_tooltipAssignSelf();
+	})());
+
+	let partnerButtonTooltip = $derived((() => {
+		if (!$currentUser || !isDoubles) return '';
+		// If assigned, let PlayerAssignButton handle it (shows "Unassign {name}")
+		if (team.partner?.userId) return '';
+		// If this is user's team, invite MY partner
+		if (userAssignedTeam === teamNumber) {
+			return m.invite_tooltipInviteMyPartner();
+		}
+		// If this is opponent's team, invite OPPONENT's partner
+		if (userAssignedTeam && userAssignedTeam !== teamNumber) {
+			return m.invite_tooltipInviteOpponentPartner();
+		}
+		return '';
+	})());
+
 	// Name editing state
 	let isEditingName = $state(false);
 	let nameInputRef = $state<HTMLInputElement | null>(null);
+
+	// Partner name editing state (for doubles)
+	let isEditingPartnerName = $state(false);
+	let partnerNameInputRef = $state<HTMLInputElement | null>(null);
+
+	// Default partner name based on team number
+	let defaultPartnerName = $derived(teamNumber === 1 ? 'Player 3' : 'Player 4');
 
 	// Swipe gesture state
 	let touchStartX = $state(0);
@@ -542,11 +597,15 @@
 			games: current.games
 		});
 
-		// Save to Firestore if at least one player is registered
+		// Save to Firestore if at least one player is registered (including partners)
 		const saved = await saveFriendlyMatchToFirestore(
 			completedMatch,
 			t1.userId,
-			t2.userId
+			t2.userId,
+			t1.partner?.userId ?? null,
+			t2.partner?.userId ?? null,
+			t1.partner?.name,
+			t2.partner?.name
 		);
 
 		if (saved) {
@@ -605,6 +664,25 @@
 
 	function stopEditingName() {
 		isEditingName = false;
+	}
+
+	function startEditingPartnerName(e: Event) {
+		if (inTournamentMode) return;
+		e.stopPropagation();
+		isEditingPartnerName = true;
+		setTimeout(() => {
+			partnerNameInputRef?.focus();
+			partnerNameInputRef?.select();
+		}, 0);
+	}
+
+	function stopEditingPartnerName() {
+		isEditingPartnerName = false;
+	}
+
+	function handlePartnerNameChange(e: Event) {
+		const newName = (e.target as HTMLInputElement).value;
+		updatePartnerName(teamNumber, newName);
 	}
 
 	function handleChangeColor() {
@@ -682,24 +760,74 @@
 				/>
 			{:else}
 				<div class="friendly-player-display">
-					{#if canAssignUser}
-						<PlayerAssignButton
-							isAssigned={!!team.userId}
-							userPhotoURL={team.userPhotoURL}
-							userName={team.name}
-							onassign={onassignUser}
-							onunassign={onunassignUser}
-						/>
-					{/if}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<span
-						class="team-name-display"
-						onclick={startEditingName}
-						ontouchend={startEditingName}
-					>
-						{team.name || m.scoring_teamName()}
-					</span>
+					<div class="names-column">
+						<!-- Player row -->
+						<div class="player-row">
+							{#if canAssignUser}
+								<PlayerAssignButton
+									isAssigned={!!team.userId}
+									userPhotoURL={team.userPhotoURL}
+									userName={team.name}
+									tooltipText={userButtonTooltip}
+									onassign={onassignUser}
+									onunassign={onunassignUser}
+								/>
+							{/if}
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<span
+								class="team-name-display"
+								onclick={startEditingName}
+								ontouchend={startEditingName}
+							>
+								{team.name || m.scoring_teamName()}
+							</span>
+						</div>
+						{#if isDoubles}
+							<span class="partner-separator">&</span>
+							<!-- Partner row -->
+							<div class="player-row">
+								{#if canAssignPartner}
+									<PlayerAssignButton
+										isAssigned={!!team.partner?.userId}
+										userPhotoURL={team.partner?.userPhotoURL}
+										userName={team.partner?.name || defaultPartnerName}
+										tooltipText={partnerButtonTooltip}
+										tooltipSide="bottom"
+										onassign={onassignPartner}
+										onunassign={onunassignPartner}
+									/>
+								{/if}
+								{#if isEditingPartnerName}
+									<input
+										bind:this={partnerNameInputRef}
+										type="text"
+										class="partner-name-input"
+										value={team.partner?.name || defaultPartnerName}
+										placeholder={defaultPartnerName}
+										oninput={handlePartnerNameChange}
+										onblur={stopEditingPartnerName}
+										onkeydown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+										onclick={(e) => e.stopPropagation()}
+										ontouchstart={(e) => e.stopPropagation()}
+										ontouchend={(e) => e.stopPropagation()}
+										onmousedown={(e) => e.stopPropagation()}
+										onmouseup={(e) => e.stopPropagation()}
+									/>
+								{:else}
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<span
+										class="partner-name-display"
+										onclick={startEditingPartnerName}
+										ontouchend={startEditingPartnerName}
+									>
+										{team.partner?.name || defaultPartnerName}
+									</span>
+								{/if}
+							</div>
+						{/if}
+					</div>
 				</div>
 			{/if}
 			{#if effectiveShowHammer && team.hasHammer}
@@ -905,6 +1033,72 @@
 		position: relative;
 	}
 
+	/* Column for player names (main + partner) */
+	.names-column {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0;
+	}
+
+	/* Row for each player: button + name aligned horizontally */
+	.player-row {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	/* Separator between player and partner */
+	.partner-separator {
+		color: var(--text-color);
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.75rem;
+		font-weight: 400;
+		opacity: 0.5;
+		line-height: 1;
+		align-self: center;
+	}
+
+	/* Partner name display (same style as main player) */
+	.partner-name-display {
+		color: var(--text-color);
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.5rem;
+		font-weight: 600;
+		text-align: center;
+		padding: 0.25rem 0.5rem;
+		cursor: text;
+		border-bottom: 2px solid transparent;
+		transition: border-color 0.2s ease;
+	}
+
+	.partner-name-display:hover {
+		border-bottom-color: color-mix(in srgb, var(--text-color) 40%, transparent);
+	}
+
+	/* Partner name input (for editing) */
+	.partner-name-input {
+		background: transparent;
+		border: none;
+		border-bottom: 2px solid color-mix(in srgb, var(--text-color) 40%, transparent);
+		color: var(--text-color);
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.5rem;
+		font-weight: 600;
+		text-align: center;
+		padding: 0.25rem 0.5rem;
+		outline: none;
+		width: auto;
+		min-width: 80px;
+		max-width: 85%;
+		line-height: 1.2;
+	}
+
+	.partner-name-input:focus {
+		border-bottom-color: var(--text-color);
+	}
+
 	/* Tournament player display */
 	.tournament-player-display {
 		display: flex;
@@ -1005,12 +1199,18 @@
 	/* Name size variants - base (desktop) */
 	.name-size-small .team-name-input,
 	.name-size-small .team-name-display,
+	.name-size-small .partner-name-display,
+	.name-size-small .partner-name-input,
 	.name-size-small .player-name-badge { font-size: 1.5rem; }
 	.name-size-medium .team-name-input,
 	.name-size-medium .team-name-display,
+	.name-size-medium .partner-name-display,
+	.name-size-medium .partner-name-input,
 	.name-size-medium .player-name-badge { font-size: 1.9rem; }
 	.name-size-large .team-name-input,
 	.name-size-large .team-name-display,
+	.name-size-large .partner-name-display,
+	.name-size-large .partner-name-input,
 	.name-size-large .player-name-badge { font-size: 2.3rem; }
 
 	/* Hammer size scales with name size */
@@ -1050,13 +1250,19 @@
 
 		/* Name sizes for tablet */
 		.name-size-small .team-name-input,
-	.name-size-small .team-name-display,
+		.name-size-small .team-name-display,
+		.name-size-small .partner-name-display,
+		.name-size-small .partner-name-input,
 		.name-size-small .player-name-badge { font-size: 1.3rem; }
 		.name-size-medium .team-name-input,
-	.name-size-medium .team-name-display,
+		.name-size-medium .team-name-display,
+		.name-size-medium .partner-name-display,
+		.name-size-medium .partner-name-input,
 		.name-size-medium .player-name-badge { font-size: 1.6rem; }
 		.name-size-large .team-name-input,
-	.name-size-large .team-name-display,
+		.name-size-large .team-name-display,
+		.name-size-large .partner-name-display,
+		.name-size-large .partner-name-input,
 		.name-size-large .player-name-badge { font-size: 2rem; }
 
 		/* Hammer sizes for tablet */
@@ -1112,13 +1318,19 @@
 
 		/* Name sizes for mobile */
 		.name-size-small .team-name-input,
-	.name-size-small .team-name-display,
+		.name-size-small .team-name-display,
+		.name-size-small .partner-name-display,
+		.name-size-small .partner-name-input,
 		.name-size-small .player-name-badge { font-size: 1.2rem; }
 		.name-size-medium .team-name-input,
-	.name-size-medium .team-name-display,
+		.name-size-medium .team-name-display,
+		.name-size-medium .partner-name-display,
+		.name-size-medium .partner-name-input,
 		.name-size-medium .player-name-badge { font-size: 1.45rem; }
 		.name-size-large .team-name-input,
-	.name-size-large .team-name-display,
+		.name-size-large .team-name-display,
+		.name-size-large .partner-name-display,
+		.name-size-large .partner-name-input,
 		.name-size-large .player-name-badge { font-size: 1.75rem; }
 
 		/* Hammer sizes for mobile */
@@ -1171,13 +1383,19 @@
 
 		/* Name sizes for portrait tablet */
 		.name-size-small .team-name-input,
-	.name-size-small .team-name-display,
+		.name-size-small .team-name-display,
+		.name-size-small .partner-name-display,
+		.name-size-small .partner-name-input,
 		.name-size-small .player-name-badge { font-size: 1.4rem; }
 		.name-size-medium .team-name-input,
-	.name-size-medium .team-name-display,
+		.name-size-medium .team-name-display,
+		.name-size-medium .partner-name-display,
+		.name-size-medium .partner-name-input,
 		.name-size-medium .player-name-badge { font-size: 1.7rem; }
 		.name-size-large .team-name-input,
-	.name-size-large .team-name-display,
+		.name-size-large .team-name-display,
+		.name-size-large .partner-name-display,
+		.name-size-large .partner-name-input,
 		.name-size-large .player-name-badge { font-size: 2.1rem; }
 
 		/* Hammer sizes for portrait tablet */
@@ -1202,13 +1420,19 @@
 
 		/* Name sizes for portrait mobile */
 		.name-size-small .team-name-input,
-	.name-size-small .team-name-display,
+		.name-size-small .team-name-display,
+		.name-size-small .partner-name-display,
+		.name-size-small .partner-name-input,
 		.name-size-small .player-name-badge { font-size: 1.25rem; }
 		.name-size-medium .team-name-input,
-	.name-size-medium .team-name-display,
+		.name-size-medium .team-name-display,
+		.name-size-medium .partner-name-display,
+		.name-size-medium .partner-name-input,
 		.name-size-medium .player-name-badge { font-size: 1.5rem; }
 		.name-size-large .team-name-input,
-	.name-size-large .team-name-display,
+		.name-size-large .team-name-display,
+		.name-size-large .partner-name-display,
+		.name-size-large .partner-name-input,
 		.name-size-large .player-name-badge { font-size: 1.8rem; }
 
 		/* Hammer sizes for portrait mobile */
@@ -1234,13 +1458,19 @@
 
 		/* Name sizes for very small phones */
 		.name-size-small .team-name-input,
-	.name-size-small .team-name-display,
+		.name-size-small .team-name-display,
+		.name-size-small .partner-name-display,
+		.name-size-small .partner-name-input,
 		.name-size-small .player-name-badge { font-size: 1.1rem; }
 		.name-size-medium .team-name-input,
-	.name-size-medium .team-name-display,
+		.name-size-medium .team-name-display,
+		.name-size-medium .partner-name-display,
+		.name-size-medium .partner-name-input,
 		.name-size-medium .player-name-badge { font-size: 1.3rem; }
 		.name-size-large .team-name-input,
-	.name-size-large .team-name-display,
+		.name-size-large .team-name-display,
+		.name-size-large .partner-name-display,
+		.name-size-large .partner-name-input,
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for very small phones */
@@ -1271,13 +1501,19 @@
 
 		/* Name sizes for landscape mobile */
 		.name-size-small .team-name-input,
-	.name-size-small .team-name-display,
+		.name-size-small .team-name-display,
+		.name-size-small .partner-name-display,
+		.name-size-small .partner-name-input,
 		.name-size-small .player-name-badge { font-size: 1.1rem; }
 		.name-size-medium .team-name-input,
-	.name-size-medium .team-name-display,
+		.name-size-medium .team-name-display,
+		.name-size-medium .partner-name-display,
+		.name-size-medium .partner-name-input,
 		.name-size-medium .player-name-badge { font-size: 1.3rem; }
 		.name-size-large .team-name-input,
-	.name-size-large .team-name-display,
+		.name-size-large .team-name-display,
+		.name-size-large .partner-name-display,
+		.name-size-large .partner-name-input,
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for landscape mobile */

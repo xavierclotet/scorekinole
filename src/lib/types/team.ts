@@ -30,6 +30,20 @@ export interface Team {
     userId?: string | null;
     /** Profile photo URL of the assigned player (optional) */
     userPhotoURL?: string | null;
+
+    // ─────────────────────────────────────────────────────────────────
+    // Partner (for doubles friendly matches)
+    // ─────────────────────────────────────────────────────────────────
+
+    /** Partner player for doubles mode (optional) */
+    partner?: {
+        /** Partner's display name */
+        name: string;
+        /** Firebase user ID of the partner (optional) */
+        userId?: string | null;
+        /** Profile photo URL of the partner (optional) */
+        userPhotoURL?: string | null;
+    };
 }
 
 /**

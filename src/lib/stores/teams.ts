@@ -15,7 +15,9 @@ const defaultTeam: Team = {
     hasHammer: false,
     // User association fields (for friendly matches)
     userId: null,
-    userPhotoURL: null
+    userPhotoURL: null,
+    // Partner (for doubles friendly matches)
+    partner: undefined
 };
 
 // Create writable stores for each team
@@ -41,14 +43,15 @@ export function resetTeams() {
     team2.subscribe(t => currentTeam2 = t)();
 
     // Reset only points, rounds, matches, twenty, and hasWon
-    // Preserve name, color, and user assignment
+    // Preserve name, color, user assignment, and partner
     team1.set({
         ...defaultTeam,
         name: currentTeam1.name || 'Team 1',
         color: currentTeam1.color || '#00ff88',
         hasHammer: currentTeam1.hasHammer, // Also preserve hammer state
         userId: currentTeam1.userId,       // Preserve user assignment
-        userPhotoURL: currentTeam1.userPhotoURL
+        userPhotoURL: currentTeam1.userPhotoURL,
+        partner: currentTeam1.partner      // Preserve partner assignment
     });
     team2.set({
         ...defaultTeam,
@@ -56,7 +59,8 @@ export function resetTeams() {
         color: currentTeam2.color || '#ff3366',
         hasHammer: currentTeam2.hasHammer, // Also preserve hammer state
         userId: currentTeam2.userId,       // Preserve user assignment
-        userPhotoURL: currentTeam2.userPhotoURL
+        userPhotoURL: currentTeam2.userPhotoURL,
+        partner: currentTeam2.partner      // Preserve partner assignment
     });
 
     // Reset round counters
@@ -222,24 +226,84 @@ export function unassignUserFromTeam(teamNumber: 1 | 2): void {
 }
 
 /**
- * Clear all user assignments from both teams
+ * Clear all user assignments from both teams (including partners)
  * Called when starting a new match or resetting
  */
 export function clearUserAssignments(): void {
-    team1.update(team => ({ ...team, userId: null, userPhotoURL: null }));
-    team2.update(team => ({ ...team, userId: null, userPhotoURL: null }));
+    team1.update(team => ({ ...team, userId: null, userPhotoURL: null, partner: undefined }));
+    team2.update(team => ({ ...team, userId: null, userPhotoURL: null, partner: undefined }));
     saveTeams();
 }
 
 /**
- * Check if a user is assigned to any team
+ * Check if a user is assigned to any team (as player or partner)
  * Returns the team number (1 or 2) or null if not assigned
  */
 export function getUserTeamAssignment(userId: string): 1 | 2 | null {
     const t1 = getCurrentTeam1();
     const t2 = getCurrentTeam2();
 
+    // Check as player
     if (t1.userId === userId) return 1;
     if (t2.userId === userId) return 2;
+    // Check as partner
+    if (t1.partner?.userId === userId) return 1;
+    if (t2.partner?.userId === userId) return 2;
     return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Partner Assignment Functions (for doubles friendly matches)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Assign a partner to a team (for doubles mode)
+ * Used in friendly doubles matches to link a second player to a team
+ */
+export function assignPartnerToTeam(
+    teamNumber: 1 | 2,
+    name: string,
+    userId: string | null,
+    photoURL: string | null
+): void {
+    updateTeam(teamNumber, {
+        partner: {
+            name,
+            userId,
+            userPhotoURL: photoURL
+        }
+    });
+}
+
+/**
+ * Unassign a partner from a team
+ * Removes the partner association completely
+ */
+export function unassignPartnerFromTeam(teamNumber: 1 | 2): void {
+    updateTeam(teamNumber, {
+        partner: undefined
+    });
+}
+
+/**
+ * Update partner name (preserves userId and photoURL if they exist)
+ */
+export function updatePartnerName(teamNumber: 1 | 2, name: string): void {
+    const store = teamNumber === 1 ? team1 : team2;
+    store.update(team => ({
+        ...team,
+        partner: team.partner
+            ? { ...team.partner, name }
+            : { name, userId: null, userPhotoURL: null }
+    }));
+    saveTeams();
+}
+
+/**
+ * Clear all partner assignments from both teams
+ */
+export function clearPartnerAssignments(): void {
+    team1.update(team => ({ ...team, partner: undefined }));
+    team2.update(team => ({ ...team, partner: undefined }));
+    saveTeams();
 }

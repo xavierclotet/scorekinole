@@ -53,10 +53,18 @@ export interface MatchHistory {
         team1?: {
             name: string;
             userId: string | null;
+            partner?: {
+                name: string;
+                userId: string | null;
+            };
         };
         team2?: {
             name: string;
             userId: string | null;
+            partner?: {
+                name: string;
+                userId: string | null;
+            };
         };
     };
 }

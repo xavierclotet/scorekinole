@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Plus, X } from '@lucide/svelte';
 	import * as m from '$lib/paraglide/messages.js';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 
 	interface Props {
 		/** Whether a user is currently assigned */
@@ -11,6 +12,10 @@
 		userName?: string;
 		/** Whether the button is disabled */
 		disabled?: boolean;
+		/** Tooltip text to show on hover/tap */
+		tooltipText?: string;
+		/** Which side the tooltip appears on */
+		tooltipSide?: 'top' | 'bottom' | 'left' | 'right';
 		/** Called when user wants to assign themselves */
 		onassign?: () => void;
 		/** Called when user wants to unassign */
@@ -22,9 +27,16 @@
 		userPhotoURL = null,
 		userName = '',
 		disabled = false,
+		tooltipText = '',
+		tooltipSide = 'top',
 		onassign,
 		onunassign
 	}: Props = $props();
+
+	// Use custom tooltip or default
+	let effectiveTooltip = $derived(
+		tooltipText || (isAssigned ? m.invite_unassignPlayer({ name: userName }) : m.invite_assignSelf())
+	);
 
 	function handleClick(e: MouseEvent | TouchEvent) {
 		e.stopPropagation();
@@ -43,34 +55,45 @@
 	}
 </script>
 
-<button
-	type="button"
-	class={[
-		'player-assign-btn',
-		isAssigned && 'assigned',
-		disabled && 'disabled'
-	]}
-	onclick={handleClick}
-	ontouchstart={handleTouchStart}
-	ontouchend={handleClick}
-	title={isAssigned ? m.invite_unassign() : m.invite_assignSelf()}
-	{disabled}
->
-	{#if isAssigned}
-		{#if userPhotoURL}
-			<img src={userPhotoURL} alt={userName} class="avatar" />
-		{:else}
-			<div class="avatar-placeholder">
-				{userName.charAt(0).toUpperCase()}
-			</div>
-		{/if}
-		<span class="unassign-overlay">
-			<X size={12} />
-		</span>
-	{:else}
-		<Plus size={16} />
-	{/if}
-</button>
+<Tooltip.Provider>
+	<Tooltip.Root delayDuration={100}>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<button
+					{...props}
+					type="button"
+					class={[
+						'player-assign-btn',
+						isAssigned && 'assigned',
+						disabled && 'disabled'
+					]}
+					onclick={handleClick}
+					ontouchstart={handleTouchStart}
+					ontouchend={handleClick}
+					{disabled}
+				>
+					{#if isAssigned}
+						{#if userPhotoURL}
+							<img src={userPhotoURL} alt={userName} class="avatar" />
+						{:else}
+							<div class="avatar-placeholder">
+								{userName.charAt(0).toUpperCase()}
+							</div>
+						{/if}
+						<span class="unassign-overlay">
+							<X size={12} />
+						</span>
+					{:else}
+						<Plus size={16} />
+					{/if}
+				</button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content sideOffset={5} side={tooltipSide}>
+			{effectiveTooltip}
+		</Tooltip.Content>
+	</Tooltip.Root>
+</Tooltip.Provider>
 
 <style>
 	.player-assign-btn {

@@ -76,11 +76,15 @@
 		return match.id.startsWith('tournament_');
 	}
 
-	// Get user's team in a match
+	// Get user's team in a match (checks both player and partner)
 	function getUserTeam(match: MatchHistory): 1 | 2 | null {
 		if (!$currentUser) return null;
+		// Check as player
 		if (match.players?.team1?.userId === $currentUser.id) return 1;
 		if (match.players?.team2?.userId === $currentUser.id) return 2;
+		// Check as partner (for doubles matches)
+		if (match.players?.team1?.partner?.userId === $currentUser.id) return 1;
+		if (match.players?.team2?.partner?.userId === $currentUser.id) return 2;
 		return null;
 	}
 

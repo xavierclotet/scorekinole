@@ -46,7 +46,7 @@
 	import { getPlayerName } from '$lib/firebase/userProfile';
 	import { LoaderCircle } from '@lucide/svelte';
 	import InvitePlayerModal from '$lib/components/InvitePlayerModal.svelte';
-	import { assignUserToTeam, unassignUserFromTeam } from '$lib/stores/teams';
+	import { assignUserToTeam, unassignUserFromTeam, assignPartnerToTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
 	import {
 		activeInvite,
 		isInviteModalOpen,
@@ -70,6 +70,10 @@
 	let showMatchCompletedExternally = $state(false);
 	let externalMatchWinner = $state<string | null>(null);
 
+	// Invite modal state
+	let currentInviteType = $state<'opponent' | 'my_partner' | 'opponent_partner'>('opponent');
+	let currentInviteHostTeam = $state<1 | 2>(1);
+
 	// Unsubscribe function for match status listener
 	let unsubscribeMatchStatus: (() => void) | null = null;
 
@@ -81,6 +85,9 @@
 	let canAssignUserToTeam1 = $derived(!inTournamentMode && !!$currentUser);
 	let canAssignUserToTeam2 = $derived(!inTournamentMode && !!$currentUser);
 
+	// Whether to show partner assignment button (only in doubles mode, not tournament mode)
+	let canAssignPartnerToTeam1 = $derived(!inTournamentMode && !!$currentUser && $gameSettings.gameType === 'doubles');
+	let canAssignPartnerToTeam2 = $derived(!inTournamentMode && !!$currentUser && $gameSettings.gameType === 'doubles');
 
 	// Effective settings: use tournament config when in tournament mode, otherwise gameSettings
 	let effectiveShowHammer = $derived(inTournamentMode
@@ -1273,8 +1280,11 @@
 		const otherTeamData = teamNumber === 1 ? $team2 : $team1;
 		const thisTeamData = teamNumber === 1 ? $team1 : $team2;
 
-		// If user is assigned to the other team and clicking on empty team, open invite modal
+		// If user is assigned to the other team and clicking on empty team, open invite modal for opponent
 		if (otherTeamData.userId === $currentUser.id && !thisTeamData.userId) {
+			// Set invite type to opponent (player on the other team)
+			currentInviteType = 'opponent';
+			currentInviteHostTeam = teamNumber === 1 ? 2 : 1; // Host is the team user is on
 			openInviteModal();
 			return;
 		}
@@ -1296,6 +1306,45 @@
 		if ($activeInvite && $activeInvite.hostTeamNumber === teamNumber) {
 			handleCancelInvite();
 		}
+	}
+
+	/**
+	 * Handle when user wants to invite a partner to a team (doubles mode)
+	 * Opens the invite modal with the appropriate invite type
+	 */
+	function handleAssignPartner(teamNumber: 1 | 2) {
+		if (!$currentUser) return;
+
+		// Determine which team the user is on
+		const userTeam = $team1.userId === $currentUser.id ? 1 : $team2.userId === $currentUser.id ? 2 : null;
+
+		if (!userTeam) {
+			// User not assigned to any team yet - they should assign themselves first
+			console.warn('User must assign themselves to a team before inviting partners');
+			return;
+		}
+
+		// Set the host team (user's team) for the invite
+		currentInviteHostTeam = userTeam;
+
+		// Determine invite type based on which team's partner button was clicked
+		if (teamNumber === userTeam) {
+			// Clicking on partner of MY team
+			currentInviteType = 'my_partner';
+		} else {
+			// Clicking on partner of OTHER team
+			currentInviteType = 'opponent_partner';
+		}
+
+		// Open the invite modal
+		openInviteModal();
+	}
+
+	/**
+	 * Handle when user wants to unassign partner from a team
+	 */
+	function handleUnassignPartner(teamNumber: 1 | 2) {
+		unassignPartnerFromTeam(teamNumber);
 	}
 
 	/**
@@ -1843,12 +1892,15 @@
 			isMatchComplete={isMatchComplete}
 			currentGameNumber={$currentMatchGames.length}
 			canAssignUser={canAssignUserToTeam1}
+			canAssignPartner={canAssignPartnerToTeam1}
 			onchangeColor={() => openColorPicker(1)}
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 			onextraRound={handleExtraRound}
 			onassignUser={() => handleAssignUser(1)}
 			onunassignUser={() => handleUnassignUser(1)}
+			onassignPartner={() => handleAssignPartner(1)}
+			onunassignPartner={() => handleUnassignPartner(1)}
 		/>
 
 		<!-- Tie Overlay - shown between the two cards when match ends in tie -->
@@ -1874,12 +1926,15 @@
 			isMatchComplete={isMatchComplete}
 			currentGameNumber={$currentMatchGames.length}
 			canAssignUser={canAssignUserToTeam2}
+			canAssignPartner={canAssignPartnerToTeam2}
 			onchangeColor={() => openColorPicker(2)}
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 			onextraRound={handleExtraRound}
 			onassignUser={() => handleAssignUser(2)}
 			onunassignUser={() => handleUnassignUser(2)}
+			onassignPartner={() => handleAssignPartner(2)}
+			onunassignPartner={() => handleUnassignPartner(2)}
 		/>
 	</div>
 
@@ -2081,6 +2136,8 @@
 <!-- Match Invite Modal (Friendly Mode) -->
 <InvitePlayerModal
 	isOpen={$isInviteModalOpen}
+	hostTeamNumber={currentInviteHostTeam}
+	inviteType={currentInviteType}
 	onclose={handleCloseInviteModal}
 />
 

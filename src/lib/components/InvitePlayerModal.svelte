@@ -14,23 +14,60 @@
 		isInviteExpired
 	} from '$lib/firebase/matchInvites';
 	import {
-		activeInvite,
+		activeInvites,
 		setActiveInvite,
 		clearActiveInvite,
 		setInviteUnsubscribe
 	} from '$lib/stores/matchInvite';
 	import { currentUser } from '$lib/firebase/auth';
-	import { team1, team2, updateTeam } from '$lib/stores/teams';
+	import { team1, team2, updateTeam, assignPartnerToTeam } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { getPlayerName } from '$lib/firebase/userProfile';
+	import type { InviteType } from '$lib/types/matchInvite';
 
 	interface Props {
 		isOpen?: boolean;
 		hostTeamNumber?: 1 | 2;
+		/** Type of invitation - determines where the guest joins */
+		inviteType?: InviteType;
 		onclose?: () => void;
 	}
 
-	let { isOpen = false, hostTeamNumber = 1, onclose }: Props = $props();
+	let { isOpen = false, hostTeamNumber = 1, inviteType = 'opponent', onclose }: Props = $props();
+
+	// Get game type from settings
+	const isDoubles = $derived($gameSettings.gameType === 'doubles');
+
+	// Derive the title based on invite type
+	let inviteTitle = $derived((() => {
+		switch (inviteType) {
+			case 'my_partner':
+				return m.invite_inviteMyPartner();
+			case 'opponent_partner':
+				return m.invite_inviteOpponentPartner();
+			case 'opponent':
+			default:
+				return m.invite_inviteOpponent();
+		}
+	})());
+
+	// Derive descriptive instruction based on game type and invite type
+	let inviteDescription = $derived((() => {
+		if (isDoubles) {
+			switch (inviteType) {
+				case 'my_partner':
+					return m.invite_descDoublesMyPartner();
+				case 'opponent_partner':
+					return m.invite_descDoublesOpponentPartner();
+				case 'opponent':
+				default:
+					return m.invite_descDoublesOpponent();
+			}
+		} else {
+			// Singles - only opponent case applies
+			return m.invite_descSinglesOpponent();
+		}
+	})());
 
 	let qrCodeSvg = $state('');
 	let isCreating = $state(false);
@@ -39,21 +76,24 @@
 	let timeRemaining = $state(0);
 	let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
-	// Derive invite URL and state from the active invite
-	let inviteUrl = $derived($activeInvite ? getInviteUrl($activeInvite.inviteCode) : '');
-	let isAccepted = $derived($activeInvite?.status === 'accepted');
-	let isDeclined = $derived($activeInvite?.status === 'declined');
-	let guestName = $derived($activeInvite?.guestUserName || '');
-	let isExpired = $derived($activeInvite ? isInviteExpired($activeInvite) : false);
+	// Get the invite for THIS specific type (each type has its own unique code)
+	let currentInvite = $derived($activeInvites[inviteType]);
+
+	// Derive invite URL and state from the current invite for this type
+	let inviteUrl = $derived(currentInvite ? getInviteUrl(currentInvite.inviteCode) : '');
+	let isAccepted = $derived(currentInvite?.status === 'accepted');
+	let isDeclined = $derived(currentInvite?.status === 'declined');
+	let guestName = $derived(currentInvite?.guestUserName || '');
+	let isExpired = $derived(currentInvite ? isInviteExpired(currentInvite) : false);
 
 	// Check if we need a fresh invite (no invite, or previous was accepted/expired/declined)
 	let needsNewInvite = $derived(
-		!$activeInvite ||
-		$activeInvite.status === 'accepted' ||
-		$activeInvite.status === 'declined' ||
-		$activeInvite.status === 'cancelled' ||
-		$activeInvite.status === 'expired' ||
-		isInviteExpired($activeInvite)
+		!currentInvite ||
+		currentInvite.status === 'accepted' ||
+		currentInvite.status === 'declined' ||
+		currentInvite.status === 'cancelled' ||
+		currentInvite.status === 'expired' ||
+		isInviteExpired(currentInvite)
 	);
 
 	// Countdown display
@@ -70,38 +110,52 @@
 
 	// When guest accepts, update the team store with their info
 	$effect(() => {
-		if (isAccepted && $activeInvite) {
-			const guestTeamNumber = $activeInvite.guestTeamNumber;
+		if (isAccepted && currentInvite) {
+			const guestTeamNumber = currentInvite.guestTeamNumber;
+			const guestRole = currentInvite.guestRole || 'player';
+
 			if (guestTeamNumber) {
-				updateTeam(guestTeamNumber, {
-					userId: $activeInvite.guestUserId || null,
-					name: $activeInvite.guestUserName || '',
-					userPhotoURL: $activeInvite.guestUserPhotoURL || null
-				});
+				if (guestRole === 'partner') {
+					// Guest joins as partner
+					assignPartnerToTeam(
+						guestTeamNumber,
+						currentInvite.guestUserName || '',
+						currentInvite.guestUserId || null,
+						currentInvite.guestUserPhotoURL || null
+					);
+				} else {
+					// Guest joins as player (existing behavior)
+					updateTeam(guestTeamNumber, {
+						userId: currentInvite.guestUserId || null,
+						name: currentInvite.guestUserName || '',
+						userPhotoURL: currentInvite.guestUserPhotoURL || null
+					});
+				}
 			}
 		}
 	});
 
 	// Update countdown timer
 	$effect(() => {
-		if ($activeInvite && !isAccepted && !isExpired) {
+		if (currentInvite && !isAccepted && !isExpired) {
 			// Start countdown interval
 			if (countdownInterval) {
 				clearInterval(countdownInterval);
 			}
 
 			// Initial update
-			timeRemaining = getInviteTimeRemaining($activeInvite);
+			timeRemaining = getInviteTimeRemaining(currentInvite);
 
 			countdownInterval = setInterval(() => {
-				if ($activeInvite) {
-					timeRemaining = getInviteTimeRemaining($activeInvite);
+				const invite = $activeInvites[inviteType];
+				if (invite) {
+					timeRemaining = getInviteTimeRemaining(invite);
 
 					// If expired, clear the interval and create a new invite
 					if (timeRemaining <= 0) {
 						clearInterval(countdownInterval!);
 						countdownInterval = null;
-						clearActiveInvite();
+						clearActiveInvite(inviteType);
 						qrCodeSvg = '';
 						// Will trigger new invite creation via the other $effect
 					}
@@ -150,6 +204,7 @@
 				hostUserName: playerName || $currentUser.name || 'Unknown',
 				hostUserPhotoURL: $currentUser.photoURL,
 				hostTeamNumber,
+				inviteType,
 				matchContext: {
 					team1Name: $team1.name,
 					team1Color: $team1.color,
@@ -158,20 +213,21 @@
 					gameMode: $gameSettings.gameMode,
 					pointsToWin: $gameSettings.pointsToWin,
 					roundsToPlay: $gameSettings.roundsToPlay,
-					matchesToWin: $gameSettings.matchesToWin
+					matchesToWin: $gameSettings.matchesToWin,
+					gameType: $gameSettings.gameType
 				}
 			});
 
 			if (invite) {
-				setActiveInvite(invite);
+				setActiveInvite(inviteType, invite);
 
 				// Subscribe to real-time updates
 				const unsubscribe = subscribeToInvite(invite.id, (updatedInvite) => {
 					if (updatedInvite) {
-						setActiveInvite(updatedInvite);
+						setActiveInvite(inviteType, updatedInvite);
 					}
 				});
-				setInviteUnsubscribe(unsubscribe);
+				setInviteUnsubscribe(inviteType, unsubscribe);
 			} else {
 				error = 'Error creating invite';
 			}
@@ -184,9 +240,9 @@
 	}
 
 	async function handleCancelInvite() {
-		if (!$activeInvite) return;
+		if (!currentInvite) return;
 
-		const result = await cancelInvite($activeInvite.id);
+		const result = await cancelInvite(currentInvite.id);
 
 		if (result === 'already_accepted') {
 			// Guest already accepted! Don't clear - the subscription will update the UI
@@ -194,9 +250,10 @@
 			return;
 		}
 
-		// Successfully cancelled or other error - clear the invite
-		clearActiveInvite();
+		// Successfully cancelled - clear invite and close modal
+		clearActiveInvite(inviteType);
 		qrCodeSvg = '';
+		onclose?.();
 	}
 
 	async function handleCopyLink() {
@@ -219,11 +276,12 @@
 	}
 
 	// Create invite when modal opens if we need one
+	// Don't create new invite if current one was just accepted/declined (show success/declined state instead)
 	$effect(() => {
-		if (isOpen && needsNewInvite && $currentUser && !isCreating) {
+		if (isOpen && needsNewInvite && $currentUser && !isCreating && !isAccepted && !isDeclined) {
 			// Clear old invite first
-			if ($activeInvite) {
-				clearActiveInvite();
+			if (currentInvite) {
+				clearActiveInvite(inviteType);
 				qrCodeSvg = '';
 			}
 			handleCreateInvite();
@@ -251,9 +309,9 @@
 					<UserCheck size={28} />
 				</div>
 				<h3>{m.invite_playerJoined({ name: guestName })}</h3>
-				{#if $activeInvite?.guestUserPhotoURL}
+				{#if currentInvite?.guestUserPhotoURL}
 					<img
-						src={$activeInvite.guestUserPhotoURL}
+						src={currentInvite.guestUserPhotoURL}
 						alt={guestName}
 						class="guest-photo"
 					/>
@@ -268,9 +326,9 @@
 					<UserX size={28} />
 				</div>
 				<h3>{m.invite_playerDeclined({ name: guestName })}</h3>
-				{#if $activeInvite?.guestUserPhotoURL}
+				{#if currentInvite?.guestUserPhotoURL}
 					<img
-						src={$activeInvite.guestUserPhotoURL}
+						src={currentInvite.guestUserPhotoURL}
 						alt={guestName}
 						class="guest-photo"
 					/>
@@ -279,11 +337,11 @@
 					{m.invite_inviteAnother()}
 				</Button>
 			</div>
-		{:else if $activeInvite}
+		{:else if currentInvite}
 			<div class="invite-content">
 				<div class="modal-header">
-					<h2>{m.invite_invitePlayer()}</h2>
-					<p>{m.invite_scanQR()}</p>
+					<h2>{inviteTitle}</h2>
+					<p class="invite-description">{inviteDescription}</p>
 				</div>
 
 				<div class="qr-section">
@@ -301,7 +359,7 @@
 				</div>
 
 				<div class="code-section">
-					<span class="invite-code">{$activeInvite.inviteCode}</span>
+					<span class="invite-code">{currentInvite.inviteCode}</span>
 					<button class="copy-btn" onclick={handleCopyLink}>
 						{#if isCopied}
 							<Check size={14} />
@@ -334,7 +392,7 @@
 
 <style>
 	:global(.invite-modal) {
-		max-width: 380px !important;
+		max-width: 420px !important;
 		padding: 0 !important;
 		overflow: hidden !important;
 		gap: 0 !important;
@@ -420,6 +478,13 @@
 		font-size: 0.8125rem;
 		color: var(--muted-foreground);
 		margin: 0;
+	}
+
+	.modal-header .invite-description {
+		font-size: 0.8125rem;
+		color: var(--muted-foreground);
+		margin: 0.5rem 0 0;
+		line-height: 1.4;
 	}
 
 	.qr-section {

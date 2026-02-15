@@ -1,15 +1,34 @@
 import { writable, derived } from 'svelte/store';
-import type { MatchInvite } from '$lib/types/matchInvite';
+import type { MatchInvite, InviteType } from '$lib/types/matchInvite';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Map of active invitations by invite type
+ * Each type (opponent, my_partner, opponent_partner) can have its own invite
+ */
+export type ActiveInvitesMap = Record<InviteType, MatchInvite | null>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stores
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The currently active invitation created by the host
- * Used to track and display invitation status in real-time
+ * Initial state for active invites map
  */
-export const activeInvite = writable<MatchInvite | null>(null);
+const initialActiveInvites: ActiveInvitesMap = {
+	opponent: null,
+	my_partner: null,
+	opponent_partner: null
+};
+
+/**
+ * Map of currently active invitations by type
+ * Each invite type has its own unique code so we know who's accepting what role
+ */
+export const activeInvites = writable<ActiveInvitesMap>({ ...initialActiveInvites });
 
 /**
  * Whether the invite modal is open
@@ -17,69 +36,82 @@ export const activeInvite = writable<MatchInvite | null>(null);
 export const isInviteModalOpen = writable<boolean>(false);
 
 /**
- * Unsubscribe function for the real-time invite listener
- * Stored here so we can clean up when needed
+ * Unsubscribe functions for real-time invite listeners, keyed by invite type
  */
-let inviteUnsubscribe: (() => void) | null = null;
+const inviteUnsubscribes: Partial<Record<InviteType, () => void>> = {};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Derived Stores
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Whether there's an active pending invitation
+ * Whether there's any active pending invitation
  */
-export const hasActiveInvite = derived(activeInvite, ($invite) => $invite?.status === 'pending');
+export const hasAnyActiveInvite = derived(activeInvites, ($invites) =>
+	Object.values($invites).some((invite) => invite?.status === 'pending')
+);
 
 /**
- * Whether the active invitation has been accepted
+ * Get active invite for a specific type
  */
-export const isInviteAccepted = derived(activeInvite, ($invite) => $invite?.status === 'accepted');
-
-/**
- * The guest info from an accepted invitation
- */
-export const acceptedGuest = derived(activeInvite, ($invite) => {
-	if ($invite?.status !== 'accepted') return null;
-	return {
-		userId: $invite.guestUserId,
-		userName: $invite.guestUserName,
-		userPhotoURL: $invite.guestUserPhotoURL,
-		teamNumber: $invite.guestTeamNumber
-	};
-});
+export function getActiveInviteForType(type: InviteType) {
+	return derived(activeInvites, ($invites) => $invites[type]);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Actions
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Set the active invitation and optionally start listening for updates
+ * Set an active invitation for a specific type
  */
-export function setActiveInvite(invite: MatchInvite | null): void {
-	activeInvite.set(invite);
+export function setActiveInvite(type: InviteType, invite: MatchInvite | null): void {
+	activeInvites.update((invites) => ({
+		...invites,
+		[type]: invite
+	}));
 }
 
 /**
- * Clear the active invitation and cleanup any listeners
+ * Clear the active invitation for a specific type and cleanup its listener
  */
-export function clearActiveInvite(): void {
-	if (inviteUnsubscribe) {
-		inviteUnsubscribe();
-		inviteUnsubscribe = null;
+export function clearActiveInvite(type: InviteType): void {
+	// Cleanup subscription for this type
+	if (inviteUnsubscribes[type]) {
+		inviteUnsubscribes[type]!();
+		delete inviteUnsubscribes[type];
 	}
-	activeInvite.set(null);
+
+	activeInvites.update((invites) => ({
+		...invites,
+		[type]: null
+	}));
 }
 
 /**
- * Set the unsubscribe function for the invite listener
+ * Clear all active invitations and cleanup all listeners
  */
-export function setInviteUnsubscribe(unsubscribe: () => void): void {
-	// Clean up any existing subscription first
-	if (inviteUnsubscribe) {
-		inviteUnsubscribe();
+export function clearAllActiveInvites(): void {
+	// Cleanup all subscriptions
+	for (const type of Object.keys(inviteUnsubscribes) as InviteType[]) {
+		if (inviteUnsubscribes[type]) {
+			inviteUnsubscribes[type]!();
+			delete inviteUnsubscribes[type];
+		}
 	}
-	inviteUnsubscribe = unsubscribe;
+
+	activeInvites.set({ ...initialActiveInvites });
+}
+
+/**
+ * Set the unsubscribe function for a specific invite type listener
+ */
+export function setInviteUnsubscribe(type: InviteType, unsubscribe: () => void): void {
+	// Clean up any existing subscription for this type first
+	if (inviteUnsubscribes[type]) {
+		inviteUnsubscribes[type]!();
+	}
+	inviteUnsubscribes[type] = unsubscribe;
 }
 
 /**
@@ -95,3 +127,16 @@ export function openInviteModal(): void {
 export function closeInviteModal(): void {
 	isInviteModalOpen.set(false);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy compatibility - single invite access (for components not yet updated)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * @deprecated Use getActiveInviteForType() instead
+ * Returns the first active invite found (for backward compatibility)
+ */
+export const activeInvite = derived(activeInvites, ($invites) => {
+	// Return the first non-null invite (prioritize opponent for singles compatibility)
+	return $invites.opponent || $invites.my_partner || $invites.opponent_partner || null;
+});

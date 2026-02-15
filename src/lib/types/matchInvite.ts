@@ -6,6 +6,14 @@ import type { Timestamp } from 'firebase/firestore';
 export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
 
 /**
+ * Type of invitation - determines where the guest joins
+ * - 'opponent': Guest joins opposite team as player (default, existing behavior)
+ * - 'my_partner': Guest joins host's team as partner
+ * - 'opponent_partner': Guest joins opposite team as partner
+ */
+export type InviteType = 'opponent' | 'my_partner' | 'opponent_partner';
+
+/**
  * Match context stored with the invitation
  * Used to display match configuration to the invited player
  */
@@ -18,6 +26,8 @@ export interface MatchInviteContext {
 	pointsToWin: number;
 	roundsToPlay: number;
 	matchesToWin: number;
+	/** Game type: singles (1v1) or doubles (2v2). Optional for backwards compatibility. */
+	gameType?: 'singles' | 'doubles';
 }
 
 /**
@@ -63,6 +73,9 @@ export interface MatchInvite {
 	/** Which team the host assigned themselves to (1 or 2) */
 	hostTeamNumber: 1 | 2;
 
+	/** Type of invitation - determines where the guest joins */
+	inviteType: InviteType;
+
 	// ─────────────────────────────────────────────────────────────────
 	// Guest (invitee) information - populated when accepted
 	// ─────────────────────────────────────────────────────────────────
@@ -76,8 +89,11 @@ export interface MatchInvite {
 	/** Guest's profile photo URL (set when accepted) */
 	guestUserPhotoURL?: string | null;
 
-	/** Which team the guest is assigned to (opposite of host) */
+	/** Which team the guest is assigned to */
 	guestTeamNumber?: 1 | 2;
+
+	/** Whether guest joins as player or partner */
+	guestRole?: 'player' | 'partner';
 
 	// ─────────────────────────────────────────────────────────────────
 	// Match context
@@ -95,6 +111,8 @@ export interface CreateInviteData {
 	hostUserName: string;
 	hostUserPhotoURL: string | null;
 	hostTeamNumber: 1 | 2;
+	/** Type of invitation - defaults to 'opponent' for backwards compatibility */
+	inviteType?: InviteType;
 	matchContext: MatchInviteContext;
 }
 
