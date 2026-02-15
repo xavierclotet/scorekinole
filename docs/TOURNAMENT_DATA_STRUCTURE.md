@@ -26,6 +26,10 @@ This document describes all interfaces that compose a `Tournament` object in Sco
 - [20. TournamentTimeEstimate](#20-tournamenttimeestimate)
 - [21. TournamentRecord](#21-tournamentrecord)
 - [22. MatchCorrection](#22-matchcorrection)
+- [23. MatchHistory (friendly matches)](#23-matchhistory-friendly-matches)
+- [24. CurrentMatch](#24-currentmatch)
+- [25. MatchGame](#25-matchgame)
+- [26. MatchRound](#26-matchround)
 - [LIVE vs IMPORTED: Key Differences](#live-vs-imported-key-differences)
 - [Current Import Implementation](#current-import-implementation)
 - [Transforming IMPORTED to LIVE](#transforming-imported-to-live)
@@ -613,6 +617,106 @@ interface MatchCorrection {
   previousResult: { winner: string; scoreA: number; scoreB: number };
   newResult: { winner: string; scoreA: number; scoreB: number };
   reason?: string;
+}
+```
+
+---
+
+## 23. MatchHistory (friendly matches)
+
+Stored in localStorage and optionally synced to Firestore. Referenced by `GroupMatch.matchId` and `BracketMatch.matchId` in tournaments.
+
+```typescript
+interface MatchHistory {
+  id: string;
+  team1Name: string;
+  team2Name: string;
+  team1Color: string;
+  team2Color: string;
+  team1Score: number;
+  team2Score: number;
+  team1Rounds?: number;
+  team2Rounds?: number;
+  totalRounds?: number;
+  winner: 1 | 2 | null;
+  gameMode: 'points' | 'rounds';
+  gameType: 'singles' | 'doubles';
+  pointsToWin?: number;
+  roundsToPlay?: number;
+  matchesToWin: number;
+  games: MatchGame[];
+
+  // Timing
+  startTime: number;                        // Timestamp when match started
+  endTime: number;                          // Timestamp when match ended
+  duration: number;                         // Duration in milliseconds
+
+  // Optional metadata
+  eventTitle?: string;
+  matchPhase?: string;
+  showHammer?: boolean;
+  show20s?: boolean;
+
+  // For imported tournaments without detailed rounds
+  total20sTeam1?: number;
+  total20sTeam2?: number;
+
+  // Sync
+  syncStatus?: 'local' | 'synced' | 'pending' | 'error';
+  savedBy?: {
+    userId: string;
+    userName: string;
+    userEmail: string;
+  };
+
+  // Player identification (for linking to user profiles)
+  players?: {
+    team1?: { name: string; userId: string | null };
+    team2?: { name: string; userId: string | null };
+  };
+}
+```
+
+---
+
+## 24. CurrentMatch
+
+Tracks the state of an in-progress match.
+
+```typescript
+interface CurrentMatch {
+  startTime: number;                        // Timestamp when match started
+  games: MatchGame[];
+  rounds: MatchRound[];
+}
+```
+
+---
+
+## 25. MatchGame
+
+```typescript
+interface MatchGame {
+  team1Points: number;
+  team2Points: number;
+  gameNumber: number;
+  rounds: MatchRound[];
+  winner: 1 | 2 | null;
+}
+```
+
+---
+
+## 26. MatchRound
+
+```typescript
+interface MatchRound {
+  team1Points: number;
+  team2Points: number;
+  team1Twenty: number;
+  team2Twenty: number;
+  hammerTeam: 1 | 2 | null;
+  roundNumber: number;
 }
 ```
 
