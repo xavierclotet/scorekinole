@@ -10,7 +10,8 @@
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { PAGE_SIZE } from '$lib/constants';
-	import { ChevronRight, Clock, Trophy, Users, User } from '@lucide/svelte';
+	import { ChevronRight, Clock, Trophy, Users, User, Info } from '@lucide/svelte';
+	import * as Popover from '$lib/components/ui/popover/index.js';
 	import SEO from '$lib/components/SEO.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
@@ -142,8 +143,15 @@
 
 	// Get full team display name (player + partner for doubles)
 	function getTeamDisplayName(match: MatchHistory, teamNumber: 1 | 2): string {
-		const isDoubles = match.gameType === 'doubles';
 		const teamName = teamNumber === 1 ? match.team1Name : match.team2Name;
+
+		// For tournament matches, the team name already includes both players
+		if (isTournamentMatch(match)) {
+			return teamName || 'Unknown';
+		}
+
+		// For friendly doubles, append partner name if available
+		const isDoubles = match.gameType === 'doubles';
 		const partner = teamNumber === 1
 			? match.players?.team1?.partner
 			: match.players?.team2?.partner;
@@ -581,21 +589,53 @@
 							<span class="split-value">{stats.doublesPercentage}%</span>
 						</div>
 					</div>
-					<span class="stat-percent">◎ {stats.totalTwenties}</span>
+					<div class="stat-info-wrapper">
+						<span class="stat-percent">◎ {stats.totalTwenties}</span>
+						<Popover.Root>
+							<Popover.Trigger class="info-trigger">
+								<Info class="size-3" />
+							</Popover.Trigger>
+							<Popover.Content class="twenties-popover">
+								<p class="popover-text">{m.stats_twentiesAccuracy()}: {stats.totalTwenties} (20s) · {stats.singlesPercentage ?? '-'}% / {stats.doublesPercentage ?? '-'}%</p>
+							</Popover.Content>
+						</Popover.Root>
+					</div>
 					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
 				</div>
 			{:else if stats.singlesPercentage !== null}
 				<!-- Only singles -->
 				<div class="stat-card twenties">
 					<span class="stat-value">{stats.singlesPercentage}%</span>
-					<span class="stat-percent">◎ {stats.singlesTwenties}</span>
+					<div class="stat-info-wrapper">
+						<span class="stat-percent">◎ {stats.singlesTwenties}</span>
+						<Popover.Root>
+							<Popover.Trigger class="info-trigger">
+								<Info class="size-3" />
+							</Popover.Trigger>
+							<Popover.Content class="twenties-popover">
+								<p class="popover-text">{m.tournament_totalTwentiesLabel()}: {stats.singlesTwenties}</p>
+								<p class="popover-text">{m.stats_twentiesAccuracy()}: {stats.singlesPercentage}%</p>
+							</Popover.Content>
+						</Popover.Root>
+					</div>
 					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
 				</div>
 			{:else if stats.doublesPercentage !== null}
 				<!-- Only doubles -->
 				<div class="stat-card twenties">
 					<span class="stat-value">{stats.doublesPercentage}%</span>
-					<span class="stat-percent">◎ {stats.doublesTwenties}</span>
+					<div class="stat-info-wrapper">
+						<span class="stat-percent">◎ {stats.doublesTwenties}</span>
+						<Popover.Root>
+							<Popover.Trigger class="info-trigger">
+								<Info class="size-3" />
+							</Popover.Trigger>
+							<Popover.Content class="twenties-popover">
+								<p class="popover-text">{m.tournament_totalTwentiesLabel()}: {stats.doublesTwenties}</p>
+								<p class="popover-text">{m.stats_twentiesAccuracy()}: {stats.doublesPercentage}%</p>
+							</Popover.Content>
+						</Popover.Root>
+					</div>
 					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
 				</div>
 			{:else}
@@ -681,7 +721,7 @@
 							<div class="match-result" class:won={result.won} class:lost={!result.won && !result.tied}>
 								<span class="result-score">{result.score}</span>
 								{#if twenties.count > 0}
-									<span class="result-twenties">◎{twenties.count}{#if twenties.percentage}&nbsp;· {twenties.percentage}%{/if}</span>
+									<span class="result-twenties">{twenties.count}{#if twenties.percentage}&nbsp;· {twenties.percentage}%{/if}</span>
 								{/if}
 							</div>
 						</div>
@@ -1177,13 +1217,45 @@
 
 
 	.result-score {
-		font-size: 1rem;
+		font-size: 1.25rem;
 		font-weight: 700;
 	}
 
 	.result-twenties {
-		font-size: 0.7rem;
+		font-size: 0.85rem;
+		font-weight: 600;
 		color: #b8862e;
+	}
+
+	/* Stat Info Wrapper */
+	.stat-info-wrapper {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.25rem;
+	}
+
+	:global(.info-trigger) {
+		color: var(--muted-foreground);
+		opacity: 0.7;
+		display: flex;
+		align-items: center;
+	}
+
+	:global(.twenties-popover) {
+		background: var(--popover);
+		border: 1px solid var(--border);
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+		z-index: 50;
+	}
+
+	:global(.popover-text) {
+		font-size: 0.75rem;
+		color: var(--popover-foreground);
+		margin: 0;
+		white-space: nowrap;
 	}
 
 	/* Match Detail */

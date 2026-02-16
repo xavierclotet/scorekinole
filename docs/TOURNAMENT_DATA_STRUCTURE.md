@@ -1362,11 +1362,17 @@ When a user transitions from friendly mode to tournament mode, their current fri
 
 ```typescript
 interface PreTournamentBackup {
-  // Team data
+  // Team data (including user assignments)
   team1Name: string;
   team1Color: string;
+  team1UserId: string | null;
+  team1UserPhotoURL: string | null;
+  team1Partner?: Partner;
   team2Name: string;
   team2Color: string;
+  team2UserId: string | null;
+  team2UserPhotoURL: string | null;
+  team2Partner?: Partner;
 
   // Game settings
   gameMode: 'points' | 'rounds';
@@ -1398,7 +1404,7 @@ interface PreTournamentBackup {
 │ 3. RESTORE: User clicks "New Match" (friendly)                  │
 │    → handleResetMatch() → restorePreTournamentData(force=true)  │
 │    → Reads backup from localStorage                             │
-│    → Applies team names, colors, game settings, timer           │
+│    → Applies team names, colors, user assignments, settings     │
 │    → localStorage.removeItem('crokinolePreTournamentBackup')    │
 └─────────────────────────────────────────────────────────────────┘
 ```

@@ -429,9 +429,21 @@
 		try {
 			const backup = JSON.parse(backupStr);
 
-			// Restore team data
-			updateTeam(1, { name: backup.team1Name, color: backup.team1Color });
-			updateTeam(2, { name: backup.team2Name, color: backup.team2Color });
+			// Restore team data (including user assignments)
+			updateTeam(1, {
+				name: backup.team1Name,
+				color: backup.team1Color,
+				userId: backup.team1UserId ?? null,
+				userPhotoURL: backup.team1UserPhotoURL ?? null,
+				partner: backup.team1Partner ?? undefined
+			});
+			updateTeam(2, {
+				name: backup.team2Name,
+				color: backup.team2Color,
+				userId: backup.team2UserId ?? null,
+				userPhotoURL: backup.team2UserPhotoURL ?? null,
+				partner: backup.team2Partner ?? undefined
+			});
 
 			// Restore game settings
 			gameSettings.update((s) => ({
@@ -839,11 +851,17 @@
 		// This preserves the original friendly settings across multiple tournament matches
 		if (!localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)) {
 			const backup = {
-				// Team data
+				// Team data (including user assignments)
 				team1Name: $team1.name,
 				team1Color: $team1.color,
+				team1UserId: $team1.userId,
+				team1UserPhotoURL: $team1.userPhotoURL,
+				team1Partner: $team1.partner,
 				team2Name: $team2.name,
 				team2Color: $team2.color,
+				team2UserId: $team2.userId,
+				team2UserPhotoURL: $team2.userPhotoURL,
+				team2Partner: $team2.partner,
 				// Game settings
 				gameMode: $gameSettings.gameMode,
 				pointsToWin: $gameSettings.pointsToWin,
