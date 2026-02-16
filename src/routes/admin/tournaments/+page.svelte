@@ -1459,6 +1459,13 @@
     background: #dc2626;
   }
 
+  @media (max-width: 1100px) {
+    .city-col, .city-cell,
+    .mode-col, .mode-cell {
+      display: none !important;
+    }
+  }
+
   @media (max-width: 640px) {
     .hide-small {
       display: none !important;

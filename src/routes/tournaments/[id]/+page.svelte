@@ -6,7 +6,7 @@
 	import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
 	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import LanguageSelector from '$lib/components/LanguageSelector.svelte';
+
 	import { theme } from '$lib/stores/theme';
 	import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
 	import { isBye } from '$lib/algorithms/bracket';
@@ -505,7 +505,7 @@
 						</svg>
 					</a>
 				{/if}
-				<LanguageSelector />
+
 				<ThemeToggle />
 			</div>
 		</div>

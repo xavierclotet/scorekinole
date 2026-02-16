@@ -1307,6 +1307,13 @@
 	}
 
 	function handleNewMatchClick() {
+		// After a tournament match, always show confirmation so user gets feedback
+		// that they're starting a new friendly match
+		if (justExitedTournamentMode) {
+			showNewMatchConfirm = true;
+			return;
+		}
+
 		// If match is already complete, start new match directly without confirmation
 		if (isMatchComplete) {
 			handleResetMatch();
@@ -1977,11 +1984,9 @@
 				</div>
 			</div>
 
-			<div class="header-center">
-				{#if $gameSettings.showTimer}
-					<Timer size="small" />
-				{/if}
-			</div>
+			{#if $gameSettings.showTimer}
+				<Timer size="small" />
+			{/if}
 
 			<div class="header-right">
 				<OfflineIndicator />
@@ -2027,11 +2032,9 @@
 				</div>
 			</div>
 
-			<div class="header-center">
-				{#if $gameSettings.showTimer}
-					<Timer size="small" />
-				{/if}
-			</div>
+			{#if $gameSettings.showTimer}
+				<Timer size="small" />
+			{/if}
 
 			<div class="header-right">
 				<OfflineIndicator />
@@ -2431,14 +2434,7 @@
 		gap: 1rem;
 	}
 
-	.header-center {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.15rem;
-		flex: 1;
-		min-width: 0;
-	}
+
 
 	.header-title {
 		font-family: 'Lexend', sans-serif;
