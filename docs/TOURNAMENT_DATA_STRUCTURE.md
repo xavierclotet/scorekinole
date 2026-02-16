@@ -1350,6 +1350,68 @@ function createBracketMatch(
 
 ---
 
+## Pre-Tournament Settings Backup
+
+When a user transitions from friendly mode to tournament mode, their current friendly match settings are backed up to `localStorage` so they can be restored later. This ensures the user doesn't lose their team names, colors, game mode, etc.
+
+**localStorage key:** `crokinolePreTournamentBackup`
+
+**Source file:** `src/routes/game/+page.svelte`
+
+### Backup Data Structure
+
+```typescript
+interface PreTournamentBackup {
+  // Team data
+  team1Name: string;
+  team1Color: string;
+  team2Name: string;
+  team2Color: string;
+
+  // Game settings
+  gameMode: 'points' | 'rounds';
+  pointsToWin: number;
+  roundsToPlay: number;
+  matchesToWin: number;
+  show20s: boolean;
+  showHammer: boolean;
+  gameType: 'singles' | 'doubles';
+  timerMinutes: number;
+  timerSeconds: number;
+  showTimer: boolean;
+}
+```
+
+### Lifecycle Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. SAVE: User starts a tournament match                         │
+│    → handleTournamentMatchStarted()                             │
+│    → Only saves if NO backup exists yet (preserves original)    │
+│    → localStorage.setItem('crokinolePreTournamentBackup', ...)  │
+├─────────────────────────────────────────────────────────────────┤
+│ 2. TOURNAMENT: User plays one or more tournament matches        │
+│    → Backup remains untouched in localStorage                   │
+│    → justExitedTournamentMode = true after each match ends      │
+├─────────────────────────────────────────────────────────────────┤
+│ 3. RESTORE: User clicks "New Match" (friendly)                  │
+│    → handleResetMatch() → restorePreTournamentData(force=true)  │
+│    → Reads backup from localStorage                             │
+│    → Applies team names, colors, game settings, timer           │
+│    → localStorage.removeItem('crokinolePreTournamentBackup')    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+- **First backup wins**: If the user plays multiple tournament matches without returning to friendly mode, only the first backup is kept. This preserves the original friendly settings, not intermediate tournament data.
+- **`justExitedTournamentMode` flag**: When `exitTournamentMode()` is called after a tournament match completes, this flag is set to `true`. It prevents any accidental auto-restoration. Restoration only happens when the user explicitly clicks "New Match" (friendly).
+- **Force restore**: `restorePreTournamentData(force=true)` is called from `handleResetMatch()` when transitioning back to friendly mode, bypassing the `justExitedTournamentMode` guard.
+- **Confirmation modal**: After a tournament match, clicking "New Match" always shows a confirmation dialog before restoring friendly settings.
+
+---
+
 ## Data Sources for Enrichment
 
 When transforming an imported tournament, data can come from:
