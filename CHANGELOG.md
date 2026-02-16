@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.24] - 2026-02-16
+- Add pull-to-refresh for rankings, tournaments, and my-stats pages
+- Add clickable completed matches in live tournaments to view round details
+- Show all participants with ranking points in final standings
+- Display standings in 2-column layout with medal emojis for top 3
+- Fix passive event listener warning in PullToRefresh
+
 ## [2.4.23] - 2026-02-15
 - Redesign consolation brackets with horizontal layout (admin-style)
 - Redesign landing page quick links and mobile carousel
