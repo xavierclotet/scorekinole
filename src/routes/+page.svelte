@@ -386,7 +386,7 @@
 		flex-direction: column;
 		background: #0a0e1a;
 		color: #fff;
-		padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+		padding: 0;
 		transition: background-color 0.3s, color 0.3s;
 		position: relative;
 	}

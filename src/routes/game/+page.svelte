@@ -2363,6 +2363,14 @@
 	}
 
 	/* Tournament header layout */
+	/* Strict viewport lock for Game Page ONLY */
+	:global(html), :global(body) {
+		overflow: hidden;
+		position: fixed;
+		width: 100%;
+		height: 100%;
+	}
+
 	.tournament-header-left {
 		flex: 1;
 		min-width: 0;
@@ -2785,7 +2793,7 @@
 	/* Portrait: el env(safe-area-inset-top) maneja notches automáticamente */
 	@media (orientation: portrait) {
 		.game-page {
-			padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+			padding-top: 0.5rem;
 		}
 
 		/* Simplify header in portrait */

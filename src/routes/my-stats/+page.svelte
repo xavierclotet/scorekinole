@@ -856,13 +856,10 @@
 		background: var(--card);
 		border-bottom: 1px solid var(--border);
 		padding: 0.75rem 1.5rem;
-		padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+		padding-top: 0.75rem;
 		margin: 0 -1rem 1.5rem -1rem;
-		position: sticky;
-		top: 0;
-		z-index: 10;
-		backdrop-filter: blur(8px);
-		background: color-mix(in srgb, var(--card) 95%, transparent);
+		/* position: sticky removed */
+		background: var(--card);
 	}
 
 	.header-row {
@@ -1329,7 +1326,7 @@
 	/* Responsive */
 	@media (max-width: 640px) {
 		.stats-container { padding: 0 0.75rem; padding-bottom: max(4rem, env(safe-area-inset-bottom, 4rem)); }
-		.page-header { margin: 0 -0.75rem 1rem -0.75rem; padding: 0.75rem 0.75rem; padding-top: calc(0.75rem + env(safe-area-inset-top, 0px)); }
+		.page-header { margin: 0 -0.75rem 1rem -0.75rem; padding: 0.75rem 0.75rem; }
 		
 		.match-header { padding: 0.75rem; gap: 0.75rem; }
 		.score { font-size: 1.25rem; }

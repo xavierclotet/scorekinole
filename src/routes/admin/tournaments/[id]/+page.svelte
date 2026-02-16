@@ -2124,8 +2124,7 @@
     align-items: center;
     padding: 0.875rem 1.25rem;
     border-bottom: 1px solid #e5e7eb;
-    position: sticky;
-    top: 0;
+    /* position: sticky removed */
     background: white;
     border-radius: 12px 12px 0 0;
     z-index: 1;

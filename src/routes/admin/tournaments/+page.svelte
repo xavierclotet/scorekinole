@@ -1069,8 +1069,7 @@
   .tournaments-table thead {
     background: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
-    position: sticky;
-    top: 0;
+    /* position: sticky removed */
     z-index: 1;
     transition: all 0.3s;
   }
