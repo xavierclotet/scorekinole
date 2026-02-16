@@ -590,13 +590,16 @@
 						</div>
 					</div>
 					<div class="stat-info-wrapper">
-						<span class="stat-percent">◎ {stats.totalTwenties}</span>
+						<span class="stat-percent">{stats.totalTwenties}</span>
 						<Popover.Root>
 							<Popover.Trigger class="info-trigger">
 								<Info class="size-3" />
 							</Popover.Trigger>
 							<Popover.Content class="twenties-popover">
-								<p class="popover-text">{m.stats_twentiesAccuracy()}: {stats.totalTwenties} (20s) · {stats.singlesPercentage ?? '-'}% / {stats.doublesPercentage ?? '-'}%</p>
+								<p class="popover-text"><strong>{m.scoring_singles()}:</strong> {stats.singlesTwenties ?? 0} ({stats.singlesPercentage ?? '-'}%)</p>
+								<p class="popover-text"><strong>{m.scoring_doubles()}:</strong> {stats.doublesTwenties ?? 0} ({stats.doublesPercentage ?? '-'}%)</p>
+								<hr class="popover-separator" />
+								<p class="popover-text">{m.tournament_totalTwentiesLabel()}: {stats.totalTwenties}</p>
 							</Popover.Content>
 						</Popover.Root>
 					</div>
@@ -607,7 +610,7 @@
 				<div class="stat-card twenties">
 					<span class="stat-value">{stats.singlesPercentage}%</span>
 					<div class="stat-info-wrapper">
-						<span class="stat-percent">◎ {stats.singlesTwenties}</span>
+						<span class="stat-percent">{stats.singlesTwenties}</span>
 						<Popover.Root>
 							<Popover.Trigger class="info-trigger">
 								<Info class="size-3" />
@@ -625,7 +628,7 @@
 				<div class="stat-card twenties">
 					<span class="stat-value">{stats.doublesPercentage}%</span>
 					<div class="stat-info-wrapper">
-						<span class="stat-percent">◎ {stats.doublesTwenties}</span>
+						<span class="stat-percent">{stats.doublesTwenties}</span>
 						<Popover.Root>
 							<Popover.Trigger class="info-trigger">
 								<Info class="size-3" />
@@ -1240,15 +1243,21 @@
 		opacity: 0.7;
 		display: flex;
 		align-items: center;
+		cursor: pointer;
 	}
 
 	:global(.twenties-popover) {
 		background: var(--popover);
 		border: 1px solid var(--border);
-		padding: 0.5rem 0.75rem;
+		padding: 0.75rem;
 		border-radius: 6px;
 		box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 		z-index: 50;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		width: fit-content;
+		min-width: 150px;
 	}
 
 	:global(.popover-text) {
@@ -1256,6 +1265,12 @@
 		color: var(--popover-foreground);
 		margin: 0;
 		white-space: nowrap;
+	}
+
+	:global(.popover-separator) {
+		border: none;
+		border-top: 1px solid var(--border);
+		margin: 0.5rem 0;
 	}
 
 	/* Match Detail */
