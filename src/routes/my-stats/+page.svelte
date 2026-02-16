@@ -23,6 +23,8 @@
 	let filterMode: 'all' | 'singles' | 'doubles' = $state('all');
 	let filterResult: 'all' | 'won' | 'lost' | 'tied' = $state('all');
 	let filterOpponent = $state('');
+	let filterTournament = $state('');
+	let filterYear = $state(new Date().getFullYear().toString());
 
 	// Expanded matches for detail view
 	let expandedMatches = new SvelteSet<string>();
@@ -45,14 +47,49 @@
 		}
 	});
 
+	import { statsCache, CACHE_DURATION } from '$lib/stores/statsCache';
+
 	async function loadMatches() {
-		isLoading = true;
+		const cache = $statsCache;
+		const now = Date.now();
+		let isBackground = false;
+
+		// Strategy: Stale-While-Revalidate (SWR)
+		// 1. If we have cache, show it immediately
+		if (cache) {
+			matches = cache.matches;
+			isLoading = false;
+			isBackground = true;
+			
+			// If cache is very fresh (< 10s), don't refetch to avoid flickering/unnecessary calls
+			if (now - cache.lastUpdated < 10000) {
+				return;
+			}
+		} else {
+			// No cache? Show loading spinner
+			isLoading = true;
+		}
+
+		// 2. Fetch fresh data from Firestore
+		await fetchMatches(isBackground);
+	}
+
+	async function fetchMatches(isBackground = false) {
+		if (!isBackground) isLoading = true;
 		try {
+			// Timeout promise
+			const timeout = new Promise<never>((_, reject) => 
+				setTimeout(() => reject(new Error('Timeout loading matches')), 10000)
+			);
+
 			// Load both friendly matches and tournament matches in parallel
-			const [friendlyMatches, tournamentMatches] = await Promise.all([
-				getMatchesFromCloud(),
-				getUserTournamentMatches()
-			]);
+			const [friendlyMatches, tournamentMatches] = await Promise.race([
+				Promise.all([
+					getMatchesFromCloud(),
+					getUserTournamentMatches()
+				]),
+				timeout
+			]) as [MatchHistory[], MatchHistory[]];
 
 			// Combine and deduplicate by ID, then sort by startTime (most recent first)
 			const matchMap = new Map<string, MatchHistory>();
@@ -61,13 +98,28 @@
 					matchMap.set(match.id, match);
 				}
 			}
-			matches = Array.from(matchMap.values()).sort((a, b) => b.startTime - a.startTime);
+			const sortedMatches = Array.from(matchMap.values()).sort((a, b) => b.startTime - a.startTime);
+			
+			matches = sortedMatches;
+			
+			// Update cache
+			statsCache.set({
+				matches: sortedMatches,
+				lastUpdated: Date.now()
+			});
 		} catch (error) {
 			console.error('Error loading matches:', error);
-			matches = [];
+			// Keep existing matches if refresh failed, or empty if first load
+			if (matches.length === 0) {
+				matches = [];
+			}
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	function fetchMatchesInBackground() {
+		fetchMatches().catch(err => console.error('Background fetch failed:', err));
 	}
 
 	// Determine if match is tournament or friendly
@@ -132,6 +184,26 @@
 		return Array.from(opponents).sort();
 	})());
 
+	// Get unique tournament names for filter
+	let uniqueTournaments = $derived((() => {
+		const tournaments = new SvelteSet<string>();
+		for (const match of matches) {
+			if (isTournamentMatch(match) && match.eventTitle) {
+				tournaments.add(match.eventTitle);
+			}
+		}
+		return Array.from(tournaments).sort();
+	})());
+
+	// Get unique years from matches
+	let uniqueYears = $derived((() => {
+		const years = new SvelteSet<number>();
+		for (const match of matches) {
+			years.add(new Date(match.startTime).getFullYear());
+		}
+		return Array.from(years).sort((a, b) => b - a); // descending
+	})());
+
 	// Apply filters
 	let filteredMatches = $derived((() => {
 		return matches.filter((match) => {
@@ -157,6 +229,17 @@
 				if (!opponent.toLowerCase().includes(filterOpponent.toLowerCase())) return false;
 			}
 
+			// Tournament filter
+			if (filterTournament) {
+				if (!isTournamentMatch(match) || match.eventTitle !== filterTournament) return false;
+			}
+
+			// Year filter
+			if (filterYear) {
+				const matchYear = new Date(match.startTime).getFullYear().toString();
+				if (matchYear !== filterYear) return false;
+			}
+
 			return true;
 		});
 	})());
@@ -167,7 +250,7 @@
 
 	// Reset visible count when filters change
 	$effect(() => {
-		filterType; filterMode; filterResult; filterOpponent;
+		filterType; filterMode; filterResult; filterOpponent; filterTournament; filterYear;
 		visibleCount = PAGE_SIZE;
 	});
 
@@ -391,7 +474,7 @@
 		</div>
 	</header>
 
-	<PullToRefresh onrefresh={loadMatches}>
+	<PullToRefresh onrefresh={() => fetchMatches(false)}>
 	{#if isLoading}
 		<div class="loading-state">
 			<div class="spinner"></div>
@@ -414,6 +497,15 @@
 	{:else}
 		<!-- Filters -->
 		<div class="filters-section">
+			{#if uniqueYears.length > 0}
+				<select class="filter-select" bind:value={filterYear}>
+					<option value="">{m.stats_allYears()}</option>
+					{#each uniqueYears as year (year)}
+						<option value={year.toString()}>{year}</option>
+					{/each}
+				</select>
+			{/if}
+
 			<select class="filter-select" bind:value={filterType}>
 				<option value="all">{m.stats_allTypes()}</option>
 				<option value="friendly">{m.stats_friendlyOnly()}</option>
@@ -433,11 +525,22 @@
 				<option value="tied">{m.stats_ties()}</option>
 			</select>
 
+
+
 			{#if uniqueOpponents.length > 0}
 				<select class="filter-select opponent-filter" bind:value={filterOpponent}>
 					<option value="">{m.stats_anyOpponent()}</option>
 					{#each uniqueOpponents as opponent (opponent)}
 						<option value={opponent}>{opponent}</option>
+					{/each}
+				</select>
+			{/if}
+
+			{#if uniqueTournaments.length > 0}
+				<select class="filter-select tournament-filter" bind:value={filterTournament}>
+					<option value="">🏆 {m.stats_allEvents()}</option>
+					{#each uniqueTournaments as tournament (tournament)}
+						<option value={tournament}>{tournament}</option>
 					{/each}
 				</select>
 			{/if}
@@ -515,18 +618,22 @@
 					{@const result = getResultInfo(match)}
 					{@const isExpanded = expandedMatches.has(match.id)}
 					{@const twenties = getMatchTwenties(match)}
-					<div class="match-item" class:expanded={isExpanded}>
+					{@const hasRoundDetail = (match.games ?? []).some(g => (g.rounds ?? []).length > 0)}
+					<div class="match-item" class:expanded={isExpanded} class:won={result.won} class:lost={!result.won && !result.tied} class:tied={result.tied}>
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div
 							class="match-header"
-							onclick={() => toggleExpand(match.id)}
-							onkeydown={(e) => e.key === 'Enter' && toggleExpand(match.id)}
+							class:non-expandable={!hasRoundDetail}
+							onclick={() => hasRoundDetail && toggleExpand(match.id)}
+							onkeydown={(e) => e.key === 'Enter' && hasRoundDetail && toggleExpand(match.id)}
 							role="button"
 							tabindex="0"
 						>
-							<div class="expand-icon" class:rotated={isExpanded}>
-								<ChevronRight class="size-4" />
-							</div>
+							{#if hasRoundDetail}
+								<div class="expand-icon" class:rotated={isExpanded}>
+									<ChevronRight class="size-4" />
+								</div>
+							{/if}
 							<div class="match-info">
 								<div class="match-date">
 									{#if isTournamentMatch(match) && match.eventTitle}
@@ -541,13 +648,11 @@
 									</span>
 								</div>
 								<div class="match-chips">
-									{#if isTournamentMatch(match)}
-										<span class="chip tournament">
-											<Trophy class="size-3" />
-											{m.stats_tournament()}
-										</span>
-									{:else}
+									{#if !isTournamentMatch(match)}
 										<span class="chip friendly">{m.stats_friendly()}</span>
+									{/if}
+									{#if match.matchPhase}
+										<span class="chip phase">{match.matchPhase}</span>
 									{/if}
 									<span class="chip mode">
 										{#if match.gameType === 'doubles'}
@@ -559,10 +664,10 @@
 									</span>
 								</div>
 								<div class="match-opponent">
-									{#if match.gameType === 'doubles'}
+									{#if match.gameType === 'doubles' && !isTournamentMatch(match)}
 										{@const myPartner = getMyPartnerName(match)}
 										{#if myPartner}
-											<span class="with-partner">{m.scoring_partner()}: {myPartner}</span>
+											<span class="with-partner">{m.stats_withPartner({ partner: myPartner })}</span>
 											<span class="vs-separator">vs</span>
 											{getOpponentName(match)}
 										{:else}
@@ -574,9 +679,6 @@
 								</div>
 							</div>
 							<div class="match-result" class:won={result.won} class:lost={!result.won && !result.tied}>
-								<span class="result-label">
-									{result.won ? m.stats_won() : result.tied ? 'Tie' : m.stats_lost()}
-								</span>
 								<span class="result-score">{result.score}</span>
 								{#if twenties.count > 0}
 									<span class="result-twenties">◎{twenties.count}{#if twenties.percentage}&nbsp;· {twenties.percentage}%{/if}</span>
@@ -584,14 +686,8 @@
 							</div>
 						</div>
 
-						{#if isExpanded}
+						{#if isExpanded && hasRoundDetail}
 							<div class="match-detail">
-								{#if match.matchPhase}
-									<div class="event-info">
-										<span class="event-phase">{match.matchPhase}</span>
-									</div>
-								{/if}
-
 								<!-- Games Table -->
 								{#if match.games && match.games.length > 0}
 									<div class="games-section">
@@ -883,6 +979,7 @@
 	}
 
 	.filter-select {
+		width: auto;
 		padding: 0.5rem 2rem 0.5rem 0.75rem;
 		background-color: var(--card);
 		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
@@ -902,9 +999,8 @@
 		border-color: var(--primary);
 	}
 
-	.opponent-filter {
-		flex: 1;
-		min-width: 120px;
+	.opponent-filter, .tournament-filter {
+		width: auto;
 	}
 
 	.scroll-sentinel {
@@ -940,12 +1036,28 @@
 		transition: all 0.2s;
 	}
 
-	.match-item:hover {
-		border-color: var(--primary);
+	.match-item.won {
+		background: color-mix(in srgb, #3b9768 20%, transparent);
 	}
 
-	.match-item.expanded {
-		border-color: var(--primary);
+	.match-item.lost {
+		background: color-mix(in srgb, #c04848 20%, transparent);
+	}
+
+	.match-item.tied {
+		background: color-mix(in srgb, var(--muted-foreground) 15%, transparent);
+	}
+
+	.match-item.won:hover, .match-item.won.expanded {
+		border-color: #3b9768;
+	}
+
+	.match-item.lost:hover, .match-item.lost.expanded {
+		border-color: #c04848;
+	}
+
+	.match-item.tied:hover, .match-item.tied.expanded {
+		border-color: var(--muted-foreground);
 	}
 
 	.match-header {
@@ -954,6 +1066,10 @@
 		gap: 0.75rem;
 		padding: 0.75rem 1rem;
 		cursor: pointer;
+	}
+
+	.match-header.non-expandable {
+		cursor: default;
 	}
 
 	.expand-icon {
@@ -1027,6 +1143,11 @@
 		color: var(--muted-foreground);
 	}
 
+	.chip.phase {
+		background: color-mix(in srgb, #b8862e 15%, transparent);
+		color: #b8862e;
+	}
+
 	.match-opponent {
 		font-size: 0.85rem;
 		font-weight: 500;
@@ -1053,28 +1174,7 @@
 		flex-shrink: 0;
 	}
 
-	.result-label {
-		font-size: 0.65rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		padding: 0.15rem 0.5rem;
-		border-radius: 4px;
-	}
 
-	.match-result.won .result-label {
-		background: color-mix(in srgb, #3b9768 15%, transparent);
-		color: #3b9768;
-	}
-
-	.match-result.lost .result-label {
-		background: color-mix(in srgb, #c04848 15%, transparent);
-		color: #c04848;
-	}
-
-	.result-label {
-		background: var(--muted);
-		color: var(--muted-foreground);
-	}
 
 	.result-score {
 		font-size: 1rem;
@@ -1098,9 +1198,7 @@
 		font-size: 0.85rem;
 	}
 
-	.event-title {
-		font-weight: 600;
-	}
+
 
 	.event-phase {
 		color: var(--muted-foreground);

@@ -63,12 +63,20 @@
 
 	async function loadData() {
 		isLoading = true;
+		// Add a timeout fallback
+		const timeout = new Promise<never>((_, reject) =>
+			setTimeout(() => reject(new Error('Timeout loading data')), 15000)
+		);
+
 		try {
-			// Load users and tournaments in parallel
-			const [loadedUsers, loadedTournaments] = await Promise.all([
-				getAllUsersWithTournaments(),
-				getCompletedTournaments()
-			]);
+			// Load users and tournaments in parallel with timeout
+			const [loadedUsers, loadedTournaments] = await Promise.race([
+				Promise.all([
+					getAllUsersWithTournaments(),
+					getCompletedTournaments()
+				]),
+				timeout
+			]) as [UserWithId[], Map<string, TournamentInfo>];
 
 			users = loadedUsers;
 			tournamentsMap = loadedTournaments;
@@ -91,6 +99,8 @@
 			recalculateRankings();
 		} catch (error) {
 			console.error('Error loading ranking data:', error);
+			// In case of error (or if dev server is stuck), stop loading
+			// Maybe show a toast or message in future
 		} finally {
 			isLoading = false;
 		}

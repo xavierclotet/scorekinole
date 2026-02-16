@@ -604,11 +604,14 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 
 		const tournamentMatches: MatchHistory[] = [];
 
+
+
 		snapshot.forEach((docSnap) => {
 			const data = docSnap.data();
 
 			// Only include completed tournaments
 			if (data.status !== 'COMPLETED') {
+
 				return;
 			}
 
@@ -632,6 +635,8 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 
 			const userParticipantIds = new Set(userParticipants.map((p: TournamentParticipant) => p.id));
 			const isDoubles = tournament.gameType === 'doubles';
+
+
 
 			// Helper to get participant name
 			const getParticipantName = (participantId: string): string => {
@@ -786,10 +791,22 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 					total20sTeam1: total20s1 > 0 ? total20s1 : undefined,
 					total20sTeam2: total20s2 > 0 ? total20s2 : undefined,
 					syncStatus: 'synced',
-					players: {
-						team1: { name: team1Name, userId: user.id },
-						team2: { name: team2Name, userId: null }
-					}
+					players: (() => {
+						const team1Participant = tournament.participants?.find((p: TournamentParticipant) => p.id === team1Id);
+						const team2Participant = tournament.participants?.find((p: TournamentParticipant) => p.id === team2Id);
+						return {
+							team1: {
+								name: team1Name,
+								userId: user.id,
+								...(team1Participant?.partner ? { partner: { name: team1Participant.partner.name, userId: team1Participant.partner.userId || null } } : {})
+							},
+							team2: {
+								name: team2Name,
+								userId: null,
+								...(team2Participant?.partner ? { partner: { name: team2Participant.partner.name, userId: team2Participant.partner.userId || null } } : {})
+							}
+						};
+					})()
 				};
 			};
 
@@ -823,8 +840,9 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 
 			// Extract matches from final stage
 			if (tournament.finalStage) {
-				// Gold bracket
-				if (tournament.finalStage.goldBracket?.rounds) {
+				// Gold bracket (skip if parallelBrackets exist — in PARALLEL_BRACKETS mode,
+				// goldBracket data is duplicated into parallelBrackets[0])
+				if (tournament.finalStage.goldBracket?.rounds && !tournament.finalStage.parallelBrackets?.length) {
 					for (const round of tournament.finalStage.goldBracket.rounds) {
 						for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
 							const match = round.matches[matchIdx];

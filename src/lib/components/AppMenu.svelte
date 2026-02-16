@@ -4,7 +4,8 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { APP_VERSION } from '$lib/constants';
-	import { Home, ChevronDown, Globe, Check, Trophy, BarChart3, CirclePlus, Shield } from '@lucide/svelte';
+
+	import { Home, ChevronDown, Globe, Check, Trophy, BarChart3, CirclePlus, Shield, User } from '@lucide/svelte';
 	import { setLocale, getLocale } from '$lib/paraglide/runtime.js';
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserLanguage } from '$lib/firebase/userProfile';
@@ -51,7 +52,8 @@
 	const navItems: { id: PageId; href: string; labelKey: () => string }[] = [
 		{ id: 'game', href: '/game', labelKey: () => m.common_newGame() },
 		{ id: 'tournaments', href: '/tournaments', labelKey: () => m.common_tournaments() },
-		{ id: 'rankings', href: '/rankings', labelKey: () => m.common_rankings() }
+		{ id: 'rankings', href: '/rankings', labelKey: () => m.common_rankings() },
+		{ id: 'my-stats', href: '/my-stats', labelKey: () => m.stats_myStatistics() }
 	];
 
 	let visibleNavItems = $derived(navItems.filter((item) => item.id !== currentPage));
@@ -64,7 +66,8 @@
 	const navShortcuts: Record<string, PageId> = {
 		u: 'tournaments',
 		r: 'rankings',
-		g: 'game'
+		g: 'game',
+		s: 'my-stats'
 	};
 
 	// Keyboard shortcuts
@@ -102,14 +105,15 @@
 	});
 
 	function getNavIcon(id: PageId) {
-		return { game: CirclePlus, tournaments: Trophy, rankings: BarChart3 }[id];
+		return { game: CirclePlus, tournaments: Trophy, rankings: BarChart3, 'my-stats': User }[id];
 	}
 
 	function getNavShortcut(id: PageId): string | null {
 		const shortcuts: Record<PageId, string> = {
 			game: 'G',
 			tournaments: 'U',
-			rankings: 'R'
+			rankings: 'R',
+			'my-stats': 'S'
 		};
 		return shortcuts[id] ? `Ctrl+${shortcuts[id]}` : null;
 	}

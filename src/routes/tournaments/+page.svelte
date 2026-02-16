@@ -103,7 +103,7 @@
 	let unsubscribe: (() => void) | null = $state(null);
 
 	onMount(async () => {
-		await loadFilters();
+		// Start subscription immediately - no separate filter loading needed
 		setupSubscription();
 
 		return () => {
@@ -114,25 +114,29 @@
 		};
 	});
 
-	async function loadFilters() {
-		try {
-			const [years, countries] = await Promise.all([
-				getAvailableTournamentYears(),
-				getAvailableTournamentCountries()
-			]);
-
-			availableYears = years;
-			availableCountries = countries;
-
-			// Set default year if available
-			if (availableYears.length > 0) {
-				const currentYear = new Date().getFullYear();
-				if (availableYears.includes(currentYear)) {
-					selectedYear = currentYear;
-				}
+	// Derive filters from actually loaded tournaments to avoid 2 extra full-collection fetches
+	function updateFiltersFromData(tournaments: TournamentListItem[]) {
+		const years = new Set<number>();
+		const countries = new Set<string>();
+		
+		tournaments.forEach(t => {
+			if (t.tournamentDate) {
+				years.add(new Date(t.tournamentDate).getFullYear());
 			}
-		} catch (error) {
-			console.error('Error loading filters:', error);
+			if (t.country) {
+				countries.add(t.country);
+			}
+		});
+
+		availableYears = Array.from(years).sort((a, b) => b - a);
+		availableCountries = Array.from(countries).sort();
+
+		// Set default year if available and not yet set
+		if (availableYears.length > 0 && selectedYear === undefined) {
+			const currentYear = new Date().getFullYear();
+			if (availableYears.includes(currentYear)) {
+				selectedYear = currentYear;
+			}
 		}
 	}
 
@@ -142,6 +146,8 @@
 		unsubscribe = subscribeToPublicTournaments(
 			(tournaments) => {
 				allTournaments = tournaments;
+				// Update filter options based on the data we just got
+				updateFiltersFromData(tournaments);
 				isLoading = false;
 			},
 			(error) => {
@@ -164,8 +170,7 @@
 	}
 
 	async function handleRefresh() {
-		// Reload filters and reset subscription
-		await loadFilters();
+		// Reset subscription to force refresh
 		if (unsubscribe) {
 			unsubscribe();
 		}

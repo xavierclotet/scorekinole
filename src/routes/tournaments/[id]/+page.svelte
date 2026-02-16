@@ -1407,7 +1407,7 @@
 									<div class="consolation-unified">
 										<!-- R16 consolation rounds -->
 										{#if r16Bracket}
-											{#each r16Bracket.rounds as round, roundIndex}
+											{#each r16Bracket.rounds as round}
 												<div class="consolation-round" data-source="R16">
 													<div class="round-header">{round.name}</div>
 													<div class="matches-container">
@@ -1631,7 +1631,7 @@
 									<div class="consolation-unified">
 										<!-- R16 consolation rounds -->
 										{#if r16Bracket}
-											{#each r16Bracket.rounds as round, roundIndex}
+											{#each r16Bracket.rounds as round}
 												<div class="consolation-round" data-source="R16">
 													<div class="round-header">{round.name}</div>
 													<div class="matches-container">
@@ -1985,7 +1985,7 @@
 								<div class="consolation-unified">
 									<!-- R16 consolation rounds -->
 									{#if r16Bracket}
-										{#each r16Bracket.rounds as round, roundIndex}
+										{#each r16Bracket.rounds as round}
 											<div class="consolation-round" data-source="R16">
 												<div class="round-header">{round.name}</div>
 												<div class="matches-container">
@@ -2088,10 +2088,11 @@
 		onkeydown={(e) => e.key === 'Escape' && (showVideoModal = false)}
 		role="dialog"
 		aria-modal="true"
+		tabindex="-1"
 	>
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="video-modal" onclick={(e) => e.stopPropagation()}>
-			<button class="video-modal-close" onclick={() => showVideoModal = false}>
+		<div class="video-modal" onclick={(e) => e.stopPropagation()} role="document">
+			<button class="video-modal-close" onclick={() => showVideoModal = false} aria-label={m.common_close?.() ?? 'Close'}>
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M18 6L6 18M6 6l12 12"/>
 				</svg>
@@ -2542,9 +2543,7 @@
 		transition: opacity 0.15s;
 	}
 
-	.link-card:hover .external-icon {
-		opacity: 1;
-	}
+
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .link-card {
 		border-color: rgba(102, 126, 234, 0.25);
@@ -3314,8 +3313,7 @@
 		height: var(--avatar-size);
 	}
 
-	.single-avatar .avatar-img,
-	.single-avatar .avatar-placeholder {
+	.single-avatar .avatar-img {
 		width: 100%;
 		height: 100%;
 		border-radius: 50%;
@@ -3341,8 +3339,7 @@
 		position: relative;
 	}
 
-	.pair-avatars .avatar-img,
-	.pair-avatars .avatar-placeholder {
+	.pair-avatars .avatar-img {
 		width: var(--avatar-size);
 		height: var(--avatar-size);
 		border-radius: 50%;
@@ -3361,8 +3358,7 @@
 		z-index: 1;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .pair-avatars .avatar-img,
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .pair-avatars .avatar-placeholder {
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .pair-avatars .avatar-img {
 		border-color: #ffffff;
 	}
 
@@ -3844,18 +3840,10 @@
 	.tab-icon.gold { color: #f59e0b; }
 	.tab-icon.silver { color: #9ca3af; }
 
-	.division-tab.active .tab-icon.gold { color: #fbbf24; }
-	.division-tab.active .tab-icon.silver { color: #d1d5db; }
+
 
 	/* Gold tab underline */
-	.division-tab:has(.tab-icon.gold)::after {
-		background: linear-gradient(90deg, #fbbf24, #f59e0b);
-	}
 
-	/* Silver tab underline */
-	.division-tab:has(.tab-icon.silver)::after {
-		background: linear-gradient(90deg, #d1d5db, #9ca3af);
-	}
 
 	/* Parallel brackets tabs */
 	.division-tabs.parallel {
@@ -3866,15 +3854,7 @@
 		background: #667eea;
 	}
 
-	.division-tabs .tab-label {
-		font-weight: 700;
-		color: #667eea;
-		font-size: 0.8rem;
-	}
 
-	.division-tab.active .tab-label {
-		color: #818cf8;
-	}
 
 	/* Bracket Division Section (vertical layout for gold/silver) */
 	.bracket-division-section {
@@ -4080,17 +4060,9 @@
 	}
 
 	/* Legacy styles - keep for backwards compatibility */
-	.consolation-inline .consolation-bracket-card {
-		margin-top: 1rem;
-	}
 
-	.consolation-inline .consolation-bracket-title {
-		font-size: 0.8rem;
-		font-weight: 600;
-		color: #8b9bb3;
-		margin-bottom: 0.75rem;
-		padding-left: 0.25rem;
-	}
+
+
 
 	/* Bracket Panel */
 	.bracket-panel {
@@ -4116,17 +4088,13 @@
 		border-color: rgba(245, 158, 11, 0.25);
 	}
 
-	.bracket-panel.gold-active .panel-header {
-		border-bottom-color: rgba(245, 158, 11, 0.2);
-	}
+
 
 	.bracket-panel.silver-active {
 		border-color: rgba(156, 163, 175, 0.25);
 	}
 
-	.bracket-panel.silver-active .panel-header {
-		border-bottom-color: rgba(156, 163, 175, 0.2);
-	}
+
 
 	/* When there's no panel header (single bracket) */
 	.bracket-panel:not(:has(.panel-header)) {
@@ -4200,23 +4168,7 @@
 		overflow-y: hidden;
 	}
 
-	.bracket-wrapper.consolation .bracket-container {
-		gap: 5rem;
-		min-height: auto;
-		align-items: flex-start;
-	}
 
-	.bracket-wrapper.consolation .matches-column {
-		min-height: auto;
-		justify-content: flex-start;
-		gap: 0.75rem;
-	}
-
-	/* No connector lines in consolation brackets - they are independent rounds */
-	.bracket-wrapper.consolation .bracket-match::before,
-	.bracket-wrapper.consolation .bracket-match::after {
-		display: none;
-	}
 
 	/* Bracket - horizontal scroll only, no vertical */
 	.bracket-wrapper {
@@ -4802,13 +4754,7 @@
 		color: #1a202c;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .division-tab .tab-icon.gold {
-		color: #d97706;
-	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .division-tab .tab-icon.silver {
-		color: #6b7280;
-	}
 
 	/* Bracket division section light theme */
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-division-section {
@@ -4901,9 +4847,7 @@
 		background: rgba(0, 0, 0, 0.08);
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-inline .consolation-bracket-title {
-		color: #4a5568;
-	}
+
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-panel {
 		background: #ffffff;
@@ -4918,17 +4862,13 @@
 		border-color: rgba(217, 119, 6, 0.3);
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-panel.gold-active .panel-header {
-		border-bottom-color: rgba(217, 119, 6, 0.15);
-	}
+
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-panel.silver-active {
 		border-color: rgba(107, 114, 128, 0.25);
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-panel.silver-active .panel-header {
-		border-bottom-color: rgba(107, 114, 128, 0.15);
-	}
+
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-round.third-place {
 		border-left-color: #e2e8f0;
@@ -5668,5 +5608,84 @@
 		.rounds-table th {
 			font-size: 0.65rem;
 		}
+	}
+	/* Final Standings Zebra Striping */
+	.standings-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		gap: 1.5rem;
+		margin-top: 1rem;
+	}
+
+	.standings-column {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.standing-row {
+		display: flex;
+		align-items: center;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		transition: background-color 0.2s;
+	}
+
+	/* Zebra striping - exclude top 4 (which have special styling) */
+	.standing-row:not(.top-4):nth-child(odd) {
+		background-color: rgba(255, 255, 255, 0.03);
+	}
+
+	.standing-row:not(.top-4):hover {
+		background-color: rgba(255, 255, 255, 0.08);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standing-row:not(.top-4):nth-child(odd) {
+		background-color: rgba(0, 0, 0, 0.03);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standing-row:not(.top-4):hover {
+		background-color: rgba(0, 0, 0, 0.06);
+	}
+
+	.standing-row.top-4 {
+		font-weight: 600;
+	}
+
+	.standing-row .pos {
+		width: 2.5rem;
+		font-weight: 600;
+		color: #8b9bb3;
+	}
+
+	.standing-row .pos.medal {
+		font-size: 1.1rem;
+	}
+
+	.standing-row .participant-cell {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.standing-row .name {
+		color: #e1e8ed;
+		font-size: 0.95rem;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standing-row .name {
+		color: #1a202c;
+	}
+
+	.standing-row .pts {
+		font-weight: 700;
+		color: #10b981;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.standing-row .pts.zero {
+		color: #64748b;
+		opacity: 0.6;
 	}
 </style>

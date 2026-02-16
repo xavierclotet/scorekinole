@@ -25,7 +25,6 @@
 	let initialized = $state(false);
 
 	// Bracket state
-	let activeBracketTab = $state<'gold' | 'silver'>('gold');
 	let activeParallelBracket = $state(0);
 
 	// Score change tracking for bracket matches (use plain JS objects to avoid reactivity loops)
@@ -45,13 +44,6 @@
 	let silverBracket = $derived(tournament.finalStage?.silverBracket);
 	let parallelBrackets = $derived(tournament.finalStage?.parallelBrackets || []);
 
-	let currentBracket = $derived(
-		isParallelBrackets
-			? parallelBrackets[activeParallelBracket]?.bracket
-			: (activeBracketTab === 'gold' ? goldBracket : silverBracket)
-	);
-	let bracketRounds = $derived(currentBracket?.rounds || []);
-	let thirdPlaceMatch = $derived(currentBracket?.thirdPlaceMatch);
 
 	let groups = $derived((() => {
 		const groupsData = tournament.groupStage?.groups;
@@ -67,8 +59,8 @@
 		'WINS'
 	);
 	let isDoubles = $derived(tournament.gameType === 'doubles');
-	let gameMode = $derived(tournament.scoringMode || 'points');
-	let matchesToWin = $derived(tournament.groupStage?.matchesToWin || tournament.finalStage?.matchesToWin || 1);
+	let gameMode = $derived(tournament.groupStage?.gameMode || 'points');
+	let matchesToWin = $derived(tournament.groupStage?.matchesToWin || 1);
 
 	let totalRounds = $derived(
 		isSwiss
@@ -96,7 +88,7 @@
 				}
 
 				// Check if this round is complete
-				const matches = Array.isArray(round.matches) ? round.matches : Object.values(round.matches || {});
+				const matches = Array.isArray(round.matches) ? round.matches : Object.values(round.matches || {}) as GroupMatch[];
 				const allComplete = matches.length > 0 && matches.every((m: GroupMatch) => m.status === 'COMPLETED' || m.status === 'WALKOVER');
 				if (allComplete && round.roundNumber > highestCompleteRound) {
 					highestCompleteRound = round.roundNumber;
@@ -117,7 +109,7 @@
 
 	// Check if a round is fully completed
 	function isRoundComplete(matches: GroupMatch[]): boolean {
-		const safeMatches = Array.isArray(matches) ? matches : Object.values(matches || {});
+		const safeMatches = Array.isArray(matches) ? matches : Object.values(matches || {}) as GroupMatch[];
 		return safeMatches.length > 0 && safeMatches.every((m: GroupMatch) => m.status === 'COMPLETED' || m.status === 'WALKOVER');
 	}
 
@@ -347,12 +339,12 @@
 		const rounds = getGroupRounds(group);
 		return rounds.flatMap(r => {
 			const matches = r.matches;
-			return Array.isArray(matches) ? matches : Object.values(matches || {});
+			return Array.isArray(matches) ? matches : Object.values(matches || {}) as GroupMatch[];
 		});
 	}
 
 	function getRoundProgress(matches: GroupMatch[]): { completed: number; total: number; percentage: number } {
-		const safeMatches = Array.isArray(matches) ? matches : Object.values(matches || {});
+		const safeMatches = Array.isArray(matches) ? matches : Object.values(matches || {}) as GroupMatch[];
 		const total = safeMatches.length;
 		const completed = safeMatches.filter(
 			(m: GroupMatch) => m.status === 'COMPLETED' || m.status === 'WALKOVER'
@@ -480,7 +472,7 @@
 		let totalMatches = 0;
 		let completedMatches = 0;
 
-		function countBracketMatches(bracket: typeof goldBracket) {
+		function countBracketMatches(bracket: typeof goldBracket | undefined) {
 			if (!bracket?.rounds) return;
 			for (const round of bracket.rounds) {
 				for (const match of round.matches) {
@@ -536,16 +528,12 @@
 	})());
 
 	// Consolation brackets
-	let bracketView = $state<'main' | 'consolation'>('main');
 	let goldConsolationBrackets = $derived(goldBracket?.consolationBrackets || []);
 	let silverConsolationBrackets = $derived(silverBracket?.consolationBrackets || []);
-	let consolationBrackets = $derived(activeBracketTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets);
 	let consolationEnabled = $derived(
 		tournament.finalStage?.consolationEnabled ??
-		tournament.finalStage?.goldBracket?.config?.consolationEnabled ??
 		false
 	);
-	let hasConsolation = $derived(consolationEnabled && consolationBrackets.length > 0);
 
 	// Match details dialog state (for viewing completed matches)
 	let showMatchDialog = $state(false);
@@ -853,7 +841,7 @@
 											{/if}
 									</div>
 									<div class="round-matches">
-										{#each round.matches as match, matchIndex (match.id)}
+										{#each round.matches as match (match.id)}
 											{@const isByeA = isBye(match.participantA)}
 											{@const isByeB = isBye(match.participantB)}
 											{@const isByeMatchFlag = isByeA || isByeB}
@@ -1056,7 +1044,7 @@
 							</h3>
 						</div>
 						<div class="consolation-unified">
-							{#each goldConsolationBrackets as cb, cbIndex (cb.positionLabel || cbIndex)}
+							{#each goldConsolationBrackets as cb, cbIndex (cb.source || cbIndex)}
 								{#if cb.rounds}
 									{#each cb.rounds as round, roundIndex (round.name)}
 										{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
@@ -1337,7 +1325,7 @@
 								</h3>
 							</div>
 							<div class="consolation-unified">
-								{#each silverConsolationBrackets as cb, cbIndex (cb.positionLabel || cbIndex)}
+								{#each silverConsolationBrackets as cb, cbIndex (cb.source || cbIndex)}
 									{#if cb.rounds}
 										{#each cb.rounds as round, roundIndex (round.name)}
 											{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
@@ -1751,7 +1739,7 @@
 							</h3>
 						</div>
 						<div class="consolation-unified">
-							{#each goldConsolationBrackets as cb, cbIndex (cb.positionLabel || cbIndex)}
+							{#each goldConsolationBrackets as cb, cbIndex (cb.source || cbIndex)}
 								{#if cb.rounds}
 									{#each cb.rounds as round, roundIndex (round.name)}
 										{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
@@ -2660,10 +2648,7 @@
 	}
 
 	/* No connectors in consolation section */
-	.consolation-section .match-card::after,
-	.consolation-section .match-card::before {
-		display: none;
-	}
+
 
 	/* Live Badge */
 	.live-badge {
@@ -2706,9 +2691,7 @@
 		transition: background 0.15s ease;
 	}
 
-	.match-card.compact .match-player {
-		padding: 0.4rem 0.6rem;
-	}
+
 
 	.match-player:first-child {
 		border-bottom: 1px solid #2d3748;
@@ -2741,9 +2724,7 @@
 		text-overflow: ellipsis;
 	}
 
-	.match-card.compact .player-name {
-		font-size: 0.75rem;
-	}
+
 
 	.verified {
 		font-size: 0.65rem;
@@ -2776,10 +2757,7 @@
 		border: 1.5px solid #2d3748;
 	}
 
-	.match-card.compact .player-avatar {
-		width: 18px;
-		height: 18px;
-	}
+
 
 	.match-player.winner .player-avatar {
 		border-color: #10b981;
