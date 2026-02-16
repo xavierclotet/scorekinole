@@ -662,156 +662,179 @@
 					{@const isExpanded = expandedMatches.has(match.id)}
 					{@const twenties = getMatchTwenties(match)}
 					{@const hasRoundDetail = (match.games ?? []).some(g => (g.rounds ?? []).length > 0)}
-					<div class="match-item" class:expanded={isExpanded} class:won={result.won} class:lost={!result.won && !result.tied} class:tied={result.tied}>
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div
-							class="match-header"
-							class:non-expandable={!hasRoundDetail}
-							onclick={() => hasRoundDetail && toggleExpand(match.id)}
-							onkeydown={(e) => e.key === 'Enter' && hasRoundDetail && toggleExpand(match.id)}
-							role="button"
-							tabindex="0"
-						>
-							{#if hasRoundDetail}
-								<div class="expand-icon" class:rotated={isExpanded}>
-									<ChevronRight class="size-4" />
-								</div>
-							{/if}
-							<div class="match-info">
-								<div class="match-date">
-									{#if isTournamentMatch(match) && match.eventTitle}
-										<span class="tournament-name">{match.eventTitle}</span>
-									{/if}
-									<span class="date-time">
-										<Clock class="size-3" />
-										{formatDate(match.startTime)}
-										{#if match.duration > 0}
-											<span class="match-duration">({formatDuration(match.duration)})</span>
+						<div class="match-item" class:expanded={isExpanded} class:won={result.won} class:lost={!result.won && !result.tied} class:tied={result.tied}>
+							<!-- Status Strip -->
+							<div class="status-strip" class:won={result.won} class:lost={!result.won && !result.tied} class:tied={result.tied}></div>
+							
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="match-header"
+								class:non-expandable={!hasRoundDetail}
+								onclick={() => hasRoundDetail && toggleExpand(match.id)}
+								onkeydown={(e) => e.key === 'Enter' && hasRoundDetail && toggleExpand(match.id)}
+								role="button"
+								tabindex="0"
+							>
+								<div class="match-main-content">
+									<!-- Top Row: Meta Info -->
+									<div class="match-meta">
+										<span class="date">
+											{formatDate(match.startTime)}
+										</span>
+										{#if isTournamentMatch(match) && match.eventTitle}
+											<span class="separator">•</span>
+											<span class="tournament-name">{match.eventTitle}</span>
 										{/if}
-									</span>
-								</div>
-								<div class="match-chips">
-									{#if !isTournamentMatch(match)}
-										<span class="chip friendly">{m.stats_friendly()}</span>
-									{/if}
-									{#if match.matchPhase}
-										<span class="chip phase">{match.matchPhase}</span>
-									{/if}
-									<span class="chip mode">
-										{#if match.gameType === 'doubles'}
-											<Users class="size-3" />
-										{:else}
-											<User class="size-3" />
+										{#if match.matchPhase}
+											<span class="separator">•</span>
+											<span class="phase-text">{match.matchPhase}</span>
 										{/if}
-										{match.gameType === 'doubles' ? m.scoring_doubles() : m.scoring_singles()}
-									</span>
-								</div>
-								<div class="match-opponent">
-									{#if match.gameType === 'doubles' && !isTournamentMatch(match)}
-										{@const myPartner = getMyPartnerName(match)}
-										{#if myPartner}
-											<span class="with-partner">{m.stats_withPartner({ partner: myPartner })}</span>
-											<span class="vs-separator">vs</span>
-											{getOpponentName(match)}
-										{:else}
-											vs {getOpponentName(match)}
-										{/if}
-									{:else}
-										vs {getOpponentName(match)}
-									{/if}
-								</div>
-							</div>
-							<div class="match-result" class:won={result.won} class:lost={!result.won && !result.tied}>
-								<span class="result-score">{result.score}</span>
-								{#if twenties.count > 0}
-									<span class="result-twenties">{twenties.count}{#if twenties.percentage}&nbsp;· {twenties.percentage}%{/if}</span>
-								{/if}
-							</div>
-						</div>
+									</div>
 
-						{#if isExpanded && hasRoundDetail}
-							<div class="match-detail">
-								<!-- Games Table -->
-								{#if match.games && match.games.length > 0}
-									<div class="games-section">
-										{#each match.games as game, gameIndex (gameIndex)}
-											<div class="game-table">
-												<div class="game-row header">
-													<span class="team-name">{m.history_game()} {gameIndex + 1}</span>
-													{#each game.rounds || [] as _, idx (idx)}
-														<span class="round-col">R{idx + 1}</span>
-													{/each}
-													<span class="total-col">{m.history_total()}</span>
+									<!-- Middle Row: Opponent & Mode -->
+									<div class="match-players">
+										<div class="opponent-info">
+											{#if match.gameType === 'doubles'}
+												<div class="mode-badge" title={m.scoring_doubles()}>
+													<Users class="size-3.5" />
 												</div>
-
-												<!-- Team 1 Row -->
-												<div class="game-row" class:winner-row={game.winner === 1}>
-													<span class="team-name">{getTeamDisplayName(match, 1)}</span>
-													{#each game.rounds || [] as round, rIdx (rIdx)}
-														<span class="round-col">
-															<span class="points-with-hammer">
-																{#if match.showHammer && round.hammerTeam === 1}
-																	<span class="hammer">🔨</span>
-																{/if}
-																{round.team1Points}
-															</span>
-															{#if match.show20s ?? $gameSettings.show20s}
-																<span class="twenty">◎{round.team1Twenty}</span>
-															{/if}
-														</span>
-													{/each}
-													<span class="total-col total-score" class:winner={game.winner === 1}>
-														{game.team1Points}
-														{#if match.show20s ?? $gameSettings.show20s}
-															{@const total20s = (game.rounds || []).reduce((sum, r) => sum + r.team1Twenty, 0)}
-															{#if total20s > 0}
-																<span class="twenty">◎{total20s}</span>
-															{/if}
-														{/if}
-													</span>
+											{:else}
+												<div class="mode-badge" title={m.scoring_singles()}>
+													<User class="size-3.5" />
 												</div>
-
-												<!-- Team 2 Row -->
-												<div class="game-row" class:winner-row={game.winner === 2}>
-													<span class="team-name">{getTeamDisplayName(match, 2)}</span>
-													{#each game.rounds || [] as round, rIdx2 (rIdx2)}
-														<span class="round-col">
-															<span class="points-with-hammer">
-																{#if match.showHammer && round.hammerTeam === 2}
-																	<span class="hammer">🔨</span>
-																{/if}
-																{round.team2Points}
-															</span>
-															{#if match.show20s ?? $gameSettings.show20s}
-																<span class="twenty">◎{round.team2Twenty}</span>
-															{/if}
-														</span>
-													{/each}
-													<span class="total-col total-score" class:winner={game.winner === 2}>
-														{game.team2Points}
-														{#if match.show20s ?? $gameSettings.show20s}
-															{@const total20s = (game.rounds || []).reduce((sum, r) => sum + r.team2Twenty, 0)}
-															{#if total20s > 0}
-																<span class="twenty">◎{total20s}</span>
-															{/if}
-														{/if}
-													</span>
-												</div>
+											{/if}
+											
+											<div class="names">
+												{#if match.gameType === 'doubles' && !isTournamentMatch(match) && getMyPartnerName(match)}
+													<span class="partner-name">{m.stats_withPartner({ partner: getMyPartnerName(match) ?? '' })}</span>
+													<span class="vs-text">vs</span>
+												{:else}
+													<span class="vs-text">vs</span>
+												{/if}
+												<span class="opponent-name">{getOpponentName(match)}</span>
 											</div>
-										{/each}
+										</div>
+									</div>
+								</div>
+
+								<!-- Right Side: Result & Score -->
+								<div class="match-result-box">
+									<div class="score-container" class:won={result.won} class:lost={!result.won && !result.tied} class:tied={result.tied}>
+										<span class="score">{result.score}</span>
+										<span class="result-label">
+											{#if result.won}{m.common_wonShort()}{:else if result.tied}{m.common_tiedShort()}{:else}{m.common_lostShort()}{/if}
+										</span>
+									</div>
+									
+									{#if twenties.count > 0}
+										<div class="twenties-badge" title={m.stats_twentiesAccuracy()}>
+
+											<span>{twenties.count}</span>
+											{#if twenties.percentage}
+												<span class="twenties-pct">{twenties.percentage}%</span>
+											{/if}
+										</div>
+									{/if}
+								</div>
+
+								{#if hasRoundDetail}
+									<div class="expand-arrow" class:rotated={isExpanded}>
+										<ChevronRight class="size-5" />
 									</div>
 								{/if}
 							</div>
-						{/if}
-					</div>
-				{/each}
+
+							{#if isExpanded && hasRoundDetail}
+								<div class="match-detail">
+									<!-- Games Table -->
+									{#if match.games && match.games.length > 0}
+										<div class="games-section">
+											{#each match.games as game, gameIndex (gameIndex)}
+												<div class="game-table">
+													<div class="game-row header">
+														<span class="team-name">{m.history_game()} {gameIndex + 1}</span>
+														{#each game.rounds || [] as _, idx (idx)}
+															<span class="round-col">R{idx + 1}</span>
+														{/each}
+														<span class="total-col">{m.history_total()}</span>
+													</div>
+
+													<!-- Team 1 Row -->
+													<div class="game-row" class:winner-row={game.winner === 1}>
+														<span class="team-name">{getTeamDisplayName(match, 1)}</span>
+														{#each game.rounds || [] as round, rIdx (rIdx)}
+															<span class="round-col">
+																<span class="round-score">
+																	{round.team1Points}
+																</span>
+																<div class="round-meta">
+																	{#if match.showHammer && round.hammerTeam === 1}
+																		<span class="hammer" title="Hammer">🔨</span>
+																	{/if}
+																	{#if match.show20s ?? $gameSettings.show20s}
+																		{#if round.team1Twenty > 0}
+																			<span class="twenty">{round.team1Twenty}</span>
+																		{/if}
+																	{/if}
+																</div>
+															</span>
+														{/each}
+														<span class="total-col total-score" class:winner={game.winner === 1}>
+															{game.team1Points}
+															{#if match.show20s ?? $gameSettings.show20s}
+																{@const total20s = (game.rounds || []).reduce((sum, r) => sum + r.team1Twenty, 0)}
+																{#if total20s > 0}
+																	<span class="twenty-total">{total20s}</span>
+																{/if}
+															{/if}
+														</span>
+													</div>
+
+													<!-- Team 2 Row -->
+													<div class="game-row" class:winner-row={game.winner === 2}>
+														<span class="team-name">{getTeamDisplayName(match, 2)}</span>
+														{#each game.rounds || [] as round, rIdx2 (rIdx2)}
+															<span class="round-col">
+																<span class="round-score">
+																	{round.team2Points}
+																</span>
+																<div class="round-meta">
+																	{#if match.showHammer && round.hammerTeam === 2}
+																		<span class="hammer" title="Hammer">🔨</span>
+																	{/if}
+																	{#if match.show20s ?? $gameSettings.show20s}
+																		{#if round.team2Twenty > 0}
+																			<span class="twenty">{round.team2Twenty}</span>
+																		{/if}
+																	{/if}
+																</div>
+															</span>
+														{/each}
+														<span class="total-col total-score" class:winner={game.winner === 2}>
+															{game.team2Points}
+															{#if match.show20s ?? $gameSettings.show20s}
+																{@const total20s = (game.rounds || []).reduce((sum, r) => sum + r.team2Twenty, 0)}
+																{#if total20s > 0}
+																	<span class="twenty-total">{total20s}</span>
+																{/if}
+															{/if}
+														</span>
+													</div>
+												</div>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							{/if}
+						</div>
+					{/each}
+				<div class="match-count">{visibleMatches.length} / {filteredMatches.length}</div>
 				{#if visibleCount < filteredMatches.length}
 					<div bind:this={sentinelEl} class="scroll-sentinel">
 						<div class="spinner small"></div>
 					</div>
 				{/if}
 			</div>
-			<div class="match-count">{visibleMatches.length} / {filteredMatches.length}</div>
 		{/if}
 	{/if}
 	</PullToRefresh>
@@ -824,9 +847,8 @@
 		overflow-y: auto;
 		background: var(--background);
 		color: var(--foreground);
-		padding: 1.5rem 2rem;
-		padding-top: max(1.5rem, env(safe-area-inset-top, 1.5rem));
-		padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem));
+		padding: 0 1rem;
+		padding-bottom: max(5rem, env(safe-area-inset-bottom, 5rem));
 	}
 
 	/* Header */
@@ -834,7 +856,13 @@
 		background: var(--card);
 		border-bottom: 1px solid var(--border);
 		padding: 0.75rem 1.5rem;
-		margin: -1.5rem -2rem 1.5rem -2rem;
+		padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+		margin: 0 -1rem 1.5rem -1rem;
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		backdrop-filter: blur(8px);
+		background: color-mix(in srgb, var(--card) 95%, transparent);
 	}
 
 	.header-row {
@@ -920,26 +948,28 @@
 		display: grid;
 		grid-template-columns: repeat(5, 1fr);
 		gap: 1rem;
-		margin-bottom: 1rem;
+		margin-bottom: 1.5rem;
 	}
 
 	.stat-card {
 		background: var(--card);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: 12px;
 		padding: 0.75rem 0.5rem;
 		text-align: center;
-		transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+		box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 	}
 
 	.stat-card:hover {
-		background: color-mix(in srgb, var(--card) 95%, var(--foreground));
+		transform: translateY(-2px);
+		box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
 	}
 
 	.stat-value {
 		display: block;
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: 800;
 		color: var(--primary);
 		line-height: 1.1;
 	}
@@ -957,67 +987,28 @@
 		font-size: 0.65rem;
 		color: var(--muted-foreground);
 		margin-top: 0.2rem;
-		text-transform: capitalize;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		font-weight: 500;
 	}
 
 	/* Stat card variants */
-	.stat-card.won .stat-value {
-		color: #3b9768;
-	}
+	.stat-card.won .stat-value, .stat-card.won .stat-percent { color: #10b981; }
+	.stat-card.tied .stat-value { color: var(--muted-foreground); }
+	.stat-card.lost .stat-value, .stat-card.lost .stat-percent { color: #ef4444; }
+	.stat-card.twenties .stat-value, .stat-card.twenties .stat-percent { color: #f59e0b; }
 
-	.stat-card.won .stat-percent {
-		color: #3b9768;
-	}
-
-	.stat-card.tied .stat-value {
-		color: var(--muted-foreground);
-	}
-
-	.stat-card.lost .stat-value {
-		color: #c04848;
-	}
-
-	.stat-card.lost .stat-percent {
-		color: #c04848;
-	}
-
-	.stat-card.twenties .stat-value {
-		color: #b8862e;
-	}
-
-	.stat-card.twenties .stat-percent {
-		color: #b8862e;
-	}
-
-	/* Split stats for showing both singles and doubles */
-	.stat-card.split {
-		padding: 0.5rem 0.25rem;
-	}
-
-	.split-stats {
-		display: flex;
-		justify-content: center;
-		gap: 0.5rem;
-		margin-bottom: 0.1rem;
-	}
-
-	.split-stat {
-		display: flex;
-		align-items: center;
-		gap: 0.15rem;
-		color: #b8862e;
-	}
-
-	.split-value {
-		font-size: 1rem;
-		font-weight: 700;
-	}
+	/* Split stats */
+	.stat-card.split { padding: 0.5rem 0.25rem; }
+	.split-stats { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 0.1rem; }
+	.split-stat { display: flex; align-items: center; gap: 0.15rem; color: #f59e0b; }
+	.split-value { font-size: 1rem; font-weight: 700; }
 
 	/* Filters */
 	.filters-section {
 		display: flex;
 		gap: 0.5rem;
-		margin-bottom: 1rem;
+		margin-bottom: 1.5rem;
 		flex-wrap: wrap;
 	}
 
@@ -1029,429 +1020,327 @@
 		background-repeat: no-repeat;
 		background-position: right 0.5rem center;
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: 8px;
 		color: var(--foreground);
 		font-size: 0.85rem;
 		cursor: pointer;
 		appearance: none;
 		-webkit-appearance: none;
+		transition: all 0.2s;
 	}
 
-	.filter-select:focus {
-		outline: none;
+	.filter-select:focus, .filter-select:hover {
 		border-color: var(--primary);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
+		outline: none;
 	}
 
-	.opponent-filter, .tournament-filter {
-		width: auto;
-	}
-
-	.scroll-sentinel {
-		display: flex;
-		justify-content: center;
-		padding: 1rem;
-	}
-
-	.spinner.small {
-		width: 24px;
-		height: 24px;
-	}
-
-	.match-count {
-		text-align: center;
-		font-size: 0.7rem;
-		color: var(--muted-foreground);
-		padding: 0.5rem 0 1rem;
-	}
+	.scroll-sentinel { display: flex; justify-content: center; padding: 1rem; }
+	.spinner.small { width: 24px; height: 24px; }
+	.match-count { text-align: center; font-size: 0.75rem; color: var(--muted-foreground); padding: 0.5rem 0 1.5rem; }
 
 	/* Match List */
 	.match-list {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(355px, 1fr));
-		gap: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		max-width: 800px;
+		margin: 0 auto;
 	}
 
 	.match-item {
 		background: var(--card);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: 12px;
 		overflow: hidden;
-		transition: all 0.2s;
+		transition: all 0.2s ease;
+		display: flex;
+		flex-direction: column; /* Changed to column for better expansion handling */
+		position: relative;
+		box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+	}
+	
+	.match-item:hover {
+		box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+		border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
 	}
 
-	.match-item.won {
-		background: color-mix(in srgb, #3b9768 20%, transparent);
+	/* Status Strip - now absolute positioned */
+	.status-strip {
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 5px;
+		background: var(--muted);
+		z-index: 1;
 	}
-
-	.match-item.lost {
-		background: color-mix(in srgb, #c04848 20%, transparent);
-	}
-
-	.match-item.tied {
-		background: color-mix(in srgb, var(--muted-foreground) 15%, transparent);
-	}
-
-	.match-item.won:hover, .match-item.won.expanded {
-		border-color: #3b9768;
-	}
-
-	.match-item.lost:hover, .match-item.lost.expanded {
-		border-color: #c04848;
-	}
-
-	.match-item.tied:hover, .match-item.tied.expanded {
-		border-color: var(--muted-foreground);
-	}
+	.status-strip.won { background: #10b981; }
+	.status-strip.lost { background: #ef4444; }
+	.status-strip.tied { background: var(--muted-foreground); }
 
 	.match-header {
 		display: flex;
-		align-items: flex-start;
-		gap: 0.75rem;
-		padding: 0.75rem 1rem;
+		align-items: center;
+		gap: 1rem;
+		padding: 0.85rem 1rem 0.85rem 1.25rem; /* Added left padding for strip */
+		width: 100%;
 		cursor: pointer;
+		min-width: 0;
+		position: relative;
 	}
 
-	.match-header.non-expandable {
-		cursor: default;
-	}
+	.match-header.non-expandable { cursor: default; }
 
-	.expand-icon {
-		flex-shrink: 0;
-		color: var(--muted-foreground);
-		transition: transform 0.2s;
-	}
-
-	.expand-icon.rotated {
-		transform: rotate(90deg);
-	}
-
-	.match-info {
+	.match-main-content {
 		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
 		min-width: 0;
 	}
 
-	.match-date {
+	/* Meta Row */
+	.match-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
-		font-size: 0.7rem;
-		color: var(--muted-foreground);
-		margin-bottom: 0.25rem;
 		flex-wrap: wrap;
-		overflow: hidden;
+		gap: 0.35rem;
+		font-size: 0.75rem;
+		color: var(--muted-foreground);
+		line-height: 1.2;
+	}
+	
+	.separator { opacity: 0.4; }
+	.tournament-name { font-weight: 500; color: var(--foreground); }
+	.phase-text { font-variant: small-caps; letter-spacing: 0.03em; }
+
+	/* Players Row */
+	.match-players {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
-	.tournament-name {
+	.opponent-info {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		min-width: 0;
+	}
+	
+	.mode-badge {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--muted-foreground);
+		background: var(--secondary);
+		width: 26px;
+		height: 26px;
+		border-radius: 6px;
+		flex-shrink: 0;
+	}
+
+	.names {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		font-size: 0.95rem;
+	}
+	
+	.vs-text {
+		color: var(--muted-foreground);
+		font-size: 0.8rem;
+		font-style: italic;
+		opacity: 0.7;
+	}
+	
+	.opponent-name {
+		font-weight: 700;
+		color: var(--foreground);
+	}
+	
+	.partner-name {
 		color: var(--foreground);
 		font-weight: 500;
 	}
 
-	.date-time {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		white-space: nowrap;
-	}
-
-	.match-chips {
-		display: flex;
-		gap: 0.35rem;
-		flex-wrap: wrap;
-		margin-bottom: 0.25rem;
-	}
-
-	.chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.25rem;
-		padding: 0.15rem 0.5rem;
-		font-size: 0.65rem;
-		font-weight: 500;
-		border-radius: 4px;
-		white-space: nowrap;
-	}
-
-	.chip.tournament {
-		background: color-mix(in srgb, #3b9768 15%, transparent);
-		color: #3b9768;
-	}
-
-	.chip.friendly {
-		background: color-mix(in srgb, var(--primary) 15%, transparent);
-		color: var(--primary);
-	}
-
-	.chip.mode {
-		background: var(--muted);
-		color: var(--muted-foreground);
-	}
-
-	.chip.phase {
-		background: color-mix(in srgb, #b8862e 15%, transparent);
-		color: #b8862e;
-	}
-
-	.match-opponent {
-		font-size: 0.85rem;
-		font-weight: 500;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.with-partner {
-		color: var(--muted-foreground);
-		font-weight: 400;
-	}
-
-	.vs-separator {
-		color: var(--muted-foreground);
-		font-weight: 400;
-		margin: 0 0.35rem;
-	}
-
-	.match-result {
+	/* Result Box */
+	.match-result-box {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
-		gap: 0.15rem;
-		flex-shrink: 0;
-	}
-
-
-
-	.result-score {
-		font-size: 1.25rem;
-		font-weight: 700;
-	}
-
-	.result-twenties {
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: #b8862e;
-	}
-
-	/* Stat Info Wrapper */
-	.stat-info-wrapper {
-		display: flex;
-		align-items: center;
 		justify-content: center;
 		gap: 0.25rem;
+		padding-left: 0.75rem;
+		border-left: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+		min-width: 70px;
 	}
 
-	:global(.info-trigger) {
-		color: var(--muted-foreground);
-		opacity: 0.7;
+	.score-container {
+		display: flex;
+		align-items: baseline;
+		gap: 0.25rem;
+		line-height: 1;
+	}
+	
+	.score {
+		font-size: 1.4rem;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.02em;
+	}
+	
+	.result-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		opacity: 0.8;
+	}
+	
+	.score-container.won { color: #10b981; }
+	.score-container.lost { color: #ef4444; }
+	.score-container.tied { color: var(--muted-foreground); }
+
+	.twenties-badge {
 		display: flex;
 		align-items: center;
-		cursor: pointer;
-	}
-
-	:global(.twenties-popover) {
-		background: var(--popover);
-		border: 1px solid var(--border);
-		padding: 0.75rem;
-		border-radius: 6px;
-		box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-		z-index: 50;
-		display: flex;
-		flex-direction: column;
 		gap: 0.25rem;
-		width: fit-content;
-		min-width: 150px;
-	}
-
-	:global(.popover-text) {
+		background: color-mix(in srgb, #f59e0b 10%, transparent);
+		color: #d97706;
+		padding: 0.15rem 0.5rem;
+		border-radius: 99px;
 		font-size: 0.75rem;
-		color: var(--popover-foreground);
-		margin: 0;
-		white-space: nowrap;
+		font-weight: 600;
 	}
+	
+	.bullseye { font-size: 0.7rem; }
+	.twenties-pct { opacity: 0.8; font-size: 0.65rem; margin-left: 0.1rem; }
 
-	:global(.popover-separator) {
-		border: none;
-		border-top: 1px solid var(--border);
-		margin: 0.5rem 0;
+	/* Expand Arrow */
+	.expand-arrow {
+		color: var(--muted-foreground);
+		transition: transform 0.2s;
+		opacity: 0.5;
+		margin-left: 0.25rem;
 	}
+	.match-header:hover .expand-arrow { opacity: 1; }
+	.expand-arrow.rotated { transform: rotate(90deg); }
 
-	/* Match Detail */
+	/* Details Section */
 	.match-detail {
-		border-top: 1px solid var(--border);
-		padding: 0.75rem 1rem;
 		background: var(--muted);
-	}
-
-	.event-info {
-		margin-bottom: 0.75rem;
+		border-top: 1px solid var(--border);
 		font-size: 0.85rem;
 	}
 
-
-
-	.event-phase {
-		color: var(--muted-foreground);
-	}
-
-	.match-duration {
-		opacity: 0.7;
-	}
-
-	/* Games Section */
-	.games-section {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-	}
-
-	.game-table {
-		background: var(--card);
-		border-radius: 6px;
-		overflow-x: auto;
-	}
-
-	.game-row {
-		display: flex;
-		gap: 0.4rem;
-		padding: 0.4rem 0.5rem;
-		align-items: center;
-	}
-
-	.game-row.header {
-		background: var(--secondary);
-		font-weight: 600;
-		font-size: 0.7rem;
-		color: var(--muted-foreground);
-	}
-
+	/* Games Table Styles (kept mostly same but cleaned up) */
+	.games-section { padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+	.game-table { background: var(--card); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
+	.game-row { display: flex; padding: 0.5rem 0.75rem; align-items: center; gap: 0.5rem; }
+	.game-row.header { background: var(--secondary); font-size: 0.7rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; }
+	
 	.game-row .team-name {
-		width: 100px;
+		width: 110px;
 		flex-shrink: 0;
-		font-weight: 500;
-		font-size: 0.75rem;
+		font-weight: 600;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		font-size: 0.8rem;
+		color: var(--foreground);
 	}
-
+	
 	.game-row .round-col {
 		flex: 1;
 		min-width: 32px;
 		text-align: center;
-		font-size: 0.8rem;
-		color: var(--muted-foreground);
 		display: flex;
 		flex-direction: column;
-		gap: 0.1rem;
 		align-items: center;
+		justify-content: center;
+		gap: 0px;
+		color: var(--muted-foreground);
 	}
 
-	.points-with-hammer {
+	.round-score {
+		font-weight: 600;
+		font-size: 0.9rem;
+		line-height: 1;
+		color: var(--foreground);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.round-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.1rem;
 		justify-content: center;
+		gap: 2px;
+		height: 12px; /* Fixed height to prevent jumping */
+		margin-top: 1px;
 	}
 
 	.hammer {
-		font-size: 0.65rem;
+		font-size: 0.6rem;
+		color: var(--primary);
+		line-height: 1;
 	}
 
 	.twenty {
-		font-size: 0.6rem;
-		color: #b8862e;
-	}
-
-	.game-row .total-col {
-		min-width: 40px;
-		text-align: center;
+		font-size: 0.55rem;
+		color: #d97706;
 		font-weight: 600;
-		font-size: 0.7rem;
-		color: var(--muted-foreground);
+		display: flex;
+		align-items: center;
+		line-height: 1;
+	}
+	
+	.twenty-total {
+		font-size: 0.6rem;
+		color: #d97706;
+		font-weight: 600;
+		margin-top: 2px;
+	}
+	
+	.game-row .total-col {
+		min-width: 45px;
+		text-align: center;
+		font-weight: 700;
+		font-size: 0.9rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.1rem;
 		align-items: center;
+		justify-content: center;
 	}
-
-	.game-row .total-col.total-score {
-		font-size: 0.9rem;
-		color: var(--foreground);
+	
+	.game-row .total-col.winner {
+		color: #10b981;
 	}
-
-	.game-row .total-col.total-score.winner {
-		color: var(--primary);
-	}
-
+	
 	.game-row.winner-row {
-		background: color-mix(in srgb, var(--primary) 8%, transparent);
+		background: color-mix(in srgb, #10b981 5%, transparent);
+	}
+	
+	.game-row.winner-row .team-name {
+		color: #10b981;
 	}
 
 	/* Responsive */
 	@media (max-width: 640px) {
-		.stats-container {
-			padding: 1rem;
-		}
-
-		.page-header {
-			margin: -1rem -1rem 1rem -1rem;
-			padding: 0.75rem 1rem;
-		}
-
-		.header-center h1 {
-			font-size: 1rem;
-		}
-
-		.stats-cards {
-			grid-template-columns: repeat(5, 1fr);
-			gap: 0.35rem;
-		}
-
-		.stat-card {
-			padding: 0.5rem 0.25rem;
-		}
-
-		.stat-value {
-			font-size: 1.1rem;
-		}
-
-		.stat-percent {
-			font-size: 0.6rem;
-		}
-
-		.stat-label {
-			font-size: 0.55rem;
-		}
-
-		.game-row .team-name {
-			width: 80px;
-			font-size: 0.7rem;
-		}
-	}
-
-	@media (max-width: 400px) {
-		.stats-cards {
-			grid-template-columns: repeat(5, 1fr);
-			gap: 0.25rem;
-		}
-
-		.stat-card {
-			padding: 0.4rem 0.15rem;
-		}
-
-		.stat-value {
-			font-size: 1rem;
-		}
-
-		.stat-percent {
-			font-size: 0.55rem;
-		}
-
-		.stat-label {
-			font-size: 0.5rem;
-		}
-
-		.filter-select {
-			font-size: 0.75rem;
-			padding: 0.4rem 1.5rem 0.4rem 0.5rem;
-		}
+		.stats-container { padding: 0 0.75rem; padding-bottom: max(4rem, env(safe-area-inset-bottom, 4rem)); }
+		.page-header { margin: 0 -0.75rem 1rem -0.75rem; padding: 0.75rem 0.75rem; padding-top: calc(0.75rem + env(safe-area-inset-top, 0px)); }
+		
+		.match-header { padding: 0.75rem; gap: 0.75rem; }
+		.score { font-size: 1.25rem; }
+		.match-meta { font-size: 0.7rem; }
+		.names { font-size: 0.9rem; }
+		
+		.match-result-box { min-width: 60px; padding-left: 0.5rem; }
+		
+		.stats-cards { grid-template-columns: repeat(5, 1fr); gap: 0.35rem; margin-bottom: 1rem; }
+		.stat-card { padding: 0.5rem 0.2rem; }
+		.stat-value { font-size: 1rem; }
+		.stat-percent, .stat-label { font-size: 0.55rem; }
 	}
 </style>
