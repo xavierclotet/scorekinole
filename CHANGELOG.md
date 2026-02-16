@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.25] - 2026-02-16
+- Enhance my-stats with detailed popover for win/loss stats and separators
+- Improve match display with partner info, filters, and detailed results
+- Replace CSS-based match list styling with Tailwind utility classes
+- Add pre-tournament settings backup flow to documentation
+
 ## [2.4.24] - 2026-02-16
 - Add pull-to-refresh for rankings, tournaments, and my-stats pages
 - Add clickable completed matches in live tournaments to view round details
