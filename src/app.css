@@ -421,6 +421,10 @@
 		-webkit-tap-highlight-color: transparent;
 	}
 
+	html, body {
+		overscroll-behavior: none;
+	}
+
 	body {
 		@apply bg-background text-foreground;
 		font-family: 'Lexend', sans-serif;

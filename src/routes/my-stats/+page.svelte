@@ -255,6 +255,7 @@
 	// Infinite scroll
 	let visibleCount = $state(PAGE_SIZE);
 	let sentinelEl: HTMLDivElement | undefined = $state();
+	let scrollableEl: HTMLDivElement | undefined = $state();
 
 	// Reset visible count when filters change
 	$effect(() => {
@@ -269,7 +270,7 @@
 			if (entries[0].isIntersecting && visibleCount < filteredMatches.length) {
 				visibleCount += PAGE_SIZE;
 			}
-		}, { rootMargin: '200px' });
+		}, { root: scrollableEl, rootMargin: '200px' });
 		observer.observe(sentinelEl);
 		return () => observer.disconnect();
 	});
@@ -482,28 +483,8 @@
 		</div>
 	</header>
 
-	<PullToRefresh onrefresh={() => fetchMatches(false)}>
-	{#if isLoading}
-		<div class="loading-state">
-			<div class="spinner"></div>
-			<p>{m.common_loading()}...</p>
-		</div>
-	{:else if !$currentUser}
-		<div class="empty-state">
-			<div class="empty-icon">
-				<User class="size-10" />
-			</div>
-			<h3>{m.stats_loginRequired()}</h3>
-		</div>
-	{:else if matches.length === 0}
-		<div class="empty-state">
-			<div class="empty-icon">
-				<Trophy class="size-10" />
-			</div>
-			<h3>{m.stats_noMatchesYet()}</h3>
-		</div>
-	{:else}
-		<!-- Filters -->
+	{#if !isLoading && $currentUser && matches.length > 0}
+		<!-- Filters (sticky, outside scroll area) -->
 		<div class="filters-section">
 			{#if uniqueYears.length > 0}
 				<select class="filter-select" bind:value={filterYear}>
@@ -553,7 +534,30 @@
 				</select>
 			{/if}
 		</div>
+	{/if}
 
+	<PullToRefresh onrefresh={() => fetchMatches(false)}>
+	<div class="scrollable-content" bind:this={scrollableEl}>
+	{#if isLoading}
+		<div class="loading-state">
+			<div class="spinner"></div>
+			<p>{m.common_loading()}...</p>
+		</div>
+	{:else if !$currentUser}
+		<div class="empty-state">
+			<div class="empty-icon">
+				<User class="size-10" />
+			</div>
+			<h3>{m.stats_loginRequired()}</h3>
+		</div>
+	{:else if matches.length === 0}
+		<div class="empty-state">
+			<div class="empty-icon">
+				<Trophy class="size-10" />
+			</div>
+			<h3>{m.stats_noMatchesYet()}</h3>
+		</div>
+	{:else}
 		<!-- Stats Cards -->
 		<div class="stats-cards">
 			<div class="stat-card">
@@ -837,18 +841,19 @@
 			</div>
 		{/if}
 	{/if}
+	</div>
 	</PullToRefresh>
 </div>
 
 <style>
 	.stats-container {
-		min-height: 100vh;
-		max-height: 100vh;
-		overflow-y: auto;
+		height: 100vh;
+		height: 100dvh;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
 		background: var(--background);
 		color: var(--foreground);
-		padding: 0 1rem;
-		padding-bottom: max(5rem, env(safe-area-inset-bottom, 5rem));
 	}
 
 	/* Header */
@@ -856,10 +861,7 @@
 		background: var(--card);
 		border-bottom: 1px solid var(--border);
 		padding: 0.75rem 1.5rem;
-		padding-top: 0.75rem;
-		margin: 0 -1rem 1.5rem -1rem;
-		/* position: sticky removed */
-		background: var(--card);
+		flex-shrink: 0;
 	}
 
 	.header-row {
@@ -893,6 +895,15 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-shrink: 0;
+	}
+
+	/* Scrollable content area */
+	.scrollable-content {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		padding: 0 1rem;
+		padding-bottom: max(5rem, env(safe-area-inset-bottom, 5rem));
 	}
 
 	/* Loading and Empty states */
@@ -945,7 +956,7 @@
 		display: grid;
 		grid-template-columns: repeat(5, 1fr);
 		gap: 1rem;
-		margin-bottom: 1.5rem;
+		margin: 1rem 0 1.5rem;
 	}
 
 	.stat-card {
@@ -1005,8 +1016,11 @@
 	.filters-section {
 		display: flex;
 		gap: 0.5rem;
-		margin-bottom: 1.5rem;
+		padding: 0.75rem 1rem;
 		flex-wrap: wrap;
+		flex-shrink: 0;
+		border-bottom: 1px solid var(--border);
+		background: var(--background);
 	}
 
 	.filter-select {
@@ -1325,8 +1339,8 @@
 
 	/* Responsive */
 	@media (max-width: 640px) {
-		.stats-container { padding: 0 0.75rem; padding-bottom: max(4rem, env(safe-area-inset-bottom, 4rem)); }
-		.page-header { margin: 0 -0.75rem 1rem -0.75rem; padding: 0.75rem 0.75rem; }
+		.scrollable-content { padding: 0 0.75rem; padding-bottom: max(4rem, env(safe-area-inset-bottom, 4rem)); }
+		.page-header { padding: 0.75rem 0.75rem; }
 		
 		.match-header { padding: 0.75rem; gap: 0.75rem; }
 		.score { font-size: 1.25rem; }

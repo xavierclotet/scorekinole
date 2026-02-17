@@ -104,9 +104,11 @@
 
 <style>
   .admin-layout {
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     background: var(--background);
     color: var(--foreground);
     font-family: system-ui, -apple-system, sans-serif;
@@ -181,13 +183,15 @@
   /* Content */
   .admin-content {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     width: 100%;
-    padding: 48px 24px 64px;
-    gap: 48px;
+    padding: 24px;
+    gap: 24px;
+    overflow-y: auto;
   }
 
   /* Header */
@@ -347,8 +351,8 @@
     }
 
     .admin-content {
-      padding: 64px 32px 80px;
-      gap: 56px;
+      padding: 48px 32px 64px;
+      gap: 48px;
     }
 
     .admin-title {
