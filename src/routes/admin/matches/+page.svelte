@@ -291,7 +291,7 @@
           <option value="">{m.admin_allPlayers()}</option>
           {#each uniquePlayers as player}
             <option value={player.id}>
-              {player.isRegistered ? '● ' : '○ '}{player.name}
+              {player.name}
             </option>
           {/each}
         </select>
@@ -847,7 +847,7 @@
 
   /* Result cell */
   .result-cell {
-    text-align: center;
+    text-align: left;
   }
 
   .score-compact {
@@ -964,8 +964,8 @@
 
   /* Actions cell */
   .actions-cell {
-    display: flex;
-    gap: 0.25rem;
+    text-align: center;
+    vertical-align: middle;
   }
 
   .action-btn {
@@ -974,7 +974,7 @@
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
