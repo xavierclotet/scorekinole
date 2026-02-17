@@ -1131,8 +1131,12 @@
   }
 
   .name-cell {
-    max-width: 300px;
+    min-width: 200px;
   }
+
+  .status-col { width: 110px; text-align: left; }
+  .participants-col { width: 80px; text-align: left; }
+  .actions-col { width: 100px; text-align: right; }
 
   .name-cell .tournament-name {
     display: flex;
@@ -1260,8 +1264,11 @@
 
   .actions-cell {
     display: flex;
-    gap: 0.5rem;
+    align-items: center;
     justify-content: flex-end;
+    gap: 0.5rem;
+    height: 100%;
+    white-space: nowrap;
   }
 
   .action-btn {
