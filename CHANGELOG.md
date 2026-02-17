@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.33] - 2026-02-17
+- Fix overscroll bounce globally and improve page layouts (admin, my-stats)
+- My Stats: sticky header and filters with scrollable content area
+
 ## [2.4.32] - 2026-02-17
 - Admin: Redesign admin dashboard with scoped CSS, vertical cards on desktop, horizontal on mobile
 
