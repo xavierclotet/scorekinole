@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.32] - 2026-02-17
+- Admin: Redesign admin dashboard with scoped CSS, vertical cards on desktop, horizontal on mobile
+
 ## [2.4.31] - 2026-02-17
 - Fix: Add background image to static/ folder for correct loading
 
