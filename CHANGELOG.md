@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.31] - 2026-02-17
+- Fix: Add background image to static/ folder for correct loading
+
 ## [2.4.30] - 2026-02-17
 - Admin: Redesigned tournament control panel with responsive search, segmented filters, and action buttons
 - Admin: Improved typography hierarchy and spacing in tournament list header
