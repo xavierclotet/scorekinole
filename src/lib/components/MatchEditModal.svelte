@@ -3,7 +3,7 @@
   import { adminTheme } from '$lib/stores/theme';
   import type { MatchHistory, MatchGame } from '$lib/types/history';
   import { updateMatch } from '$lib/firebase/admin';
-  import { Crown } from '@lucide/svelte';
+  import { X, Save, Calculator } from '@lucide/svelte';
 
   interface Props {
     match: MatchHistory;
@@ -13,7 +13,7 @@
 
   let { match, onClose, onmatchupdated }: Props = $props();
 
-  // svelte-ignore state_referenced_locally - Intentional: initializing editable local state from props
+  // svelte-ignore state_referenced_locally
   let team1Name = $state(match.team1Name);
   // svelte-ignore state_referenced_locally
   let team2Name = $state(match.team2Name);
@@ -22,9 +22,8 @@
 
   // Deep clone games to allow editing
   // svelte-ignore state_referenced_locally
-  let editableGames = $state<MatchGame[]>(JSON.parse(JSON.stringify(match.games)));
+  let editableGames = $state<MatchGame[]>(JSON.parse(JSON.stringify(match.games || [])));
 
-  let selectedGameIndex = $state(0);
   let isSaving = $state(false);
   let errorMessage = $state('');
 
@@ -60,22 +59,16 @@
     }
   }
 
-  function formatDate(timestamp: number): string {
-    return new Date(timestamp).toLocaleString('es-ES', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
-
   function stopPropagation(e: Event) {
     e.stopPropagation();
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onClose();
+  }
+
+  function getSum(game: MatchGame, field: 'team1Points' | 'team2Points' | 'team1Twenty' | 'team2Twenty') {
+    return (game.rounds || []).reduce((sum, r) => sum + (r[field] || 0), 0);
   }
 </script>
 
@@ -90,589 +83,564 @@
 >
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
   <div class="modal" onclick={stopPropagation} role="document">
-    <!-- Header -->
     <header class="modal-header">
       <div class="header-content">
         <h2>{m.admin_editMatch()}</h2>
         <div class="match-meta">
-          <span class="meta-badge">{formatDate(match.startTime)}</span>
-          <span class="meta-badge type">{match.gameMode === 'points' ? `${match.pointsToWin}p · Pg${match.matchesToWin}` : `${match.roundsToPlay}r`}</span>
+          <span class="meta-badge">{match.gameMode === 'points' ? `${match.pointsToWin}p` : `${match.roundsToPlay}r`}</span>
           <select class="type-select" bind:value={gameType}>
             <option value="singles">{m.scoring_singles()}</option>
             <option value="doubles">{m.scoring_doubles()}</option>
           </select>
         </div>
       </div>
-      <button class="close-btn" onclick={onClose} aria-label="Close">×</button>
+      <button class="icon-btn close-btn" onclick={onClose} aria-label="Close">
+        <X size={20} />
+      </button>
     </header>
 
-    <!-- Body -->
     <div class="modal-body">
-      <!-- Players -->
-      <div class="players-row">
-        <div class="player-input">
+      <!-- Teams Header -->
+      <div class="teams-section">
+        <div class="team-input-group">
           <span class="color-dot" style="background:{match.team1Color}"></span>
-          <input type="text" bind:value={team1Name} placeholder="Jugador 1" />
+          <input type="text" bind:value={team1Name} class="team-input" placeholder="Team 1" />
         </div>
-        <span class="vs">vs</span>
-        <div class="player-input">
-          <input type="text" bind:value={team2Name} placeholder="Jugador 2" />
+        <div class="team-input-group">
           <span class="color-dot" style="background:{match.team2Color}"></span>
+          <input type="text" bind:value={team2Name} class="team-input" placeholder="Team 2" />
         </div>
       </div>
 
-      <!-- Game selector if multiple games -->
-      {#if editableGames.length > 1}
-        <div class="game-selector">
-          {#each editableGames as game, idx}
-            <button
-              class="game-btn"
-              class:active={selectedGameIndex === idx}
-              onclick={() => selectedGameIndex = idx}
-            >
-              {m.history_game()} {idx + 1}
-              {#if game.winner}
-                <Crown size={10} class="crown-icon-svg" style="color: {game.winner === 1 ? match.team1Color : match.team2Color}" />
-              {/if}
-            </button>
-          {/each}
-        </div>
-      {/if}
-
-      <!-- Rounds table -->
-      {#if editableGames[selectedGameIndex]}
-        <div class="rounds-table">
-          <div class="rounds-thead" class:has-20s={match.show20s}>
-            <span class="col-round">#</span>
-            <span class="col-player">
-              <span class="color-dot small" style="background:{match.team1Color}"></span>
-              {team1Name.substring(0, 10)}
-            </span>
-            <span class="col-player">
-              <span class="color-dot small" style="background:{match.team2Color}"></span>
-              {team2Name.substring(0, 10)}
-            </span>
-            {#if match.show20s}
-              <span class="col-20s">20s</span>
-              <span class="col-20s">20s</span>
+      <!-- Games List -->
+      <div class="games-container">
+        {#each editableGames as game, gIndex}
+          <div class="game-card">
+            {#if editableGames.length > 1}
+              <div class="game-label">{m.history_game()} {gIndex + 1}</div>
             {/if}
-          </div>
 
-          <div class="rounds-tbody">
-            {#each editableGames[selectedGameIndex].rounds as round, idx}
-              <div class="round-row" class:has-20s={match.show20s}>
-                <span class="col-round">{idx + 1}</span>
-                <div class="col-player">
-                  <input
-                    type="number"
-                    min="0"
-                    max="2"
-                    bind:value={round.team1Points}
-                    class="pts-input"
-                    style="border-color: {match.team1Color}"
-                  />
+            <div class="matrix-wrapper">
+              <div class="matrix-table">
+                <!-- Header Row: Rounds -->
+                <div class="matrix-row header">
+                  <div class="matrix-cell sticky-col name-col"></div>
+                  {#each game.rounds as _, rIndex}
+                    <div class="matrix-cell center">{rIndex + 1}</div>
+                  {/each}
+                  <div class="matrix-cell center total-col">Σ</div>
                 </div>
-                <div class="col-player">
-                  <input
-                    type="number"
-                    min="0"
-                    max="2"
-                    bind:value={round.team2Points}
-                    class="pts-input"
-                    style="border-color: {match.team2Color}"
-                  />
-                </div>
-                {#if match.show20s}
-                  <div class="col-20s">
-                    <input type="number" min="0" max="12" bind:value={round.team1Twenty} class="twenty-input" />
+
+                <!-- Team 1 Row -->
+                <div class="matrix-row">
+                  <div class="matrix-cell sticky-col name-col">
+                    <span class="color-bar" style="background:{match.team1Color}"></span>
+                    <span class="t-name">{team1Name || 'Team 1'}</span>
                   </div>
-                  <div class="col-20s">
-                    <input type="number" min="0" max="12" bind:value={round.team2Twenty} class="twenty-input" />
+                  {#each game.rounds as round}
+                    <div class="matrix-cell center">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="2" 
+                        bind:value={round.team1Points} 
+                        class="score-input"
+                        data-color={match.team1Color}
+                      />
+                    </div>
+                  {/each}
+                  <div class="matrix-cell center total-col font-mono">
+                    {getSum(game, 'team1Points')}
+                  </div>
+                </div>
+
+                <!-- Team 2 Row -->
+                <div class="matrix-row">
+                  <div class="matrix-cell sticky-col name-col">
+                    <span class="color-bar" style="background:{match.team2Color}"></span>
+                    <span class="t-name">{team2Name || 'Team 2'}</span>
+                  </div>
+                  {#each game.rounds as round}
+                    <div class="matrix-cell center">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="2" 
+                        bind:value={round.team2Points} 
+                        class="score-input" 
+                        data-color={match.team2Color}
+                      />
+                    </div>
+                  {/each}
+                  <div class="matrix-cell center total-col font-mono">
+                    {getSum(game, 'team2Points')}
+                  </div>
+                </div>
+
+                <!-- 20s Section (if enabled) -->
+                {#if match.show20s}
+                  <div class="matrix-divider">
+                    <div class="divider-line"></div>
+                    <div class="divider-icon"><Calculator size={12} /></div>
+                    <div class="divider-line"></div>
+                  </div>
+
+                  <!-- Team 1 20s -->
+                  <div class="matrix-row twenties-row">
+                    <div class="matrix-cell sticky-col name-col">
+                      <span class="sub-label">20s</span>
+                    </div>
+                    {#each game.rounds as round}
+                      <div class="matrix-cell center">
+                        <input 
+                          type="number" 
+                          min="0" 
+                          max="12" 
+                          bind:value={round.team1Twenty} 
+                          class="twenty-input" 
+                        />
+                      </div>
+                    {/each}
+                    <div class="matrix-cell center total-col text-muted">
+                      {getSum(game, 'team1Twenty')}
+                    </div>
+                  </div>
+
+                  <!-- Team 2 20s -->
+                  <div class="matrix-row twenties-row">
+                    <div class="matrix-cell sticky-col name-col">
+                      <span class="sub-label">20s</span>
+                    </div>
+                    {#each game.rounds as round}
+                      <div class="matrix-cell center">
+                        <input 
+                          type="number" 
+                          min="0" 
+                          max="12" 
+                          bind:value={round.team2Twenty} 
+                          class="twenty-input" 
+                        />
+                      </div>
+                    {/each}
+                    <div class="matrix-cell center total-col text-muted">
+                      {getSum(game, 'team2Twenty')}
+                    </div>
                   </div>
                 {/if}
               </div>
-            {/each}
+            </div>
           </div>
-
-          <div class="rounds-tfoot" class:has-20s={match.show20s}>
-            <span class="col-round">Σ</span>
-            <span class="col-player total">
-              {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + r.team1Points, 0)}
-            </span>
-            <span class="col-player total">
-              {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + r.team2Points, 0)}
-            </span>
-            {#if match.show20s}
-              <span class="col-20s total">
-                {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + (r.team1Twenty || 0), 0)}
-              </span>
-              <span class="col-20s total">
-                {editableGames[selectedGameIndex].rounds.reduce((s, r) => s + (r.team2Twenty || 0), 0)}
-              </span>
-            {/if}
-          </div>
-        </div>
-      {/if}
+        {/each}
+      </div>
 
       {#if errorMessage}
-        <div class="error">{errorMessage}</div>
+        <div class="error-banner">
+          {errorMessage}
+        </div>
       {/if}
     </div>
 
-    <!-- Footer -->
     <footer class="modal-footer">
-      <button class="btn-cancel" onclick={onClose} disabled={isSaving}>
+      <button class="btn-ghost" onclick={onClose} disabled={isSaving}>
         {m.common_cancel()}
       </button>
-      <button class="btn-save" onclick={saveChanges} disabled={isSaving}>
-        {isSaving ? m.admin_savingChanges() : m.admin_saveChangesBtn()}
+      <button class="btn-primary" onclick={saveChanges} disabled={isSaving}>
+        {#if isSaving}
+          {m.admin_savingChanges()}...
+        {:else}
+          <div class="btn-content">
+            <Save size={16} />
+            {m.admin_saveChangesBtn()}
+          </div>
+        {/if}
       </button>
     </footer>
   </div>
 </div>
 
 <style>
+  /* Overlay */
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 9999;
     padding: 1rem;
+    animation: fadeIn 0.2s ease-out;
   }
 
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Modal Window */
   .modal {
-    background: white;
-    border-radius: 12px;
+    background: var(--card);
+    color: var(--card-foreground);
     width: 100%;
-    max-width: 520px;
-    max-height: 85vh;
+    max-width: 600px;
+    max-height: 90vh;
+    border-radius: 16px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border);
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .modal {
-    background: #1a2332;
-    color: #e1e8ed;
-  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
   /* Header */
   .modal-header {
     display: flex;
-    align-items: flex-start;
     justify-content: space-between;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #e5e7eb;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .modal-header {
-    border-color: #2d3748;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 16px 16px 0 0;
   }
 
   .header-content h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
     margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
     color: var(--primary);
   }
 
   .match-meta {
     display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
     align-items: center;
-    gap: 0.4rem;
-    margin-top: 0.3rem;
   }
 
   .meta-badge {
-    font-size: 0.65rem;
-    padding: 0.1rem 0.35rem;
-    background: #f3f4f6;
-    border-radius: 4px;
-    color: #666;
-  }
-
-  .meta-badge.type {
-    background: color-mix(in srgb, var(--primary) 15%, transparent);
-    color: var(--primary);
-    font-weight: 600;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .meta-badge {
-    background: #0f1419;
-    color: #8b9bb3;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .meta-badge.type {
-    background: color-mix(in srgb, var(--primary) 20%, transparent);
-    color: var(--primary);
+    font-size: 0.75rem;
+    padding: 0.125rem 0.5rem;
+    background: var(--secondary);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    color: var(--secondary-foreground);
   }
 
   .type-select {
-    font-size: 0.65rem;
-    padding: 0.1rem 0.3rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: white;
-    color: #555;
-    cursor: pointer;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .type-select {
-    background: #0f1419;
-    border-color: #2d3748;
-    color: #8b9bb3;
-  }
-
-  .close-btn {
-    width: 28px;
-    height: 28px;
-    border: none;
     background: transparent;
-    font-size: 1.4rem;
-    color: #999;
+    border: none;
+    font-size: 0.75rem;
+    color: var(--primary);
+    font-weight: 600;
     cursor: pointer;
-    border-radius: 4px;
+    padding: 0;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: all 0.2s;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
   }
 
-  .close-btn:hover {
-    background: #f3f4f6;
-    color: #333;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .close-btn:hover {
-    background: #2d3748;
-    color: #e1e8ed;
+  .icon-btn:hover {
+    background: var(--secondary);
+    color: var(--foreground);
   }
 
   /* Body */
   .modal-body {
     flex: 1;
     overflow-y: auto;
-    padding: 1rem;
+    padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1.5rem;
   }
 
-  /* Players row */
-  .players-row {
+  /* Teams Section */
+  .teams-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .team-input-group {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-  }
-
-  .player-input {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .player-input input {
-    width: 100%;
-    padding: 0.4rem 0.6rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    background: white;
-    color: #333;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .player-input input {
-    background: #0f1419;
-    border-color: #2d3748;
-    color: #e1e8ed;
-  }
-
-  .player-input input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+    background: var(--secondary);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
   }
 
   .color-dot {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
-    border: 1px solid rgba(0, 0, 0, 0.1);
   }
 
-  .color-dot.small {
-    width: 7px;
-    height: 7px;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .color-dot {
-    border-color: rgba(255, 255, 255, 0.15);
-  }
-
-  .vs {
-    font-size: 0.75rem;
-    color: #999;
-    font-weight: 500;
+  .color-bar {
+    width: 4px;
+    height: 12px;
+    border-radius: 2px;
     flex-shrink: 0;
+    margin-right: 0.5rem;
   }
 
-  /* Game selector */
-  .game-selector {
-    display: flex;
-    gap: 0.3rem;
-    flex-wrap: wrap;
-  }
-
-  .game-btn {
-    padding: 0.3rem 0.6rem;
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 4px;
-    font-size: 0.75rem;
+  .team-input {
+    background: transparent;
+    border: none;
+    width: 100%;
+    font-size: 0.9rem;
     font-weight: 500;
-    color: #555;
-    cursor: pointer;
+    color: var(--foreground);
+  }
+
+  .team-input:focus {
+    outline: none;
+  }
+
+  /* Games Container */
+  .games-container {
     display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    transition: all 0.15s;
+    flex-direction: column;
+    gap: 1.5rem;
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .game-btn {
-    background: #0f1419;
-    border-color: #2d3748;
-    color: #8b9bb3;
-  }
-
-  .game-btn:hover {
-    border-color: var(--primary);
-  }
-
-  .game-btn.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: white;
-  }
-
-  :global(.crown-icon-svg) {
-    flex-shrink: 0;
-  }
-
-  /* Rounds table */
-  .rounds-table {
-    background: #f9fafb;
-    border-radius: 6px;
+  .game-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
     overflow: hidden;
+    background: var(--card);
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .rounds-table {
-    background: #0f1419;
-  }
-
-  .rounds-thead,
-  .round-row,
-  .rounds-tfoot {
-    display: grid;
-    grid-template-columns: 28px 1fr 1fr;
-    gap: 0.4rem;
-    padding: 0.4rem 0.6rem;
-    align-items: center;
-  }
-
-  .rounds-thead.has-20s,
-  .round-row.has-20s,
-  .rounds-tfoot.has-20s {
-    grid-template-columns: 28px 1fr 1fr 44px 44px;
-  }
-
-  .rounds-thead {
-    background: white;
-    font-size: 0.65rem;
+  .game-label {
+    font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
-    border-bottom: 1px solid #e5e7eb;
+    letter-spacing: 0.5px;
+    padding: 0.5rem 1rem;
+    background: var(--secondary);
+    border-bottom: 1px solid var(--border);
+    color: var(--muted-foreground);
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .rounds-thead {
-    background: #1a2332;
-    border-color: #2d3748;
+  /* Matrix Table */
+  .matrix-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .rounds-tfoot {
-    background: white;
-    border-top: 1px solid #e5e7eb;
-    font-weight: 700;
+  .matrix-table {
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+    width: fit-content;
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .rounds-tfoot {
-    background: #1a2332;
-    border-color: #2d3748;
+  .matrix-row {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
   }
 
-  .col-round {
-    text-align: center;
-    color: #888;
-    font-size: 0.7rem;
-    font-weight: 600;
+  .matrix-row:last-child {
+    border-bottom: none;
   }
 
-  .col-player {
-    text-align: center;
-    font-weight: 600;
-    font-size: 0.75rem;
+  .matrix-cell {
+    padding: 0.6rem 0.5rem;
+    min-width: 50px;
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.25rem;
   }
 
-  .col-player.total {
-    font-size: 0.95rem;
-  }
-
-  .col-20s {
+  .matrix-cell.center {
+    justify-content: center;
     text-align: center;
-    font-size: 0.7rem;
-    color: #888;
   }
 
-  .col-20s.total {
-    font-weight: 600;
-    color: #666;
+  /* Sticky First Column */
+  .sticky-col {
+    position: sticky;
+    left: 0;
+    background: var(--card);
+    z-index: 10;
+    width: 130px;
+    min-width: 130px;
+    justify-content: flex-start;
+    padding-left: 1rem;
+    border-right: 1px solid var(--border);
+    box-shadow: 2px 0 5px rgba(0,0,0,0.02);
   }
 
-  .pts-input,
-  .twenty-input {
-    width: 100%;
-    padding: 0.3rem;
-    border: 2px solid #ddd;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    font-weight: 700;
-    text-align: center;
-    background: white;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .pts-input,
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .twenty-input {
-    background: #1a2332;
-    color: #e1e8ed;
-    border-color: #2d3748;
-  }
-
-  .pts-input:focus,
-  .twenty-input:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
-  }
-
-  .twenty-input {
-    border-color: #ccc;
-    font-weight: 500;
+  .header .matrix-cell {
     font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
   }
 
-  /* Error */
-  .error {
-    padding: 0.5rem 0.75rem;
-    background: #fef2f2;
-    color: #dc2626;
-    border-radius: 5px;
+  .t-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+  }
+
+  .score-input {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--input);
+    color: var(--foreground);
+    text-align: center;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.2s;
+  }
+
+  .score-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+    background: var(--card); /* Visually lift input on focus */
+  }
+
+  .total-col {
+    background: var(--secondary);
+    font-weight: 700;
+    width: 50px;
+    min-width: 50px;
+    color: var(--foreground);
+  }
+
+  /* 20s */
+  .matrix-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    background: var(--secondary);
+  }
+
+  .divider-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .divider-icon {
+    color: var(--muted-foreground);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    padding: 2px;
+    display: flex;
+  }
+
+  .twenties-row .score-input,
+  .twenties-row .twenty-input {
+    height: 28px;
+    width: 36px;
     font-size: 0.8rem;
-    border-left: 3px solid #dc2626;
+    border-color: transparent;
+    background: var(--card);
+  }
+  
+  .twenties-row .twenty-input:focus {
+      border-color: var(--primary);
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .error {
-    background: #4d1f24;
-    color: #fca5a5;
+  .sub-label {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    font-style: italic;
+    padding-left: 1.5rem;
   }
 
   /* Footer */
   .modal-footer {
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--border);
     display: flex;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-top: 1px solid #e5e7eb;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    background: var(--secondary);
+    border-radius: 0 0 16px 16px;
   }
 
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .modal-footer {
-    border-color: #2d3748;
-  }
-
-  .btn-cancel,
-  .btn-save {
-    flex: 1;
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
+  .btn-ghost {
+    padding: 0.6rem 1rem;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted-foreground);
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s;
+    border-radius: 8px;
+  }
+  
+  .btn-ghost:hover {
+      background: rgba(0,0,0,0.05);
+      color: var(--foreground);
   }
 
-  .btn-cancel {
-    background: #e5e7eb;
-    color: #374151;
-  }
-
-  .btn-cancel:hover:not(:disabled) {
-    background: #d1d5db;
-  }
-
-  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .btn-cancel {
-    background: #374151;
-    color: #e5e7eb;
-  }
-
-  .btn-save {
+  .btn-primary {
+    padding: 0.6rem 1.25rem;
     background: var(--primary);
-    color: white;
+    color: var(--primary-foreground);
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
   }
 
-  .btn-save:hover:not(:disabled) {
+  .btn-primary:hover {
+    filter: brightness(110%);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 40%, transparent);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
-  .btn-cancel:disabled,
-  .btn-save:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .btn-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
-  /* Responsive */
-  @media (max-width: 480px) {
+  /* Error */
+  .error-banner {
+    padding: 0.75rem;
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    text-align: center;
+  }
+
+  /* Mobile */
+  @media (max-width: 640px) {
     .modal {
-      max-height: 90vh;
-      border-radius: 12px 12px 0 0;
+      border-radius: 16px 16px 0 0;
+      max-height: 95vh;
+      bottom: 0;
       margin-top: auto;
     }
 
-    .players-row {
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-
-    .vs {
-      display: none;
-    }
-
-    .rounds-thead,
-    .round-row,
-    .rounds-tfoot {
-      grid-template-columns: 24px 1fr 1fr !important;
-    }
-
-    .col-20s {
-      display: none;
+    .teams-section {
+      grid-template-columns: 1fr;
     }
   }
 </style>
