@@ -424,7 +424,7 @@
 	body {
 		@apply bg-background text-foreground;
 		font-family: 'Lexend', sans-serif;
-		touch-action: pan-y;
+		touch-action: pan-y pinch-zoom;
 	}
 }
 
