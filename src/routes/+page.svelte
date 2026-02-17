@@ -401,7 +401,7 @@
 	.bg-image {
 		position: absolute;
 		inset: 0;
-		background-image: url('/scorekinole.jpeg');
+		background-image: url('/scorekinole_background.jpeg');
 		background-size: cover;
 		background-position: center;
 		opacity: 0.08;
