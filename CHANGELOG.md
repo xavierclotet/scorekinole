@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.30] - 2026-02-17
+- Admin: Redesigned tournament control panel with responsive search, segmented filters, and action buttons
+- Admin: Improved typography hierarchy and spacing in tournament list header
+
 ## [2.4.29] - 2026-02-17
 - Admin: Refactor navigation menu with submenus and restricted access for Users/Matches (Super Admin only)
 - Admin: Improve tournament list layout (expandable name column, fixed width for status/participants/actions)

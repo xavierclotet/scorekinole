@@ -13,6 +13,7 @@
   import { isSuperAdminUser, adminCheckLoading, canAccessAdmin } from '$lib/stores/admin';
   import type { Tournament } from '$lib/types/tournament';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+  import { Plus, Download } from '@lucide/svelte';
 
   let tournaments: Tournament[] = $state([]);
   let filteredTournaments: Tournament[] = $state([]);
@@ -340,14 +341,7 @@
           </div>
         </div>
         <div class="header-actions">
-          <button class="import-btn" onclick={importTournament} title={m.import_importTournament()}>
-            <span class="btn-icon">📥</span>
-            <span class="btn-text">{m.import_importTournament()}</span>
-          </button>
-          <button class="create-btn" onclick={createTournament} title={m.admin_createTournament()}>
-            <span class="btn-icon">+</span>
-            <span class="btn-text">{m.admin_createTournament()}</span>
-          </button>
+
           <ThemeToggle />
         </div>
       </div>
@@ -450,6 +444,17 @@
           placeholder={m.admin_searchTournaments()}
           class="search-input"
         />
+      </div>
+      
+      <div class="action-buttons">
+        <button class="action-btn secondary" onclick={importTournament}>
+          <Download size={16} />
+          <span>{m.import_importTournament()}</span>
+        </button>
+        <button class="action-btn primary" onclick={createTournament}>
+          <Plus size={16} />
+          <span>{m.admin_createTournament()}</span>
+        </button>
       </div>
     </div>
 
@@ -797,37 +802,114 @@
   }
 
   /* Controls */
-  .controls-section {
+  /* Action buttons */
+  .action-buttons {
     display: flex;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
-    flex-wrap: wrap;
+    gap: 0.75rem;
+    flex-wrap: wrap; /* stack on very small screens */
+  }
+
+  .action-btn {
+    display: inline-flex;
     align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    text-transform: capitalize; /* Optional */
+  }
+
+  .action-btn.primary {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 6px -1px color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .action-btn.primary {
+    box-shadow: 0 4px 6px -1px color-mix(in srgb, var(--primary) 40%, transparent);
+  }
+
+  .action-btn.primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 8px -1px color-mix(in srgb, var(--primary) 40%, transparent);
+  }
+
+  .action-btn.secondary {
+    background: white;
+    color: #4b5563;
+    border-color: #e2e8f0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .action-btn.secondary {
+    background: #1e293b;
+    color: #e2e8f0;
+    border-color: transparent;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  .action-btn.secondary:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .action-btn.secondary:hover {
+    background: #334155;
+  }
+  
+  .controls-section {
+    /* Updated previously but ensure alignment */
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (min-width: 768px) {
+    .controls-section {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
   }
 
   .search-box {
-    flex: 1;
-    min-width: 200px;
-    max-width: 300px;
+    width: 100%;
     position: relative;
+  }
+
+  @media (min-width: 768px) {
+    .search-box {
+      max-width: 320px;
+    }
   }
 
   .search-icon {
     position: absolute;
-    left: 0.75rem;
+    left: 1rem;
     top: 50%;
     transform: translateY(-50%);
     font-size: 1rem;
+    color: #94a3b8;
   }
 
   .search-input {
     width: 100%;
-    padding: 0.5rem 0.75rem 0.5rem 2.5rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.85rem;
+    padding: 0.6rem 1rem 0.6rem 2.8rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 9999px;
+    font-size: 0.9rem;
     background: white;
     transition: all 0.2s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
   .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .search-input {
@@ -839,66 +921,87 @@
   .search-input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
   }
 
   .filters-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    flex-wrap: wrap;
-    padding-top: 0.75rem;
-    border-top: 1px solid #e5e7eb;
-    margin-top: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-top: 0;
+    padding-top: 0;
   }
 
-  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filters-row {
-    border-top-color: #2d3748;
+  .filters-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .filters-row {
+      width: auto;
+      overflow-x: visible;
+      padding-bottom: 0;
+    }
   }
 
   .filter-tabs {
-    display: flex;
-    gap: 0.25rem;
-    flex-wrap: nowrap;
+    display: inline-flex;
+    padding: 0.25rem;
+    background: #f1f5f9;
+    border-radius: 0.5rem;
+    gap: 0;
+  }
+  
+  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filter-tabs {
+     background: #1e293b;
   }
 
   .filter-tab {
-    padding: 0.4rem 0.75rem;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    padding: 0.35rem 0.85rem;
+    background: transparent;
+    border: none;
+    border-radius: 0.35rem;
     font-size: 0.8rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
-    color: #555;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    color: #64748b;
   }
 
   .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filter-tab {
-    background: #1a2332;
-    border-color: #2d3748;
-    color: #8b9bb3;
+    background: transparent; 
+    border-color: transparent;
+    color: #94a3b8;
   }
 
   .filter-tab:hover {
-    background: #f5f5f5;
-    border-color: var(--primary);
+    color: #334155;
+    background: rgba(255, 255, 255, 0.5);
   }
 
   .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filter-tab:hover {
-    background: #2d3748;
+    background: rgba(255, 255, 255, 0.05); /* Subtle hover */
+    color: #e2e8f0;
   }
 
   /* Creator filter select */
   .creator-filter {
-    padding: 0.4rem 0.75rem;
+    padding: 0.35rem 0.85rem;
     background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    border-radius: 9999px;
     font-size: 0.8rem;
-    color: #555;
+    font-weight: 500;
+    color: #4b5563;
     cursor: pointer;
     transition: all 0.2s;
-    min-width: 100px;
+    min-width: 120px;
     flex-shrink: 0;
     margin-left: auto;
   }
@@ -936,16 +1039,15 @@
   .filter-tab.active {
     background: var(--primary);
     color: white;
-    border-color: var(--primary);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     font-weight: 600;
-    box-shadow: 0 2px 4px color-mix(in srgb, var(--primary) 40%, transparent);
   }
 
-  /* Dark/violet theme override for active tabs - ensures primary takes precedence */
+  /* Dark/violet theme override for active tabs */
   .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .filter-tab.active {
     background: var(--primary);
     color: white;
-    border-color: var(--primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
   /* Secondary filter tabs (type filter) - slightly different opacity */
@@ -1062,6 +1164,7 @@
 
   .tournaments-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 0.85rem;
   }
@@ -1131,11 +1234,16 @@
   }
 
   .name-cell {
-    min-width: 200px;
+    width: auto;
   }
 
+  /* Fixed width columns */
+  .city-col { width: 120px; text-align: left; }
   .status-col { width: 110px; text-align: left; }
+  .type-col { width: 60px; text-align: center; }
+  .mode-col { width: 80px; text-align: left; }
   .participants-col { width: 80px; text-align: left; }
+  .created-col { width: 140px; text-align: left; }
   .actions-col { width: 100px; text-align: right; }
 
   .name-cell .tournament-name {
@@ -1276,7 +1384,7 @@
     border: none;
     background: transparent;
     cursor: pointer;
-    font-size: 1.2rem;
+    font-size: 1rem;
     border-radius: 4px;
     transition: all 0.2s;
   }
