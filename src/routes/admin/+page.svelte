@@ -6,44 +6,38 @@
   import { adminTheme } from '$lib/stores/theme';
   import { isSuperAdminUser } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
-  import { ChevronLeft } from '@lucide/svelte';
+  import {
+    ChevronLeft,
+    Users,
+    Swords,
+    Trophy,
+    Shield,
+    ArrowRight
+  } from '@lucide/svelte';
 
-  interface AdminSection {
-    title: () => string;
-    description: () => string;
-    icon: string;
-    path: string;
-    gradient: string;
-    superAdminOnly?: boolean;
-  }
-
-  const allAdminSections: AdminSection[] = [
-    {
-      title: m.admin_userManagement,
-      description: m.admin_manageUsersDesc,
-      icon: '👥',
-      path: '/admin/users',
-      gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      superAdminOnly: true
-    },
+  const allAdminSections = [
     {
       title: m.admin_matchManagement,
       description: m.admin_manageMatchesDesc,
-      icon: '🎯',
+      Icon: Swords,
       path: '/admin/matches',
-      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
       superAdminOnly: true
     },
     {
       title: m.admin_tournamentManagement,
       description: m.admin_manageTournamentsDesc,
-      icon: '🏆',
-      path: '/admin/tournaments',
-      gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
+      Icon: Trophy,
+      path: '/admin/tournaments'
+    },
+    {
+      title: m.admin_userManagement,
+      description: m.admin_manageUsersDesc,
+      Icon: Users,
+      path: '/admin/users',
+      superAdminOnly: true
     }
   ];
 
-  // Filter sections based on superAdmin status
   let adminSections = $derived(allAdminSections.filter(
     section => !section.superAdminOnly || $isSuperAdminUser
   ));
@@ -54,394 +48,345 @@
 </script>
 
 <AdminGuard>
-  <div class="admin-page" data-theme={$adminTheme}>
-    <nav class="navbar">
-      <button class="back-btn" onclick={() => goto('/')} aria-label={m.admin_backToHome()}>
-          <ChevronLeft class="size-5" />
+  <div class="admin-layout" data-theme={$adminTheme}>
+    <header class="admin-navbar">
+      <nav class="admin-navbar-inner">
+        <button
+          onclick={() => goto('/')}
+          class="admin-back-btn"
+          aria-label={m.admin_backToHome()}
+        >
+          <span class="admin-back-icon">
+            <ChevronLeft size={16} />
+          </span>
+          <span class="admin-back-label">Back to App</span>
         </button>
-      <div class="theme-toggle-wrapper">
-        <ThemeToggle />
-      </div>
-    </nav>
-    <div class="admin-container">
-    <header class="admin-header">
-      <div class="header-content">
-        <div class="shield-icon">🛡️</div>
-        <h1>{m.admin_panel()}</h1>
-        <p class="welcome">{m.admin_welcome()}, <strong>{$currentUser?.name || 'Admin'}</strong></p>
-      </div>
+
+        <div class="admin-navbar-actions">
+          <ThemeToggle />
+        </div>
+      </nav>
     </header>
 
-    <div class="admin-grid">
-      {#each adminSections as section}
-        <button
-          class="admin-card"
-          onclick={() => navigateTo(section.path)}
-        >
-          <div class="card-background" style="background: {section.gradient}"></div>
-          <div class="card-content">
-            <div class="icon">{section.icon}</div>
-            <h2>{section.title()}</h2>
-            <p>{section.description()}</p>
-            <div class="arrow">→</div>
-          </div>
-        </button>
-      {/each}
-    </div>
-    </div>
+    <main class="admin-content">
+      <section class="admin-header">
+        <div class="admin-header-badge">
+          <Shield size={18} strokeWidth={2.5} />
+          <span>Administration</span>
+        </div>
+        <h1 class="admin-title">{m.admin_panel()}</h1>
+        <p class="admin-subtitle">
+          {m.admin_welcome()}, <span class="admin-username">{$currentUser?.name || 'Admin'}</span>
+        </p>
+      </section>
+
+      <section class="admin-sections">
+        {#each adminSections as section}
+          <button
+            onclick={() => navigateTo(section.path)}
+            class="admin-card"
+          >
+            <div class="admin-card-icon">
+              <section.Icon size={24} strokeWidth={1.8} />
+            </div>
+            <h2 class="admin-card-title">{section.title()}</h2>
+            <p class="admin-card-desc">{section.description()}</p>
+            <span class="admin-card-action">
+              <span>Manage</span>
+              <ArrowRight size={14} />
+            </span>
+          </button>
+        {/each}
+      </section>
+    </main>
   </div>
 </AdminGuard>
 
 <style>
-  .admin-page {
+  .admin-layout {
     min-height: 100vh;
-    background: var(--background);
-    transition: background-color 0.3s, color 0.3s;
-  }
-
-  .navbar {
-    background: var(--background);
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.25rem;
-    position: relative;
+    flex-direction: column;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: system-ui, -apple-system, sans-serif;
   }
 
-  .back-btn {
+  /* Navbar */
+  .admin-navbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    width: 100%;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    background: color-mix(in srgb, var(--background) 85%, transparent);
+    backdrop-filter: blur(20px);
+  }
+
+  .admin-navbar-inner {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .admin-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+
+  .admin-back-btn:hover {
+    color: var(--primary);
+  }
+
+  .admin-back-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    background: var(--card);
-    color: var(--muted-foreground);
-    cursor: pointer;
+    background: var(--background);
     transition: all 0.2s;
-    flex-shrink: 0;
   }
 
-  .back-btn:hover {
-    transform: translateX(-2px);
-    border-color: var(--primary);
-    color: var(--primary);
+  .admin-back-btn:hover .admin-back-icon {
+    border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+    background: var(--accent);
   }
 
-  .admin-container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 1.5rem 2rem;
+  .admin-back-label {
+    display: none;
   }
 
+  .admin-navbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Content */
+  .admin-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 48px 24px 64px;
+    gap: 48px;
+  }
+
+  /* Header */
   .admin-header {
-    margin-bottom: 2rem;
-  }
-
-  .header-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
+    gap: 8px;
   }
 
-  .shield-icon {
-    font-size: 3rem;
-    margin-bottom: 0.5rem;
-    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
-  }
-
-  .admin-header h1 {
-    font-size: 1.8rem;
-    margin: 0 0 0.5rem 0;
+  .admin-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: var(--primary);
-    font-weight: 700;
-    letter-spacing: -0.5px;
-    transition: color 0.3s;
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    margin-bottom: 4px;
   }
 
-  .welcome {
-    font-size: 1.05rem;
+  .admin-title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--foreground);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .admin-subtitle {
+    font-size: 15px;
     color: var(--muted-foreground);
     margin: 0;
-    transition: color 0.3s;
   }
 
-  .welcome strong {
-    color: var(--foreground);
+  .admin-username {
     font-weight: 600;
-    transition: color 0.3s;
+    color: var(--primary);
   }
 
-  .admin-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.5rem;
-    max-width: 900px;
-    margin: 0 auto;
+  /* Cards */
+  .admin-sections {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 780px;
   }
 
   .admin-card {
-    position: relative;
-    background: var(--card);
-    border: none;
-    border-radius: 16px;
-    padding: 0;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    height: 180px;
-    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     width: 100%;
-    justify-self: center;
-  }
-
-  .admin-page:is([data-theme='dark'], [data-theme='violet']) .admin-card {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    max-width: 280px;
+    min-height: 200px;
+    padding: 24px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
   }
 
   .admin-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+    border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+    box-shadow:
+      0 1px 3px color-mix(in srgb, var(--primary) 6%, transparent),
+      0 8px 24px color-mix(in srgb, var(--primary) 8%, transparent);
+    transform: translateY(-2px);
   }
 
-  .admin-page:is([data-theme='dark'], [data-theme='violet']) .admin-card:hover {
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
+  .admin-card:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 
-  .admin-card:hover .card-background {
-    opacity: 0.95;
-  }
-
-  .admin-card:hover .arrow {
-    transform: translateX(5px);
-  }
-
-  .card-background {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 60px;
-    opacity: 0.9;
-    transition: opacity 0.3s;
-  }
-
-  .card-content {
-    position: relative;
-    padding: 1.25rem 1.5rem 1rem;
-    text-align: left;
-    height: 100%;
+  .admin-card-icon {
     display: flex;
-    flex-direction: column;
-  }
-
-  .icon {
-    font-size: 2.25rem;
-    margin-bottom: 0.35rem;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-  }
-
-  .admin-card h2 {
-    font-size: 1.15rem;
-    margin: 0 0 0.5rem 0;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
     color: var(--primary);
-    font-weight: 700;
-    letter-spacing: -0.3px;
-    transition: color 0.3s;
+    margin-bottom: 16px;
+    transition: all 0.25s;
   }
 
-  .admin-card p {
+  .admin-card:hover .admin-card-icon {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    transform: scale(1.05);
+  }
+
+  .admin-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--foreground);
+    margin: 0 0 6px;
+    transition: color 0.2s;
+  }
+
+  .admin-card:hover .admin-card-title {
+    color: var(--primary);
+  }
+
+  .admin-card-desc {
+    font-size: 13px;
+    line-height: 1.5;
     color: var(--muted-foreground);
-    font-size: 0.85rem;
-    line-height: 1.4;
     margin: 0;
     flex: 1;
-    transition: color 0.3s;
+    line-clamp: 3;
+    -webkit-line-clamp: 3;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
-  .arrow {
-    font-size: 1.25rem;
+  .admin-card-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 16px;
+    font-size: 13px;
+    font-weight: 500;
     color: var(--primary);
-    align-self: flex-end;
-    transition: transform 0.3s, color 0.3s;
-    margin-top: 0.5rem;
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: all 0.25s;
   }
 
-  /* Landscape orientation - optimize for limited height */
-  @media (max-width: 900px) and (orientation: landscape) and (max-height: 600px) {
-    .admin-container {
-      padding: 0.75rem 1.5rem;
+  .admin-card:hover .admin-card-action {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Responsive */
+  @media (min-width: 640px) {
+    .admin-navbar-inner {
+      padding: 0 32px;
+    }
+
+    .admin-back-label {
+      display: inline;
+    }
+
+    .admin-content {
+      padding: 64px 32px 80px;
+      gap: 56px;
+    }
+
+    .admin-title {
+      font-size: 34px;
+    }
+
+    .admin-sections {
+      gap: 20px;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .admin-card {
+      max-width: 100%;
       min-height: auto;
+      flex-direction: row;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
     }
 
-    .admin-header {
-      margin-bottom: 0.75rem;
+    .admin-card-icon {
+      margin-bottom: 0;
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
     }
 
-    .shield-icon {
-      font-size: 1.5rem;
-      margin-bottom: 0.25rem;
+    .admin-card-title {
+      margin: 0;
     }
 
-    .admin-header h1 {
-      font-size: 1.2rem;
-      margin-bottom: 0.25rem;
+    .admin-card-desc {
+      display: none;
     }
 
-    .welcome {
-      font-size: 0.75rem;
-    }
-
-    .admin-grid {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
-    }
-
-    .admin-card {
-      height: 110px;
-    }
-
-    .card-background {
-      height: 35px;
-    }
-
-    .card-content {
-      padding: 0.75rem 1rem 0.5rem;
-    }
-
-    .icon {
-      font-size: 1.5rem;
-      margin-bottom: 0.15rem;
-    }
-
-    .admin-card h2 {
-      font-size: 0.95rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .admin-card p {
-      font-size: 0.7rem;
-      line-height: 1.3;
-    }
-
-    .arrow {
-      font-size: 1rem;
-      margin-top: 0.25rem;
-    }
-  }
-
-  /* Responsive Portrait */
-  @media (max-width: 768px) and (orientation: portrait) {
-    .admin-container {
-      padding: 1rem 1rem;
-    }
-
-    .admin-header {
-      margin-bottom: 1.5rem;
-    }
-
-    .shield-icon {
-      font-size: 2.5rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .admin-header h1 {
-      font-size: 1.5rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .welcome {
-      font-size: 0.9rem;
-    }
-
-    .admin-grid {
-      grid-template-columns: 1fr;
-      gap: 1rem;
-    }
-
-    .admin-card {
-      height: 160px;
-    }
-
-    .card-background {
-      height: 60px;
-    }
-
-    .card-content {
-      padding: 1.25rem 1.25rem 1rem;
-    }
-
-    .icon {
-      font-size: 2rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .admin-card h2 {
-      font-size: 1.1rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .admin-card p {
-      font-size: 0.85rem;
-      line-height: 1.4;
-    }
-
-    .arrow {
-      font-size: 1.25rem;
-      margin-top: 0.5rem;
-    }
-  }
-
-  @media (max-width: 480px) and (orientation: portrait) {
-    .admin-container {
-      padding: 0.75rem 0.75rem;
-    }
-
-    .shield-icon {
-      font-size: 2rem;
-      margin-bottom: 0.35rem;
-    }
-
-    .admin-header h1 {
-      font-size: 1.3rem;
-      margin-bottom: 0.35rem;
-    }
-
-    .welcome {
-      font-size: 0.85rem;
-    }
-
-    .admin-header {
-      margin-bottom: 1rem;
-    }
-
-    .admin-card {
-      height: 140px;
-    }
-
-    .card-background {
-      height: 50px;
-    }
-
-    .card-content {
-      padding: 1rem 1rem 0.75rem;
-    }
-
-    .icon {
-      font-size: 1.75rem;
-    }
-
-    .admin-card h2 {
-      font-size: 1rem;
-      margin-bottom: 0.4rem;
-    }
-
-    .admin-card p {
-      font-size: 0.8rem;
-    }
-
-    .arrow {
-      font-size: 1.1rem;
+    .admin-card-action {
+      display: none;
     }
   }
 </style>
