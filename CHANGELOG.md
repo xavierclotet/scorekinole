@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.27] - 2026-02-17
+- Enable pinch-to-zoom on Android WebView and web viewport
+
 ## [2.4.26] - 2026-02-16
 - Optimize mobile UX: improved safe-area handling and removed sticky headers in stats
 - Fix interaction issues in Game Mode by removing touch action blocks

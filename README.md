@@ -4,7 +4,7 @@
 
 Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. Perfect for casual games and professional tournaments.
 
-![Version](https://img.shields.io/badge/version-2.4.26-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.27-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Android-brightgreen.svg)
 
@@ -18,7 +18,7 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 Works on any device with a browser - no installation required!
 
 ### 📱 **ANDROID APP**
-### 👉 [**DOWNLOAD LATEST VERSION (v2.4.26)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
+### 👉 [**DOWNLOAD LATEST VERSION (v2.4.27)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
 
 **Installation:**
 1. Download the APK file from the link above
