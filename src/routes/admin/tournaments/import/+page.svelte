@@ -292,9 +292,15 @@
       }
 
       // Pre-populate Step 3: Final Stage (if any) - serialize existing data to textarea
-      if (tournament.finalStage?.parallelBrackets) {
-        numBrackets = tournament.finalStage.parallelBrackets.length;
-        brackets = tournament.finalStage.parallelBrackets.map(nb => ({
+      // Normalize goldBracket/silverBracket (SINGLE_BRACKET / SPLIT_DIVISIONS) to parallelBrackets format
+      const bracketsToLoad = tournament.finalStage?.parallelBrackets ??
+        ([
+          tournament.finalStage?.goldBracket ? { name: 'Gold', label: 'Gold', sourcePositions: [], bracket: tournament.finalStage.goldBracket } : null,
+          tournament.finalStage?.silverBracket ? { name: 'Silver', label: 'Silver', sourcePositions: [], bracket: tournament.finalStage.silverBracket } : null,
+        ].filter(Boolean) as { name: string; label: string; sourcePositions: number[]; bracket: typeof tournament.finalStage.goldBracket }[]);
+      if (bracketsToLoad.length > 0) {
+        numBrackets = bracketsToLoad.length;
+        brackets = bracketsToLoad.map(nb => ({
           name: nb.name,
           label: nb.label,
           sourcePositions: nb.sourcePositions || [],
@@ -331,8 +337,16 @@
           }))
         }));
         knockoutStageText = serializeKnockoutStageData(bracketsForSerialization);
-        brackets = [];
-        knockoutParsePhase = 'input'; // Show textarea with pre-filled data for review/edit
+        knockoutParsePhase = 'preview';
+        knockoutParseResult = {
+          success: true,
+          brackets: [],
+          errors: [],
+          warnings: [],
+          unknownParticipants: [],
+          totalMatches: brackets.reduce((sum, b) => sum + b.rounds.reduce((rSum, r) => rSum + r.matches.length, 0), 0),
+          totalRounds: brackets.reduce((sum, b) => sum + b.rounds.length, 0)
+        };
       }
 
       console.log('✅ Tournament loaded for duplication:', tournament.name);
