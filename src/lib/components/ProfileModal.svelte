@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
-	import { getUserProfile } from '$lib/firebase/userProfile';
+	import { getUserProfile, isPlayerNameTaken } from '$lib/firebase/userProfile';
 	import { uploadAvatar, deleteAvatar } from '$lib/firebase/avatarStorage';
 	import { adminTheme } from '$lib/stores/theme';
 	import { COUNTRY_CODES } from '$lib/constants';
@@ -79,6 +79,8 @@
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let fileInput = $state<HTMLInputElement | null>(null);
+	let nameError = $state<string | null>(null);
+	let isCheckingName = $state(false);
 	let countrySearchOpen = $state(false);
 	let countrySearch = $state('');
 
@@ -134,13 +136,26 @@
 		onclose?.();
 	}
 
-	function updateProfile() {
-		if (playerNameInput.trim()) {
+	async function updateProfile() {
+		if (!playerNameInput.trim()) return;
+
+		nameError = null;
+		isCheckingName = true;
+
+		try {
+			const taken = await isPlayerNameTaken(playerNameInput.trim());
+			if (taken) {
+				nameError = m.auth_playerNameTaken();
+				return;
+			}
+
 			onupdate?.({
 				playerName: playerNameInput.trim(),
 				photoURL: currentPhotoURL || undefined,
 				country: countryCode || undefined
 			});
+		} finally {
+			isCheckingName = false;
 		}
 	}
 
@@ -197,6 +212,12 @@
 		}
 	}
 
+	function handleOverlayMousedown(e: MouseEvent) {
+		if (e.target === e.currentTarget) {
+			close();
+		}
+	}
+
 	function stopPropagation(e: Event) {
 		e.stopPropagation();
 	}
@@ -206,9 +227,9 @@
 
 {#if isOpen}
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="modal-overlay" data-theme={$adminTheme} onclick={close} role="none">
+	<div class="modal-overlay" data-theme={$adminTheme} onmousedown={handleOverlayMousedown} role="none">
 		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-		<div class="modal" onclick={stopPropagation} role="dialog" tabindex="-1">
+		<div class="modal" onmousedown={stopPropagation} role="dialog" tabindex="-1">
 			{#if user}
 				<!-- Hidden file input -->
 				<input
@@ -287,12 +308,17 @@
 						<input
 							id="profilePlayerNameInput"
 							type="text"
-							class="field-input"
+							class={["field-input", nameError && "field-input-error"]}
 							bind:value={playerNameInput}
+							oninput={() => nameError = null}
 							placeholder={m.auth_enterPlayerName()}
 							maxlength="20"
 						/>
-						<span class="field-hint">{m.auth_playerNameDescription()}</span>
+						{#if nameError}
+							<span class="field-error">{nameError}</span>
+						{:else}
+							<span class="field-hint">{m.auth_playerNameDescription()}</span>
+						{/if}
 					</div>
 
 					<!-- Country -->
@@ -365,7 +391,7 @@
 				<!-- Footer -->
 				<div class="footer">
 					<button class="btn-cancel" onclick={close}>{m.common_cancel()}</button>
-					<button class="btn-save" onclick={updateProfile} disabled={!playerNameInput.trim()}>
+					<button class="btn-save" onclick={updateProfile} disabled={!playerNameInput.trim() || isCheckingName}>
 						{m.common_save()}
 					</button>
 				</div>
@@ -397,7 +423,7 @@
 		background: var(--card);
 		border: 1px solid var(--border);
 		border-radius: 12px;
-		max-width: 360px;
+		max-width: 420px;
 		width: 100%;
 		animation: modalSlide 0.12s ease-out;
 		box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.35);
@@ -712,6 +738,15 @@
 	.field-hint {
 		font-size: 12px;
 		color: var(--muted-foreground);
+	}
+
+	.field-error {
+		font-size: 12px;
+		color: var(--destructive);
+	}
+
+	:global(.field-input-error) {
+		border-color: var(--destructive) !important;
 	}
 
 	/* Footer */

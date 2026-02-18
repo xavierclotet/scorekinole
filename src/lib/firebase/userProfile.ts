@@ -35,6 +35,35 @@ export interface UserProfile {
 }
 
 /**
+ * Check if a player name is already taken by another user
+ * Case-insensitive comparison
+ */
+export async function isPlayerNameTaken(playerName: string): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) return false;
+
+  const user = get(currentUser);
+  const trimmed = playerName.trim().toLowerCase();
+  if (!trimmed) return false;
+
+  try {
+    const usersRef = collection(db!, 'users');
+    const q = query(usersRef, where('playerNameLower', '==', trimmed));
+    const snapshot = await getDocs(q);
+
+    // Exclude the current user from the results
+    for (const docSnap of snapshot.docs) {
+      if (docSnap.id !== user?.id) {
+        return true;
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('❌ Error checking player name:', error);
+    return false;
+  }
+}
+
+/**
  * Get user profile from Firestore
  */
 export async function getUserProfile(): Promise<UserProfile | null> {
@@ -95,8 +124,9 @@ export async function saveUserProfile(
 
     const currentYear = new Date().getFullYear();
 
-    const profile: Partial<UserProfile> = {
+    const profile: Partial<UserProfile & { playerNameLower: string }> = {
       playerName: playerName.trim(),
+      playerNameLower: playerName.trim().toLowerCase(),
       email: user.email,
       photoURL: user.photoURL,
       authProvider: 'google',

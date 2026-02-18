@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
 	import { currentUser } from '$lib/firebase/auth';
+	import { isPlayerNameTaken } from '$lib/firebase/userProfile';
 	import Button from './Button.svelte';
 
 	interface Props {
@@ -31,6 +32,13 @@
 		error = '';
 
 		try {
+			const taken = await isPlayerNameTaken(playerNameInput.trim());
+			if (taken) {
+				error = m.auth_playerNameTaken();
+				isLoading = false;
+				return;
+			}
+
 			await onsave?.(playerNameInput.trim());
 		} catch (err: any) {
 			console.error('Error saving profile:', err);
@@ -86,6 +94,7 @@
 						autofocus
 						disabled={isLoading}
 					/>
+					<span class="hint">{m.auth_playerNameDescription()}</span>
 				</div>
 
 				<div class="actions">
@@ -221,6 +230,12 @@
 	.input:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	.hint {
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.5);
+		margin-top: 2px;
 	}
 
 	.actions {

@@ -1280,5 +1280,6 @@
   "profile_noCountryFound": "No s'ha trobat cap país",
   "profile_searchCountry": "Buscar país...",
   "common_or": "o",
-  "tournament_myActiveTournaments": "Els meus tornejos actius"
+  "tournament_myActiveTournaments": "Els meus tornejos actius",
+  "auth_playerNameTaken": "Aquest nom de jugador ja està en ús. Tria'n un altre."
 }

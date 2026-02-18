@@ -1280,5 +1280,6 @@
   "profile_noCountryFound": "No country was found",
   "profile_searchCountry": "Search country...",
   "common_or": "either",
-  "tournament_myActiveTournaments": "My active tournaments"
+  "tournament_myActiveTournaments": "My active tournaments",
+  "auth_playerNameTaken": "This player name is already in use. Please choose another."
 }
