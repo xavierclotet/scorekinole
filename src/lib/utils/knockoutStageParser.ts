@@ -396,8 +396,9 @@ export function serializeKnockoutStageData(
 			// Round name
 			lines.push(round.name);
 
-			// Matches
+			// Matches (skip BYEs where one participant is missing)
 			for (const match of round.matches) {
+				if (!match.participantAName || !match.participantBName) continue;
 				const scoreA = match.scoreA ?? 0;
 				const scoreB = match.scoreB ?? 0;
 				lines.push(`${match.participantAName},${match.participantBName},${scoreA},${scoreB}`);

@@ -267,25 +267,72 @@
         }));
       }
 
-      // Pre-populate Step 2: Group Stage structure (if any) - but clear results
+      // Pre-populate Step 2: Group Stage (if any) - serialize existing data to textarea
       if (tournament.groupStage) {
         hasGroupStage = true;
         numGroups = tournament.groupStage.numGroups || tournament.groupStage.groups?.length || 2;
-        // Clear groups - user will input new data via textarea
+        if (tournament.groupStage.groups) {
+          const groupsForSerialization = tournament.groupStage.groups.map(g => ({
+            name: g.name,
+            standings: (g.standings || []).map(s => ({
+              participantName: tournament.participants?.find(p => p.id === s.participantId)?.name || '',
+              points: s.points || 0,
+              total20s: s.total20s || 0
+            }))
+          }));
+          groupStageText = serializeGroupStageData(groupsForSerialization, gameType);
+        } else {
+          groupStageText = '';
+        }
         groups = [];
-        groupStageText = ''; // Clear text for fresh input
-        parsePhase = 'input'; // Start in input mode for duplicate
+        parsePhase = 'input'; // Show textarea with pre-filled data for review/edit
       } else {
         hasGroupStage = false;
         parsePhase = 'preview'; // No groups, go to preview
       }
 
-      // Pre-populate Step 3: Final Stage structure (if any) - clear for fresh input
+      // Pre-populate Step 3: Final Stage (if any) - serialize existing data to textarea
       if (tournament.finalStage?.parallelBrackets) {
         numBrackets = tournament.finalStage.parallelBrackets.length;
-        brackets = [];  // Clear brackets - user will input new data via textarea
-        knockoutStageText = '';  // Clear text for fresh input
-        knockoutParsePhase = 'input';  // Start in input mode for duplicate
+        brackets = tournament.finalStage.parallelBrackets.map(nb => ({
+          name: nb.name,
+          label: nb.label,
+          sourcePositions: nb.sourcePositions || [],
+          rounds: nb.bracket?.rounds?.map(r => ({
+            id: crypto.randomUUID(),
+            name: r.name,
+            matches: r.matches?.map(match => ({
+              id: crypto.randomUUID(),
+              participantAId: match.participantA || '',
+              participantAName: tournament.participants?.find(p => p.id === match.participantA)?.name || '',
+              participantBId: match.participantB || '',
+              participantBName: tournament.participants?.find(p => p.id === match.participantB)?.name || '',
+              scoreA: match.totalPointsA || 0,
+              scoreB: match.totalPointsB || 0,
+              twentiesA: match.total20sA || 0,
+              twentiesB: match.total20sB || 0,
+              isWalkover: match.status === 'WALKOVER'
+            })) || []
+          })) || []
+        }));
+
+        const bracketsForSerialization = brackets.map(b => ({
+          name: b.name,
+          label: b.label,
+          sourcePositions: b.sourcePositions,
+          rounds: b.rounds.map(r => ({
+            name: r.name,
+            matches: r.matches.map(m => ({
+              participantAName: m.participantAName,
+              participantBName: m.participantBName,
+              scoreA: m.scoreA,
+              scoreB: m.scoreB
+            }))
+          }))
+        }));
+        knockoutStageText = serializeKnockoutStageData(bracketsForSerialization);
+        brackets = [];
+        knockoutParsePhase = 'input'; // Show textarea with pre-filled data for review/edit
       }
 
       console.log('✅ Tournament loaded for duplication:', tournament.name);
