@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.34] - 2026-02-18
+- Enforce unique player names with case-insensitive validation
+- Fix profile modal closing when selecting text in input
+- Widen profile modal and improve player name hint
+- Simplify friendly match labels (remove "friendly/amistoso" prefix)
+
 ## [2.4.33] - 2026-02-17
 - Fix overscroll bounce globally and improve page layouts (admin, my-stats)
 - My Stats: sticky header and filters with scrollable content area
