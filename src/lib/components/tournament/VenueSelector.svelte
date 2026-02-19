@@ -79,17 +79,23 @@
 	// Mode: 'search' (default) or 'manual'
 	let showManualForm = $state(false);
 
-	// Sync manual values when props change (e.g., when duplicating a tournament)
-	// Also hide manual form when a venue is selected
+	// Sync manual values from props when manual form is closed
 	$effect(() => {
-		if (currentCity) {
-			// Location selected - hide manual form
-			showManualForm = false;
-		} else if (!showManualForm) {
-			// Sync values only when form is closed
+		if (!showManualForm) {
 			manualAddress = currentAddress;
 			manualCity = currentCity;
 			manualCountry = currentCountry;
+		}
+	});
+
+	// Auto-propagate manual form values to parent as user types
+	$effect(() => {
+		if (showManualForm) {
+			props.onselect({
+				address: manualAddress.trim() || undefined,
+				city: manualCity.trim(),
+				country: manualCountry
+			});
 		}
 	});
 
@@ -107,6 +113,7 @@
 	}
 
 	function selectVenue(venue: Venue) {
+		showManualForm = false;
 		props.onselect({
 			address: venue.address,
 			city: venue.city,
@@ -157,7 +164,7 @@
 </script>
 
 <div class="venue-selector" data-theme={theme}>
-	{#if currentCity}
+	{#if currentCity && !showManualForm}
 		<!-- Location already selected: show summary -->
 		<div class="selected-location">
 			<span class="field-label">{m.wizard_location()}</span>
