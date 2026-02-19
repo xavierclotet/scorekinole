@@ -767,47 +767,6 @@
     flex-shrink: 0;
   }
 
-  .create-btn {
-    padding: 0.35rem 0.65rem;
-    background: #1a1a1a;
-    color: #f5f5f5;
-    border: 1px solid #333;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-    letter-spacing: 0.02em;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .btn-icon {
-    display: none;
-  }
-
-  .btn-text {
-    display: inline;
-  }
-
-  .create-btn:hover {
-    background: #2a2a2a;
-    border-color: #444;
-  }
-
-  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .create-btn {
-    background: #e5e7eb;
-    color: #1a1a1a;
-    border-color: #d1d5db;
-  }
-
-  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .create-btn:hover {
-    background: #f3f4f6;
-    border-color: #e5e7eb;
-  }
-
   .import-btn {
     padding: 0.35rem 0.65rem;
     background: transparent;
