@@ -1162,11 +1162,15 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		opacity: 0.7;
+		background: color-mix(in srgb, var(--foreground) 15%, transparent);
+		border-radius: 8px;
+		padding: 4px;
+		opacity: 0.9;
 	}
 
 	.hammer-indicator svg {
-		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+		display: block;
+		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
 	}
 
 	.score-display {
@@ -1216,9 +1220,9 @@
 	.name-size-large .player-name-badge { font-size: 2.3rem; }
 
 	/* Hammer size scales with name size */
-	.name-size-small .hammer-indicator svg { width: 18px; height: 18px; }
-	.name-size-medium .hammer-indicator svg { width: 22px; height: 22px; }
-	.name-size-large .hammer-indicator svg { width: 26px; height: 26px; }
+	.name-size-small .hammer-indicator svg { width: 22px; height: 22px; }
+	.name-size-medium .hammer-indicator svg { width: 27px; height: 27px; }
+	.name-size-large .hammer-indicator svg { width: 32px; height: 32px; }
 
 	/* Avatar size scales with name size - base (desktop) */
 	.name-size-small .player-avatar { width: 28px; height: 28px; }
@@ -1268,9 +1272,9 @@
 		.name-size-large .player-name-badge { font-size: 2rem; }
 
 		/* Hammer sizes for tablet */
-		.name-size-small .hammer-indicator svg { width: 16px; height: 16px; }
-		.name-size-medium .hammer-indicator svg { width: 20px; height: 20px; }
-		.name-size-large .hammer-indicator svg { width: 24px; height: 24px; }
+		.name-size-small .hammer-indicator svg { width: 20px; height: 20px; }
+		.name-size-medium .hammer-indicator svg { width: 25px; height: 25px; }
+		.name-size-large .hammer-indicator svg { width: 30px; height: 30px; }
 
 		/* Avatar sizes for tablet */
 		.name-size-small .player-avatar { width: 24px; height: 24px; }
@@ -1336,9 +1340,9 @@
 		.name-size-large .player-name-badge { font-size: 1.75rem; }
 
 		/* Hammer sizes for mobile */
-		.name-size-small .hammer-indicator svg { width: 14px; height: 14px; }
-		.name-size-medium .hammer-indicator svg { width: 17px; height: 17px; }
-		.name-size-large .hammer-indicator svg { width: 21px; height: 21px; }
+		.name-size-small .hammer-indicator svg { width: 18px; height: 18px; }
+		.name-size-medium .hammer-indicator svg { width: 22px; height: 22px; }
+		.name-size-large .hammer-indicator svg { width: 27px; height: 27px; }
 
 		/* Avatar sizes for mobile */
 		.name-size-small .player-avatar { width: 22px; height: 22px; }
@@ -1401,9 +1405,9 @@
 		.name-size-large .player-name-badge { font-size: 2.1rem; }
 
 		/* Hammer sizes for portrait tablet */
-		.name-size-small .hammer-indicator svg { width: 17px; height: 17px; }
-		.name-size-medium .hammer-indicator svg { width: 21px; height: 21px; }
-		.name-size-large .hammer-indicator svg { width: 25px; height: 25px; }
+		.name-size-small .hammer-indicator svg { width: 21px; height: 21px; }
+		.name-size-medium .hammer-indicator svg { width: 26px; height: 26px; }
+		.name-size-large .hammer-indicator svg { width: 31px; height: 31px; }
 
 		/* Avatar sizes for portrait tablet */
 		.name-size-small .player-avatar { width: 26px; height: 26px; }
@@ -1438,9 +1442,9 @@
 		.name-size-large .player-name-badge { font-size: 1.8rem; }
 
 		/* Hammer sizes for portrait mobile */
-		.name-size-small .hammer-indicator svg { width: 15px; height: 15px; }
-		.name-size-medium .hammer-indicator svg { width: 18px; height: 18px; }
-		.name-size-large .hammer-indicator svg { width: 22px; height: 22px; }
+		.name-size-small .hammer-indicator svg { width: 19px; height: 19px; }
+		.name-size-medium .hammer-indicator svg { width: 23px; height: 23px; }
+		.name-size-large .hammer-indicator svg { width: 28px; height: 28px; }
 
 		/* Avatar sizes for portrait mobile */
 		.name-size-small .player-avatar { width: 24px; height: 24px; }
@@ -1476,9 +1480,9 @@
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for very small phones */
-		.name-size-small .hammer-indicator svg { width: 13px; height: 13px; }
-		.name-size-medium .hammer-indicator svg { width: 16px; height: 16px; }
-		.name-size-large .hammer-indicator svg { width: 19px; height: 19px; }
+		.name-size-small .hammer-indicator svg { width: 17px; height: 17px; }
+		.name-size-medium .hammer-indicator svg { width: 21px; height: 21px; }
+		.name-size-large .hammer-indicator svg { width: 25px; height: 25px; }
 
 		/* Avatar sizes for very small phones */
 		.name-size-small .player-avatar { width: 20px; height: 20px; }
@@ -1519,9 +1523,9 @@
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for landscape mobile */
-		.name-size-small .hammer-indicator svg { width: 13px; height: 13px; }
-		.name-size-medium .hammer-indicator svg { width: 16px; height: 16px; }
-		.name-size-large .hammer-indicator svg { width: 19px; height: 19px; }
+		.name-size-small .hammer-indicator svg { width: 17px; height: 17px; }
+		.name-size-medium .hammer-indicator svg { width: 21px; height: 21px; }
+		.name-size-large .hammer-indicator svg { width: 25px; height: 25px; }
 
 		/* Avatar sizes for landscape mobile */
 		.name-size-small .player-avatar { width: 20px; height: 20px; }
