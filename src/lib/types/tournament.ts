@@ -99,6 +99,7 @@ export interface Tournament {
   // Import fields (for tournaments imported after completion)
   isImported?: boolean;                // true for tournaments imported after completion
   importedAt?: number;                 // Timestamp when tournament was imported
+  enrichedAt?: number;                 // Timestamp when tournament was enriched with LIVE-like data
   importedBy?: {
     userId: string;
     userName: string;

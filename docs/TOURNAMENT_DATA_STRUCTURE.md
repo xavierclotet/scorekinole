@@ -48,6 +48,7 @@ This document describes all interfaces that compose a `Tournament` object in Sco
 | | `importNotes` | ❌ Not present | ✅ Optional string |
 | | `externalLink` | ❌ Not present | ✅ Optional URL |
 | | `posterUrl` | ❌ Not present | ✅ Optional image URL |
+| **Enrichment** | `enrichedAt` | ❌ Not present | ✅ Set after `transformImportedToLive()` — indicates the tournament has been enriched with full LIVE-like data. Used to hide the "Transform" button and show an "enriched" badge in the admin list. |
 | **Participants** | `participants[].type` | `REGISTERED` or `GUEST` | Usually `GUEST` |
 | | `participants[].userId` | ✅ For registered users | ❌ Rarely present |
 | | `participants[].rankingSnapshot` | ✅ Captured at registration | `0` (unknown) |
@@ -163,6 +164,9 @@ interface Tournament {
   importNotes?: string;
   externalLink?: string;
   posterUrl?: string;
+
+  // Enrichment fields (set when an IMPORTED tournament is transformed to LIVE-like structure)
+  enrichedAt?: number;                      // Timestamp when transform was applied
 
   // Video
   videoUrl?: string;
@@ -1283,18 +1287,22 @@ After enrichment, update:
 ```typescript
 {
   // Keep import fields for historical reference
-  isImported: true,
+  isImported: true,           // remains true — tournament is still "imported"
   importedAt: originalImportTimestamp,
 
-  // Add enrichment metadata (optional)
+  // Add enrichment timestamp — KEY FIELD
+  // Set by transformImportedToLive() in tournaments.ts
+  // Used in the admin tournament list to:
+  //   - Show an "enriched" badge on the tournament card
+  //   - Hide the "Transform to LIVE" button (already transformed)
   enrichedAt: Date.now(),
-  enrichedBy: { userId, userName },
-  enrichmentNotes: "Match data added from video recordings",
 
   // Update status to reflect full data
   updatedAt: Date.now(),
 }
 ```
+
+> **Note:** `enrichedAt` is the canonical way to check whether a tournament has been transformed. Always check `tournament.enrichedAt` (truthy) rather than checking the presence of group/bracket data, which may vary.
 
 ### Helper Function Template
 

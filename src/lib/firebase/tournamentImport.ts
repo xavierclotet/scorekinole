@@ -6,7 +6,7 @@
 import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { isAdmin, isSuperAdmin } from './admin';
-import { getUserProfile } from './userProfile';
+import { getUserProfile, getUserProfileById } from './userProfile';
 import type {
   Tournament,
   TournamentParticipant,
@@ -120,6 +120,7 @@ export interface HistoricalMatchInput {
   twentiesA?: number;
   twentiesB?: number;
   isWalkover?: boolean;
+  rounds?: Array<{ pointsA: number; pointsB: number; twentiesA: number; twentiesB: number }>;
 }
 
 /**
@@ -404,7 +405,15 @@ export async function createHistoricalTournament(
       const participantB = findParticipantId(match.participantBName);
       const winner = match.scoreA > match.scoreB ? participantA : participantB;
 
-      return {
+      // Compute 20s from rounds if available, otherwise use explicit values
+      const total20sA = match.rounds && match.rounds.length > 0
+        ? match.rounds.reduce((s, r) => s + r.twentiesA, 0)
+        : (match.twentiesA ?? 0);
+      const total20sB = match.rounds && match.rounds.length > 0
+        ? match.rounds.reduce((s, r) => s + r.twentiesB, 0)
+        : (match.twentiesB ?? 0);
+
+      const bracketMatch: BracketMatch = {
         id: `match-${roundIndex}-${matchIndex}-${Date.now()}`,
         position,
         participantA,
@@ -413,10 +422,24 @@ export async function createHistoricalTournament(
         winner,
         totalPointsA: match.scoreA ?? 0,
         totalPointsB: match.scoreB ?? 0,
-        total20sA: match.twentiesA ?? 0,
-        total20sB: match.twentiesB ?? 0,
+        total20sA,
+        total20sB,
         completedAt: input.tournamentDate
       };
+
+      if (match.rounds && match.rounds.length > 0) {
+        bracketMatch.rounds = match.rounds.map((r, idx) => ({
+          gameNumber: 1,
+          roundInGame: idx + 1,
+          pointsA: r.pointsA,
+          pointsB: r.pointsB,
+          twentiesA: r.twentiesA,
+          twentiesB: r.twentiesB,
+          hammerSide: null
+        }));
+      }
+
+      return bracketMatch;
     };
 
     // BYE matches are already calculated in the import wizard (step 4)
@@ -719,8 +742,8 @@ export async function createUpcomingTournament(
 
   try {
     // Get user profile for name
-    const profile = await getUserProfile(user.id);
-    const userName = profile?.name || user.displayName || 'Unknown';
+    const profile = await getUserProfileById(user.id);
+    const userName = profile?.playerName || user.name || 'Unknown';
 
     // Generate tournament ID and key
     const tournamentId = `tournament-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -933,7 +956,15 @@ export async function completeUpcomingTournament(
       const participantB = findParticipantId(match.participantBName);
       const winner = match.scoreA > match.scoreB ? participantA : participantB;
 
-      return {
+      // Compute 20s from rounds if available, otherwise use explicit values
+      const total20sA = match.rounds && match.rounds.length > 0
+        ? match.rounds.reduce((s, r) => s + r.twentiesA, 0)
+        : (match.twentiesA ?? 0);
+      const total20sB = match.rounds && match.rounds.length > 0
+        ? match.rounds.reduce((s, r) => s + r.twentiesB, 0)
+        : (match.twentiesB ?? 0);
+
+      const bracketMatch: BracketMatch = {
         id: `match-${roundIndex}-${matchIndex}-${Date.now()}`,
         position,
         participantA,
@@ -942,10 +973,24 @@ export async function completeUpcomingTournament(
         winner,
         totalPointsA: match.scoreA ?? 0,
         totalPointsB: match.scoreB ?? 0,
-        total20sA: match.twentiesA ?? 0,
-        total20sB: match.twentiesB ?? 0,
+        total20sA,
+        total20sB,
         completedAt: input.tournamentDate
       };
+
+      if (match.rounds && match.rounds.length > 0) {
+        bracketMatch.rounds = match.rounds.map((r, idx) => ({
+          gameNumber: 1,
+          roundInGame: idx + 1,
+          pointsA: r.pointsA,
+          pointsB: r.pointsB,
+          twentiesA: r.twentiesA,
+          twentiesB: r.twentiesB,
+          hammerSide: null
+        }));
+      }
+
+      return bracketMatch;
     };
 
     // BYE matches are already calculated in the import wizard (step 4)

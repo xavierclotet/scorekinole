@@ -20,6 +20,8 @@
  */
 
 import type { HistoricalBracketInput, HistoricalBracketRoundInput, HistoricalMatchInput } from '$lib/firebase/tournamentImport';
+import type { ParsedRound } from './groupStageParser';
+export type { ParsedRound };
 
 // Types for parsed data
 export interface ParsedKnockoutMatch {
@@ -27,6 +29,7 @@ export interface ParsedKnockoutMatch {
 	participantBName: string;
 	scoreA: number;
 	scoreB: number;
+	rounds: ParsedRound[];  // Optional round-level detail, empty if not provided
 }
 
 export interface ParsedKnockoutRound {
@@ -51,7 +54,7 @@ export interface KnockoutParseResult {
 	totalRounds: number;
 }
 
-type LineType = 'bracket' | 'phase' | 'match' | 'empty';
+type LineType = 'bracket' | 'phase' | 'match' | 'round' | 'empty';
 
 /**
  * Detect the type of a line
@@ -66,12 +69,21 @@ function detectLineType(line: string): LineType {
 		return 'bracket';
 	}
 
-	// Match: name,name,number,number
+	// 4-field lines: match or round
 	const parts = trimmed.split(',');
 	if (parts.length === 4) {
-		const scoreA = parseInt(parts[2].trim(), 10);
-		const scoreB = parseInt(parts[3].trim(), 10);
-		if (!isNaN(scoreA) && !isNaN(scoreB)) {
+		const n0 = parseInt(parts[0].trim(), 10);
+		const n1 = parseInt(parts[1].trim(), 10);
+		const n2 = parseInt(parts[2].trim(), 10);
+		const n3 = parseInt(parts[3].trim(), 10);
+
+		// All 4 integers → round line (pointsA,pointsB,twentiesA,twentiesB)
+		if (!isNaN(n0) && !isNaN(n1) && !isNaN(n2) && !isNaN(n3)) {
+			return 'round';
+		}
+
+		// Last 2 integers → match line (Name,Name,ScoreA,ScoreB)
+		if (!isNaN(n2) && !isNaN(n3)) {
 			return 'match';
 		}
 	}
@@ -160,7 +172,8 @@ function parseMatchLine(
 			participantAName,
 			participantBName,
 			scoreA,
-			scoreB
+			scoreB,
+			rounds: []
 		},
 		error: null
 	};
@@ -200,6 +213,7 @@ export function parseKnockoutStageText(text: string, options?: KnockoutParseOpti
 	const lines = text.split('\n');
 	let currentBracket: ParsedKnockoutBracket | null = null;
 	let currentRound: ParsedKnockoutRound | null = null;
+	let lastMatch: ParsedKnockoutMatch | null = null;  // For appending round lines
 	let lineNumber = 0;
 
 	for (const rawLine of lines) {
@@ -210,6 +224,19 @@ export function parseKnockoutStageText(text: string, options?: KnockoutParseOpti
 		switch (lineType) {
 			case 'empty':
 				// Empty lines are separators, no action needed
+				break;
+
+			case 'round':
+				// Round line: 4 integers → append to last parsed match
+				if (lastMatch) {
+					const parts = line.split(',');
+					lastMatch.rounds.push({
+						pointsA: parseInt(parts[0].trim(), 10),
+						pointsB: parseInt(parts[1].trim(), 10),
+						twentiesA: parseInt(parts[2].trim(), 10),
+						twentiesB: parseInt(parts[3].trim(), 10)
+					});
+				}
 				break;
 
 			case 'bracket':
@@ -238,6 +265,7 @@ export function parseKnockoutStageText(text: string, options?: KnockoutParseOpti
 					};
 				}
 				currentRound = null;
+				lastMatch = null;
 				break;
 
 			case 'phase':
@@ -261,6 +289,7 @@ export function parseKnockoutStageText(text: string, options?: KnockoutParseOpti
 					name: line,
 					matches: []
 				};
+				lastMatch = null;
 				break;
 
 			case 'match':
@@ -288,6 +317,7 @@ export function parseKnockoutStageText(text: string, options?: KnockoutParseOpti
 					errors.push(error);
 				} else if (match) {
 					currentRound.matches.push(match);
+					lastMatch = match;  // Track for round appending
 				}
 				break;
 		}
@@ -402,6 +432,12 @@ export function serializeKnockoutStageData(
 				const scoreA = match.scoreA ?? 0;
 				const scoreB = match.scoreB ?? 0;
 				lines.push(`${match.participantAName},${match.participantBName},${scoreA},${scoreB}`);
+				// Output round lines if present
+				if ('rounds' in match && Array.isArray(match.rounds)) {
+					for (const r of match.rounds as ParsedRound[]) {
+						lines.push(`${r.pointsA},${r.pointsB},${r.twentiesA},${r.twentiesB}`);
+					}
+				}
 			}
 		}
 	}
@@ -418,12 +454,22 @@ export function convertToHistoricalBrackets(
 	return parsedBrackets.map((bracket, index) => {
 		const rounds: HistoricalBracketRoundInput[] = bracket.rounds.map((round) => ({
 			name: round.name,
-			matches: round.matches.map((match): HistoricalMatchInput => ({
-				participantAName: match.participantAName,
-				participantBName: match.participantBName,
-				scoreA: match.scoreA,
-				scoreB: match.scoreB
-			}))
+			matches: round.matches.map((match): HistoricalMatchInput => {
+				const input: HistoricalMatchInput = {
+					participantAName: match.participantAName,
+					participantBName: match.participantBName,
+					scoreA: match.scoreA,
+					scoreB: match.scoreB
+				};
+				// Include round-level data if present
+				if (match.rounds && match.rounds.length > 0) {
+					input.rounds = match.rounds;
+					// Calculate twenties from rounds if not explicitly set
+					input.twentiesA = match.rounds.reduce((s, r) => s + r.twentiesA, 0);
+					input.twentiesB = match.rounds.reduce((s, r) => s + r.twentiesB, 0);
+				}
+				return input;
+			})
 		}));
 
 		// Calculate sourcePositions based on bracket label/index

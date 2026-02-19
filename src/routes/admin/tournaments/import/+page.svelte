@@ -19,7 +19,7 @@
     type HistoricalFinalStageInput,
     type UpcomingTournamentInput
   } from '$lib/firebase/tournamentImport';
-  import { searchUsers, getTournament } from '$lib/firebase/tournaments';
+  import { searchUsers, getTournament, transformImportedToLive } from '$lib/firebase/tournaments';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentTier, TournamentParticipant, Tournament } from '$lib/types/tournament';
   import { getParticipantDisplayName } from '$lib/types/tournament';
@@ -63,13 +63,37 @@
   // Duplicate mode state
   let duplicateMode = $state(false);
 
+  // Transform mode state
+  let transformMode = $state(false);
+  let transformTournamentId = $state<string | null>(null);
+
+  // Transform mode: LIVE config fields
+  let groupStageType = $state<'ROUND_ROBIN' | 'SWISS'>('ROUND_ROBIN');
+  let tcNumGroups = $state(2);
+  let tcNumSwissRounds = $state(4);
+  let groupMatchConfig = $state({ gameMode: 'rounds' as 'points' | 'rounds', pointsToWin: 7, roundsToPlay: 4, matchesToWin: 1 });
+  let finalStageMode = $state<'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' | 'PARALLEL_BRACKETS'>('SINGLE_BRACKET');
+  let thirdPlaceMatchEnabled = $state(false);
+  let consolationEnabled = $state(false);
+  let bracketConfig = $state({
+    earlyRounds: { gameMode: 'rounds' as 'points' | 'rounds', pointsToWin: 7, roundsToPlay: 4, matchesToWin: 1 },
+    semifinal: { gameMode: 'points' as 'points' | 'rounds', pointsToWin: 7, roundsToPlay: 4, matchesToWin: 1 },
+    final: { gameMode: 'points' as 'points' | 'rounds', pointsToWin: 9, roundsToPlay: 4, matchesToWin: 1 }
+  });
+  let silverBracketConfig = $state({
+    earlyRounds: { gameMode: 'rounds' as 'points' | 'rounds', pointsToWin: 7, roundsToPlay: 4, matchesToWin: 1 },
+    semifinal: { gameMode: 'rounds' as 'points' | 'rounds', pointsToWin: 7, roundsToPlay: 4, matchesToWin: 1 },
+    final: { gameMode: 'rounds' as 'points' | 'rounds', pointsToWin: 7, roundsToPlay: 4, matchesToWin: 1 }
+  });
+
   // Check permission on mount and load edit data if applicable
   onMount(async () => {
     hasPermission = await canImportTournaments();
 
-    // Check for edit or duplicate mode
+    // Check for edit, duplicate, or transform mode
     const editId = page.url.searchParams.get('edit');
     const duplicateId = page.url.searchParams.get('duplicate');
+    const transformId = page.url.searchParams.get('transform_to_live');
 
     if (editId) {
       editTournamentId = editId;
@@ -77,6 +101,10 @@
     } else if (duplicateId) {
       duplicateMode = true;
       await loadTournamentForDuplication(duplicateId);
+    } else if (transformId) {
+      transformMode = true;
+      transformTournamentId = transformId;
+      await loadTournamentForTransform(transformId);
     } else if (hasPermission) {
       loadDraft();
     }
@@ -358,6 +386,143 @@
     }
   }
 
+  // Load tournament data for transformation (same ID, just updating config + adding round data)
+  async function loadTournamentForTransform(tournamentId: string) {
+    try {
+      const tournament = await getTournament(tournamentId);
+      if (!tournament) {
+        showToastMessage(m.tournament_notFound(), 'error');
+        goto('/admin/tournaments');
+        return;
+      }
+
+      // Pre-populate Step 1: Basic Info (same edition, same date)
+      name = tournament.name || '';
+      edition = tournament.edition;
+      address = tournament.address || '';
+      city = tournament.city || '';
+      country = tournament.country || 'España';
+      tournamentDate = tournament.tournamentDate
+        ? new Date(tournament.tournamentDate).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+      gameType = tournament.gameType || 'singles';
+      rankingEnabled = tournament.rankingConfig?.enabled || false;
+      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      qualificationMode = 'POINTS';  // Default for transform mode (user configures explicitly)
+      description = tournament.description || '';
+      externalLink = tournament.externalLink || '';
+      posterUrl = tournament.posterUrl || '';
+      isTest = tournament.isTest ?? false;
+
+      // Pre-populate transform config from existing tournament if available
+      if (tournament.groupStage?.type) {
+        groupStageType = tournament.groupStage.type as 'ROUND_ROBIN' | 'SWISS';
+      }
+      if (tournament.finalStage?.mode === 'SPLIT_DIVISIONS') {
+        finalStageMode = 'SPLIT_DIVISIONS';
+      }
+
+      // Pre-populate Step 2: Participants (same IDs - updating in place)
+      if (tournament.participants && tournament.participants.length > 0) {
+        participants = tournament.participants.map(p => ({
+          id: p.id,
+          name: p.name,
+          userId: p.userId,
+          partnerName: p.partner?.name,
+          partnerUserId: p.partner?.userId,
+          isRegistered: p.type === 'REGISTERED',
+          partner: p.partner ? {
+            type: p.partner.type || 'GUEST',
+            userId: p.partner.userId,
+            name: p.partner.name,
+            photoURL: p.partner.photoURL
+          } : undefined
+        }));
+      }
+
+      // Pre-populate Step 2: Group Stage (serialize to textarea)
+      if (tournament.groupStage) {
+        hasGroupStage = true;
+        numGroups = tournament.groupStage.numGroups || tournament.groupStage.groups?.length || 2;
+        if (tournament.groupStage.groups) {
+          const groupsForSerialization = tournament.groupStage.groups.map(g => ({
+            name: g.name,
+            standings: (g.standings || []).map(s => ({
+              participantName: tournament.participants?.find(p => p.id === s.participantId)?.name || '',
+              points: s.points || 0,
+              total20s: s.total20s || 0
+            }))
+          }));
+          groupStageText = serializeGroupStageData(groupsForSerialization, gameType);
+        } else {
+          groupStageText = '';
+        }
+        groups = [];
+        parsePhase = 'input';
+      } else {
+        hasGroupStage = false;
+        parsePhase = 'preview';
+      }
+
+      // Pre-populate Step 3: Knockout brackets (serialize to textarea)
+      const bracketsToLoad = tournament.finalStage?.parallelBrackets ??
+        ([
+          tournament.finalStage?.goldBracket ? { name: 'Gold', label: 'Gold', sourcePositions: [], bracket: tournament.finalStage.goldBracket } : null,
+          tournament.finalStage?.silverBracket ? { name: 'Silver', label: 'Silver', sourcePositions: [], bracket: tournament.finalStage.silverBracket } : null,
+        ].filter(Boolean) as { name: string; label: string; sourcePositions: number[]; bracket: typeof tournament.finalStage.goldBracket }[]);
+
+      if (bracketsToLoad.length > 0) {
+        numBrackets = bracketsToLoad.length;
+        brackets = bracketsToLoad.map(nb => ({
+          name: nb.name,
+          label: nb.label,
+          sourcePositions: nb.sourcePositions || [],
+          rounds: nb.bracket?.rounds?.map(r => ({
+            id: crypto.randomUUID(),
+            name: r.name,
+            matches: r.matches?.map(match => ({
+              id: crypto.randomUUID(),
+              participantAId: match.participantA || '',
+              participantAName: tournament.participants?.find(p => p.id === match.participantA)?.name || '',
+              participantBId: match.participantB || '',
+              participantBName: tournament.participants?.find(p => p.id === match.participantB)?.name || '',
+              scoreA: match.totalPointsA || 0,
+              scoreB: match.totalPointsB || 0,
+              twentiesA: match.total20sA || 0,
+              twentiesB: match.total20sB || 0,
+              isWalkover: match.status === 'WALKOVER'
+            })) || []
+          })) || []
+        }));
+
+        const bracketsForSerialization = brackets.map(b => ({
+          name: b.name,
+          label: b.label,
+          sourcePositions: b.sourcePositions,
+          rounds: b.rounds.map(r => ({
+            name: r.name,
+            matches: r.matches.map(m => ({
+              participantAName: m.participantAName,
+              participantBName: m.participantBName,
+              scoreA: m.scoreA,
+              scoreB: m.scoreB
+            }))
+          }))
+        }));
+        knockoutStageText = serializeKnockoutStageData(bracketsForSerialization);
+        knockoutParsePhase = 'input';  // Force user to re-parse to optionally add rounds
+        knockoutParseResult = null;
+      }
+
+      console.log('✅ Tournament loaded for transform:', tournament.name);
+      showToastMessage(m.wizard_transformMode() + ': ' + tournament.name, 'info');
+    } catch (error) {
+      console.error('Error loading tournament for transform:', error);
+      showToastMessage(m.import_error(), 'error');
+      goto('/admin/tournaments');
+    }
+  }
+
   // Step 1: Basic Info
   let name = $state('');
   let edition = $state<number | undefined>(undefined);
@@ -368,7 +533,7 @@
   let gameType = $state<'singles' | 'doubles'>('singles');
   let rankingEnabled = $state(false);
   let selectedTier = $state<TournamentTier>('CLUB');
-  let qualificationMode = $state<'WINS' | 'POINTS'>('WINS');
+  let qualificationMode = $state<'WINS' | 'POINTS'>('POINTS');
   let description = $state('');
   let externalLink = $state('');
   let posterUrl = $state('');
@@ -808,7 +973,7 @@
 
     try {
       // First parse the text (pass gameType for doubles support)
-      const result = parseGroupStageText(groupStageText, gameType);
+      const result = parseGroupStageText(groupStageText, gameType, qualificationMode);
 
       if (!result.success) {
         parseResult = result;
@@ -1546,6 +1711,88 @@
     }
   }
 
+  // Transform to LIVE
+  async function handleTransformToLive() {
+    if (!transformTournamentId) return;
+
+    const errors = validateStep(currentStep);
+    if (errors.length > 0) {
+      showToastMessage(errors[0], 'error');
+      return;
+    }
+
+    isSaving = true;
+    try {
+      // Convert wizard brackets to TransformBracket format.
+      // Prefer knockoutParseResult.brackets which preserves round-level data if user added round lines.
+      // Fall back to internal brackets state otherwise.
+      let knockoutBrackets;
+      if (knockoutParseResult?.success && knockoutParseResult.brackets && knockoutParseResult.brackets.length > 0) {
+        knockoutBrackets = knockoutParseResult.brackets.map((b, index) => ({
+          name: b.name,
+          label: b.label,
+          // sourcePositions not in ParsedKnockoutBracket; compute from index or look up from brackets state
+          sourcePositions: brackets.find(wb => wb.label === b.label)?.sourcePositions ?? [index * 2 + 1, index * 2 + 2],
+          rounds: b.rounds.map(r => ({
+            name: r.name,
+            matches: r.matches.map(match => ({
+              participantAName: match.participantAName,
+              participantBName: match.participantBName,
+              scoreA: match.scoreA ?? 0,
+              scoreB: match.scoreB ?? 0,
+              rounds: match.rounds  // Preserve round data
+            }))
+          }))
+        }));
+      } else {
+        knockoutBrackets = brackets.map(b => ({
+          name: b.name,
+          label: b.label,
+          sourcePositions: b.sourcePositions,
+          rounds: b.rounds.map(r => ({
+            name: r.name,
+            matches: r.matches.map(match => ({
+              participantAName: match.participantAName || participants.find(p => p.id === match.participantAId)?.name || '',
+              participantBName: match.participantBName || participants.find(p => p.id === match.participantBId)?.name || '',
+              scoreA: match.scoreA,
+              scoreB: match.scoreB,
+              rounds: []
+            }))
+          }))
+        }));
+      }
+
+      const config = {
+        groupStageType,
+        numGroups: tcNumGroups,
+        numSwissRounds: tcNumSwissRounds,
+        groupQualificationMode: qualificationMode,
+        groupMatchConfig,
+        finalStageMode,
+        thirdPlaceMatchEnabled,
+        consolationEnabled,
+        bracketConfig,
+        ...(finalStageMode === 'SPLIT_DIVISIONS' ? { silverBracketConfig } : {})
+      };
+
+      const success = await transformImportedToLive(transformTournamentId, config, knockoutBrackets);
+
+      if (success) {
+        showToastMessage(m.wizard_transformMode() + ' OK', 'success');
+        setTimeout(() => {
+          goto(`/tournaments/${transformTournamentId}`);
+        }, 1500);
+      } else {
+        showToastMessage(m.import_error(), 'error');
+      }
+    } catch (e) {
+      console.error('Transform error:', e);
+      showToastMessage(m.import_error(), 'error');
+    } finally {
+      isSaving = false;
+    }
+  }
+
   // Get participant name by ID (handles doubles with teamName)
   function getParticipantName(id: string): string {
     const participant = participants.find(p => p.id === id);
@@ -1577,7 +1824,7 @@
         <div class="header-main">
           <div class="title-section">
             <h1>
-              {isEditMode ? m.tournament_completeConfiguration() : m.import_title()}:
+              {transformMode ? m.wizard_transformMode() : isEditMode ? m.tournament_completeConfiguration() : m.import_title()}:
               {#if edition && name}
                 #{edition} {name}
               {:else if name}
@@ -1588,7 +1835,9 @@
             </h1>
             <div class="header-badges">
               <span class="info-badge step-badge">{m.wizard_step({ current: currentStep, total: totalSteps })}</span>
-              {#if isEditMode}
+              {#if transformMode}
+                <span class="info-badge transform-badge">⚡ {m.admin_transformToLive()}</span>
+              {:else if isEditMode}
                 <span class="info-badge upcoming-badge">{m.tournament_upcoming()}</span>
               {:else}
                 <span class="info-badge imported-badge">{m.import_imported()}</span>
@@ -1731,32 +1980,6 @@
                 {/if}
               </div>
 
-              <div class="info-field">
-                <span class="field-label">{m.wizard_classificationType()}</span>
-                <div class="classification-row">
-                  <div class="toggle-group">
-                    <button
-                      type="button"
-                      class="toggle-btn"
-                      class:active={qualificationMode === 'WINS'}
-                      onclick={() => qualificationMode = 'WINS'}
-                    >
-                      {m.tournament_byWins()}
-                    </button>
-                    <button
-                      type="button"
-                      class="toggle-btn"
-                      class:active={qualificationMode === 'POINTS'}
-                      onclick={() => qualificationMode = 'POINTS'}
-                    >
-                      {m.scoring_points()}
-                    </button>
-                  </div>
-                  <span class="classification-hint">
-                    {qualificationMode === 'WINS' ? m.wizard_classificationWinsHint() : m.wizard_classificationPointsHint()}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -1794,6 +2017,186 @@
               </div>
             </div>
           </div>
+
+          <!-- Tournament Config (Transform mode only) -->
+          {#if transformMode}
+          <div class="info-section transform-config-section">
+            <div class="info-section-header">⚡ {m.wizard_tournamentConfig()}</div>
+
+            <!-- Group Stage -->
+            <div class="tc-section">
+              <div class="tc-section-title">1. {m.wizard_groupStage()}</div>
+              <div class="tc-section-body">
+                <div class="tc-inline">
+                  <!-- Type -->
+                  <div class="tc-field">
+                    <span class="tc-label">{m.admin_system()}</span>
+                    <div class="toggle-group">
+                      <button type="button" class="toggle-btn" class:active={groupStageType === 'ROUND_ROBIN'} onclick={() => groupStageType = 'ROUND_ROBIN'}>{m.admin_roundRobin()}</button>
+                      <button type="button" class="toggle-btn" class:active={groupStageType === 'SWISS'} onclick={() => groupStageType = 'SWISS'}>{m.admin_swissSystem()}</button>
+                    </div>
+                  </div>
+                  <!-- Num groups (RR) or num rounds (Swiss) -->
+                  {#if groupStageType === 'ROUND_ROBIN'}
+                  <div class="tc-field" style="min-width: auto">
+                    <label class="tc-label" for="tc-num-groups">{m.tournament_groups()}</label>
+                    <input id="tc-num-groups" type="number" bind:value={tcNumGroups} min="1" max="8" class="input-field tc-mini" />
+                  </div>
+                  {:else}
+                  <div class="tc-field" style="min-width: auto">
+                    <label class="tc-label" for="tc-swiss-rounds">{m.scoring_rounds()}</label>
+                    <input id="tc-swiss-rounds" type="number" bind:value={tcNumSwissRounds} min="3" max="10" class="input-field tc-mini" />
+                  </div>
+                  {/if}
+                  <!-- Qualification -->
+                  <div class="tc-field">
+                    <span class="tc-label">{m.wizard_classificationType()}</span>
+                    <div class="toggle-group">
+                      <button type="button" class="toggle-btn" class:active={qualificationMode === 'WINS'} onclick={() => qualificationMode = 'WINS'}>{m.tournament_byWins()}</button>
+                      <button type="button" class="toggle-btn" class:active={qualificationMode === 'POINTS'} onclick={() => qualificationMode = 'POINTS'}>{m.scoring_points()}</button>
+                    </div>
+                    <span class="tc-hint">{qualificationMode === 'WINS' ? m.wizard_classificationWinsHint() : m.wizard_classificationPointsHint()}</span>
+                  </div>
+                </div>
+                <!-- Group match config -->
+                <div class="tc-settings-row">
+                  <div class="toggle-group">
+                    <button type="button" class="toggle-btn" class:active={groupMatchConfig.gameMode === 'points'} onclick={() => groupMatchConfig = { ...groupMatchConfig, gameMode: 'points' }}>{m.scoring_points()}</button>
+                    <button type="button" class="toggle-btn" class:active={groupMatchConfig.gameMode === 'rounds'} onclick={() => groupMatchConfig = { ...groupMatchConfig, gameMode: 'rounds' }}>{m.scoring_rounds()}</button>
+                  </div>
+                  {#if groupMatchConfig.gameMode === 'points'}
+                    <span>a</span>
+                    <input type="number" bind:value={groupMatchConfig.pointsToWin} min="1" max="50" class="input-field tc-mini" />
+                    <span>pts</span>
+                    <span class="tc-bo">{m.admin_bestOfN()}</span>
+                    <select bind:value={groupMatchConfig.matchesToWin} class="input-field tc-mini">
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                      <option value={3}>3</option>
+                    </select>
+                  {:else}
+                    <input type="number" bind:value={groupMatchConfig.roundsToPlay} min="1" max="20" class="input-field tc-mini" />
+                    <span>{m.scoring_rounds().toLowerCase()}</span>
+                  {/if}
+                </div>
+              </div>
+            </div>
+
+            <!-- Final Stage -->
+            <div class="tc-section">
+              <div class="tc-section-title">2. {m.wizard_finalStage()}</div>
+              <div class="tc-section-body">
+                <!-- Mode selector -->
+                <div class="toggle-group" style="margin-bottom: 0.75rem; flex-wrap: wrap">
+                  <button type="button" class="toggle-btn" class:active={finalStageMode === 'SINGLE_BRACKET'} onclick={() => finalStageMode = 'SINGLE_BRACKET'}>{m.admin_singleBracket()}</button>
+                  <button type="button" class="toggle-btn" class:active={finalStageMode === 'SPLIT_DIVISIONS'} onclick={() => finalStageMode = 'SPLIT_DIVISIONS'}>{m.admin_goldSilverDivisions()}</button>
+                  <button type="button" class="toggle-btn" class:active={finalStageMode === 'PARALLEL_BRACKETS'} onclick={() => finalStageMode = 'PARALLEL_BRACKETS'}>Brackets paralelos</button>
+                </div>
+
+                {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                  <!-- Gold + Silver brackets -->
+                  <div class="tc-phases-grid tc-split">
+                    <div class="tc-bracket tc-gold">
+                      <span class="tc-bracket-title tc-title-gold">{m.scoring_gold()}</span>
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_earlyRounds()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={bracketConfig.earlyRounds.gameMode==='points'} onclick={()=>bracketConfig={...bracketConfig,earlyRounds:{...bracketConfig.earlyRounds,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={bracketConfig.earlyRounds.gameMode==='rounds'} onclick={()=>bracketConfig={...bracketConfig,earlyRounds:{...bracketConfig.earlyRounds,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if bracketConfig.earlyRounds.gameMode==='rounds'}<input type="number" bind:value={bracketConfig.earlyRounds.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={bracketConfig.earlyRounds.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={bracketConfig.earlyRounds.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_semifinals()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={bracketConfig.semifinal.gameMode==='points'} onclick={()=>bracketConfig={...bracketConfig,semifinal:{...bracketConfig.semifinal,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={bracketConfig.semifinal.gameMode==='rounds'} onclick={()=>bracketConfig={...bracketConfig,semifinal:{...bracketConfig.semifinal,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if bracketConfig.semifinal.gameMode==='rounds'}<input type="number" bind:value={bracketConfig.semifinal.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={bracketConfig.semifinal.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={bracketConfig.semifinal.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_final()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={bracketConfig.final.gameMode==='points'} onclick={()=>bracketConfig={...bracketConfig,final:{...bracketConfig.final,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={bracketConfig.final.gameMode==='rounds'} onclick={()=>bracketConfig={...bracketConfig,final:{...bracketConfig.final,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if bracketConfig.final.gameMode==='rounds'}<input type="number" bind:value={bracketConfig.final.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={bracketConfig.final.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={bracketConfig.final.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="tc-bracket tc-silver">
+                      <span class="tc-bracket-title tc-title-silver">{m.scoring_silver()}</span>
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_earlyRounds()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={silverBracketConfig.earlyRounds.gameMode==='points'} onclick={()=>silverBracketConfig={...silverBracketConfig,earlyRounds:{...silverBracketConfig.earlyRounds,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={silverBracketConfig.earlyRounds.gameMode==='rounds'} onclick={()=>silverBracketConfig={...silverBracketConfig,earlyRounds:{...silverBracketConfig.earlyRounds,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if silverBracketConfig.earlyRounds.gameMode==='rounds'}<input type="number" bind:value={silverBracketConfig.earlyRounds.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={silverBracketConfig.earlyRounds.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={silverBracketConfig.earlyRounds.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_semifinals()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={silverBracketConfig.semifinal.gameMode==='points'} onclick={()=>silverBracketConfig={...silverBracketConfig,semifinal:{...silverBracketConfig.semifinal,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={silverBracketConfig.semifinal.gameMode==='rounds'} onclick={()=>silverBracketConfig={...silverBracketConfig,semifinal:{...silverBracketConfig.semifinal,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if silverBracketConfig.semifinal.gameMode==='rounds'}<input type="number" bind:value={silverBracketConfig.semifinal.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={silverBracketConfig.semifinal.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={silverBracketConfig.semifinal.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_final()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={silverBracketConfig.final.gameMode==='points'} onclick={()=>silverBracketConfig={...silverBracketConfig,final:{...silverBracketConfig.final,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={silverBracketConfig.final.gameMode==='rounds'} onclick={()=>silverBracketConfig={...silverBracketConfig,final:{...silverBracketConfig.final,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if silverBracketConfig.final.gameMode==='rounds'}<input type="number" bind:value={silverBracketConfig.final.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={silverBracketConfig.final.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={silverBracketConfig.final.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {:else}
+                  <!-- Single bracket or parallel brackets (same config for all) -->
+                  <div class="tc-phases-grid">
+                    <div class="tc-bracket">
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_earlyRounds()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={bracketConfig.earlyRounds.gameMode==='points'} onclick={()=>bracketConfig={...bracketConfig,earlyRounds:{...bracketConfig.earlyRounds,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={bracketConfig.earlyRounds.gameMode==='rounds'} onclick={()=>bracketConfig={...bracketConfig,earlyRounds:{...bracketConfig.earlyRounds,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if bracketConfig.earlyRounds.gameMode==='rounds'}<input type="number" bind:value={bracketConfig.earlyRounds.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={bracketConfig.earlyRounds.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={bracketConfig.earlyRounds.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_semifinals()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={bracketConfig.semifinal.gameMode==='points'} onclick={()=>bracketConfig={...bracketConfig,semifinal:{...bracketConfig.semifinal,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={bracketConfig.semifinal.gameMode==='rounds'} onclick={()=>bracketConfig={...bracketConfig,semifinal:{...bracketConfig.semifinal,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if bracketConfig.semifinal.gameMode==='rounds'}<input type="number" bind:value={bracketConfig.semifinal.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={bracketConfig.semifinal.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={bracketConfig.semifinal.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                      <div class="tc-phase-row">
+                        <span class="tc-phase-name">{m.admin_final()}</span>
+                        <div class="tc-phase-controls">
+                          <div class="toggle-group"><button type="button" class="toggle-btn" class:active={bracketConfig.final.gameMode==='points'} onclick={()=>bracketConfig={...bracketConfig,final:{...bracketConfig.final,gameMode:'points'}}}>{m.scoring_points()}</button><button type="button" class="toggle-btn" class:active={bracketConfig.final.gameMode==='rounds'} onclick={()=>bracketConfig={...bracketConfig,final:{...bracketConfig.final,gameMode:'rounds'}}}>{m.scoring_rounds()}</button></div>
+                          {#if bracketConfig.final.gameMode==='rounds'}<input type="number" bind:value={bracketConfig.final.roundsToPlay} min="1" max="20" class="input-field tc-mini" />{:else}<input type="number" bind:value={bracketConfig.final.pointsToWin} min="1" max="20" class="input-field tc-mini" /><span class="tc-bo">{m.bracket_bestOf()}</span><select bind:value={bracketConfig.final.matchesToWin} class="input-field tc-mini"><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option></select>{/if}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+
+                <!-- Third place + consolation toggles -->
+                <div class="tc-toggle-row">
+                  <div class="tc-toggle-info">
+                    <span class="tc-toggle-label">{m.wizard_thirdPlaceMatch()}</span>
+                    <span class="tc-toggle-desc">{m.wizard_thirdPlaceMatchDesc()}</span>
+                  </div>
+                  <button type="button" class="tc-toggle-switch" class:active={thirdPlaceMatchEnabled} onclick={() => thirdPlaceMatchEnabled = !thirdPlaceMatchEnabled}>
+                    <span class="tc-toggle-track"><span class="tc-toggle-thumb"></span></span>
+                  </button>
+                </div>
+                <div class="tc-toggle-row">
+                  <div class="tc-toggle-info">
+                    <span class="tc-toggle-label">{m.wizard_consolationRounds()}</span>
+                    <span class="tc-toggle-desc">{m.wizard_consolationDesc()}</span>
+                  </div>
+                  <button type="button" class="tc-toggle-switch" class:active={consolationEnabled} onclick={() => consolationEnabled = !consolationEnabled}>
+                    <span class="tc-toggle-track"><span class="tc-toggle-thumb"></span></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/if}
 
           <!-- Test Tournament -->
           <div class="test-field">
@@ -1855,26 +2258,51 @@
               <!-- Right column: Format help -->
               <div class="help-column">
                 <div class="help-card">
-                  <div class="help-title">Formato</div>
+                  <div class="help-title">Formato A — por rondas <span class="help-badge-new">recomendado</span></div>
                   <div class="help-content">
-                    <p>Cada grupo empieza con su <strong>nombre</strong>, seguido de los participantes:</p>
-                    <pre class="format-example">Group 1
+                    <p>Cabecera de ronda + partidas. Los standings se calculan automáticamente.</p>
+                    <pre class="format-example">SS R1
+Harry Rowe,Chris Robinson,4,4
+2,0,1,0
+0,2,0,1
+2,0,1,0
+0,2,0,1
+Dan Rowe,Tom Hodgetts,6,2
+2,0,1,0
+2,0,0,1
+2,0,1,0
+
+SS R2
+...</pre>
+                    <div class="format-legend">
+                      <div class="legend-item"><span class="legend-label">Cabecera:</span><code>SS R1</code> o <code>RR R1</code></div>
+                      <div class="legend-item"><span class="legend-label">Partida:</span><code>NombreA,NombreB,ptsA,ptsB</code></div>
+                      <div class="legend-item"><span class="legend-label">Ronda (opcional):</span><code>pA,pB,20A,20B</code></div>
+                    </div>
+                    <p class="help-note">Para RR con varios grupos, mezcla todas las partidas — el sistema infiere los grupos automáticamente.</p>
+                  </div>
+                </div>
+
+                <div class="help-card help-card-secondary">
+                  <div class="help-title">Formato B — standings finales</div>
+                  <div class="help-content">
+                    <p>Nombre del grupo + participantes con puntos y 20s totales.</p>
+                    <pre class="format-example">Grupo 1
 Harry Rowe,63,90
 Chris Robinson,58,70
-Tom Hodgetts,51,77
 
-Group 2
+Grupo 2
 Dan Rowe,61,128
-Antonio Cuaresma,49,115</pre>
+Tom Hodgetts,49,115</pre>
                     <div class="format-legend">
-                      <div class="legend-item">
-                        <span class="legend-label">Formato:</span>
-                        <code>Nombre,Puntos,20s</code>
-                      </div>
-                      <div class="legend-item">
-                        <span class="legend-label">Separador:</span>
-                        <span>Línea en blanco entre grupos</span>
-                      </div>
+                      <div class="legend-item"><span class="legend-label">Participante:</span><code>Nombre,Puntos,20s</code></div>
+                      <div class="legend-item"><span class="legend-label">Separador:</span><span>Línea en blanco entre grupos</span></div>
+                    </div>
+                    <div class="round-details-hint" style="margin-top:0.5rem">
+                      <div class="hint-label">+ Partidas y rondas opcionales tras los standings</div>
+                      <pre class="format-example" style="margin-top:0.25rem">Harry Rowe,Chris Robinson,8,2
+2,0,1,0
+0,2,0,1</pre>
                     </div>
                   </div>
                 </div>
@@ -1974,39 +2402,84 @@ Antonio Cuaresma,49,115</pre>
           <h2>{m.import_knockoutStage()}</h2>
 
           {#if knockoutParsePhase === 'input'}
-            <!-- Input Phase: Textarea for pasting knockout data -->
-            <div class="info-section">
-              <div class="info-section-header">{m.import_pasteKnockoutData()}</div>
-              <p class="input-hint">{m.import_pasteKnockoutDataHint()}</p>
-              <textarea
-                class="group-stage-textarea"
-                bind:value={knockoutStageText}
-                placeholder={getKnockoutPlaceholderText(true)}
-                rows="16"
-              ></textarea>
+            <!-- Input Phase: Two-column layout -->
+            <div class="group-input-layout">
+              <!-- Left column: Textarea + actions -->
+              <div class="input-column">
+                <p class="input-hint">{m.import_pasteKnockoutDataHint()}</p>
+                <textarea
+                  class="group-stage-textarea"
+                  bind:value={knockoutStageText}
+                  placeholder={getKnockoutPlaceholderText(true)}
+                ></textarea>
 
-              <button
-                class="analyze-btn"
-                onclick={handleParseKnockoutStage}
-                disabled={isParsingKnockout || !knockoutStageText.trim()}
-              >
-                {#if isParsingKnockout}
-                  <span class="spinner"></span>
-                  {m.import_parsing()}
-                {:else}
-                  {m.import_parse()}
+                {#if knockoutParseResult && !knockoutParseResult.success}
+                  <div class="parse-errors">
+                    {#each knockoutParseResult.errors as error}
+                      <div class="parse-error">{error}</div>
+                    {/each}
+                  </div>
                 {/if}
-              </button>
-            </div>
 
-            <!-- Show errors/warnings if any -->
-            {#if knockoutParseResult && !knockoutParseResult.success}
-              <div class="parse-errors">
-                {#each knockoutParseResult.errors as error}
-                  <div class="parse-error">{error}</div>
-                {/each}
+                <div class="parse-actions">
+                  <button
+                    class="analyze-btn"
+                    onclick={handleParseKnockoutStage}
+                    disabled={isParsingKnockout || !knockoutStageText.trim()}
+                  >
+                    {#if isParsingKnockout}
+                      <LoadingSpinner size="small" />
+                      <span>{m.import_parsing()}</span>
+                    {:else}
+                      <span>{m.import_parse()}</span>
+                    {/if}
+                  </button>
+                </div>
               </div>
-            {/if}
+
+              <!-- Right column: Format help -->
+              <div class="help-column">
+                <div class="help-card">
+                  <div class="help-title">Formato fase final</div>
+                  <div class="help-content">
+                    <p>División entre corchetes, fases con nombre y partidas.</p>
+                    <pre class="format-example">[Gold]
+Semifinals
+Dan Rowe,Harry Rowe,10,8
+Chris Robinson,Tom Hodgetts,9,7
+
+Final
+Dan Rowe,Chris Robinson,12,6
+
+[Silver]
+Semifinals
+...</pre>
+                    <div class="format-legend">
+                      <div class="legend-item"><span class="legend-label">División:</span><code>[Gold]</code>, <code>[Silver]</code>…</div>
+                      <div class="legend-item"><span class="legend-label">Fase:</span><code>Semifinals</code>, <code>Final</code>…</div>
+                      <div class="legend-item"><span class="legend-label">Partida:</span><code>NombreA,NombreB,ptsA,ptsB</code></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="help-card help-card-secondary">
+                  <div class="help-title">Detalle de rondas <span class="help-badge-new">opcional</span></div>
+                  <div class="help-content">
+                    <p>Tras cada partida, añade líneas de ronda con puntos y 20s.</p>
+                    <pre class="format-example">Final
+Dan Rowe,Chris Robinson,12,6
+2,0,1,0
+0,2,0,3
+2,0,1,0
+2,0,2,0</pre>
+                    <div class="format-legend">
+                      <div class="legend-item"><span class="legend-label">Ronda:</span><code>pA,pB,20A,20B</code></div>
+                    </div>
+                    <p class="help-note">Las rondas son opcionales. Si no se añaden, solo se guardan los marcadores finales.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
           {:else}
             <!-- Preview Phase: Show parsed brackets -->
@@ -2210,7 +2683,7 @@ Antonio Cuaresma,49,115</pre>
           </button>
         {/if}
 
-        {#if !isEditMode && currentStep === 1}
+        {#if !isEditMode && !transformMode && currentStep === 1}
           <button
             class="nav-button save-only"
             onclick={saveAsUpcoming}
@@ -2227,6 +2700,14 @@ Antonio Cuaresma,49,115</pre>
         {#if currentStep < totalSteps}
           <button class="nav-button primary" onclick={nextStep} disabled={hasBlockingErrors}>
             {m.wizard_next()} →
+          </button>
+        {:else if transformMode}
+          <button class="nav-button primary create transform-save-btn" onclick={handleTransformToLive} disabled={isSaving}>
+            {#if isSaving}
+              <LoadingSpinner size="small" inline={true} />
+            {:else}
+              ⚡ {m.admin_transformToLive()}
+            {/if}
           </button>
         {:else}
           <button class="nav-button primary create" onclick={handleSubmit} disabled={isSaving}>
@@ -2377,6 +2858,16 @@ Antonio Cuaresma,49,115</pre>
   :is([data-theme='dark'], [data-theme='violet']) .info-badge.upcoming-badge {
     background: #4c1d95;
     color: #c4b5fd;
+  }
+
+  .info-badge.transform-badge {
+    background: #ecfdf5;
+    color: #065f46;
+  }
+
+  :is([data-theme='dark'], [data-theme='violet']) .info-badge.transform-badge {
+    background: #064e3b;
+    color: #6ee7b7;
   }
 
   .header-actions {
@@ -2905,6 +3396,35 @@ Antonio Cuaresma,49,115</pre>
   .help-column {
     display: flex;
     flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .help-card-secondary {
+    opacity: 0.85;
+  }
+
+  .help-badge-new {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #d1fae5;
+    color: #065f46;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .help-badge-new {
+    background: #064e3b;
+    color: #6ee7b7;
+  }
+
+  .help-note {
+    font-size: 0.68rem !important;
+    color: #6b7280;
+    font-style: italic;
+    margin-top: 0.4rem !important;
   }
 
   .help-card {
@@ -5124,6 +5644,223 @@ Antonio Cuaresma,49,115</pre>
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .test-field {
     background: #422006;
     border-color: #854d0e;
+  }
+
+  /* Transform config section */
+  .transform-config-section {
+    margin-top: 1rem;
+    border: 1.5px solid #6ee7b7;
+    border-radius: 8px;
+    background: #f0fdf4;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .transform-config-section {
+    background: #052e16;
+    border-color: #166534;
+  }
+
+  /* Transform config inner sections */
+  .tc-section {
+    border-top: 1px solid #d1fae5;
+    padding: 0.75rem 1rem;
+  }
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .tc-section {
+    border-color: #166534;
+  }
+  .tc-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #059669;
+    margin-bottom: 0.6rem;
+  }
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .tc-section-title {
+    color: #34d399;
+  }
+  .tc-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .tc-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .tc-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 160px;
+  }
+  .tc-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+  .tc-hint {
+    font-size: 0.65rem;
+    color: var(--muted-foreground);
+    font-style: italic;
+    max-width: 220px;
+  }
+  .tc-settings-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+  }
+  .tc-mini {
+    width: 3.5rem !important;
+    padding: 0.2rem 0.35rem !important;
+    font-size: 0.8rem !important;
+    text-align: center;
+  }
+  .tc-bo {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+  /* Phase grids */
+  .tc-phases-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  .tc-phases-grid.tc-split {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  @media (max-width: 540px) {
+    .tc-phases-grid.tc-split { grid-template-columns: 1fr; }
+  }
+  .tc-bracket {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .tc-bracket-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 0.1rem;
+  }
+  .tc-title-gold { background: #fef3c7; color: #92400e; }
+  .tc-title-silver { background: #f1f5f9; color: #475569; }
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .tc-title-gold { background: #451a03; color: #fcd34d; }
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .tc-title-silver { background: #1e293b; color: #94a3b8; }
+  .tc-phase-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .tc-phase-name {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    min-width: 80px;
+    padding-top: 0.25rem;
+    white-space: nowrap;
+  }
+  .tc-phase-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    flex: 1;
+  }
+  /* Toggle switch rows */
+  .tc-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+  .tc-toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+  .tc-toggle-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .tc-toggle-desc {
+    font-size: 0.68rem;
+    color: var(--muted-foreground);
+  }
+  .tc-toggle-switch {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .tc-toggle-track {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: #d1d5db;
+    border-radius: 10px;
+    transition: background 0.2s;
+  }
+  .tc-toggle-switch.active .tc-toggle-track {
+    background: #059669;
+  }
+  .tc-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    transition: left 0.2s;
+  }
+  .tc-toggle-switch.active .tc-toggle-thumb {
+    left: 18px;
+  }
+
+  /* Round details hint */
+  .round-details-hint {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    color: #0369a1;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .round-details-hint {
+    background: #0c4a6e;
+    border-color: #0369a1;
+    color: #7dd3fc;
+  }
+
+  .round-details-hint .hint-label {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+
+
+  .transform-save-btn {
+    background: #059669;
+  }
+
+  .transform-save-btn:hover {
+    background: #047857;
   }
 
   .option-check {

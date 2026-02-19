@@ -6,7 +6,7 @@
 import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { isAdmin, isSuperAdmin } from './admin';
-import type { Tournament, TournamentStatus, TournamentParticipant } from '$lib/types/tournament';
+import type { Tournament, TournamentStatus, TournamentParticipant, BracketMatch } from '$lib/types/tournament';
 import { getUserProfile, type UserProfile } from './userProfile';
 import { getQuotaForYear, getQuotaEntryForYear, type QuotaEntry } from '$lib/types/quota';
 import {
@@ -1760,5 +1760,239 @@ export async function getUserTournamentDependencies(
   } catch (error) {
     console.error('❌ Error getting user tournament dependencies:', error);
     return result;
+  }
+}
+
+// ============================================================================
+// TRANSFORM IMPORTED → LIVE
+// ============================================================================
+
+interface TransformMatchRound {
+  pointsA: number;
+  pointsB: number;
+  twentiesA: number;
+  twentiesB: number;
+}
+
+interface TransformMatch {
+  participantAName: string;
+  participantBName: string;
+  scoreA: number;
+  scoreB: number;
+  rounds: TransformMatchRound[];
+}
+
+interface TransformBracketRound {
+  name: string;
+  matches: TransformMatch[];
+}
+
+interface TransformBracket {
+  name: string;
+  label: string;
+  sourcePositions: number[];
+  rounds: TransformBracketRound[];
+}
+
+type TransformPhaseConfig = { gameMode: 'points' | 'rounds'; pointsToWin?: number; roundsToPlay?: number; matchesToWin: number };
+type TransformBracketConfig = { earlyRounds: TransformPhaseConfig; semifinal: TransformPhaseConfig; final: TransformPhaseConfig };
+
+interface TransformConfig {
+  groupStageType: 'ROUND_ROBIN' | 'SWISS';
+  numGroups?: number;
+  numSwissRounds?: number;
+  groupQualificationMode: 'WINS' | 'POINTS';
+  groupMatchConfig: TransformPhaseConfig;
+  finalStageMode: 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' | 'PARALLEL_BRACKETS';
+  thirdPlaceMatchEnabled: boolean;
+  consolationEnabled: boolean;
+  bracketConfig: TransformBracketConfig;
+  silverBracketConfig?: TransformBracketConfig;
+}
+
+/**
+ * Transform an IMPORTED tournament to have LIVE-like structure
+ * Adds group/match config and optional round-level data to brackets.
+ * The tournament remains isImported:true and COMPLETED, with enrichedAt timestamp.
+ */
+export async function transformImportedToLive(
+  tournamentId: string,
+  config: TransformConfig,
+  knockoutBrackets: TransformBracket[]
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) {
+    console.warn('Firebase disabled');
+    return false;
+  }
+
+  try {
+    // Get existing tournament
+    const tournament = await getTournament(tournamentId);
+    if (!tournament) {
+      console.error('Tournament not found:', tournamentId);
+      return false;
+    }
+
+    // Build name → participant ID map
+    const participantMap = new Map<string, string>();
+    for (const p of tournament.participants || []) {
+      participantMap.set(p.name.toLowerCase().trim(), p.id);
+      if (p.partner?.name) {
+        participantMap.set(p.partner.name.toLowerCase().trim(), p.id);
+      }
+    }
+
+    const findParticipantId = (name: string): string => {
+      return participantMap.get(name.toLowerCase().trim()) || `unknown-${name}`;
+    };
+
+    // Update groupStage config fields
+    let updatedGroupStage = tournament.groupStage;
+    if (updatedGroupStage) {
+      updatedGroupStage = {
+        ...updatedGroupStage,
+        type: config.groupStageType,
+        qualificationMode: config.groupQualificationMode,
+        gameMode: config.groupMatchConfig.gameMode,
+        ...(config.groupMatchConfig.pointsToWin !== undefined ? { pointsToWin: config.groupMatchConfig.pointsToWin } : {}),
+        ...(config.groupMatchConfig.roundsToPlay !== undefined ? { roundsToPlay: config.groupMatchConfig.roundsToPlay } : {}),
+        matchesToWin: config.groupMatchConfig.matchesToWin,
+        ...(config.groupStageType === 'ROUND_ROBIN' && config.numGroups !== undefined ? { numGroups: config.numGroups } : {}),
+        ...(config.groupStageType === 'SWISS' && config.numSwissRounds !== undefined ? { numSwissRounds: config.numSwissRounds } : {})
+      };
+    }
+
+    // Helper: build a BracketWithConfig from a TransformBracket using the given bracket config
+    const buildBracket = (bracketInput: TransformBracket, bracketCfg: TransformBracketConfig = config.bracketConfig) => {
+      const rounds = bracketInput.rounds.map((r, rIndex) => {
+        const matches: BracketMatch[] = r.matches.map((m, mIndex) => {
+          const isBye = m.participantBName === 'BYE' || m.participantAName === 'BYE';
+          const participantA = findParticipantId(m.participantAName);
+          const participantB = isBye && m.participantBName === 'BYE'
+            ? ''
+            : findParticipantId(m.participantBName);
+          const winner = isBye
+            ? (m.participantBName === 'BYE' ? participantA : participantB)
+            : (m.scoreA > m.scoreB ? participantA : participantB);
+
+          const total20sA = m.rounds.length > 0 ? m.rounds.reduce((s, rr) => s + rr.twentiesA, 0) : 0;
+          const total20sB = m.rounds.length > 0 ? m.rounds.reduce((s, rr) => s + rr.twentiesB, 0) : 0;
+
+          const bracketMatch: BracketMatch = {
+            id: `match-${rIndex}-${mIndex}-${Date.now()}`,
+            position: mIndex,
+            participantA,
+            ...(participantB ? { participantB } : {}),
+            status: isBye ? 'WALKOVER' : 'COMPLETED',
+            winner,
+            totalPointsA: m.scoreA,
+            totalPointsB: m.scoreB,
+            total20sA,
+            total20sB,
+            completedAt: tournament.tournamentDate
+          };
+
+          if (m.rounds.length > 0) {
+            bracketMatch.rounds = m.rounds.map((rr, rrIdx) => ({
+              gameNumber: 1,
+              roundInGame: rrIdx + 1,
+              pointsA: rr.pointsA,
+              pointsB: rr.pointsB,
+              twentiesA: rr.twentiesA,
+              twentiesB: rr.twentiesB,
+              hammerSide: null
+            }));
+          }
+
+          return bracketMatch;
+        });
+
+        return { roundNumber: rIndex + 1, name: r.name, matches };
+      });
+
+      return {
+        rounds,
+        totalRounds: rounds.length,
+        config: bracketCfg
+      };
+    };
+
+    // Build finalStage from knockoutBrackets
+    let finalStage = tournament.finalStage;
+    if (knockoutBrackets.length > 0) {
+      if (config.finalStageMode === 'SPLIT_DIVISIONS' && knockoutBrackets.length >= 2) {
+        const goldBracket = buildBracket(knockoutBrackets[0], config.bracketConfig);
+        const silverBracket = buildBracket(knockoutBrackets[1], config.silverBracketConfig ?? config.bracketConfig);
+        const goldWinner = goldBracket.rounds[goldBracket.rounds.length - 1]?.matches[0]?.winner;
+        const silverWinner = silverBracket.rounds[silverBracket.rounds.length - 1]?.matches[0]?.winner;
+        finalStage = {
+          mode: 'SPLIT_DIVISIONS',
+          goldBracket,
+          silverBracket,
+          thirdPlaceMatchEnabled: config.thirdPlaceMatchEnabled,
+          consolationEnabled: config.consolationEnabled,
+          isComplete: true,
+          ...(goldWinner ? { winner: goldWinner } : {}),
+          ...(silverWinner ? { silverWinner } : {})
+        };
+      } else if (knockoutBrackets.length === 1) {
+        const bracket = buildBracket(knockoutBrackets[0], config.bracketConfig);
+        const bracketWinner = bracket.rounds[bracket.rounds.length - 1]?.matches[0]?.winner;
+        finalStage = {
+          mode: 'SINGLE_BRACKET',
+          goldBracket: bracket,
+          thirdPlaceMatchEnabled: config.thirdPlaceMatchEnabled,
+          consolationEnabled: config.consolationEnabled,
+          isComplete: true,
+          ...(bracketWinner ? { winner: bracketWinner } : {})
+        };
+      } else {
+        // Multiple brackets (PARALLEL_BRACKETS)
+        const parallelBrackets = knockoutBrackets.map((b) => {
+          const bracket = buildBracket(b, config.bracketConfig);
+          const bracketWinner = bracket.rounds[bracket.rounds.length - 1]?.matches[0]?.winner;
+          return {
+            id: `bracket-${b.label.toLowerCase()}`,
+            name: b.name,
+            label: b.label,
+            bracket,
+            sourcePositions: b.sourcePositions,
+            ...(bracketWinner ? { winner: bracketWinner } : {})
+          };
+        });
+        const firstWinner = parallelBrackets[0]?.winner;
+        finalStage = {
+          mode: 'PARALLEL_BRACKETS',
+          goldBracket: parallelBrackets[0]?.bracket || tournament.finalStage?.goldBracket,
+          parallelBrackets,
+          thirdPlaceMatchEnabled: config.thirdPlaceMatchEnabled,
+          consolationEnabled: config.consolationEnabled,
+          isComplete: true,
+          ...(firstWinner ? { winner: firstWinner } : {})
+        };
+      }
+    }
+
+    // Build the updates
+    const updates: Partial<Tournament> = {
+      enrichedAt: Date.now(),
+      isImported: true
+    };
+
+    if (updatedGroupStage) {
+      updates.groupStage = updatedGroupStage;
+    }
+    if (finalStage) {
+      updates.finalStage = finalStage;
+    }
+
+    const success = await updateTournament(tournamentId, updates);
+    if (success) {
+      console.log('✅ Tournament transformed to LIVE:', tournamentId);
+    }
+    return success;
+  } catch (error) {
+    console.error('❌ Error transforming tournament to LIVE:', error);
+    return false;
   }
 }

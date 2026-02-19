@@ -13,7 +13,7 @@
   import { isSuperAdminUser, adminCheckLoading, canAccessAdmin } from '$lib/stores/admin';
   import type { Tournament } from '$lib/types/tournament';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-  import { Plus, Download } from '@lucide/svelte';
+  import { Plus, Download, ArrowUpFromLine, Sparkles } from '@lucide/svelte';
 
   let tournaments: Tournament[] = $state([]);
   let filteredTournaments: Tournament[] = $state([]);
@@ -298,6 +298,17 @@
     }
   }
 
+  function transformTournament(tournament: Tournament) {
+    goto(`/admin/tournaments/import?transform_to_live=${tournament.id}`);
+  }
+
+  function showTapTooltip(e: MouseEvent) {
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    target.classList.add('tooltip-visible');
+    setTimeout(() => target.classList.remove('tooltip-visible'), 1800);
+  }
+
   function cancelDelete() {
     showDeleteConfirm = false;
     tournamentToDelete = null;
@@ -503,7 +514,28 @@
                         <span class="tournament-date">{new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
                       {/if}
                       {#if tournament.isTest}
-                        <span class="test-indicator" title={m.tournament_isTestHint()}>🧪</span>
+                        <span
+                          class="test-indicator badge-tooltip"
+                          data-tooltip={m.tournament_isTestHint()}
+                          role="button"
+                          aria-label={m.tournament_isTestHint()}
+                          tabindex="0"
+                          onclick={showTapTooltip}
+                          onkeydown={(e) => e.key === 'Enter' && showTapTooltip(e as unknown as MouseEvent)}
+                        >🧪</span>
+                      {/if}
+                      {#if tournament.isImported && tournament.enrichedAt}
+                        <span
+                          class="enriched-icon badge-tooltip"
+                          data-tooltip={m.admin_tournamentEnriched()}
+                          role="button"
+                          aria-label={m.admin_tournamentEnriched()}
+                          tabindex="0"
+                          onclick={showTapTooltip}
+                          onkeydown={(e) => e.key === 'Enter' && showTapTooltip(e as unknown as MouseEvent)}
+                        >
+                          <Sparkles size={12} />
+                        </span>
                       {/if}
                     </div>
                     {#if tournament.description}
@@ -562,17 +594,26 @@
                   </div>
                 </td>
                 <td class="actions-cell">
+                  {#if tournament.isImported && !tournament.enrichedAt}
+                    <button
+                      class="action-btn transform-btn badge-tooltip"
+                      data-tooltip={m.admin_transformToLive()}
+                      onclick={(e) => { e.stopPropagation(); transformTournament(tournament); }}
+                    >
+                      <ArrowUpFromLine size={14} />
+                    </button>
+                  {/if}
                   <button
-                    class="action-btn duplicate-btn"
+                    class="action-btn duplicate-btn badge-tooltip"
+                    data-tooltip={m.admin_duplicateTournament()}
                     onclick={(e) => { e.stopPropagation(); duplicateTournament(tournament); }}
-                    title={m.admin_duplicateTournament()}
                   >
                     📋
                   </button>
                   <button
-                    class="action-btn delete-btn"
+                    class="action-btn delete-btn badge-tooltip"
+                    data-tooltip={m.common_delete()}
                     onclick={(e) => { e.stopPropagation(); confirmDelete(tournament); }}
-                    title={m.common_delete()}
                   >
                     🗑️
                   </button>
@@ -812,7 +853,7 @@
   .action-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0 0.35rem;
     padding: 0.3rem 0.75rem;
     border-radius: 9999px;
     font-size: 0.7rem;
@@ -1066,7 +1107,7 @@
     box-shadow: 0 2px 4px color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
-  /* Test indicator */
+  /* Test indicator & enriched icon */
   .test-indicator {
     font-size: 0.75rem;
     margin-left: 0.25rem;
@@ -1374,13 +1415,17 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.5rem;
+    gap: 2px;
     height: 100%;
     white-space: nowrap;
   }
 
   .action-btn {
-    padding: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.35rem;
+    height: 28px;
     border: none;
     background: transparent;
     cursor: pointer;
@@ -1403,6 +1448,18 @@
 
   .duplicate-btn {
     color: var(--primary);
+  }
+
+  .transform-btn {
+    color: #10b981;
+  }
+
+  .enriched-icon {
+    display: inline-flex;
+    align-items: center;
+    color: #f59e0b;
+    cursor: default;
+    flex-shrink: 0;
   }
 
   .mode-cell {
