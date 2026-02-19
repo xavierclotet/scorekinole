@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.36] - 2026-02-19
+- Enlarge hammer indicator icon (~25% bigger across all breakpoints and orientations)
+- Add filled badge background to hammer indicator (neutral, theme-aware color)
+- Add game scoring page with tournament and invite functionality
+- Add MatchResultDialog for entering match results with bracket/video support
+
 ## [2.4.35] - 2026-02-19
 - Add Transform IMPORTED→LIVE wizard: full group/final stage config, round-based input format, enrichedAt flag
 - New round-based group stage format (SS R1/RR R1 headers) with auto-computed standings via Union-Find
