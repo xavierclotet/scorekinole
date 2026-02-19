@@ -404,8 +404,25 @@
 	 */
 	function exitTournamentMode() {
 		clearTournamentContext();
-		// Clear event title/phase since we're no longer in tournament mode
-		gameSettings.update((s) => ({ ...s, eventTitle: '', matchPhase: '' }));
+		// Clear event title/phase since we're no longer in tournament mode.
+		// Also restore gameType from backup immediately to avoid showing partner buttons
+		// incorrectly when the tournament was doubles but the friendly mode was singles.
+		const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
+		const backup = backupStr
+			? (() => {
+					try {
+						return JSON.parse(backupStr);
+					} catch {
+						return null;
+					}
+				})()
+			: null;
+		gameSettings.update((s) => ({
+			...s,
+			eventTitle: '',
+			matchPhase: '',
+			...(backup?.gameType ? { gameType: backup.gameType } : {})
+		}));
 		// Mark that we just exited tournament mode - prevents auto-restoration
 		justExitedTournamentMode = true;
 	}
