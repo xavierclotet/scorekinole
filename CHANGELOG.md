@@ -2,6 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.35] - 2026-02-19
+- Add Transform IMPORTED→LIVE wizard: full group/final stage config, round-based input format, enrichedAt flag
+- New round-based group stage format (SS R1/RR R1 headers) with auto-computed standings via Union-Find
+- Import wizard step 2 & 3: two-column layout with format help cards
+- Tournament list: Transform button for non-enriched IMPORTED tournaments, Sparkles icon for enriched ones
+- Global badge-tooltip CSS for hover + tap tooltips (mobile/APK compatible)
+- Pre-populate duplicate tournament wizard with original data
+- Fix duplicate tournament step 3 bracket for SINGLE_BRACKET/SPLIT_DIVISIONS mode
+- Fix VenueSelector: auto-propagate manual form values and hide summary while editing
+
 ## [2.4.34] - 2026-02-18
 - Enforce unique player names with case-insensitive validation
 - Fix profile modal closing when selecting text in input
