@@ -1135,7 +1135,7 @@
   "tournament_matchesWonShort": "V",
   "tournament_matchPlural": "matches",
   "tournament_matchSingular": "game",
-  "tournament_inPlay": "live",
+  "tournament_inPlay": "players playing live",
   "tournament_noDataAvailable": "No data available",
   "tournament_transitionDescription": "Preparing for the final phase...",
   "stats_allModes": "All modes",
@@ -1297,5 +1297,7 @@
   "auth_playerNameTaken": "This player name is already in use. Please choose another.",
   "admin_transformToLive": "Transform to LIVE",
   "import_roundDetailsHint": "Optional: Add round lines after each game (points_A, points_B, twenty_A, twenty_B)",
-  "admin_tournamentEnriched": "Tournament enriched with LIVE data"
+  "admin_tournamentEnriched": "Tournament enriched with LIVE data",
+  "common_errorPageNotFound": "Page not found",
+  "common_errorPageNotFoundDesc": "The page you are looking for does not exist or has been moved."
 }

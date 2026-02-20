@@ -475,7 +475,7 @@
 		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 	}
 
-	.modal-overlay[data-theme='dark'] .modal {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .modal {
 		background: #1a2332;
 	}
 
@@ -489,7 +489,7 @@
 		background: #f8fafc;
 	}
 
-	.modal-overlay[data-theme='dark'] .modal-header {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .modal-header {
 		background: #0f1419;
 		border-color: #2d3748;
 	}
@@ -501,7 +501,7 @@
 		color: #1f2937;
 	}
 
-	.modal-overlay[data-theme='dark'] .modal-header h2 {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .modal-header h2 {
 		color: #e5e7eb;
 	}
 
@@ -529,7 +529,7 @@
 		color: #374151;
 	}
 
-	.modal-overlay[data-theme='dark'] .close-btn:hover {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .close-btn:hover {
 		background: #374151;
 		color: #e5e7eb;
 	}
@@ -601,11 +601,11 @@
 		border-radius: 2px;
 	}
 
-	.modal-overlay[data-theme='dark'] .admins-scroll::-webkit-scrollbar-thumb {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .admins-scroll::-webkit-scrollbar-thumb {
 		background: #4b5563;
 	}
 
-	.modal-overlay[data-theme='dark'] .column-header {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .column-header {
 		border-color: #374151;
 	}
 
@@ -617,7 +617,7 @@
 		color: #6b7280;
 	}
 
-	.modal-overlay[data-theme='dark'] .column-title {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .column-title {
 		color: #9ca3af;
 	}
 
@@ -630,7 +630,7 @@
 		border-radius: 10px;
 	}
 
-	.modal-overlay[data-theme='dark'] .badge {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .badge {
 		background: #374151;
 		color: #9ca3af;
 	}
@@ -650,11 +650,11 @@
 		border: 1px solid rgba(251, 191, 36, 0.3);
 	}
 
-	.modal-overlay[data-theme='dark'] .admin-row {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .admin-row {
 		background: #0f1419;
 	}
 
-	.modal-overlay[data-theme='dark'] .admin-row.owner {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .admin-row.owner {
 		background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.1));
 		border-color: rgba(251, 191, 36, 0.4);
 	}
@@ -707,7 +707,7 @@
 		text-overflow: ellipsis;
 	}
 
-	.modal-overlay[data-theme='dark'] .admin-name {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .admin-name {
 		color: #e5e7eb;
 	}
 
@@ -716,7 +716,7 @@
 		color: #b45309;
 	}
 
-	.modal-overlay[data-theme='dark'] .owner-badge {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .owner-badge {
 		color: #fbbf24;
 	}
 
@@ -780,7 +780,7 @@
 		border-color: #667eea;
 	}
 
-	.modal-overlay[data-theme='dark'] .search-input {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .search-input {
 		background: #0f1419;
 		border-color: #374151;
 		color: #e5e7eb;
@@ -815,15 +815,15 @@
 		background: rgba(99, 102, 241, 0.1);
 	}
 
-	.modal-overlay[data-theme='dark'] .selectable-admin {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .selectable-admin {
 		background: #0f1419;
 	}
 
-	.modal-overlay[data-theme='dark'] .selectable-admin:hover {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .selectable-admin:hover {
 		background: #1a2332;
 	}
 
-	.modal-overlay[data-theme='dark'] .selectable-admin.selected {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .selectable-admin.selected {
 		background: rgba(99, 102, 241, 0.2);
 	}
 
@@ -850,7 +850,7 @@
 		height: 12px;
 	}
 
-	.modal-overlay[data-theme='dark'] .check-box {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .check-box {
 		border-color: #4b5563;
 	}
 
@@ -908,12 +908,12 @@
 		border: 1px solid #bbf7d0;
 	}
 
-	.modal-overlay[data-theme='dark'] .message.error {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .message.error {
 		background: rgba(220, 38, 38, 0.1);
 		border-color: rgba(220, 38, 38, 0.3);
 	}
 
-	.modal-overlay[data-theme='dark'] .message.success {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .message.success {
 		background: rgba(22, 163, 74, 0.1);
 		border-color: rgba(22, 163, 74, 0.3);
 	}
@@ -937,7 +937,7 @@
 		width: 90%;
 	}
 
-	.modal-overlay[data-theme='dark'] .confirm-modal {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .confirm-modal {
 		background: #1a2332;
 	}
 
@@ -948,7 +948,7 @@
 		color: #1f2937;
 	}
 
-	.modal-overlay[data-theme='dark'] .confirm-modal h3 {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .confirm-modal h3 {
 		color: #e5e7eb;
 	}
 
@@ -958,7 +958,7 @@
 		color: #6b7280;
 	}
 
-	.modal-overlay[data-theme='dark'] .confirm-modal p {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .confirm-modal p {
 		color: #9ca3af;
 	}
 
@@ -972,7 +972,7 @@
 		color: #374151;
 	}
 
-	.modal-overlay[data-theme='dark'] .checkbox-row {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .checkbox-row {
 		color: #d1d5db;
 	}
 
@@ -1015,7 +1015,7 @@
 		background: #e5e7eb;
 	}
 
-	.modal-overlay[data-theme='dark'] .btn.secondary {
+	.modal-overlay:is([data-theme='dark'], [data-theme='violet']) .btn.secondary {
 		background: #374151;
 		color: #e5e7eb;
 	}

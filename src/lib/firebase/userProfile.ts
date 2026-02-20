@@ -310,6 +310,34 @@ export async function removeTournamentRecord(
 }
 
 /**
+ * Create a lightweight user profile for a guest player.
+ * Guest profiles have no auth (authProvider: null), no admin permissions, and no tournament quota.
+ * They exist solely to give guests a persistent identity for ranking accumulation across tournaments.
+ *
+ * @param playerName Display name of the guest player
+ * @returns The generated userId for the new guest profile
+ */
+export async function createGuestUserProfile(playerName: string): Promise<string> {
+  if (!browser || !isFirebaseEnabled()) {
+    throw new Error('Firebase disabled');
+  }
+
+  const usersRef = collection(db!, 'users');
+  const guestDoc = await addDoc(usersRef, {
+    playerName: playerName.trim(),
+    playerNameLower: playerName.trim().toLowerCase(),
+    email: null,
+    photoURL: null,
+    authProvider: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+
+  console.log(`✅ Created guest user profile for "${playerName}": ${guestDoc.id}`);
+  return guestDoc.id;
+}
+
+/**
  * Save user's language preference to their profile
  * @param language The language code to save
  */

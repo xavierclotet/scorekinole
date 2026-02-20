@@ -19,11 +19,24 @@
 		}
 	});
 
+	function hasFirstAndLastName(name: string): boolean {
+		const parts = name.trim().split(/\s+/);
+		return parts.length >= 2 && parts.every((p) => p.length > 0);
+	}
+
+	let error = $state('');
+
 	function save() {
-		if (inputValue.trim()) {
-			onsave?.(inputValue.trim());
-			close();
+		if (!inputValue.trim()) return;
+
+		if (!hasFirstAndLastName(inputValue)) {
+			error = m.auth_playerNameRequired();
+			return;
 		}
+
+		error = '';
+		onsave?.(inputValue.trim());
+		close();
 	}
 
 	function close() {
@@ -52,6 +65,9 @@
 				<label for="playerNameInput" class="label">
 					{m.auth_playerNameDescription()}
 				</label>
+				{#if error}
+					<div class="error-message">{error}</div>
+				{/if}
 				<input
 					id="playerNameInput"
 					type="text"
@@ -63,7 +79,7 @@
 					autofocus
 				/>
 				<div class="actions">
-					<Button variant="primary" onclick={save}>
+					<Button variant="primary" onclick={save} disabled={!hasFirstAndLastName(inputValue)}>
 						{m.common_save()}
 					</Button>
 				</div>
@@ -136,6 +152,16 @@
 
 	.input::placeholder {
 		color: rgba(255, 255, 255, 0.4);
+	}
+
+	.error-message {
+		background: rgba(255, 68, 68, 0.2);
+		border: 1px solid rgba(255, 68, 68, 0.5);
+		color: #ff4444;
+		padding: 0.75rem 1rem;
+		border-radius: 8px;
+		font-size: 0.9rem;
+		text-align: center;
 	}
 
 	.actions {

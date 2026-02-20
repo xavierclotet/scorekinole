@@ -16,7 +16,7 @@
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution, calculateRankingPoints } from '$lib/algorithms/ranking';
-  import { getUserProfileById, type UserProfile } from '$lib/firebase/userProfile';
+  import { getUserProfileById, createGuestUserProfile, type UserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
@@ -1219,20 +1219,22 @@
           allPlayerNames.set(player1Lower, lineNum);
           allPlayerNames.set(player2Lower, lineNum);
 
+          const isGuest1 = user1 ? user1.authProvider === null : true;
+          const isGuest2 = user2 ? user2.authProvider === null : true;
           newParticipants.push({
             id: crypto.randomUUID(),
-            type: user1 ? 'REGISTERED' : 'GUEST',
+            type: isGuest1 ? 'GUEST' : 'REGISTERED',
             name: user1 ? user1.playerName : player1,
             userId: user1?.userId,
-            photoURL: user1?.photoURL || undefined,
+            photoURL: isGuest1 ? undefined : (user1?.photoURL || undefined),
             partner: {
-              type: user2 ? 'REGISTERED' : 'GUEST',
+              type: isGuest2 ? 'GUEST' : 'REGISTERED',
               name: user2 ? user2.playerName : player2,
               userId: user2?.userId,
-              photoURL: user2?.photoURL || undefined
+              photoURL: isGuest2 ? undefined : (user2?.photoURL || undefined)
             },
             teamName,
-            rankingSnapshot: 0, // Calculated via syncParticipantRankings when tournament starts
+            rankingSnapshot: 0,
             status: 'ACTIVE'
           });
         } else {
@@ -1262,8 +1264,18 @@
             continue;
           }
 
-          if (existingUser) {
-            // Registered user - save with userId
+          if (existingUser && existingUser.authProvider === null) {
+            // Existing guest profile - reuse their userId for ranking continuity
+            newParticipants.push({
+              id: crypto.randomUUID(),
+              type: 'GUEST',
+              userId: existingUser.userId,
+              name: existingUser.playerName,
+              rankingSnapshot: 0,
+              status: 'ACTIVE'
+            });
+          } else if (existingUser) {
+            // Registered user (google auth, or legacy users without authProvider set)
             newParticipants.push({
               id: crypto.randomUUID(),
               type: 'REGISTERED',
@@ -1271,11 +1283,11 @@
               name: existingUser.playerName,
               email: existingUser.email || undefined,
               photoURL: existingUser.photoURL || undefined,
-              rankingSnapshot: 0, // Ranking is calculated dynamically
+              rankingSnapshot: 0,
               status: 'ACTIVE'
             });
           } else {
-            // Guest user
+            // New guest - userId will be created when tournament is submitted
             newParticipants.push({
               id: crypto.randomUUID(),
               type: 'GUEST',
@@ -1660,9 +1672,38 @@
         };
       }
 
+      // Assign userId to new GUEST participants (those without one) by creating guest profiles
+      // This runs for both CREATE and EDIT modes so guests always get persistent identity
+      const participantsWithIds = await Promise.all(
+        participants.map(async (p) => {
+          const updated = { ...p };
+
+          // Create guest profile for main player if GUEST without userId
+          if (p.type === 'GUEST' && !p.userId && p.name) {
+            try {
+              updated.userId = await createGuestUserProfile(p.name);
+            } catch (err) {
+              console.error(`Failed to create guest profile for "${p.name}":`, err);
+            }
+          }
+
+          // Create guest profile for partner if GUEST without userId
+          if (p.partner && p.partner.type === 'GUEST' && !p.partner.userId && p.partner.name) {
+            try {
+              const partnerUserId = await createGuestUserProfile(p.partner.name);
+              updated.partner = { ...p.partner, userId: partnerUserId };
+            } catch (err) {
+              console.error(`Failed to create guest profile for partner "${p.partner.name}":`, err);
+            }
+          }
+
+          return updated;
+        })
+      );
+
       // Include participants in both CREATE and EDIT modes
       // In EDIT mode, this allows updating participant types (GUEST -> REGISTERED)
-      tournamentData.participants = participants;
+      tournamentData.participants = participantsWithIds;
 
       // Calculate time estimation if config is available
       if (timeConfig) {
@@ -1705,13 +1746,13 @@
         }
 
         // Add all participants in a single Firebase call
-        console.log('📋 Participants to add:', participants.map(p => ({
+        console.log('📋 Participants to add:', participantsWithIds.map(p => ({
           name: p.name,
           type: p.type,
           userId: p.userId,
           partner: p.partner ? { name: p.partner.name, type: p.partner.type, userId: p.partner.userId } : undefined
         })));
-        const participantsAdded = await addParticipants(tournamentId, participants);
+        const participantsAdded = await addParticipants(tournamentId, participantsWithIds);
 
         if (!participantsAdded) {
           creating = false;

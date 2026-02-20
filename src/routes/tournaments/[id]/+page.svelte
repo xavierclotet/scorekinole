@@ -343,6 +343,13 @@
 	// Check if this is a doubles tournament
 	let isDoubles = $derived(tournament?.gameType === 'doubles');
 
+	// Get initials from a player name (e.g. "Juan Antonio García" → "JG", "María" → "M")
+	function getInitials(name: string): string {
+		const parts = name.trim().split(/\s+/);
+		if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+		return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+	}
+
 	// Get top 4 finishers from a bracket
 	function getBracketTop4(pb: { winner?: string; bracket?: { rounds?: Array<{ matches?: Array<{ winner?: string; participantA?: string; participantB?: string }> }>; thirdPlaceMatch?: { winner?: string; participantA?: string; participantB?: string } } }): Array<{ position: number; participantId: string }> {
 		const results: Array<{ position: number; participantId: string }> = [];
@@ -458,24 +465,28 @@
 	{@const sizeClass = size === 'sm' ? 'avatar-sm' : size === 'lg' ? 'avatar-lg' : 'avatar-md'}
 	{#if participant}
 		{#if isDoubles && participant.partner}
-			<!-- Doubles: show avatars only if they exist -->
-			{#if participant.photoURL || participant.partner.photoURL}
-				<div class="pair-avatars {sizeClass}">
-					{#if participant.photoURL}
-						<img src={participant.photoURL} alt="" class="avatar-img first" referrerpolicy="no-referrer" />
-					{/if}
-					{#if participant.partner.photoURL}
-						<img src={participant.partner.photoURL} alt="" class="avatar-img second" class:only={!participant.photoURL} referrerpolicy="no-referrer" />
-					{/if}
-				</div>
-			{/if}
+			<!-- Doubles: always show both slots (photo or initials fallback) -->
+			<div class="pair-avatars {sizeClass}">
+				{#if participant.photoURL}
+					<img src={participant.photoURL} alt={participant.name} class="avatar-img first" referrerpolicy="no-referrer" />
+				{:else}
+					<div class="avatar-img avatar-placeholder first">{getInitials(participant.name)}</div>
+				{/if}
+				{#if participant.partner.photoURL}
+					<img src={participant.partner.photoURL} alt={participant.partner.name} class="avatar-img second" referrerpolicy="no-referrer" />
+				{:else}
+					<div class="avatar-img avatar-placeholder second partner-placeholder">{getInitials(participant.partner.name)}</div>
+				{/if}
+			</div>
 		{:else}
-			<!-- Singles: show avatar only if exists -->
-			{#if participant.photoURL}
-				<div class="single-avatar {sizeClass}">
-					<img src={participant.photoURL} alt="" class="avatar-img" referrerpolicy="no-referrer" />
-				</div>
-			{/if}
+			<!-- Singles: always show (photo or initials fallback) -->
+			<div class="single-avatar {sizeClass}">
+				{#if participant.photoURL}
+					<img src={participant.photoURL} alt={participant.name} class="avatar-img" referrerpolicy="no-referrer" />
+				{:else}
+					<div class="avatar-img avatar-placeholder">{getInitials(participant.name)}</div>
+				{/if}
+			</div>
 		{/if}
 	{/if}
 {/snippet}
@@ -1021,10 +1032,13 @@
 													<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 														<td class="pos-col">{standing.position}</td>
 														<td class="name-col">
-															{getParticipantName(standing.participantId)}
-															{#if getParticipantRanking(standing.participantId) > 0}
-																<span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
-															{/if}
+															<div class="name-cell">
+																{@render participantAvatar(standing.participantId, 'sm')}
+																<span class="name-text">{getParticipantName(standing.participantId)}</span>
+																{#if getParticipantRanking(standing.participantId) > 0}
+																	<span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
+																{/if}
+															</div>
 														</td>
 														{#if hasMatchDetails}
 															<td class="stat-col">{standing.matchesWon ?? 0}</td>
@@ -1120,8 +1134,9 @@
 																{#if match.tableNumber != null}
 																	<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
 																{/if}
-																<span class="match-player" class:winner={match.winner === match.participantA}>
-																	{getParticipantName(match.participantA)}
+																<span class="match-player match-player-a" class:winner={match.winner === match.participantA}>
+																	<span class="match-player-name">{getParticipantName(match.participantA)}</span>
+																	{@render participantAvatar(match.participantA, 'sm')}
 																</span>
 																<span class="match-score">
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
@@ -1130,8 +1145,9 @@
 																		vs
 																	{/if}
 																</span>
-																<span class="match-player" class:winner={match.winner === match.participantB}>
-																	{getParticipantName(match.participantB)}
+																<span class="match-player match-player-b" class:winner={match.winner === match.participantB}>
+																	{@render participantAvatar(match.participantB, 'sm')}
+																	<span class="match-player-name">{getParticipantName(match.participantB)}</span>
 																</span>
 															</button>
 														{/if}
@@ -1167,10 +1183,13 @@
 												<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 													<td class="pos-col">{standing.position}</td>
 													<td class="name-col">
-														{getParticipantName(standing.participantId)}
-														{#if getParticipantRanking(standing.participantId) > 0}
-															<span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
-														{/if}
+														<div class="name-cell">
+															{@render participantAvatar(standing.participantId, 'sm')}
+															<span class="name-text">{getParticipantName(standing.participantId)}</span>
+															{#if getParticipantRanking(standing.participantId) > 0}
+																<span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
+															{/if}
+														</div>
 													</td>
 													{#if hasMatchDetails}
 														<td class="stat-col">{standing.matchesWon ?? 0}</td>
@@ -1227,8 +1246,9 @@
 																	{#if match.tableNumber}
 																		<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
 																	{/if}
-																	<span class="match-player" class:winner={match.winner === match.participantA}>
-																		{getParticipantName(match.participantA)}
+																	<span class="match-player match-player-a" class:winner={match.winner === match.participantA}>
+																		<span class="match-player-name">{getParticipantName(match.participantA)}</span>
+																		{@render participantAvatar(match.participantA, 'sm')}
 																	</span>
 																	<span class="match-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
@@ -1237,8 +1257,9 @@
 																			vs
 																		{/if}
 																	</span>
-																	<span class="match-player" class:winner={match.winner === match.participantB}>
-																		{getParticipantName(match.participantB)}
+																	<span class="match-player match-player-b" class:winner={match.winner === match.participantB}>
+																		{@render participantAvatar(match.participantB, 'sm')}
+																		<span class="match-player-name">{getParticipantName(match.participantB)}</span>
 																	</span>
 																</button>
 															{/if}
@@ -1305,6 +1326,7 @@
 																class:winner={winnerIsA}
 																class:tbd={!match.participantA}
 															>
+																{@render participantAvatar(match.participantA, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1316,6 +1338,7 @@
 																class:winner={winnerIsB}
 																class:tbd={!match.participantB}
 															>
+																{@render participantAvatar(match.participantB, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1363,6 +1386,7 @@
 														class:winner={thirdMatch.winner === thirdMatch.participantA}
 														class:tbd={!thirdMatch.participantA}
 													>
+														{@render participantAvatar(thirdMatch.participantA, "sm")}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
@@ -1374,6 +1398,7 @@
 														class:winner={thirdMatch.winner === thirdMatch.participantB}
 														class:tbd={!thirdMatch.participantB}
 													>
+														{@render participantAvatar(thirdMatch.participantB, "sm")}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
@@ -1425,6 +1450,7 @@
 																		class:winner={match.winner === match.participantA}
 																		class:tbd={!match.participantA}
 																	>
+																		{@render participantAvatar(match.participantA, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1436,6 +1462,7 @@
 																		class:winner={match.winner === match.participantB}
 																		class:tbd={!match.participantB}
 																	>
+																		{@render participantAvatar(match.participantB, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1467,6 +1494,7 @@
 																		class:winner={match.winner === match.participantA}
 																		class:tbd={!match.participantA}
 																	>
+																		{@render participantAvatar(match.participantA, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1478,6 +1506,7 @@
 																		class:winner={match.winner === match.participantB}
 																		class:tbd={!match.participantB}
 																	>
+																		{@render participantAvatar(match.participantB, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1529,6 +1558,7 @@
 																class:winner={winnerIsA}
 																class:tbd={!match.participantA}
 															>
+																{@render participantAvatar(match.participantA, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1540,6 +1570,7 @@
 																class:winner={winnerIsB}
 																class:tbd={!match.participantB}
 															>
+																{@render participantAvatar(match.participantB, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1587,6 +1618,7 @@
 														class:winner={thirdMatch.winner === thirdMatch.participantA}
 														class:tbd={!thirdMatch.participantA}
 													>
+														{@render participantAvatar(thirdMatch.participantA, "sm")}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
@@ -1598,6 +1630,7 @@
 														class:winner={thirdMatch.winner === thirdMatch.participantB}
 														class:tbd={!thirdMatch.participantB}
 													>
+														{@render participantAvatar(thirdMatch.participantB, "sm")}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
@@ -1649,6 +1682,7 @@
 																		class:winner={match.winner === match.participantA}
 																		class:tbd={!match.participantA}
 																	>
+																		{@render participantAvatar(match.participantA, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1660,6 +1694,7 @@
 																		class:winner={match.winner === match.participantB}
 																		class:tbd={!match.participantB}
 																	>
+																		{@render participantAvatar(match.participantB, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1691,6 +1726,7 @@
 																		class:winner={match.winner === match.participantA}
 																		class:tbd={!match.participantA}
 																	>
+																		{@render participantAvatar(match.participantA, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1702,6 +1738,7 @@
 																		class:winner={match.winner === match.participantB}
 																		class:tbd={!match.participantB}
 																	>
+																		{@render participantAvatar(match.participantB, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1762,6 +1799,7 @@
 																class:winner={winnerIsA}
 																class:tbd={!match.participantA}
 															>
+																{@render participantAvatar(match.participantA, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1773,6 +1811,7 @@
 																class:winner={winnerIsB}
 																class:tbd={!match.participantB}
 															>
+																{@render participantAvatar(match.participantB, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1819,6 +1858,7 @@
 														class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
 														class:tbd={!thirdPlaceMatch.participantA}
 													>
+														{@render participantAvatar(thirdPlaceMatch.participantA, "sm")}
 														<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
 														{#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
 															<span class="score">{thirdPlaceMatch.totalPointsA || thirdPlaceMatch.gamesWonA || 0}</span>
@@ -1830,6 +1870,7 @@
 														class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
 														class:tbd={!thirdPlaceMatch.participantB}
 													>
+														{@render participantAvatar(thirdPlaceMatch.participantB, "sm")}
 														<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
 														{#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
 															<span class="score">{thirdPlaceMatch.totalPointsB || thirdPlaceMatch.gamesWonB || 0}</span>
@@ -1883,6 +1924,7 @@
 															class:winner={winnerIsA}
 															class:tbd={!match.participantA}
 														>
+															{@render participantAvatar(match.participantA, "sm")}
 															<span class="participant-name">{getParticipantName(match.participantA)}</span>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1894,6 +1936,7 @@
 															class:winner={winnerIsB}
 															class:tbd={!match.participantB}
 														>
+															{@render participantAvatar(match.participantB, "sm")}
 															<span class="participant-name">{getParticipantName(match.participantB)}</span>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1941,6 +1984,7 @@
 													class:winner={thirdMatch.winner === thirdMatch.participantA}
 													class:tbd={!thirdMatch.participantA}
 												>
+													{@render participantAvatar(thirdMatch.participantA, "sm")}
 													<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 													{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 														<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
@@ -1952,6 +1996,7 @@
 													class:winner={thirdMatch.winner === thirdMatch.participantB}
 													class:tbd={!thirdMatch.participantB}
 												>
+													{@render participantAvatar(thirdMatch.participantB, "sm")}
 													<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 													{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 														<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
@@ -2003,6 +2048,7 @@
 																	class:winner={match.winner === match.participantA}
 																	class:tbd={!match.participantA}
 																>
+																	{@render participantAvatar(match.participantA, "sm")}
 																	<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2014,6 +2060,7 @@
 																	class:winner={match.winner === match.participantB}
 																	class:tbd={!match.participantB}
 																>
+																	{@render participantAvatar(match.participantB, "sm")}
 																	<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2045,6 +2092,7 @@
 																	class:winner={match.winner === match.participantA}
 																	class:tbd={!match.participantA}
 																>
+																	{@render participantAvatar(match.participantA, "sm")}
 																	<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2056,6 +2104,7 @@
 																	class:winner={match.winner === match.participantB}
 																	class:tbd={!match.participantB}
 																>
+																	{@render participantAvatar(match.participantB, "sm")}
 																	<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -3325,17 +3374,30 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		border-radius: 50%;
 		background: var(--primary);
 		color: var(--primary-foreground);
 		font-weight: 600;
-		font-size: calc(var(--avatar-size) * 0.45);
+		font-size: calc(var(--avatar-size) * 0.4);
+		user-select: none;
 	}
 
-	/* Pair avatars - slight overlap */
+	/* Singles: placeholder fills the container */
+	.single-avatar .avatar-placeholder {
+		width: 100%;
+		height: 100%;
+	}
+
+	/* Partner in doubles gets a slightly different shade to distinguish the two */
+	.partner-placeholder {
+		background: color-mix(in srgb, var(--primary) 60%, var(--muted-foreground));
+	}
+
+	/* Pair avatars - overlapping */
 	.pair-avatars {
 		display: flex;
 		align-items: center;
-		width: calc(var(--avatar-size) * 1.8);
+		width: calc(var(--avatar-size) * 1.55);
 		height: var(--avatar-size);
 		position: relative;
 	}
@@ -3355,7 +3417,7 @@
 	}
 
 	.pair-avatars .second {
-		left: calc(var(--avatar-size) * 0.8);
+		left: calc(var(--avatar-size) * 0.55);
 		z-index: 1;
 	}
 
@@ -3600,8 +3662,23 @@
 	}
 
 	.standings-table .pos-col { width: 24px; text-align: center; }
-	.standings-table .name-col { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.standings-table .name-col { text-align: left; overflow: hidden; }
 	.standings-table .stat-col { width: 32px; text-align: center !important; font-variant-numeric: tabular-nums; }
+
+	.name-cell {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+
+	.name-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		flex: 1;
+		min-width: 0;
+	}
 
 	.ranking-pts {
 		font-size: 0.6rem;
@@ -3757,18 +3834,35 @@
 	}
 
 	.match-player {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
 		flex: 1;
+		min-width: 0;
 		color: #8b9bb3;
+	}
+
+	.match-player-a {
+		flex-direction: row-reverse;
+	}
+
+	.match-player-b {
+		flex-direction: row;
+	}
+
+	.match-player-name {
+		flex: 1;
+		min-width: 0;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.match-player:first-child {
+	.match-player-a .match-player-name {
 		text-align: right;
 	}
 
-	.match-player:last-child {
+	.match-player-b .match-player-name {
 		text-align: left;
 	}
 
@@ -4007,6 +4101,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 0.4rem;
 		padding: 0.25rem 0;
 		font-size: 0.8rem;
 	}
@@ -4343,6 +4438,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: 0.4rem;
 		padding: 0.6rem 0.75rem;
 		background: #1a1f2e;
 		transition: all 0.15s;

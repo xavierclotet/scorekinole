@@ -136,8 +136,18 @@
 		onclose?.();
 	}
 
+	function hasFirstAndLastName(name: string): boolean {
+		const parts = name.trim().split(/\s+/);
+		return parts.length >= 2 && parts.every((p) => p.length > 0);
+	}
+
 	async function updateProfile() {
 		if (!playerNameInput.trim()) return;
+
+		if (!hasFirstAndLastName(playerNameInput)) {
+			nameError = m.auth_playerNameRequired();
+			return;
+		}
 
 		nameError = null;
 		isCheckingName = true;
@@ -391,7 +401,7 @@
 				<!-- Footer -->
 				<div class="footer">
 					<button class="btn-cancel" onclick={close}>{m.common_cancel()}</button>
-					<button class="btn-save" onclick={updateProfile} disabled={!playerNameInput.trim() || isCheckingName}>
+					<button class="btn-save" onclick={updateProfile} disabled={!hasFirstAndLastName(playerNameInput) || isCheckingName}>
 						{m.common_save()}
 					</button>
 				</div>

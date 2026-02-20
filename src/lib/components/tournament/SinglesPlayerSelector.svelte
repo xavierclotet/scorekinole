@@ -55,11 +55,12 @@
   }
 
   function selectUser(user: UserWithRanking) {
+    const isGuest = user.authProvider === null;
     selected = {
-      type: 'REGISTERED',
+      type: isGuest ? 'GUEST' : 'REGISTERED',
       userId: user.userId,
       name: user.playerName,
-      photoURL: user.photoURL || undefined
+      photoURL: isGuest ? undefined : (user.photoURL || undefined)
     };
     query = '';
     rawResults = [];
@@ -160,7 +161,7 @@
                 <Command.Empty>No se encontraron jugadores</Command.Empty>
               {:else}
                 <Command.Group>
-                  {#each results.slice(0, 6) as user}
+                  {#each results.slice(0, 6) as user (user.userId)}
                     <Command.Item
                       value={user.playerName || ''}
                       onSelect={() => selectUser(user)}
@@ -168,10 +169,15 @@
                     >
                       <div class="flex flex-col">
                         <span class="font-medium text-sm">{user.playerName}</span>
-                        {#if user.email}
+                        {#if user.authProvider === null}
+                          <span class="text-xs text-amber-600 dark:text-amber-400">Invitado existente</span>
+                        {:else if user.email}
                           <span class="text-xs text-muted-foreground">{user.email}</span>
                         {/if}
                       </div>
+                      {#if user.authProvider === null}
+                        <UserPlus class="w-3.5 h-3.5 shrink-0 text-amber-500 opacity-70" />
+                      {/if}
                     </Command.Item>
                   {/each}
                 </Command.Group>

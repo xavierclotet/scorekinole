@@ -22,9 +22,19 @@
 		}
 	});
 
+	function hasFirstAndLastName(name: string): boolean {
+		const parts = name.trim().split(/\s+/);
+		return parts.length >= 2 && parts.every((p) => p.length > 0);
+	}
+
 	async function save() {
 		if (!playerNameInput.trim()) {
 			error = m.auth_enterPlayerName();
+			return;
+		}
+
+		if (!hasFirstAndLastName(playerNameInput)) {
+			error = m.auth_playerNameRequired();
 			return;
 		}
 
@@ -98,7 +108,7 @@
 				</div>
 
 				<div class="actions">
-					<Button variant="primary" onclick={save} disabled={isLoading || !playerNameInput.trim()}>
+					<Button variant="primary" onclick={save} disabled={isLoading || !hasFirstAndLastName(playerNameInput)}>
 						{#if isLoading}
 							{m.common_saving()}...
 						{:else}

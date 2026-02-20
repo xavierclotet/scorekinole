@@ -304,7 +304,7 @@
 		const normalizedName = roundName.toLowerCase();
 		let phaseConfig: import('$lib/types/tournament').PhaseConfig;
 
-		if ((normalizedName.includes('final') && !normalizedName.includes('semi')) || normalizedName === 'final') {
+		if (normalizedName === 'finals' || normalizedName === 'final') {
 			phaseConfig = bracketConfig.final;
 		} else if (normalizedName.includes('semi')) {
 			phaseConfig = bracketConfig.semifinal;
@@ -397,6 +397,13 @@
 	function getParticipant(participantId: string): TournamentParticipant | null {
 		if (!participantId || participantId === 'BYE') return null;
 		return tournament.participants.find(p => p.id === participantId) || null;
+	}
+
+	// Get initials from a player name (e.g. "Juan García" → "JG", "María" → "M")
+	function getInitials(name: string): string {
+		const parts = name.trim().split(/\s+/);
+		if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+		return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 	}
 
 	// Get participant name
@@ -881,13 +888,19 @@
 															{getParticipantName(match.participantA || '')}
 														{/if}
 													</span>
-													{#if !isByeA && (participantA?.photoURL || participantA?.partner?.photoURL)}
+													{#if !isByeA && participantA}
 														<div class="player-avatars">
-															{#if participantA?.photoURL}
-																<img src={participantA.photoURL} alt="" class="player-avatar" />
+															{#if participantA.photoURL}
+																<img src={participantA.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+															{:else}
+																<span class="player-avatar-placeholder">{getInitials(participantA.name)}</span>
 															{/if}
-															{#if isDoubles && participantA?.partner?.photoURL}
-																<img src={participantA.partner.photoURL} alt="" class="player-avatar" />
+															{#if isDoubles && participantA.partner}
+																{#if participantA.partner.photoURL}
+																	<img src={participantA.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																{:else}
+																	<span class="player-avatar-placeholder">{getInitials(participantA.partner.name)}</span>
+																{/if}
 															{/if}
 														</div>
 													{/if}
@@ -911,13 +924,19 @@
 															{getParticipantName(match.participantB || '')}
 														{/if}
 													</span>
-													{#if !isByeB && (participantB?.photoURL || participantB?.partner?.photoURL)}
+													{#if !isByeB && participantB}
 														<div class="player-avatars">
-															{#if participantB?.photoURL}
-																<img src={participantB.photoURL} alt="" class="player-avatar" />
+															{#if participantB.photoURL}
+																<img src={participantB.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+															{:else}
+																<span class="player-avatar-placeholder">{getInitials(participantB.name)}</span>
 															{/if}
-															{#if isDoubles && participantB?.partner?.photoURL}
-																<img src={participantB.partner.photoURL} alt="" class="player-avatar" />
+															{#if isDoubles && participantB.partner}
+																{#if participantB.partner.photoURL}
+																	<img src={participantB.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																{:else}
+																	<span class="player-avatar-placeholder">{getInitials(participantB.partner.name)}</span>
+																{/if}
 															{/if}
 														</div>
 													{/if}
@@ -985,13 +1004,19 @@
 												<span class="player-name">
 													{getParticipantName(tpm.participantA || '')}
 												</span>
-												{#if tpmParticipantA?.photoURL || tpmParticipantA?.partner?.photoURL}
+												{#if tpmParticipantA}
 													<div class="player-avatars">
-														{#if tpmParticipantA?.photoURL}
-															<img src={tpmParticipantA.photoURL} alt="" class="player-avatar" />
+														{#if tpmParticipantA.photoURL}
+															<img src={tpmParticipantA.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+														{:else}
+															<span class="player-avatar-placeholder">{getInitials(tpmParticipantA.name)}</span>
 														{/if}
-														{#if isDoubles && tpmParticipantA?.partner?.photoURL}
-															<img src={tpmParticipantA.partner.photoURL} alt="" class="player-avatar" />
+														{#if isDoubles && tpmParticipantA.partner}
+															{#if tpmParticipantA.partner.photoURL}
+																<img src={tpmParticipantA.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+															{:else}
+																<span class="player-avatar-placeholder">{getInitials(tpmParticipantA.partner.name)}</span>
+															{/if}
 														{/if}
 													</div>
 												{/if}
@@ -1009,13 +1034,19 @@
 												<span class="player-name">
 													{getParticipantName(tpm.participantB || '')}
 												</span>
-												{#if tpmParticipantB?.photoURL || tpmParticipantB?.partner?.photoURL}
+												{#if tpmParticipantB}
 													<div class="player-avatars">
-														{#if tpmParticipantB?.photoURL}
-															<img src={tpmParticipantB.photoURL} alt="" class="player-avatar" />
+														{#if tpmParticipantB.photoURL}
+															<img src={tpmParticipantB.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+														{:else}
+															<span class="player-avatar-placeholder">{getInitials(tpmParticipantB.name)}</span>
 														{/if}
-														{#if isDoubles && tpmParticipantB?.partner?.photoURL}
-															<img src={tpmParticipantB.partner.photoURL} alt="" class="player-avatar" />
+														{#if isDoubles && tpmParticipantB.partner}
+															{#if tpmParticipantB.partner.photoURL}
+																<img src={tpmParticipantB.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+															{:else}
+																<span class="player-avatar-placeholder">{getInitials(tpmParticipantB.partner.name)}</span>
+															{/if}
 														{/if}
 													</div>
 												{/if}
@@ -1050,7 +1081,7 @@
 										{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
 										{#if visibleMatches.length > 0}
 											<div class="consolation-round" class:qf-start={cbIndex > 0 && roundIndex === 0}>
-												<div class="consolation-round-header">{round.name}</div>
+												<div class="consolation-round-header">{m.tournament_round()} {roundIndex + 1}</div>
 												<div class="consolation-round-matches">
 													{#each round.matches as match (match.id)}
 														{#if !isByeMatch(match)}
@@ -1063,6 +1094,7 @@
 																class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																class:in-progress={match.status === 'IN_PROGRESS'}
 															>
+																<span class="consolation-position-badge">{round.name}</span>
 																{#if match.status === 'IN_PROGRESS'}
 																	<div class="live-badge compact">
 																		<span class="live-pulse"></span>
@@ -1070,8 +1102,27 @@
 																{/if}
 																<div class="consolation-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
 																	<span class="consolation-name">{getParticipantName(match.participantA || '')}</span>
-																	{#if cParticipantA?.photoURL}
-																		<img src={cParticipantA.photoURL} alt="" class="consolation-avatar" />
+																	{#if cParticipantA}
+																		{#if isDoubles && cParticipantA.partner}
+																			<div class="consolation-pair-avatars">
+																				{#if cParticipantA.photoURL}
+																					<img src={cParticipantA.photoURL} alt="" class="consolation-avatar first" referrerpolicy="no-referrer" />
+																				{:else}
+																					<span class="consolation-avatar-placeholder first">{getInitials(cParticipantA.name)}</span>
+																				{/if}
+																				{#if cParticipantA.partner.photoURL}
+																					<img src={cParticipantA.partner.photoURL} alt="" class="consolation-avatar second" referrerpolicy="no-referrer" />
+																				{:else}
+																					<span class="consolation-avatar-placeholder second partner">{getInitials(cParticipantA.partner.name)}</span>
+																				{/if}
+																			</div>
+																		{:else}
+																			{#if cParticipantA.photoURL}
+																				<img src={cParticipantA.photoURL} alt="" class="consolation-avatar" referrerpolicy="no-referrer" />
+																			{:else}
+																				<span class="consolation-avatar-placeholder">{getInitials(cParticipantA.name)}</span>
+																			{/if}
+																		{/if}
 																	{/if}
 																	<span class="consolation-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
@@ -1082,8 +1133,27 @@
 																<div class="consolation-divider"></div>
 																<div class="consolation-player" class:winner={winnerIsB} class:tbd={!match.participantB}>
 																	<span class="consolation-name">{getParticipantName(match.participantB || '')}</span>
-																	{#if cParticipantB?.photoURL}
-																		<img src={cParticipantB.photoURL} alt="" class="consolation-avatar" />
+																	{#if cParticipantB}
+																		{#if isDoubles && cParticipantB.partner}
+																			<div class="consolation-pair-avatars">
+																				{#if cParticipantB.photoURL}
+																					<img src={cParticipantB.photoURL} alt="" class="consolation-avatar first" referrerpolicy="no-referrer" />
+																				{:else}
+																					<span class="consolation-avatar-placeholder first">{getInitials(cParticipantB.name)}</span>
+																				{/if}
+																				{#if cParticipantB.partner.photoURL}
+																					<img src={cParticipantB.partner.photoURL} alt="" class="consolation-avatar second" referrerpolicy="no-referrer" />
+																				{:else}
+																					<span class="consolation-avatar-placeholder second partner">{getInitials(cParticipantB.partner.name)}</span>
+																				{/if}
+																			</div>
+																		{:else}
+																			{#if cParticipantB.photoURL}
+																				<img src={cParticipantB.photoURL} alt="" class="consolation-avatar" referrerpolicy="no-referrer" />
+																			{:else}
+																				<span class="consolation-avatar-placeholder">{getInitials(cParticipantB.name)}</span>
+																			{/if}
+																		{/if}
 																	{/if}
 																	<span class="consolation-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
@@ -1167,13 +1237,19 @@
 																{getParticipantName(match.participantA || '')}
 															{/if}
 														</span>
-														{#if !isByeA && (participantA?.photoURL || participantA?.partner?.photoURL)}
+														{#if !isByeA && participantA}
 															<div class="player-avatars">
-																{#if participantA?.photoURL}
-																	<img src={participantA.photoURL} alt="" class="player-avatar" />
+																{#if participantA.photoURL}
+																	<img src={participantA.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																{:else}
+																	<span class="player-avatar-placeholder">{getInitials(participantA.name)}</span>
 																{/if}
-																{#if isDoubles && participantA?.partner?.photoURL}
-																	<img src={participantA.partner.photoURL} alt="" class="player-avatar" />
+																{#if isDoubles && participantA.partner}
+																	{#if participantA.partner.photoURL}
+																		<img src={participantA.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																	{:else}
+																		<span class="player-avatar-placeholder">{getInitials(participantA.partner.name)}</span>
+																	{/if}
 																{/if}
 															</div>
 														{/if}
@@ -1197,13 +1273,19 @@
 																{getParticipantName(match.participantB || '')}
 															{/if}
 														</span>
-														{#if !isByeB && (participantB?.photoURL || participantB?.partner?.photoURL)}
+														{#if !isByeB && participantB}
 															<div class="player-avatars">
-																{#if participantB?.photoURL}
-																	<img src={participantB.photoURL} alt="" class="player-avatar" />
+																{#if participantB.photoURL}
+																	<img src={participantB.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																{:else}
+																	<span class="player-avatar-placeholder">{getInitials(participantB.name)}</span>
 																{/if}
-																{#if isDoubles && participantB?.partner?.photoURL}
-																	<img src={participantB.partner.photoURL} alt="" class="player-avatar" />
+																{#if isDoubles && participantB.partner}
+																	{#if participantB.partner.photoURL}
+																		<img src={participantB.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																	{:else}
+																		<span class="player-avatar-placeholder">{getInitials(participantB.partner.name)}</span>
+																	{/if}
 																{/if}
 															</div>
 														{/if}
@@ -1331,7 +1413,7 @@
 											{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
 											{#if visibleMatches.length > 0}
 												<div class="consolation-round" class:qf-start={cbIndex > 0 && roundIndex === 0}>
-													<div class="consolation-round-header">{round.name}</div>
+													<div class="consolation-round-header">{m.tournament_round()} {roundIndex + 1}</div>
 													<div class="consolation-round-matches">
 														{#each round.matches as match (match.id)}
 															{#if !isByeMatch(match)}
@@ -1344,6 +1426,7 @@
 																	class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	class:in-progress={match.status === 'IN_PROGRESS'}
 																>
+																	<span class="consolation-position-badge">{round.name}</span>
 																	{#if match.status === 'IN_PROGRESS'}
 																		<div class="live-badge compact">
 																			<span class="live-pulse"></span>
@@ -1452,13 +1535,19 @@
 																{getParticipantName(match.participantA || '')}
 															{/if}
 														</span>
-														{#if !isByeA && (participantA?.photoURL || participantA?.partner?.photoURL)}
+														{#if !isByeA && participantA}
 															<div class="player-avatars">
-																{#if participantA?.photoURL}
-																	<img src={participantA.photoURL} alt="" class="player-avatar" />
+																{#if participantA.photoURL}
+																	<img src={participantA.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																{:else}
+																	<span class="player-avatar-placeholder">{getInitials(participantA.name)}</span>
 																{/if}
-																{#if isDoubles && participantA?.partner?.photoURL}
-																	<img src={participantA.partner.photoURL} alt="" class="player-avatar" />
+																{#if isDoubles && participantA.partner}
+																	{#if participantA.partner.photoURL}
+																		<img src={participantA.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																	{:else}
+																		<span class="player-avatar-placeholder">{getInitials(participantA.partner.name)}</span>
+																	{/if}
 																{/if}
 															</div>
 														{/if}
@@ -1482,13 +1571,19 @@
 																{getParticipantName(match.participantB || '')}
 															{/if}
 														</span>
-														{#if !isByeB && (participantB?.photoURL || participantB?.partner?.photoURL)}
+														{#if !isByeB && participantB}
 															<div class="player-avatars">
-																{#if participantB?.photoURL}
-																	<img src={participantB.photoURL} alt="" class="player-avatar" />
+																{#if participantB.photoURL}
+																	<img src={participantB.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																{:else}
+																	<span class="player-avatar-placeholder">{getInitials(participantB.name)}</span>
 																{/if}
-																{#if isDoubles && participantB?.partner?.photoURL}
-																	<img src={participantB.partner.photoURL} alt="" class="player-avatar" />
+																{#if isDoubles && participantB.partner}
+																	{#if participantB.partner.photoURL}
+																		<img src={participantB.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																	{:else}
+																		<span class="player-avatar-placeholder">{getInitials(participantB.partner.name)}</span>
+																	{/if}
 																{/if}
 															</div>
 														{/if}
@@ -1579,13 +1674,19 @@
 															{getParticipantName(match.participantA || '')}
 														{/if}
 													</span>
-													{#if !isByeA && (participantA?.photoURL || participantA?.partner?.photoURL)}
+													{#if !isByeA && participantA}
 														<div class="player-avatars">
-															{#if participantA?.photoURL}
-																<img src={participantA.photoURL} alt="" class="player-avatar" />
+															{#if participantA.photoURL}
+																<img src={participantA.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+															{:else}
+																<span class="player-avatar-placeholder">{getInitials(participantA.name)}</span>
 															{/if}
-															{#if isDoubles && participantA?.partner?.photoURL}
-																<img src={participantA.partner.photoURL} alt="" class="player-avatar" />
+															{#if isDoubles && participantA.partner}
+																{#if participantA.partner.photoURL}
+																	<img src={participantA.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																{:else}
+																	<span class="player-avatar-placeholder">{getInitials(participantA.partner.name)}</span>
+																{/if}
 															{/if}
 														</div>
 													{/if}
@@ -1609,13 +1710,19 @@
 															{getParticipantName(match.participantB || '')}
 														{/if}
 													</span>
-													{#if !isByeB && (participantB?.photoURL || participantB?.partner?.photoURL)}
+													{#if !isByeB && participantB}
 														<div class="player-avatars">
-															{#if participantB?.photoURL}
-																<img src={participantB.photoURL} alt="" class="player-avatar" />
+															{#if participantB.photoURL}
+																<img src={participantB.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+															{:else}
+																<span class="player-avatar-placeholder">{getInitials(participantB.name)}</span>
 															{/if}
-															{#if isDoubles && participantB?.partner?.photoURL}
-																<img src={participantB.partner.photoURL} alt="" class="player-avatar" />
+															{#if isDoubles && participantB.partner}
+																{#if participantB.partner.photoURL}
+																	<img src={participantB.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+																{:else}
+																	<span class="player-avatar-placeholder">{getInitials(participantB.partner.name)}</span>
+																{/if}
 															{/if}
 														</div>
 													{/if}
@@ -1680,13 +1787,19 @@
 													<span class="seed">#{tpm.seedA}</span>
 												{/if}
 												<span class="player-name">{getParticipantName(tpm.participantA || '')}</span>
-												{#if tpmParticipantA?.photoURL || tpmParticipantA?.partner?.photoURL}
+												{#if tpmParticipantA}
 													<div class="player-avatars">
-														{#if tpmParticipantA?.photoURL}
-															<img src={tpmParticipantA.photoURL} alt="" class="player-avatar" />
+														{#if tpmParticipantA.photoURL}
+															<img src={tpmParticipantA.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+														{:else}
+															<span class="player-avatar-placeholder">{getInitials(tpmParticipantA.name)}</span>
 														{/if}
-														{#if isDoubles && tpmParticipantA?.partner?.photoURL}
-															<img src={tpmParticipantA.partner.photoURL} alt="" class="player-avatar" />
+														{#if isDoubles && tpmParticipantA.partner}
+															{#if tpmParticipantA.partner.photoURL}
+																<img src={tpmParticipantA.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+															{:else}
+																<span class="player-avatar-placeholder">{getInitials(tpmParticipantA.partner.name)}</span>
+															{/if}
 														{/if}
 													</div>
 												{/if}
@@ -1702,13 +1815,19 @@
 													<span class="seed">#{tpm.seedB}</span>
 												{/if}
 												<span class="player-name">{getParticipantName(tpm.participantB || '')}</span>
-												{#if tpmParticipantB?.photoURL || tpmParticipantB?.partner?.photoURL}
+												{#if tpmParticipantB}
 													<div class="player-avatars">
-														{#if tpmParticipantB?.photoURL}
-															<img src={tpmParticipantB.photoURL} alt="" class="player-avatar" />
+														{#if tpmParticipantB.photoURL}
+															<img src={tpmParticipantB.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+														{:else}
+															<span class="player-avatar-placeholder">{getInitials(tpmParticipantB.name)}</span>
 														{/if}
-														{#if isDoubles && tpmParticipantB?.partner?.photoURL}
-															<img src={tpmParticipantB.partner.photoURL} alt="" class="player-avatar" />
+														{#if isDoubles && tpmParticipantB.partner}
+															{#if tpmParticipantB.partner.photoURL}
+																<img src={tpmParticipantB.partner.photoURL} alt="" class="player-avatar" referrerpolicy="no-referrer" />
+															{:else}
+																<span class="player-avatar-placeholder">{getInitials(tpmParticipantB.partner.name)}</span>
+															{/if}
 														{/if}
 													</div>
 												{/if}
@@ -1745,7 +1864,7 @@
 										{@const visibleMatches = round.matches.filter((m: BracketMatch) => !isByeMatch(m))}
 										{#if visibleMatches.length > 0}
 											<div class="consolation-round" class:qf-start={cbIndex > 0 && roundIndex === 0}>
-												<div class="consolation-round-header">{round.name}</div>
+												<div class="consolation-round-header">{m.tournament_round()} {roundIndex + 1}</div>
 												<div class="consolation-round-matches">
 													{#each round.matches as match (match.id)}
 														{#if !isByeMatch(match)}
@@ -1758,6 +1877,7 @@
 																class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																class:in-progress={match.status === 'IN_PROGRESS'}
 															>
+																<span class="consolation-position-badge">{round.name}</span>
 																{#if match.status === 'IN_PROGRESS'}
 																	<div class="live-badge compact">
 																		<span class="live-pulse"></span>
@@ -1765,8 +1885,27 @@
 																{/if}
 																<div class="consolation-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
 																	<span class="consolation-name">{getParticipantName(match.participantA || '')}</span>
-																	{#if cParticipantA?.photoURL}
-																		<img src={cParticipantA.photoURL} alt="" class="consolation-avatar" />
+																	{#if cParticipantA}
+																		{#if isDoubles && cParticipantA.partner}
+																			<div class="consolation-pair-avatars">
+																				{#if cParticipantA.photoURL}
+																					<img src={cParticipantA.photoURL} alt="" class="consolation-avatar first" referrerpolicy="no-referrer" />
+																				{:else}
+																					<span class="consolation-avatar-placeholder first">{getInitials(cParticipantA.name)}</span>
+																				{/if}
+																				{#if cParticipantA.partner.photoURL}
+																					<img src={cParticipantA.partner.photoURL} alt="" class="consolation-avatar second" referrerpolicy="no-referrer" />
+																				{:else}
+																					<span class="consolation-avatar-placeholder second partner">{getInitials(cParticipantA.partner.name)}</span>
+																				{/if}
+																			</div>
+																		{:else}
+																			{#if cParticipantA.photoURL}
+																				<img src={cParticipantA.photoURL} alt="" class="consolation-avatar" referrerpolicy="no-referrer" />
+																			{:else}
+																				<span class="consolation-avatar-placeholder">{getInitials(cParticipantA.name)}</span>
+																			{/if}
+																		{/if}
 																	{/if}
 																	<span class="consolation-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
@@ -1777,8 +1916,27 @@
 																<div class="consolation-divider"></div>
 																<div class="consolation-player" class:winner={winnerIsB} class:tbd={!match.participantB}>
 																	<span class="consolation-name">{getParticipantName(match.participantB || '')}</span>
-																	{#if cParticipantB?.photoURL}
-																		<img src={cParticipantB.photoURL} alt="" class="consolation-avatar" />
+																	{#if cParticipantB}
+																		{#if isDoubles && cParticipantB.partner}
+																			<div class="consolation-pair-avatars">
+																				{#if cParticipantB.photoURL}
+																					<img src={cParticipantB.photoURL} alt="" class="consolation-avatar first" referrerpolicy="no-referrer" />
+																				{:else}
+																					<span class="consolation-avatar-placeholder first">{getInitials(cParticipantB.name)}</span>
+																				{/if}
+																				{#if cParticipantB.partner.photoURL}
+																					<img src={cParticipantB.partner.photoURL} alt="" class="consolation-avatar second" referrerpolicy="no-referrer" />
+																				{:else}
+																					<span class="consolation-avatar-placeholder second partner">{getInitials(cParticipantB.partner.name)}</span>
+																				{/if}
+																			</div>
+																		{:else}
+																			{#if cParticipantB.photoURL}
+																				<img src={cParticipantB.photoURL} alt="" class="consolation-avatar" referrerpolicy="no-referrer" />
+																			{:else}
+																				<span class="consolation-avatar-placeholder">{getInitials(cParticipantB.name)}</span>
+																			{/if}
+																		{/if}
 																	{/if}
 																	<span class="consolation-score">
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
@@ -2743,10 +2901,18 @@
 	.player-avatars {
 		display: flex;
 		align-items: center;
-		gap: 0.15rem;
+		position: relative;
+		width: 22px;
+		height: 22px;
 		flex-shrink: 0;
 		margin-left: auto;
-		margin-right: 0.5rem;
+		margin-right: 1rem;
+		padding-left: 0.35rem;
+	}
+
+	/* When doubles, expand width for overlapping pair */
+	.player-avatars:has(.player-avatar + .player-avatar) {
+		width: 36px;
 	}
 
 	.player-avatar {
@@ -2757,9 +2923,50 @@
 		border: 1.5px solid #2d3748;
 	}
 
+	.player-avatars .player-avatar:first-child {
+		position: absolute;
+		left: 0;
+		z-index: 2;
+	}
+
+	.player-avatars .player-avatar:nth-child(2) {
+		position: absolute;
+		left: 14px;
+		z-index: 1;
+	}
 
 
-	.match-player.winner .player-avatar {
+
+	.player-avatar-placeholder {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--primary);
+		color: var(--primary-foreground);
+		font-weight: 600;
+		font-size: 8px;
+		flex-shrink: 0;
+		user-select: none;
+		border: 1.5px solid transparent;
+	}
+
+	.player-avatars .player-avatar-placeholder:first-child {
+		position: absolute;
+		left: 0;
+		z-index: 2;
+	}
+
+	.player-avatars .player-avatar-placeholder:nth-child(2) {
+		position: absolute;
+		left: 14px;
+		z-index: 1;
+	}
+
+	.match-player.winner .player-avatar,
+	.match-player.winner .player-avatar-placeholder {
 		border-color: #10b981;
 	}
 
@@ -2769,6 +2976,10 @@
 		color: #e1e8ed;
 		min-width: 20px;
 		text-align: center;
+	}
+
+	.match-player.winner .player-score {
+		color: #10b981;
 	}
 
 	.player-score.live {
@@ -2918,8 +3129,8 @@
 		background: rgba(0, 0, 0, 0.3);
 		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 8px;
-		padding: 0.5rem;
 		position: relative;
+		overflow: visible;
 	}
 
 	.consolation-match.completed {
@@ -2930,11 +3141,26 @@
 		border-color: rgba(251, 191, 36, 0.4);
 	}
 
+	.consolation-position-badge {
+		position: absolute;
+		top: -0.45rem;
+		left: 50%;
+		transform: translateX(-50%);
+		font-size: 0.65rem;
+		font-weight: 700;
+		color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+		padding: 0.05rem 0.35rem;
+		border-radius: 4px;
+		letter-spacing: 0.02em;
+	}
+
 	.consolation-player {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.25rem 0;
+		padding: 0.5rem 0.75rem;
 		font-size: 0.8rem;
 	}
 
@@ -2944,6 +3170,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.consolation-player.winner {
+		background: rgba(16, 185, 129, 0.1);
 	}
 
 	.consolation-player.winner .consolation-name {
@@ -2962,11 +3192,59 @@
 		border-radius: 50%;
 		object-fit: cover;
 		flex-shrink: 0;
+		margin-left: 0.25rem;
+	}
+
+	.consolation-avatar-placeholder {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--primary);
+		color: var(--primary-foreground);
+		font-weight: 600;
+		font-size: 8px;
+		flex-shrink: 0;
+		user-select: none;
+		margin-left: 0.25rem;
+	}
+
+	.consolation-avatar-placeholder.partner {
+		background: color-mix(in srgb, var(--primary) 60%, var(--muted-foreground));
+	}
+
+	.consolation-pair-avatars {
+		display: flex;
+		align-items: center;
+		position: relative;
+		width: 33px;
+		height: 20px;
+		flex-shrink: 0;
+		margin-left: 0.25rem;
+	}
+
+	.consolation-pair-avatars .consolation-avatar,
+	.consolation-pair-avatars .consolation-avatar-placeholder {
+		position: absolute;
+		border: 1.5px solid #1a2332;
+	}
+
+	.consolation-pair-avatars .first {
+		left: 0;
+		z-index: 2;
+	}
+
+	.consolation-pair-avatars .second {
+		left: 13px;
+		z-index: 1;
 	}
 
 	.consolation-score {
+		font-size: 0.9rem;
 		color: #64748b;
-		font-weight: 500;
+		font-weight: 700;
 		min-width: 1.5rem;
 		text-align: right;
 	}
@@ -3231,6 +3509,11 @@
 		color: #059669;
 	}
 
+	:global([data-theme='light']) .match-player.winner .player-score,
+	:global([data-theme='violet-light']) .match-player.winner .player-score {
+		color: #059669;
+	}
+
 	:global([data-theme='light']) .consolation-main-title,
 	:global([data-theme='violet-light']) .consolation-main-title {
 		color: #64748b;
@@ -3339,6 +3622,13 @@
 	:global([data-theme='light']) .consolation-divider,
 	:global([data-theme='violet-light']) .consolation-divider {
 		background: rgba(0, 0, 0, 0.08);
+	}
+
+	:global([data-theme='light']) .consolation-pair-avatars .consolation-avatar,
+	:global([data-theme='light']) .consolation-pair-avatars .consolation-avatar-placeholder,
+	:global([data-theme='violet-light']) .consolation-pair-avatars .consolation-avatar,
+	:global([data-theme='violet-light']) .consolation-pair-avatars .consolation-avatar-placeholder {
+		border-color: white;
 	}
 
 	/* Responsive */

@@ -2123,7 +2123,6 @@
 			bind:this={teamCard1}
 			teamNumber={1}
 			isMatchComplete={isMatchComplete}
-			currentGameNumber={$currentMatchGames.length}
 			canAssignUser={canAssignUserToTeam1}
 			canAssignPartner={canAssignPartnerToTeam1}
 			onchangeColor={() => openColorPicker(1)}
@@ -2157,7 +2156,6 @@
 		<TeamCard
 			teamNumber={2}
 			isMatchComplete={isMatchComplete}
-			currentGameNumber={$currentMatchGames.length}
 			canAssignUser={canAssignUserToTeam2}
 			canAssignPartner={canAssignPartnerToTeam2}
 			onchangeColor={() => openColorPicker(2)}

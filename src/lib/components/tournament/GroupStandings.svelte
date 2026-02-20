@@ -68,6 +68,13 @@
     return getParticipantDisplayName(participant, isDoubles);
   }
 
+  // Get initials from a player name (e.g. "Juan García" → "JG", "María" → "M")
+  function getInitials(name: string): string {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
   // Check if participant is disqualified
   function isDisqualified(participantId: string): boolean {
     const participant = participantMap.get(participantId);
@@ -136,16 +143,6 @@
         if (minPos <= qualifyingCount && maxPos > qualifyingCount) {
           return true;
         }
-      }
-    }
-    return false;
-  }
-
-  // Check if a player is part of a 3+ player tie (same primary value) - for mini-league button
-  function isPartOfMultiTie(participantId: string): boolean {
-    for (const [_, ids] of standingsByPrimaryValue) {
-      if (ids.includes(participantId) && ids.length >= 3) {
-        return true;
       }
     }
     return false;
@@ -276,9 +273,9 @@
       {#each sortedStandings as standing, i (standing.participantId)}
         {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
         {@const tiedNames = getTiedWithNames(standing.tiedWith)}
-        {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
         {@const atCutoffTie = isAtCutoffTie(standing.participantId)}
         {@const showTieStyles = effectiveQualificationMode === 'WINS' && !isSwiss}
+        {@const participant = participantMap.get(standing.participantId)}
         <tr class:qualified={standing.qualifiedForFinal} class:has-tie={hasTie && showTieStyles} class:at-cutoff-tie={atCutoffTie && showTieStyles}>
           <td class="pos-col">
             <span class="position-badge" class:qualified={standing.qualifiedForFinal} class:tied={hasTie && showTieStyles}>
@@ -286,7 +283,32 @@
             </span>
           </td>
           <td class="name-col">
-            <span class="participant-name">
+            <div class="name-with-avatar">
+              {#if participant}
+                {#if isDoubles && participant.partner}
+                  <div class="pair-avatars">
+                    {#if participant.photoURL}
+                      <img src={participant.photoURL} alt={participant.name} class="avatar-img first" referrerpolicy="no-referrer" />
+                    {:else}
+                      <div class="avatar-img avatar-placeholder first">{getInitials(participant.name)}</div>
+                    {/if}
+                    {#if participant.partner.photoURL}
+                      <img src={participant.partner.photoURL} alt={participant.partner.name} class="avatar-img second" referrerpolicy="no-referrer" />
+                    {:else}
+                      <div class="avatar-img avatar-placeholder second partner-placeholder">{getInitials(participant.partner.name)}</div>
+                    {/if}
+                  </div>
+                {:else}
+                  <div class="single-avatar">
+                    {#if participant.photoURL}
+                      <img src={participant.photoURL} alt={participant.name} class="avatar-img" referrerpolicy="no-referrer" />
+                    {:else}
+                      <div class="avatar-img avatar-placeholder">{getInitials(participant.name)}</div>
+                    {/if}
+                  </div>
+                {/if}
+              {/if}
+              <span class="participant-name">
               {getParticipantName(standing.participantId)}
               {#if getParticipantRanking(standing.participantId) > 0}
                 <span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
@@ -327,6 +349,7 @@
                 </button>
               {/if}
             </span>
+            </div>
           </td>
           <td class="matches-col">{standing.matchesPlayed}</td>
           <td class="wins-col">{standing.matchesWon}</td>
@@ -511,11 +534,81 @@
     font-weight: 700;
   }
 
+  .name-with-avatar {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
   .participant-name {
     display: inline-flex;
     align-items: center;
     gap: 0.2rem;
     font-weight: 500;
+    min-width: 0;
+  }
+
+  /* Avatar styles */
+  .single-avatar {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  .single-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 600;
+    font-size: 9px;
+    user-select: none;
+  }
+
+  .single-avatar .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+  }
+
+  .partner-placeholder {
+    background: color-mix(in srgb, var(--primary) 60%, var(--muted-foreground));
+  }
+
+  .pair-avatars {
+    display: flex;
+    align-items: center;
+    width: 35px;
+    height: 22px;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .pair-avatars .avatar-img {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    position: absolute;
+    border: 1.5px solid white;
+  }
+
+  .pair-avatars .first {
+    left: 0;
+    z-index: 2;
+  }
+
+  .pair-avatars .second {
+    left: 13px;
+    z-index: 1;
   }
 
   .ranking-pts {
@@ -650,6 +743,11 @@
     font-size: 0.8rem;
   }
 
+  /* Dark mode avatar border */
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .pair-avatars .avatar-img {
+    border-color: #1a2332;
+  }
+
   /* Dark mode support */
   :global(:is([data-theme='dark'], [data-theme='violet'])) .standings-table {
     background: #1a2332;
@@ -780,6 +878,33 @@
 
     .qualified-badge {
       font-size: 0.6rem;
+    }
+
+    .single-avatar {
+      width: 18px;
+      height: 18px;
+    }
+
+    .avatar-placeholder {
+      font-size: 7px;
+    }
+
+    .pair-avatars {
+      width: 29px;
+      height: 18px;
+    }
+
+    .pair-avatars .avatar-img {
+      width: 18px;
+      height: 18px;
+    }
+
+    .pair-avatars .second {
+      left: 11px;
+    }
+
+    .name-with-avatar {
+      gap: 0.25rem;
     }
   }
 

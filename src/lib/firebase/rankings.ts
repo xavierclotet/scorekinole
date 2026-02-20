@@ -68,7 +68,7 @@ export interface RankingFilters {
 /**
  * Get all users with tournament history
  * Public access - no admin check required
- * Only includes REGISTERED users (excludes legacy GUEST users)
+ * Includes both REGISTERED users (authProvider: 'google') and persistent GUEST users (authProvider: null)
  */
 export async function getAllUsersWithTournaments(): Promise<UserWithId[]> {
   if (!browser || !isFirebaseEnabled()) {
@@ -83,9 +83,9 @@ export async function getAllUsersWithTournaments(): Promise<UserWithId[]> {
     const users: UserWithId[] = [];
     snapshot.forEach(docSnap => {
       const data = docSnap.data() as UserProfile;
-      // Only include REGISTERED users with tournament history
-      // Exclude GUEST users (authProvider: null) - their data stays in tournament documents
-      if (data.authProvider && data.tournaments && data.tournaments.length > 0) {
+      // Include all users (registered and guest) with tournament history
+      // Exclude merged users (mergedTo set means they've been migrated to another account)
+      if (!data.mergedTo && data.tournaments && data.tournaments.length > 0) {
         users.push({
           ...data,
           odId: docSnap.id
@@ -93,7 +93,7 @@ export async function getAllUsersWithTournaments(): Promise<UserWithId[]> {
       }
     });
 
-    console.log(`✅ Retrieved ${users.length} registered users with tournaments`);
+    console.log(`✅ Retrieved ${users.length} users with tournaments`);
     return users;
   } catch (error) {
     console.error('❌ Error getting users with tournaments:', error);

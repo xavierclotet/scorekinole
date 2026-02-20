@@ -13,11 +13,8 @@
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
   import { getTournament } from '$lib/firebase/tournaments';
-  import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import {
     updateQualifiers,
-    autoSelectQualifiers,
-    getQualifiedParticipants,
     isValidBracketSize,
     getBracketRoundNames,
     calculateSuggestedQualifiers
@@ -37,7 +34,6 @@
   let toastType = $state<'success' | 'error' | 'info' | 'warning'>('info');
   let isProcessing = $state(false);
   let isRecalculating = $state(false);
-  let showBracketPreview = $state(false);
   let showTimeBreakdown = $state(false);
   let timeBreakdown = $state<TimeBreakdown | null>(null);
 
@@ -90,15 +86,17 @@
   let hasAnyUnresolvedTies = $derived(Array.from(groupTiesStatus.values()).some(hasTies => hasTies));
 
   // Get consolationEnabled from tournament's finalStage (set during creation)
-  let consolationEnabled = $derived(
-    tournament?.finalStage?.consolationEnabled ??
-    (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled '] ?? // Typo fallback
-    false
+  let consolationEnabled = $derived<boolean>(
+    Boolean(
+      tournament?.finalStage?.consolationEnabled ??
+      (tournament?.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled '] ?? // Typo fallback
+      false
+    )
   );
 
   // Get thirdPlaceMatchEnabled from tournament's finalStage (default to true)
-  let thirdPlaceMatchEnabled = $derived(
-    tournament?.finalStage?.thirdPlaceMatchEnabled ?? true
+  let thirdPlaceMatchEnabled = $derived<boolean>(
+    Boolean(tournament?.finalStage?.thirdPlaceMatchEnabled ?? true)
   );
 
   let tournamentId = $derived(page.params.id);
@@ -135,8 +133,6 @@
     : (totalQualifiers >= 2 && isValidSize)));
 
   let bracketRoundNames = $derived(totalQualifiers > 0 ? getBracketRoundNames(totalQualifiers) : []);
-  let goldBracketRoundNames = $derived(goldCount > 0 ? getBracketRoundNames(goldCount) : []);
-  let silverBracketRoundNames = $derived(silverCount > 0 ? getBracketRoundNames(silverCount) : []);
   let numGroups = $derived(tournament?.groupStage?.groups?.length || 1);
   let suggestedQualifiers = $derived(tournament ? calculateSuggestedQualifiers(tournament.participants.length, numGroups) : { total: 4, perGroup: 2 });
 
@@ -377,7 +373,7 @@
 
   async function handleStandingsChanged(groupIndex: number, newStandings: any[]) {
     // Save the updated standings to Firebase
-    if (!tournament || !tournament.groupStage?.groups) return;
+    if (!tournamentId || !tournament || !tournament.groupStage?.groups) return;
 
     try {
       const groups = [...tournament.groupStage.groups];
@@ -547,29 +543,6 @@
       isProcessing = false;
     }
   }
-
-  let bracketPreviewLoaded = $state(false);
-
-  async function loadBracketPreview() {
-    if (!tournamentId || bracketPreviewLoaded) return;
-    bracketPreviewLoaded = true;
-
-    try {
-      await getQualifiedParticipants(tournamentId);
-      showBracketPreview = true;
-    } catch (err) {
-      console.error('Error loading bracket preview:', err);
-      bracketPreviewLoaded = false; // Reset on error to allow retry
-    }
-  }
-
-  // Only load bracket preview once when qualifiers are first selected
-  $effect(() => {
-    if (totalQualifiers > 0 && !bracketPreviewLoaded) {
-      loadBracketPreview();
-    }
-  });
-
   // Track if user has manually moved participants (not just changed top N)
   let userManuallyEdited = $state(false);
 
@@ -589,7 +562,7 @@
     // Collect NON-QUALIFIED participants organized by position
     const nonQualifiedByPosition: Map<number, Array<{ id: string; position: number; groupIndex: number }>> = new Map();
 
-    groups.forEach((group, groupIndex) => {
+    groups.forEach((group: any, groupIndex: number) => {
       const qualifiedIds = new Set(groupQualifiers.get(groupIndex) || []);
       const standings = Array.isArray(group.standings) ? group.standings : Object.values(group.standings);
 
@@ -648,76 +621,7 @@
     }
   });
 
-  // Get all participants from all groups with their info
-  function getAllParticipantsFromGroups(): Array<{ id: string; name: string; position: number; groupName: string }> {
-    if (!tournament?.groupStage?.groups) return [];
 
-    const groups = Array.isArray(tournament.groupStage.groups)
-      ? tournament.groupStage.groups
-      : Object.values(tournament.groupStage.groups);
-
-    const result: Array<{ id: string; name: string; position: number; groupName: string }> = [];
-
-    groups.forEach((group) => {
-      const standings = Array.isArray(group.standings) ? group.standings : Object.values(group.standings);
-
-      standings.forEach((standing: any) => {
-        const participant = tournament?.participants.find(p => p.id === standing.participantId);
-        if (participant) {
-          result.push({
-            id: standing.participantId,
-            name: getParticipantDisplayName(participant, tournament?.gameType === 'doubles'),
-            position: standing.position || 99,
-            groupName: group.name
-          });
-        }
-      });
-    });
-
-    return result.sort((a, b) => a.position - b.position);
-  }
-
-  // Get all qualified participants from groupQualifiers (respects current selection)
-  function getAllQualifiedFromGroupQualifiers(): Array<{ id: string; name: string; position: number; groupName: string }> {
-    if (!tournament?.groupStage?.groups) return [];
-
-    const groups = Array.isArray(tournament.groupStage.groups)
-      ? tournament.groupStage.groups
-      : Object.values(tournament.groupStage.groups);
-
-    // Collect all qualified by position across groups
-    const byPosition: Map<number, Array<{ id: string; name: string; position: number; groupName: string }>> = new Map();
-
-    groups.forEach((group, groupIndex) => {
-      const qualifiedIds = groupQualifiers.get(groupIndex) || [];
-      const standings = Array.isArray(group.standings) ? group.standings : Object.values(group.standings);
-
-      qualifiedIds.forEach(participantId => {
-        const standing = standings.find((s: any) => s.participantId === participantId);
-        const participant = tournament?.participants.find(p => p.id === participantId);
-        if (standing && participant) {
-          const pos = standing.position || 99;
-          if (!byPosition.has(pos)) {
-            byPosition.set(pos, []);
-          }
-          byPosition.get(pos)!.push({
-            id: participantId,
-            name: getParticipantDisplayName(participant, tournament?.gameType === 'doubles'),
-            position: pos,
-            groupName: group.name
-          });
-        }
-      });
-    });
-
-    // Sort by position and flatten
-    const sortedPositions = Array.from(byPosition.keys()).sort((a, b) => a - b);
-    const result: Array<{ id: string; name: string; position: number; groupName: string }> = [];
-    for (const pos of sortedPositions) {
-      result.push(...byPosition.get(pos)!);
-    }
-    return result;
-  }
 
   // Helper functions for SPLIT_DIVISIONS mode
   function getParticipantName(participantId: string): string {
@@ -735,7 +639,7 @@
 
     const result: Array<{ id: string; name: string; position: number; groupName: string }> = [];
 
-    groups.forEach((group) => {
+    groups.forEach((group: any) => {
       const standings = Array.isArray(group.standings) ? group.standings : Object.values(group.standings);
       standings
         .filter(s => s.qualifiedForFinal)
@@ -784,7 +688,7 @@
     // Collect NON-QUALIFIED participants organized by position
     const nonQualifiedByPosition: Map<number, Array<{ id: string; position: number; groupIndex: number }>> = new Map();
 
-    groups.forEach((group, groupIndex) => {
+    groups.forEach((group: any, groupIndex: number) => {
       const qualifiedIds = new Set(groupQualifiers.get(groupIndex) || []);
       const standings = Array.isArray(group.standings) ? group.standings : Object.values(group.standings);
 
@@ -1355,7 +1259,7 @@
             </div>
             <div class="groups-grid">
               {#if tournament.groupStage}
-                {#each tournament.groupStage.groups as group, index}
+                {#each tournament.groupStage.groups as _, index}
                   <QualifierSelection
                     {tournament}
                     groupIndex={index}
@@ -3340,3 +3244,4 @@
   }
 
 </style>
+solo pa

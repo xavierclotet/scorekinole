@@ -356,35 +356,34 @@ async function processParticipant(
     return result;
   }
 
-  // DOUBLES: Process both members using their REAL names (REGISTERED only)
-  // GUEST participants do NOT get entries in /users - their data stays in the tournament document
+  // DOUBLES: Process both members using their REAL names (all participants with userId)
+  // Both REGISTERED and GUEST participants with userId get entries in /users
   if (tournament.gameType === "doubles" && participant.partner) {
     logger.info(`Processing doubles participant: ${participant.name} / ${participant.partner.name}` +
       (participant.teamName ? ` (team: ${participant.teamName})` : ""));
 
-    // Member 1: Only process if REGISTERED
-    if (participant.type === "REGISTERED" && participant.userId) {
+    // Member 1: Process if has userId (REGISTERED or persistent GUEST)
+    if (participant.userId) {
       await addTournamentRecord(participant.userId, tournamentRecord);
     }
 
-    // Member 2: Only process if REGISTERED
-    if (participant.partner.type === "REGISTERED" && participant.partner.userId) {
+    // Member 2: Process if has userId (REGISTERED or persistent GUEST)
+    if (participant.partner.userId) {
       await addTournamentRecord(participant.partner.userId, tournamentRecord);
     }
 
     return result;
   }
 
-  // SINGLES: Individual participant (REGISTERED only)
-  // GUEST participants do NOT get entries in /users - their data stays in the tournament document
+  // SINGLES: Individual participant (all participants with userId)
   // Skip if name looks like a pair team name (contains " / ")
   if (participant.name.includes(" / ")) {
     logger.warn(`Skipping participant "${participant.name}" - looks like a pair team name, not an individual player`);
     return result;
   }
 
-  // Only process if REGISTERED
-  if (participant.type === "REGISTERED" && participant.userId) {
+  // Process if has userId (REGISTERED or persistent GUEST)
+  if (participant.userId) {
     await addTournamentRecord(participant.userId, tournamentRecord);
   }
 

@@ -80,8 +80,8 @@ export interface MatchState {
 export interface GameData {
     /** Sequential game number (1, 2, 3, ...) */
     gameNumber: number;
-    /** Winning team: 1 or 2 */
-    winner: number;
+    /** Winning team: 1 or 2, or null in case of tie */
+    winner: number | null;
     /** Final points for team 1 */
     team1Points: number;
     /** Final points for team 2 */

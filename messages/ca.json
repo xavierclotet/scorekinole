@@ -1136,7 +1136,7 @@
   "tournament_matchesWonShort": "V",
   "tournament_matchPlural": "partits",
   "tournament_matchSingular": "partit",
-  "tournament_inPlay": "en joc",
+  "tournament_inPlay": "jugant en temps real",
   "tournament_noDataAvailable": "No hi ha dades disponibles",
   "tournament_transitionDescription": "Preparant la fase final...",
   "stats_allModes": "Tots modes",
@@ -1297,5 +1297,7 @@
   "profile_searchCountry": "Buscar país...",
   "auth_playerNameTaken": "Aquest nom de jugador ja està en ús. Tria'n un altre.",
   "admin_transformToLive": "Transformar LIVE",
-  "admin_tournamentEnriched": "Torneig enriquit amb dades LIVE"
+  "admin_tournamentEnriched": "Torneig enriquit amb dades LIVE",
+  "common_errorPageNotFound": "Pàgina no trobada",
+  "common_errorPageNotFoundDesc": "La pàgina que cerques no existeix o ha estat moguda."
 }

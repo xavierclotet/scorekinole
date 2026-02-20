@@ -15,7 +15,6 @@
 	interface Props {
 		teamNumber?: 1 | 2;
 		isMatchComplete?: boolean;
-		currentGameNumber?: number;
 		/** Whether user can assign themselves to this team (requires login) */
 		canAssignUser?: boolean;
 		/** Whether user can assign a partner to this team (doubles mode, requires login) */
@@ -37,7 +36,6 @@
 	let {
 		teamNumber = 1,
 		isMatchComplete = false,
-		currentGameNumber = 1,
 		canAssignUser = false,
 		canAssignPartner = false,
 		onroundComplete,
