@@ -502,9 +502,7 @@
 		const t1 = get(team1);
 		const t2 = get(team2);
 		const settings = get(gameSettings);
-		const totalRoundsPlayed = get(roundsPlayed);
 		const matchGames = get(currentMatchGames);
-		const current = get(currentMatch);
 
 		console.log('🟢 saveGameAndCheckMatchComplete called', { isTie });
 		console.log('Settings:', settings);
@@ -616,7 +614,7 @@
 			team1Score: current.games.reduce((sum, g) => sum + g.team1Points, 0),
 			team2Score: current.games.reduce((sum, g) => sum + g.team2Points, 0),
 			totalRounds: get(roundsPlayed),
-			matchesToWin: settings.matchesToWin,
+			matchesToWin: settings.matchesToWin ?? 1,
 			winner: matchWinner,
 			gameMode: settings.gameMode,
 			gameType: settings.gameType,
@@ -885,15 +883,6 @@
 		tabindex="0"
 		aria-label="{team.name} score: {team.points}"
 	>
-		{#if team.hasWon && currentGameNumber > 0}
-			<div class="winner-badge">
-				{#if isMatchComplete}
-					{m.scoring_winner()}
-				{:else}
-					{m.scoring_gameWin({ n: currentGameNumber.toString() })}
-				{/if}
-			</div>
-		{/if}
 		<div class="score">{team.points}</div>
 	</div>
 </div>
