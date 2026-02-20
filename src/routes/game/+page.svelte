@@ -1839,6 +1839,7 @@
 			console.log(`🎮 Game ${gameNumber}: rounds=${gameRounds.length}, pointsA=${pointsA}, pointsB=${pointsB}`);
 			let gameComplete = false;
 			let winnerA = false;
+			let hasClearWinner = pointsA !== pointsB;
 
 			// Check if this is a bracket match (requires tiebreaker on tie)
 			const isBracketMatch = context?.phase === 'FINAL';
@@ -1848,7 +1849,6 @@
 				// - All rounds are played AND there's a winner (pointsA != pointsB)
 				// - OR in bracket mode with tie: game is NOT complete until someone wins
 				const hasEnoughRounds = gameRounds.length >= roundsToPlay;
-				const hasClearWinner = pointsA !== pointsB;
 
 				if (isBracketMatch) {
 					// Bracket: game is only complete when there's a clear winner
@@ -1873,7 +1873,7 @@
 				}
 			}
 
-			if (gameComplete) {
+			if (gameComplete && hasClearWinner) {
 				if (winnerA) {
 					gamesWonA++;
 				} else {
