@@ -17,8 +17,11 @@
 		ondismiss
 	}: Props = $props();
 
-	// Confetti palette: gold, white, sky, lavender, mint — premium, not rainbow
-	const COLORS = ['#FBBF24', '#F8FAFC', '#93C5FD', '#C4B5FD', '#6EE7B7'];
+	// Confetti palette: primary, white, sky, lavender, mint — premium, not rainbow
+	// Read --primary at runtime so confetti matches the theme
+	import { browser } from '$app/environment';
+	const primaryColor = browser ? getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() : '#FBBF24';
+	const COLORS = [primaryColor, '#F8FAFC', '#93C5FD', '#C4B5FD', '#6EE7B7'];
 	const SHAPES = ['rect', 'rect', 'rect', 'circle', 'circle', 'ribbon'] as const;
 
 	interface Piece {
@@ -205,7 +208,7 @@
 	.card {
 		position: relative;
 		background: #0f1117;
-		border: 1px solid rgba(251, 191, 36, 0.28);
+		border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
 		border-radius: 22px;
 		padding: 2rem 2.5rem 1.6rem;
 		text-align: center;
@@ -213,8 +216,8 @@
 		overflow: hidden;
 		animation: card-punch 0.52s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.05s both;
 		box-shadow:
-			0 0 0 1px rgba(251, 191, 36, 0.08),
-			0 0 40px rgba(251, 191, 36, 0.12),
+			0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent),
+			0 0 40px color-mix(in srgb, var(--primary) 12%, transparent),
 			0 24px 64px rgba(0, 0, 0, 0.55);
 	}
 
@@ -266,16 +269,16 @@
 		font-weight: 700;
 		letter-spacing: 0.18em;
 		text-transform: uppercase;
-		color: #FBBF24;
-		background: rgba(251, 191, 36, 0.1);
-		border: 1px solid rgba(251, 191, 36, 0.28);
+		color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
 		padding: 0.28rem 0.85rem;
 		border-radius: 100px;
 	}
 
 	.star {
 		font-size: 0.55rem;
-		color: rgba(251, 191, 36, 0.6);
+		color: color-mix(in srgb, var(--primary) 60%, transparent);
 	}
 
 	/* ── Winner name ─────────────────────────────────────────── */
@@ -326,7 +329,7 @@
 
 	.drain-fill {
 		height: 100%;
-		background: linear-gradient(90deg, #FBBF24, #F59E0B);
+		background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 80%, black));
 		transform-origin: left;
 		animation: drain 3.6s linear 0.05s both;
 	}
