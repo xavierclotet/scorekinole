@@ -103,6 +103,41 @@
 	// Check if we have any photo to display
 	let hasAnyPhoto = $derived(!!playerPhotoURL || !!partnerPhotoURL);
 
+	// Get initials from a name (first letter of first name + first letter of surname)
+	function getInitials(name: string): string {
+		const parts = name.trim().split(/\s+/);
+		if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+		return (parts[0]?.[0] ?? '?').toUpperCase();
+	}
+
+	// Derive individual player names and initials for avatar fallback
+	let playerName = $derived((() => {
+		if (!inTournamentMode || !$gameTournamentContext) return team.name;
+		const ctx = $gameTournamentContext;
+		const isUserSideA = ctx.currentUserSide === 'A';
+		const fullName = teamNumber === 1
+			? (isUserSideA ? ctx.participantAName : ctx.participantBName)
+			: (isUserSideA ? ctx.participantBName : ctx.participantAName);
+		// For doubles with " / " separator, get first player
+		if (fullName.includes(' / ')) return fullName.split(' / ')[0];
+		return fullName;
+	})());
+
+	let partnerName = $derived((() => {
+		if (!inTournamentMode || !$gameTournamentContext) return undefined;
+		if ($gameSettings.gameType !== 'doubles') return undefined;
+		const ctx = $gameTournamentContext;
+		const isUserSideA = ctx.currentUserSide === 'A';
+		const fullName = teamNumber === 1
+			? (isUserSideA ? ctx.participantAName : ctx.participantBName)
+			: (isUserSideA ? ctx.participantBName : ctx.participantAName);
+		if (fullName.includes(' / ')) return fullName.split(' / ')[1];
+		return undefined;
+	})());
+
+	let playerInitials = $derived(getInitials(playerName));
+	let partnerInitials = $derived(partnerName ? getInitials(partnerName) : undefined);
+
 	// Determine which team the current user is assigned to (if any)
 	let userAssignedTeam = $derived(
 		$currentUser?.id === $team1.userId ? 1 :
@@ -722,27 +757,29 @@
 		<div class="name-hammer-group">
 			{#if inTournamentMode}
 				<div class="tournament-player-display">
-					{#if hasAnyPhoto}
-						<div class="player-avatars-stack">
-							{#if playerPhotoURL}
-								<img
-									src={playerPhotoURL}
-									alt=""
-									class="player-avatar"
-									loading="lazy"
-								/>
-							{/if}
-							{#if partnerPhotoURL}
-								<img
-									src={partnerPhotoURL}
-									alt=""
-									class="player-avatar"
-									loading="lazy"
-								/>
-							{/if}
-						</div>
-					{/if}
-					<span class="player-name-badge" class:has-avatar={hasAnyPhoto}>{team.name}</span>
+					<div class="player-avatars-stack">
+						{#if playerPhotoURL}
+							<img
+								src={playerPhotoURL}
+								alt=""
+								class="player-avatar"
+								loading="lazy"
+							/>
+						{:else}
+							<span class="player-avatar initials">{playerInitials}</span>
+						{/if}
+						{#if partnerPhotoURL}
+							<img
+								src={partnerPhotoURL}
+								alt=""
+								class="player-avatar"
+								loading="lazy"
+							/>
+						{:else if partnerInitials}
+							<span class="player-avatar initials">{partnerInitials}</span>
+						{/if}
+					</div>
+					<span class="player-name-badge has-avatar">{team.name}</span>
 				</div>
 			{:else if isEditingName}
 				<input
@@ -1137,6 +1174,18 @@
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 		position: relative;
 		z-index: 1;
+	}
+
+	.player-avatar.initials {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
+		color: rgba(255, 255, 255, 0.9);
+		font-family: 'Lexend', sans-serif;
+		font-weight: 700;
+		font-size: 0.7em;
+		line-height: 1;
 	}
 
 	.player-avatars-stack .player-avatar:nth-child(2) {
