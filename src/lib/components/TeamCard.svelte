@@ -77,7 +77,6 @@
 
 	// Get the appropriate team store
 	let team = $derived(teamNumber === 1 ? $team1 : $team2);
-	let otherTeam = $derived(teamNumber === 1 ? $team2 : $team1);
 
 	// Get player avatars for tournament mode
 	// Team 1 corresponds to current user's side (A or B), Team 2 is the opponent
@@ -1215,7 +1214,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: color-mix(in srgb, var(--primary) 30%, transparent);
+		background: color-mix(in srgb, var(--primary) 70%, transparent);
 		color: var(--primary);
 		border-radius: 8px;
 		padding: 4px;
