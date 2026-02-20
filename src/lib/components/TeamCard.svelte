@@ -1104,10 +1104,12 @@
 	/* Tournament player display */
 	.tournament-player-display {
 		display: flex;
-		flex-direction: row;
+		flex-direction: column;
 		align-items: center;
-		gap: 0.5rem;
+		justify-content: center;
+		gap: 0.35rem;
 		position: relative;
+		width: 100%;
 	}
 
 	/* Player avatar in tournament mode */
@@ -1116,13 +1118,12 @@
 		flex-shrink: 0;
 	}
 
-	/* Stack for doubles: two photos vertically, centered */
+	/* Stack for doubles: two photos horizontally overlapping, centered */
 	.player-avatars-stack {
 		display: flex;
-		flex-direction: column;
+		flex-direction: row;
 		align-items: center;
 		justify-content: center;
-		gap: 3px;
 		flex-shrink: 0;
 	}
 
@@ -1133,12 +1134,20 @@
 		object-fit: cover;
 		border: 2px solid rgba(255, 255, 255, 0.3);
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+		position: relative;
+		z-index: 1;
+	}
+
+	.player-avatars-stack .player-avatar:nth-child(2) {
+		margin-left: -8px;
+		z-index: 0;
 	}
 
 	/* Single photo: larger size */
 	.player-avatars-stack:has(.player-avatar:only-child) .player-avatar {
 		width: 42px;
 		height: 42px;
+		margin-left: 0;
 	}
 
 	.player-name-badge {
@@ -1147,15 +1156,9 @@
 		font-weight: 600;
 		color: var(--text-color);
 		text-align: center;
-/*		max-width: 90%;*/
 		line-height: 1.2;
 		white-space: normal;
-		word-break: normal;
-		overflow-wrap: normal;
-	}
-
-	.player-name-badge.has-avatar {
-		text-align: left;
+		word-break: break-word;
 	}
 
 	.hammer-indicator {
