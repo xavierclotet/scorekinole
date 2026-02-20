@@ -105,7 +105,9 @@
 	let friendlyMatchMode = $derived(
 		$gameSettings.gameMode === 'rounds'
 			? m.scoring_friendlyModeRounds({ n: $gameSettings.roundsToPlay })
-			: m.scoring_friendlyModePoints({ n: $gameSettings.pointsToWin })
+			: ($gameSettings.matchesToWin > 1
+				? m.scoring_friendlyModePointsFtw({ points: $gameSettings.pointsToWin, matches: $gameSettings.matchesToWin })
+				: m.scoring_friendlyModePoints({ n: $gameSettings.pointsToWin }))
 	);
 
 	// Effective settings: use tournament config when in tournament mode, otherwise gameSettings
@@ -1471,7 +1473,7 @@
 			}
 
 			// Successfully cancelled or other error - clear and close
-			clearActiveInvite();
+			clearActiveInvite($activeInvite.inviteType);
 		}
 		closeInviteModal();
 	}
@@ -2084,7 +2086,7 @@
 	<!-- New Match Floating Button - hide in tournament mode -->
 	{#if !inTournamentMode}
 		<button class="floating-button new-match-button" onclick={handleNewMatchClick} aria-label={m.scoring_newMatchButton()} title={m.scoring_newMatchButton()}>
-			<Play size={22} />
+			<Play size={20} />
 			<span class="floating-btn-label">{m.scoring_newMatchShort()}</span>
 		</button>
 
@@ -2097,9 +2099,9 @@
 			disabled={isCheckingTournament}
 		>
 			{#if isCheckingTournament}
-				<LoaderCircle size={22} class="animate-spin" />
+				<LoaderCircle size={20} class="animate-spin" />
 			{:else}
-				<Trophy size={22} />
+				<Trophy size={20} />
 			{/if}
 			<span class="floating-btn-label">{m.tournament_playShort()}</span>
 		</button>
@@ -2819,36 +2821,32 @@
 	}
 
 
-	/* Floating Button - Base */
+	/* Floating Button - Extended FAB */
 	.floating-button {
 		position: fixed;
 		bottom: 1.5rem;
 		left: 1.5rem;
 		z-index: 1000;
 		display: flex;
-		flex-direction: column;
+		flex-direction: row;
 		align-items: center;
 		justify-content: center;
-		gap: 0.22rem;
-		width: 52px;
-		height: 58px;
-		padding: 0.45rem 0.35rem;
-		backdrop-filter: blur(12px);
-		border-radius: 14px;
+		gap: 0.5rem;
+		height: 48px;
+		padding: 0 1.15rem;
+		border: none;
+		border-radius: 28px;
 		cursor: pointer;
-		transition: all 0.18s ease;
+		transition: transform 0.15s ease, box-shadow 0.15s ease;
 	}
 
 	.floating-btn-label {
 		font-family: 'Lexend', sans-serif;
-		font-size: 0.54rem;
-		font-weight: 700;
-		letter-spacing: 0.07em;
-		text-transform: uppercase;
+		font-size: 0.85rem;
+		font-weight: 600;
+		letter-spacing: 0.01em;
 		line-height: 1;
 		white-space: nowrap;
-		overflow: hidden;
-		opacity: 0.88;
 	}
 
 	.floating-button:hover {
@@ -2856,46 +2854,55 @@
 	}
 
 	.floating-button:active {
-		transform: translateY(0);
+		transform: scale(0.96);
+		transition: transform 0.08s ease;
 	}
 
-	/* New Match Button - primary color */
+	/* New Match Button - solid primary */
 	.new-match-button {
-		background: color-mix(in srgb, var(--primary) 14%, transparent);
-		border: 1px solid color-mix(in srgb, var(--primary) 32%, transparent);
-		color: var(--primary);
-		box-shadow: 0 2px 14px color-mix(in srgb, var(--primary) 18%, transparent);
+		background: var(--primary);
+		color: var(--primary-foreground);
+		box-shadow:
+			0 4px 14px color-mix(in srgb, var(--primary) 45%, transparent),
+			0 1px 4px rgba(0, 0, 0, 0.15);
 	}
 
 	.new-match-button:hover {
-		background: color-mix(in srgb, var(--primary) 24%, transparent);
-		border-color: color-mix(in srgb, var(--primary) 50%, transparent);
-		box-shadow: 0 4px 20px color-mix(in srgb, var(--primary) 28%, transparent);
+		box-shadow:
+			0 6px 20px color-mix(in srgb, var(--primary) 55%, transparent),
+			0 2px 6px rgba(0, 0, 0, 0.15);
 	}
 
-	/* Tournament Button - amber/gold */
+	/* Tournament Button - solid amber/gold */
 	.tournament-button {
 		left: auto;
 		right: 1.5rem;
-		background: color-mix(in srgb, oklch(76% 0.16 75) 14%, transparent);
-		border: 1px solid color-mix(in srgb, oklch(76% 0.16 75) 32%, transparent);
-		color: oklch(76% 0.16 75);
-		box-shadow: 0 2px 14px color-mix(in srgb, oklch(76% 0.16 75) 18%, transparent);
+		background: oklch(63% 0.15 75);
+		color: white;
+		box-shadow:
+			0 4px 14px color-mix(in srgb, oklch(63% 0.15 75) 45%, transparent),
+			0 1px 4px rgba(0, 0, 0, 0.15);
 	}
 
 	.tournament-button:hover {
-		background: color-mix(in srgb, oklch(76% 0.16 75) 24%, transparent);
-		border-color: color-mix(in srgb, oklch(76% 0.16 75) 50%, transparent);
-		box-shadow: 0 4px 20px color-mix(in srgb, oklch(76% 0.16 75) 28%, transparent);
+		box-shadow:
+			0 6px 20px color-mix(in srgb, oklch(63% 0.15 75) 55%, transparent),
+			0 2px 6px rgba(0, 0, 0, 0.15);
+	}
+
+	.tournament-button:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+		transform: none;
 	}
 
 	/* Invite Player Button */
 	.invite-button {
 		left: auto;
-		right: 5rem;
+		right: 9.5rem;
 		background: rgba(100, 200, 150, 0.15);
 		color: rgba(100, 200, 150, 0.9);
-		border-color: rgba(100, 200, 150, 0.25);
+		border: 1px solid rgba(100, 200, 150, 0.25);
 	}
 
 	.invite-button:hover {
@@ -3213,15 +3220,22 @@
 	/* Responsive for floating button */
 	@media (max-width: 768px) {
 		.floating-button {
-			bottom: 1.5rem;
-			left: 1.5rem;
-			width: 48px;
-			height: 54px;
+			height: 44px;
+			padding: 0 0.95rem;
+			gap: 0.4rem;
+		}
+
+		.floating-btn-label {
+			font-size: 0.78rem;
 		}
 
 		.tournament-button {
 			left: auto;
 			right: 1.5rem;
+		}
+
+		.invite-button {
+			right: 8.5rem;
 		}
 
 		.confirm-modal {
@@ -3245,18 +3259,22 @@
 		.floating-button {
 			bottom: 1rem;
 			left: 1rem;
-			width: 44px;
-			height: 50px;
-			gap: 0.18rem;
+			height: 40px;
+			padding: 0 0.85rem;
+			gap: 0.35rem;
 		}
 
 		.floating-btn-label {
-			font-size: 0.48rem;
+			font-size: 0.72rem;
 		}
 
 		.tournament-button {
 			left: auto;
 			right: 1rem;
+		}
+
+		.invite-button {
+			right: 8rem;
 		}
 
 		.confirm-modal {

@@ -1225,6 +1225,7 @@
   "stats_duration": "Duration",
   "scoring_friendlyDoubles": "Doubles",
   "scoring_friendlyModePoints": "First to {n}p",
+  "scoring_friendlyModePointsFtw": "{points}p (Ftw {matches} g)",
   "scoring_friendlyModeRounds": "{n} rounds",
   "scoring_friendlySingles": "Singles",
   "scan_enableCamera": "Enable camera",
