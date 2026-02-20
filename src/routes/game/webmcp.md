@@ -43,7 +43,6 @@ description: "Interfaz principal de puntuación de partidas, gestión de rondas,
 ## 💾 Local Storage (Estado Persistente)
 | Ubicación / Key | Uso en la Aplicación |
 | :--- | :--- |
-| `crokinoleGame` | Objeto principal. Guarda preferencias (idioma configurado, theme oscuro/claro) y posición X/Y arrastrable del timer (`timerX`, `timerY`). |
+| `crokinoleGame` | Objeto principal. Guarda preferencias (idioma configurado, theme oscuro/claro), posición X/Y arrastrable del timer (`timerX`, `timerY`) y el `tournamentKey` activo (si lo hay). |
 | `crokinoleTournamentContext` | Cache/persistencia en crudo de la partida de torneo activa actual. (Permite recargar la página `/game` sin perder la partida de torneo). |
-| `tournamentKey` | Token o código de la mesa del torneo al que está vinculada la tableta actual. |
 | `crokinolePreTournamentBackup` | Guarda temporalmente los datos / estado de un partido "Amistoso" que quedó a medias si el árbitro decide entrar en Modo Torneo repentinamente. |
