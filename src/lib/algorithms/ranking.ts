@@ -44,37 +44,45 @@ export function getAllTiers(): { tier: TournamentTier; info: TierInfo }[] {
  *
  * @param position Final position (1 = winner)
  * @param tier Tournament tier
+ * @param participantsCount Number of participating teams/players (default 16 for max points)
  * @returns Points earned
  */
-export function calculateRankingPoints(position: number, tier: TournamentTier): number {
+export function calculateRankingPoints(position: number, tier: TournamentTier, participantsCount: number = 16): number {
   const tierInfo = getTierInfo(tier);
   const basePoints = tierInfo.basePoints;
 
-  // 1st place gets full points
-  if (position === 1) return basePoints;
+  // Calculate dynamic multiplier based on participants (16+ = 100%)
+  const BASE_PLAYERS = 16;
+  const participationFactor = Math.min(1, participantsCount / BASE_PLAYERS);
 
-  // Top 4 get percentage of base points
-  if (position === 2) return Math.round(basePoints * 0.9);
-  if (position === 3) return Math.round(basePoints * 0.8);
-  if (position === 4) return Math.round(basePoints * 0.7);
+  let winnerPoints = Math.round(basePoints * participationFactor);
+  if (winnerPoints < 1) winnerPoints = 1;
+
+  // 1st place gets full dynamic points
+  if (position === 1) return winnerPoints;
+
+  // Top 4 get percentage of winner points
+  if (position === 2) return Math.round(winnerPoints * 0.9);
+  if (position === 3) return Math.round(winnerPoints * 0.8);
+  if (position === 4) return Math.round(winnerPoints * 0.7);
 
   // Rest get decreasing points, minimum 1
-  const points = basePoints - (position + 2);
+  const points = winnerPoints - (position + 2);
   return points > 1 ? points : 1;
 }
 
 /**
  * Get points distribution for a tier (for display)
  */
-export function getPointsDistribution(tier: TournamentTier): { position: number; points: number }[] {
+export function getPointsDistribution(tier: TournamentTier, participantsCount: number = 16): { position: number; points: number }[] {
   return [
-    { position: 1, points: calculateRankingPoints(1, tier) },
-    { position: 2, points: calculateRankingPoints(2, tier) },
-    { position: 3, points: calculateRankingPoints(3, tier) },
-    { position: 4, points: calculateRankingPoints(4, tier) },
-    { position: 5, points: calculateRankingPoints(5, tier) },
-    { position: 6, points: calculateRankingPoints(6, tier) },
-    { position: 7, points: calculateRankingPoints(7, tier) },
-    { position: 8, points: calculateRankingPoints(8, tier) }
+    { position: 1, points: calculateRankingPoints(1, tier, participantsCount) },
+    { position: 2, points: calculateRankingPoints(2, tier, participantsCount) },
+    { position: 3, points: calculateRankingPoints(3, tier, participantsCount) },
+    { position: 4, points: calculateRankingPoints(4, tier, participantsCount) },
+    { position: 5, points: calculateRankingPoints(5, tier, participantsCount) },
+    { position: 6, points: calculateRankingPoints(6, tier, participantsCount) },
+    { position: 7, points: calculateRankingPoints(7, tier, participantsCount) },
+    { position: 8, points: calculateRankingPoints(8, tier, participantsCount) }
   ];
 }

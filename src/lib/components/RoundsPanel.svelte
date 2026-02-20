@@ -76,6 +76,10 @@
 		displayGames.reduce((sum, g) => sum + g.rounds.length, 0)
 	);
 
+	// Current game score from live team store (always up to date)
+	let currentGameScore = $derived({ team1: $team1.points, team2: $team2.points });
+	let hasCurrentScore = $derived($team1.points > 0 || $team2.points > 0 || currentRounds.length > 0);
+
 	// Make sure selectedGameIndex is valid
 	$effect(() => {
 		if (selectedGameIndex >= displayGames.length && displayGames.length > 0) {
@@ -91,7 +95,7 @@
 	});
 
 	// Multi-game mode?
-	let isMultiGame = $derived($gameSettings.matchesToWin > 1);
+	let isMultiGame = $derived(($gameSettings.matchesToWin ?? 1) > 1);
 
 	// Games won by each team (for header display)
 	let team1GamesWon = $derived(games.filter(g => g.winner === 1).length);
@@ -211,9 +215,10 @@
 			window.removeEventListener('touchend', onEnd);
 		};
 	});
+	let lastTourneyResult = $derived($gameSettings.lastTournamentResult);
 </script>
 
-{#if totalRounds > 0}
+{#if totalRounds > 0 || lastTourneyResult || hasCurrentScore}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="rounds-panel"
@@ -226,12 +231,29 @@
 	>
 		<!-- Header / Pill -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="panel-header">
+		<div class="panel-header" class:tournament-result={!!lastTourneyResult}>
 			<button class="toggle-btn" onclick={toggleExpanded}>
 				<span class="header-text">
-					{m.scoring_rounds()} ({totalRounds})
-					{#if isMultiGame}
-						<span class="games-score">{team1GamesWon}-{team2GamesWon}</span>
+					{#if lastTourneyResult}
+						{#if lastTourneyResult.isTie}
+							<span class="result-winner tie">Empate</span>
+						{:else}
+							<span class="result-winner">{lastTourneyResult.winnerName}</span>
+						{/if}
+						<span class="games-score tournament-score">
+							{#if (lastTourneyResult.matchesToWin ?? 1) > 1}
+								{lastTourneyResult.scoreA}-{lastTourneyResult.scoreB}
+							{:else}
+								{lastTourneyResult.pointsA ?? lastTourneyResult.scoreA}-{lastTourneyResult.pointsB ?? lastTourneyResult.scoreB}
+							{/if}
+						</span>
+					{:else}
+						{m.scoring_rounds()} ({totalRounds})
+						{#if hasCurrentScore}
+							<span class="games-score">{currentGameScore.team1}-{currentGameScore.team2}</span>
+						{:else if isMultiGame}
+							<span class="games-score">{team1GamesWon}-{team2GamesWon}</span>
+						{/if}
 					{/if}
 				</span>
 				{#if isExpanded}
@@ -312,7 +334,7 @@
 		border-radius: 12px;
 		backdrop-filter: blur(8px);
 		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-		width: 200px;
+		width: 270px;
 		user-select: none;
 		display: flex;
 		flex-direction: column;
@@ -324,7 +346,7 @@
 	}
 
 	.rounds-panel.expanded {
-		width: 220px;
+		width: 290px;
 	}
 
 	/* When panel is in lower half, open upward */
@@ -375,6 +397,30 @@
 		border-radius: 4px;
 		font-weight: 700;
 		font-size: 0.8rem;
+	}
+
+	.games-score.tournament-score {
+		background: color-mix(in srgb, var(--primary) 20%, transparent);
+		color: var(--primary);
+	}
+
+	.panel-header.tournament-result {
+		background: color-mix(in srgb, var(--primary) 5%, transparent);
+		border-radius: 12px;
+	}
+
+	.result-winner {
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.95);
+		max-width: 140px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.result-winner.tie {
+		color: rgba(255, 255, 255, 0.6);
+		font-style: italic;
 	}
 
 	.panel-content {
@@ -498,11 +544,11 @@
 
 	@media (max-width: 480px) {
 		.rounds-panel {
-			width: 180px;
+			width: 240px;
 		}
 
 		.rounds-panel.expanded {
-			width: 200px;
+			width: 260px;
 		}
 
 		.panel-header {

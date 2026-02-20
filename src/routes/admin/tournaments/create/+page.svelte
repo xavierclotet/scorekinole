@@ -15,7 +15,7 @@
   import { createTournament, getAllRegisteredUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
-  import { getTierInfo, getPointsDistribution } from '$lib/algorithms/ranking';
+  import { getTierInfo, getPointsDistribution, calculateRankingPoints } from '$lib/algorithms/ranking';
   import { getUserProfileById, type UserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
@@ -2731,7 +2731,7 @@
                       <span class="tier-name">{m.wizard_tierClub()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierClubDesc()}</div>
-                    <div class="tier-points">🥇 15 pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'CLUB', textareaParticipantCount || 16)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2743,7 +2743,7 @@
                       <span class="tier-name">{m.wizard_tierRegional()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierRegionalDesc()}</div>
-                    <div class="tier-points">🥇 25 pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'REGIONAL', textareaParticipantCount || 16)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2755,7 +2755,7 @@
                       <span class="tier-name">{m.wizard_tierNational()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierNationalDesc()}</div>
-                    <div class="tier-points">🥇 40 pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'NATIONAL', textareaParticipantCount || 16)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2767,19 +2767,27 @@
                       <span class="tier-name">{m.wizard_tierMajor()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierMajorDesc()}</div>
-                    <div class="tier-points">🥇 50 pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'MAJOR', textareaParticipantCount || 16)} pts al 1º</div>
                   </div>
                 </label>
               </div>
 
               <!-- Points distribution for selected tier -->
+              {#key textareaParticipantCount}
               <div class="points-distribution">
-                <h4>📊 {m.wizard_pointsDistributionFor({ tier: getTierInfo(selectedTier).name })}</h4>
+                <h4>
+                  📊 
+                  {#if textareaParticipantCount > 0}
+                    {m.wizard_pointsDistributionDynamicFor({ tier: getTierInfo(selectedTier).name, n: Math.max(2, textareaParticipantCount) })}
+                  {:else}
+                    {m.wizard_pointsDistributionMaxFor({ tier: getTierInfo(selectedTier).name })}
+                  {/if}
+                </h4>
                 <table class="points-table">
                   <thead>
                     <tr>
                       <th>{m.wizard_position()}</th>
-                      {#each getPointsDistribution(selectedTier) as item}
+                      {#each getPointsDistribution(selectedTier, textareaParticipantCount || 16) as item}
                         <th>{item.position}º</th>
                       {/each}
                     </tr>
@@ -2787,14 +2795,16 @@
                   <tbody>
                     <tr>
                       <td>{m.scoring_points()}</td>
-                      {#each getPointsDistribution(selectedTier) as item}
+                      {#each getPointsDistribution(selectedTier, textareaParticipantCount || 16) as item}
                         <td class="points">{item.points}</td>
                       {/each}
                     </tr>
                   </tbody>
                 </table>
+                <small class="help-text note-dynamic">{m.wizard_pointsNoteDynamic()}</small>
                 <small class="help-text">{m.wizard_pointsNote()}</small>
               </div>
+              {/key}
             </div>
           {/if}
         </div>
@@ -2982,6 +2992,7 @@
       {#if currentStep === 5}
         <div class="step-container step-time-compact">
           <h2 class="step-title-compact">{m.admin_timeConfigTitle()}</h2>
+          <p class="text-sm text-muted-foreground mb-4">{m.admin_timeConfigInfo()}</p>
 
           <div class="tc-compact">
             <!-- Duration & Breaks Row -->
@@ -3018,7 +3029,6 @@
             <div class="tc-row tc-rounds-row">
               <label class="tc-lbl">{m.admin_avgRoundsTitle()}</label>
               <div class="tc-rounds-grid">
-                <div class="tc-round-item"><span class="tc-pts">5p</span><input type="number" bind:value={tcAvgRounds5pts} min="2" max="12" /><span class="tc-rds">rds</span></div>
                 <div class="tc-round-item"><span class="tc-pts">7p</span><input type="number" bind:value={tcAvgRounds7pts} min="3" max="15" /><span class="tc-rds">rds</span></div>
                 <div class="tc-round-item"><span class="tc-pts">9p</span><input type="number" bind:value={tcAvgRounds9pts} min="4" max="20" /><span class="tc-rds">rds</span></div>
                 <div class="tc-round-item"><span class="tc-pts">11p</span><input type="number" bind:value={tcAvgRounds11pts} min="5" max="25" /><span class="tc-rds">rds</span></div>

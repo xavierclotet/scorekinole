@@ -15,6 +15,7 @@
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
 	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
+	import WinnerSplash from '$lib/components/WinnerSplash.svelte';
 	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -81,6 +82,12 @@
 	// QR Scanner state
 	let showQRScanner = $state(false);
 
+	// Winner splash state
+	let showWinnerSplash = $state(false);
+	let splashWinnerName = $state('');
+	let splashLabel = $state('');
+	let splashScore = $state('');
+
 	// Unsubscribe function for match status listener
 	let unsubscribeMatchStatus: (() => void) | null = null;
 
@@ -104,16 +111,26 @@
 	);
 	let friendlyMatchMode = $derived(
 		$gameSettings.gameMode === 'rounds'
-			? m.scoring_friendlyModeRounds({ n: $gameSettings.roundsToPlay })
-			: ($gameSettings.matchesToWin > 1
-				? m.scoring_friendlyModePointsFtw({ points: $gameSettings.pointsToWin, matches: $gameSettings.matchesToWin })
-				: m.scoring_friendlyModePoints({ n: $gameSettings.pointsToWin }))
+			? m.scoring_friendlyModeRounds({ n: $gameSettings.roundsToPlay ?? 4 })
+			: (($gameSettings.matchesToWin ?? 1) > 1
+				? m.scoring_friendlyModePointsFtw({ points: $gameSettings.pointsToWin ?? 7, matches: $gameSettings.matchesToWin ?? 1 })
+				: m.scoring_friendlyModePoints({ n: $gameSettings.pointsToWin ?? 7 }))
 	);
 
 	// Effective settings: use tournament config when in tournament mode, otherwise gameSettings
 	let effectiveShowHammer = $derived(inTournamentMode
 		? $gameTournamentContext?.gameConfig.showHammer ?? $gameSettings.showHammer
 		: $gameSettings.showHammer);
+	let effectiveShow20s = $derived(inTournamentMode
+		? $gameTournamentContext?.gameConfig.show20s ?? $gameSettings.show20s
+		: $gameSettings.show20s);
+	let effectiveShowRoundsPanel = $derived(
+		inTournamentMode ||
+		effectiveShow20s ||
+		$gameSettings.gameMode === 'rounds' ||
+		($gameSettings.matchesToWin ?? 1) > 1 ||
+		!!$gameSettings.lastTournamentResult
+	);
 
 	// Tournament match format string (e.g., "4R", "7p", "7p Bo3")
 	let tournamentMatchFormat = $derived((() => {
@@ -166,7 +183,7 @@
 	// In rounds mode, match is complete after first game (includes ties)
 	// In points mode, match is complete when someone reaches the required wins
 	// matchesToWin = "First to X wins" for both tournaments and friendly matches
-	let requiredWinsToComplete = $derived($gameSettings.matchesToWin);
+	let requiredWinsToComplete = $derived($gameSettings.matchesToWin ?? 1);
 	let isMatchComplete = $derived($gameSettings.gameMode === 'rounds'
 		? (team1GamesWon >= 1 || team2GamesWon >= 1 || ($currentMatchGames.length > 0 && !$team1.hasWon && !$team2.hasWon))
 		: (team1GamesWon >= requiredWinsToComplete || team2GamesWon >= requiredWinsToComplete));
@@ -200,13 +217,63 @@
 	// 1. When the first game ends, saveGameAndCheckMatchComplete adds it to currentMatchGames
 	// 2. But on page reload, we don't restore the current completed game to currentMatchGames (to avoid double-counting)
 	// 3. The other conditions are sufficient: hasWon + !isMatchComplete + matchesToWin > 1 + points mode
-	let showNextGameButton = $derived(($team1.hasWon || $team2.hasWon) && !isMatchComplete && $gameSettings.matchesToWin > 1 && $gameSettings.gameMode === 'points');
+	let showNextGameButton = $derived(($team1.hasWon || $team2.hasWon) && !isMatchComplete && ($gameSettings.matchesToWin ?? 1) > 1 && $gameSettings.gameMode === 'points');
 
 	// Auto-stop timer when match completes
 	$effect(() => {
 		if (isMatchComplete) {
 			stopTimer();
 		}
+	});
+
+	// Winner/Tie splash state
+	let splashIsTie = $state(false);
+
+	// Detect win or tie moment (false → true transition)
+	// Uses plain vars so writes don't retrigger the effect
+	let _prevT1Won: boolean | undefined = undefined;
+	let _prevT2Won: boolean | undefined = undefined;
+	let _prevIsTie: boolean | undefined = undefined;
+	$effect(() => {
+		const t1 = $team1.hasWon;
+		const t2 = $team2.hasWon;
+		const tie = isTieMatch;
+		const gameNum = $currentMatchGames.length;
+		const matchDone = isMatchComplete;
+
+		if (_prevT1Won === undefined) {
+			// First run — record initial state, don't trigger splash
+			_prevT1Won = t1;
+			_prevT2Won = t2;
+			_prevIsTie = tie;
+			return;
+		}
+
+		if (!showWinnerSplash) {
+			if (t1 && !_prevT1Won) {
+				splashWinnerName = $team1.name;
+				splashScore = `${$team1.points} · ${$team2.points}`;
+				splashLabel = matchDone ? m.scoring_winner() : m.scoring_gameWin({ n: gameNum.toString() });
+				splashIsTie = false;
+				showWinnerSplash = true;
+			} else if (t2 && !_prevT2Won) {
+				splashWinnerName = $team2.name;
+				splashScore = `${$team2.points} · ${$team1.points}`;
+				splashLabel = matchDone ? m.scoring_winner() : m.scoring_gameWin({ n: gameNum.toString() });
+				splashIsTie = false;
+				showWinnerSplash = true;
+			} else if (tie && !_prevIsTie) {
+				splashWinnerName = '';
+				splashScore = `${$team1.points} · ${$team2.points}`;
+				splashLabel = m.scoring_tie();
+				splashIsTie = true;
+				showWinnerSplash = true;
+			}
+		}
+
+		_prevT1Won = t1;
+		_prevT2Won = t2;
+		_prevIsTie = tie;
 	});
 
 	// Handler for tournament match complete event from TeamCard
@@ -400,8 +467,8 @@
 	}
 
 	/**
-	 * Exit tournament mode - clears context only, keeps current display state
-	 * Pre-tournament data is restored later when user starts a new friendly match
+	 * Exit tournament mode - clears context only
+	 * Restores pre-tournament friendly backup automatically.
 	 */
 	function exitTournamentMode() {
 		clearTournamentContext();
@@ -424,8 +491,11 @@
 			matchPhase: '',
 			...(backup?.gameType ? { gameType: backup.gameType } : {})
 		}));
-		// Mark that we just exited tournament mode - prevents auto-restoration
-		justExitedTournamentMode = true;
+		
+		// Immediately restore pre-tournament data instead of marking it
+		// to require a new match click from the user.
+		justExitedTournamentMode = false;
+		restorePreTournamentData(true);
 	}
 
 	/**
@@ -434,12 +504,6 @@
 	 * @param force - If true, restore even if justExitedTournamentMode is true
 	 */
 	function restorePreTournamentData(force = false) {
-		// Don't restore if we just exited tournament mode (unless forced)
-		// This prevents automatic restoration - user must explicitly start new friendly match
-		if (justExitedTournamentMode && !force) {
-			console.log('⏸️ Skipping pre-tournament restoration - just exited tournament mode');
-			return;
-		}
 
 		const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
 		if (!backupStr) return;
@@ -482,6 +546,7 @@
 			const totalSeconds = (backup.timerMinutes ?? 5) * 60 + (backup.timerSeconds ?? 0);
 			resetTimer(totalSeconds);
 
+			gameSettings.save(); // Persistir la restauración en localStorage
 			localStorage.removeItem(PRE_TOURNAMENT_BACKUP_KEY);
 			console.log('♻️ Restored pre-tournament data:', backup);
 		} catch (e) {
@@ -627,7 +692,8 @@
 			showHammer: config.showHammer,
 			gameType: config.gameType,
 			eventTitle: context.tournamentName,
-			matchPhase: context.bracketRoundName || (context.phase === 'GROUP' ? 'Fase de Grupos' : 'Bracket')
+			matchPhase: context.bracketRoundName || (context.phase === 'GROUP' ? 'Fase de Grupos' : 'Bracket'),
+			lastTournamentResult: null
 		}));
 
 		// PRIMERO: Reset match state (esto limpia todo)
@@ -848,6 +914,29 @@
 			if (completedGames.length > 0) {
 				currentMatchGames.set(completedGames);
 			}
+
+			// CRÍTICO: Actualizar currentMatch (history store) con las rondas restauradas
+			// El RoundsPanel lee de $currentMatch.rounds y $currentMatch.games
+			currentMatch.update(m => ({
+				...(m ?? { startTime: Date.now() }),
+				rounds: restoredRounds,
+				games: completedGames.map(g => ({
+					gameNumber: g.gameNumber,
+					winner: g.winner as 1 | 2 | null,
+					team1Points: g.team1Points,
+					team2Points: g.team2Points,
+					rounds: context.existingRounds
+						.filter((r: any) => r.gameNumber === g.gameNumber)
+						.map((r: any, idx: number) => ({
+							roundNumber: idx + 1,
+							team1Points: isUserSideA ? (r.pointsA || 0) : (r.pointsB || 0),
+							team2Points: isUserSideA ? (r.pointsB || 0) : (r.pointsA || 0),
+							team1Twenty: isUserSideA ? (r.twentiesA || 0) : (r.twentiesB || 0),
+							team2Twenty: isUserSideA ? (r.twentiesB || 0) : (r.twentiesA || 0),
+							hammerTeam: null as 1 | 2 | null
+						}))
+				}))
+			}));
 		}
 
 		// Reset and auto-start timer for tournament match
@@ -1303,6 +1392,25 @@
 		// NO reseteamos el estado aquí - dejamos que el usuario vea el resultado final
 		// El reset se hará cuando se inicie un nuevo partido de torneo
 		// Solo limpiamos el contexto del torneo para que no se vuelva a enviar
+		
+		// Guardamos el resultado justo antes de salir para que RingsPanel lo tenga
+		if (context) {
+			gameSettings.update(s => ({
+				...s,
+				lastTournamentResult: {
+					winnerName: winner === context.participantAId ? context.participantAName : (winner === context.participantBId ? context.participantBName : null),
+					scoreA: finalGamesWonA,
+					scoreB: finalGamesWonB,
+					isTie: winner === null,
+					team1Name: context.participantAName,
+					team2Name: context.participantBName,
+					pointsA: isUserSideA ? totalPointsA : totalPointsB,
+					pointsB: isUserSideA ? totalPointsB : totalPointsA,
+					matchesToWin: context.gameConfig.matchesToWin ?? 1
+				}
+			}));
+		}
+
 		exitTournamentMode();
 		isInExtraRounds = false;
 	}
@@ -1322,11 +1430,8 @@
 			exitTournamentMode();
 		}
 
-		// User explicitly requested new match, so clear the "just exited tournament" flag
-		// and force restore pre-tournament data (names, colors, settings)
-		const wasJustExitedTournament = justExitedTournamentMode;
-		justExitedTournamentMode = false;
-		restorePreTournamentData(wasJustExitedTournament); // Force if coming from tournament
+		// Clear the last tournament result block if there was one
+		gameSettings.update(s => ({ ...s, lastTournamentResult: null }));
 
 		resetTeams();
 		resetMatchState();
@@ -1342,12 +1447,6 @@
 	}
 
 	function handleNewMatchClick() {
-		// After a tournament match, always show confirmation so user gets feedback
-		// that they're starting a new friendly match
-		if (justExitedTournamentMode) {
-			showNewMatchConfirm = true;
-			return;
-		}
 
 		// If match is already complete, start new match directly without confirmation
 		if (isMatchComplete) {
@@ -2014,9 +2113,9 @@
 		{/if}
 	</header>
 
-	<!-- Rounds Panel - show in friendly mode when: 20s enabled, rounds mode, or multi-game -->
-	{#if !inTournamentMode && ($gameSettings.show20s || $gameSettings.gameMode === 'rounds' || $gameSettings.matchesToWin > 1) && ($currentMatch?.rounds?.length || $currentMatch?.games?.length)}
-		<RoundsPanel onedit20s={$gameSettings.show20s ? handleEdit20s : undefined} />
+	<!-- Rounds Panel - show when: 20s enabled, rounds mode, multi-game, OR displaying a tournament result -->
+	{#if effectiveShowRoundsPanel && ($currentMatch?.rounds?.length || $currentMatch?.games?.length || $gameSettings.lastTournamentResult || (inTournamentMode && ($team1.points > 0 || $team2.points > 0)))}
+		<RoundsPanel onedit20s={effectiveShow20s ? handleEdit20s : undefined} />
 	{/if}
 
 	<div class="teams-container">
@@ -2247,6 +2346,15 @@
 	bind:isOpen={showQRScanner}
 	onScan={handleQRScanResult}
 	onClose={() => showQRScanner = false}
+/>
+
+<!-- Winner / Tie Splash -->
+<WinnerSplash
+	bind:isVisible={showWinnerSplash}
+	winnerName={splashWinnerName}
+	label={splashLabel}
+	score={splashScore}
+	isTie={splashIsTie}
 />
 
 <style>

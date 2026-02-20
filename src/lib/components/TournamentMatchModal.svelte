@@ -5,7 +5,7 @@
 	import { theme } from '$lib/stores/theme';
 	import { currentUser } from '$lib/firebase/auth';
 	import QRScanner from './QRScanner.svelte';
-	import { getTournamentByKey, getMyActiveTournaments, type MyTournamentItem } from '$lib/firebase/tournaments';
+	import { getTournamentByKey } from '$lib/firebase/tournaments';
 	import {
 		getPendingMatchesForUser,
 		getAllPendingMatches,
@@ -91,36 +91,12 @@
 	// Track if we're checking a saved key
 	let isCheckingSavedKey = $state(false);
 
-	// My active tournaments (for logged-in users)
-	let myTournaments = $state<MyTournamentItem[]>([]);
-	let loadingMyTournaments = $state(false);
-
-	// When modal opens, check for saved tournament key and load user's tournaments
+	// When modal opens, check for saved tournament key
 	$effect(() => {
 		if (isOpen && currentStep === 'key_input' && !isCheckingSavedKey) {
 			checkSavedTournamentKey();
-			if (isLoggedIn) {
-				loadMyTournaments();
-			}
 		}
 	});
-
-	async function loadMyTournaments() {
-		loadingMyTournaments = true;
-		try {
-			myTournaments = await getMyActiveTournaments();
-		} catch (error) {
-			console.error('Error loading my tournaments:', error);
-			myTournaments = [];
-		} finally {
-			loadingMyTournaments = false;
-		}
-	}
-
-	async function selectMyTournament(t: MyTournamentItem) {
-		tournamentKey = t.key;
-		await searchTournament();
-	}
 
 	// Autofocus key input when modal opens (only if not checking saved key)
 	$effect(() => {
@@ -158,7 +134,7 @@
 			} else {
 				// Tournament not found or not active, clear saved key and show key input
 				console.log('🔑 Saved tournament key no longer active, clearing...');
-				localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
+				gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
 				currentStep = 'key_input';
 				// Keep isCheckingSavedKey = true to prevent reactive block from re-triggering
 				// It will be reset in resetState() when modal closes
@@ -168,7 +144,7 @@
 			}
 		} catch (error) {
 			console.error('Error checking saved tournament key:', error);
-			localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
+			gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
 			currentStep = 'key_input';
 			tick().then(() => {
 				keyInputElement?.focus();
@@ -484,7 +460,7 @@
 		} catch (error) {
 			console.error('Error searching tournament:', error);
 			// Clear saved key on error so user can retry with a different key
-			localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
+			gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
 			tournamentKey = '';
 			errorMessage = m.tournament_connectionError();
 			currentStep = 'error';
@@ -827,40 +803,6 @@
 				<!-- Step: Key Input -->
 				{#if currentStep === 'key_input'}
 					<div class="step-content key-step">
-						<!-- My Tournaments Section (for logged-in users) -->
-						{#if isLoggedIn}
-							{#if loadingMyTournaments}
-								<div class="my-tournaments-loading">
-									<div class="mini-spinner"></div>
-								</div>
-							{:else if myTournaments.length > 0}
-								<div class="my-tournaments-section">
-									<p class="my-tournaments-title">{m.tournament_myActiveTournaments()}</p>
-									<div class="my-tournaments-list">
-										{#each myTournaments as t}
-											<button
-												class="my-tournament-item"
-												onclick={() => selectMyTournament(t)}
-											>
-												<span class="my-tournament-name">{t.name}</span>
-												<span class="my-tournament-meta">
-													<span class="my-tournament-mode">{t.gameType === 'singles' ? '1v1' : '2v2'}</span>
-													<span class="my-tournament-arrow">
-														<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-															<polyline points="9 18 15 12 9 6"></polyline>
-														</svg>
-													</span>
-												</span>
-											</button>
-										{/each}
-									</div>
-								</div>
-								<div class="divider-with-text">
-									<span>{m.common_or()}</span>
-								</div>
-							{/if}
-						{/if}
-
 						<div class="key-icon-wrapper">
 							<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 								<circle cx="7.5" cy="15.5" r="5.5"></circle>
@@ -1360,125 +1302,6 @@
 	.step-content.key-step {
 		align-items: center;
 		padding: 0.5rem 0 1rem;
-	}
-
-	/* My Tournaments Section */
-	.my-tournaments-loading {
-		display: flex;
-		justify-content: center;
-		padding: 1rem;
-	}
-
-	.mini-spinner {
-		width: 20px;
-		height: 20px;
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-top-color: var(--primary);
-		border-radius: 50%;
-		animation: spin 0.8s linear infinite;
-	}
-
-	.my-tournaments-section {
-		width: 100%;
-		margin-bottom: 0.5rem;
-	}
-
-	.my-tournaments-title {
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: rgba(255, 255, 255, 0.5);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		margin: 0 0 0.5rem;
-		padding: 0 0.25rem;
-	}
-
-	.my-tournaments-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.375rem;
-	}
-
-	.my-tournament-item {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		width: 100%;
-		padding: 0.75rem 1rem;
-		background: rgba(16, 185, 129, 0.08);
-		border: 1px solid rgba(16, 185, 129, 0.2);
-		border-radius: 10px;
-		cursor: pointer;
-		transition: all 0.15s ease;
-		text-align: left;
-	}
-
-	.my-tournament-item:hover {
-		background: rgba(16, 185, 129, 0.15);
-		border-color: rgba(16, 185, 129, 0.35);
-	}
-
-	.my-tournament-name {
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.9rem;
-		font-weight: 500;
-		color: rgba(255, 255, 255, 0.9);
-		flex: 1;
-		min-width: 0;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.my-tournament-meta {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		flex-shrink: 0;
-	}
-
-	.my-tournament-mode {
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.7rem;
-		font-weight: 600;
-		color: rgba(255, 255, 255, 0.5);
-		background: rgba(255, 255, 255, 0.08);
-		padding: 0.2rem 0.4rem;
-		border-radius: 4px;
-	}
-
-	.my-tournament-arrow {
-		color: rgba(16, 185, 129, 0.7);
-		display: flex;
-		align-items: center;
-	}
-
-	.my-tournament-item:hover .my-tournament-arrow {
-		color: rgba(16, 185, 129, 1);
-	}
-
-	.divider-with-text {
-		display: flex;
-		align-items: center;
-		width: 100%;
-		margin: 0.75rem 0;
-		gap: 0.75rem;
-	}
-
-	.divider-with-text::before,
-	.divider-with-text::after {
-		content: '';
-		flex: 1;
-		height: 1px;
-		background: rgba(255, 255, 255, 0.1);
-	}
-
-	.divider-with-text span {
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.35);
-		text-transform: uppercase;
 	}
 
 	.key-icon-wrapper {

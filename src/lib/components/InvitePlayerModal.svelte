@@ -211,9 +211,9 @@
 					team2Name: $team2.name,
 					team2Color: $team2.color,
 					gameMode: $gameSettings.gameMode,
-					pointsToWin: $gameSettings.pointsToWin,
-					roundsToPlay: $gameSettings.roundsToPlay,
-					matchesToWin: $gameSettings.matchesToWin,
+					pointsToWin: $gameSettings.pointsToWin ?? 7,
+					roundsToPlay: $gameSettings.roundsToPlay ?? 4,
+					matchesToWin: $gameSettings.matchesToWin ?? 1,
 					gameType: $gameSettings.gameType
 				}
 			});

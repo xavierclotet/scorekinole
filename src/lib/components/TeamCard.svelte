@@ -63,17 +63,17 @@
 		: $gameSettings.gameMode);
 
 	let effectiveRoundsToPlay = $derived(inTournamentMode
-		? $gameTournamentContext?.gameConfig.roundsToPlay ?? $gameSettings.roundsToPlay
-		: $gameSettings.roundsToPlay);
+		? ($gameTournamentContext?.gameConfig.roundsToPlay ?? $gameSettings.roundsToPlay ?? 4)
+		: ($gameSettings.roundsToPlay ?? 4));
 
 	let effectivePointsToWin = $derived(inTournamentMode
-		? $gameTournamentContext?.gameConfig.pointsToWin ?? $gameSettings.pointsToWin
-		: $gameSettings.pointsToWin);
+		? ($gameTournamentContext?.gameConfig.pointsToWin ?? $gameSettings.pointsToWin ?? 7)
+		: ($gameSettings.pointsToWin ?? 7));
 
 	// matchesToWin = "First to X wins" for both tournaments and friendly matches
 	let effectiveRequiredWins = $derived(inTournamentMode
 		? ($gameTournamentContext?.gameConfig.matchesToWin ?? 1)
-		: $gameSettings.matchesToWin);
+		: ($gameSettings.matchesToWin ?? 1));
 
 	// Get the appropriate team store
 	let team = $derived(teamNumber === 1 ? $team1 : $team2);
@@ -1237,18 +1237,22 @@
 	.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 50px; height: 50px; }
 
 	.winner-badge {
-		background: rgba(255, 255, 255, 0.12);
-		backdrop-filter: blur(8px);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		color: var(--text-color);
-		padding: 0.35rem 0.9rem;
-		border-radius: 4px;
+		background: rgba(251, 191, 36, 0.14);
+		border: 1px solid rgba(251, 191, 36, 0.35);
+		color: #FBBF24;
+		padding: 0.3rem 0.85rem;
+		border-radius: 100px;
 		font-family: 'Lexend', sans-serif;
-		font-weight: 500;
-		font-size: 0.7rem;
-		letter-spacing: 0.04em;
+		font-weight: 700;
+		font-size: 0.65rem;
+		letter-spacing: 0.12em;
 		text-transform: uppercase;
-		opacity: 0.9;
+		animation: badge-appear 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+	}
+
+	@keyframes badge-appear {
+		from { transform: scale(0.7); opacity: 0; }
+		to   { transform: scale(1);   opacity: 1; }
 	}
 
 	/* Responsive adjustments */

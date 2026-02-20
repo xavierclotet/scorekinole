@@ -34,12 +34,18 @@
 	}
 
 	function handleGameModeChange(mode: 'points' | 'rounds') {
-		gameSettings.update(s => ({ ...s, gameMode: mode }));
+		gameSettings.update(s => ({
+			...s,
+			gameMode: mode,
+			...(mode === 'points'
+				? { roundsToPlay: undefined, pointsToWin: s.pointsToWin ?? 7, matchesToWin: s.matchesToWin ?? 1 }
+				: { pointsToWin: undefined, matchesToWin: undefined, roundsToPlay: s.roundsToPlay ?? 4, allowTiesInRoundsMode: false })
+		}));
 		gameSettings.save();
 	}
 
 	function handleGameTypeChange(type: 'singles' | 'doubles') {
-		gameSettings.update(s => ({ ...s, gameType: type }));
+		gameSettings.update(s => ({ ...s, gameType: type, timerMinutes: type === 'singles' ? 8 : 10 }));
 		gameSettings.save();
 	}
 
@@ -49,7 +55,18 @@
 	}
 
 	function handleNumberChange(key: keyof GameSettings, newValue: number) {
-		gameSettings.update(s => ({ ...s, [key]: newValue }));
+		gameSettings.update(s => {
+			const updated = { ...s, [key]: newValue };
+			if (key === 'pointsToWin') {
+				updated.roundsToPlay = undefined;
+				updated.gameMode = 'points';
+			} else if (key === 'roundsToPlay') {
+				updated.pointsToWin = undefined;
+				updated.matchesToWin = undefined;
+				updated.gameMode = 'rounds';
+			}
+			return updated;
+		});
 		gameSettings.save();
 	}
 

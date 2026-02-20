@@ -32,7 +32,8 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     timerY: null,
     matchScoreSize: 'medium',
     mainScoreSize: 'medium',
-    nameSize: 'medium'
+    nameSize: 'medium',
+    lastTournamentResult: null
 };
 
 export const DEVELOPED_COUNTRIES = [

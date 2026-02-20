@@ -542,8 +542,8 @@
           {#if qualificationMode === 'WINS'}
             <th class="points-col primary-col" title={m.tournament_pointsStandard()}>{m.tournament_pointsShort()}</th>
           {/if}
-          <th class="twenties-col">{m.tournament_twentiesShort()}</th>
           <th class="scored-col" class:primary-col={qualificationMode === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>PT</th>
+          <th class="twenties-col">{m.tournament_twentiesShort()}</th>
         </tr>
       </thead>
       <tbody>
@@ -635,10 +635,10 @@
                 <strong>{isSwiss ? swissPoints : standing.points}</strong>
               </td>
             {/if}
-            <td class="twenties-col">{standing.total20s}</td>
             <td class="scored-col" class:primary-col={qualificationMode === 'POINTS'}>
               {#if qualificationMode === 'POINTS'}<strong>{standing.totalPointsScored}</strong>{:else}{standing.totalPointsScored}{/if}
             </td>
+            <td class="twenties-col">{standing.total20s}</td>
           </tr>
         {/each}
       </tbody>

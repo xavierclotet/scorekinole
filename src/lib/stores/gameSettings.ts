@@ -16,8 +16,6 @@ function isValidGameSettings(data: unknown): data is GameSettings {
     return (
         typeof settings.gameMode === 'string' &&
         (settings.gameMode === 'points' || settings.gameMode === 'rounds') &&
-        typeof settings.pointsToWin === 'number' &&
-        typeof settings.roundsToPlay === 'number' &&
         typeof settings.timerMinutes === 'number' &&
         typeof settings.timerSeconds === 'number'
     );

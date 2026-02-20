@@ -7,8 +7,8 @@ export interface GameSettings {
     /** App version string (for migration compatibility checks) */
     appVersion: string;
 
-    /** Points required to win a game in 'points' mode */
-    pointsToWin: number;
+    /** Points required to win a game in 'points' mode (undefined when in rounds mode) */
+    pointsToWin?: number;
 
     /** Timer duration - minutes component */
     timerMinutes: number;
@@ -19,8 +19,8 @@ export interface GameSettings {
     /** Whether to show the timer on the game screen */
     showTimer: boolean;
 
-    /** Number of matches (games) to win the overall match */
-    matchesToWin: number;
+    /** Number of matches (games) to win the overall match (undefined when in rounds mode) */
+    matchesToWin?: number;
 
     /** Whether to track and display 20-point center shots */
     show20s: boolean;
@@ -37,8 +37,8 @@ export interface GameSettings {
     /** Game mode: play to X points or play N rounds */
     gameMode: 'points' | 'rounds';
 
-    /** Number of rounds to play in 'rounds' mode */
-    roundsToPlay: number;
+    /** Number of rounds to play in 'rounds' mode (undefined when in points mode) */
+    roundsToPlay?: number;
 
     /** Whether ties are allowed in rounds mode (if false, extra rounds until winner) */
     allowTiesInRoundsMode: boolean;
@@ -66,4 +66,17 @@ export interface GameSettings {
 
     /** The key/token of the active tournament the device is connected to */
     tournamentKey?: string;
+
+    /** Temporary storage for the last completed tournament match result to show in RoundsPanel */
+    lastTournamentResult?: {
+        winnerName: string | null;
+        scoreA: number;
+        scoreB: number;
+        isTie: boolean;
+        team1Name: string;
+        team2Name: string;
+        pointsA?: number;
+        pointsB?: number;
+        matchesToWin?: number;
+    } | null;
 }
