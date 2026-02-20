@@ -2,6 +2,18 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.38] - 2026-02-20
+- Require first and last name for player registration (validation in all name modals)
+- Fix TournamentAdminsModal theme support for violet/violet-light themes
+- Use --primary color for winner badge, winner splash, and hammer indicator
+- Remove winner-badge overlay from TeamCard score area
+- Show initials avatars in tournament mode when no photo exists
+- Add custom 404 error page
+- Fix duplicate number in suggested qualifiers, tie result in rounds panel
+- Fix tournament creation ignoring bracket phase settings
+- Implement NCA ranking points with Hamilton interpolation
+- Winner splash animation, WebMCP refactor, floating FAB improvements
+
 ## [2.4.37] - 2026-02-20
 - Redesign floating action buttons: pill style with icon + label, distinct accent colors (primary for new match, amber for tournament)
 - Remove reset-tournament floating button and its confirmation modal

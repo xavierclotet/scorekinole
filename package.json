@@ -1,7 +1,7 @@
 {
 	"name": "scorekinole",
 	"private": true,
-	"version": "2.4.37",
+	"version": "2.4.38",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
