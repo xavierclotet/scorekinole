@@ -1406,7 +1406,7 @@
                 <div class="stat-item">
                   <span class="stat-label">{m.admin_suggestedForBracket()}</span>
                   <span class="stat-value suggestion">
-                    {suggestedQualifiers.total} {m.admin_qualifiersWithPerGroup({ perGroup: String(suggestedQualifiers.perGroup) })}
+                    {suggestedQualifiers.total} ({m.admin_qualifiersWithPerGroup({ perGroup: String(suggestedQualifiers.perGroup) })})
                   </span>
                 </div>
                 <div class="stat-item">
