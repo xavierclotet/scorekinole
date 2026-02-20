@@ -108,7 +108,7 @@ const TIER_BASE_POINTS: Record<TournamentTier, number> = {
 };
 
 /**
- * Calculate NCA ranking points with largest remainder interpolation.
+ * Calculate NCA ranking points with smart interpolation.
  */
 function calculateRankingPoints(
   position: number,
@@ -136,27 +136,47 @@ function calculateRankingPoints(
     }
   }
 
-  const targetDrop = winnerPoints - 1;
-  const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
-
-  if (participantsCount >= 16 && totalStandardDrop >= targetDrop) {
+  // 16+ participants: use official NCA raw drops (no interpolation)
+  if (participantsCount >= 16) {
     let cumDrop = 0;
     for (let i = 0; i < position - 1; i++) cumDrop += standardDrops[i];
     return Math.max(1, winnerPoints - cumDrop);
   }
 
-  // Largest remainder method (Hamilton)
-  const scale = targetDrop / totalStandardDrop;
-  const idealDrops = standardDrops.map((d) => d * scale);
-  const floorDrops = idealDrops.map((d) => Math.floor(d));
-  let remaining = targetDrop - floorDrops.reduce((acc, val) => acc + val, 0);
+  // <16 participants: interpolate so last place gets 1 point
+  const targetDrop = winnerPoints - 1;
+  const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
 
-  const remainders = idealDrops.map((d, i) => ({ i, rem: d - Math.floor(d) }));
-  remainders.sort((a, b) => b.rem - a.rem || a.i - b.i);
+  let actualDrops: number[];
 
-  const actualDrops = [...floorDrops];
-  for (let r = 0; r < remaining; r++) {
-    actualDrops[remainders[r].i]++;
+  if (totalStandardDrop > targetDrop) {
+    // Hamilton (largest remainder): reduce drops proportionally
+    const scale = targetDrop / totalStandardDrop;
+    const idealDrops = standardDrops.map((d) => d * scale);
+    const floorDrops = idealDrops.map((d) => Math.floor(d));
+    let remaining = targetDrop - floorDrops.reduce((acc, val) => acc + val, 0);
+
+    const remainders = idealDrops.map((d, i) => ({ i, rem: d - Math.floor(d) }));
+    remainders.sort((a, b) => b.rem - a.rem || a.i - b.i);
+
+    actualDrops = [...floorDrops];
+    for (let r = 0; r < remaining; r++) {
+      actualDrops[remainders[r].i]++;
+    }
+  } else {
+    // Level fill: increase smallest drops first (left to right within same level)
+    actualDrops = [...standardDrops];
+    let total = totalStandardDrop;
+
+    while (total < targetDrop) {
+      const minDrop = Math.min(...actualDrops);
+      for (let i = 0; i < actualDrops.length && total < targetDrop; i++) {
+        if (actualDrops[i] === minDrop) {
+          actualDrops[i]++;
+          total++;
+        }
+      }
+    }
   }
 
   let cumDrop = 0;

@@ -2801,7 +2801,11 @@
                     </tr>
                   </tbody>
                 </table>
-                <small class="help-text note-dynamic">{m.wizard_pointsNoteDynamic()}</small>
+                {#if textareaParticipantCount > 0 && textareaParticipantCount < 16}
+                  <small class="help-text note-dynamic">{m.wizard_pointsNoteDynamic()}</small>
+                {:else}
+                  <small class="help-text note-dynamic">{m.wizard_pointsNoteOfficial()}</small>
+                {/if}
                 <small class="help-text">{m.wizard_pointsNote()}</small>
               </div>
               {/key}

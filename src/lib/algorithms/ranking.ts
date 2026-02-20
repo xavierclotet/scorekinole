@@ -40,15 +40,13 @@ export function getAllTiers(): { tier: TournamentTier; info: TierInfo }[] {
 }
 
 /**
- * Calculate NCA ranking points with interpolation using largest remainder method.
+ * Calculate NCA ranking points.
  *
- * Algorithm:
- * 1. Winner points = round(basePoints * min(1, N/16))
- * 2. Build standard NCA drop curve (Singles: -3,-2,-2,-2,-1,-1... / Doubles: -5,-4,-2,-2...)
- * 3. If 16+ participants and total standard drops >= targetDrop: use raw drops directly.
- * 4. Otherwise, use largest remainder method (Hamilton) to distribute targetDrop across
- *    all positions proportionally to the standard curve, ensuring drops sum exactly to
- *    winnerPoints - 1 so last place always gets 1 point.
+ * Two regimes:
+ * - 16+ participants: use official NCA raw drop curve (Singles: -3,-2,-2,-2,-1... / Doubles: -5,-4,-2,-2...)
+ *   Winner gets full basePoints. Lower positions may still get high points (e.g. last of 16 in Tier 1 = 30pts).
+ * - <16 participants: winner scaled by N/16, then interpolate drops to reach 1 at last place.
+ *   Hamilton method when standard drops exceed target (Doubles), level fill when insufficient (Singles).
  *
  * @param position Final position (1 = winner)
  * @param tier Tournament tier (CLUB, REGIONAL, NATIONAL, MAJOR)
@@ -85,29 +83,47 @@ export function calculateRankingPoints(
     }
   }
 
-  const targetDrop = winnerPoints - 1;
-  const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
-
-  // 16+ participants with enough standard drops: use raw curve
-  if (participantsCount >= 16 && totalStandardDrop >= targetDrop) {
+  // 16+ participants: use official NCA raw drops (no interpolation)
+  if (participantsCount >= 16) {
     let cumDrop = 0;
     for (let i = 0; i < position - 1; i++) cumDrop += standardDrops[i];
     return Math.max(1, winnerPoints - cumDrop);
   }
 
-  // Largest remainder method: distribute targetDrop proportionally
-  const scale = targetDrop / totalStandardDrop;
-  const idealDrops = standardDrops.map(d => d * scale);
-  const floorDrops = idealDrops.map(d => Math.floor(d));
-  let remaining = targetDrop - floorDrops.reduce((acc, val) => acc + val, 0);
+  // <16 participants: interpolate so last place gets 1 point
+  const targetDrop = winnerPoints - 1;
+  const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
 
-  // Sort indices by fractional remainder descending (stable: earlier positions win ties)
-  const remainders = idealDrops.map((d, i) => ({ i, rem: d - Math.floor(d) }));
-  remainders.sort((a, b) => b.rem - a.rem || a.i - b.i);
+  let actualDrops: number[];
 
-  const actualDrops = [...floorDrops];
-  for (let r = 0; r < remaining; r++) {
-    actualDrops[remainders[r].i]++;
+  if (totalStandardDrop > targetDrop) {
+    // Hamilton (largest remainder): reduce drops proportionally
+    const scale = targetDrop / totalStandardDrop;
+    const idealDrops = standardDrops.map(d => d * scale);
+    const floorDrops = idealDrops.map(d => Math.floor(d));
+    let remaining = targetDrop - floorDrops.reduce((acc, val) => acc + val, 0);
+
+    const remainders = idealDrops.map((d, i) => ({ i, rem: d - Math.floor(d) }));
+    remainders.sort((a, b) => b.rem - a.rem || a.i - b.i);
+
+    actualDrops = [...floorDrops];
+    for (let r = 0; r < remaining; r++) {
+      actualDrops[remainders[r].i]++;
+    }
+  } else {
+    // Level fill: increase smallest drops first (left to right within same level)
+    actualDrops = [...standardDrops];
+    let total = totalStandardDrop;
+
+    while (total < targetDrop) {
+      const minDrop = Math.min(...actualDrops);
+      for (let i = 0; i < actualDrops.length && total < targetDrop; i++) {
+        if (actualDrops[i] === minDrop) {
+          actualDrops[i]++;
+          total++;
+        }
+      }
+    }
   }
 
   let cumDrop = 0;
