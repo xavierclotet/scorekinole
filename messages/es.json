@@ -481,6 +481,8 @@
   "common_edit": "Editar",
   "common_editionLabel": "{n}º",
   "common_error": "Error",
+  "common_errorPageNotFound": "Página no encontrada",
+  "common_errorPageNotFoundDesc": "La página que buscas no existe o ha sido movida.",
   "common_estimatedEnd": "Fin Estimado",
   "common_goHome": "Ir al Inicio",
   "common_language": "Idioma",
