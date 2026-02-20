@@ -1558,55 +1558,49 @@
         };
 
         // Final stage configuration - stored in goldBracket.config (and silverBracket.config for SPLIT_DIVISIONS)
-        // Always save per-phase configuration (use advanced values if enabled, otherwise defaults)
-        const goldEarlyMode = showAdvancedBracketConfig ? earlyRoundsGameMode : 'rounds';
-        const goldSemiMode = showAdvancedBracketConfig ? semifinalGameMode : 'points';
-        const goldFinalMode = showAdvancedBracketConfig ? bracketFinalGameMode : 'points';
-        const silverEarlyMode = showAdvancedBracketConfig ? silverEarlyRoundsGameMode : 'rounds';
-        const silverSemiMode = showAdvancedBracketConfig ? silverSemifinalGameMode : 'rounds';
-        const silverFinalMode = showAdvancedBracketConfig ? silverBracketFinalGameMode : 'rounds';
+        // Always use the actual state variables (per-phase config is always visible in UI)
 
         // Build gold bracket config
         const goldBracketConfig = {
           earlyRounds: {
-            gameMode: goldEarlyMode,
-            pointsToWin: goldEarlyMode === 'points' ? (showAdvancedBracketConfig ? earlyRoundsPointsToWin : 7) : undefined,
-            roundsToPlay: goldEarlyMode === 'rounds' ? (showAdvancedBracketConfig ? earlyRoundsToPlay : 4) : undefined,
-            matchesToWin: showAdvancedBracketConfig ? earlyRoundsMatchesToWin : 1
+            gameMode: earlyRoundsGameMode,
+            pointsToWin: earlyRoundsGameMode === 'points' ? earlyRoundsPointsToWin : undefined,
+            roundsToPlay: earlyRoundsGameMode === 'rounds' ? earlyRoundsToPlay : undefined,
+            matchesToWin: earlyRoundsMatchesToWin
           },
           semifinal: {
-            gameMode: goldSemiMode,
-            pointsToWin: goldSemiMode === 'points' ? (showAdvancedBracketConfig ? semifinalPointsToWin : 7) : undefined,
-            roundsToPlay: goldSemiMode === 'rounds' ? (showAdvancedBracketConfig ? semifinalRoundsToPlay : 4) : undefined,
-            matchesToWin: showAdvancedBracketConfig ? semifinalMatchesToWin : 1
+            gameMode: semifinalGameMode,
+            pointsToWin: semifinalGameMode === 'points' ? semifinalPointsToWin : undefined,
+            roundsToPlay: semifinalGameMode === 'rounds' ? semifinalRoundsToPlay : undefined,
+            matchesToWin: semifinalMatchesToWin
           },
           final: {
-            gameMode: goldFinalMode,
-            pointsToWin: goldFinalMode === 'points' ? (showAdvancedBracketConfig ? bracketFinalPointsToWin : 9) : undefined,
-            roundsToPlay: goldFinalMode === 'rounds' ? (showAdvancedBracketConfig ? bracketFinalRoundsToPlay : 4) : undefined,
-            matchesToWin: showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1
+            gameMode: bracketFinalGameMode,
+            pointsToWin: bracketFinalGameMode === 'points' ? bracketFinalPointsToWin : undefined,
+            roundsToPlay: bracketFinalGameMode === 'rounds' ? bracketFinalRoundsToPlay : undefined,
+            matchesToWin: bracketFinalMatchesToWin
           }
         };
 
         // Build silver bracket config (for SPLIT_DIVISIONS)
         const silverBracketConfig = finalStageMode === 'SPLIT_DIVISIONS' ? {
           earlyRounds: {
-            gameMode: silverEarlyMode,
-            pointsToWin: silverEarlyMode === 'points' ? (showAdvancedBracketConfig ? silverEarlyRoundsPointsToWin : 7) : undefined,
-            roundsToPlay: silverEarlyMode === 'rounds' ? (showAdvancedBracketConfig ? silverEarlyRoundsToPlay : 4) : undefined,
-            matchesToWin: showAdvancedBracketConfig ? silverEarlyRoundsMatchesToWin : 1
+            gameMode: silverEarlyRoundsGameMode,
+            pointsToWin: silverEarlyRoundsGameMode === 'points' ? silverEarlyRoundsPointsToWin : undefined,
+            roundsToPlay: silverEarlyRoundsGameMode === 'rounds' ? silverEarlyRoundsToPlay : undefined,
+            matchesToWin: silverEarlyRoundsMatchesToWin
           },
           semifinal: {
-            gameMode: silverSemiMode,
-            pointsToWin: silverSemiMode === 'points' ? (showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7) : undefined,
-            roundsToPlay: silverSemiMode === 'rounds' ? (showAdvancedBracketConfig ? silverSemifinalRoundsToPlay : 4) : undefined,
-            matchesToWin: showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1
+            gameMode: silverSemifinalGameMode,
+            pointsToWin: silverSemifinalGameMode === 'points' ? silverSemifinalPointsToWin : undefined,
+            roundsToPlay: silverSemifinalGameMode === 'rounds' ? silverSemifinalRoundsToPlay : undefined,
+            matchesToWin: silverSemifinalMatchesToWin
           },
           final: {
-            gameMode: silverFinalMode,
-            pointsToWin: silverFinalMode === 'points' ? (showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7) : undefined,
-            roundsToPlay: silverFinalMode === 'rounds' ? (showAdvancedBracketConfig ? silverBracketFinalRoundsToPlay : 4) : undefined,
-            matchesToWin: showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1
+            gameMode: silverBracketFinalGameMode,
+            pointsToWin: silverBracketFinalGameMode === 'points' ? silverBracketFinalPointsToWin : undefined,
+            roundsToPlay: silverBracketFinalGameMode === 'rounds' ? silverBracketFinalRoundsToPlay : undefined,
+            matchesToWin: silverBracketFinalMatchesToWin
           }
         } : undefined;
 
@@ -3233,25 +3227,25 @@
                     <div class="review-row">
                       <span class="review-label">{m.admin_earlyRounds()}</span>
                       <span class="review-value">
-                        {(showAdvancedBracketConfig ? earlyRoundsGameMode : 'rounds') === 'points'
-                          ? `${showAdvancedBracketConfig ? earlyRoundsPointsToWin : 7}p`
-                          : `${showAdvancedBracketConfig ? earlyRoundsToPlay : 4}r`}
+                        {earlyRoundsGameMode === 'points'
+                          ? `${earlyRoundsPointsToWin}p${earlyRoundsMatchesToWin > 1 ? ` · Pg${earlyRoundsMatchesToWin}` : ''}`
+                          : `${earlyRoundsToPlay}r`}
                       </span>
                     </div>
                     <div class="review-row">
                       <span class="review-label">{m.admin_semifinals()}</span>
                       <span class="review-value">
-                        {(showAdvancedBracketConfig ? semifinalGameMode : 'points') === 'points'
-                          ? `${showAdvancedBracketConfig ? semifinalPointsToWin : 7}p${(showAdvancedBracketConfig ? semifinalMatchesToWin : 1) > 1 ? ` · Pg${semifinalMatchesToWin}` : ''}`
-                          : `${showAdvancedBracketConfig ? semifinalRoundsToPlay : 4}r`}
+                        {semifinalGameMode === 'points'
+                          ? `${semifinalPointsToWin}p${semifinalMatchesToWin > 1 ? ` · Pg${semifinalMatchesToWin}` : ''}`
+                          : `${semifinalRoundsToPlay}r`}
                       </span>
                     </div>
                     <div class="review-row">
                       <span class="review-label">{m.admin_final()}</span>
                       <span class="review-value">
-                        {(showAdvancedBracketConfig ? bracketFinalGameMode : 'points') === 'points'
-                          ? `${showAdvancedBracketConfig ? bracketFinalPointsToWin : 9}p${(showAdvancedBracketConfig ? bracketFinalMatchesToWin : 1) > 1 ? ` · Pg${bracketFinalMatchesToWin}` : ''}`
-                          : `${showAdvancedBracketConfig ? bracketFinalRoundsToPlay : 4}r`}
+                        {bracketFinalGameMode === 'points'
+                          ? `${bracketFinalPointsToWin}p${bracketFinalMatchesToWin > 1 ? ` · Pg${bracketFinalMatchesToWin}` : ''}`
+                          : `${bracketFinalRoundsToPlay}r`}
                       </span>
                     </div>
                   </div>
@@ -3264,29 +3258,29 @@
                       <span>{m.admin_silverBracket()}</span>
                     </div>
                     <div class="review-card-body">
-                      <!-- Show per-phase config for silver (default: all 4 rounds) -->
+                      <!-- Show per-phase config for silver -->
                       <div class="review-row">
                         <span class="review-label">{m.admin_earlyRounds()}</span>
                         <span class="review-value">
-                          {(showAdvancedBracketConfig ? silverEarlyRoundsGameMode : 'rounds') === 'points'
-                            ? `${showAdvancedBracketConfig ? silverEarlyRoundsPointsToWin : 7}p`
-                            : `${showAdvancedBracketConfig ? silverEarlyRoundsToPlay : 4}r`}
+                          {silverEarlyRoundsGameMode === 'points'
+                            ? `${silverEarlyRoundsPointsToWin}p${silverEarlyRoundsMatchesToWin > 1 ? ` · Pg${silverEarlyRoundsMatchesToWin}` : ''}`
+                            : `${silverEarlyRoundsToPlay}r`}
                         </span>
                       </div>
                       <div class="review-row">
                         <span class="review-label">{m.admin_semifinals()}</span>
                         <span class="review-value">
-                          {(showAdvancedBracketConfig ? silverSemifinalGameMode : 'rounds') === 'points'
-                            ? `${showAdvancedBracketConfig ? silverSemifinalPointsToWin : 7}p${(showAdvancedBracketConfig ? silverSemifinalMatchesToWin : 1) > 1 ? ` · Pg${silverSemifinalMatchesToWin}` : ''}`
-                            : `${showAdvancedBracketConfig ? silverSemifinalRoundsToPlay : 4}r`}
+                          {silverSemifinalGameMode === 'points'
+                            ? `${silverSemifinalPointsToWin}p${silverSemifinalMatchesToWin > 1 ? ` · Pg${silverSemifinalMatchesToWin}` : ''}`
+                            : `${silverSemifinalRoundsToPlay}r`}
                         </span>
                       </div>
                       <div class="review-row">
                         <span class="review-label">{m.admin_final()}</span>
                         <span class="review-value">
-                          {(showAdvancedBracketConfig ? silverBracketFinalGameMode : 'rounds') === 'points'
-                            ? `${showAdvancedBracketConfig ? silverBracketFinalPointsToWin : 7}p${(showAdvancedBracketConfig ? silverBracketFinalMatchesToWin : 1) > 1 ? ` · Pg${silverBracketFinalMatchesToWin}` : ''}`
-                            : `${showAdvancedBracketConfig ? silverBracketFinalRoundsToPlay : 4}r`}
+                          {silverBracketFinalGameMode === 'points'
+                            ? `${silverBracketFinalPointsToWin}p${silverBracketFinalMatchesToWin > 1 ? ` · Pg${silverBracketFinalMatchesToWin}` : ''}`
+                            : `${silverBracketFinalRoundsToPlay}r`}
                         </span>
                       </div>
                     </div>
