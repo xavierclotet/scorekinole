@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.37] - 2026-02-20
+- Redesign floating action buttons: pill style with icon + label, distinct accent colors (primary for new match, amber for tournament)
+- Remove reset-tournament floating button and its confirmation modal
+
 ## [2.4.36] - 2026-02-19
 - Enlarge hammer indicator icon (~25% bigger across all breakpoints and orientations)
 - Add filled badge background to hammer indicator (neutral, theme-aware color)
