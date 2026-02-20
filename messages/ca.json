@@ -274,7 +274,7 @@
   "auth_mustBeSignedIn": "Has d'iniciar sessió per sincronitzar",
   "auth_myProfile": "El Meu Perfil",
   "auth_playerName": "Nom de Jugador",
-  "auth_playerNameDescription": "Aquest nom s'utilitzarà a les teves partides i classificacions",
+  "auth_playerNameDescription": "S'utilitzarà a partides i classificacions. Ha de ser únic. Introdueix nom i cognom",
   "auth_profile": "Perfil",
   "auth_profileUpdated": "Perfil actualitzat correctament!",
   "auth_setPlayerName": "Estableix el teu Nom de Jugador",
@@ -1299,5 +1299,6 @@
   "admin_transformToLive": "Transformar LIVE",
   "admin_tournamentEnriched": "Torneig enriquit amb dades LIVE",
   "common_errorPageNotFound": "Pàgina no trobada",
-  "common_errorPageNotFoundDesc": "La pàgina que cerques no existeix o ha estat moguda."
+  "common_errorPageNotFoundDesc": "La pàgina que cerques no existeix o ha estat moguda.",
+  "auth_playerNameRequired": "Introdueix nom i cognom (ex: Juan García)"
 }
