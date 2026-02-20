@@ -18,7 +18,7 @@
 	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { Settings, User, Users, Trophy } from '@lucide/svelte';
+	import { Settings, User, Users, Trophy, Play } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { onReconnect, setSyncStatus } from '$lib/utils/networkStatus';
@@ -70,8 +70,7 @@
 	let showTournamentModal = $state(false);
 	let isCheckingTournament = $state(false);
 	let showTournamentExitConfirm = $state(false);
-	let showTournamentResetConfirm = $state(false);
-	let isResettingTournament = $state(false);
+
 	let showMatchCompletedExternally = $state(false);
 	let externalMatchWinner = $state<string | null>(null);
 
@@ -289,7 +288,7 @@
 			// Skip if any modal is open or if typing in an input
 			const hasModalOpen = showSettings || showQRScanner || showColorPicker || showHammerDialog ||
 				showNewMatchConfirm || showTournamentModal || showTournamentExitConfirm ||
-				showTournamentResetConfirm || showMatchCompletedExternally || $isInviteModalOpen;
+				showMatchCompletedExternally || $isInviteModalOpen;
 
 			if (hasModalOpen) return;
 			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1369,70 +1368,6 @@
 		showNewMatchConfirm = false;
 	}
 
-	// Tournament reset functions
-	function handleTournamentResetClick() {
-		showTournamentResetConfirm = true;
-	}
-
-	function cancelTournamentReset() {
-		showTournamentResetConfirm = false;
-	}
-
-	async function confirmTournamentReset() {
-		const context = $gameTournamentContext;
-		if (!context) {
-			showTournamentResetConfirm = false;
-			return;
-		}
-
-		isResettingTournament = true;
-
-		try {
-			// Reset local state first
-			resetTeams();
-			resetMatchState();
-			isInExtraRounds = false;
-
-			// Restore team names from tournament context
-			const isUserSideA = context.currentUserSide === 'A';
-			const team1Name = isUserSideA ? context.participantAName : context.participantBName;
-			const team2Name = isUserSideA ? context.participantBName : context.participantAName;
-
-			team1.update(t => ({ ...t, name: team1Name, points: 0, rounds: 0, matches: 0, twenty: 0, hasWon: false }));
-			team2.update(t => ({ ...t, name: team2Name, points: 0, rounds: 0, matches: 0, twenty: 0, hasWon: false }));
-			saveTeams();
-
-			// Reset lastRoundPoints
-			lastRoundPoints.set({ team1: 0, team2: 0 });
-
-			// Reset and auto-start timer
-			const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
-			resetTimer(totalSeconds);
-			if ($gameSettings.showTimer) {
-				startTimer();
-			}
-
-			// Sync empty state to Firebase when resetting
-			// This ensures the bracket view shows the reset state
-			await syncTournamentRounds([], 0, 0);
-			console.log('📤 Reset: Synced empty rounds to Firebase');
-
-			// Clear existing rounds from context
-			updateTournamentContext({
-				existingRounds: undefined,
-				currentGameData: undefined
-			});
-
-			// Reset the match completion flag
-			tournamentMatchCompletedSent = false;
-
-		} catch (error) {
-			console.error('Error resetting tournament match:', error);
-		} finally {
-			isResettingTournament = false;
-			showTournamentResetConfirm = false;
-		}
-	}
 
 	function openColorPicker(team: 1 | 2) {
 		colorPickerTeam = team;
@@ -2149,7 +2084,8 @@
 	<!-- New Match Floating Button - hide in tournament mode -->
 	{#if !inTournamentMode}
 		<button class="floating-button new-match-button" onclick={handleNewMatchClick} aria-label={m.scoring_newMatchButton()} title={m.scoring_newMatchButton()}>
-			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+			<Play size={22} />
+			<span class="floating-btn-label">{m.scoring_newMatchShort()}</span>
 		</button>
 
 		<!-- Tournament Mode Button -->
@@ -2161,23 +2097,13 @@
 			disabled={isCheckingTournament}
 		>
 			{#if isCheckingTournament}
-				<LoaderCircle class="w-[18px] h-[18px] animate-spin" />
+				<LoaderCircle size={22} class="animate-spin" />
 			{:else}
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+				<Trophy size={22} />
 			{/if}
+			<span class="floating-btn-label">{m.tournament_playShort()}</span>
 		</button>
 
-	{:else}
-		<!-- Tournament Reset Button - only in tournament mode -->
-		<button
-			class="floating-button reset-tournament-button"
-			onclick={handleTournamentResetClick}
-			aria-label={m.scoring_resetMatch() || 'Reiniciar partido'}
-			title={m.scoring_resetMatch() || 'Reiniciar partido'}
-			disabled={isResettingTournament}
-		>
-			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-		</button>
 	{/if}
 
 	<!-- New Match Confirmation Modal -->
@@ -2258,30 +2184,6 @@
 		</div>
 	{/if}
 
-	<!-- Tournament Reset Confirmation Modal -->
-	{#if showTournamentResetConfirm}
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="reset-overlay" onclick={cancelTournamentReset}>
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="reset-dialog" onclick={(e) => e.stopPropagation()}>
-				<div class="reset-icon">
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-				</div>
-				<p class="reset-title">{m.scoring_confirmResetMatch() || '¿Reiniciar partido?'}</p>
-				<p class="reset-desc">{m.scoring_resetMatchDesc() || 'Se pondrán todos los puntos, rondas y 20s a 0'}</p>
-				<div class="reset-buttons">
-					<button class="reset-btn cancel" onclick={cancelTournamentReset} disabled={isResettingTournament}>
-						{m.common_cancel()}
-					</button>
-					<button class="reset-btn confirm" onclick={confirmTournamentReset} disabled={isResettingTournament}>
-						{isResettingTournament ? '...' : (m.scoring_resetMatch() || 'Reiniciar')}
-					</button>
-				</div>
-			</div>
-		</div>
-	{/if}
 
 	<!-- Match Completed Externally Modal (admin force-finished) -->
 	{#if showMatchCompletedExternally}
@@ -2924,36 +2826,67 @@
 		left: 1.5rem;
 		z-index: 1000;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		width: 44px;
-		height: 44px;
-		background: rgba(255, 255, 255, 0.1);
+		gap: 0.22rem;
+		width: 52px;
+		height: 58px;
+		padding: 0.45rem 0.35rem;
 		backdrop-filter: blur(12px);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		border-radius: 12px;
-		color: rgba(255, 255, 255, 0.85);
-		font-size: 1.25rem;
+		border-radius: 14px;
 		cursor: pointer;
-		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-		transition: all 0.2s ease;
+		transition: all 0.18s ease;
+	}
+
+	.floating-btn-label {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.54rem;
+		font-weight: 700;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		line-height: 1;
+		white-space: nowrap;
+		overflow: hidden;
+		opacity: 0.88;
 	}
 
 	.floating-button:hover {
-		background: rgba(255, 255, 255, 0.15);
-		border-color: rgba(255, 255, 255, 0.3);
 		transform: translateY(-2px);
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 	}
 
 	.floating-button:active {
 		transform: translateY(0);
 	}
 
-	/* Tournament Button */
+	/* New Match Button - primary color */
+	.new-match-button {
+		background: color-mix(in srgb, var(--primary) 14%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 32%, transparent);
+		color: var(--primary);
+		box-shadow: 0 2px 14px color-mix(in srgb, var(--primary) 18%, transparent);
+	}
+
+	.new-match-button:hover {
+		background: color-mix(in srgb, var(--primary) 24%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+		box-shadow: 0 4px 20px color-mix(in srgb, var(--primary) 28%, transparent);
+	}
+
+	/* Tournament Button - amber/gold */
 	.tournament-button {
 		left: auto;
 		right: 1.5rem;
+		background: color-mix(in srgb, oklch(76% 0.16 75) 14%, transparent);
+		border: 1px solid color-mix(in srgb, oklch(76% 0.16 75) 32%, transparent);
+		color: oklch(76% 0.16 75);
+		box-shadow: 0 2px 14px color-mix(in srgb, oklch(76% 0.16 75) 18%, transparent);
+	}
+
+	.tournament-button:hover {
+		background: color-mix(in srgb, oklch(76% 0.16 75) 24%, transparent);
+		border-color: color-mix(in srgb, oklch(76% 0.16 75) 50%, transparent);
+		box-shadow: 0 4px 20px color-mix(in srgb, oklch(76% 0.16 75) 28%, transparent);
 	}
 
 	/* Invite Player Button */
@@ -2970,24 +2903,6 @@
 		border-color: rgba(100, 200, 150, 0.4);
 	}
 
-	/* Reset Tournament Button */
-	.reset-tournament-button {
-		left: 1.5rem;
-		right: auto;
-		color: rgba(255, 120, 120, 0.9);
-		border-color: rgba(255, 120, 120, 0.25);
-	}
-
-	.reset-tournament-button:hover {
-		background: rgba(255, 100, 100, 0.15);
-		border-color: rgba(255, 100, 100, 0.4);
-	}
-
-	.reset-tournament-button:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-		transform: none;
-	}
 
 	/* Confirmation Modal */
 	.confirm-overlay {
@@ -3116,107 +3031,6 @@
 		transform: scale(0.98);
 	}
 
-	/* Tournament reset dialog */
-	.reset-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.8);
-		backdrop-filter: blur(4px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 2000;
-	}
-
-	.reset-dialog {
-		background: #1a1d24;
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 12px;
-		padding: 1.75rem;
-		width: min(360px, 85vw);
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
-	.reset-icon {
-		width: 48px;
-		height: 48px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: rgba(220, 160, 80, 0.12);
-		border-radius: 50%;
-		color: #d4a856;
-	}
-
-	.reset-title {
-		margin: 0;
-		font-family: 'Lexend', sans-serif;
-		font-size: 1rem;
-		font-weight: 500;
-		color: rgba(255, 255, 255, 0.85);
-		text-align: center;
-	}
-
-	.reset-desc {
-		margin: 0;
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.5);
-		text-align: center;
-		line-height: 1.4;
-	}
-
-	.reset-buttons {
-		display: flex;
-		gap: 0.75rem;
-		width: 100%;
-		margin-top: 0.75rem;
-	}
-
-	.reset-btn {
-		flex: 1;
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.9rem;
-		font-weight: 500;
-		padding: 0.7rem 1rem;
-		border-radius: 6px;
-		cursor: pointer;
-		transition: all 0.1s ease;
-	}
-
-	.reset-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.reset-btn.cancel {
-		background: rgba(255, 255, 255, 0.06);
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		color: rgba(255, 255, 255, 0.7);
-	}
-
-	.reset-btn.cancel:hover:not(:disabled) {
-		background: rgba(255, 255, 255, 0.1);
-		color: #fff;
-	}
-
-	.reset-btn.confirm {
-		background: rgba(220, 160, 80, 0.15);
-		border: 1px solid rgba(220, 160, 80, 0.3);
-		color: #e4b866;
-	}
-
-	.reset-btn.confirm:hover:not(:disabled) {
-		background: rgba(220, 160, 80, 0.25);
-		border-color: rgba(220, 160, 80, 0.45);
-	}
-
-	.reset-btn:active:not(:disabled) {
-		transform: scale(0.98);
-	}
 
 	/* Tournament exit dialog */
 	.exit-overlay {
@@ -3401,9 +3215,8 @@
 		.floating-button {
 			bottom: 1.5rem;
 			left: 1.5rem;
-			width: 2.8rem;
-			height: 2.8rem;
-			font-size: 1.4rem;
+			width: 48px;
+			height: 54px;
 		}
 
 		.tournament-button {
@@ -3432,9 +3245,13 @@
 		.floating-button {
 			bottom: 1rem;
 			left: 1rem;
-			width: 2.5rem;
-			height: 2.5rem;
-			font-size: 1.3rem;
+			width: 44px;
+			height: 50px;
+			gap: 0.18rem;
+		}
+
+		.floating-btn-label {
+			font-size: 0.48rem;
 		}
 
 		.tournament-button {
@@ -3505,33 +3322,6 @@
 			padding: 0.6rem 0.85rem;
 		}
 
-		.reset-dialog {
-			padding: 1.25rem;
-			width: min(320px, 55vw);
-		}
-
-		.reset-icon {
-			width: 40px;
-			height: 40px;
-		}
-
-		.reset-icon svg {
-			width: 20px;
-			height: 20px;
-		}
-
-		.reset-title {
-			font-size: 0.9rem;
-		}
-
-		.reset-desc {
-			font-size: 0.8rem;
-		}
-
-		.reset-btn {
-			font-size: 0.85rem;
-			padding: 0.6rem 0.85rem;
-		}
 	}
 
 	@media (max-width: 480px) {
