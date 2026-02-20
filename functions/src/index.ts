@@ -99,27 +99,69 @@ interface UserProfile {
   tournaments?: TournamentRecord[];
 }
 
-// Tier base points
+// Tier base points (NCA system)
 const TIER_BASE_POINTS: Record<TournamentTier, number> = {
-  CLUB: 15,
-  REGIONAL: 25,
+  CLUB: 30,
+  REGIONAL: 35,
   NATIONAL: 40,
   MAJOR: 50,
 };
 
 /**
- * Calculate ranking points based on position and tier
+ * Calculate NCA ranking points with largest remainder interpolation.
  */
-function calculateRankingPoints(position: number, tier: TournamentTier): number {
+function calculateRankingPoints(
+  position: number,
+  tier: TournamentTier,
+  participantsCount: number = 16,
+  mode: "singles" | "doubles" = "singles"
+): number {
   const basePoints = TIER_BASE_POINTS[tier];
+  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / 16));
 
-  if (position === 1) return basePoints;
-  if (position === 2) return Math.round(basePoints * 0.9);
-  if (position === 3) return Math.round(basePoints * 0.8);
-  if (position === 4) return Math.round(basePoints * 0.7);
+  if (position === 1) return winnerPoints;
+  if (position > participantsCount) return 0;
+  if (winnerPoints <= 1) return 1;
 
-  const points = basePoints - (position + 2);
-  return points > 1 ? points : 1;
+  const standardDrops: number[] = [];
+  for (let i = 2; i <= participantsCount; i++) {
+    if (mode === "singles") {
+      if (i === 2) standardDrops.push(3);
+      else if (i <= 5) standardDrops.push(2);
+      else standardDrops.push(1);
+    } else {
+      if (i === 2) standardDrops.push(5);
+      else if (i === 3) standardDrops.push(4);
+      else standardDrops.push(2);
+    }
+  }
+
+  const targetDrop = winnerPoints - 1;
+  const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
+
+  if (participantsCount >= 16 && totalStandardDrop >= targetDrop) {
+    let cumDrop = 0;
+    for (let i = 0; i < position - 1; i++) cumDrop += standardDrops[i];
+    return Math.max(1, winnerPoints - cumDrop);
+  }
+
+  // Largest remainder method (Hamilton)
+  const scale = targetDrop / totalStandardDrop;
+  const idealDrops = standardDrops.map((d) => d * scale);
+  const floorDrops = idealDrops.map((d) => Math.floor(d));
+  let remaining = targetDrop - floorDrops.reduce((acc, val) => acc + val, 0);
+
+  const remainders = idealDrops.map((d, i) => ({ i, rem: d - Math.floor(d) }));
+  remainders.sort((a, b) => b.rem - a.rem || a.i - b.i);
+
+  const actualDrops = [...floorDrops];
+  for (let r = 0; r < remaining; r++) {
+    actualDrops[remainders[r].i]++;
+  }
+
+  let cumDrop = 0;
+  for (let i = 0; i < position - 1; i++) cumDrop += actualDrops[i];
+  return Math.max(1, winnerPoints - cumDrop);
 }
 
 /**
@@ -247,7 +289,7 @@ async function processParticipant(
 ): Promise<ParticipantProcessResult> {
   const result: ParticipantProcessResult = { participantId: participant.id };
   const position = participant.finalPosition || 0;
-  const pointsEarned = rankingEnabled ? calculateRankingPoints(position, tier) : 0;
+  const pointsEarned = rankingEnabled ? calculateRankingPoints(position, tier, totalParticipants, tournament.gameType) : 0;
   const rankingBefore = participant.rankingSnapshot || 0;
   const rankingAfter = rankingBefore + pointsEarned;
 

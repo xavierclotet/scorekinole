@@ -228,7 +228,8 @@
   function getRankingDelta(participant: typeof tournament.participants[0]): number {
     if (!participant.finalPosition || !tournament.rankingConfig?.enabled) return 0;
     const tier = tournament.rankingConfig?.tier || 'CLUB';
-    return calculateRankingPoints(participant.finalPosition, tier);
+    const totalParticipants = tournament.participants.filter(p => p.status === 'ACTIVE' || !p.status).length;
+    return calculateRankingPoints(participant.finalPosition, tier, totalParticipants, tournament.gameType);
   }
 
   // Handle match click to show details

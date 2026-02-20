@@ -128,7 +128,8 @@
 	function getRankingPoints(position: number): number {
 		if (!tournament?.rankingConfig?.enabled) return 0;
 		const tier = tournament.rankingConfig.tier || 'CLUB';
-		return calculateRankingPoints(position, tier);
+		const totalParticipants = tournament.participants.filter(p => p.status === 'ACTIVE' || !p.status).length;
+		return calculateRankingPoints(position, tier, totalParticipants, tournament.gameType);
 	}
 
 	// Check if both phases exist (with actual content)

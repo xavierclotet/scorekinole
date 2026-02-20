@@ -2731,7 +2731,7 @@
                       <span class="tier-name">{m.wizard_tierClub()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierClubDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'CLUB', textareaParticipantCount || 16)} pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'CLUB', textareaParticipantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2743,7 +2743,7 @@
                       <span class="tier-name">{m.wizard_tierRegional()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierRegionalDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'REGIONAL', textareaParticipantCount || 16)} pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'REGIONAL', textareaParticipantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2755,7 +2755,7 @@
                       <span class="tier-name">{m.wizard_tierNational()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierNationalDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'NATIONAL', textareaParticipantCount || 16)} pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'NATIONAL', textareaParticipantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2767,7 +2767,7 @@
                       <span class="tier-name">{m.wizard_tierMajor()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierMajorDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'MAJOR', textareaParticipantCount || 16)} pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'MAJOR', textareaParticipantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
               </div>
@@ -2778,16 +2778,16 @@
                 <h4>
                   📊 
                   {#if textareaParticipantCount > 0}
-                    {m.wizard_pointsDistributionDynamicFor({ tier: getTierInfo(selectedTier).name, n: Math.max(2, textareaParticipantCount) })}
+                    {m.wizard_pointsDistributionDynamicFor({ tier: getTierInfo(selectedTier).name, participants: gameType === 'singles' ? m.wizard_nPlayers({ n: Math.max(2, textareaParticipantCount) }) : m.wizard_nTeams({ n: Math.max(2, textareaParticipantCount) }) })}
                   {:else}
-                    {m.wizard_pointsDistributionMaxFor({ tier: getTierInfo(selectedTier).name })}
+                    {m.wizard_pointsDistributionMaxFor({ tier: getTierInfo(selectedTier).name, mode: gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()})}
                   {/if}
                 </h4>
                 <table class="points-table">
                   <thead>
                     <tr>
                       <th>{m.wizard_position()}</th>
-                      {#each getPointsDistribution(selectedTier, textareaParticipantCount || 16) as item}
+                      {#each getPointsDistribution(selectedTier, textareaParticipantCount || 16, gameType) as item}
                         <th>{item.position}º</th>
                       {/each}
                     </tr>
@@ -2795,7 +2795,7 @@
                   <tbody>
                     <tr>
                       <td>{m.scoring_points()}</td>
-                      {#each getPointsDistribution(selectedTier, textareaParticipantCount || 16) as item}
+                      {#each getPointsDistribution(selectedTier, textareaParticipantCount || 16, gameType) as item}
                         <td class="points">{item.points}</td>
                       {/each}
                     </tr>

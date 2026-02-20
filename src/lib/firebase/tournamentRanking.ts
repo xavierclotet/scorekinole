@@ -524,7 +524,7 @@ export async function applyRankingUpdates(
 
     for (const participant of activeParticipants) {
       const position = participant.finalPosition || 0;
-      const pointsEarned = calculateRankingPoints(position, tier);
+      const pointsEarned = calculateRankingPoints(position, tier, totalParticipants, tournament.gameType);
       const rankingBefore = participant.rankingSnapshot || 0;
       const rankingAfter = rankingBefore + pointsEarned;
 
