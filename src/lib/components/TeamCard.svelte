@@ -842,6 +842,7 @@
 
 	<div
 		class="score-display"
+		data-webmcp="score-display"
 		ontouchstart={handleTouchStart}
 		ontouchend={handleTouchEnd}
 		onmousedown={handleMouseDown}

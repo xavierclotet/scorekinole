@@ -63,4 +63,7 @@ export interface GameSettings {
 
     /** Size of the team name display: 'small', 'medium', or 'large' */
     nameSize: 'small' | 'medium' | 'large';
+
+    /** The key/token of the active tournament the device is connected to */
+    tournamentKey?: string;
 }

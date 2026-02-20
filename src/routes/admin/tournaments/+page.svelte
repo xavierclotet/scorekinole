@@ -82,12 +82,30 @@
   }
 
   let hasLoadedData = false;
+  const ADMIN_PREFS_KEY = 'scorekinole_admin_prefs';
 
   onMount(() => {
-    // Load testFilter from localStorage
-    const savedTestFilter = localStorage.getItem('adminTestFilter');
-    if (savedTestFilter && ['all', 'real', 'test'].includes(savedTestFilter)) {
-      testFilter = savedTestFilter as 'all' | 'real' | 'test';
+    // Load admin preferences from localStorage
+    try {
+      const savedPrefs = localStorage.getItem(ADMIN_PREFS_KEY);
+      if (savedPrefs) {
+        const prefs = JSON.parse(savedPrefs);
+        
+        if (prefs.testFilter && ['all', 'real', 'test'].includes(prefs.testFilter)) {
+          testFilter = prefs.testFilter as 'all' | 'real' | 'test';
+        }
+        if (prefs.statusFilter && ['all', 'UPCOMING', 'COMPLETED'].includes(prefs.statusFilter)) {
+          statusFilter = prefs.statusFilter as 'all' | 'UPCOMING' | 'COMPLETED';
+        }
+        if (prefs.importedFilter && ['all', 'imported', 'live'].includes(prefs.importedFilter)) {
+          importedFilter = prefs.importedFilter as 'all' | 'imported' | 'live';
+        }
+        if (prefs.creatorFilter) {
+          creatorFilter = prefs.creatorFilter;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading admin preferences', e);
     }
   });
 
@@ -99,9 +117,27 @@
     }
   });
 
-  // Save testFilter to localStorage when it changes
+  // Save admin preferences to localStorage when they change
   $effect(() => {
-    localStorage.setItem('adminTestFilter', testFilter);
+    // Read variables so Svelte tracks them
+    const currentTestFilter = testFilter;
+    const currentStatusFilter = statusFilter;
+    const currentImportedFilter = importedFilter;
+    const currentCreatorFilter = creatorFilter;
+
+    try {
+      const savedPrefs = localStorage.getItem(ADMIN_PREFS_KEY);
+      const prefs = savedPrefs ? JSON.parse(savedPrefs) : {};
+      
+      prefs.testFilter = currentTestFilter;
+      prefs.statusFilter = currentStatusFilter;
+      prefs.importedFilter = currentImportedFilter;
+      prefs.creatorFilter = currentCreatorFilter;
+      
+      localStorage.setItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
+    } catch (e) {
+      console.error('Error saving admin preferences', e);
+    }
   });
 
   async function loadInitialTournaments() {

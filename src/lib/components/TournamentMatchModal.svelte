@@ -18,7 +18,9 @@
 		type TournamentMatchContext
 	} from '$lib/stores/tournamentContext';
 	import type { Tournament } from '$lib/types/tournament';
-	// import Button from './Button.svelte';
+	import {
+		gameSettings
+	} from '$lib/stores/gameSettings';
 
 	interface Props {
 		isOpen?: boolean;
@@ -27,9 +29,6 @@
 	}
 
 	let { isOpen = $bindable(false), onclose, onmatchstarted }: Props = $props();
-
-	// LocalStorage key for saved tournament key
-	const TOURNAMENT_KEY_STORAGE = 'tournamentKey';
 
 	// Reference to key input for autofocus
 	let keyInputElement: HTMLInputElement | undefined = $state();
@@ -134,13 +133,11 @@
 	});
 
 	function getSavedTournamentKey(): string | null {
-		if (typeof window === 'undefined') return null;
-		return localStorage.getItem(TOURNAMENT_KEY_STORAGE);
+		return $gameSettings.tournamentKey || null;
 	}
 
 	function saveTournamentKey(key: string): void {
-		if (typeof window === 'undefined') return;
-		localStorage.setItem(TOURNAMENT_KEY_STORAGE, key.toUpperCase());
+		gameSettings.update(s => ({ ...s, tournamentKey: key.toUpperCase() }));
 	}
 
 	async function checkSavedTournamentKey() {

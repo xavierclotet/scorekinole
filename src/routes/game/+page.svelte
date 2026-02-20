@@ -221,8 +221,8 @@
 	$effect(() => {
 		const urlKey = page.url.searchParams.get('key');
 		if (urlKey && /^[A-Za-z0-9]{6}$/i.test(urlKey)) {
-			// Save the key
-			localStorage.setItem('tournamentKey', urlKey.toUpperCase());
+			// Save the key natively in the gameSettings
+			gameSettings.update(s => ({ ...s, tournamentKey: urlKey.toUpperCase() }));
 			// Clean up the URL (remove the key parameter)
 			const newUrl = new URL(window.location.href);
 			newUrl.searchParams.delete('key');
@@ -940,7 +940,7 @@
 		if (keyMatch) {
 			// Tournament key - open tournament modal with pre-filled key
 			const key = keyMatch[1].toUpperCase();
-			localStorage.setItem('tournamentKey', key);
+			gameSettings.update(s => ({ ...s, tournamentKey: key }));
 			showTournamentModal = true;
 			return;
 		}
@@ -957,7 +957,7 @@
 		// Direct 6-char code - could be either, assume tournament key for now
 		if (/^[A-Za-z0-9]{6}$/i.test(data.trim())) {
 			const code = data.trim().toUpperCase();
-			localStorage.setItem('tournamentKey', code);
+			gameSettings.update(s => ({ ...s, tournamentKey: code }));
 			showTournamentModal = true;
 			return;
 		}
@@ -972,8 +972,7 @@
 	 * auto-start the match without showing the modal
 	 */
 	async function handleJoinTournament() {
-		const TOURNAMENT_KEY_STORAGE = 'tournamentKey';
-		const savedKey = localStorage.getItem(TOURNAMENT_KEY_STORAGE);
+		const savedKey = $gameSettings.tournamentKey;
 
 		console.log('🎯 handleJoinTournament:', { savedKey, currentUser: $currentUser?.id });
 
@@ -1001,7 +1000,7 @@
 			// Check tournament is active
 			if (!['IN_PROGRESS', 'GROUP_STAGE', 'FINAL_STAGE'].includes(tournament.status)) {
 				console.log('❌ Tournament not active, clearing key');
-				localStorage.removeItem(TOURNAMENT_KEY_STORAGE);
+				gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
 				showTournamentModal = true;
 				return;
 			}

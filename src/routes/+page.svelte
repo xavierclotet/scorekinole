@@ -114,7 +114,7 @@
 			{/if}
 		</div>
 
-		<div class="nav-right">
+		<div class="nav-right" data-webmcp="profile-dropdown-container">
 			<LanguageSelector />
 			<ThemeToggle />
 			<ProfileDropdown onlogin={handleLogin} onprofile={handleProfileOpen} />
@@ -176,6 +176,7 @@
 				<Button
 					size="lg"
 					onclick={startScoring}
+					data-webmcp="btn-new-game"
 					class="h-14 w-full max-w-[280px] gap-3 rounded-xl px-8 text-xl font-bold shadow-[0_4px_20px_color-mix(in_srgb,var(--primary)_25%,transparent)] hover:shadow-[0_6px_28px_color-mix(in_srgb,var(--primary)_35%,transparent)] hover:-translate-y-0.5 active:translate-y-0"
 				>
 					<Play class="size-6" />
@@ -322,6 +323,7 @@
 			<Button
 				variant="ghost"
 				onclick={() => goto('/tournaments')}
+				data-webmcp="link-tournaments"
 				class="flex-col h-auto min-h-[60px] gap-1 px-2 py-3 bg-[var(--link-card-bg)] border border-[var(--link-card-border)] text-[var(--link-card-text)] hover:bg-[var(--link-card-bg-hover)] hover:border-[var(--link-card-border-hover)] hover:text-[var(--link-card-text-hover)]"
 			>
 				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -333,6 +335,7 @@
 			<Button
 				variant="ghost"
 				onclick={goToRankings}
+				data-webmcp="link-rankings"
 				class="flex-col h-auto min-h-[60px] gap-1 px-2 py-3 bg-[var(--link-card-bg)] border border-[var(--link-card-border)] text-[var(--link-card-text)] hover:bg-[var(--link-card-bg-hover)] hover:border-[var(--link-card-border-hover)] hover:text-[var(--link-card-text-hover)]"
 			>
 				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -344,6 +347,7 @@
 			<Button
 				variant="ghost"
 				onclick={goToMyStats}
+				data-webmcp="link-stats"
 				class="flex-col h-auto min-h-[60px] gap-1 px-2 py-3 bg-[var(--link-card-bg)] border border-[var(--link-card-border)] text-[var(--link-card-text)] hover:bg-[var(--link-card-bg-hover)] hover:border-[var(--link-card-border-hover)] hover:text-[var(--link-card-text-hover)]"
 			>
 				<BarChart3 class="w-4 h-4" />

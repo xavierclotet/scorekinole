@@ -262,8 +262,8 @@
     parallelFinals: tcParallelFinals
   } as TournamentTimeConfig);
 
-  // LocalStorage key
-  const STORAGE_KEY = 'tournamentWizardDraft';
+  // LocalStorage key for unified admin preferences
+  const ADMIN_PREFS_KEY = 'scorekinole_admin_prefs';
 
   // Generate random 6-character alphanumeric key
   function generateRandomKey(): string {
@@ -741,10 +741,14 @@
     if (typeof localStorage === 'undefined') return;
 
     try {
-      const draft = localStorage.getItem(STORAGE_KEY);
-      if (!draft) return;
+      const prefsStr = localStorage.getItem(ADMIN_PREFS_KEY);
+      if (!prefsStr) return;
 
-      const data = JSON.parse(draft);
+      const prefs = JSON.parse(prefsStr);
+      const draftData = prefs.tournament_create_draft;
+      if (!draftData) return;
+
+      const data = typeof draftData === 'string' ? JSON.parse(draftData) : draftData;
 
       // Step 1
       key = data.key || key; // Keep generated key if no draft key
@@ -948,7 +952,10 @@
         tcParallelFinals
       };
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const prefsStr = localStorage.getItem(ADMIN_PREFS_KEY);
+      const prefs = prefsStr ? JSON.parse(prefsStr) : {};
+      prefs.tournament_create_draft = data;
+      localStorage.setItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
     } catch (error) {
       console.error('❌ Error saving tournament draft:', error);
     }
@@ -956,8 +963,17 @@
 
   function clearDraft() {
     if (typeof localStorage === 'undefined') return;
-    localStorage.removeItem(STORAGE_KEY);
-    console.log('✅ Tournament draft cleared');
+    try {
+      const prefsStr = localStorage.getItem(ADMIN_PREFS_KEY);
+      if (prefsStr) {
+        const prefs = JSON.parse(prefsStr);
+        delete prefs.tournament_create_draft;
+        localStorage.setItem(ADMIN_PREFS_KEY, JSON.stringify(prefs));
+      }
+      console.log('✅ Tournament draft cleared');
+    } catch (error) {
+      console.error('❌ Error clearing tournament draft:', error);
+    }
   }
 
   // Check if tournament key already exists (with debounce)
