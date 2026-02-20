@@ -2858,10 +2858,10 @@
 		transition: transform 0.08s ease;
 	}
 
-	/* New Match Button - solid primary */
+	/* New Match Button - solid primary, lightness capped so white text always works */
 	.new-match-button {
-		background: var(--primary);
-		color: var(--primary-foreground);
+		background: oklch(from var(--primary) clamp(0.35, l, 0.52) c h);
+		color: white;
 		box-shadow:
 			0 4px 14px color-mix(in srgb, var(--primary) 45%, transparent),
 			0 1px 4px rgba(0, 0, 0, 0.15);
