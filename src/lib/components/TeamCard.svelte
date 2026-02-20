@@ -99,8 +99,6 @@
 			: (isUserSideA ? ctx.participantBPartnerPhotoURL : ctx.participantAPartnerPhotoURL);
 	})());
 
-	// Check if we have any photo to display
-	let hasAnyPhoto = $derived(!!playerPhotoURL || !!partnerPhotoURL);
 
 	// Get initials from a name (first letter of first name + first letter of surname)
 	function getInitials(name: string): string {
@@ -1286,9 +1284,9 @@
 	.name-size-large .player-avatars-stack:has(.player-avatar:only-child) .player-avatar { width: 50px; height: 50px; }
 
 	.winner-badge {
-		background: rgba(251, 191, 36, 0.14);
-		border: 1px solid rgba(251, 191, 36, 0.35);
-		color: #FBBF24;
+		background: color-mix(in srgb, var(--primary) 14%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+		color: var(--primary);
 		padding: 0.3rem 0.85rem;
 		border-radius: 100px;
 		font-family: 'Lexend', sans-serif;
