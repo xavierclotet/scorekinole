@@ -1214,7 +1214,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: color-mix(in srgb, var(--primary) 70%, transparent);
+		background: color-mix(in srgb, var(--primary) 25%, black);
 		color: var(--primary);
 		border-radius: 8px;
 		padding: 4px;
