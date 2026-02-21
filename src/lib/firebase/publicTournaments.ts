@@ -22,6 +22,7 @@ import { browser } from '$app/environment';
  */
 export interface TournamentListItem {
 	id: string;
+	key: string;
 	name: string;
 	edition?: number;
 	country: string;
@@ -107,6 +108,7 @@ export async function getPublicTournaments(
 
 			tournaments.push({
 				id: docSnap.id,
+				key: data.key || '',
 				name: data.name,
 				edition: data.edition,
 				country: data.country,
@@ -198,6 +200,7 @@ export function subscribeToPublicTournaments(
 
 					tournaments.push({
 						id: docSnap.id,
+						key: data.key || '',
 						name: data.name,
 						edition: data.edition,
 						country: data.country,

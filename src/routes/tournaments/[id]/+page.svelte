@@ -611,10 +611,10 @@
 						{@const hasTime = !!tournament.tournamentTime}
 						{@const isFinished = tournament.status === 'COMPLETED'}
 						{@const startedDate = tournament.startedAt ? new Date(tournament.startedAt) : null}
-						{@const realStartTime = isFinished && startedDate ? `${String(startedDate.getHours()).padStart(2, '0')}:${String(startedDate.getMinutes()).padStart(2, '0')}` : null}
-						{@const displayStartTime = realStartTime || tournament.tournamentTime}
+						{@const realStartTime = isFinished && !tournament.isImported && startedDate ? `${String(startedDate.getHours()).padStart(2, '0')}:${String(startedDate.getMinutes()).padStart(2, '0')}` : null}
+						{@const displayStartTime = tournament.tournamentTime || realStartTime}
 						{@const completedDate = tournament.completedAt ? new Date(tournament.completedAt) : null}
-						{@const realEndTime = isFinished && completedDate ? `${String(completedDate.getHours()).padStart(2, '0')}:${String(completedDate.getMinutes()).padStart(2, '0')}` : null}
+						{@const realEndTime = isFinished && !tournament.isImported && completedDate ? `${String(completedDate.getHours()).padStart(2, '0')}:${String(completedDate.getMinutes()).padStart(2, '0')}` : null}
 						{@const hasDisplayTime = !!(displayStartTime || hasTime)}
 						{@const timePart = hasDisplayTime && displayStartTime ? displayStartTime.replace(':', '') + '00' : (hasTime && tournament.tournamentTime ? tournament.tournamentTime.replace(':', '') + '00' : '')}
 						{@const dateStr = hasDisplayTime ? `${datePart}T${timePart}` : datePart}
