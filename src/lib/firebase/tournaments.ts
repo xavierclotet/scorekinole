@@ -329,6 +329,7 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
     if ('description' in data && data.description) tournament.description = data.description;
     if ('descriptionLanguage' in data && data.descriptionLanguage) tournament.descriptionLanguage = data.descriptionLanguage;
     if ('tournamentDate' in data && data.tournamentDate) tournament.tournamentDate = data.tournamentDate;
+    if ('tournamentTime' in data && data.tournamentTime) tournament.tournamentTime = data.tournamentTime;
     if ('address' in data && data.address) tournament.address = data.address;
     if ('externalLink' in data && data.externalLink) tournament.externalLink = data.externalLink;
     if ('posterUrl' in data && data.posterUrl) tournament.posterUrl = data.posterUrl;

@@ -50,6 +50,7 @@ export interface Tournament {
   city: string;                 // City where tournament takes place
   address?: string;             // Address/venue where tournament takes place
   tournamentDate?: number;      // Timestamp of when tournament is scheduled
+  tournamentTime?: string;      // Start time in HH:MM format (for display/edit recovery)
   status: TournamentStatus;
   phaseType: TournamentPhaseType;
 

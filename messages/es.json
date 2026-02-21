@@ -1117,6 +1117,7 @@
   "wizard_consolationRounds": "Rondas de clasificación",
   "wizard_country": "País",
   "wizard_date": "Fecha",
+  "wizard_time": "Hora",
   "wizard_description": "Descripción",
   "wizard_descriptionLanguage": "Idioma de la descripción",
   "wizard_descriptionOptional": "Descripción (opcional)",

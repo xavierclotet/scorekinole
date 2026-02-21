@@ -55,6 +55,7 @@
   let city = $state('');
   let address = $state('');
   let tournamentDate = $state(new Date().toISOString().split('T')[0]);  // Date input string (YYYY-MM-DD), defaults to today
+  let tournamentTime = $state('');  // Start time string (HH:MM), optional
   let gameType = $state<'singles' | 'doubles'>('singles');
   let show20s = $state(true);
   let showHammer = $state(true);
@@ -376,6 +377,7 @@
       city = tournament.city || '';
       address = tournament.address || '';
       tournamentDate = tournament.tournamentDate ? new Date(tournament.tournamentDate).toISOString().split('T')[0] : '';
+      tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType;
 
       // Step 2
@@ -557,6 +559,7 @@
       address = tournament.address || '';
       // Keep original tournament date
       tournamentDate = tournament.tournamentDate ? new Date(tournament.tournamentDate).toISOString().split('T')[0] : '';
+      tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType;
 
       // Step 2
@@ -762,6 +765,7 @@
       city = data.city || '';
       address = data.address || '';
       tournamentDate = data.tournamentDate || '';
+      tournamentTime = data.tournamentTime || '';
       gameType = data.gameType || 'singles';
 
       // Step 2
@@ -876,6 +880,7 @@
         city,
         address,
         tournamentDate,
+        tournamentTime,
         gameType,
         numTables,
         phaseType,
@@ -1541,6 +1546,7 @@
         city: city.trim(),
         address: address.trim() || undefined,
         tournamentDate: tournamentDate ? new Date(tournamentDate).getTime() : undefined,
+        tournamentTime: tournamentTime || undefined,
         gameType,
         show20s,
         showHammer,
@@ -2007,24 +2013,33 @@
           <!-- Ubicación y Fecha -->
           <div class="info-section">
             <div class="info-section-header">{m.wizard_locationDate()}</div>
-            <div class="location-date-row">
-              <div class="venue-col">
-                <VenueSelector
-                  {address}
-                  {city}
-                  {country}
-                  onselect={handleVenueSelect}
-                  theme={$adminTheme}
-                />
-              </div>
-              <div class="date-col">
-                <label for="tournamentDate">{m.wizard_date()}</label>
-                <input
-                  id="tournamentDate"
-                  type="date"
-                  bind:value={tournamentDate}
-                  class="input-field"
-                />
+            <div class="location-date-section">
+              <VenueSelector
+                {address}
+                {city}
+                {country}
+                onselect={handleVenueSelect}
+                theme={$adminTheme}
+              />
+              <div class="date-time-row">
+                <div class="date-field">
+                  <label for="tournamentDate">{m.wizard_date()}</label>
+                  <input
+                    id="tournamentDate"
+                    type="date"
+                    bind:value={tournamentDate}
+                    class="input-field"
+                  />
+                </div>
+                <div class="time-field">
+                  <label for="tournamentTime">{m.wizard_time()}</label>
+                  <input
+                    id="tournamentTime"
+                    type="time"
+                    bind:value={tournamentTime}
+                    class="input-field"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -3140,7 +3155,7 @@
                   {#if tournamentDate}
                     <div class="review-row">
                       <span class="review-label">{m.wizard_date()}</span>
-                      <span class="review-value">{new Date(tournamentDate).toLocaleDateString(getLocale() === 'en' ? 'en-US' : getLocale() === 'ca' ? 'ca-ES' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      <span class="review-value">{new Date(tournamentDate).toLocaleDateString(getLocale() === 'en' ? 'en-US' : getLocale() === 'ca' ? 'ca-ES' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}{tournamentTime ? `, ${tournamentTime}` : ''}</span>
                     </div>
                   {/if}
                 </div>
@@ -3886,26 +3901,38 @@
     color: #8b9bb3;
   }
 
-  /* Location + Date row */
-  .location-date-row {
-    display: grid;
-    grid-template-columns: 1fr 130px;
+  /* Location + Date section */
+  .location-date-section {
+    display: flex;
+    flex-direction: column;
     gap: 0.75rem;
     padding: 0.75rem;
-    align-items: start;
   }
 
-  .venue-col {
-    min-width: 0;
+  .date-time-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: end;
   }
 
-  .date-col {
+  .date-field,
+  .time-field {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
   }
 
-  .date-col label {
+  .date-field {
+    flex: 1;
+    max-width: 200px;
+  }
+
+  .time-field {
+    width: 120px;
+  }
+
+  .date-field label,
+  .time-field label {
     font-size: 0.7rem;
     font-weight: 600;
     color: #64748b;
@@ -3913,7 +3940,8 @@
     letter-spacing: 0.02em;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .date-col label {
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .date-field label,
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .time-field label {
     color: #8b9bb3;
   }
 
@@ -3971,19 +3999,6 @@
   }
 
   @media (max-width: 700px) {
-    .location-date-row {
-      grid-template-columns: 1fr;
-    }
-
-    .date-col {
-      flex-direction: row;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .date-col label {
-      min-width: 50px;
-    }
 
     .config-grid-compact {
       grid-template-columns: 1fr 1fr;

@@ -377,13 +377,17 @@
 		return results;
 	}
 
-	function formatDate(timestamp: number | undefined): string {
+	function formatDate(timestamp: number | undefined, time?: string): string {
 		if (!timestamp) return '';
-		return new Date(timestamp).toLocaleDateString('es-ES', {
+		const dateStr = new Date(timestamp).toLocaleDateString('es-ES', {
 			day: 'numeric',
 			month: 'long',
 			year: 'numeric'
 		});
+		if (time) {
+			return `${dateStr}, ${time}`;
+		}
+		return dateStr;
 	}
 
 	function getTierLabel(tier: string | undefined): string {
@@ -567,7 +571,7 @@
 								<line x1="8" y1="2" x2="8" y2="6"/>
 								<line x1="3" y1="10" x2="21" y2="10"/>
 							</svg>
-							<span>{formatDate(tournament.tournamentDate)}</span>
+							<span>{formatDate(tournament.tournamentDate, tournament.tournamentTime)}</span>
 						</div>
 					{/if}
 					{#if tournament.city}
@@ -603,9 +607,12 @@
 				<div class="info-grid">
 					{#if tournament.tournamentDate}
 						{@const eventDate = new Date(tournament.tournamentDate)}
-						{@const dateStr = eventDate.toISOString().split('T')[0].replace(/-/g, '')}
-						{@const nextDay = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '')}
-						{@const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(tournament.name)}&dates=${dateStr}/${nextDay}${tournament.description ? `&details=${encodeURIComponent(tournament.description)}` : ''}${tournament.city ? `&location=${encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + tournament.city + (tournament.country ? ', ' + tournament.country : ''))}` : ''}`}
+						{@const datePart = eventDate.toISOString().split('T')[0].replace(/-/g, '')}
+						{@const hasTime = !!tournament.tournamentTime}
+						{@const timePart = hasTime ? tournament.tournamentTime.replace(':', '') + '00' : ''}
+						{@const dateStr = hasTime ? `${datePart}T${timePart}` : datePart}
+						{@const endDateStr = hasTime ? `${datePart}T${String(Math.min(23, parseInt(tournament.tournamentTime.split(':')[0]) + 8)).padStart(2, '0')}${tournament.tournamentTime.split(':')[1]}00` : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '')}
+						{@const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(tournament.name)}&dates=${dateStr}/${endDateStr}${tournament.description ? `&details=${encodeURIComponent(tournament.description)}` : ''}${tournament.city ? `&location=${encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + tournament.city + (tournament.country ? ', ' + tournament.country : ''))}` : ''}`}
 						<a
 							href={calendarUrl}
 							target="_blank"
@@ -622,7 +629,7 @@
 								{m.tournament_date()}
 							</span>
 							<span class="info-value calendar-value">
-								<span>{formatDate(tournament.tournamentDate)}</span>
+								<span>{formatDate(tournament.tournamentDate, tournament.tournamentTime)}</span>
 								<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
 									<polyline points="15 3 21 3 21 9"/>
