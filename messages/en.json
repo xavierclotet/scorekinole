@@ -1302,5 +1302,8 @@
   "common_errorPageNotFoundDesc": "The page you are looking for does not exist or has been moved.",
   "auth_playerNameRequired": "Enter first and last name (e.g., Juan García)",
   "tournament_shareTournament": "Share tournament",
-  "wizard_time": "Hour"
+  "wizard_time": "Hour",
+  "tournament_inProgressHint": "Select a match to resume it",
+  "tournament_inProgressUserInfo": "Your opponent is already managing this match. Only enter if there is a problem with their device.",
+  "tournament_inProgressUserInfoDoubles": "Someone from the other team is already managing this game. Only join if there's a problem with your device."
 }

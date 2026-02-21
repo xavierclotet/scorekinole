@@ -1302,5 +1302,8 @@
   "common_errorPageNotFoundDesc": "La pàgina que cerques no existeix o ha estat moguda.",
   "auth_playerNameRequired": "Introdueix nom i cognom (ex: Juan García)",
   "tournament_shareTournament": "Compartir torneig",
-  "wizard_time": "Hora"
+  "wizard_time": "Hora",
+  "tournament_inProgressHint": "Selecciona un partit per reprendre'l",
+  "tournament_inProgressUserInfo": "El teu rival ja gestiona aquesta partida. Entra només si hi ha un problema amb el dispositiu.",
+  "tournament_inProgressUserInfoDoubles": "Algú de l?altre equip ja gestiona aquesta partida. Entra només si hi ha un problema amb el dispositiu."
 }

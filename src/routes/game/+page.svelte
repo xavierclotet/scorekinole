@@ -1096,13 +1096,37 @@
 
 			// Get user's active matches (PENDING or IN_PROGRESS)
 			console.log('🔍 Getting user active matches for userId:', $currentUser.id);
-			const userMatches = await getUserActiveMatches(tournament, $currentUser.id);
-			console.log('📊 User matches found:', userMatches.length, userMatches);
+			const allUserMatches = await getUserActiveMatches(tournament, $currentUser.id);
+			console.log('📊 User matches found (all rounds):', allUserMatches.length, allUserMatches);
 
-			// If exactly 1 match, auto-start
-			if (userMatches.length === 1) {
-				console.log('🚀 Auto-starting single match');
-				await autoStartMatch(tournament, userMatches[0]);
+			// Filter to current round only (for Round Robin group stage)
+			let userMatches = allUserMatches;
+			if (tournament.status === 'GROUP_STAGE' && tournament.groupStage?.type === 'ROUND_ROBIN' && tournament.groupStage?.groups) {
+				// Calculate current round per group (first round with PENDING/IN_PROGRESS matches)
+				const currentRoundByGroup = new Map<string, number>();
+				for (const group of tournament.groupStage.groups) {
+					if (!group.schedule) continue;
+					for (const round of group.schedule) {
+						if (round.matches.some(m => m.status === 'PENDING' || m.status === 'IN_PROGRESS')) {
+							currentRoundByGroup.set(group.id, round.roundNumber);
+							break;
+						}
+					}
+				}
+				// Keep only matches from the current round of their group
+				userMatches = allUserMatches.filter(m => {
+					if (!m.groupId || !m.roundNumber) return true; // Non-group matches pass through
+					const currentRound = currentRoundByGroup.get(m.groupId);
+					return currentRound !== undefined && m.roundNumber === currentRound;
+				});
+				console.log('📊 User matches (current round):', userMatches.length);
+			}
+
+			// If exactly 1 PENDING match (not already in progress), auto-start
+			const pendingOnly = userMatches.filter(m => !m.isInProgress);
+			if (pendingOnly.length === 1 && userMatches.length === 1) {
+				console.log('🚀 Auto-starting single pending match');
+				await autoStartMatch(tournament, pendingOnly[0]);
 				return;
 			}
 

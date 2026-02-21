@@ -857,6 +857,11 @@ export async function getPendingMatchesForUser(
   userId: string
 ): Promise<PendingMatchInfo[]> {
   const pendingMatches: PendingMatchInfo[] = [];
+  const inProgressMatches: PendingMatchInfo[] = [];
+
+  // Helper to check if match should be included (PENDING or IN_PROGRESS)
+  const shouldIncludeMatch = (status: string) => status === 'PENDING' || status === 'IN_PROGRESS';
+  const isInProgressStatus = (status: string) => status === 'IN_PROGRESS';
 
   // Find participant ID(s) for this user
   const userParticipants = tournament.participants.filter(p => p.userId === userId);
@@ -877,9 +882,9 @@ export async function getPendingMatchesForUser(
       if (group.schedule) {
         for (const round of group.schedule) {
           for (const match of round.matches) {
-            if (match.status === 'PENDING' &&
+            if (shouldIncludeMatch(match.status) &&
                 (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
-              pendingMatches.push({
+              const matchInfo: PendingMatchInfo = {
                 match,
                 phase: 'GROUP',
                 groupId: group.id,
@@ -889,8 +894,14 @@ export async function getPendingMatchesForUser(
                 participantBName: getParticipantName(tournament, match.participantB),
                 ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
+                isInProgress: isInProgressStatus(match.status),
                 tableNumber: match.tableNumber
-              });
+              };
+              if (isInProgressStatus(match.status)) {
+                inProgressMatches.push(matchInfo);
+              } else {
+                pendingMatches.push(matchInfo);
+              }
             }
           }
         }
@@ -900,9 +911,9 @@ export async function getPendingMatchesForUser(
       if (group.pairings) {
         for (const pairing of group.pairings) {
           for (const match of pairing.matches) {
-            if (match.status === 'PENDING' &&
+            if (shouldIncludeMatch(match.status) &&
                 (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
-              pendingMatches.push({
+              const matchInfo: PendingMatchInfo = {
                 match,
                 phase: 'GROUP',
                 groupId: group.id,
@@ -912,8 +923,14 @@ export async function getPendingMatchesForUser(
                 participantBName: getParticipantName(tournament, match.participantB),
                 ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
+                isInProgress: isInProgressStatus(match.status),
                 tableNumber: match.tableNumber
-              });
+              };
+              if (isInProgressStatus(match.status)) {
+                inProgressMatches.push(matchInfo);
+              } else {
+                pendingMatches.push(matchInfo);
+              }
             }
           }
         }
@@ -928,10 +945,10 @@ export async function getPendingMatchesForUser(
     if (goldBracket?.rounds) {
       for (const round of goldBracket.rounds) {
         for (const match of round.matches) {
-          if (match.status === 'PENDING' &&
+          if (shouldIncludeMatch(match.status) &&
               match.participantA && match.participantB &&
               (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
-            pendingMatches.push({
+            const matchInfo: PendingMatchInfo = {
               match,
               phase: 'FINAL',
               roundNumber: round.roundNumber,
@@ -940,9 +957,15 @@ export async function getPendingMatchesForUser(
               participantBName: getParticipantName(tournament, match.participantB),
               ...getMatchPhotos(match.participantA, match.participantB, photoMap),
               gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, false),
+              isInProgress: isInProgressStatus(match.status),
               isSilverBracket: false,
               tableNumber: match.tableNumber
-            });
+            };
+            if (isInProgressStatus(match.status)) {
+              inProgressMatches.push(matchInfo);
+            } else {
+              pendingMatches.push(matchInfo);
+            }
           }
         }
       }
@@ -950,10 +973,10 @@ export async function getPendingMatchesForUser(
       // Third place match
       if (goldBracket.thirdPlaceMatch) {
         const match = goldBracket.thirdPlaceMatch;
-        if (match.status === 'PENDING' &&
+        if (shouldIncludeMatch(match.status) &&
             match.participantA && match.participantB &&
             (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
-          pendingMatches.push({
+          const matchInfo: PendingMatchInfo = {
             match,
             phase: 'FINAL',
             bracketRoundName: 'Tercer Puesto',
@@ -961,9 +984,15 @@ export async function getPendingMatchesForUser(
             participantBName: getParticipantName(tournament, match.participantB),
             ...getMatchPhotos(match.participantA, match.participantB, photoMap),
             gameConfig: getGameConfigForMatch(tournament, 'FINAL', 'Tercer Puesto', false),
+            isInProgress: isInProgressStatus(match.status),
             isSilverBracket: false,
             tableNumber: match.tableNumber
-          });
+          };
+          if (isInProgressStatus(match.status)) {
+            inProgressMatches.push(matchInfo);
+          } else {
+            pendingMatches.push(matchInfo);
+          }
         }
       }
     }
@@ -972,10 +1001,10 @@ export async function getPendingMatchesForUser(
     if (tournament.finalStage.silverBracket?.rounds) {
       for (const round of tournament.finalStage.silverBracket.rounds) {
         for (const match of round.matches) {
-          if (match.status === 'PENDING' &&
+          if (shouldIncludeMatch(match.status) &&
               match.participantA && match.participantB &&
               (userParticipantIds.has(match.participantA) || userParticipantIds.has(match.participantB))) {
-            pendingMatches.push({
+            const matchInfo: PendingMatchInfo = {
               match,
               phase: 'FINAL',
               roundNumber: round.roundNumber,
@@ -984,16 +1013,23 @@ export async function getPendingMatchesForUser(
               participantBName: getParticipantName(tournament, match.participantB),
               ...getMatchPhotos(match.participantA, match.participantB, photoMap),
               gameConfig: getGameConfigForMatch(tournament, 'FINAL', round.name, true),
+              isInProgress: isInProgressStatus(match.status),
               isSilverBracket: true,
               tableNumber: match.tableNumber
-            });
+            };
+            if (isInProgressStatus(match.status)) {
+              inProgressMatches.push(matchInfo);
+            } else {
+              pendingMatches.push(matchInfo);
+            }
           }
         }
       }
     }
   }
 
-  return pendingMatches;
+  // Return in-progress matches first, then pending
+  return [...inProgressMatches, ...pendingMatches];
 }
 
 /**

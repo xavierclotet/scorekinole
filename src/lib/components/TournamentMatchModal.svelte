@@ -36,7 +36,7 @@
 	// State machine (simplified: removed confirmation step)
 	// For non-logged users: key_input → loading → player_selection (with inline confirmation)
 	// For logged users: key_input → loading → player_selection (auto-select match, choose side)
-	type Step = 'key_input' | 'loading' | 'player_selection' | 'error';
+	type Step = 'key_input' | 'loading' | 'player_selection' | 'no_matches' | 'error';
 	let currentStep = $state<Step>('key_input');
 
 	// Form state
@@ -433,15 +433,19 @@
 				pendingMatches = await getPendingMatchesForUser(result, $currentUser.id);
 
 				if (pendingMatches.length === 0) {
-					errorMessage = m.tournament_noPendingMatchesUser();
-					currentStep = 'error';
+					currentStep = 'no_matches';
 					return;
 				}
 
-				// Process matches
+				// Process matches (filters to current round)
 				processMatchesForDisplay(result, pendingMatches);
 
-				// Go to player_selection (NO auto-select - user picks the match)
+				// Check if after round filtering there are any matches to show
+				if (pendingMatchesList.length === 0 && inProgressMatchesList.length === 0) {
+					currentStep = 'no_matches';
+					return;
+				}
+
 				currentStep = 'player_selection';
 			} else {
 				pendingMatches = await getAllPendingMatches(result);
@@ -509,6 +513,9 @@
 			hasSplitDivisions = false;
 			selectedMatch = null;
 			selectedSide = null;
+		} else if (currentStep === 'no_matches') {
+			currentStep = 'key_input';
+			tournament = null;
 		} else if (currentStep === 'error') {
 			currentStep = 'key_input';
 			errorMessage = '';
@@ -783,7 +790,7 @@
 					</svg>
 				</div>
 				<span class="modal-title">
-					{#if currentStep === 'key_input' || currentStep === 'error'}
+					{#if currentStep === 'key_input' || currentStep === 'error' || currentStep === 'no_matches'}
 						{m.tournament_playMatch()}
 					{:else if currentStep === 'loading'}
 						{m.tournament_searching()}
@@ -1031,145 +1038,193 @@
 							</div>
 						{/if}
 
-						<!-- In-progress matches (accordion) -->
+						<!-- In-progress matches -->
 						{#if inProgressMatchesList.length > 0}
 							<div class="in-progress-section">
-								<button
-									class="in-progress-accordion"
-									class:expanded={showInProgressMatches}
-									onclick={toggleInProgressMatches}
-								>
-									<span class="accordion-icon">
-										<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-											{#if showInProgressMatches}
-												<path d="M7 10l5 5 5-5z"/>
-											{:else}
-												<path d="M10 17l5-5-5-5z"/>
-											{/if}
-										</svg>
-									</span>
-									<span class="accordion-title">
-										{m.tournament_matchesInProgress()} ({inProgressMatchesList.length})
-									</span>
-									<span class="accordion-warning">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-											<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-											<line x1="12" y1="9" x2="12" y2="13"></line>
-											<line x1="12" y1="17" x2="12.01" y2="17"></line>
-										</svg>
-									</span>
-								</button>
+								{#if isLoggedIn}
+									<!-- Logged-in user: live info cards (clickable with caution) -->
+									{#each inProgressMatchesList as matchDisplay}
+										<button
+											class="live-match-card"
+											disabled={isStarting}
+											onclick={() => selectMatchAndStart(matchDisplay)}
+										>
+											<div class="live-match-header">
+												<span class="live-badge">
+													<span class="live-dot"></span>
+													LIVE
+												</span>
+												{#if matchDisplay.match.tableNumber}
+													<span class="live-table">{m.tournament_tableShort()}{matchDisplay.match.tableNumber}</span>
+												{/if}
+												<span class="live-config">
+													{#if matchDisplay.match.gameConfig.gameMode === 'points'}
+														{matchDisplay.match.gameConfig.pointsToWin}P
+													{:else}
+														{matchDisplay.match.gameConfig.roundsToPlay}R
+													{/if}
+													{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
+												</span>
+											</div>
+											<div class="live-match-players">
+												<span class="player-with-avatar left">
+													{#if matchDisplay.match.participantAPhotoURL}
+														<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
+													{/if}
+													{#if matchDisplay.match.participantAPartnerPhotoURL}
+														<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
+													{/if}
+													<span class="player-name">{matchDisplay.match.participantAName}</span>
+												</span>
+												<span class="vs-badge">vs</span>
+												<span class="player-with-avatar right">
+													<span class="player-name">{matchDisplay.match.participantBName}</span>
+													{#if matchDisplay.match.participantBPartnerPhotoURL}
+														<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
+													{/if}
+													{#if matchDisplay.match.participantBPhotoURL}
+														<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
+													{/if}
+												</span>
+											</div>
+											<p class="live-match-info">
+												{tournament?.gameType === 'doubles'
+													? m.tournament_inProgressUserInfoDoubles()
+													: m.tournament_inProgressUserInfo()}
+											</p>
+										</button>
+									{/each}
+								{:else}
+									<!-- Non-logged user: clickable accordion for resume -->
+									<button
+										class="in-progress-accordion"
+										class:expanded={showInProgressMatches}
+										onclick={toggleInProgressMatches}
+									>
+										<span class="accordion-icon">
+											<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+												{#if showInProgressMatches}
+													<path d="M7 10l5 5 5-5z"/>
+												{:else}
+													<path d="M10 17l5-5-5-5z"/>
+												{/if}
+											</svg>
+										</span>
+										<span class="accordion-title">
+											{m.tournament_matchesInProgress()} ({inProgressMatchesList.length})
+										</span>
+									</button>
 
-								{#if showInProgressMatches}
-									<div class="in-progress-content">
-										<p class="in-progress-hint">{m.tournament_inProgressWarning()}</p>
-										<!-- Multi-group in-progress display (Round Robin groups or Oro/Plata brackets) -->
-										{#if (hasMultipleGroups || hasSplitDivisions) && inProgressMatchesByGroup.length > 0}
-											<div class="groups-container in-progress">
-												{#each inProgressMatchesByGroup as group}
-													<div class="group-section">
-														<div class="group-header in-progress" class:gold-league={group.groupId === 'gold'} class:silver-league={group.groupId === 'silver'}>
-															<span class="group-name">{group.groupName}</span>
-															{#if group.currentRound > 0}
-																<span class="group-round">{m.scoring_round()} {group.currentRound}/{group.totalRounds}</span>
-															{/if}
+									{#if showInProgressMatches}
+										<div class="in-progress-content">
+											<p class="in-progress-hint">{m.tournament_inProgressHint()}</p>
+											{#if (hasMultipleGroups || hasSplitDivisions) && inProgressMatchesByGroup.length > 0}
+												<div class="groups-container in-progress">
+													{#each inProgressMatchesByGroup as group}
+														<div class="group-section">
+															<div class="group-header in-progress" class:gold-league={group.groupId === 'gold'} class:silver-league={group.groupId === 'silver'}>
+																<span class="group-name">{group.groupName}</span>
+																{#if group.currentRound > 0}
+																	<span class="group-round">{m.scoring_round()} {group.currentRound}/{group.totalRounds}</span>
+																{/if}
+															</div>
+															<div class="matches-list in-progress">
+																{#each group.matches as matchDisplay}
+																	<button
+																		class="match-row-btn in-progress two-rows"
+																		disabled={isStarting}
+																		onclick={() => selectMatchAndStart(matchDisplay)}
+																	>
+																		<div class="match-row-top">
+																			{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
+																				<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
+																			{/if}
+																			<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${m.tournament_tableShort()}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+																			<span class="match-config">
+																				{#if matchDisplay.match.gameConfig.gameMode === 'points'}
+																					{matchDisplay.match.gameConfig.pointsToWin}P
+																				{:else}
+																					{matchDisplay.match.gameConfig.roundsToPlay}R
+																				{/if}
+																				{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
+																			</span>
+																		</div>
+																		<div class="match-row-bottom">
+																			<span class="player-with-avatar left">
+																				{#if matchDisplay.match.participantAPhotoURL}
+																					<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
+																				{/if}
+																				{#if matchDisplay.match.participantAPartnerPhotoURL}
+																					<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
+																				{/if}
+																				<span class="player-name">{matchDisplay.match.participantAName}</span>
+																			</span>
+																			<span class="vs-badge">vs</span>
+																			<span class="player-with-avatar right">
+																				<span class="player-name">{matchDisplay.match.participantBName}</span>
+																				{#if matchDisplay.match.participantBPartnerPhotoURL}
+																					<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
+																				{/if}
+																				{#if matchDisplay.match.participantBPhotoURL}
+																					<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
+																				{/if}
+																			</span>
+																		</div>
+																	</button>
+																{/each}
+															</div>
 														</div>
-														<div class="matches-list in-progress">
-															{#each group.matches as matchDisplay}
-																<button
-																	class="match-row-btn in-progress two-rows"
-																	disabled={isStarting}
-																	onclick={() => selectMatchAndStart(matchDisplay)}
-																>
-																	<div class="match-row-top">
-																		{#if hasSplitDivisions && matchDisplay.match.bracketRoundName}
-																			<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
-																		{/if}
-																		<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${m.tournament_tableShort()}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
-																		<span class="match-config">
-																			{#if matchDisplay.match.gameConfig.gameMode === 'points'}
-																				{matchDisplay.match.gameConfig.pointsToWin}P
-																			{:else}
-																				{matchDisplay.match.gameConfig.roundsToPlay}R
-																			{/if}
-																			{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
-																		</span>
-																	</div>
-																	<div class="match-row-bottom">
-																		<span class="player-with-avatar left">
-																			{#if matchDisplay.match.participantAPhotoURL}
-																				<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
-																			{/if}
-																			{#if matchDisplay.match.participantAPartnerPhotoURL}
-																				<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
-																			{/if}
-																			<span class="player-name">{matchDisplay.match.participantAName}</span>
-																		</span>
-																		<span class="vs-badge">vs</span>
-																		<span class="player-with-avatar right">
-																			<span class="player-name">{matchDisplay.match.participantBName}</span>
-																			{#if matchDisplay.match.participantBPartnerPhotoURL}
-																				<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
-																			{/if}
-																			{#if matchDisplay.match.participantBPhotoURL}
-																				<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
-																			{/if}
-																		</span>
-																	</div>
-																</button>
-															{/each}
-														</div>
-													</div>
-												{/each}
-											</div>
-										{:else}
-											<div class="matches-list in-progress">
-												{#each inProgressMatchesList as matchDisplay}
-													<button
-														class="match-row-btn in-progress two-rows"
-														disabled={isStarting}
-														onclick={() => selectMatchAndStart(matchDisplay)}
-													>
-														<div class="match-row-top">
-															{#if matchDisplay.match.bracketRoundName}
-																<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
-															{/if}
-															<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${m.tournament_tableShort()}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
-															<span class="match-config">
-																{#if matchDisplay.match.gameConfig.gameMode === 'points'}
-																	{matchDisplay.match.gameConfig.pointsToWin}P
-																{:else}
-																	{matchDisplay.match.gameConfig.roundsToPlay}R
+													{/each}
+												</div>
+											{:else}
+												<div class="matches-list in-progress">
+													{#each inProgressMatchesList as matchDisplay}
+														<button
+															class="match-row-btn in-progress two-rows"
+															disabled={isStarting}
+															onclick={() => selectMatchAndStart(matchDisplay)}
+														>
+															<div class="match-row-top">
+																{#if matchDisplay.match.bracketRoundName}
+																	<span class="bracket-round">{matchDisplay.match.bracketRoundName}</span>
 																{/if}
-																{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
-															</span>
-														</div>
-														<div class="match-row-bottom">
-															<span class="player-with-avatar left">
-																{#if matchDisplay.match.participantAPhotoURL}
-																	<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
-																{/if}
-																{#if matchDisplay.match.participantAPartnerPhotoURL}
-																	<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
-																{/if}
-																<span class="player-name">{matchDisplay.match.participantAName}</span>
-															</span>
-															<span class="vs-badge">vs</span>
-															<span class="player-with-avatar right">
-																<span class="player-name">{matchDisplay.match.participantBName}</span>
-																{#if matchDisplay.match.participantBPartnerPhotoURL}
-																	<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
-																{/if}
-																{#if matchDisplay.match.participantBPhotoURL}
-																	<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
-																{/if}
-															</span>
-														</div>
-													</button>
-												{/each}
-											</div>
-										{/if}
-									</div>
+																<span class="table-num" class:tbd={!matchDisplay.match.tableNumber}>{matchDisplay.match.tableNumber ? `${m.tournament_tableShort()}${matchDisplay.match.tableNumber}` : 'TBD'}</span>
+																<span class="match-config">
+																	{#if matchDisplay.match.gameConfig.gameMode === 'points'}
+																		{matchDisplay.match.gameConfig.pointsToWin}P
+																	{:else}
+																		{matchDisplay.match.gameConfig.roundsToPlay}R
+																	{/if}
+																	{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
+																</span>
+															</div>
+															<div class="match-row-bottom">
+																<span class="player-with-avatar left">
+																	{#if matchDisplay.match.participantAPhotoURL}
+																		<img src={matchDisplay.match.participantAPhotoURL} alt="" class="player-avatar" />
+																	{/if}
+																	{#if matchDisplay.match.participantAPartnerPhotoURL}
+																		<img src={matchDisplay.match.participantAPartnerPhotoURL} alt="" class="player-avatar" />
+																	{/if}
+																	<span class="player-name">{matchDisplay.match.participantAName}</span>
+																</span>
+																<span class="vs-badge">vs</span>
+																<span class="player-with-avatar right">
+																	<span class="player-name">{matchDisplay.match.participantBName}</span>
+																	{#if matchDisplay.match.participantBPartnerPhotoURL}
+																		<img src={matchDisplay.match.participantBPartnerPhotoURL} alt="" class="player-avatar" />
+																	{/if}
+																	{#if matchDisplay.match.participantBPhotoURL}
+																		<img src={matchDisplay.match.participantBPhotoURL} alt="" class="player-avatar" />
+																	{/if}
+																</span>
+															</div>
+														</button>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									{/if}
 								{/if}
 							</div>
 						{/if}
@@ -1181,6 +1236,31 @@
 								<span>{m.tournament_starting()}</span>
 							</div>
 						{/if}
+					</div>
+
+				<!-- Step: No matches for logged-in user -->
+				{:else if currentStep === 'no_matches'}
+					<div class="step-content no-matches">
+						<div class="no-matches-icon">
+							<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="12" cy="12" r="10"></circle>
+								<path d="M9 12l2 2 4-4"></path>
+							</svg>
+						</div>
+						<p class="no-matches-title">{m.tournament_noPendingMatchesUser()}</p>
+						<p class="no-matches-subtitle">{m.tournament_noPendingMatchesUserHint()}</p>
+
+						<div class="no-matches-actions">
+							<button class="refresh-btn" onclick={searchTournament}>
+								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+									<path d="M21 3v5h-5"></path>
+									<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+									<path d="M3 21v-5h5"></path>
+								</svg>
+								{m.tournament_refreshMatches()}
+							</button>
+						</div>
 					</div>
 
 				<!-- Step: Error -->
@@ -1878,25 +1958,166 @@
 	/* In-progress Section */
 	.in-progress-section {
 		margin-top: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
 	}
 
+	/* Live match card (logged-in users) */
+	.live-match-card {
+		background: rgba(16, 185, 129, 0.06);
+		border: 1px solid rgba(16, 185, 129, 0.2);
+		border-radius: 10px;
+		padding: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		width: 100%;
+		text-align: left;
+		color: inherit;
+	}
+
+	.live-match-card:hover {
+		background: rgba(16, 185, 129, 0.1);
+		border-color: rgba(16, 185, 129, 0.35);
+	}
+
+	.live-match-card:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.live-match-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.live-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.65rem;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+		color: #10b981;
+		background: rgba(16, 185, 129, 0.12);
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
+	}
+
+	.live-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #10b981;
+		animation: livePulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes livePulse {
+		0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+		50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+	}
+
+	.live-table {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.6);
+		background: rgba(255, 255, 255, 0.06);
+		padding: 0.15rem 0.4rem;
+		border-radius: 4px;
+	}
+
+	.live-config {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.65rem;
+		color: rgba(255, 255, 255, 0.4);
+		margin-left: auto;
+	}
+
+	.live-match-players {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: 0.4rem 0;
+	}
+
+	.live-match-players .player-with-avatar {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	.live-match-players .player-with-avatar.left {
+		justify-content: flex-end;
+	}
+
+	.live-match-players .player-with-avatar.right {
+		justify-content: flex-start;
+	}
+
+	.live-match-players .player-avatar {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		object-fit: cover;
+		border: 2px solid rgba(16, 185, 129, 0.3);
+		flex-shrink: 0;
+	}
+
+	.live-match-players .player-name {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: #e5e7eb;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.live-match-players .vs-badge {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.35);
+		padding: 0.15rem 0.4rem;
+		flex-shrink: 0;
+	}
+
+	.live-match-info {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.72rem;
+		color: rgba(16, 185, 129, 0.7);
+		text-align: center;
+		margin: 0;
+		line-height: 1.4;
+	}
+
+	/* Accordion (non-logged users) */
 	.in-progress-accordion {
 		width: 100%;
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.6rem 0.75rem;
-		background: color-mix(in srgb, var(--primary) 8%, transparent);
-		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+		background: rgba(16, 185, 129, 0.06);
+		border: 1px solid rgba(16, 185, 129, 0.2);
 		border-radius: 6px;
 		cursor: pointer;
 		transition: all 0.15s ease;
-		color: var(--primary);
+		color: #10b981;
 	}
 
 	.in-progress-accordion:hover {
-		background: color-mix(in srgb, var(--primary) 12%, transparent);
-		border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+		background: rgba(16, 185, 129, 0.1);
+		border-color: rgba(16, 185, 129, 0.35);
 	}
 
 	.in-progress-accordion.expanded {
@@ -1919,15 +2140,9 @@
 		font-weight: 500;
 	}
 
-	.accordion-warning {
-		display: flex;
-		align-items: center;
-		color: var(--primary);
-	}
-
 	.in-progress-content {
-		background: color-mix(in srgb, var(--primary) 4%, transparent);
-		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+		background: rgba(16, 185, 129, 0.03);
+		border: 1px solid rgba(16, 185, 129, 0.2);
 		border-top: none;
 		border-radius: 0 0 6px 6px;
 		padding: 0.75rem;
@@ -1947,7 +2162,7 @@
 
 	.in-progress-hint {
 		font-family: 'Lexend', sans-serif;
-		color: var(--primary);
+		color: #10b981;
 		opacity: 0.7;
 		font-size: 0.7rem;
 		text-align: center;
@@ -1974,6 +2189,93 @@
 	}
 
 	/* Error */
+	/* No matches (logged-in user) */
+	.step-content.no-matches {
+		align-items: center;
+		text-align: center;
+		padding: 2rem 1rem;
+		gap: 0.75rem;
+	}
+
+	.no-matches-icon {
+		width: 60px;
+		height: 60px;
+		background: rgba(99, 102, 241, 0.1);
+		border: 1px solid rgba(99, 102, 241, 0.25);
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #818cf8;
+		margin-bottom: 0.25rem;
+	}
+
+	.no-matches-title {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.9);
+		margin: 0;
+	}
+
+	.no-matches-subtitle {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.78rem;
+		color: rgba(255, 255, 255, 0.45);
+		margin: 0;
+		line-height: 1.5;
+		max-width: 280px;
+	}
+
+	.no-matches-actions {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+
+	.refresh-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.6rem 1.25rem;
+		background: rgba(99, 102, 241, 0.12);
+		border: 1px solid rgba(99, 102, 241, 0.3);
+		border-radius: 8px;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.82rem;
+		font-weight: 500;
+		color: #818cf8;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.refresh-btn:hover {
+		background: rgba(99, 102, 241, 0.18);
+		border-color: rgba(99, 102, 241, 0.45);
+	}
+
+	.refresh-btn:active {
+		transform: scale(0.98);
+	}
+
+	.back-btn-subtle {
+		background: none;
+		border: none;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.35);
+		cursor: pointer;
+		padding: 0.3rem 0.5rem;
+		transition: color 0.15s ease;
+	}
+
+	.back-btn-subtle:hover {
+		color: rgba(255, 255, 255, 0.6);
+	}
+
 	.step-content.error {
 		align-items: center;
 		text-align: center;
