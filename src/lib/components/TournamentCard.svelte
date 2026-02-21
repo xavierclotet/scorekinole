@@ -94,28 +94,6 @@
 			.toUpperCase();
 	}
 
-	function getGoogleCalendarUrl(): string {
-		if (!tournament.tournamentDate) return '#';
-		const date = new Date(tournament.tournamentDate);
-		// Format: YYYYMMDD for all-day event
-		const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
-		// End date is next day for all-day event
-		const nextDay = new Date(date);
-		nextDay.setDate(nextDay.getDate() + 1);
-		const endDateStr = nextDay.toISOString().split('T')[0].replace(/-/g, '');
-		
-		const params = new URLSearchParams({
-			action: 'TEMPLATE',
-			text: tournament.name,
-			dates: `${dateStr}/${endDateStr}`,
-			location: tournament.address
-				? `${tournament.address}, ${tournament.city}, ${tournament.country}`
-				: `${tournament.city}, ${tournament.country}`,
-			details: `Torneo de Crokinole: ${tournament.name}`
-		});
-		return `https://calendar.google.com/calendar/render?${params.toString()}`;
-	}
-
 	const isPast = $derived(tournament.tournamentDate && tournament.tournamentDate < Date.now());
 
 	// Check if tournament is LIVE
@@ -137,7 +115,11 @@
 	{/if}
 	<div class="card-main">
 		<div class="logo">
-			<span class="logo-text">{getInitials(tournament.name)}</span>
+			{#if tournament.posterUrl}
+				<img class="logo-img" src={tournament.posterUrl} alt={tournament.name} />
+			{:else}
+				<span class="logo-text">{getInitials(tournament.name)}</span>
+			{/if}
 		</div>
 
 		<div class="info">
@@ -149,33 +131,14 @@
 			</div>
 
 			<div class="meta">
-				<a
-					class="location"
-					href="https://www.google.com/maps/search/?api=1&query={encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + tournament.city + ', ' + tournament.country)}"
-					target="_blank"
-					rel="noopener noreferrer"
-					onclick={(e) => e.stopPropagation()}
-					title={m.tournaments_viewInMaps()}
-				>
+				<span class="location">
 					<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
 						<circle cx="12" cy="10" r="3" />
 					</svg>
 					<span class="location-text">{tournament.city}, {translateCountry(tournament.country)}</span>
-					<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-						<polyline points="15 3 21 3 21 9" />
-						<line x1="10" y1="14" x2="21" y2="3" />
-					</svg>
-				</a>
-				<a
-					class="date-link"
-					href={getGoogleCalendarUrl()}
-					target="_blank"
-					rel="noopener noreferrer"
-					onclick={(e) => e.stopPropagation()}
-					title={m.tournaments_addToCalendar()}
-				>
+				</span>
+				<span class="date-link">
 					<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
 						<line x1="16" y1="2" x2="16" y2="6" />
@@ -183,12 +146,7 @@
 						<line x1="3" y1="10" x2="21" y2="10" />
 					</svg>
 					<span class="date-text">{formatDate(tournament.tournamentDate)}</span>
-					<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-						<polyline points="15 3 21 3 21 9" />
-						<line x1="10" y1="14" x2="21" y2="3" />
-					</svg>
-				</a>
+				</span>
 			</div>
 		</div>
 
@@ -324,7 +282,7 @@
 
 	.card-main {
 		display: flex;
-		align-items: flex-start;
+		align-items: stretch;
 		gap: 0.875rem;
 		padding: 1rem;
 		flex: 1;
@@ -332,13 +290,24 @@
 
 	.logo {
 		width: 52px;
-		height: 52px;
 		border-radius: 10px;
 		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		flex-shrink: 0;
+		overflow: hidden;
+	}
+
+	.logo:not(:has(.logo-img)) {
+		height: 52px;
+		align-self: flex-start;
+	}
+
+	.logo-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	.logo-text {
@@ -395,35 +364,6 @@
 		gap: 0.375rem;
 		font-size: 0.8rem;
 		color: #8b9bb3;
-		text-decoration: none;
-		transition: color 0.2s ease;
-		cursor: pointer;
-	}
-
-	.location-text {
-		border-bottom: 1px dashed transparent;
-		transition: border-color 0.2s ease;
-	}
-
-	.location:hover .location-text {
-		border-bottom-color: #667eea;
-	}
-
-	.external-icon {
-		width: 10px;
-		height: 10px;
-		opacity: 0.6;
-		transition: opacity 0.2s ease;
-		flex-shrink: 0;
-	}
-
-	.location:hover {
-		color: #667eea;
-	}
-
-	.location:hover .external-icon,
-	.date-link:hover .external-icon {
-		opacity: 1;
 	}
 
 	.date-link {
@@ -432,22 +372,6 @@
 		gap: 0.375rem;
 		font-size: 0.8rem;
 		color: #8b9bb3;
-		text-decoration: none;
-		transition: color 0.2s ease;
-		cursor: pointer;
-	}
-
-	.date-text {
-		border-bottom: 1px dashed transparent;
-		transition: border-color 0.2s ease;
-	}
-
-	.date-link:hover {
-		color: #667eea;
-	}
-
-	.date-link:hover .date-text {
-		border-bottom-color: #667eea;
 	}
 
 	.icon {
@@ -546,6 +470,7 @@
 	.chevron {
 		display: flex;
 		align-items: center;
+		align-self: center;
 		justify-content: center;
 		flex-shrink: 0;
 		width: 32px;
@@ -582,6 +507,9 @@
 
 		.logo {
 			width: 46px;
+		}
+
+		.logo:not(:has(.logo-img)) {
 			height: 46px;
 		}
 
