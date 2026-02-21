@@ -37,11 +37,9 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      // Users can read/write their own profile
-      // Admins can read/write any profile
-      allow read: if isAuthenticated() && (
-        request.auth.uid == userId || isAdmin()
-      );
+      // Anyone can read user profiles (needed for public rankings page)
+      allow read: if true;
+      // Users can write their own profile, admins can write any profile
       allow write: if isAuthenticated() && (
         request.auth.uid == userId || isAdmin()
       );
