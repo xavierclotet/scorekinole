@@ -1300,5 +1300,7 @@
   "admin_tournamentEnriched": "Tournament enriched with LIVE data",
   "common_errorPageNotFound": "Page not found",
   "common_errorPageNotFoundDesc": "The page you are looking for does not exist or has been moved.",
-  "auth_playerNameRequired": "Enter first and last name (e.g., Juan García)"
+  "auth_playerNameRequired": "Enter first and last name (e.g., Juan García)",
+  "tournament_shareTournament": "Share tournament",
+  "wizard_time": "Hour"
 }

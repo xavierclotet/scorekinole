@@ -1300,5 +1300,7 @@
   "admin_tournamentEnriched": "Torneig enriquit amb dades LIVE",
   "common_errorPageNotFound": "Pàgina no trobada",
   "common_errorPageNotFoundDesc": "La pàgina que cerques no existeix o ha estat moguda.",
-  "auth_playerNameRequired": "Introdueix nom i cognom (ex: Juan García)"
+  "auth_playerNameRequired": "Introdueix nom i cognom (ex: Juan García)",
+  "tournament_shareTournament": "Compartir torneig",
+  "wizard_time": "Hora"
 }

@@ -178,7 +178,7 @@
 	}
 
 	function handleTournamentClick(tournament: TournamentListItem) {
-		goto(`/tournaments/${tournament.id}`);
+		goto(`/tournaments/${tournament.key || tournament.id}`);
 	}
 
 	function clearFilters() {

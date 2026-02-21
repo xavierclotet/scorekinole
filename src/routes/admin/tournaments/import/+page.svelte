@@ -1693,7 +1693,7 @@
           clearDraft();
           showToastMessage(m.import_success(), 'success');
           setTimeout(() => {
-            goto(`/tournaments/${editTournamentId}`);
+            goto(`/admin/tournaments/${editTournamentId}`);
           }, 1500);
         } else {
           showToastMessage(m.import_error(), 'error');
@@ -1705,7 +1705,7 @@
           clearDraft();
           showToastMessage(m.import_success(), 'success');
           setTimeout(() => {
-            goto(`/tournaments/${tournamentId}`);
+            goto(`/admin/tournaments/${tournamentId}`);
           }, 1500);
         } else {
           showToastMessage(m.import_error(), 'error');
@@ -1788,7 +1788,7 @@
       if (success) {
         showToastMessage(m.wizard_transformMode() + ' OK', 'success');
         setTimeout(() => {
-          goto(`/tournaments/${transformTournamentId}`);
+          goto(`/admin/tournaments/${transformTournamentId}`);
         }, 1500);
       } else {
         showToastMessage(m.import_error(), 'error');

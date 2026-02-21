@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import * as m from '$lib/paraglide/messages.js';
-	import { getTournament, subscribeTournament } from '$lib/firebase/tournaments';
+	import { getTournament, subscribeTournament, getTournamentByKey } from '$lib/firebase/tournaments';
 	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
@@ -22,7 +22,8 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Button } from '$lib/components/ui/button';
-	import { Check, ChevronsUpDown } from '@lucide/svelte';
+	import { Check, ChevronsUpDown, Share2 } from '@lucide/svelte';
+	import { PRODUCTION_URL } from '$lib/constants';
 
 	let tournament = $state<Tournament | null>(null);
 	let canEdit = $state(false);
@@ -57,7 +58,15 @@
 	let selectedPlayerFilter = $state<string | undefined>(undefined);
 	let playerFilterOpen = $state(false);
 
-	let tournamentId = $derived(page.params.id);
+	let urlParam = $derived(page.params.id);
+	// Resolved Firestore document ID (after key lookup if needed)
+	let resolvedDocId = $state<string | null>(null);
+	// Share button state
+	let shareCopied = $state(false);
+
+	function isLikelyKey(param: string): boolean {
+		return /^[A-Za-z0-9]{6}$/.test(param);
+	}
 
 	// Check if tournament is LIVE
 	let isLive = $derived(
@@ -246,9 +255,9 @@
 	onMount(async () => {
 		await loadTournament();
 
-		// Subscribe to real-time updates
-		if (tournamentId) {
-			unsubscribe = subscribeTournament(tournamentId, (updated) => {
+		// Subscribe to real-time updates using the resolved Firestore doc ID
+		if (resolvedDocId) {
+			unsubscribe = subscribeTournament(resolvedDocId, (updated) => {
 				if (updated) {
 					tournament = JSON.parse(JSON.stringify(updated));
 				}
@@ -281,15 +290,24 @@
 		error = false;
 
 		try {
-			if (!tournamentId) {
+			if (!urlParam) {
 				error = true;
 				loading = false;
 				return;
 			}
-			tournament = await getTournament(tournamentId);
+
+			// Detect if URL param is a 6-char key or a full Firestore doc ID
+			if (isLikelyKey(urlParam)) {
+				tournament = await getTournamentByKey(urlParam);
+			} else {
+				// Backward compatibility: full Firestore doc ID
+				tournament = await getTournament(urlParam);
+			}
+
 			if (!tournament) {
 				error = true;
 			} else {
+				resolvedDocId = tournament.id;
 				// Check if user can edit (owner, collaborator, or superadmin)
 				const user = $currentUser;
 				if (user) {
@@ -310,6 +328,28 @@
 
 	function goBack() {
 		goto('/tournaments');
+	}
+
+	async function shareTournament() {
+		if (!tournament) return;
+		const shareUrl = `${PRODUCTION_URL}/tournaments/${tournament.key}`;
+		const shareTitle = tournament.name;
+
+		if (navigator.share) {
+			try {
+				await navigator.share({ title: shareTitle, url: shareUrl });
+			} catch {
+				// User cancelled share dialog - ignore
+			}
+		} else {
+			try {
+				await navigator.clipboard.writeText(shareUrl);
+				shareCopied = true;
+				setTimeout(() => { shareCopied = false; }, 2000);
+			} catch {
+				// Fallback: do nothing
+			}
+		}
 	}
 
 	function getParticipantName(participantId: string | undefined): string {
@@ -513,8 +553,22 @@
 				{/if}
 			</div>
 			<div class="header-right">
+				{#if tournament}
+					<button
+						class="share-btn"
+						title={m.tournament_shareTournament()}
+						onclick={shareTournament}
+					>
+						{#if shareCopied}
+							<Check size={18} />
+						{:else}
+							<Share2 size={18} />
+						{/if}
+					</button>
+				{/if}
+
 				{#if canEdit}
-					<a href="/admin/tournaments/{tournamentId}" class="admin-link" title="Administrar torneo">
+					<a href="/admin/tournaments/{resolvedDocId}" class="admin-link" title="Administrar torneo">
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
 							<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
@@ -2434,6 +2488,34 @@
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .admin-link:hover {
+		background: rgba(102, 126, 234, 0.1);
+		color: #667eea;
+	}
+
+	.share-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: 8px;
+		color: #8b9bb3;
+		background: none;
+		border: none;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.share-btn:hover {
+		background: rgba(102, 126, 234, 0.15);
+		color: #667eea;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .share-btn {
+		color: #718096;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .share-btn:hover {
 		background: rgba(102, 126, 234, 0.1);
 		color: #667eea;
 	}
