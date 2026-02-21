@@ -136,6 +136,7 @@
       tournamentDate = tournament.tournamentDate
         ? new Date(tournament.tournamentDate).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
+      tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType || 'singles';
       rankingEnabled = tournament.rankingConfig?.enabled || false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
@@ -268,6 +269,7 @@
       city = tournament.city || '';
       country = tournament.country || 'España';
       tournamentDate = new Date().toISOString().split('T')[0];  // Today's date for new tournament
+      tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType || 'singles';
       rankingEnabled = tournament.rankingConfig?.enabled || false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
@@ -405,6 +407,7 @@
       tournamentDate = tournament.tournamentDate
         ? new Date(tournament.tournamentDate).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
+      tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType || 'singles';
       rankingEnabled = tournament.rankingConfig?.enabled || false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
@@ -530,6 +533,7 @@
   let city = $state('');
   let country = $state('España');
   let tournamentDate = $state(new Date().toISOString().split('T')[0]);
+  let tournamentTime = $state('');
   let gameType = $state<'singles' | 'doubles'>('singles');
   let rankingEnabled = $state(false);
   let selectedTier = $state<TournamentTier>('CLUB');
@@ -769,6 +773,7 @@
       city = data.city ?? '';
       country = data.country ?? 'España';
       tournamentDate = data.tournamentDate ?? new Date().toISOString().split('T')[0];
+      tournamentTime = data.tournamentTime ?? '';
       gameType = data.gameType ?? 'singles';
       rankingEnabled = data.rankingEnabled ?? false;
       selectedTier = data.selectedTier ?? 'CLUB';
@@ -821,6 +826,7 @@
         city,
         country,
         tournamentDate,
+        tournamentTime,
         gameType,
         rankingEnabled,
         selectedTier,
@@ -1501,6 +1507,7 @@
     const input: HistoricalTournamentInput = {
       name,
       tournamentDate: new Date(tournamentDate).getTime(),
+      tournamentTime: tournamentTime || undefined,
       city,
       country,
       gameType,
@@ -1618,6 +1625,7 @@
       const updates: Partial<HistoricalTournamentInput> & Record<string, unknown> = {
         name: name.trim(),
         tournamentDate: new Date(tournamentDate).getTime(),
+        tournamentTime: tournamentTime || undefined,
         city: city.trim(),
         country,
         gameType,
@@ -1924,14 +1932,23 @@
               />
             </div>
 
-            <!-- Date field -->
-            <div class="info-grid date-grid">
-              <div class="info-field">
+            <!-- Date + Time fields -->
+            <div class="date-time-row">
+              <div class="date-field">
                 <label for="date">{m.wizard_date()}</label>
                 <input
                   id="date"
                   type="date"
                   bind:value={tournamentDate}
+                  class="input-field"
+                />
+              </div>
+              <div class="time-field">
+                <label for="time">{m.wizard_time()}</label>
+                <input
+                  id="time"
+                  type="time"
+                  bind:value={tournamentTime}
                   class="input-field"
                 />
               </div>
@@ -3270,6 +3287,43 @@ Dan Rowe,Chris Robinson,12,6
 
   .venue-selector-wrapper {
     margin-bottom: 0.75rem;
+  }
+
+  .date-time-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: end;
+    padding: 0 0.75rem 0.75rem;
+  }
+
+  .date-field,
+  .time-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .date-field {
+    flex: 1;
+    max-width: 200px;
+  }
+
+  .time-field {
+    width: 120px;
+  }
+
+  .date-field label,
+  .time-field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .date-field label,
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .time-field label {
+    color: #8b9bb3;
   }
 
   .address-field {

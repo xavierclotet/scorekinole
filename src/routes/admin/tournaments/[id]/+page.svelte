@@ -18,7 +18,6 @@
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TournamentRulesModal from '$lib/components/tournament/TournamentRulesModal.svelte';
-  import CountrySelect from '$lib/components/CountrySelect.svelte';
   import TournamentAdminsModal from '$lib/components/admin/TournamentAdminsModal.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
 
@@ -41,6 +40,7 @@
   // Quick edit form fields
   let editName = $state('');
   let editDate = $state('');
+  let editTime = $state('');
   let editNumTables = $state(1);
   let editShow20s = $state(false);
   let editShowHammer = $state(false);
@@ -73,7 +73,7 @@
   // Calculate max players that can play in parallel with current table count
   let playersPerTable = $derived(tournament?.gameType === 'doubles' ? 4 : 2);
   let maxPlayersForTables = $derived(editNumTables * playersPerTable);
-  let tablesWarning = $derived(tournament ? tournament.participants.length > maxPlayersForTables : false);
+  let tablesWarning = $derived(tournament ? (tournament.participants?.length ?? 0) > maxPlayersForTables : false);
 
   onMount(async () => {
     await loadTournament();
@@ -278,6 +278,7 @@
     editDate = tournament.tournamentDate
       ? new Date(tournament.tournamentDate).toISOString().split('T')[0]
       : '';
+    editTime = tournament.tournamentTime || '';
     editNumTables = tournament.numTables;
     editShow20s = tournament.show20s;
     editShowHammer = tournament.showHammer;
@@ -349,6 +350,7 @@
       const updates: Partial<Tournament> = {
         name: editName.trim(),
         tournamentDate: editDate ? new Date(editDate).getTime() : undefined,
+        tournamentTime: editTime || undefined,
         numTables: editNumTables,
         show20s: editShow20s,
         showHammer: editShowHammer,
@@ -569,7 +571,7 @@
                 <div class="config-item">
                   <span class="config-label">{m.admin_dateLabel()}:</span>
                   <span class="config-value">
-                    {new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    {new Date(tournament.tournamentDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}{tournament.tournamentTime ? `, ${tournament.tournamentTime}` : ''}
                   </span>
                 </div>
               {/if}
@@ -955,6 +957,10 @@
                 <label for="edit-date">{m.wizard_date()}</label>
                 <input type="date" id="edit-date" bind:value={editDate} />
               </div>
+              <div class="qe-field" style="width: 100px;">
+                <label for="edit-time">{m.wizard_time()}</label>
+                <input type="time" id="edit-time" bind:value={editTime} />
+              </div>
             </div>
 
             <div class="qe-venue">
@@ -1001,6 +1007,10 @@
                 <div class="qe-field">
                   <label for="edit-date">{m.admin_dateLabel()}</label>
                   <input type="date" id="edit-date" bind:value={editDate} />
+                </div>
+                <div class="qe-field">
+                  <label for="edit-time">{m.wizard_time()}</label>
+                  <input type="time" id="edit-time" bind:value={editTime} />
                 </div>
               </div>
               <div class="qe-grid cols-edition-tables-venue">

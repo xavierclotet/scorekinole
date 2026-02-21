@@ -8,11 +8,11 @@
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import SinglesPlayerSelector from '$lib/components/tournament/SinglesPlayerSelector.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
-  import { Textarea } from '$lib/components/ui/textarea';
+  import { Trash2, Pencil, CircleCheck, X, User, UserPlus } from '@lucide/svelte';
   import { adminTheme } from '$lib/stores/theme';
   import { adminState } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
-  import { createTournament, getAllRegisteredUsers, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
+  import { createTournament, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution, calculateRankingPoints } from '$lib/algorithms/ranking';
@@ -142,67 +142,35 @@
   // Step 4: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
 
-  // Bulk guest entry (declared early because textareaNames depends on it)
-  let bulkGuestText = $state('');  // Textarea for bulk guest entry
-  let bulkTestCount = $state(10);  // Number of test players to generate
-  let bulkErrors = $state<string[]>([]);  // Validation errors from bulk processing
-  let bulkProcessing = $state(false);  // Loading state for bulk processing
+  // Participant count (replaces participantCount)
+  let participantCount = $derived(participants.length);
 
-  // Extract names from textarea for filtering search results
-  let textareaNames = $derived.by(() => {
+  // Excluded names derived from participants array (for filtering search results)
+  let excludedNames = $derived.by(() => {
     const names = new Set<string>();
-    const lines = bulkGuestText.split('\n').filter(l => l.trim());
-    for (const line of lines) {
-      if (gameType === 'doubles') {
-        const commaIndex = line.indexOf(',');
-        const playersPart = commaIndex !== -1 ? line.substring(0, commaIndex).trim() : line.trim();
-        // Check for " / " or "/"
-        let slashIndex = playersPart.indexOf(' / ');
-        let slashLen = 3;
-        if (slashIndex === -1) {
-          slashIndex = playersPart.indexOf('/');
-          slashLen = 1;
-        }
-        if (slashIndex !== -1) {
-          const name1 = playersPart.substring(0, slashIndex).trim().toLowerCase();
-          const name2 = playersPart.substring(slashIndex + slashLen).trim().toLowerCase();
-          names.add(name1);
-          names.add(name2);
-        }
-      } else {
-        names.add(line.trim().toLowerCase());
-      }
+    for (const p of participants) {
+      if (p.name) names.add(p.name.toLowerCase());
+      if (p.partner?.name) names.add(p.partner.name.toLowerCase());
     }
     return names;
   });
 
-  // Analysis preview state
-  let analysisResult = $state<{
-    total: number;
-    registered: number;
-    guests: number;
-    registeredNames: string[];
-  } | null>(null);
-  let analysisValid = $state(false);  // True only after successful analysis with no errors
+  // Excluded userIds derived from participants array
+  let excludedUserIds = $derived.by(() => {
+    const ids: string[] = [];
+    for (const p of participants) {
+      if (p.userId) ids.push(p.userId);
+      if (p.partner?.userId) ids.push(p.partner.userId);
+    }
+    return ids;
+  });
 
-  // Count valid lines in textarea (for participant count display)
-  let textareaParticipantCount = $derived(
-    bulkGuestText.split('\n').filter(line => line.trim().length >= 3).length
-  );
 
-  // Convert participants array to textarea text format
-  function participantsToText(participantsList: Partial<TournamentParticipant>[], isDoubles: boolean): string {
-    return participantsList.map(p => {
-      if (isDoubles && p.partner) {
-        // Doubles format: "Player1 / Player2, TeamName" or "Player1 / Player2"
-        const names = `${p.name} / ${p.partner.name}`;
-        return p.teamName ? `${names}, ${p.teamName}` : names;
-      } else {
-        // Singles format: just the name
-        return p.name || '';
-      }
-    }).filter(line => line.trim()).join('\n');
-  }
+
+  // Inline editing state for participant list
+  let editingParticipantId = $state<string | null>(null);
+  let editingField = $state<'name' | 'partnerName' | 'teamName' | null>(null);
+  let editingValue = $state('');
 
   // Tournament name search
   let tournamentNameResults = $state<TournamentNameInfo[]>([]);
@@ -224,7 +192,7 @@
   // Check if Next button should be disabled (step 4 has special validation)
   let nextButtonDisabled = $derived(
     validationErrors.length > 0 ||
-    (currentStep === 4 && (textareaParticipantCount < 2 || !analysisValid || bulkErrors.length > 0))
+    (currentStep === 4 && participants.length < 2)
   );
 
   // Field-specific error checks
@@ -481,18 +449,27 @@
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = tournament.rankingConfig?.tier || 'CLUB';
 
-      // Step 4 - Load participants into textarea (edit mode uses textarea-based editing)
-      const loadedParticipants = tournament.participants.map(p => {
+      // Step 4 - Load participants directly into array (preserves userId links)
+      participants = await Promise.all(tournament.participants.map(async (p) => {
         const participant: Partial<TournamentParticipant> = {
           id: p.id,
           type: p.type,
           name: p.name,
-          status: p.status
+          status: p.status,
+          rankingSnapshot: p.rankingSnapshot || 0
         };
-        if (p.userId) participant.userId = p.userId;
+        if (p.userId) {
+          participant.userId = p.userId;
+          // Refresh name from user profile (in case they changed it)
+          try {
+            const profile = await getUserProfileById(p.userId);
+            if (profile?.playerName) participant.name = profile.playerName;
+            if (profile?.photoURL) participant.photoURL = profile.photoURL;
+          } catch { /* keep original name */ }
+        }
         if (p.teamName) participant.teamName = p.teamName;
         if (p.email) participant.email = p.email;
-        if (p.photoURL) participant.photoURL = p.photoURL;
+        if (p.photoURL && !participant.photoURL) participant.photoURL = p.photoURL;
         if (p.partner) {
           participant.partner = {
             type: p.partner.type,
@@ -500,14 +477,21 @@
             ...(p.partner.userId && { userId: p.partner.userId }),
             ...(p.partner.photoURL && { photoURL: p.partner.photoURL })
           };
+          // Refresh partner name from profile too
+          if (p.partner.userId) {
+            try {
+              const partnerProfile = await getUserProfileById(p.partner.userId);
+              if (partnerProfile?.playerName && participant.partner) {
+                participant.partner.name = partnerProfile.playerName;
+              }
+              if (partnerProfile?.photoURL && participant.partner) {
+                participant.partner.photoURL = partnerProfile.photoURL;
+              }
+            } catch { /* keep original name */ }
+          }
         }
         return participant;
-      });
-
-      // Convert participants to textarea text format for editing
-      bulkGuestText = participantsToText(loadedParticipants, tournament.gameType === 'doubles');
-      // Keep participants array empty - will be populated when processing textarea
-      participants = [];
+      }));
 
       // Step 5 - Load time configuration
       if (tournament.timeConfig) {
@@ -706,10 +690,15 @@
         };
       }));
 
-      // Convert participants to textarea text format for editing
-      bulkGuestText = participantsToText(participants, tournament.gameType === 'doubles');
-      // Keep participants array empty - will be populated when processing textarea
-      participants = [];
+      // participants array is already populated from the map above — no conversion needed
+
+      // Assign IDs to duplicated participants (they need new unique IDs)
+      participants = participants.map(p => ({
+        ...p,
+        id: crypto.randomUUID(),
+        rankingSnapshot: 0,
+        status: 'ACTIVE' as const
+      }));
 
       // Step 5 - Copy time configuration
       if (tournament.timeConfig) {
@@ -1075,276 +1064,41 @@
     saveDraft();
   }
 
-  // Generate test players for bulk entry
-  function generateTestPlayers() {
-    const count = Math.min(Math.max(1, bulkTestCount), 100);
-    let lines: string[] = [];
-
-    if (gameType === 'doubles') {
-      // Generate pairs: "Player1 / Player2", "Player3 / Player4", etc.
-      for (let i = 0; i < count; i++) {
-        const p1 = i * 2 + 1;
-        const p2 = i * 2 + 2;
-        lines.push(`Player${p1} / Player${p2}`);
-      }
-    } else {
-      // Generate single players: "Player1", "Player2", etc.
-      for (let i = 1; i <= count; i++) {
-        lines.push(`Player${i}`);
-      }
-    }
-
-    // Prepend new lines to existing content
-    const newContent = lines.join('\n');
-    bulkGuestText = newContent + (bulkGuestText.trim() ? '\n' + bulkGuestText : '');
-    bulkErrors = [];
+  // Participant list management
+  function removeParticipant(id: string) {
+    participants = participants.filter(p => p.id !== id);
+    saveDraft();
   }
 
-  // Process bulk guest entry
-  async function processBulkGuests() {
-    if (!bulkGuestText.trim()) {
-      // Empty textarea = clear all participants
-      participants = [];
-      analysisResult = null;
-      analysisValid = false;
-      return;
-    }
-
-    bulkProcessing = true;
-    bulkErrors = [];
-    analysisResult = null;
-    analysisValid = false;
-
-    try {
-      const lines = bulkGuestText.split('\n').filter(line => line.trim());
-      const newParticipants: Partial<TournamentParticipant>[] = [];
-      const errors: string[] = [];
-
-      // Get all registered users to detect registered players by name
-      const allUsers = await getAllRegisteredUsers();
-      const userNameMap = new Map<string, UserProfile & { userId: string }>();
-      for (const user of allUsers) {
-        if (user.playerName) {
-          userNameMap.set(user.playerName.toLowerCase(), user);
-        }
-      }
-
-      // Track all player names to detect duplicates (same player in multiple entries)
-      const allPlayerNames = new Map<string, number>(); // name -> line number where first seen
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        const lineNum = i + 1;
-
-        if (gameType === 'doubles') {
-          // Parse doubles format: "Player1 / Player2, team name" or "Player1 / Player2"
-
-          // Check for multiple commas (invalid format like "a,,b,c")
-          const commaCount = (line.match(/,/g) || []).length;
-          if (commaCount > 1) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: Formato inválido (múltiples comas)`);
-            continue;
-          }
-
-          // First split by comma to separate optional team name
-          const commaIndex = line.indexOf(',');
-          let playersPart = line;
-          let teamName: string | undefined;
-
-          if (commaIndex !== -1) {
-            playersPart = line.substring(0, commaIndex).trim();
-            teamName = line.substring(commaIndex + 1).trim() || undefined;
-          }
-
-          // Check playersPart is not empty
-          if (!playersPart) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: Faltan nombres de jugadores`);
-            continue;
-          }
-
-          // Now split players by " / " (with spaces) or "/" (without spaces)
-          let slashIndex = playersPart.indexOf(' / ');
-          let slashLen = 3;
-          if (slashIndex === -1) {
-            slashIndex = playersPart.indexOf('/');
-            slashLen = 1;
-          }
-
-          if (slashIndex === -1) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDoublesFormat()}`);
-            continue;
-          }
-
-          const player1 = playersPart.substring(0, slashIndex).trim();
-          const player2 = playersPart.substring(slashIndex + slashLen).trim();
-
-          // Check names are not empty
-          if (!player1 || !player2) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: Nombres de jugadores vacíos`);
-            continue;
-          }
-
-          if (player1.length < 3) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: player1 })}`);
-            continue;
-          }
-          if (player2.length < 3) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: player2 })}`);
-            continue;
-          }
-
-          // Check if players are registered (to save their userId)
-          const user1 = userNameMap.get(player1.toLowerCase());
-          const user2 = userNameMap.get(player2.toLowerCase());
-
-          // Check for duplicate individual players (same player in multiple pairs)
-          const player1Lower = player1.toLowerCase();
-          const player2Lower = player2.toLowerCase();
-
-          // Check same player in both positions of the pair
-          if (player1Lower === player2Lower) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: No puedes poner el mismo jugador dos veces`);
-            continue;
-          }
-
-          const existingLine1 = allPlayerNames.get(player1Lower);
-          if (existingLine1 !== undefined) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${player1}" ya aparece en la línea ${existingLine1}`);
-            continue;
-          }
-          const existingLine2 = allPlayerNames.get(player2Lower);
-          if (existingLine2 !== undefined) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: "${player2}" ya aparece en la línea ${existingLine2}`);
-            continue;
-          }
-
-          // Add names to tracking map with their line number
-          allPlayerNames.set(player1Lower, lineNum);
-          allPlayerNames.set(player2Lower, lineNum);
-
-          const isGuest1 = user1 ? user1.authProvider === null : true;
-          const isGuest2 = user2 ? user2.authProvider === null : true;
-          newParticipants.push({
-            id: crypto.randomUUID(),
-            type: isGuest1 ? 'GUEST' : 'REGISTERED',
-            name: user1 ? user1.playerName : player1,
-            userId: user1?.userId,
-            photoURL: isGuest1 ? undefined : (user1?.photoURL || undefined),
-            partner: {
-              type: isGuest2 ? 'GUEST' : 'REGISTERED',
-              name: user2 ? user2.playerName : player2,
-              userId: user2?.userId,
-              photoURL: isGuest2 ? undefined : (user2?.photoURL || undefined)
-            },
-            teamName,
-            rankingSnapshot: 0,
-            status: 'ACTIVE'
-          });
-        } else {
-          // Singles format: just the player name
-          const playerName = line.trim();
-
-          // Check for invalid format (commas or slashes suggest doubles format)
-          if (playerName.includes(',') || playerName.includes('/')) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: Formato inválido para singles (usa un nombre por línea)`);
-            continue;
-          }
-
-          if (playerName.length < 3) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorNameTooShort({ name: playerName })}`);
-            continue;
-          }
-
-          // Check if player is registered (to save their userId)
-          const existingUser = userNameMap.get(playerName.toLowerCase());
-
-          // Check for duplicate in new participants
-          const isDuplicateNew = newParticipants.some(p =>
-            p.name?.toLowerCase() === playerName.toLowerCase()
-          );
-          if (isDuplicateNew) {
-            errors.push(`${m.wizard_bulkErrorLine({ line: lineNum })}: ${m.wizard_bulkErrorDuplicateSingle()}`);
-            continue;
-          }
-
-          if (existingUser && existingUser.authProvider === null) {
-            // Existing guest profile - reuse their userId for ranking continuity
-            newParticipants.push({
-              id: crypto.randomUUID(),
-              type: 'GUEST',
-              userId: existingUser.userId,
-              name: existingUser.playerName,
-              rankingSnapshot: 0,
-              status: 'ACTIVE'
-            });
-          } else if (existingUser) {
-            // Registered user (google auth, or legacy users without authProvider set)
-            newParticipants.push({
-              id: crypto.randomUUID(),
-              type: 'REGISTERED',
-              userId: existingUser.userId,
-              name: existingUser.playerName,
-              email: existingUser.email || undefined,
-              photoURL: existingUser.photoURL || undefined,
-              rankingSnapshot: 0,
-              status: 'ACTIVE'
-            });
-          } else {
-            // New guest - userId will be created when tournament is submitted
-            newParticipants.push({
-              id: crypto.randomUUID(),
-              type: 'GUEST',
-              name: playerName,
-              rankingSnapshot: 0,
-              status: 'ACTIVE'
-            });
-          }
-        }
-      }
-
-      if (errors.length > 0) {
-        bulkErrors = errors;
-        return;
-      }
-
-      // Replace participants with parsed list (textarea is the source of truth)
-      participants = newParticipants;
-      bulkErrors = [];
-
-      // Count registered USERS (not participants) - for doubles, count each player separately
-      const registeredNames: string[] = [];
-      for (const p of newParticipants) {
-        if (p.type === 'REGISTERED' && p.name) {
-          registeredNames.push(p.name);
-        }
-        if (p.partner?.type === 'REGISTERED' && p.partner.name) {
-          registeredNames.push(p.partner.name);
-        }
-      }
-
-      // Calculate total users (for doubles: 2 per participant)
-      const totalUsers = gameType === 'doubles' ? newParticipants.length * 2 : newParticipants.length;
-      const guestUsers = totalUsers - registeredNames.length;
-
-      // Update analysis result for display (no toast - visual feedback is shown inline)
-      analysisResult = {
-        total: totalUsers,
-        registered: registeredNames.length,
-        guests: guestUsers,
-        registeredNames
-      };
-      analysisValid = true;  // Mark analysis as successful
-      lastAnalyzedText = bulkGuestText;  // Track what was analyzed
-      saveDraft();
-    } catch (error) {
-      console.error('Error processing bulk guests:', error);
-      bulkErrors = ['Error al procesar: ' + (error instanceof Error ? error.message : 'Error desconocido')];
-    } finally {
-      bulkProcessing = false;
-    }
+  function startEditing(participant: Partial<TournamentParticipant>, field: 'name' | 'partnerName' | 'teamName') {
+    editingParticipantId = participant.id || null;
+    editingField = field;
+    if (field === 'teamName') editingValue = participant.teamName || '';
+    else if (field === 'partnerName') editingValue = participant.partner?.name || '';
+    else editingValue = participant.name || '';
   }
+
+  function saveEdit() {
+    if (!editingParticipantId || !editingField) return;
+    const trimmed = editingValue.trim();
+    if (!trimmed) { cancelEdit(); return; }
+    participants = participants.map(p => {
+      if (p.id !== editingParticipantId) return p;
+      if (editingField === 'name') return { ...p, name: trimmed };
+      if (editingField === 'partnerName' && p.partner) return { ...p, partner: { ...p.partner, name: trimmed } };
+      if (editingField === 'teamName') return { ...p, teamName: trimmed || undefined };
+      return p;
+    });
+    cancelEdit();
+    saveDraft();
+  }
+
+  function cancelEdit() {
+    editingParticipantId = null;
+    editingField = null;
+    editingValue = '';
+  }
+
 
   function getStep1Errors(): string[] {
     const errors: string[] = [];
@@ -1393,32 +1147,18 @@
 
   function getStep4Errors(): string[] {
     const errors: string[] = [];
-    if (textareaParticipantCount < 2) {
+    if (participants.length < 2) {
       errors.push(m.wizard_errorMinParticipants());
-    } else if (bulkErrors.length > 0) {
-      // Analysis found errors
-      errors.push(`Hay ${bulkErrors.length} error(es) en la lista`);
     }
     return errors;
   }
 
   function getStep4Warnings(): string[] {
-    const warnings: string[] = [];
-    if (textareaParticipantCount >= 2 && !analysisValid && bulkErrors.length === 0) {
-      // Require analysis before proceeding (shown as warning)
-      warnings.push(m.wizard_analyzeRequired());
-    }
-    if (gameType === 'doubles') {
-      if (textareaParticipantCount % 2 !== 0) {
-        warnings.push(m.wizard_warningDoublesEven());
-      }
-    }
-    return warnings;
+    return [];
   }
 
-  // Step 4 requires analysis to be valid (blocking warning)
   function isStep4Valid(): boolean {
-    return textareaParticipantCount >= 2 && analysisValid && bulkErrors.length === 0;
+    return participants.length >= 2;
   }
 
   function getValidationForStep(step: number): [string[], string[]] {
@@ -1436,10 +1176,6 @@
 
   function validateCurrentStep(): boolean {
     [validationErrors, validationWarnings] = getValidationForStep(currentStep);
-    // Step 4 has special validation (analysis must be done)
-    if (currentStep === 4) {
-      return validationErrors.length === 0 && isStep4Valid();
-    }
     return validationErrors.length === 0;
   }
 
@@ -1523,9 +1259,6 @@
     }
 
     creating = true;
-
-    // Process textarea to populate participants array before saving
-    await processBulkGuests();
 
     try {
       const rankingConfig: RankingConfig = {
@@ -1793,31 +1526,6 @@
     }
   }
 
-  // Clear analysis result when textarea changes (requires re-analysis)
-  let lastAnalyzedText = $state('');
-  $effect(() => {
-    if (bulkGuestText !== lastAnalyzedText) {
-      analysisResult = null;
-      analysisValid = false;
-    }
-  });
-
-  // Auto-analyze ONLY when first entering Step 4 with content (e.g., editing/duplicating a tournament)
-  // We track if we've already auto-analyzed to prevent loops
-  let hasAutoAnalyzedStep4 = $state(false);
-
-  $effect(() => {
-    // Only auto-analyze ONCE when entering step 4, not on every textarea change
-    if (currentStep === 4 && bulkGuestText.trim() && !hasAutoAnalyzedStep4 && !bulkProcessing) {
-      hasAutoAnalyzedStep4 = true;
-      processBulkGuests();
-    }
-    // Reset the flag when leaving step 4
-    if (currentStep !== 4) {
-      hasAutoAnalyzedStep4 = false;
-    }
-  });
-
   // Calculate max players based on tables and game type
   let playersPerTable = $derived(gameType === 'singles' ? 2 : 4);
   let maxPlayersForTables = $derived(numTables * playersPerTable);
@@ -1828,8 +1536,7 @@
     key; name; edition; country; city; gameType; gameMode; pointsToWin; roundsToPlay; matchesToWin;
     groupGameMode; groupPointsToWin; groupRoundsToPlay; groupMatchesToWin;
     finalPointsToWin; finalMatchesToWin; phaseType; numTables; numGroups;
-    numSwissRounds; textareaParticipantCount; currentStep; keyCheckResult;
-    analysisValid; bulkErrors.length;  // Step 4 validation dependencies
+    numSwissRounds; participants.length; currentStep; keyCheckResult;
     const result = getValidationForStep(currentStep);
     validationErrors = result[0];
     validationWarnings = result[1];
@@ -2781,7 +2488,7 @@
                       <span class="tier-name">{m.wizard_tierClub()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierClubDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'CLUB', textareaParticipantCount || 16, gameType)} pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'CLUB', participantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2793,7 +2500,7 @@
                       <span class="tier-name">{m.wizard_tierRegional()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierRegionalDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'REGIONAL', textareaParticipantCount || 16, gameType)} pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'REGIONAL', participantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2805,7 +2512,7 @@
                       <span class="tier-name">{m.wizard_tierNational()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierNationalDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'NATIONAL', textareaParticipantCount || 16, gameType)} pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'NATIONAL', participantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
 
@@ -2817,18 +2524,18 @@
                       <span class="tier-name">{m.wizard_tierMajor()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_tierMajorDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'MAJOR', textareaParticipantCount || 16, gameType)} pts al 1º</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'MAJOR', participantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
               </div>
 
               <!-- Points distribution for selected tier -->
-              {#key textareaParticipantCount}
+              {#key participantCount}
               <div class="points-distribution">
                 <h4>
                   📊 
-                  {#if textareaParticipantCount > 0}
-                    {m.wizard_pointsDistributionDynamicFor({ tier: getTierInfo(selectedTier).name, participants: gameType === 'singles' ? m.wizard_nPlayers({ n: Math.max(2, textareaParticipantCount) }) : m.wizard_nTeams({ n: Math.max(2, textareaParticipantCount) }) })}
+                  {#if participantCount > 0}
+                    {m.wizard_pointsDistributionDynamicFor({ tier: getTierInfo(selectedTier).name, participants: gameType === 'singles' ? m.wizard_nPlayers({ n: Math.max(2, participantCount) }) : m.wizard_nTeams({ n: Math.max(2, participantCount) }) })}
                   {:else}
                     {m.wizard_pointsDistributionMaxFor({ tier: getTierInfo(selectedTier).name, mode: gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()})}
                   {/if}
@@ -2837,7 +2544,7 @@
                   <thead>
                     <tr>
                       <th>{m.wizard_position()}</th>
-                      {#each getPointsDistribution(selectedTier, textareaParticipantCount || 16, gameType) as item}
+                      {#each getPointsDistribution(selectedTier, participantCount || 16, gameType) as item}
                         <th>{item.position}º</th>
                       {/each}
                     </tr>
@@ -2845,13 +2552,13 @@
                   <tbody>
                     <tr>
                       <td>{m.scoring_points()}</td>
-                      {#each getPointsDistribution(selectedTier, textareaParticipantCount || 16, gameType) as item}
+                      {#each getPointsDistribution(selectedTier, participantCount || 16, gameType) as item}
                         <td class="points">{item.points}</td>
                       {/each}
                     </tr>
                   </tbody>
                 </table>
-                {#if textareaParticipantCount > 0 && textareaParticipantCount < 16}
+                {#if participantCount > 0 && participantCount < 16}
                   <small class="help-text note-dynamic">{m.wizard_pointsNoteDynamic()}</small>
                 {:else}
                   <small class="help-text note-dynamic">{m.wizard_pointsNoteOfficial()}</small>
@@ -2870,17 +2577,17 @@
           <h2>👥 {m.wizard_participants()}</h2>
 
           <!-- Counter bar -->
-          <div class="participants-counter" class:warning={textareaParticipantCount > maxPlayersForTables}>
+          <div class="participants-counter" class:warning={participantCount > maxPlayersForTables}>
             <span class="counter-text">
               {#if gameType === 'doubles'}
-                {textareaParticipantCount} {textareaParticipantCount === 1 ? m.wizard_pairSingular() : m.wizard_pairs()}
-                ({textareaParticipantCount * 2} {m.wizard_players()})
+                {participantCount} {participantCount === 1 ? m.wizard_pairSingular() : m.wizard_pairs()}
+                ({participantCount * 2} {m.wizard_players()})
               {:else}
-                {textareaParticipantCount} {textareaParticipantCount === 1 ? m.wizard_playersSingular() : m.wizard_players()}
+                {participantCount} {participantCount === 1 ? m.wizard_playersSingular() : m.wizard_players()}
               {/if}
             </span>
             <span class="counter-label">
-              {#if textareaParticipantCount > maxPlayersForTables}
+              {#if participantCount > maxPlayersForTables}
                 ⚠️ {m.wizard_someRest({ max: maxPlayersForTables })}
               {:else}
                 {m.wizard_tablesParallel({ tables: numTables, tableWord: numTables === 1 ? m.wizard_table() : m.wizard_tablesPl(), max: maxPlayersForTables })}
@@ -2888,157 +2595,121 @@
             </span>
           </div>
 
+          <!-- Player/Pair Selector -->
           {#if gameType === 'doubles'}
-            <!-- Doubles: Pair selector - adds to textarea -->
             <PairSelector
               onadd={(participant) => {
-                // Convert participant to textarea line format
-                const names = `${participant.name} / ${participant.partner?.name}`;
-                const line = participant.teamName ? `${names}, ${participant.teamName}` : names;
-                // Prepend to textarea
-                bulkGuestText = line + (bulkGuestText.trim() ? '\n' + bulkGuestText : '');
+                participants = [participant, ...participants];
                 saveDraft();
               }}
               existingParticipants={participants}
-              excludedUserIds={[]}
-              excludedNames={textareaNames}
+              excludedUserIds={excludedUserIds}
+              excludedNames={excludedNames}
             />
           {:else}
-            <!-- Singles: Individual player selector -->
             <SinglesPlayerSelector
-              onadd={(name, _isRegistered) => {
-                // Add player name to textarea
-                bulkGuestText = name + (bulkGuestText.trim() ? '\n' + bulkGuestText : '');
+              onadd={(participant) => {
+                participants = [participant, ...participants];
                 saveDraft();
               }}
-              excludedNames={textareaNames}
+              excludedNames={excludedNames}
+              excludedUserIds={excludedUserIds}
             />
           {/if}
 
-          <!-- Bulk guest entry section -->
-          <div class="bulk-entry-section">
-            <div class="bulk-entry-header">
-              <span class="bulk-entry-divider"></span>
-              <span class="bulk-entry-label">{m.wizard_bulkEntryTitle()}</span>
-              <span class="bulk-entry-divider"></span>
-            </div>
+          <!-- Participant List -->
+          {#if participants.length > 0}
+            <div class="participant-list">
+              {#each participants as participant, i (participant.id)}
+                {@const isEditing = editingParticipantId === participant.id}
+                <div class={["pl-item", participant.type === 'REGISTERED' ? "pl-registered" : "pl-guest"]}>
+                  <span class="pl-index">{i + 1}</span>
 
-            <div class="bulk-entry-layout">
-              <!-- Left: Textarea -->
-              <div class="bulk-entry-editor">
-                <Textarea
-                  bind:value={bulkGuestText}
-                  placeholder={gameType === 'doubles'
-                    ? "María García / Carlos López\nAna Pérez / Juan Martín, Los Tigres\nLaura Sánchez / Pedro Ruiz"
-                    : "María García\nCarlos López\nAna Pérez\nJuan Martín\nLaura Sánchez"}
-                  class="min-h-60 font-mono text-xs leading-relaxed resize-y bg-background"
-                />
-
-                {#if bulkErrors.length > 0}
-                  <div class="bulk-errors">
-                    {#each bulkErrors as error}
-                      <div class="bulk-error-item">⚠️ {error}</div>
-                    {/each}
-                  </div>
-                {/if}
-
-                <!-- Actions below textarea -->
-                <div class="bulk-actions">
-                  <div class="bulk-test-group">
-                    <span class="bulk-test-label">{m.wizard_bulkTestLabel()}</span>
-                    <input
-                      type="number"
-                      class="bulk-test-input"
-                      bind:value={bulkTestCount}
-                      min="1"
-                      max="100"
-                    />
-                    <button
-                      type="button"
-                      class="bulk-test-btn"
-                      onclick={generateTestPlayers}
-                    >
-                      {m.wizard_bulkGenerateTest()}
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    class="bulk-process-btn"
-                    onclick={processBulkGuests}
-                    disabled={!bulkGuestText.trim() || bulkProcessing}
-                  >
-                    {#if bulkProcessing}
-                      {m.wizard_bulkProcessing()}
+                  {#if gameType !== 'doubles'}
+                    {#if participant.type === 'REGISTERED'}
+                      <User class="pl-icon pl-icon-reg" />
                     {:else}
-                      {m.wizard_bulkAnalyze()}
+                      <UserPlus class="pl-icon pl-icon-guest" />
                     {/if}
-                  </button>
-                </div>
-
-                <!-- Analysis result -->
-                {#if analysisResult && bulkErrors.length === 0}
-                  <div class="analysis-result">
-                    <div class="analysis-summary">
-                      <span class="analysis-total">✓ {analysisResult.total} {analysisResult.total === 1 ? m.wizard_playersSingular() : m.wizard_players()}</span>
-                      <span class="analysis-registered">👤 {analysisResult.registered} {m.wizard_registered()}</span>
-                      <span class="analysis-guests">🎭 {analysisResult.guests} guests</span>
-                    </div>
-                    {#if analysisResult.registeredNames.length > 0}
-                      <div class="analysis-names">
-                        <span class="analysis-names-label">{m.wizard_registeredUsers()}:</span>
-                        <span class="analysis-names-list">{analysisResult.registeredNames.join(', ')}</span>
-                      </div>
-                    {/if}
-                  </div>
-                {/if}
-              </div>
-
-              <!-- Right: Format guide -->
-              <div class="bulk-entry-guide">
-                <div class="guide-header">
-                  <span class="guide-title">{m.wizard_formatGuide()}</span>
-                </div>
-
-                <div class="guide-content">
-                  {#if gameType === 'doubles'}
-                    <div class="guide-section">
-                      <div class="guide-section-title">{m.wizard_basicFormat()}</div>
-                      <div class="guide-example">
-                        <code>Player1 / Player2</code>
-                      </div>
-                      <p class="guide-note">{m.wizard_separateSlash()}</p>
-                    </div>
-
-                    <div class="guide-section">
-                      <div class="guide-section-title">{m.wizard_withTeamName()}</div>
-                      <div class="guide-example">
-                        <code>Player1 / Player2, Team</code>
-                      </div>
-                      <p class="guide-note">{m.wizard_teamNameOptional()}</p>
-                    </div>
-                  {:else}
-                    <div class="guide-section">
-                      <div class="guide-section-title">{m.wizard_basicFormat()}</div>
-                      <div class="guide-example">
-                        <code>Player Name</code>
-                      </div>
-                      <p class="guide-note">{m.wizard_onePerLine()}</p>
-                    </div>
                   {/if}
 
-                  <div class="guide-section guide-tips">
-                    <div class="guide-section-title">{m.wizard_tips()}</div>
-                    <ul class="guide-list">
-                      <li>{m.wizard_tipMinChars()}</li>
-                      <li>{m.wizard_tipAutoDetect()}</li>
-                      <li>{m.wizard_tipEmptyLines()}</li>
-                    </ul>
+                  <div class="pl-content">
+                    {#if isEditing && editingField === 'name'}
+                      <div class="pl-edit-row">
+                        <input class="pl-edit-input" type="text" bind:value={editingValue}
+                          onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }} />
+                        <button class="pl-edit-confirm" onclick={saveEdit} title="Save"><CircleCheck class="w-3.5 h-3.5" /></button>
+                        <button class="pl-edit-cancel" onclick={cancelEdit} title="Cancel"><X class="w-3.5 h-3.5" /></button>
+                      </div>
+                    {:else if isEditing && editingField === 'partnerName'}
+                      <div class="pl-edit-row">
+                        <span class="pl-name"><span class={participant.type === 'REGISTERED' ? "pl-dot-reg" : "pl-dot-guest"}></span>{participant.name}<span class="pl-sep"> / </span></span>
+                        <input class="pl-edit-input" type="text" bind:value={editingValue}
+                          onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }} />
+                        <button class="pl-edit-confirm" onclick={saveEdit} title="Save"><CircleCheck class="w-3.5 h-3.5" /></button>
+                        <button class="pl-edit-cancel" onclick={cancelEdit} title="Cancel"><X class="w-3.5 h-3.5" /></button>
+                      </div>
+                    {:else if isEditing && editingField === 'teamName'}
+                      <div class="pl-edit-row">
+                        <span class="pl-name">
+                          <span class={participant.type === 'REGISTERED' ? "pl-dot-reg" : "pl-dot-guest"}></span>{participant.name}
+                          {#if participant.partner}
+                            <span class="pl-sep"> / </span><span class={participant.partner.type === 'REGISTERED' ? "pl-dot-reg" : "pl-dot-guest"}></span>{participant.partner.name}
+                          {/if}
+                        </span>
+                        <input class="pl-edit-input pl-edit-team" type="text" bind:value={editingValue} placeholder="Team name"
+                          onkeydown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }} />
+                        <button class="pl-edit-confirm" onclick={saveEdit} title="Save"><CircleCheck class="w-3.5 h-3.5" /></button>
+                        <button class="pl-edit-cancel" onclick={cancelEdit} title="Cancel"><X class="w-3.5 h-3.5" /></button>
+                      </div>
+                    {:else}
+                      <span class="pl-name">
+                        {#if gameType === 'doubles'}
+                          <span class={participant.type === 'REGISTERED' ? "pl-dot-reg" : "pl-dot-guest"}></span>
+                        {/if}
+                        {participant.name}
+                        {#if gameType === 'doubles' && participant.partner}
+                          <span class="pl-sep"> / </span><span class={participant.partner.type === 'REGISTERED' ? "pl-dot-reg" : "pl-dot-guest"}></span>{participant.partner.name}
+                        {/if}
+                      </span>
+                      {#if gameType === 'doubles' && participant.teamName}
+                        <span class="pl-team">{participant.teamName}</span>
+                      {/if}
+                    {/if}
+                  </div>
+
+                  {#if gameType !== 'doubles'}
+                    <span class={["pl-badge", participant.type === 'REGISTERED' ? "pl-badge-reg" : "pl-badge-guest"]}>
+                      {participant.type === 'REGISTERED' ? m.wizard_registered() : 'Guest'}
+                    </span>
+                  {/if}
+
+                  <div class="pl-actions">
+                    {#if !isEditing}
+                      {#if participant.type === 'GUEST'}
+                        <button class="pl-btn pl-btn-edit" onclick={() => startEditing(participant, 'name')} title="Edit name">
+                          <Pencil class="w-3 h-3" />
+                        </button>
+                      {/if}
+                      {#if gameType === 'doubles' && participant.partner?.type === 'GUEST'}
+                        <button class="pl-btn pl-btn-edit" onclick={() => startEditing(participant, 'partnerName')} title="Edit partner">
+                          <Pencil class="w-3 h-3" />
+                        </button>
+                      {/if}
+                      {#if gameType === 'doubles'}
+                        <button class="pl-btn pl-btn-edit" onclick={() => startEditing(participant, 'teamName')} title="Edit team">
+                          <Pencil class="w-3 h-3" />
+                        </button>
+                      {/if}
+                      <button class="pl-btn pl-btn-delete" onclick={() => removeParticipant(participant.id!)} title="Remove">
+                        <Trash2 class="w-3 h-3" />
+                      </button>
+                    {/if}
                   </div>
                 </div>
-              </div>
+              {/each}
             </div>
-          </div>
+          {/if}
         </div>
       {/if}
 
@@ -3181,7 +2852,7 @@
                   </div>
                   <div class="review-row">
                     <span class="review-label">{m.wizard_participants()}</span>
-                    <span class="review-value">{textareaParticipantCount}</span>
+                    <span class="review-value">{participantCount}</span>
                   </div>
                 </div>
               </div>
@@ -3195,17 +2866,19 @@
                   <div class="accordion-title">
                     <span class="review-icon">👥</span>
                     <span>{m.wizard_participants()}</span>
-                    <span class="participant-count">{textareaParticipantCount}</span>
+                    <span class="participant-count">{participantCount}</span>
                   </div>
                   <span class="accordion-chevron">›</span>
                 </button>
                 {#if participantsExpanded}
                   <div class="accordion-body">
                     <div class="participants-grid">
-                      {#each bulkGuestText.split('\n').filter(l => l.trim().length >= 3) as line, i}
+                      {#each participants as participant, i (participant.id)}
                         <div class="participant-item">
                           <span class="participant-number">{i + 1}</span>
-                          <span class="participant-name">{line.trim()}</span>
+                          <span class="participant-name">
+                            {participant.name}{#if gameType === 'doubles' && participant.partner} / {participant.partner.name}{/if}{#if participant.teamName} ({participant.teamName}){/if}
+                          </span>
                         </div>
                       {/each}
                     </div>
@@ -5924,85 +5597,6 @@
     gap: 1.25rem;
   }
 
-  .search-section h3,
-  .guest-section h3,
-  .participants-list h3 {
-    font-size: 0.9rem;
-    margin: 0 0 0.75rem 0;
-    color: #555;
-    transition: color 0.3s;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .search-section h3,
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guest-section h3,
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .participants-list h3 {
-    color: #8b9bb3;
-  }
-
-  .search-box {
-    position: relative;
-  }
-
-  .search-loading {
-    position: absolute;
-    right: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: translateY(-50%) rotate(0deg);
-    }
-    to {
-      transform: translateY(-50%) rotate(360deg);
-    }
-  }
-
-  .search-results {
-    margin-top: 0.4rem;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    transition: border-color 0.3s;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .search-results {
-    border-color: #2d3748;
-  }
-
-  .search-result-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 0.75rem;
-    border: none;
-    background: white;
-    color: #333;
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
-    transition: background-color 0.2s, color 0.3s;
-    font-size: 0.85rem;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .search-result-item {
-    background: #1a2332;
-    border-bottom-color: #2d3748;
-    color: #e1e8ed;
-  }
-
-  .search-result-item:hover {
-    background: #f8f8f8;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .search-result-item:hover {
-    background: #2d3748;
-  }
-
   .user-info {
     display: flex;
     flex-direction: column;
@@ -6052,62 +5646,6 @@
   .add-icon {
     font-size: 1.2rem;
     color: var(--primary);
-  }
-
-  .guest-input-group {
-    display: flex;
-    gap: 0.4rem;
-    margin-bottom: 0.4rem;
-  }
-
-  .guest-input-group .input-field {
-    flex: 1;
-  }
-
-  .guest-button {
-    padding: 0.5rem 1rem;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    color: #666;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guest-button {
-    background: #0f1419;
-    border-color: #2d3748;
-    color: #8b9bb3;
-  }
-
-  .guest-button:hover:not(:disabled) {
-    border-color: var(--primary);
-    background: #f0f4ff;
-    color: var(--primary);
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guest-button:hover:not(:disabled) {
-    background: #2d3748;
-  }
-
-  .guest-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .empty-participants {
-    text-align: center;
-    padding: 1.5rem;
-    color: #999;
-    font-size: 0.85rem;
-    transition: color 0.3s;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .empty-participants {
-    color: #6b7a94;
   }
 
   .participants-grid {
@@ -6437,6 +5975,243 @@
     margin-bottom: 0.75rem;
   }
 
+  /* Participant List */
+  .participant-list {
+    margin-top: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.3rem;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  .pl-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.4rem;
+    border-radius: 0.375rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .pl-item:hover {
+    background: color-mix(in srgb, var(--muted) 60%, transparent);
+    border-color: color-mix(in srgb, var(--foreground) 15%, transparent);
+  }
+
+  .pl-registered {
+    border-left: 2.5px solid #10b981;
+  }
+
+  .pl-guest {
+    border-left: 2.5px solid #f59e0b;
+  }
+
+  .pl-index {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--muted-foreground);
+    min-width: 1rem;
+    text-align: center;
+    opacity: 0.6;
+  }
+
+  :global(.pl-icon) {
+    width: 0.8rem;
+    height: 0.8rem;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  :global(.pl-icon-reg) { color: #10b981; }
+  :global(.pl-icon-guest) { color: #f59e0b; }
+
+  .pl-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .pl-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+  }
+
+  .pl-sep {
+    color: var(--muted-foreground);
+    font-weight: 400;
+  }
+
+  .pl-dot-reg,
+  .pl-dot-guest {
+    display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    margin-right: 0.2rem;
+    vertical-align: middle;
+  }
+
+  .pl-dot-reg { background: #10b981; }
+  .pl-dot-guest { background: #f59e0b; }
+
+  .pl-team {
+    font-size: 0.6rem;
+    padding: 0.05rem 0.3rem;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
+    border-radius: 0.2rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .pl-badge {
+    font-size: 0.55rem;
+    padding: 0.05rem 0.25rem;
+    border-radius: 0.2rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .pl-badge-reg {
+    background: color-mix(in srgb, #10b981 12%, transparent);
+    color: #059669;
+  }
+
+  .pl-badge-guest {
+    background: color-mix(in srgb, #f59e0b 12%, transparent);
+    color: #d97706;
+  }
+
+  /* Actions */
+  .pl-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .pl-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 0.25rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--muted-foreground);
+    opacity: 0;
+    transition: all 0.15s;
+  }
+
+  .pl-item:hover .pl-btn {
+    opacity: 0.7;
+  }
+
+  .pl-btn:hover {
+    opacity: 1 !important;
+  }
+
+  .pl-btn-edit:hover {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .pl-btn-delete:hover {
+    color: #ef4444;
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+  }
+
+  /* Inline edit */
+  .pl-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pl-edit-input {
+    height: 1.35rem;
+    padding: 0 0.35rem;
+    font-size: 0.7rem;
+    border: 1px solid var(--primary);
+    border-radius: 0.25rem;
+    background: var(--background);
+    color: var(--foreground);
+    outline: none;
+    flex: 1;
+    min-width: 60px;
+  }
+
+  .pl-edit-input:focus {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+  }
+
+  .pl-edit-team {
+    max-width: 100px;
+    flex: 0 1 auto;
+  }
+
+  .pl-edit-confirm,
+  .pl-edit-cancel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 0.25rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+
+  .pl-edit-confirm {
+    color: #10b981;
+  }
+
+  .pl-edit-confirm:hover {
+    background: color-mix(in srgb, #10b981 12%, transparent);
+  }
+
+  .pl-edit-cancel {
+    color: #ef4444;
+  }
+
+  .pl-edit-cancel:hover {
+    background: color-mix(in srgb, #ef4444 12%, transparent);
+  }
+
+  @media (max-width: 640px) {
+    .participant-list {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .pl-badge {
+      display: none;
+    }
+  }
+
   .participants-counter {
     display: flex;
     align-items: center;
@@ -6511,90 +6286,6 @@
     color: #8b9bb3;
   }
 
-  .search-box {
-    position: relative;
-  }
-
-  .search-box .input-field {
-    padding-right: 2rem;
-    width: 100%;
-  }
-
-  .search-loading {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.8rem;
-  }
-
-  .search-results {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    z-index: 20;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .search-results {
-    background: #1a2332;
-    border-color: #2d3748;
-  }
-
-  .search-result-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    background: none;
-    border: none;
-    border-bottom: 1px solid #f0f0f0;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.15s;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .search-result-item {
-    border-color: #2d3748;
-  }
-
-  .search-result-item:last-child {
-    border-bottom: none;
-  }
-
-  .search-result-item:hover:not(:disabled) {
-    background: #f5f7fa;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .search-result-item:hover:not(:disabled) {
-    background: #2d3748;
-  }
-
-  .search-result-item:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .result-name {
-    flex: 1;
-    font-size: 0.8rem;
-    color: #333;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .result-name {
-    color: #c5d0de;
-  }
-
   .result-rank {
     font-size: 0.7rem;
     font-weight: 600;
@@ -6613,15 +6304,6 @@
     font-size: 1rem;
     color: #10b981;
     font-weight: 700;
-  }
-
-  .guest-input-group {
-    display: flex;
-    gap: 0.35rem;
-  }
-
-  .guest-input-group .input-field {
-    flex: 1;
   }
 
   .add-btn {
@@ -6653,440 +6335,6 @@
     background: #4a5568;
   }
 
-  /* Bulk Entry Section - Professional Two-Column Layout */
-  .bulk-entry-section {
-    margin-top: 1.25rem;
-    margin-bottom: 1rem;
-  }
-
-  .bulk-entry-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.625rem;
-  }
-
-  .bulk-entry-divider {
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #d1d5db 20%, #d1d5db 80%, transparent);
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-divider {
-    background: linear-gradient(90deg, transparent, #3d4a5c 20%, #3d4a5c 80%, transparent);
-  }
-
-  .bulk-entry-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-label {
-    color: #8b9bb3;
-  }
-
-  /* Two-column layout */
-  .bulk-entry-layout {
-    display: grid;
-    grid-template-columns: 1fr 220px;
-    gap: 0.875rem;
-    align-items: stretch;
-  }
-
-  @media (max-width: 768px) {
-    .bulk-entry-layout {
-      grid-template-columns: 1fr;
-    }
-    .bulk-entry-guide {
-      order: -1;
-    }
-  }
-
-  /* Left column: Editor */
-  .bulk-entry-editor {
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-  }
-
-  .bulk-errors {
-    max-height: 80px;
-    overflow-y: auto;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    border-radius: 5px;
-    padding: 0.5rem 0.625rem;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-errors {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.3);
-  }
-
-  .bulk-error-item {
-    font-size: 0.7rem;
-    color: #dc2626;
-    padding: 0.1rem 0;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-error-item {
-    color: #f87171;
-  }
-
-  /* Compact inline actions bar */
-  .bulk-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.375rem 0.5rem;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-actions {
-    background: #1e293b;
-    border-color: #334155;
-  }
-
-  .bulk-test-group {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-  }
-
-  .bulk-test-label {
-    font-size: 0.7rem;
-    color: #64748b;
-    font-weight: 500;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-label {
-    color: #94a3b8;
-  }
-
-  .bulk-test-input {
-    width: 44px;
-    padding: 0.25rem 0.375rem;
-    font-size: 0.75rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    background: #fff;
-    color: #1e293b;
-    text-align: center;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-input {
-    background: #0f172a;
-    border-color: #334155;
-    color: #e2e8f0;
-  }
-
-  .bulk-test-input:focus {
-    outline: none;
-    border-color: #3b82f6;
-  }
-
-  .bulk-test-btn {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.7rem;
-    font-weight: 500;
-    background: #fff;
-    color: #475569;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-btn {
-    background: #0f172a;
-    border-color: #334155;
-    color: #cbd5e1;
-  }
-
-  .bulk-test-btn:hover {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-test-btn:hover {
-    background: #334155;
-  }
-
-  .bulk-process-btn {
-    padding: 0.375rem 0.875rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    background: #10b981;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .bulk-process-btn:hover:not(:disabled) {
-    background: #059669;
-  }
-
-  .bulk-process-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* Right column: Format guide */
-  .bulk-entry-guide {
-    display: flex;
-    flex-direction: column;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .bulk-entry-guide {
-    background: #0f172a;
-    border-color: #1e293b;
-  }
-
-  .guide-header {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.5rem 0.75rem;
-    background: #f1f5f9;
-    border-bottom: 1px solid #e2e8f0;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-header {
-    background: #1e293b;
-    border-color: #334155;
-  }
-
-  .guide-title {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #475569;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-title {
-    color: #94a3b8;
-  }
-
-  .guide-content {
-    flex: 1;
-    padding: 0.625rem 0.75rem;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .guide-section {
-    margin-bottom: 0.625rem;
-  }
-
-  .guide-section:last-child {
-    margin-bottom: 0;
-  }
-
-  .guide-section-title {
-    font-size: 0.6rem;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-bottom: 0.25rem;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-section-title {
-    color: #94a3b8;
-  }
-
-  .guide-example {
-    margin-bottom: 0.25rem;
-  }
-
-  .guide-example code {
-    display: inline-block;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
-    font-size: 0.7rem;
-    color: #0f172a;
-    background: #e2e8f0;
-    padding: 0.2rem 0.4rem;
-    border-radius: 3px;
-    border: 1px solid #cbd5e1;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-example code {
-    background: #1e293b;
-    border-color: #334155;
-    color: #e2e8f0;
-  }
-
-  .guide-note {
-    font-size: 0.65rem;
-    color: #64748b;
-    margin: 0;
-    line-height: 1.35;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-note {
-    color: #94a3b8;
-  }
-
-  .guide-tips {
-    margin-top: auto;
-    padding-top: 0.5rem;
-    border-top: 1px solid #e2e8f0;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-tips {
-    border-color: #1e293b;
-  }
-
-  .guide-list {
-    margin: 0;
-    padding-left: 0.875rem;
-    list-style: none;
-  }
-
-  .guide-list li {
-    font-size: 0.65rem;
-    color: #64748b;
-    line-height: 1.4;
-    position: relative;
-  }
-
-  .guide-list li::before {
-    content: "•";
-    position: absolute;
-    left: -0.625rem;
-    color: #94a3b8;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .guide-list li {
-    color: #94a3b8;
-  }
-
-  /* Analysis result - Compact inline */
-  .analysis-result {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0.625rem;
-    background: #ecfdf5;
-    border: 1px solid #a7f3d0;
-    border-radius: 5px;
-    flex-wrap: wrap;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-result {
-    background: rgba(16, 185, 129, 0.1);
-    border-color: rgba(16, 185, 129, 0.3);
-  }
-
-  .analysis-summary {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    font-size: 0.75rem;
-    font-weight: 500;
-  }
-
-  .analysis-total {
-    color: #059669;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-total {
-    color: #34d399;
-  }
-
-  .analysis-registered {
-    color: #2563eb;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-registered {
-    color: #60a5fa;
-  }
-
-  .analysis-guests {
-    color: #64748b;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-guests {
-    color: #94a3b8;
-  }
-
-  .analysis-names {
-    font-size: 0.7rem;
-    color: #475569;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    flex-wrap: wrap;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-names {
-    color: #94a3b8;
-  }
-
-  .analysis-names-label {
-    font-weight: 600;
-  }
-
-  .analysis-names-list {
-    color: #2563eb;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .analysis-names-list {
-    color: #60a5fa;
-  }
-
-  .participants-list-section {
-    background: #fafafa;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    padding: 0.75rem;
-    transition: all 0.3s;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .participants-list-section {
-    background: #151e2c;
-    border-color: #2d3748;
-  }
-
-  .list-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #666;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .list-header {
-    color: #8b9bb3;
-  }
-
-  .list-count {
-    background: #e5e7eb;
-    padding: 0.1rem 0.4rem;
-    border-radius: 10px;
-    font-size: 0.7rem;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .list-count {
-    background: #2d3748;
-    color: #c5d0de;
-  }
 
   .empty-list {
     text-align: center;

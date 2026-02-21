@@ -6,11 +6,13 @@
   import { Button } from '$lib/components/ui/button';
   import { searchUsers } from '$lib/firebase/tournaments';
   import type { UserProfile } from '$lib/firebase/userProfile';
+  import type { TournamentParticipant } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
-    onadd: (name: string, isRegistered: boolean) => void;
+    onadd: (participant: Partial<TournamentParticipant>) => void;
     excludedNames?: Set<string>;
+    excludedUserIds?: string[];
   }
 
   interface SelectedPlayer {
@@ -22,7 +24,7 @@
 
   type UserWithRanking = UserProfile & { userId: string; ranking?: number };
 
-  let { onadd, excludedNames = new Set() }: Props = $props();
+  let { onadd, excludedNames = new Set(), excludedUserIds = [] }: Props = $props();
 
   let open = $state(false);
   let query = $state('');
@@ -34,9 +36,12 @@
 
   let canAdd = $derived(selected && !adding);
 
-  // Filter results to exclude names already in textarea
+  // Filter results to exclude names and userIds already in the participants list
   let results = $derived(
-    rawResults.filter(u => !excludedNames.has(u.playerName?.toLowerCase() || ''))
+    rawResults.filter(u =>
+      !excludedNames.has(u.playerName?.toLowerCase() || '') &&
+      !excludedUserIds.includes(u.userId)
+    )
   );
 
   // Can add as guest if query >= 3 chars and no results
@@ -89,7 +94,16 @@
   function addPlayer() {
     if (!selected) return;
     adding = true;
-    onadd(selected.name, selected.type === 'REGISTERED');
+    const participant: Partial<TournamentParticipant> = {
+      id: crypto.randomUUID(),
+      type: selected.type,
+      name: selected.name,
+      userId: selected.userId,
+      photoURL: selected.photoURL,
+      rankingSnapshot: 0,
+      status: 'ACTIVE'
+    };
+    onadd(participant);
     clearSelection();
     adding = false;
   }

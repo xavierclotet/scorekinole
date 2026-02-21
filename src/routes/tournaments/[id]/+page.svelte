@@ -135,8 +135,8 @@
 	// Check if both phases exist (with actual content)
 	let hasGroupStage = $derived(
 		tournament?.groupStage &&
-		tournament.groupStage.groups.length > 0 &&
-		tournament.groupStage.groups.some(g => g.standings && g.standings.length > 0)
+		(tournament.groupStage.groups?.length ?? 0) > 0 &&
+		tournament.groupStage.groups?.some(g => g.standings && g.standings.length > 0)
 	);
 	let hasFinalStage = $derived(
 		tournament?.finalStage &&
@@ -609,34 +609,67 @@
 						{@const eventDate = new Date(tournament.tournamentDate)}
 						{@const datePart = eventDate.toISOString().split('T')[0].replace(/-/g, '')}
 						{@const hasTime = !!tournament.tournamentTime}
-						{@const timePart = hasTime ? tournament.tournamentTime.replace(':', '') + '00' : ''}
-						{@const dateStr = hasTime ? `${datePart}T${timePart}` : datePart}
-						{@const endDateStr = hasTime ? `${datePart}T${String(Math.min(23, parseInt(tournament.tournamentTime.split(':')[0]) + 8)).padStart(2, '0')}${tournament.tournamentTime.split(':')[1]}00` : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '')}
-						{@const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(tournament.name)}&dates=${dateStr}/${endDateStr}${tournament.description ? `&details=${encodeURIComponent(tournament.description)}` : ''}${tournament.city ? `&location=${encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + tournament.city + (tournament.country ? ', ' + tournament.country : ''))}` : ''}`}
-						<a
-							href={calendarUrl}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="info-card calendar-card"
-						>
-							<span class="info-label">
-								<svg class="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-									<line x1="16" y1="2" x2="16" y2="6"/>
-									<line x1="8" y1="2" x2="8" y2="6"/>
-									<line x1="3" y1="10" x2="21" y2="10"/>
-								</svg>
-								{m.tournament_date()}
-							</span>
-							<span class="info-value calendar-value">
-								<span>{formatDate(tournament.tournamentDate, tournament.tournamentTime)}</span>
-								<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-									<polyline points="15 3 21 3 21 9"/>
-									<line x1="10" y1="14" x2="21" y2="3"/>
-								</svg>
-							</span>
-						</a>
+						{@const isFinished = tournament.status === 'COMPLETED'}
+						{@const startedDate = tournament.startedAt ? new Date(tournament.startedAt) : null}
+						{@const realStartTime = isFinished && startedDate ? `${String(startedDate.getHours()).padStart(2, '0')}:${String(startedDate.getMinutes()).padStart(2, '0')}` : null}
+						{@const displayStartTime = realStartTime || tournament.tournamentTime}
+						{@const completedDate = tournament.completedAt ? new Date(tournament.completedAt) : null}
+						{@const realEndTime = isFinished && completedDate ? `${String(completedDate.getHours()).padStart(2, '0')}:${String(completedDate.getMinutes()).padStart(2, '0')}` : null}
+						{@const hasDisplayTime = !!(displayStartTime || hasTime)}
+						{@const timePart = hasDisplayTime && displayStartTime ? displayStartTime.replace(':', '') + '00' : (hasTime && tournament.tournamentTime ? tournament.tournamentTime.replace(':', '') + '00' : '')}
+						{@const dateStr = hasDisplayTime ? `${datePart}T${timePart}` : datePart}
+						{@const durationMinutes = (tournament.timeEstimate?.totalMinutes || 480) + 30}
+						{@const startHour = hasDisplayTime && displayStartTime ? parseInt(displayStartTime.split(':')[0]) : 0}
+						{@const startMin = hasDisplayTime && displayStartTime ? parseInt(displayStartTime.split(':')[1]) : 0}
+						{@const endTotalMin = startHour * 60 + startMin + durationMinutes}
+						{@const estEndH = String(Math.min(23, Math.floor(endTotalMin / 60))).padStart(2, '0')}
+						{@const estEndM = String(endTotalMin % 60).padStart(2, '0')}
+						{@const endTime = realEndTime || `${estEndH}:${estEndM}`}
+						{@const endH = realEndTime ? String(completedDate!.getHours()).padStart(2, '0') : estEndH}
+						{@const endM = realEndTime ? String(completedDate!.getMinutes()).padStart(2, '0') : estEndM}
+						{@const endDateStr = hasDisplayTime ? `${datePart}T${endH}${endM}00` : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '')}
+						{#if isFinished}
+							<div class="info-card calendar-card calendar-static">
+								<span class="info-label">
+									<svg class="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+										<line x1="16" y1="2" x2="16" y2="6"/>
+										<line x1="8" y1="2" x2="8" y2="6"/>
+										<line x1="3" y1="10" x2="21" y2="10"/>
+									</svg>
+									{m.tournament_date()}
+								</span>
+								<span class="info-value calendar-value">
+									<span>{formatDate(tournament.tournamentDate, displayStartTime || undefined)}{hasDisplayTime ? ` - ${endTime}` : ''}</span>
+								</span>
+							</div>
+						{:else}
+							{@const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(tournament.name)}&dates=${dateStr}/${endDateStr}${tournament.description ? `&details=${encodeURIComponent(tournament.description)}` : ''}${tournament.city ? `&location=${encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + tournament.city + (tournament.country ? ', ' + tournament.country : ''))}` : ''}`}
+							<a
+								href={calendarUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="info-card calendar-card"
+							>
+								<span class="info-label">
+									<svg class="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+										<line x1="16" y1="2" x2="16" y2="6"/>
+										<line x1="8" y1="2" x2="8" y2="6"/>
+										<line x1="3" y1="10" x2="21" y2="10"/>
+									</svg>
+									{m.tournament_date()}
+								</span>
+								<span class="info-value calendar-value">
+									<span>{formatDate(tournament.tournamentDate, displayStartTime || undefined)}{hasDisplayTime ? ` - ${endTime}` : ''}</span>
+									<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+										<polyline points="15 3 21 3 21 9"/>
+										<line x1="10" y1="14" x2="21" y2="3"/>
+									</svg>
+								</span>
+							</a>
+						{/if}
 					{/if}
 					{#if tournament.city || tournament.country}
 						<a
@@ -2684,9 +2717,13 @@
 		border: 1px solid rgba(16, 185, 129, 0.2);
 	}
 
-	.calendar-card:hover {
+	.calendar-card:hover:not(.calendar-static) {
 		background: rgba(16, 185, 129, 0.15);
 		border-color: rgba(16, 185, 129, 0.4);
+	}
+
+	.calendar-static {
+		cursor: default;
 	}
 
 	.calendar-card .info-label {
@@ -2724,7 +2761,7 @@
 		border-color: rgba(16, 185, 129, 0.2);
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .calendar-card:hover {
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .calendar-card:hover:not(.calendar-static) {
 		background: rgba(16, 185, 129, 0.08);
 		border-color: rgba(16, 185, 129, 0.3);
 	}

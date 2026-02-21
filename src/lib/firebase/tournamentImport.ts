@@ -45,6 +45,7 @@ export interface HistoricalTournamentInput {
   description?: string;
   edition?: number;
   tournamentDate: number;
+  tournamentTime?: string;
   address?: string;
   city: string;
   country: string;
@@ -632,6 +633,9 @@ export async function createHistoricalTournament(
     if (input.posterUrl) {
       tournament.posterUrl = input.posterUrl;
     }
+    if (input.tournamentTime) {
+      tournament.tournamentTime = input.tournamentTime;
+    }
 
     console.log('📦 Tournament document to save:', JSON.stringify(tournament, null, 2));
 
@@ -705,6 +709,7 @@ export interface UpcomingTournamentInput {
   description?: string;
   edition?: number;
   tournamentDate: number;
+  tournamentTime?: string;
   address?: string;
   city: string;
   country: string;
@@ -788,6 +793,9 @@ export async function createUpcomingTournament(
     }
     if (input.posterUrl) {
       tournament.posterUrl = input.posterUrl;
+    }
+    if (input.tournamentTime) {
+      tournament.tournamentTime = input.tournamentTime;
     }
 
     console.log('📦 Upcoming tournament to save:', JSON.stringify(tournament, null, 2));
@@ -1149,6 +1157,9 @@ export async function completeUpcomingTournament(
     }
     if (input.externalLink) {
       updateData.externalLink = input.externalLink;
+    }
+    if (input.tournamentTime) {
+      updateData.tournamentTime = input.tournamentTime;
     }
 
     await updateDoc(tournamentRef, updateData);
