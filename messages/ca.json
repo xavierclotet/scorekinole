@@ -190,6 +190,7 @@
   "admin_searchMatches": "Cercar partits...",
   "admin_searchTournaments": "Cercar tornejos...",
   "admin_searchUsers": "Cercar usuaris...",
+  "admin_searchingAllUsers": "Cercant en tots els usuaris...",
   "admin_selectQualified": "Sel. Classificats",
   "admin_selectQualifiersAfter": "Seleccionaràs els classificats en el següent pas.",
   "admin_selectQualifiersHint": "Selecciona classificats a dalt",

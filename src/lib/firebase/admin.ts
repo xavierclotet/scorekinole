@@ -99,6 +99,38 @@ export async function getAllUsers(): Promise<AdminUserInfo[]> {
 }
 
 /**
+ * Fetch all users for search (admin only)
+ * Returns all users in the collection without pagination limits
+ */
+export async function fetchAllUsers(): Promise<AdminUserInfo[]> {
+  if (!browser || !isFirebaseEnabled()) return [];
+
+  const user = get(currentUser);
+  if (!user) return [];
+
+  const adminStatus = await isAdmin();
+  if (!adminStatus) return [];
+
+  try {
+    const usersRef = collection(db!, 'users');
+    const q = query(usersRef, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+
+    const users: AdminUserInfo[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as UserProfile;
+      users.push({ userId: docSnap.id, ...data });
+    });
+
+    console.log(`✅ Fetched all ${users.length} users for search`);
+    return users;
+  } catch (error) {
+    console.error('❌ Error fetching all users:', error);
+    return [];
+  }
+}
+
+/**
  * Get users with pagination (admin only)
  */
 export async function getUsersPaginated(

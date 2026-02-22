@@ -7,7 +7,7 @@
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
-  import { getUsersPaginated, deleteUser, getUsersTournamentCounts, mergeGuestToRegistered, getRegisteredUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
+  import { getUsersPaginated, fetchAllUsers, deleteUser, getUsersTournamentCounts, mergeGuestToRegistered, getRegisteredUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
   import { getUserTournamentDependencies, type UserTournamentDependencies } from '$lib/firebase/tournaments';
   import { getVenuesByOwner } from '$lib/firebase/venues';
   import type { Venue } from '$lib/types/venue';
@@ -60,6 +60,10 @@
   let hasMore = $state(true);
   let tableContainer: HTMLElement | null = $state(null);
 
+  // Search: load all users for searching across entire database
+  let allUsersCache: AdminUserInfo[] | null = $state(null);
+  let isSearchLoading = $state(false);
+
   let isSearching = $derived(searchQuery.trim().length > 0);
   let isFiltering = $derived(filterRole !== 'all' || filterType !== 'all');
 
@@ -68,7 +72,7 @@
     return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
-  let filteredUsers = $derived(users.filter((user) => {
+  let filteredUsers = $derived((isSearching && allUsersCache ? allUsersCache : users).filter((user) => {
     if (filterRole === 'admin' && !user.isAdmin) return false;
 
     // Type filter (registration + merged status)
@@ -102,6 +106,25 @@
         }
       });
     }
+  });
+
+  // Debounced search: fetch all users on first search attempt
+  $effect(() => {
+    const query = searchQuery.trim();
+    if (query.length === 0 || allUsersCache) return;
+
+    const timer = setTimeout(async () => {
+      isSearchLoading = true;
+      try {
+        allUsersCache = await fetchAllUsers();
+      } catch (error) {
+        console.error('Error loading users for search:', error);
+      } finally {
+        isSearchLoading = false;
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
   });
 
   onMount(() => {
@@ -179,6 +202,7 @@
 
   async function handleUserUpdated() {
     closeEditModal();
+    allUsersCache = null;
     await loadInitialUsers();
   }
 
@@ -225,6 +249,7 @@
     if (success) {
       users = users.filter((u) => u.userId !== userToDelete!.userId);
       totalCount = Math.max(0, totalCount - 1);
+      allUsersCache = null;
     }
 
     isDeleting = false;
@@ -279,6 +304,7 @@
         return u;
       });
       cancelMigrate();
+      allUsersCache = null;
       // Reload to get fresh data
       await loadInitialUsers();
     } else {
@@ -342,8 +368,8 @@
       </div>
     </div>
 
-    {#if isLoading}
-      <LoadingSpinner message={m.admin_loading()} />
+    {#if isLoading || (isSearching && isSearchLoading && !allUsersCache)}
+      <LoadingSpinner message={isSearchLoading ? m.admin_searchingAllUsers() : m.admin_loading()} />
     {:else if filteredUsers.length === 0}
       <div class="empty-state">
         <div class="empty-icon">👥</div>

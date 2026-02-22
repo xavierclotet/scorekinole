@@ -2315,37 +2315,21 @@
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="match-detail-modal" onclick={(e) => e.stopPropagation()}>
+			<button class="match-detail-close" onclick={() => showMatchDetail = false} aria-label="Cerrar">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+					<path d="M18 6L6 18M6 6l12 12"/>
+				</svg>
+			</button>
 			<div class="match-detail-header">
-				<button class="match-detail-close" onclick={() => showMatchDetail = false} aria-label="Cerrar">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-						<path d="M18 6L6 18M6 6l12 12"/>
-					</svg>
-				</button>
-				<div class="match-detail-score-block">
-					<div class="match-detail-final-score">
-						<span class="final-score" class:winner={selectedMatch.winner === selectedMatch.participantA}>
-							{selectedMatch.totalPointsA ?? selectedMatch.gamesWonA ?? 0}
-						</span>
-						<span class="score-sep">:</span>
-						<span class="final-score" class:winner={selectedMatch.winner === selectedMatch.participantB}>
-							{selectedMatch.totalPointsB ?? selectedMatch.gamesWonB ?? 0}
-						</span>
+				<div class="match-detail-matchup">
+					<div class="md-side" class:is-winner={selectedMatch.winner === selectedMatch.participantA}>
+						<span class="md-name">{getParticipantName(selectedMatch.participantA)}</span>
+						<span class="md-score">{selectedMatch.totalPointsA ?? selectedMatch.gamesWonA ?? 0}</span>
 					</div>
-				</div>
-				<div class="match-detail-players">
-					<div class="md-player md-player-a" class:is-winner={selectedMatch.winner === selectedMatch.participantA}>
-						<span class="md-player-tag">A</span>
-						<span class="md-player-name">{getParticipantName(selectedMatch.participantA)}</span>
-						{#if selectedMatch.winner === selectedMatch.participantA}
-							<span class="md-winner-badge">W</span>
-						{/if}
-					</div>
-					<div class="md-player md-player-b" class:is-winner={selectedMatch.winner === selectedMatch.participantB}>
-						<span class="md-player-tag">B</span>
-						<span class="md-player-name">{getParticipantName(selectedMatch.participantB)}</span>
-						{#if selectedMatch.winner === selectedMatch.participantB}
-							<span class="md-winner-badge">W</span>
-						{/if}
+					<span class="md-vs">vs</span>
+					<div class="md-side md-side-b" class:is-winner={selectedMatch.winner === selectedMatch.participantB}>
+						<span class="md-score">{selectedMatch.totalPointsB ?? selectedMatch.gamesWonB ?? 0}</span>
+						<span class="md-name">{getParticipantName(selectedMatch.participantB)}</span>
 					</div>
 				</div>
 			</div>
@@ -2399,14 +2383,14 @@
 									{#each gameRounds as round}
 										<td class="round-col" class:round-winner={(round.pointsA ?? 0) > (round.pointsB ?? 0)}>
 											<span class="round-points">{round.pointsA ?? '-'}</span>
-											{#if show20s && round.twentiesA > 0}
-												<span class="round-twenties">{round.twentiesA}</span>
+											{#if show20s}
+												<span class="round-twenties">{round.twentiesA ?? 0}</span>
 											{/if}
 										</td>
 									{/each}
 									<td class="total-col" class:game-winner={gameTotalA > gameTotalB}>
 										<span class="total-points">{gameTotalA}</span>
-										{#if show20s && game20sA > 0}
+										{#if show20s}
 											<span class="total-twenties">{game20sA}</span>
 										{/if}
 									</td>
@@ -2417,14 +2401,14 @@
 									{#each gameRounds as round}
 										<td class="round-col" class:round-winner={(round.pointsB ?? 0) > (round.pointsA ?? 0)}>
 											<span class="round-points">{round.pointsB ?? '-'}</span>
-											{#if show20s && round.twentiesB > 0}
-												<span class="round-twenties">{round.twentiesB}</span>
+											{#if show20s}
+												<span class="round-twenties">{round.twentiesB ?? 0}</span>
 											{/if}
 										</td>
 									{/each}
 									<td class="total-col" class:game-winner={gameTotalB > gameTotalA}>
 										<span class="total-points">{gameTotalB}</span>
-										{#if show20s && game20sB > 0}
+										{#if show20s}
 											<span class="total-twenties">{game20sB}</span>
 										{/if}
 									</td>
@@ -5446,8 +5430,8 @@
 	.match-detail-modal {
 		background: #111827;
 		border-radius: 20px;
-		width: min(94vw, 560px);
-		max-height: 85vh;
+		width: min(96vw, 680px);
+		max-height: 90vh;
 		overflow: hidden;
 		position: relative;
 		box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.5);
@@ -5479,95 +5463,63 @@
 	}
 
 	.match-detail-header {
-		padding: 1.5rem 1.25rem 1.25rem;
-		background: var(--primary);
-		text-align: center;
+		padding: 0.875rem 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	}
 
-	.match-detail-score-block {
-		margin-bottom: 1rem;
-	}
-
-	.match-detail-players {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.md-player {
+	.match-detail-matchup {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.5rem 0.75rem;
-		background: rgba(255, 255, 255, 0.08);
-		border-radius: 10px;
 	}
 
-	.md-player.is-winner {
-		background: rgba(255, 255, 255, 0.15);
-	}
-
-	.md-player-tag {
-		width: 22px;
-		height: 22px;
-		border-radius: 6px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.625rem;
-		font-weight: 800;
-		flex-shrink: 0;
-		background: rgba(255, 255, 255, 0.15);
-		color: rgba(255, 255, 255, 0.7);
-	}
-
-	.md-player-name {
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: rgba(255, 255, 255, 0.9);
+	.md-side {
 		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	.md-side.md-side-b {
+		flex-direction: row;
+		justify-content: flex-end;
+	}
+
+	.md-name {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.6);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		min-width: 0;
 	}
 
-	.md-winner-badge {
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		background: #10b981;
-		color: white;
-		font-size: 0.5625rem;
+	.md-side.is-winner .md-name {
+		color: rgba(255, 255, 255, 0.95);
+	}
+
+	.md-score {
+		font-size: 1.5rem;
 		font-weight: 800;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		color: rgba(255, 255, 255, 0.3);
+		font-variant-numeric: tabular-nums;
+		line-height: 1;
 		flex-shrink: 0;
 	}
 
-	.match-detail-final-score {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
+	.md-side.is-winner .md-score {
+		color: #34d399;
 	}
 
-	.match-detail-final-score .final-score {
-		font-size: 2.5rem;
-		font-weight: 800;
-		color: rgba(255, 255, 255, 0.4);
-		font-variant-numeric: tabular-nums;
-		line-height: 1;
-	}
-
-	.match-detail-final-score .final-score.winner {
-		color: white;
-	}
-
-	.match-detail-final-score .score-sep {
-		font-size: 2rem;
-		font-weight: 300;
+	.md-vs {
+		font-size: 0.625rem;
+		font-weight: 700;
 		color: rgba(255, 255, 255, 0.2);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		flex-shrink: 0;
 	}
 
 	.match-detail-body {
@@ -5776,34 +5728,38 @@
 	}
 
 	/* Light theme for match detail modal */
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-modal {
-		background: #fff;
-	}
-
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-header {
-		background: var(--primary);
+		border-bottom-color: #e2e8f0;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-close {
-		background: rgba(255, 255, 255, 0.15);
-		color: rgba(255, 255, 255, 0.7);
+		background: rgba(0, 0, 0, 0.05);
+		color: #94a3b8;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-close:hover {
-		background: rgba(255, 255, 255, 0.25);
-		color: #fff;
+		background: rgba(0, 0, 0, 0.1);
+		color: #475569;
 	}
 
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .final-score {
-		color: rgba(255, 255, 255, 0.4);
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-name {
+		color: #94a3b8;
 	}
 
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .final-score.winner {
-		color: white;
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-side.is-winner .md-name {
+		color: #0f172a;
 	}
 
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .score-sep {
-		color: rgba(255, 255, 255, 0.2);
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-score {
+		color: #cbd5e1;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-side.is-winner .md-score {
+		color: #059669;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-vs {
+		color: #cbd5e1;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .game-header {

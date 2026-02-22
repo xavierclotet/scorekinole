@@ -266,6 +266,7 @@
   "admin_searchTournaments": "Buscar torneos...",
   "admin_searchAdmin": "Buscar admin...",
   "admin_searchUsers": "Buscar usuarios...",
+  "admin_searchingAllUsers": "Buscando en todos los usuarios...",
   "admin_selectTargetUser": "Usuario destino",
   "admin_selectUser": "Seleccionar usuario...",
   "admin_selectQualified": "Sel. Clasificados",
