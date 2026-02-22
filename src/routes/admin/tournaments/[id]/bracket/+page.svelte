@@ -25,7 +25,7 @@
     completeFinalStage
   } from '$lib/firebase/tournamentBracket';
   import { disqualifyParticipant, fixDisqualifiedMatches } from '$lib/firebase/tournamentParticipants';
-  import type { Tournament, BracketMatch, GroupMatch, TournamentParticipant } from '$lib/types/tournament';
+  import type { Tournament, BracketMatch, GroupMatch, TournamentParticipant, PhaseConfig } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
   import { isBye, isLoserPlaceholder, parseLoserPlaceholder } from '$lib/algorithms/bracket';
   import * as m from '$lib/paraglide/messages.js';
@@ -224,18 +224,6 @@
     } finally {
       isReassigningTables = false;
     }
-  }
-
-  // Determine phase type from round name
-  function getPhaseType(roundName: string): 'early' | 'semifinal' | 'final' {
-    const name = roundName.toLowerCase();
-    if (name.includes('final') && !name.includes('semi') && !name.includes('quarter') && !name.includes('cuarto')) {
-      return 'final';
-    }
-    if (name.includes('semi')) {
-      return 'semifinal';
-    }
-    return 'early';
   }
 
   // Check if any match in a round has started (IN_PROGRESS or COMPLETED) - excludes BYE matches
@@ -659,19 +647,6 @@
     if (!bracket?.rounds?.length) return false;
     const finalRound = bracket.rounds[bracket.rounds.length - 1];
     return finalRound?.matches?.some((m: BracketMatch) => m.id === match.id) || false;
-  }
-
-  // Check if a match is a consolation match
-  function isConsolationMatch(matchId: string): { isConsolation: boolean; source: 'QF' | 'R16' | null } {
-    const brackets = activeTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets;
-    for (const consolation of brackets) {
-      for (const round of consolation.rounds) {
-        if (round.matches.some(m => m.id === matchId)) {
-          return { isConsolation: true, source: consolation.source };
-        }
-      }
-    }
-    return { isConsolation: false, source: null };
   }
 
   // Handle consolation match click
@@ -1175,13 +1150,13 @@
       async function simulateMatch(
         match: BracketMatch,
         bracketType: 'gold' | 'silver',
-        config: { gameMode: 'points' | 'rounds'; pointsToWin: number; roundsToPlay: number; matchesToWin: number }
+        config: PhaseConfig
       ): Promise<boolean> {
         if (match.status !== 'PENDING' || !match.participantA || !match.participantB) {
           return false;
         }
 
-        const { gameMode, pointsToWin, roundsToPlay, matchesToWin } = config;
+        const { gameMode, pointsToWin = 7, roundsToPlay = 4, matchesToWin } = config;
         const isRoundsMode = gameMode === 'rounds';
 
         const requiredWins = matchesToWin;
@@ -1338,7 +1313,6 @@
         console.log(`\n🏟️ Processing ${bracketType.toUpperCase()} bracket...`);
         let bracketFilledCount = 0;
         let hasMoreMatches = true;
-        const isSilver = bracketType === 'silver';
 
         while (hasMoreMatches) {
           hasMoreMatches = false;
@@ -1363,7 +1337,7 @@
 
           // Process rounds in order - matches within same round are independent
           for (const round of currentBracket.rounds) {
-            console.log(`  📍 Round ${round.roundNumber} (${round.roundName}):`);
+            console.log(`  📍 Round ${round.roundNumber} (${round.name}):`);
 
             // Get phase-specific config for this round
             const phaseConfig = getPhaseConfig(
@@ -1455,7 +1429,7 @@
                 }
 
                 // Simulate the match using same logic as main bracket
-                const { gameMode, pointsToWin, roundsToPlay, matchesToWin } = config;
+                const { gameMode, pointsToWin = 7, roundsToPlay = 4, matchesToWin } = config;
                 const isRoundsMode = gameMode === 'rounds';
                 const requiredWins = matchesToWin;
 
@@ -2054,7 +2028,7 @@
             <div class="bracket-round" class:has-next-round={roundIndex < rounds.length - 1} style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
               <h2 class="round-name">{translateRoundName(round.name)}</h2>
               <div class="matches-column">
-                {#each round.matches as match, matchIndex (match.id)}
+                {#each round.matches as match (match.id)}
                   {@const gamesCompleted = (match.gamesWonA || 0) + (match.gamesWonB || 0)}
                   {@const expectedCurrentGame = gamesCompleted + 1}
                   {@const maxRoundGameNumber = match.rounds?.length ? Math.max(...match.rounds.map(r => r.gameNumber || 1)) : 1}

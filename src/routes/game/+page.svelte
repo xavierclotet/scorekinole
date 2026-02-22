@@ -153,7 +153,6 @@
 
 	// Track if we just exited tournament mode (to prevent auto-restoration)
 	// This flag prevents restoring friendly match data until user explicitly clicks "New Match"
-	let justExitedTournamentMode = $state(false);
 
 	// localStorage key for pre-tournament team data backup
 	const PRE_TOURNAMENT_BACKUP_KEY = 'crokinolePreTournamentBackup';
@@ -494,8 +493,7 @@
 		
 		// Immediately restore pre-tournament data instead of marking it
 		// to require a new match click from the user.
-		justExitedTournamentMode = false;
-		restorePreTournamentData(true);
+		restorePreTournamentData();
 	}
 
 	/**
@@ -503,7 +501,7 @@
 	 * Called when starting a new friendly match after a tournament
 	 * @param force - If true, restore even if justExitedTournamentMode is true
 	 */
-	function restorePreTournamentData(force = false) {
+	function restorePreTournamentData() {
 
 		const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
 		if (!backupStr) return;
@@ -925,7 +923,7 @@
 					winner: g.winner as 1 | 2 | null,
 					team1Points: g.team1Points,
 					team2Points: g.team2Points,
-					rounds: context.existingRounds
+					rounds: (context.existingRounds || [])
 						.filter((r: any) => r.gameNumber === g.gameNumber)
 						.map((r: any, idx: number) => ({
 							roundNumber: idx + 1,
@@ -951,9 +949,6 @@
 	 * Handle tournament match started from modal
 	 */
 	function handleTournamentMatchStarted(context: TournamentMatchContext) {
-		// Clear the "just exited tournament" flag since we're starting a new tournament match
-		justExitedTournamentMode = false;
-
 		// Save current (friendly) data as backup ONLY if no backup exists
 		// This preserves the original friendly settings across multiple tournament matches
 		if (!localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)) {

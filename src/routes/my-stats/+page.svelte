@@ -10,7 +10,7 @@
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { PAGE_SIZE } from '$lib/constants';
-	import { ChevronRight, ChevronDown, Clock, Trophy, Users, User, Info, BarChart3 } from '@lucide/svelte';
+	import { ChevronRight, ChevronDown, Trophy, Users, User, Info, BarChart3 } from '@lucide/svelte';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import SEO from '$lib/components/SEO.svelte';
@@ -57,7 +57,7 @@
 		}
 	});
 
-	import { statsCache, CACHE_DURATION } from '$lib/stores/statsCache';
+	import { statsCache } from '$lib/stores/statsCache';
 
 	async function loadMatches() {
 		const cache = $statsCache;
@@ -132,10 +132,6 @@
 		} finally {
 			isLoading = false;
 		}
-	}
-
-	function fetchMatchesInBackground() {
-		fetchMatches().catch(err => console.error('Background fetch failed:', err));
 	}
 
 	// Determine if match is tournament or friendly
@@ -416,23 +412,10 @@
 		return tournamentRecords.some(r => new Date(r.tournamentDate).getFullYear() === y);
 	})());
 
-	// Total chart count for carousel dots
-	let chartCount = $derived(
-		2 + (hasRankingData ? 2 : 0) // donut + 20s + (ranking + positions if data)
-	);
-
 	function formatDate(timestamp: number): string {
 		const date = new Date(timestamp);
 		return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' })
 			+ ' ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-	}
-
-	function formatDuration(ms: number): string {
-		const totalSeconds = Math.floor(ms / 1000);
-		const minutes = Math.floor(totalSeconds / 60);
-		const seconds = totalSeconds % 60;
-		if (minutes === 0) return `${seconds}s`;
-		return `${minutes}min ${seconds}s`;
 	}
 
 	function toggleExpand(matchId: string) {

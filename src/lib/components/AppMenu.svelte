@@ -167,7 +167,7 @@
 			{#if showHome}
 				<DropdownMenu.Item
 					onclick={handleHomeClick}
-					class="cursor-pointer !pl-3 !pr-4 !py-2.5 !gap-2 rounded-lg transition-colors duration-150 hover:bg-accent group"
+					class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group"
 				>
 					<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 						<Home class="size-4 text-primary" />
@@ -192,7 +192,7 @@
 					{@const Icon = getNavIcon(item.id)}
 					<DropdownMenu.Item
 						onclick={() => goto(item.href)}
-						class="cursor-pointer !pl-3 !pr-4 !py-2.5 !gap-2 rounded-lg transition-colors duration-150 hover:bg-accent group"
+						class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group"
 					>
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 							{#if item.id === 'rankings'}
@@ -216,7 +216,7 @@
 				<DropdownMenu.Separator class="my-2" />
 				<DropdownMenu.Sub>
 					<DropdownMenu.SubTrigger
-						class="cursor-pointer !pl-3 !pr-4 !py-2.5 !gap-2 rounded-lg transition-colors duration-150 hover:bg-accent group"
+						class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group"
 					>
 						<div class="flex items-center justify-center size-8 rounded-md bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
 							<Shield class="size-4 text-amber-500" />
@@ -227,7 +227,7 @@
 						{#if $isSuperAdminUser}
 							<DropdownMenu.Item
 								onclick={() => goto('/admin/users')}
-								class="cursor-pointer !gap-3 !py-2 !px-3 rounded-md hover:bg-accent"
+								class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
 							>
 								<div class="flex items-center justify-center size-6 rounded bg-primary/10">
 									<Users class="size-3.5 text-primary" />
@@ -237,7 +237,7 @@
 							
 							<DropdownMenu.Item
 								onclick={() => goto('/admin/matches')}
-								class="cursor-pointer !gap-3 !py-2 !px-3 rounded-md hover:bg-accent"
+								class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
 							>
 								<div class="flex items-center justify-center size-6 rounded bg-primary/10">
 									<Swords class="size-3.5 text-primary" />
@@ -250,7 +250,7 @@
 
 						<DropdownMenu.Item
 							onclick={() => goto('/admin/tournaments')}
-							class="cursor-pointer !gap-3 !py-2 !px-3 rounded-md hover:bg-accent"
+							class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
 						>
 							<div class="flex items-center justify-center size-6 rounded bg-primary/10">
 								<Trophy class="size-3.5 text-primary" />
@@ -265,7 +265,7 @@
 				<DropdownMenu.Separator class="my-2" />
 				<DropdownMenu.Sub>
 					<DropdownMenu.SubTrigger
-						class="cursor-pointer !pl-3 !pr-4 !py-2.5 !gap-2 rounded-lg transition-colors duration-150 hover:bg-accent group"
+						class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group"
 					>
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 							<Globe class="size-4 text-primary" />
@@ -278,7 +278,7 @@
 							<DropdownMenu.Item
 								onclick={() => selectLanguage(lang.code)}
 								class={[
-									'cursor-pointer !gap-3 !py-2 !px-3 rounded-md',
+									'cursor-pointer gap-3! py-2! px-3! rounded-md',
 									selected && 'bg-primary/15 text-primary'
 								]}
 							>
