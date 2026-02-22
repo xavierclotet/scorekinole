@@ -2988,7 +2988,7 @@
   }
 
   .winners-section {
-    padding: 1.5rem;
+    padding: 0.5rem;
     background: #f8fafc;
     border-radius: 12px;
     border: 1px solid #e2e8f0;
@@ -4282,7 +4282,7 @@
   }
 
   .consolation-section {
-    padding: 1.5rem;
+    padding: 0.5rem;
     background: #f8fafc;
     border-radius: 12px;
     border: 1px solid #e2e8f0;

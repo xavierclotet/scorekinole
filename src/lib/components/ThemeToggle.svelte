@@ -85,11 +85,11 @@
     border-color: rgba(251, 191, 36, 0.3);
   }
 
-  /* Violet theme hover - purple accent */
+  /* Violet theme hover - blue-violet accent */
   :global([data-theme='violet']) .theme-toggle:hover {
     background: rgba(255, 255, 255, 0.1);
-    color: #a855f7;
-    border-color: rgba(168, 85, 247, 0.3);
+    color: #818cf8;
+    border-color: rgba(129, 140, 248, 0.3);
   }
 
   /* Green indicator dot */
@@ -113,7 +113,7 @@
     right: -2px;
     width: 8px;
     height: 8px;
-    background: #a855f7;
+    background: #818cf8;
     border-radius: 50%;
     border: 1px solid var(--background);
   }

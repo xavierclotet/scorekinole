@@ -2315,30 +2315,38 @@
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="match-detail-modal" onclick={(e) => e.stopPropagation()}>
-			<button class="match-detail-close" onclick={() => showMatchDetail = false} aria-label="Cerrar">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-					<path d="M18 6L6 18M6 6l12 12"/>
-				</svg>
-			</button>
-
 			<div class="match-detail-header">
-				<div class="match-detail-players">
-					<span class="player-name" class:is-winner={selectedMatch.winner === selectedMatch.participantA}>
-						{getParticipantName(selectedMatch.participantA)}
-					</span>
-					<span class="vs-badge">vs</span>
-					<span class="player-name" class:is-winner={selectedMatch.winner === selectedMatch.participantB}>
-						{getParticipantName(selectedMatch.participantB)}
-					</span>
+				<button class="match-detail-close" onclick={() => showMatchDetail = false} aria-label="Cerrar">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+						<path d="M18 6L6 18M6 6l12 12"/>
+					</svg>
+				</button>
+				<div class="match-detail-score-block">
+					<div class="match-detail-final-score">
+						<span class="final-score" class:winner={selectedMatch.winner === selectedMatch.participantA}>
+							{selectedMatch.totalPointsA ?? selectedMatch.gamesWonA ?? 0}
+						</span>
+						<span class="score-sep">:</span>
+						<span class="final-score" class:winner={selectedMatch.winner === selectedMatch.participantB}>
+							{selectedMatch.totalPointsB ?? selectedMatch.gamesWonB ?? 0}
+						</span>
+					</div>
 				</div>
-				<div class="match-detail-final-score">
-					<span class="final-score" class:winner={selectedMatch.winner === selectedMatch.participantA}>
-						{selectedMatch.totalPointsA ?? selectedMatch.gamesWonA ?? 0}
-					</span>
-					<span class="score-sep">-</span>
-					<span class="final-score" class:winner={selectedMatch.winner === selectedMatch.participantB}>
-						{selectedMatch.totalPointsB ?? selectedMatch.gamesWonB ?? 0}
-					</span>
+				<div class="match-detail-players">
+					<div class="md-player md-player-a" class:is-winner={selectedMatch.winner === selectedMatch.participantA}>
+						<span class="md-player-tag">A</span>
+						<span class="md-player-name">{getParticipantName(selectedMatch.participantA)}</span>
+						{#if selectedMatch.winner === selectedMatch.participantA}
+							<span class="md-winner-badge">W</span>
+						{/if}
+					</div>
+					<div class="md-player md-player-b" class:is-winner={selectedMatch.winner === selectedMatch.participantB}>
+						<span class="md-player-tag">B</span>
+						<span class="md-player-name">{getParticipantName(selectedMatch.participantB)}</span>
+						{#if selectedMatch.winner === selectedMatch.participantB}
+							<span class="md-winner-badge">W</span>
+						{/if}
+					</div>
 				</div>
 			</div>
 
@@ -5436,113 +5444,145 @@
 	.match-detail-overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.8);
+		background: rgba(0, 0, 0, 0.6);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
 		z-index: 1000;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		padding: 1rem;
-		backdrop-filter: blur(4px);
 	}
 
 	.match-detail-modal {
-		background: #1a2332;
-		border-radius: 12px;
+		background: #111827;
+		border-radius: 20px;
 		width: min(94vw, 560px);
 		max-height: 85vh;
 		overflow: hidden;
 		position: relative;
-		border: 1px solid #2d3748;
-		box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+		box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.5);
 		display: flex;
 		flex-direction: column;
 	}
 
 	.match-detail-close {
 		position: absolute;
-		top: 10px;
-		right: 10px;
-		background: rgba(0, 0, 0, 0.4);
+		top: 12px;
+		right: 12px;
+		background: rgba(255, 255, 255, 0.15);
 		border: none;
-		border-radius: 50%;
-		width: 32px;
-		height: 32px;
+		border-radius: 8px;
+		width: 30px;
+		height: 30px;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: #a0aec0;
-		transition: background 0.15s, color 0.15s;
+		color: rgba(255, 255, 255, 0.7);
+		transition: all 0.12s ease;
 		z-index: 10;
 	}
 
 	.match-detail-close:hover {
-		background: rgba(0, 0, 0, 0.6);
+		background: rgba(255, 255, 255, 0.25);
 		color: #fff;
 	}
 
 	.match-detail-header {
-		padding: 1.25rem 1rem 1rem;
-		background: linear-gradient(135deg, #1e293b 0%, #1a2332 100%);
-		border-bottom: 1px solid #2d3748;
+		padding: 1.5rem 1.25rem 1.25rem;
+		background: var(--primary);
 		text-align: center;
+	}
+
+	.match-detail-score-block {
+		margin-bottom: 1rem;
 	}
 
 	.match-detail-players {
 		display: flex;
-		align-items: center;
-		justify-content: center;
+		flex-direction: column;
 		gap: 0.5rem;
-		flex-wrap: wrap;
-		margin-bottom: 0.75rem;
 	}
 
-	.match-detail-players .player-name {
-		font-size: 1rem;
+	.md-player {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		background: rgba(255, 255, 255, 0.08);
+		border-radius: 10px;
+	}
+
+	.md-player.is-winner {
+		background: rgba(255, 255, 255, 0.15);
+	}
+
+	.md-player-tag {
+		width: 22px;
+		height: 22px;
+		border-radius: 6px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.625rem;
+		font-weight: 800;
+		flex-shrink: 0;
+		background: rgba(255, 255, 255, 0.15);
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.md-player-name {
+		font-size: 0.875rem;
 		font-weight: 600;
-		color: #e1e8ed;
-		max-width: 220px;
+		color: rgba(255, 255, 255, 0.9);
+		flex: 1;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	.match-detail-players .player-name.is-winner {
-		color: #10b981;
-	}
-
-	.match-detail-players .vs-badge {
-		font-size: 0.75rem;
-		color: #6b7a94;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+	.md-winner-badge {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background: #10b981;
+		color: white;
+		font-size: 0.5625rem;
+		font-weight: 800;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
 	}
 
 	.match-detail-final-score {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.6rem;
+		gap: 0.5rem;
 	}
 
 	.match-detail-final-score .final-score {
-		font-size: 1.75rem;
-		font-weight: 700;
-		color: #6b7a94;
+		font-size: 2.5rem;
+		font-weight: 800;
+		color: rgba(255, 255, 255, 0.4);
 		font-variant-numeric: tabular-nums;
+		line-height: 1;
 	}
 
 	.match-detail-final-score .final-score.winner {
-		color: #10b981;
+		color: white;
 	}
 
 	.match-detail-final-score .score-sep {
-		font-size: 1.5rem;
-		color: #4a5568;
+		font-size: 2rem;
+		font-weight: 300;
+		color: rgba(255, 255, 255, 0.2);
 	}
 
 	.match-detail-body {
-		padding: 0.75rem;
+		padding: 0.875rem;
 		overflow-y: auto;
 		flex: 1;
 	}
@@ -5559,31 +5599,31 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.4rem 0.6rem;
-		background: rgba(255, 255, 255, 0.03);
-		border-radius: 6px;
+		padding: 0.5rem 0.75rem;
+		background: rgba(255, 255, 255, 0.04);
+		border-radius: 8px;
 		margin-bottom: 0.5rem;
 	}
 
 	.game-label {
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: #8b9bb3;
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: #64748b;
 		text-transform: uppercase;
-		letter-spacing: 0.03em;
+		letter-spacing: 0.06em;
 	}
 
 	.game-score {
-		font-size: 0.95rem;
-		font-weight: 700;
-		color: #e1e8ed;
+		font-size: 0.9375rem;
+		font-weight: 800;
+		color: #e2e8f0;
 		font-variant-numeric: tabular-nums;
 	}
 
 	.rounds-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.95rem;
+		font-size: 0.9375rem;
 	}
 
 	.rounds-table.horizontal {
@@ -5593,23 +5633,23 @@
 	.rounds-table th {
 		padding: 0.4rem 0.3rem;
 		text-align: center;
-		font-weight: 600;
-		color: #6b7a94;
-		font-size: 0.75rem;
+		font-weight: 700;
+		color: #475569;
+		font-size: 0.6875rem;
 		text-transform: uppercase;
-		letter-spacing: 0.02em;
-		border-bottom: 1px solid #2d3748;
+		letter-spacing: 0.06em;
+		border-bottom: 1px solid #1e293b;
 	}
 
 	.rounds-table td {
 		padding: 0.5rem 0.3rem;
 		text-align: center;
-		color: #c5d0db;
+		color: #94a3b8;
 		font-variant-numeric: tabular-nums;
 	}
 
 	.rounds-table tbody tr {
-		border-bottom: 1px solid rgba(45, 55, 72, 0.4);
+		border-bottom: 1px solid rgba(30, 41, 59, 0.5);
 	}
 
 	.rounds-table tbody tr:last-child {
@@ -5618,14 +5658,15 @@
 
 	.rounds-table .player-col {
 		text-align: left;
-		font-weight: 600;
-		color: #e1e8ed;
+		font-weight: 700;
+		color: #e2e8f0;
 		padding-left: 0.5rem;
 		padding-right: 0.5rem;
 		max-width: 180px;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		font-size: 0.8125rem;
 	}
 
 	.rounds-table .round-col {
@@ -5634,8 +5675,8 @@
 	}
 
 	.rounds-table .round-col.round-winner .round-points {
-		color: #10b981;
-		font-weight: 700;
+		color: #34d399;
+		font-weight: 800;
 	}
 
 	.rounds-table .round-points {
@@ -5645,8 +5686,8 @@
 
 	.rounds-table .round-twenties {
 		display: block;
-		font-size: 0.6rem;
-		color: #8b9bb3;
+		font-size: 0.5625rem;
+		color: #64748b;
 		line-height: 1;
 		margin-top: 1px;
 	}
@@ -5654,7 +5695,7 @@
 	/* Hammer row */
 	.rounds-table .hammer-row {
 		background: rgba(255, 255, 255, 0.02);
-		border-bottom: 1px solid rgba(45, 55, 72, 0.3) !important;
+		border-bottom: 1px solid rgba(30, 41, 59, 0.3) !important;
 	}
 
 	.rounds-table .hammer-row td {
@@ -5664,11 +5705,11 @@
 
 	.rounds-table .hammer-label {
 		font-size: 0.7rem;
-		color: #8b9bb3;
+		color: #64748b;
 	}
 
 	.rounds-table .hammer-cell {
-		color: #8b9bb3;
+		color: #64748b;
 	}
 
 	.rounds-table .hammer-indicator {
@@ -5677,13 +5718,13 @@
 	}
 
 	.rounds-table .hammer-indicator.empty {
-		color: #4a5568;
+		color: #334155;
 	}
 
 	.rounds-table .total-col {
 		font-weight: 700;
-		color: #e1e8ed;
-		border-left: 1px solid #2d3748;
+		color: #e2e8f0;
+		border-left: 1px solid #1e293b;
 		padding-left: 0.5rem;
 		vertical-align: middle;
 	}
@@ -5695,19 +5736,19 @@
 
 	.rounds-table .total-twenties {
 		display: block;
-		font-size: 0.6rem;
-		color: #8b9bb3;
+		font-size: 0.5625rem;
+		color: #64748b;
 		line-height: 1;
 		margin-top: 1px;
 		font-weight: 500;
 	}
 
 	.rounds-table .total-col.game-winner .total-points {
-		color: #10b981;
+		color: #34d399;
 	}
 
 	.rounds-table tr.row-winner .player-col {
-		color: #10b981;
+		color: #34d399;
 	}
 
 	/* Match result row clickable styles */
@@ -5748,73 +5789,71 @@
 	/* Light theme for match detail modal */
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-modal {
 		background: #fff;
-		border-color: #e2e8f0;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-header {
-		background: linear-gradient(135deg, #f8fafc 0%, #fff 100%);
-		border-bottom-color: #e2e8f0;
-	}
-
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-players .player-name {
-		color: #1a202c;
-	}
-
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .final-score {
-		color: #718096;
-	}
-
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .score-sep {
-		color: #cbd5e0;
+		background: var(--primary);
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-close {
-		background: rgba(0, 0, 0, 0.05);
-		color: #718096;
+		background: rgba(255, 255, 255, 0.15);
+		color: rgba(255, 255, 255, 0.7);
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-close:hover {
-		background: rgba(0, 0, 0, 0.1);
-		color: #1a202c;
+		background: rgba(255, 255, 255, 0.25);
+		color: #fff;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .final-score {
+		color: rgba(255, 255, 255, 0.4);
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .final-score.winner {
+		color: white;
+	}
+
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .score-sep {
+		color: rgba(255, 255, 255, 0.2);
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .game-header {
-		background: rgba(0, 0, 0, 0.02);
+		background: #f8fafc;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .game-label {
-		color: #718096;
+		color: #94a3b8;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .game-score {
-		color: #1a202c;
+		color: #0f172a;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table th {
-		color: #718096;
+		color: #94a3b8;
 		border-bottom-color: #e2e8f0;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table td {
-		color: #4a5568;
+		color: #64748b;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table tbody tr {
-		border-bottom-color: #edf2f7;
+		border-bottom-color: #f1f5f9;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .player-col {
-		color: #1a202c;
+		color: #0f172a;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .total-col {
-		color: #1a202c;
+		color: #0f172a;
 		border-left-color: #e2e8f0;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .round-twenties,
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table .total-twenties {
-		color: #718096;
+		color: #94a3b8;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .rounds-table tr.row-winner .player-col {
@@ -5829,12 +5868,8 @@
 		color: #059669;
 	}
 
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-players .player-name.is-winner {
-		color: #059669;
-	}
-
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .match-detail-final-score .final-score.winner {
-		color: #059669;
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-player.is-winner {
+		background: rgba(255, 255, 255, 0.18);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) button.match-result-row.has-detail:hover {
@@ -5846,7 +5881,7 @@
 		.match-detail-modal {
 			width: 100%;
 			max-height: 90vh;
-			border-radius: 16px 16px 0 0;
+			border-radius: 20px 20px 0 0;
 			position: fixed;
 			bottom: 0;
 			left: 0;
@@ -5858,9 +5893,13 @@
 			padding: 0;
 		}
 
-		.match-detail-players .player-name {
+		.md-player-name {
 			max-width: 140px;
-			font-size: 0.9rem;
+			font-size: 0.8125rem;
+		}
+
+		.match-detail-final-score .final-score {
+			font-size: 2rem;
 		}
 
 		.rounds-table .player-col {
