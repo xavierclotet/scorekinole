@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.42] - 2026-02-22
+- Fix {@const} invalid placement in CompletedTournamentView (build error)
+- Fix TypeScript errors in bracket page (PhaseConfig types, unused vars)
+- Fix Tailwind v4 important syntax (!prefix → suffix!)
+- Remove unused code in my-stats and game pages
+
 ## [2.4.41] - 2026-02-22
 - Add interactive charts to public tournament page (bump chart + 20s grouped bar chart)
 - Bump chart shows position evolution per round with expand/collapse toggle
