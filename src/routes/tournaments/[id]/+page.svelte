@@ -1510,6 +1510,9 @@
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																	{#if tournament.show20s && match.total20sA !== undefined}
+																		<span class="match-twenties">🎯{match.total20sA}</span>
+																	{/if}
 																{/if}
 															</div>
 															<div class="vs-divider"></div>
@@ -1522,6 +1525,9 @@
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																	{#if tournament.show20s && match.total20sB !== undefined}
+																		<span class="match-twenties">🎯{match.total20sB}</span>
+																	{/if}
 																{/if}
 															</div>
 															{#if match.videoId}
@@ -1570,6 +1576,9 @@
 														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
+															{#if tournament.show20s && thirdMatch.total20sA !== undefined}
+																<span class="match-twenties">🎯{thirdMatch.total20sA}</span>
+															{/if}
 														{/if}
 													</div>
 													<div class="vs-divider"></div>
@@ -1582,6 +1591,9 @@
 														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
+															{#if tournament.show20s && thirdMatch.total20sB !== undefined}
+																<span class="match-twenties">🎯{thirdMatch.total20sB}</span>
+															{/if}
 														{/if}
 													</div>
 													{#if thirdMatch.videoId}
@@ -1614,12 +1626,10 @@
 										<!-- R16 consolation rounds -->
 										{#if r16Bracket}
 											{#each r16Bracket.rounds as round, roundIndex}
-												<div class="consolation-round" data-source="R16">
+												{@const isLastRound = roundIndex === r16Bracket.rounds.length - 1}
+												<div class="consolation-round" class:final-round={isLastRound} data-source="R16">
 													<div class="round-header">
 														{m.tournament_round()} {roundIndex + 1}
-														{#if roundIndex === r16Bracket.rounds.length - 1}
-															<span class="position-badge">{round.name}</span>
-														{/if}
 													</div>
 													<div class="matches-container">
 														{#each round.matches as match}
@@ -1639,6 +1649,9 @@
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																			{#if tournament.show20s && match.total20sA !== undefined}
+																				<span class="match-twenties">🎯{match.total20sA}</span>
+																			{/if}
 																		{/if}
 																	</div>
 																	<div class="vs-divider"></div>
@@ -1651,8 +1664,15 @@
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																			{#if tournament.show20s && match.total20sB !== undefined}
+																				<span class="match-twenties">🎯{match.total20sB}</span>
+																			{/if}
 																		{/if}
 																	</div>
+																	{#if isLastRound}
+																		{@const posStart = r16Bracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
+																	{/if}
 																</div>
 															{/if}
 														{/each}
@@ -1663,12 +1683,10 @@
 										<!-- QF consolation rounds -->
 										{#if qfBracket}
 											{#each qfBracket.rounds as round, roundIndex}
-												<div class="consolation-round" class:qf-start={roundIndex === 0} data-source="QF">
+												{@const isLastRound = roundIndex === qfBracket.rounds.length - 1}
+												<div class="consolation-round" class:qf-start={roundIndex === 0} class:final-round={isLastRound} data-source="QF">
 													<div class="round-header">
 														{m.tournament_round()} {roundIndex + 1}
-														{#if roundIndex === qfBracket.rounds.length - 1}
-															<span class="position-badge">{round.name}</span>
-														{/if}
 													</div>
 													<div class="matches-container">
 														{#each round.matches as match}
@@ -1688,6 +1706,9 @@
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																			{#if tournament.show20s && match.total20sA !== undefined}
+																				<span class="match-twenties">🎯{match.total20sA}</span>
+																			{/if}
 																		{/if}
 																	</div>
 																	<div class="vs-divider"></div>
@@ -1700,8 +1721,15 @@
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																			{#if tournament.show20s && match.total20sB !== undefined}
+																				<span class="match-twenties">🎯{match.total20sB}</span>
+																			{/if}
 																		{/if}
 																	</div>
+																	{#if isLastRound}
+																		{@const posStart = qfBracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
+																	{/if}
 																</div>
 															{/if}
 														{/each}
@@ -1752,6 +1780,9 @@
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																	{#if tournament.show20s && match.total20sA !== undefined}
+																		<span class="match-twenties">🎯{match.total20sA}</span>
+																	{/if}
 																{/if}
 															</div>
 															<div class="vs-divider"></div>
@@ -1764,6 +1795,9 @@
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																	{#if tournament.show20s && match.total20sB !== undefined}
+																		<span class="match-twenties">🎯{match.total20sB}</span>
+																	{/if}
 																{/if}
 															</div>
 															{#if match.videoId}
@@ -1812,6 +1846,9 @@
 														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
+															{#if tournament.show20s && thirdMatch.total20sA !== undefined}
+																<span class="match-twenties">🎯{thirdMatch.total20sA}</span>
+															{/if}
 														{/if}
 													</div>
 													<div class="vs-divider"></div>
@@ -1824,6 +1861,9 @@
 														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
+															{#if tournament.show20s && thirdMatch.total20sB !== undefined}
+																<span class="match-twenties">🎯{thirdMatch.total20sB}</span>
+															{/if}
 														{/if}
 													</div>
 													{#if thirdMatch.videoId}
@@ -1856,12 +1896,10 @@
 										<!-- R16 consolation rounds -->
 										{#if r16Bracket}
 											{#each r16Bracket.rounds as round, roundIndex}
-												<div class="consolation-round" data-source="R16">
+												{@const isLastRound = roundIndex === r16Bracket.rounds.length - 1}
+												<div class="consolation-round" class:final-round={isLastRound} data-source="R16">
 													<div class="round-header">
 														{m.tournament_round()} {roundIndex + 1}
-														{#if roundIndex === r16Bracket.rounds.length - 1}
-															<span class="position-badge">{round.name}</span>
-														{/if}
 													</div>
 													<div class="matches-container">
 														{#each round.matches as match}
@@ -1881,6 +1919,9 @@
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																			{#if tournament.show20s && match.total20sA !== undefined}
+																				<span class="match-twenties">🎯{match.total20sA}</span>
+																			{/if}
 																		{/if}
 																	</div>
 																	<div class="vs-divider"></div>
@@ -1893,8 +1934,15 @@
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																			{#if tournament.show20s && match.total20sB !== undefined}
+																				<span class="match-twenties">🎯{match.total20sB}</span>
+																			{/if}
 																		{/if}
 																	</div>
+																	{#if isLastRound}
+																		{@const posStart = r16Bracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
+																	{/if}
 																</div>
 															{/if}
 														{/each}
@@ -1905,12 +1953,10 @@
 										<!-- QF consolation rounds -->
 										{#if qfBracket}
 											{#each qfBracket.rounds as round, roundIndex}
-												<div class="consolation-round" class:qf-start={roundIndex === 0} data-source="QF">
+												{@const isLastRound = roundIndex === qfBracket.rounds.length - 1}
+												<div class="consolation-round" class:qf-start={roundIndex === 0} class:final-round={isLastRound} data-source="QF">
 													<div class="round-header">
 														{m.tournament_round()} {roundIndex + 1}
-														{#if roundIndex === qfBracket.rounds.length - 1}
-															<span class="position-badge">{round.name}</span>
-														{/if}
 													</div>
 													<div class="matches-container">
 														{#each round.matches as match}
@@ -1930,6 +1976,9 @@
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																			{#if tournament.show20s && match.total20sA !== undefined}
+																				<span class="match-twenties">🎯{match.total20sA}</span>
+																			{/if}
 																		{/if}
 																	</div>
 																	<div class="vs-divider"></div>
@@ -1942,8 +1991,15 @@
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																			{#if tournament.show20s && match.total20sB !== undefined}
+																				<span class="match-twenties">🎯{match.total20sB}</span>
+																			{/if}
 																		{/if}
 																	</div>
+																	{#if isLastRound}
+																		{@const posStart = qfBracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
+																	{/if}
 																</div>
 															{/if}
 														{/each}
@@ -2003,6 +2059,9 @@
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																	{#if tournament.show20s && match.total20sA !== undefined}
+																		<span class="match-twenties">🎯{match.total20sA}</span>
+																	{/if}
 																{/if}
 															</div>
 															<div class="vs-divider"></div>
@@ -2015,6 +2074,9 @@
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																	{#if tournament.show20s && match.total20sB !== undefined}
+																		<span class="match-twenties">🎯{match.total20sB}</span>
+																	{/if}
 																{/if}
 															</div>
 															{#if match.videoId}
@@ -2128,6 +2190,9 @@
 															<span class="participant-name">{getParticipantName(match.participantA)}</span>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																{#if tournament.show20s && match.total20sA !== undefined}
+																	<span class="match-twenties">🎯{match.total20sA}</span>
+																{/if}
 															{/if}
 														</div>
 														<div class="vs-divider"></div>
@@ -2140,6 +2205,9 @@
 															<span class="participant-name">{getParticipantName(match.participantB)}</span>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																{#if tournament.show20s && match.total20sB !== undefined}
+																	<span class="match-twenties">🎯{match.total20sB}</span>
+																{/if}
 															{/if}
 														</div>
 														{#if match.videoId}
@@ -2188,6 +2256,9 @@
 													<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 													{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 														<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
+														{#if tournament.show20s && thirdMatch.total20sA !== undefined}
+															<span class="match-twenties">🎯{thirdMatch.total20sA}</span>
+														{/if}
 													{/if}
 												</div>
 												<div class="vs-divider"></div>
@@ -2200,6 +2271,9 @@
 													<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 													{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 														<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
+														{#if tournament.show20s && thirdMatch.total20sB !== undefined}
+															<span class="match-twenties">🎯{thirdMatch.total20sB}</span>
+														{/if}
 													{/if}
 												</div>
 												{#if thirdMatch.videoId}
@@ -2232,12 +2306,10 @@
 									<!-- R16 consolation rounds -->
 									{#if r16Bracket}
 										{#each r16Bracket.rounds as round, roundIndex}
-											<div class="consolation-round" data-source="R16">
+											{@const isLastRound = roundIndex === r16Bracket.rounds.length - 1}
+											<div class="consolation-round" class:final-round={isLastRound} data-source="R16">
 												<div class="round-header">
 													{m.tournament_round()} {roundIndex + 1}
-													{#if roundIndex === r16Bracket.rounds.length - 1}
-														<span class="position-badge">{round.name}</span>
-													{/if}
 												</div>
 												<div class="matches-container">
 													{#each round.matches as match}
@@ -2257,6 +2329,9 @@
 																	<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																		{#if tournament.show20s && match.total20sA !== undefined}
+																			<span class="match-twenties">🎯{match.total20sA}</span>
+																		{/if}
 																	{/if}
 																</div>
 																<div class="vs-divider"></div>
@@ -2269,8 +2344,15 @@
 																	<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																		{#if tournament.show20s && match.total20sB !== undefined}
+																			<span class="match-twenties">🎯{match.total20sB}</span>
+																		{/if}
 																	{/if}
 																</div>
+																{#if isLastRound}
+																	{@const posStart = r16Bracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																	<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
+																{/if}
 															</div>
 														{/if}
 													{/each}
@@ -2281,12 +2363,10 @@
 									<!-- QF consolation rounds -->
 									{#if qfBracket}
 										{#each qfBracket.rounds as round, roundIndex}
-											<div class="consolation-round" class:qf-start={roundIndex === 0} data-source="QF">
+											{@const isLastRound = roundIndex === qfBracket.rounds.length - 1}
+											<div class="consolation-round" class:qf-start={roundIndex === 0} class:final-round={isLastRound} data-source="QF">
 												<div class="round-header">
 													{m.tournament_round()} {roundIndex + 1}
-													{#if roundIndex === qfBracket.rounds.length - 1}
-														<span class="position-badge">{round.name}</span>
-													{/if}
 												</div>
 												<div class="matches-container">
 													{#each round.matches as match}
@@ -2306,6 +2386,9 @@
 																	<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
+																		{#if tournament.show20s && match.total20sA !== undefined}
+																			<span class="match-twenties">🎯{match.total20sA}</span>
+																		{/if}
 																	{/if}
 																</div>
 																<div class="vs-divider"></div>
@@ -2318,8 +2401,15 @@
 																	<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
+																		{#if tournament.show20s && match.total20sB !== undefined}
+																			<span class="match-twenties">🎯{match.total20sB}</span>
+																		{/if}
 																	{/if}
 																</div>
+																{#if isLastRound}
+																	{@const posStart = qfBracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																	<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
+																{/if}
 															</div>
 														{/if}
 													{/each}
@@ -4308,20 +4398,74 @@
 		gap: 0.5rem;
 	}
 
-	.consolation-round .round-header .position-badge {
-		font-size: 0.65rem;
-		font-weight: 700;
-		background: color-mix(in srgb, var(--primary) 15%, transparent);
-		color: var(--primary);
-		padding: 0.1rem 0.4rem;
-		border-radius: 4px;
-		text-transform: none;
-	}
-
-	.consolation-round .matches-container {
+.consolation-round .matches-container {
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
+	}
+
+	.consolation-match {
+		background: #1a2332;
+		border: 1px solid #2d3748;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: border-color 0.15s;
+		position: relative;
+	}
+
+	.consolation-match.completed {
+		border-color: rgba(16, 185, 129, 0.3);
+	}
+
+	.consolation-match .match-participant {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.4rem;
+		padding: 0.6rem 0.75rem;
+		background: #1a1f2e;
+		transition: all 0.15s;
+	}
+
+	.consolation-match .match-participant:first-child {
+		border-radius: 7px 7px 0 0;
+	}
+
+	.consolation-match .match-participant:last-child {
+		border-radius: 0 0 7px 7px;
+	}
+
+	.consolation-match .participant-name {
+		font-size: 0.85rem;
+		color: #6b7280;
+		font-weight: 500;
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.consolation-match .match-participant.winner .participant-name {
+		color: #10b981;
+		font-weight: 600;
+	}
+
+	.consolation-match.completed .match-participant:not(.winner) .participant-name {
+		color: #9ca3af;
+	}
+
+	.consolation-match .score {
+		order: 2;
+	}
+
+	.consolation-match .match-participant.winner .score {
+		color: #10b981;
+	}
+
+	.consolation-match .vs-divider {
+		height: 1px;
+		background: #2d3748;
 	}
 
 	/* Visual separator between R16 and QF sections */
@@ -4339,62 +4483,6 @@
 		bottom: 0;
 		width: 2px;
 		background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.15) 20%, rgba(255, 255, 255, 0.15) 80%, transparent);
-	}
-
-	.consolation-match {
-		background: rgba(0, 0, 0, 0.3);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		padding: 0.5rem;
-		cursor: pointer;
-		transition: all 0.15s ease;
-	}
-
-	.consolation-match:hover {
-		border-color: rgba(255, 255, 255, 0.2);
-		background: rgba(0, 0, 0, 0.4);
-	}
-
-	.consolation-match.completed {
-		border-color: rgba(16, 185, 129, 0.3);
-	}
-
-	.consolation-match .match-participant {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.4rem;
-		padding: 0.25rem 0;
-		font-size: 0.8rem;
-	}
-
-	.consolation-match .participant-name {
-		color: #94a3b8;
-		flex: 1;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.consolation-match .match-participant.winner .participant-name {
-		color: #10b981;
-		font-weight: 600;
-	}
-
-	.consolation-match .score {
-		color: #64748b;
-		font-weight: 500;
-		margin-left: 0.5rem;
-	}
-
-	.consolation-match .match-participant.winner .score {
-		color: #10b981;
-	}
-
-	.consolation-match .vs-divider {
-		height: 1px;
-		background: rgba(255, 255, 255, 0.1);
-		margin: 0.25rem 0;
 	}
 
 	/* Position labels for consolation matches */
@@ -4734,11 +4822,12 @@
 	}
 
 	.score {
-		font-size: 0.85rem;
+		font-size: 0.95rem;
 		font-weight: 700;
 		color: #6b7280;
 		min-width: 24px;
 		text-align: right;
+		order: 2;
 	}
 
 	/* Winner score - green */
@@ -4749,6 +4838,42 @@
 	/* Loser score - muted */
 	.bracket-match.completed .match-participant:not(.winner) .score {
 		color: #6b7280;
+	}
+
+	.match-twenties {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: #d97706;
+		opacity: 0.8;
+		order: 1;
+	}
+
+	.match-position-badge {
+		display: block;
+		text-align: center;
+		font-size: 0.65rem;
+		font-weight: 600;
+		color: #a78bfa;
+		background: rgba(167, 139, 250, 0.15);
+		padding: 0.15rem 0.5rem;
+		border-radius: 7px 7px 0 0;
+		order: -1;
+	}
+
+	.consolation-round.final-round .consolation-match {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.consolation-round.final-round .matches-container {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.consolation-round.final-round .matches-container .consolation-match {
+		flex: 1;
+		min-width: 200px;
 	}
 
 	.vs-divider {
@@ -5160,41 +5285,6 @@
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-round.qf-start::before {
 		background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.1) 20%, rgba(0, 0, 0, 0.1) 80%, transparent);
 	}
-
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-match {
-		background: #ffffff;
-		border-color: #e2e8f0;
-	}
-
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-match:hover {
-		border-color: #cbd5e1;
-		background: #f8fafc;
-	}
-
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-match.completed {
-		border-color: rgba(16, 185, 129, 0.3);
-	}
-
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-match .participant-name {
-		color: #64748b;
-	}
-
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-match .match-participant.winner .participant-name {
-		color: #059669;
-	}
-
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-match .score {
-		color: #94a3b8;
-	}
-
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-match .match-participant.winner .score {
-		color: #059669;
-	}
-
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .consolation-match .vs-divider {
-		background: rgba(0, 0, 0, 0.08);
-	}
-
 
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-panel {
