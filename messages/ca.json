@@ -1322,5 +1322,6 @@
   "tournament_noPendingMatchesUserHint": "Espera que l'organitzador programi el teu proper partit o comprovi més tard",
   "tournament_roundEvolution": "Evolució per rondes",
   "tournament_showChart": "Veure gràfic",
-  "tournament_hideChart": "Amagar gràfic"
+  "tournament_hideChart": "Amagar gràfic",
+  "tournament_twentiesPerRound": "20s per ronda"
 }

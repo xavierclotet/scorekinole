@@ -400,3 +400,76 @@ function calculateStandingsUpToRound(
 
 	return standings;
 }
+
+// --- Twenties Grouped Bar Chart ---
+
+export interface TwentiesGroupedDataset {
+	participantId: string;
+	participantName: string;
+	twentiesPerRound: number[];
+}
+
+export interface TwentiesGroupedResult {
+	roundLabels: string[];
+	datasets: TwentiesGroupedDataset[];
+}
+
+/**
+ * Build grouped bar chart data: 20s per participant per round (bars side by side).
+ */
+export function buildTwentiesGroupedData(
+	group: Group,
+	participantNames: Map<string, string>,
+	isSwiss: boolean,
+): TwentiesGroupedResult {
+	const rounds = isSwiss
+		? (group.pairings ?? [])
+		: (group.schedule ?? []);
+
+	const completedRounds = rounds.filter(r =>
+		(r.matches ?? []).some(m => m.status === 'COMPLETED' || m.status === 'WALKOVER')
+	);
+
+	if (completedRounds.length === 0) return { roundLabels: [], datasets: [] };
+
+	const roundLabels: string[] = [];
+	const participantTwenties = new Map<string, number[]>();
+
+	for (const pid of group.participants) {
+		participantTwenties.set(pid, []);
+	}
+
+	for (const round of completedRounds) {
+		roundLabels.push(`R${round.roundNumber}`);
+		const roundTotals = new Map<string, number>();
+
+		for (const pid of group.participants) {
+			roundTotals.set(pid, 0);
+		}
+
+		for (const match of round.matches ?? []) {
+			if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') continue;
+			if (match.participantA) {
+				roundTotals.set(match.participantA, (roundTotals.get(match.participantA) ?? 0) + (match.total20sA ?? 0));
+			}
+			if (match.participantB && match.participantB !== 'BYE') {
+				roundTotals.set(match.participantB, (roundTotals.get(match.participantB) ?? 0) + (match.total20sB ?? 0));
+			}
+		}
+
+		for (const pid of group.participants) {
+			participantTwenties.get(pid)!.push(roundTotals.get(pid) ?? 0);
+		}
+	}
+
+	const datasets: TwentiesGroupedDataset[] = [];
+	for (const pid of group.participants) {
+		datasets.push({
+			participantId: pid,
+			participantName: participantNames.get(pid) ?? pid,
+			twentiesPerRound: participantTwenties.get(pid) ?? [],
+		});
+	}
+
+	return { roundLabels, datasets };
+}

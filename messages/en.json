@@ -1322,5 +1322,6 @@
   "tournament_noPendingMatchesUserHint": "Wait for the organizer to schedule your next match or check back later",
   "tournament_roundEvolution": "Evolution by rounds",
   "tournament_showChart": "See chart",
-  "tournament_hideChart": "Hide chart"
+  "tournament_hideChart": "Hide chart",
+  "tournament_twentiesPerRound": "20s per round"
 }

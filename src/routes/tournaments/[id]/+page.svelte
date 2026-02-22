@@ -22,9 +22,10 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Button } from '$lib/components/ui/button';
-	import { Check, ChevronsUpDown, Share2 } from '@lucide/svelte';
+	import { Check, ChevronsUpDown, Share2, Users } from '@lucide/svelte';
 	import { PRODUCTION_URL } from '$lib/constants';
 	import BumpChart from '$lib/components/charts/BumpChart.svelte';
+	import TwentiesBarChart from '$lib/components/charts/TwentiesBarChart.svelte';
 
 	let tournament = $state<Tournament | null>(null);
 	let canEdit = $state(false);
@@ -69,6 +70,17 @@
 			hiddenBumpCharts.add(groupId);
 		}
 		hiddenBumpCharts = new Set(hiddenBumpCharts);
+	}
+
+	// Twenties chart: visible by default, track hidden ones
+	let hiddenTwentiesCharts = $state<Set<string>>(new Set());
+	function toggleTwentiesChart(groupId: string) {
+		if (hiddenTwentiesCharts.has(groupId)) {
+			hiddenTwentiesCharts.delete(groupId);
+		} else {
+			hiddenTwentiesCharts.add(groupId);
+		}
+		hiddenTwentiesCharts = new Set(hiddenTwentiesCharts);
 	}
 
 	let urlParam = $derived(page.params.id);
@@ -445,6 +457,14 @@
 			return participant.teamName || `${participant.name} / ${participant.partner.name}`;
 		}
 		return participant.name;
+	}
+
+	/** For doubles with teamName, returns "Player1 / Player2" for tooltip; otherwise null */
+	function getParticipantTooltip(participantId: string | undefined): string | null {
+		if (!participantId || !tournament) return null;
+		const participant = tournament.participants.find(p => p.id === participantId);
+		if (!participant?.partner || !participant.teamName) return null;
+		return `${participant.name} / ${participant.partner.name}`;
 	}
 
 	// Get full participant object
@@ -1239,6 +1259,20 @@
 															<div class="name-cell">
 																{@render participantAvatar(standing.participantId, 'sm')}
 																<span class="name-text">{getParticipantName(standing.participantId)}</span>
+																{#if getParticipantTooltip(standing.participantId)}
+																	<Popover.Root>
+																		<Popover.Trigger>
+																			{#snippet child({ props })}
+																				<button {...props} class="team-info-btn">
+																					<Users size={12} />
+																				</button>
+																			{/snippet}
+																		</Popover.Trigger>
+																		<Popover.Content class="w-auto max-w-52 text-xs" side="top" style="padding: 0.75rem 1rem;">
+																			{getParticipantTooltip(standing.participantId)}
+																		</Popover.Content>
+																	</Popover.Root>
+																{/if}
 																{#if getParticipantRanking(standing.participantId) > 0}
 																	<span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
 																{/if}
@@ -1280,9 +1314,27 @@
 														isDoubles={tournament.gameType === 'doubles'}
 													/>
 												</div>
-											{/if}
+												{/if}
 										</div>
 									{/if}
+									<div class="bump-chart-section">
+										<button class="bump-chart-toggle" onclick={() => toggleTwentiesChart(group.id)}>
+											<span>🎯 {m.tournament_twentiesPerRound()}</span>
+											<svg class="bump-toggle-icon" class:collapsed={hiddenTwentiesCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<polyline points="18 15 12 9 6 15"></polyline>
+											</svg>
+										</button>
+										{#if !hiddenTwentiesCharts.has(group.id)}
+											<div class="bump-chart-wrapper">
+												<TwentiesBarChart
+													{group}
+													participants={tournament.participants}
+													isSwiss={tournament.groupStage?.type === 'SWISS'}
+													isDoubles={tournament.gameType === 'doubles'}
+												/>
+											</div>
+										{/if}
+									</div>
 								</div>
 								<div class="group-card flex flex-col">
 									<div class="group-name flex items-center justify-between gap-2">
@@ -1412,6 +1464,20 @@
 														<div class="name-cell">
 															{@render participantAvatar(standing.participantId, 'sm')}
 															<span class="name-text">{getParticipantName(standing.participantId)}</span>
+																{#if getParticipantTooltip(standing.participantId)}
+																	<Popover.Root>
+																		<Popover.Trigger>
+																			{#snippet child({ props })}
+																				<button {...props} class="team-info-btn">
+																					<Users size={12} />
+																				</button>
+																			{/snippet}
+																		</Popover.Trigger>
+																		<Popover.Content class="w-auto max-w-52 text-xs" side="top" style="padding: 0.75rem 1rem;">
+																			{getParticipantTooltip(standing.participantId)}
+																		</Popover.Content>
+																	</Popover.Root>
+																{/if}
 															{#if getParticipantRanking(standing.participantId) > 0}
 																<span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
 															{/if}
@@ -1459,6 +1525,24 @@
 										{/if}
 									</div>
 								{/if}
+								<div class="bump-chart-section">
+									<button class="bump-chart-toggle" onclick={() => toggleTwentiesChart(group.id)}>
+										<span>🎯 {m.tournament_twentiesPerRound()}</span>
+										<svg class="bump-toggle-icon" class:collapsed={hiddenTwentiesCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<polyline points="18 15 12 9 6 15"></polyline>
+										</svg>
+									</button>
+									{#if !hiddenTwentiesCharts.has(group.id)}
+										<div class="bump-chart-wrapper">
+											<TwentiesBarChart
+												{group}
+												participants={tournament.participants}
+												isSwiss={tournament.groupStage?.type === 'SWISS'}
+												isDoubles={tournament.gameType === 'doubles'}
+											/>
+										</div>
+									{/if}
+								</div>
 
 								<!-- Match Results Toggle -->
 								{#if groupRounds.length > 0}
@@ -4148,6 +4232,25 @@
 		min-width: 0;
 	}
 
+	.team-info-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		border: none;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--primary);
+		cursor: pointer;
+		transition: background 0.2s;
+	}
+
+	.team-info-btn:hover {
+		background: color-mix(in srgb, var(--primary) 30%, transparent);
+	}
+
 	.ranking-pts {
 		font-size: 0.6rem;
 		color: #9ca3af;
@@ -4232,6 +4335,9 @@
 	/* Bump Chart */
 	.bump-chart-section {
 		margin-top: 0.75rem;
+		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+		border-radius: 10px;
+		overflow: hidden;
 	}
 
 	.bump-chart-toggle {
@@ -4241,18 +4347,16 @@
 		width: 100%;
 		padding: 0.5rem 0.75rem;
 		background: color-mix(in srgb, var(--primary) 8%, transparent);
-		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
-		border-radius: 8px;
+		border: none;
 		color: var(--foreground);
 		font-size: 0.8rem;
 		font-weight: 500;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: background 0.2s;
 	}
 
 	.bump-chart-toggle:hover {
 		background: color-mix(in srgb, var(--primary) 15%, transparent);
-		border-color: var(--primary);
 	}
 
 	.bump-toggle-icon {
@@ -4265,14 +4369,13 @@
 	}
 
 	.bump-chart-wrapper {
-		margin-top: 0.75rem;
 		background: var(--card);
-		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-top: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
 		padding: 0.75rem;
 		position: relative;
 		height: 250px;
 	}
+
 
 	.bump-chart-wrapper :global(canvas) {
 		width: 100% !important;
