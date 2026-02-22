@@ -599,8 +599,7 @@
             {/if}
 
             <!-- Bump Chart -->
-            {@const groupRounds = getGroupRounds(group)}
-            {#if groupRounds.length >= 2}
+            {#if getGroupRounds(group).length >= 2}
               <div class="bump-chart-section">
                 <button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
                   <span>📊 {m.tournament_roundEvolution()}</span>
