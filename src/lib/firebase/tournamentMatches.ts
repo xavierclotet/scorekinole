@@ -2404,7 +2404,7 @@ export async function completeTournamentMatch(
   tournamentId: string,
   matchId: string,
   phase: 'GROUP' | 'FINAL',
-  groupId: string | undefined,
+  _groupId: string | undefined,
   result: {
     winner: string | null; // null for ties in rounds mode
     gamesWonA: number;
@@ -2510,7 +2510,7 @@ export async function completeTournamentMatch(
           const foundMatch = round.matches.find(m => m.id === matchId);
           if (foundMatch) {
             isSilverBracket = true;
-            console.log(`  ✅ Found in silver bracket round ${round.roundNumber} (${round.roundName})`);
+            console.log(`  ✅ Found in silver bracket round ${round.roundNumber} (${round.name})`);
             console.log(`  📍 nextMatchId: ${foundMatch.nextMatchId || 'FINAL'}`);
             break;
           }

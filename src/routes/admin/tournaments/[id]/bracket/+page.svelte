@@ -25,7 +25,7 @@
     completeFinalStage
   } from '$lib/firebase/tournamentBracket';
   import { disqualifyParticipant, fixDisqualifiedMatches } from '$lib/firebase/tournamentParticipants';
-  import type { Tournament, BracketMatch, GroupMatch, ConsolationBracket, TournamentParticipant } from '$lib/types/tournament';
+  import type { Tournament, BracketMatch, GroupMatch, TournamentParticipant } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
   import { isBye, isLoserPlaceholder, parseLoserPlaceholder } from '$lib/algorithms/bracket';
   import * as m from '$lib/paraglide/messages.js';
@@ -97,10 +97,8 @@
   let consolationBrackets = $derived(activeTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets);
   // Fallback for consolationEnabled - check multiple locations due to migration
   let consolationEnabledValue = $derived(tournament?.finalStage?.consolationEnabled
-    ?? (tournament?.finalStage as Record<string, unknown>)?.['consolationEnabled ']  // Typo with trailing space
-    ?? tournament?.finalStage?.goldBracket?.config?.consolationEnabled
+    ?? (tournament?.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']  // Typo with trailing space
     ?? false);
-  let hasConsolation = $derived(consolationEnabledValue && consolationBrackets.length > 0);
 
   // Consolation match handling
   let selectedConsolationSource = $state<'QF' | 'R16' | null>(null);
@@ -180,7 +178,7 @@
   }
 
   async function saveNumTablesAndReassign() {
-    if (!tournament || isReassigningTables) return;
+    if (!tournament || !tournamentId || isReassigningTables) return;
 
     isReassigningTables = true;
     try {
@@ -205,7 +203,7 @@
   }
 
   async function handleReassignTables() {
-    if (!tournament || isReassigningTables) return;
+    if (!tournament || !tournamentId || isReassigningTables) return;
 
     isReassigningTables = true;
     try {
@@ -1383,8 +1381,8 @@
 
             // Log all matches in this round
             for (const match of round.matches) {
-              const pA = match.participantA ? getParticipantName(tournament!, match.participantA) : 'TBD';
-              const pB = match.participantB ? getParticipantName(tournament!, match.participantB) : 'TBD';
+              const pA = match.participantA ? getParticipantName(match.participantA) : 'TBD';
+              const pB = match.participantB ? getParticipantName(match.participantB) : 'TBD';
               const isEligible = match.status === 'PENDING' && match.participantA && match.participantB;
               console.log(`    - Match ${match.id}: ${pA} vs ${pB} | Status: ${match.status} | Eligible: ${isEligible}`);
               if (!isEligible && match.status === 'PENDING') {
