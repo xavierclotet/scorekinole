@@ -141,6 +141,72 @@
 		return calculateRankingPoints(position, tier, totalParticipants, tournament.gameType);
 	}
 
+	// Calculate total 20s for a participant across all tournament matches, split by phase
+	function getParticipantTotal20s(participantId: string): { group: number; bracket: number; total: number } {
+		if (!tournament) return { group: 0, bracket: 0, total: 0 };
+		let group = 0;
+		let bracket = 0;
+
+		// Helper to sum 20s from a list of matches
+		function sumFromMatches(matches: Array<{ participantA?: string; participantB?: string; total20sA?: number; total20sB?: number; status?: string }>): number {
+			let sum = 0;
+			for (const match of matches) {
+				if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') continue;
+				if (match.participantA === participantId) sum += match.total20sA || 0;
+				if (match.participantB === participantId) sum += match.total20sB || 0;
+			}
+			return sum;
+		}
+
+		// Helper to sum 20s from bracket rounds + third place match + consolation
+		function sumFromBracket(b: { rounds?: Array<{ matches: Array<any> }>; thirdPlaceMatch?: any; consolationBrackets?: Array<{ rounds: Array<{ matches: Array<any> }> }> }): number {
+			let sum = 0;
+			if (b.rounds) {
+				for (const round of b.rounds) {
+					if (round.matches) sum += sumFromMatches(round.matches);
+				}
+			}
+			if (b.thirdPlaceMatch) sum += sumFromMatches([b.thirdPlaceMatch]);
+			if (b.consolationBrackets) {
+				for (const cb of b.consolationBrackets) {
+					for (const round of cb.rounds) {
+						if (round.matches) sum += sumFromMatches(round.matches);
+					}
+				}
+			}
+			return sum;
+		}
+
+		// Group stage matches (stored in schedule for Round Robin, pairings for Swiss)
+		if (tournament.groupStage?.groups) {
+			for (const g of tournament.groupStage.groups) {
+				if (g.schedule) {
+					for (const round of g.schedule) {
+						if (round.matches) group += sumFromMatches(round.matches);
+					}
+				}
+				if (g.pairings) {
+					for (const pairing of g.pairings) {
+						if (pairing.matches) group += sumFromMatches(pairing.matches);
+					}
+				}
+			}
+		}
+
+		// Final stage
+		if (tournament.finalStage) {
+			if (tournament.finalStage.goldBracket) bracket += sumFromBracket(tournament.finalStage.goldBracket);
+			if (tournament.finalStage.silverBracket) bracket += sumFromBracket(tournament.finalStage.silverBracket);
+			if (tournament.finalStage.parallelBrackets) {
+				for (const pb of tournament.finalStage.parallelBrackets) {
+					if (pb.bracket) bracket += sumFromBracket(pb.bracket);
+				}
+			}
+		}
+
+		return { group, bracket, total: group + bracket };
+	}
+
 	// Check if both phases exist (with actual content)
 	let hasGroupStage = $derived(
 		tournament?.groupStage &&
@@ -829,6 +895,7 @@
 								{#each leftColumn as participant}
 									{@const rankingPts = getRankingPoints(participant.finalPosition || 0)}
 									{@const isMedal = participant.finalPosition && participant.finalPosition <= 3}
+									{@const t20s = tournament.show20s ? getParticipantTotal20s(participant.id) : { group: 0, bracket: 0, total: 0 }}
 									<div class="standing-row" class:top-4={participant.finalPosition && participant.finalPosition <= 4}>
 										<span class="pos" class:medal={isMedal}>
 											{#if participant.finalPosition === 1}
@@ -845,6 +912,15 @@
 											<span class="name">{getParticipantName(participant.id)}</span>
 											{@render participantAvatar(participant.id, 'sm')}
 										</div>
+										{#if tournament.show20s}
+											<span class="twenties" title={m.tournament_totalTwentiesLabel()}>
+												{#if hasBothPhases}
+													{t20s.total} <span class="twenties-breakdown">({t20s.group}+{t20s.bracket})</span>
+												{:else}
+													{t20s.total}
+												{/if}
+											</span>
+										{/if}
 										{#if tournament.rankingConfig?.enabled}
 											<span class="pts" class:zero={rankingPts === 0}>
 												{rankingPts > 0 ? `+${rankingPts}` : '0'}
@@ -857,6 +933,7 @@
 								{#each rightColumn as participant}
 									{@const rankingPts = getRankingPoints(participant.finalPosition || 0)}
 									{@const isMedal = participant.finalPosition && participant.finalPosition <= 3}
+									{@const t20s = tournament.show20s ? getParticipantTotal20s(participant.id) : { group: 0, bracket: 0, total: 0 }}
 									<div class="standing-row" class:top-4={participant.finalPosition && participant.finalPosition <= 4}>
 										<span class="pos" class:medal={isMedal}>
 											{#if participant.finalPosition === 1}
@@ -873,6 +950,15 @@
 											<span class="name">{getParticipantName(participant.id)}</span>
 											{@render participantAvatar(participant.id, 'sm')}
 										</div>
+										{#if tournament.show20s}
+											<span class="twenties" title={m.tournament_totalTwentiesLabel()}>
+												{#if hasBothPhases}
+													{t20s.total} <span class="twenties-breakdown">({t20s.group}+{t20s.bracket})</span>
+												{:else}
+													{t20s.total}
+												{/if}
+											</span>
+										{/if}
 										{#if tournament.rankingConfig?.enabled}
 											<span class="pts" class:zero={rankingPts === 0}>
 												{rankingPts > 0 ? `+${rankingPts}` : '0'}
@@ -3206,6 +3292,21 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		color: #e1e8ed;
+	}
+
+	.standing-row .twenties {
+		font-weight: 600;
+		color: #f59e0b;
+		font-size: 0.7rem;
+		min-width: 1.5rem;
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.standing-row .twenties-breakdown {
+		font-weight: 400;
+		color: #9ca3af;
+		font-size: 0.6rem;
 	}
 
 	.standing-row .pts {

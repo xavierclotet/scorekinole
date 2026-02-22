@@ -688,10 +688,13 @@
 										{#if isTournamentMatch(match) && match.eventTitle}
 											<span class="separator">•</span>
 											<span class="tournament-name">{match.eventTitle}</span>
-										{/if}
-										{#if match.matchPhase}
+											{#if match.matchPhase}
+												<span class="separator">•</span>
+												<span class="phase-text">{match.matchPhase}</span>
+											{/if}
+										{:else}
 											<span class="separator">•</span>
-											<span class="phase-text">{match.matchPhase}</span>
+											<span class="phase-text">{m.stats_friendly()}</span>
 										{/if}
 									</div>
 
@@ -895,6 +898,21 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-shrink: 0;
+	}
+
+	/* Make PullToRefresh wrapper fill remaining flex space */
+	.stats-container :global(.pull-to-refresh-wrapper) {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.stats-container :global(.pull-content) {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
 	}
 
 	/* Scrollable content area */
