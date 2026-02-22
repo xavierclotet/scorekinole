@@ -12,6 +12,7 @@
 	import { isBye } from '$lib/algorithms/bracket';
 	import MatchCard from './MatchCard.svelte';
 	import MatchResultDialog from './MatchResultDialog.svelte';
+	import BumpChart from '$lib/components/charts/BumpChart.svelte';
 
 	interface Props {
 		tournament: Tournament;
@@ -23,6 +24,15 @@
 	let expandedGroups = $state<Set<string>>(new Set());
 	let expandedRounds = $state<Record<string, Set<number>>>({});
 	let initialized = $state(false);
+	let showBumpChart = $state<Set<string>>(new Set());
+
+	function toggleBumpChart(groupId: string) {
+		if (showBumpChart.has(groupId)) {
+			showBumpChart.delete(groupId);
+		} else {
+			showBumpChart.add(groupId);
+		}
+	}
 
 	// Bracket state
 	let activeParallelBracket = $state(0);
@@ -790,6 +800,32 @@
 								</div>
 							</div>
 						</div>
+
+						<!-- Bump Chart Toggle -->
+						{@const completedRoundCount = rounds.filter(r =>
+							(r.matches ?? []).some(rm => rm.status === 'COMPLETED' || rm.status === 'WALKOVER')
+						).length}
+						{#if completedRoundCount >= 2}
+							<div class="bump-chart-section">
+								<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+									<span>📊 {m.tournament_roundEvolution()}</span>
+									<span class="bump-toggle-label">
+										{showBumpChart.has(group.id) ? m.tournament_hideChart() : m.tournament_showChart()}
+									</span>
+								</button>
+								{#if showBumpChart.has(group.id)}
+									<div class="bump-chart-wrapper">
+										<BumpChart
+											{group}
+											participants={tournament.participants}
+											{isSwiss}
+											{qualificationMode}
+											isDoubles={tournament.gameType === 'doubles'}
+										/>
+									</div>
+								{/if}
+							</div>
+						{/if}
 					{/if}
 				</div>
 			{/each}
@@ -2242,6 +2278,54 @@
 	.group-content {
 		padding: 1rem;
 		border-top: 1px solid #2d3748;
+	}
+
+	/* Bump Chart */
+	.bump-chart-section {
+		padding: 0 1rem 1rem;
+	}
+
+	.bump-chart-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		padding: 0.5rem 0.75rem;
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+		border-radius: 8px;
+		color: var(--foreground);
+		font-size: 0.8rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.bump-chart-toggle:hover {
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		border-color: var(--primary);
+	}
+
+	.bump-toggle-label {
+		font-size: 0.7rem;
+		color: var(--primary);
+		font-weight: 600;
+	}
+
+	.bump-chart-wrapper {
+		margin-top: 0.75rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		padding: 0.75rem;
+		position: relative;
+		height: 250px;
+	}
+
+	@media (min-width: 640px) {
+		.bump-chart-wrapper {
+			height: 320px;
+		}
 	}
 
 	/* Standings Table */

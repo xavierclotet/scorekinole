@@ -1306,5 +1306,21 @@
   "wizard_time": "Hora",
   "tournament_inProgressHint": "Selecciona un partit per reprendre'l",
   "tournament_inProgressUserInfo": "El teu rival ja gestiona aquesta partida. Entra només si hi ha un problema amb el dispositiu.",
-  "tournament_inProgressUserInfoDoubles": "Algú de l?altre equip ja gestiona aquesta partida. Entra només si hi ha un problema amb el dispositiu."
+  "tournament_inProgressUserInfoDoubles": "Algú de l?altre equip ja gestiona aquesta partida. Entra només si hi ha un problema amb el dispositiu.",
+  "stats_charts": "Gràfics",
+  "stats_hideCharts": "Amagar",
+  "stats_showCharts": "Mostrar",
+  "stats_noDataForChart": "Sense dades disponibles",
+  "stats_winLossChart": "Victòries i Derrotes",
+  "stats_twentiesChart": "Evolució 20s",
+  "stats_rankingChart": "Evolució Rànquing",
+  "stats_positionsChart": "Posicions a Tornejos",
+  "stats_movingAverage": "mitjana",
+  "stats_rankingPoints": "Punts rànquing",
+  "stats_position": "Posició",
+  "tournament_changeKey": "Canviar torneig",
+  "tournament_noPendingMatchesUserHint": "Espera que l'organitzador programi el teu proper partit o comprovi més tard",
+  "tournament_roundEvolution": "Evolució per rondes",
+  "tournament_showChart": "Veure gràfic",
+  "tournament_hideChart": "Amagar gràfic"
 }

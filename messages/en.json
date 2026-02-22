@@ -1306,5 +1306,21 @@
   "wizard_time": "Hour",
   "tournament_inProgressHint": "Select a match to resume it",
   "tournament_inProgressUserInfo": "Your opponent is already managing this match. Only enter if there is a problem with their device.",
-  "tournament_inProgressUserInfoDoubles": "Someone from the other team is already managing this game. Only join if there's a problem with your device."
+  "tournament_inProgressUserInfoDoubles": "Someone from the other team is already managing this game. Only join if there's a problem with your device.",
+  "stats_charts": "Graphics",
+  "stats_hideCharts": "Disguise",
+  "stats_showCharts": "Show",
+  "stats_noDataForChart": "No data available",
+  "stats_winLossChart": "Wins and Losses",
+  "stats_twentiesChart": "Evolution 20s",
+  "stats_rankingChart": "Ranking Evolution",
+  "stats_positionsChart": "Tournament Positions",
+  "stats_movingAverage": "average",
+  "stats_rankingPoints": "Ranking points",
+  "stats_position": "Position",
+  "tournament_changeKey": "Change tournament",
+  "tournament_noPendingMatchesUserHint": "Wait for the organizer to schedule your next match or check back later",
+  "tournament_roundEvolution": "Evolution by rounds",
+  "tournament_showChart": "See chart",
+  "tournament_hideChart": "Hide chart"
 }

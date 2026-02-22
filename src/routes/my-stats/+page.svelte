@@ -10,14 +10,23 @@
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { PAGE_SIZE } from '$lib/constants';
-	import { ChevronRight, Clock, Trophy, Users, User, Info } from '@lucide/svelte';
+	import { ChevronRight, ChevronDown, Clock, Trophy, Users, User, Info, BarChart3 } from '@lucide/svelte';
 	import * as Popover from '$lib/components/ui/popover/index.js';
+	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import SEO from '$lib/components/SEO.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { getUserProfile } from '$lib/firebase/userProfile';
+	import type { TournamentRecord } from '$lib/types/tournament';
+	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
+	import WinLossDonut from '$lib/components/charts/WinLossDonut.svelte';
+	import TwentiesAccuracyLine from '$lib/components/charts/TwentiesAccuracyLine.svelte';
+	import RankingEvolutionLine from '$lib/components/charts/RankingEvolutionLine.svelte';
+	import TournamentPositionsChart from '$lib/components/charts/TournamentPositionsChart.svelte';
 
 	// Data state
 	let isLoading = $state(true);
 	let matches: MatchHistory[] = $state([]);
+	let tournamentRecords: TournamentRecord[] = $state([]);
 
 	// Filter state
 	let filterType: 'all' | 'friendly' | 'tournament' = $state('all');
@@ -83,14 +92,20 @@
 				setTimeout(() => reject(new Error('Timeout loading matches')), 10000)
 			);
 
-			// Load both friendly matches and tournament matches in parallel
-			const [friendlyMatches, tournamentMatches] = await Promise.race([
+			// Load friendly matches, tournament matches, and user profile in parallel
+			const [friendlyMatches, tournamentMatches, profile] = await Promise.race([
 				Promise.all([
 					getMatchesFromCloud(),
-					getUserTournamentMatches()
+					getUserTournamentMatches(),
+					getUserProfile(),
 				]),
 				timeout
-			]) as [MatchHistory[], MatchHistory[]];
+			]) as [MatchHistory[], MatchHistory[], any];
+
+			// Load tournament records from profile
+			if (profile?.tournaments) {
+				tournamentRecords = profile.tournaments;
+			}
 
 			// Combine and deduplicate by ID, then sort by startTime (most recent first)
 			const matchMap = new Map<string, MatchHistory>();
@@ -100,7 +115,7 @@
 				}
 			}
 			const sortedMatches = Array.from(matchMap.values()).sort((a, b) => b.startTime - a.startTime);
-			
+
 			matches = sortedMatches;
 			
 			// Update cache
@@ -381,6 +396,31 @@
 		};
 	})());
 
+	// Charts state
+	let chartsExpanded = $state(false);
+
+	// Check if 20s trend data is available
+	let hasTwentiesChartData = $derived(
+		filteredMatches.some(match => {
+			const userTeam = getUserTeam(match);
+			if (!userTeam) return false;
+			return (match.games ?? []).some(g => (g.rounds ?? []).length > 0);
+		})
+	);
+
+	// Check if user has tournament records for ranking charts
+	let hasRankingData = $derived((() => {
+		if (tournamentRecords.length === 0) return false;
+		if (!filterYear) return true;
+		const y = parseInt(filterYear);
+		return tournamentRecords.some(r => new Date(r.tournamentDate).getFullYear() === y);
+	})());
+
+	// Total chart count for carousel dots
+	let chartCount = $derived(
+		2 + (hasRankingData ? 2 : 0) // donut + 20s + (ranking + positions if data)
+	);
+
 	function formatDate(timestamp: number): string {
 		const date = new Date(timestamp);
 		return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -653,6 +693,94 @@
 				</div>
 			{/if}
 		</div>
+
+		<!-- Charts Section -->
+		{#if stats.total > 0}
+			<div class="charts-section">
+				<button class="charts-toggle" onclick={() => chartsExpanded = !chartsExpanded}>
+					<BarChart3 class="size-4" />
+					<span>{m.stats_charts()}</span>
+					<span class="charts-toggle-action">
+						{chartsExpanded ? m.stats_hideCharts() : m.stats_showCharts()}
+					</span>
+					<ChevronDown class={['size-4 charts-chevron', chartsExpanded && 'rotated']} />
+				</button>
+
+				{#if chartsExpanded}
+					<!-- Mobile: Carousel -->
+					<div class="charts-mobile">
+						<Carousel.Root opts={{ align: 'start', loop: false }}>
+							<Carousel.Content>
+								<Carousel.Item>
+									<ChartWrapper title={m.stats_winLossChart()} hasData={stats.total > 0}>
+										{#snippet children()}
+											<WinLossDonut wins={stats.wins} losses={stats.losses} ties={stats.ties} total={stats.total} />
+										{/snippet}
+									</ChartWrapper>
+								</Carousel.Item>
+								{#if hasTwentiesChartData}
+									<Carousel.Item>
+										<ChartWrapper title={m.stats_twentiesChart()} hasData={hasTwentiesChartData}>
+											{#snippet children()}
+												<TwentiesAccuracyLine matches={filteredMatches} {getUserTeam} {getOpponentName} />
+											{/snippet}
+										</ChartWrapper>
+									</Carousel.Item>
+								{/if}
+								{#if hasRankingData}
+									<Carousel.Item>
+										<ChartWrapper title={m.stats_rankingChart()} hasData={hasRankingData}>
+											{#snippet children()}
+												<RankingEvolutionLine records={tournamentRecords} year={filterYear} />
+											{/snippet}
+										</ChartWrapper>
+									</Carousel.Item>
+								{/if}
+								{#if hasRankingData}
+									<Carousel.Item>
+										<ChartWrapper title={m.stats_positionsChart()} hasData={hasRankingData}>
+											{#snippet children()}
+												<TournamentPositionsChart records={tournamentRecords} year={filterYear} />
+											{/snippet}
+										</ChartWrapper>
+									</Carousel.Item>
+								{/if}
+							</Carousel.Content>
+						</Carousel.Root>
+					</div>
+
+					<!-- Desktop: Grid -->
+					<div class="charts-desktop">
+						<ChartWrapper title={m.stats_winLossChart()} hasData={stats.total > 0}>
+							{#snippet children()}
+								<WinLossDonut wins={stats.wins} losses={stats.losses} ties={stats.ties} total={stats.total} />
+							{/snippet}
+						</ChartWrapper>
+						{#if hasTwentiesChartData}
+							<ChartWrapper title={m.stats_twentiesChart()} hasData={hasTwentiesChartData}>
+								{#snippet children()}
+									<TwentiesAccuracyLine matches={filteredMatches} {getUserTeam} {getOpponentName} />
+								{/snippet}
+							</ChartWrapper>
+						{/if}
+						{#if hasRankingData}
+							<ChartWrapper title={m.stats_rankingChart()} hasData={hasRankingData}>
+								{#snippet children()}
+									<RankingEvolutionLine records={tournamentRecords} year={filterYear} />
+								{/snippet}
+							</ChartWrapper>
+						{/if}
+						{#if hasRankingData}
+							<ChartWrapper title={m.stats_positionsChart()} hasData={hasRankingData}>
+								{#snippet children()}
+									<TournamentPositionsChart records={tournamentRecords} year={filterYear} />
+								{/snippet}
+							</ChartWrapper>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		{/if}
 
 		<!-- Match List -->
 		{#if filteredMatches.length === 0}
@@ -1371,5 +1499,77 @@
 		.stat-card { padding: 0.5rem 0.2rem; }
 		.stat-value { font-size: 1rem; }
 		.stat-percent, .stat-label { font-size: 0.55rem; }
+	}
+
+	/* Charts Section */
+	.charts-section {
+		margin: 0 0 1rem;
+	}
+
+	.charts-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.65rem 0.75rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		color: var(--foreground);
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.charts-toggle:hover {
+		border-color: var(--primary);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
+	}
+
+	.charts-toggle-action {
+		margin-left: auto;
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: var(--primary);
+	}
+
+	.charts-section :global(.charts-chevron) {
+		transition: transform 0.2s;
+	}
+
+	.charts-section :global(.charts-chevron.rotated) {
+		transform: rotate(180deg);
+	}
+
+	/* Mobile: carousel */
+	.charts-mobile {
+		display: block;
+		margin-top: 0.75rem;
+	}
+
+	/* Desktop: grid */
+	.charts-desktop {
+		display: none;
+	}
+
+	/* Carousel item padding */
+	.charts-mobile :global([data-embla-slide]) {
+		padding-left: 0.5rem;
+		min-width: 85%;
+	}
+
+	.charts-mobile :global([data-embla-slide]:first-child) {
+		padding-left: 0;
+	}
+
+	@media (min-width: 768px) {
+		.charts-mobile { display: none; }
+		.charts-desktop {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 0.75rem;
+			margin-top: 0.75rem;
+		}
 	}
 </style>

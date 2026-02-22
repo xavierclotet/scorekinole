@@ -24,6 +24,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Check, ChevronsUpDown, Share2 } from '@lucide/svelte';
 	import { PRODUCTION_URL } from '$lib/constants';
+	import BumpChart from '$lib/components/charts/BumpChart.svelte';
 
 	let tournament = $state<Tournament | null>(null);
 	let canEdit = $state(false);
@@ -44,6 +45,7 @@
 	let translatedDescription = $state<string | null>(null);
 	let translationError = $state<string | null>(null);
 	let showTranslation = $state(false);
+	let descriptionExpanded = $state(false);
 
 	// Bracket view state (for SPLIT_DIVISIONS)
 	let activeTab = $state<'gold' | 'silver'>('gold');
@@ -57,6 +59,17 @@
 	// Player filter for single-group results
 	let selectedPlayerFilter = $state<string | undefined>(undefined);
 	let playerFilterOpen = $state(false);
+
+	// Bump chart toggle per group
+	let showBumpChart = $state<Set<string>>(new Set());
+	function toggleBumpChart(groupId: string) {
+		if (showBumpChart.has(groupId)) {
+			showBumpChart.delete(groupId);
+		} else {
+			showBumpChart.add(groupId);
+		}
+		showBumpChart = new Set(showBumpChart);
+	}
 
 	let urlParam = $derived(page.params.id);
 	// Resolved Firestore document ID (after key lookup if needed)
@@ -835,47 +848,58 @@
 
 				{#if tournament.description}
 					<div class="description-section">
-						<div class="description-header">
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<circle cx="12" cy="12" r="10"/>
-								<line x1="12" y1="16" x2="12" y2="12"/>
-								<line x1="12" y1="8" x2="12.01" y2="8"/>
+						<button class="description-toggle" onclick={() => descriptionExpanded = !descriptionExpanded}>
+							<div class="description-header">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="12" cy="12" r="10"/>
+									<line x1="12" y1="16" x2="12" y2="12"/>
+									<line x1="12" y1="8" x2="12.01" y2="8"/>
+								</svg>
+								<span>{m.wizard_information()}</span>
+							</div>
+							<svg class="chevron-icon" class:expanded={descriptionExpanded} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="6 9 12 15 18 9"></polyline>
 							</svg>
-							<span>{m.wizard_information()}</span>
-							{#if canTranslate}
-								<button
-									class="translate-btn"
-									onclick={handleTranslate}
-									disabled={translating}
-									title={m.common_translate?.() ?? 'Traducir'}
-								>
-									{#if translating}
-										<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
-										</svg>
-									{:else}
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
-										</svg>
+						</button>
+						{#if descriptionExpanded}
+							<div class="description-content">
+								{#if canTranslate}
+									<div class="translate-row">
+										<button
+											class="translate-btn"
+											onclick={handleTranslate}
+											disabled={translating}
+											title={m.common_translate?.() ?? 'Traducir'}
+										>
+											{#if translating}
+												<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+												</svg>
+											{:else}
+												<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
+												</svg>
+											{/if}
+										</button>
+									</div>
+								{/if}
+								{#if showTranslation && translatedDescription}
+									<p class="tournament-description translated">{translatedDescription}</p>
+									<button class="show-original-btn" onclick={() => showTranslation = false}>
+										{m.common_showOriginal?.() ?? 'Ver original'}
+									</button>
+								{:else}
+									<p class="tournament-description">{tournament.description}</p>
+									{#if translatedDescription}
+										<button class="show-translated-btn" onclick={() => showTranslation = true}>
+											{m.common_showTranslation?.() ?? 'Ver traducción'}
+										</button>
 									{/if}
-								</button>
-							{/if}
-						</div>
-						{#if showTranslation && translatedDescription}
-							<p class="tournament-description translated">{translatedDescription}</p>
-							<button class="show-original-btn" onclick={() => showTranslation = false}>
-								{m.common_showOriginal?.() ?? 'Ver original'}
-							</button>
-						{:else}
-							<p class="tournament-description">{tournament.description}</p>
-							{#if translatedDescription}
-								<button class="show-translated-btn" onclick={() => showTranslation = true}>
-									{m.common_showTranslation?.() ?? 'Ver traducción'}
-								</button>
-							{/if}
-						{/if}
-						{#if translationError}
-							<p class="translation-error">{translationError}</p>
+								{/if}
+								{#if translationError}
+									<p class="translation-error">{translationError}</p>
+								{/if}
+							</div>
 						{/if}
 					</div>
 				{/if}
@@ -1338,6 +1362,28 @@
 									</div>
 								</div>
 							</div>
+							<!-- Bump Chart (single group) -->
+							{#if groupRounds.length >= 2 && tournament}
+								<div class="bump-chart-section">
+									<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+										<span>📊 {m.tournament_roundEvolution()}</span>
+										<span class="bump-toggle-label">
+											{showBumpChart.has(group.id) ? m.tournament_hideChart() : m.tournament_showChart()}
+										</span>
+									</button>
+									{#if showBumpChart.has(group.id)}
+										<div class="bump-chart-wrapper">
+											<BumpChart
+												{group}
+												participants={tournament.participants}
+												isSwiss={tournament.groupStage?.type === 'SWISS'}
+												qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
+												isDoubles={tournament.gameType === 'doubles'}
+											/>
+										</div>
+									{/if}
+								</div>
+							{/if}
 						{:else}
 							<!-- Multiple groups: stacked layout with toggle -->
 							<div class="group-card">
@@ -1449,6 +1495,29 @@
 											{/each}
 										</div>
 									{/if}
+								{/if}
+
+								<!-- Bump Chart (multiple groups) -->
+								{#if groupRounds.length >= 2 && tournament}
+									<div class="bump-chart-section">
+										<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+											<span>📊 {m.tournament_roundEvolution()}</span>
+											<span class="bump-toggle-label">
+												{showBumpChart.has(group.id) ? m.tournament_hideChart() : m.tournament_showChart()}
+											</span>
+										</button>
+										{#if showBumpChart.has(group.id)}
+											<div class="bump-chart-wrapper">
+												<BumpChart
+													{group}
+													participants={tournament.participants}
+													isSwiss={tournament.groupStage?.type === 'SWISS'}
+													qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
+													isDoubles={tournament.gameType === 'doubles'}
+												/>
+											</div>
+										{/if}
+									</div>
 								{/if}
 							</div>
 						{/if}
@@ -3202,16 +3271,43 @@
 		}
 	}
 
-	/* Description Section */
+	/* Description Section - Accordion */
 	.description-section {
 		margin-top: 1rem;
+	}
+
+	.description-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		padding: 0.6rem 0.75rem;
+		background: rgba(30, 41, 59, 0.3);
+		border: 1px solid rgba(102, 126, 234, 0.15);
+		border-radius: 8px;
+		cursor: pointer;
+		transition: background 0.2s ease, border-color 0.2s ease;
+	}
+
+	.description-toggle:hover {
+		background: rgba(30, 41, 59, 0.5);
+		border-color: rgba(102, 126, 234, 0.3);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .description-toggle {
+		background: rgba(241, 245, 249, 0.8);
+		border-color: rgba(102, 126, 234, 0.15);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .description-toggle:hover {
+		background: rgba(226, 232, 240, 0.8);
+		border-color: rgba(102, 126, 234, 0.3);
 	}
 
 	.description-header {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		margin-bottom: 0.5rem;
 		font-size: 0.75rem;
 		font-weight: 600;
 		color: #667eea;
@@ -3224,26 +3320,58 @@
 		height: 14px;
 	}
 
+	.chevron-icon {
+		width: 16px;
+		height: 16px;
+		color: #667eea;
+		transition: transform 0.2s ease;
+		flex-shrink: 0;
+	}
+
+	.chevron-icon.expanded {
+		transform: rotate(180deg);
+	}
+
+	.description-content {
+		margin-top: 0.5rem;
+		padding: 0.75rem;
+		background: rgba(30, 41, 59, 0.2);
+		border: 1px solid rgba(102, 126, 234, 0.1);
+		border-radius: 8px;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .description-content {
+		background: rgba(248, 250, 252, 0.8);
+		border-color: rgba(102, 126, 234, 0.1);
+	}
+
+	.translate-row {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: 0.5rem;
+	}
+
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .description-header {
+		color: #5a67d8;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .chevron-icon {
 		color: #5a67d8;
 	}
 
 	/* Tournament Description */
 	.tournament-description {
 		margin: 0;
-		padding: 0.875rem 1rem;
+		padding: 0;
 		font-size: 0.875rem;
 		color: #9ca3af;
 		line-height: 1.6;
-		background: rgba(30, 41, 59, 0.4);
-		border-radius: 8px;
 		white-space: pre-wrap;
 		word-wrap: break-word;
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .tournament-description {
 		color: #4b5563;
-		background: #f8fafc;
 	}
 
 	/* Translation */
@@ -4098,6 +4226,59 @@
 	.view-matches-btn:hover {
 		background: rgba(255, 255, 255, 0.06);
 		color: #e1e8ed;
+	}
+
+	/* Bump Chart */
+	.bump-chart-section {
+		margin-top: 0.75rem;
+	}
+
+	.bump-chart-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		padding: 0.5rem 0.75rem;
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+		border-radius: 8px;
+		color: var(--foreground);
+		font-size: 0.8rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.bump-chart-toggle:hover {
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		border-color: var(--primary);
+	}
+
+	.bump-toggle-label {
+		font-size: 0.7rem;
+		color: var(--primary);
+		font-weight: 600;
+	}
+
+	.bump-chart-wrapper {
+		margin-top: 0.75rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		padding: 0.75rem;
+		position: relative;
+		height: 250px;
+	}
+
+	.bump-chart-wrapper :global(canvas) {
+		width: 100% !important;
+		height: 100% !important;
+	}
+
+	@media (min-width: 640px) {
+		.bump-chart-wrapper {
+			height: 320px;
+		}
 	}
 
 	/* Filter Button (player filter in single group) */

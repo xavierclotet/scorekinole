@@ -3,6 +3,7 @@
   import { getParticipantDisplayName } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
+  import BumpChart from '$lib/components/charts/BumpChart.svelte';
   import { isBye } from '$lib/algorithms/bracket';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { calculateFinalPositions, applyRankingUpdates } from '$lib/firebase/tournamentRanking';
@@ -66,6 +67,17 @@
       newExpanded.add(groupId);
     }
     expandedResults = newExpanded;
+  }
+
+  // Bump chart toggle per group
+  let showBumpChart = $state<Set<string>>(new Set());
+  function toggleBumpChart(groupId: string) {
+    if (showBumpChart.has(groupId)) {
+      showBumpChart.delete(groupId);
+    } else {
+      showBumpChart.add(groupId);
+    }
+    showBumpChart = new Set(showBumpChart);
   }
 
   // Toggle consolation bracket accordion
@@ -584,6 +596,30 @@
                 </div>
               {/if}
             </div>
+            {/if}
+
+            <!-- Bump Chart -->
+            {@const groupRounds = getGroupRounds(group)}
+            {#if groupRounds.length >= 2}
+              <div class="bump-chart-section">
+                <button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+                  <span>📊 {m.tournament_roundEvolution()}</span>
+                  <span class="bump-toggle-label">
+                    {showBumpChart.has(group.id) ? m.tournament_hideChart() : m.tournament_showChart()}
+                  </span>
+                </button>
+                {#if showBumpChart.has(group.id)}
+                  <div class="bump-chart-wrapper">
+                    <BumpChart
+                      {group}
+                      participants={tournament.participants}
+                      isSwiss={tournament.groupStage?.type === 'SWISS'}
+                      qualificationMode={qualMode}
+                      isDoubles={tournament.gameType === 'doubles'}
+                    />
+                  </div>
+                {/if}
+              </div>
             {/if}
           </div>
         {/each}
@@ -1607,6 +1643,54 @@
   .standings-section,
   .matches-section {
     margin-bottom: 1rem;
+  }
+
+  /* Bump Chart */
+  .bump-chart-section {
+    padding: 0 0 1rem;
+  }
+
+  .bump-chart-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+    border-radius: 8px;
+    color: var(--foreground);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .bump-chart-toggle:hover {
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    border-color: var(--primary);
+  }
+
+  .bump-toggle-label {
+    font-size: 0.7rem;
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .bump-chart-wrapper {
+    margin-top: 0.75rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem;
+    position: relative;
+    height: 250px;
+  }
+
+  @media (min-width: 640px) {
+    .bump-chart-wrapper {
+      height: 320px;
+    }
   }
 
   .standings-header {
