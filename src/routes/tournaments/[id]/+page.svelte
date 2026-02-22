@@ -2326,10 +2326,10 @@
 						<span class="md-name">{getParticipantName(selectedMatch.participantA)}</span>
 						<span class="md-score">{selectedMatch.totalPointsA ?? selectedMatch.gamesWonA ?? 0}</span>
 					</div>
-					<span class="md-vs">vs</span>
-					<div class="md-side md-side-b" class:is-winner={selectedMatch.winner === selectedMatch.participantB}>
-						<span class="md-score">{selectedMatch.totalPointsB ?? selectedMatch.gamesWonB ?? 0}</span>
+					<span class="md-divider">–</span>
+					<div class="md-side" class:is-winner={selectedMatch.winner === selectedMatch.participantB}>
 						<span class="md-name">{getParticipantName(selectedMatch.participantB)}</span>
+						<span class="md-score">{selectedMatch.totalPointsB ?? selectedMatch.gamesWonB ?? 0}</span>
 					</div>
 				</div>
 			</div>
@@ -5463,63 +5463,62 @@
 	}
 
 	.match-detail-header {
-		padding: 0.875rem 1rem;
+		padding: 1.25rem 1rem 1rem;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	}
 
 	.match-detail-matchup {
 		display: flex;
-		align-items: center;
-		gap: 0.5rem;
+		align-items: stretch;
 	}
 
 	.md-side {
 		flex: 1;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.25rem;
 		min-width: 0;
-	}
-
-	.md-side.md-side-b {
-		flex-direction: row;
-		justify-content: flex-end;
 	}
 
 	.md-name {
-		font-size: 0.8125rem;
+		font-size: 0.75rem;
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.6);
+		color: rgba(255, 255, 255, 0.4);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		min-width: 0;
+		max-width: 100%;
+		padding: 0 0.5rem;
+		text-align: center;
 	}
 
 	.md-side.is-winner .md-name {
-		color: rgba(255, 255, 255, 0.95);
+		color: rgba(255, 255, 255, 0.85);
 	}
 
 	.md-score {
-		font-size: 1.5rem;
+		font-size: 2rem;
 		font-weight: 800;
-		color: rgba(255, 255, 255, 0.3);
+		color: rgba(255, 255, 255, 0.2);
 		font-variant-numeric: tabular-nums;
 		line-height: 1;
-		flex-shrink: 0;
 	}
 
 	.md-side.is-winner .md-score {
 		color: #34d399;
 	}
 
-	.md-vs {
-		font-size: 0.625rem;
-		font-weight: 700;
-		color: rgba(255, 255, 255, 0.2);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+	.md-divider {
+		font-size: 1.25rem;
+		font-weight: 300;
+		color: rgba(255, 255, 255, 0.15);
+		display: flex;
+		align-items: flex-end;
+		padding-bottom: 0.25rem;
 		flex-shrink: 0;
+		padding: 0 0.25rem;
+		align-self: flex-end;
 	}
 
 	.match-detail-body {
@@ -5751,15 +5750,15 @@
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-score {
-		color: #cbd5e1;
+		color: #e2e8f0;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-side.is-winner .md-score {
 		color: #059669;
 	}
 
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-vs {
-		color: #cbd5e1;
+	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-divider {
+		color: #e2e8f0;
 	}
 
 	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .game-header {
