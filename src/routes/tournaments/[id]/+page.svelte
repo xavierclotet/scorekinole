@@ -1400,7 +1400,7 @@
 										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
 										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
 										{#if hasEnoughVisibleMatches}
-										<div class="bracket-round" style="--round-index: {roundIndex}">
+										<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
 											<h3 class="round-name">{translateRoundName(round.name)}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
@@ -1642,7 +1642,7 @@
 										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
 										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
 										{#if hasEnoughVisibleMatches}
-										<div class="bracket-round" style="--round-index: {roundIndex}">
+										<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
 											<h3 class="round-name">{translateRoundName(round.name)}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
@@ -1893,7 +1893,7 @@
 										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
 										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
 										{#if hasEnoughVisibleMatches}
-										<div class="bracket-round" style="--round-index: {roundIndex}">
+										<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
 											<h3 class="round-name">{translateRoundName(round.name)}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
@@ -2018,7 +2018,7 @@
 									{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
 									{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
 									{#if hasEnoughVisibleMatches}
-									<div class="bracket-round" style="--round-index: {roundIndex}">
+									<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
 										<h3 class="round-name">{translateRoundName(round.name)}</h3>
 										<div class="matches-column">
 											{#each round.matches as match}
@@ -4568,20 +4568,9 @@
 	}
 
 	/* Dynamic vertical line height based on round index - space-around distribution */
-	.bracket-round[style*="--round-index: 0"] .bracket-match::before {
-		height: calc(50% );
-	}
-	.bracket-round[style*="--round-index: 1"] .bracket-match::before {
-		height: calc(100% + 0.5rem);
-	}
-	.bracket-round[style*="--round-index: 2"] .bracket-match::before {
-		height: calc(200% + 1rem);
-	}
-	.bracket-round[style*="--round-index: 3"] .bracket-match::before {
-		height: calc(400% + 2rem);
-	}
-	.bracket-round[style*="--round-index: 4"] .bracket-match::before {
-		height: calc(800% + 4rem);
+	/* Each subsequent round doubles: 2^roundIndex * base */
+	.bracket-match::before {
+		height: calc(var(--round-mult) * (50% + 0.25rem));
 	}
 
 	/* Remove vertical connectors from final round */

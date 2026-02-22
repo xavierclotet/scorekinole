@@ -1448,7 +1448,7 @@
   .dialog {
     background: #fff;
     border-radius: 20px;
-    max-width: 900px;
+    max-width: 1100px;
     width: 100%;
     max-height: 90vh;
     display: flex;
@@ -1801,8 +1801,8 @@
   }
 
   .round-cell.points-cell {
-    min-width: 45px;
-    max-width: 60px;
+    min-width: 55px;
+    max-width: 80px;
   }
 
   .round-cell.twenties-cell {
@@ -1813,19 +1813,20 @@
 
   .points-selector {
     display: flex;
-    gap: 3px;
+    gap: 4px;
     justify-content: center;
     align-items: center;
   }
 
   .point-btn {
-    width: 30px;
-    height: 30px;
+    flex: 1;
+    min-width: 34px;
+    height: 34px;
     padding: 0;
     background: white;
     border: 2px solid #e2e8f0;
     border-radius: 8px;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 800;
     color: #94a3b8;
     cursor: pointer;
@@ -1847,16 +1848,15 @@
     border-color: var(--primary);
     color: white;
     box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);
-    transform: scale(1.1);
   }
 
   .twenties-input {
     width: 100%;
-    max-width: 44px;
-    padding: 0.375rem 0.25rem;
+    max-width: 36px;
+    padding: 0.3125rem 0.125rem;
     border: 2px solid #e5e7eb;
     border-radius: 8px;
-    font-size: 0.9375rem;
+    font-size: 0.8125rem;
     font-weight: 700;
     text-align: center;
     color: #0f172a;
@@ -2835,16 +2835,15 @@
     }
 
     .point-btn {
-      width: 24px;
-      height: 24px;
+      height: 26px;
       font-size: 0.75rem;
       border-radius: 6px;
     }
 
     .twenties-input {
-      max-width: 38px;
-      font-size: 0.8125rem;
-      padding: 0.3125rem 0.15rem;
+      max-width: 30px;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.1rem;
     }
 
     .total-value {
