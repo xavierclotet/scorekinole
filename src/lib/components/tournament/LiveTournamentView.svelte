@@ -1094,7 +1094,9 @@
 																class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																class:in-progress={match.status === 'IN_PROGRESS'}
 															>
-																<span class="consolation-position-badge">{round.name}</span>
+																{#if roundIndex === cb.rounds.length - 1}
+																	<span class="consolation-position-badge">{round.name}</span>
+																{/if}
 																{#if match.status === 'IN_PROGRESS'}
 																	<div class="live-badge compact">
 																		<span class="live-pulse"></span>
@@ -1426,7 +1428,9 @@
 																	class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	class:in-progress={match.status === 'IN_PROGRESS'}
 																>
+																	{#if roundIndex === cb.rounds.length - 1}
 																	<span class="consolation-position-badge">{round.name}</span>
+																{/if}
 																	{#if match.status === 'IN_PROGRESS'}
 																		<div class="live-badge compact">
 																			<span class="live-pulse"></span>
@@ -1877,7 +1881,9 @@
 																class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																class:in-progress={match.status === 'IN_PROGRESS'}
 															>
-																<span class="consolation-position-badge">{round.name}</span>
+																{#if roundIndex === cb.rounds.length - 1}
+																	<span class="consolation-position-badge">{round.name}</span>
+																{/if}
 																{#if match.status === 'IN_PROGRESS'}
 																	<div class="live-badge compact">
 																		<span class="live-pulse"></span>
@@ -3148,9 +3154,8 @@
 		transform: translateX(-50%);
 		font-size: 0.65rem;
 		font-weight: 700;
-		color: var(--primary);
-		background: color-mix(in srgb, var(--primary) 10%, transparent);
-		border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+		color: #fff;
+		background: var(--primary);
 		padding: 0.05rem 0.35rem;
 		border-radius: 4px;
 		letter-spacing: 0.02em;

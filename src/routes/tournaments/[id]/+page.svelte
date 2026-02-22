@@ -1522,14 +1522,19 @@
 								{@const qfBracket = goldConsolationBrackets.find(c => c.source === 'QF')}
 								<div class="consolation-inline">
 									<div class="consolation-inline-header">
-										🎯 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
+										🏅 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
 									</div>
 									<div class="consolation-unified">
 										<!-- R16 consolation rounds -->
 										{#if r16Bracket}
-											{#each r16Bracket.rounds as round}
+											{#each r16Bracket.rounds as round, roundIndex}
 												<div class="consolation-round" data-source="R16">
-													<div class="round-header">{round.name}</div>
+													<div class="round-header">
+														{m.tournament_round()} {roundIndex + 1}
+														{#if roundIndex === r16Bracket.rounds.length - 1}
+															<span class="position-badge">{round.name}</span>
+														{/if}
+													</div>
 													<div class="matches-container">
 														{#each round.matches as match}
 															{#if !isByeMatch(match)}
@@ -1573,7 +1578,12 @@
 										{#if qfBracket}
 											{#each qfBracket.rounds as round, roundIndex}
 												<div class="consolation-round" class:qf-start={roundIndex === 0} data-source="QF">
-													<div class="round-header">{round.name}</div>
+													<div class="round-header">
+														{m.tournament_round()} {roundIndex + 1}
+														{#if roundIndex === qfBracket.rounds.length - 1}
+															<span class="position-badge">{round.name}</span>
+														{/if}
+													</div>
 													<div class="matches-container">
 														{#each round.matches as match}
 															{#if !isByeMatch(match)}
@@ -1754,14 +1764,19 @@
 								{@const qfBracket = silverConsolationBrackets.find(c => c.source === 'QF')}
 								<div class="consolation-inline">
 									<div class="consolation-inline-header">
-										🎯 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
+										🏅 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
 									</div>
 									<div class="consolation-unified">
 										<!-- R16 consolation rounds -->
 										{#if r16Bracket}
-											{#each r16Bracket.rounds as round}
+											{#each r16Bracket.rounds as round, roundIndex}
 												<div class="consolation-round" data-source="R16">
-													<div class="round-header">{round.name}</div>
+													<div class="round-header">
+														{m.tournament_round()} {roundIndex + 1}
+														{#if roundIndex === r16Bracket.rounds.length - 1}
+															<span class="position-badge">{round.name}</span>
+														{/if}
+													</div>
 													<div class="matches-container">
 														{#each round.matches as match}
 															{#if !isByeMatch(match)}
@@ -1805,7 +1820,12 @@
 										{#if qfBracket}
 											{#each qfBracket.rounds as round, roundIndex}
 												<div class="consolation-round" class:qf-start={roundIndex === 0} data-source="QF">
-													<div class="round-header">{round.name}</div>
+													<div class="round-header">
+														{m.tournament_round()} {roundIndex + 1}
+														{#if roundIndex === qfBracket.rounds.length - 1}
+															<span class="position-badge">{round.name}</span>
+														{/if}
+													</div>
 													<div class="matches-container">
 														{#each round.matches as match}
 															{#if !isByeMatch(match)}
@@ -2120,14 +2140,19 @@
 							{@const qfBracket = goldConsolationBrackets.find(c => c.source === 'QF')}
 							<div class="consolation-inline">
 								<div class="consolation-inline-header">
-									🎯 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
+									🏅 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
 								</div>
 								<div class="consolation-unified">
 									<!-- R16 consolation rounds -->
 									{#if r16Bracket}
-										{#each r16Bracket.rounds as round}
+										{#each r16Bracket.rounds as round, roundIndex}
 											<div class="consolation-round" data-source="R16">
-												<div class="round-header">{round.name}</div>
+												<div class="round-header">
+													{m.tournament_round()} {roundIndex + 1}
+													{#if roundIndex === r16Bracket.rounds.length - 1}
+														<span class="position-badge">{round.name}</span>
+													{/if}
+												</div>
 												<div class="matches-container">
 													{#each round.matches as match}
 														{#if !isByeMatch(match)}
@@ -2171,7 +2196,12 @@
 									{#if qfBracket}
 										{#each qfBracket.rounds as round, roundIndex}
 											<div class="consolation-round" class:qf-start={roundIndex === 0} data-source="QF">
-												<div class="round-header">{round.name}</div>
+												<div class="round-header">
+													{m.tournament_round()} {roundIndex + 1}
+													{#if roundIndex === qfBracket.rounds.length - 1}
+														<span class="position-badge">{round.name}</span>
+													{/if}
+												</div>
 												<div class="matches-container">
 													{#each round.matches as match}
 														{#if !isByeMatch(match)}
@@ -4180,6 +4210,19 @@
 		margin-bottom: 0.75rem;
 		padding-bottom: 0.5rem;
 		border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.consolation-round .round-header .position-badge {
+		font-size: 0.65rem;
+		font-weight: 700;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--primary);
+		padding: 0.1rem 0.4rem;
+		border-radius: 4px;
+		text-transform: none;
 	}
 
 	.consolation-round .matches-container {

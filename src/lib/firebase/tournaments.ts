@@ -355,6 +355,22 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
 }
 
 /**
+ * Parse raw Firestore document data into a Tournament object.
+ * Converts Firestore Timestamps to numeric milliseconds.
+ * Exported so transactional functions can reuse it without duplicating logic.
+ */
+export function parseTournamentData(data: DocumentData): Tournament {
+  return {
+    ...data,
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+    startedAt: data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
+    completedAt:
+      data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
+    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
+  } as Tournament;
+}
+
+/**
  * Get tournament by ID
  *
  * @param id Tournament ID
@@ -380,17 +396,7 @@ export async function getTournament(id: string): Promise<Tournament | null> {
     // Note: getTournament is used for public viewing - no permission check needed
     // Edit permissions are handled separately in the UI (canEdit flag)
 
-    // Convert Firestore timestamps to numbers
-    const tournament: Tournament = {
-      ...data,
-      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
-      startedAt: data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
-      completedAt:
-        data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
-      updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
-    } as Tournament;
-
-    return tournament;
+    return parseTournamentData(data);
   } catch (error) {
     console.error('❌ Error getting tournament:', error);
     return null;
@@ -1011,15 +1017,7 @@ export async function getTournamentByKey(key: string): Promise<Tournament | null
     const docSnap = snapshot.docs[0];
     const data = docSnap.data();
 
-    // Convert Firestore timestamps to numbers
-    const tournament: Tournament = {
-      ...data,
-      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
-      startedAt: data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
-      completedAt:
-        data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
-      updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
-    } as Tournament;
+    const tournament = parseTournamentData(data);
 
     console.log('✅ Tournament found by key:', tournament.name);
     return tournament;

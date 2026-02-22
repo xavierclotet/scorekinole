@@ -105,9 +105,6 @@
   // Consolation match handling
   let selectedConsolationSource = $state<'QF' | 'R16' | null>(null);
 
-  // View toggle: main bracket vs consolation bracket
-  let bracketView = $state<'main' | 'consolation'>('main');
-
   // Helper function to get matchesToWin for a specific match based on its position
   // - bracketType: 'gold' | 'silver'
   // - roundIndex: 0-based index of the round
@@ -1875,59 +1872,35 @@
         </div>
 
         <!-- Bracket filters bar -->
-        {#if isSplitDivisions || consolationEnabledValue}
+        {#if isSplitDivisions}
           <div class="bracket-filters">
-            {#if isSplitDivisions}
-              <div class="filter-group">
-                <span class="filter-label">{m.bracket_league()}</span>
-                <div class="filter-options">
-                  <button
-                    class="filter-btn"
-                    class:active={activeTab === 'gold'}
-                    onclick={() => activeTab = 'gold'}
-                  >
-                    <span class="filter-icon gold">●</span>
-                    {m.bracket_gold()}
-                    {#if goldBracket?.thirdPlaceMatch?.winner || goldRounds[goldRounds.length - 1]?.matches[0]?.winner}
-                      <span class="filter-complete">✓</span>
-                    {/if}
-                  </button>
-                  <button
-                    class="filter-btn"
-                    class:active={activeTab === 'silver'}
-                    onclick={() => activeTab = 'silver'}
-                  >
-                    <span class="filter-icon silver">●</span>
-                    {m.bracket_silver()}
-                    {#if silverBracket?.thirdPlaceMatch?.winner || silverRounds[silverRounds.length - 1]?.matches[0]?.winner}
-                      <span class="filter-complete">✓</span>
-                    {/if}
-                  </button>
-                </div>
+            <div class="filter-group">
+              <span class="filter-label">{m.bracket_league()}</span>
+              <div class="filter-options">
+                <button
+                  class="filter-btn"
+                  class:active={activeTab === 'gold'}
+                  onclick={() => activeTab = 'gold'}
+                >
+                  <span class="filter-icon gold">●</span>
+                  {m.bracket_gold()}
+                  {#if goldBracket?.thirdPlaceMatch?.winner || goldRounds[goldRounds.length - 1]?.matches[0]?.winner}
+                    <span class="filter-complete">✓</span>
+                  {/if}
+                </button>
+                <button
+                  class="filter-btn"
+                  class:active={activeTab === 'silver'}
+                  onclick={() => activeTab = 'silver'}
+                >
+                  <span class="filter-icon silver">●</span>
+                  {m.bracket_silver()}
+                  {#if silverBracket?.thirdPlaceMatch?.winner || silverRounds[silverRounds.length - 1]?.matches[0]?.winner}
+                    <span class="filter-complete">✓</span>
+                  {/if}
+                </button>
               </div>
-            {/if}
-
-            {#if consolationEnabledValue}
-              <div class="filter-group">
-                <span class="filter-label">{m.bracket_phase()}</span>
-                <div class="filter-options">
-                  <button
-                    class="filter-btn"
-                    class:active={bracketView === 'main'}
-                    onclick={() => bracketView = 'main'}
-                  >
-                    {m.bracket_winners()}
-                  </button>
-                  <button
-                    class="filter-btn"
-                    class:active={bracketView === 'consolation'}
-                    onclick={() => bracketView = 'consolation'}
-                  >
-                    {m.bracket_consolation()}
-                  </button>
-                </div>
-              </div>
-            {/if}
+            </div>
           </div>
         {/if}
 
@@ -2074,8 +2047,11 @@
           {/if}
         </div>
 
-        <div class="bracket-container" class:silver-bracket={activeTab === 'silver'}>
-          {#if bracketView === 'main'}
+        <div class="winners-section" data-theme={$adminTheme}>
+          <div class="winners-header">
+            <h3 class="winners-title">🏆 {m.bracket_winners()}</h3>
+          </div>
+          <div class="bracket-container" class:silver-bracket={activeTab === 'silver'}>
           {#each rounds as round, roundIndex (round.roundNumber)}
             <div class="bracket-round" class:has-next-round={roundIndex < rounds.length - 1} style="--round-index: {roundIndex}">
               <h2 class="round-name">{translateRoundName(round.name)}</h2>
@@ -2336,10 +2312,11 @@
               </div>
             </div>
           {/if}
-          {/if}
+          </div>
+        </div>
 
-          <!-- Consolation Brackets Section -->
-          {#if bracketView === 'consolation' && consolationBrackets.length === 0}
+        <!-- Consolation Brackets Section -->
+          {#if consolationEnabledValue && consolationBrackets.length === 0}
             <div class="consolation-empty" data-theme={$adminTheme}>
               <div class="empty-icon">🎯</div>
               <h3>{m.admin_consolationRounds()}</h3>
@@ -2357,12 +2334,12 @@
                 {/if}
               </button>
             </div>
-          {:else if bracketView === 'consolation' && consolationBrackets.length > 0}
+          {:else if consolationEnabledValue && consolationBrackets.length > 0}
             {@const r16Bracket = consolationBrackets.find(c => c.source === 'R16')}
             {@const qfBracket = consolationBrackets.find(c => c.source === 'QF')}
             <div class="consolation-section" data-theme={$adminTheme}>
               <div class="consolation-header">
-                <h3 class="consolation-title">🎯 {m.bracket_consolationBrackets()}</h3>
+                <h3 class="consolation-title">🏅 {m.bracket_consolationBrackets()}</h3>
                 <button
                   class="regenerate-consolation-btn"
                   onclick={handleGenerateConsolation}
@@ -2382,7 +2359,7 @@
                   {#each r16Bracket.rounds as round, roundIndex}
                     <div class="bracket-round consolation-round" data-source="R16">
                       <div class="round-header">
-                        {round.name}
+                        {m.tournament_round()} {roundIndex + 1}
                       </div>
                       <div class="matches-container">
                         {#each round.matches as match, matchIndex}
@@ -2505,7 +2482,7 @@
                   {#each qfBracket.rounds as round, roundIndex}
                     <div class="bracket-round consolation-round" class:qf-start={roundIndex === 0} data-source="QF">
                       <div class="round-header">
-                        {round.name}
+                        {m.tournament_round()} {roundIndex + 1}
                       </div>
                       <div class="matches-container">
                         {#each round.matches as match, matchIndex}
@@ -2625,7 +2602,6 @@
               </div>
             </div>
           {/if}
-        </div>
       {/if}
     </div>
   </div>
@@ -3011,6 +2987,35 @@
     transform: translateY(-2px);
   }
 
+  .winners-section {
+    padding: 1.5rem;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+  }
+
+  .winners-section:is([data-theme='dark'], [data-theme='violet']) {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .winners-header {
+    margin-bottom: 1.25rem;
+  }
+
+  .winners-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #334155;
+    margin: 0;
+  }
+
+  .winners-section:is([data-theme='dark'], [data-theme='violet']) .winners-title {
+    color: #e2e8f0;
+  }
+
   .bracket-container {
     display: flex;
     gap: 6rem;
@@ -3019,16 +3024,8 @@
     align-items: stretch;
   }
 
-  /* When showing consolation view, container should be block */
-  .bracket-container:has(.consolation-section),
-  .bracket-container:has(.consolation-empty) {
-    display: block;
-    min-width: 100%;
-    padding: 0;
-  }
-
-  .bracket-container > .consolation-section,
-  .bracket-container > .consolation-empty {
+  .consolation-section,
+  .consolation-empty {
     width: 100%;
   }
 

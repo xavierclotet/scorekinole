@@ -818,9 +818,14 @@
                   {#if isExpanded}
                   <div class="consolation-content">
                   <div class="bracket-container consolation">
-                    {#each consolationBracket.rounds as round (round.roundNumber)}
+                    {#each consolationBracket.rounds as round, roundIndex (round.roundNumber)}
                       <div class="bracket-round">
-                        <h3 class="round-name consolation">{round.name}</h3>
+                        <h3 class="round-name consolation">
+                          {m.tournament_round()} {roundIndex + 1}
+                          {#if roundIndex === consolationBracket.rounds.length - 1}
+                            <span class="position-badge">{round.name}</span>
+                          {/if}
+                        </h3>
                         <div class="matches-column">
                           {#each round.matches as match, matchIdx (match.id)}
                             {@const hasMatchData = (match.totalPointsA ?? 0) > 0 || (match.totalPointsB ?? 0) > 0 || (match.total20sA ?? 0) > 0 || (match.total20sB ?? 0) > 0}
@@ -2611,6 +2616,16 @@
     background: #1e293b;
     color: #94a3b8;
     border-left-color: #475569;
+  }
+
+  .round-name.consolation .position-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    margin-left: 0.35rem;
   }
 
   /* Match wrapper for position labels */
