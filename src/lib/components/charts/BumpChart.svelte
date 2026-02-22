@@ -60,8 +60,8 @@
 						borderColor: color,
 						backgroundColor: color,
 						pointBackgroundColor: color,
-						pointRadius: 5,
-						pointHoverRadius: 7,
+						pointRadius: 4,
+						pointHoverRadius: 6,
 						borderWidth: 2.5,
 						tension: 0.3,
 						fill: false,
@@ -79,8 +79,9 @@
 							font: { size: 10 },
 							padding: 8,
 							usePointStyle: true,
-							pointStyleWidth: 8,
-							boxWidth: 8,
+							pointStyle: 'circle',
+							boxWidth: 6,
+							boxHeight: 6,
 						},
 					},
 					tooltip: {
@@ -103,9 +104,14 @@
 						reverse: true,
 						min: 0.5,
 						max: maxPosition + 0.5,
+						afterBuildTicks: (axis: any) => {
+							axis.ticks = [];
+							for (let i = 1; i <= maxPosition; i++) {
+								axis.ticks.push({ value: i });
+							}
+						},
 						ticks: {
 							...base.scales.y.ticks,
-							stepSize: 1,
 							callback: (value: number | string) => `${value}º`,
 						},
 					},

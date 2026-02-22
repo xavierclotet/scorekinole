@@ -60,15 +60,15 @@
 	let selectedPlayerFilter = $state<string | undefined>(undefined);
 	let playerFilterOpen = $state(false);
 
-	// Bump chart toggle per group
-	let showBumpChart = $state<Set<string>>(new Set());
+	// Bump chart: visible by default, track hidden ones
+	let hiddenBumpCharts = $state<Set<string>>(new Set());
 	function toggleBumpChart(groupId: string) {
-		if (showBumpChart.has(groupId)) {
-			showBumpChart.delete(groupId);
+		if (hiddenBumpCharts.has(groupId)) {
+			hiddenBumpCharts.delete(groupId);
 		} else {
-			showBumpChart.add(groupId);
+			hiddenBumpCharts.add(groupId);
 		}
-		showBumpChart = new Set(showBumpChart);
+		hiddenBumpCharts = new Set(hiddenBumpCharts);
 	}
 
 	let urlParam = $derived(page.params.id);
@@ -1261,6 +1261,28 @@
 										<span class="legend-item"><strong>PT</strong> Puntos totales</span>
 										<span class="legend-item"><strong>PV</strong> Puntos por victoria (2/1/0)</span>
 									</div>
+									<!-- Bump Chart (single group, below standings) -->
+									{#if groupRounds.length >= 2 && tournament}
+										<div class="bump-chart-section">
+											<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+												<span>📊 {m.tournament_roundEvolution()}</span>
+												<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<polyline points="18 15 12 9 6 15"></polyline>
+												</svg>
+											</button>
+											{#if !hiddenBumpCharts.has(group.id)}
+												<div class="bump-chart-wrapper">
+													<BumpChart
+														{group}
+														participants={tournament.participants}
+														isSwiss={tournament.groupStage?.type === 'SWISS'}
+														qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
+														isDoubles={tournament.gameType === 'doubles'}
+													/>
+												</div>
+											{/if}
+										</div>
+									{/if}
 								</div>
 								<div class="group-card flex flex-col">
 									<div class="group-name flex items-center justify-between gap-2">
@@ -1362,28 +1384,6 @@
 									</div>
 								</div>
 							</div>
-							<!-- Bump Chart (single group) -->
-							{#if groupRounds.length >= 2 && tournament}
-								<div class="bump-chart-section">
-									<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
-										<span>📊 {m.tournament_roundEvolution()}</span>
-										<span class="bump-toggle-label">
-											{showBumpChart.has(group.id) ? m.tournament_hideChart() : m.tournament_showChart()}
-										</span>
-									</button>
-									{#if showBumpChart.has(group.id)}
-										<div class="bump-chart-wrapper">
-											<BumpChart
-												{group}
-												participants={tournament.participants}
-												isSwiss={tournament.groupStage?.type === 'SWISS'}
-												qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
-												isDoubles={tournament.gameType === 'doubles'}
-											/>
-										</div>
-									{/if}
-								</div>
-							{/if}
 						{:else}
 							<!-- Multiple groups: stacked layout with toggle -->
 							<div class="group-card">
@@ -1434,6 +1434,29 @@
 									<div class="standings-legend">
 										<span class="legend-item"><strong>PT</strong> Puntos totales</span>
 										<span class="legend-item"><strong>PV</strong> Puntos por victoria (2/1/0)</span>
+									</div>
+								{/if}
+
+								<!-- Bump Chart (multiple groups, below standings) -->
+								{#if groupRounds.length >= 2 && tournament}
+									<div class="bump-chart-section">
+										<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+											<span>📊 {m.tournament_roundEvolution()}</span>
+											<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<polyline points="18 15 12 9 6 15"></polyline>
+											</svg>
+										</button>
+										{#if !hiddenBumpCharts.has(group.id)}
+											<div class="bump-chart-wrapper">
+												<BumpChart
+													{group}
+													participants={tournament.participants}
+													isSwiss={tournament.groupStage?.type === 'SWISS'}
+													qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
+													isDoubles={tournament.gameType === 'doubles'}
+												/>
+											</div>
+										{/if}
 									</div>
 								{/if}
 
@@ -1497,28 +1520,6 @@
 									{/if}
 								{/if}
 
-								<!-- Bump Chart (multiple groups) -->
-								{#if groupRounds.length >= 2 && tournament}
-									<div class="bump-chart-section">
-										<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
-											<span>📊 {m.tournament_roundEvolution()}</span>
-											<span class="bump-toggle-label">
-												{showBumpChart.has(group.id) ? m.tournament_hideChart() : m.tournament_showChart()}
-											</span>
-										</button>
-										{#if showBumpChart.has(group.id)}
-											<div class="bump-chart-wrapper">
-												<BumpChart
-													{group}
-													participants={tournament.participants}
-													isSwiss={tournament.groupStage?.type === 'SWISS'}
-													qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
-													isDoubles={tournament.gameType === 'doubles'}
-												/>
-											</div>
-										{/if}
-									</div>
-								{/if}
 							</div>
 						{/if}
 					{/each}
@@ -4254,10 +4255,13 @@
 		border-color: var(--primary);
 	}
 
-	.bump-toggle-label {
-		font-size: 0.7rem;
-		color: var(--primary);
-		font-weight: 600;
+	.bump-toggle-icon {
+		transition: transform 0.2s ease;
+		color: var(--muted-foreground);
+	}
+
+	.bump-toggle-icon.collapsed {
+		transform: rotate(180deg);
 	}
 
 	.bump-chart-wrapper {
