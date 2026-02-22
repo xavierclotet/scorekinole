@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.41] - 2026-02-22
+- Add interactive charts to public tournament page (bump chart + 20s grouped bar chart)
+- Bump chart shows position evolution per round with expand/collapse toggle
+- 20s bar chart shows grouped bars per participant per round
+- Add doubles team name popover in standings (shows player names on tap)
+- Charts use unified card-style container with shared border
+- Integer Y-axis ticks, responsive sizing, dark mode support
+
 ## [2.4.40] - 2026-02-22
 - Add total 20s per participant with group+bracket breakdown in final standings
 - Show per-match 20s in bracket, consolation, and third place matches
