@@ -2,6 +2,17 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.39] - 2026-02-22
+- Improve tournament match flow for logged-in users
+- Hide Firestore IDs from public tournament URLs, add share button
+- Add tournament start time field and direct participant list in wizard
+- Fix consolation bracket round headers and position badges
+- Redesign match result dialogs with modern professional look
+- Shift violet theme to blue-violet color
+- Fix bracket vertical connector lines using container-relative positioning
+- Fix tournament match selection for consolation brackets
+- Fix imported tournament time handling and public read permissions
+
 ## [2.4.38] - 2026-02-20
 - Require first and last name for player registration (validation in all name modals)
 - Fix TournamentAdminsModal theme support for violet/violet-light themes
