@@ -3087,10 +3087,10 @@
   .matches-column {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
     justify-content: space-around;
-    position: relative;
     flex: 1;
+    position: relative;
+    min-height: 100%;
   }
 
   /* Centering for final round (last round before 3rd place) */
@@ -3138,59 +3138,36 @@
     background: linear-gradient(90deg, #b8956e 0%, #d4a574 100%);
   }
 
-  /* Vertical connector lines for pairs of matches */
+  /* Vertical connector lines - handled by .pair-connector instead */
   .bracket-match::before {
-    content: '';
+    display: none;
+  }
+
+  /* Vertical + horizontal connector between paired matches */
+  /* Positioned relative to .matches-column (container), not individual matches */
+  .pair-connector {
     position: absolute;
+    /* At the junction point: end of match ::after horizontal line */
     left: calc(100% + 3rem);
     width: 2px;
     background: var(--primary);
-    z-index: 0;
+    z-index: 1;
+    /* Top = center of upper match in the pair: (2k + 0.5) / N */
+    top: calc((var(--pair-index) * 2 + 0.5) / var(--total-matches) * 100%);
+    /* Height = distance between paired match centers = 1/N of container */
+    height: calc(100% / var(--total-matches));
   }
 
-  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .bracket-match::before {
-    background: var(--primary);
-  }
-
-  /* Top match in pair - vertical line goes down */
-  .bracket-match:nth-child(odd)::before {
-    top: 50%;
-  }
-
-  /* Bottom match in pair - vertical line goes up */
-  .bracket-match:nth-child(even)::before {
-    bottom: 50%;
-  }
-
-  /* Dynamic vertical line height based on round index */
-  /* Each subsequent round doubles: 2^roundIndex * base */
-  .bracket-match::before {
-    height: calc(var(--round-mult) * (100% + 1.5rem));
-  }
-
-  /* Remove vertical connectors from final round */
-  .bracket-round:last-child .bracket-match::before {
-    display: none;
-  }
-
-  /* For single match rounds (like finals), hide the vertical line */
-  .matches-column:has(> :only-child) .bracket-match::before {
-    display: none;
-  }
-
-  /* Horizontal connector from the vertical line junction to next round */
-  /* Each connector is positioned at the midpoint between a pair of matches */
-  .pair-connector {
+  /* Horizontal extension from vertical line midpoint to next round */
+  .pair-connector::after {
+    content: '';
     position: absolute;
+    top: 50%;
+    left: 0;
     width: 3rem;
     height: 2px;
-    background: var(--primary);
-    right: -6rem;
-    z-index: 1;
-    /* Calculate vertical position: each pair spans 2 matches + 1 gap (2rem) */
-    /* For pair N: top = (2N + 1) / totalMatches * 100% approximately */
-    /* Using CSS calc with custom properties */
-    top: calc((var(--pair-index) * 2 + 1) / var(--total-matches) * 100%);
+    background: inherit;
+    transform: translateY(-50%);
   }
 
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .pair-connector {
@@ -3221,12 +3198,6 @@
 
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .bracket-match.bye-match {
     opacity: 0.5;
-  }
-
-  /* BYE matches still need connector lines to show where winner goes */
-  /* Keep horizontal line but hide vertical connectors for bye matches */
-  .bracket-match.bye-match::before {
-    display: none;
   }
 
   .match-participant.bye {
