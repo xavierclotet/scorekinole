@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.40] - 2026-02-22
+- Add total 20s per participant with group+bracket breakdown in final standings
+- Show per-match 20s in bracket, consolation, and third place matches
+- Add individual position badges per consolation final match (e.g., 5º-6º, 7º-8º)
+- Redesign consolation matches with bracket-match visual style
+- Fix my-stats scroll and friendly match label
+- Show 20s value 0 in match detail, redesign header as scoreboard layout
+- Fix admin user search to query all users
+
 ## [2.4.39] - 2026-02-22
 - Improve tournament match flow for logged-in users
 - Hide Firestore IDs from public tournament URLs, add share button
