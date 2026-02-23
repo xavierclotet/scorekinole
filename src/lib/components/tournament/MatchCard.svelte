@@ -94,6 +94,19 @@
 
   // Check if match has a winner (for loser styling)
   let isMatchDecided = $derived((match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.winner);
+
+  // Get current hammer holder: only show during IN_PROGRESS matches
+  function getMatchHammer(): string | null {
+    if (match.status !== 'IN_PROGRESS') return null;
+    if (match.currentHammer) return match.currentHammer;
+    if (match.rounds?.length) {
+      const lastRound = match.rounds[match.rounds.length - 1];
+      if (lastRound.hammer) return lastRound.hammer;
+    }
+    return null;
+  }
+
+  let hammerHolder = $derived(getMatchHammer());
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -120,7 +133,7 @@
       {/if}
     {/if}
 
-    <div class="participant left" class:winner={match.winner === match.participantA} class:loser={isMatchDecided && match.winner !== match.participantA} class:tie={isTie} class:disqualified={isDisqualifiedA}>
+    <div class="participant left" class:winner={match.winner === match.participantA} class:loser={isMatchDecided && match.winner !== match.participantA} class:tie={isTie} class:disqualified={isDisqualifiedA} class:has-hammer={hammerHolder === match.participantA}>
       <span class="name">{getParticipantName(match.participantA)}</span>
       {#if isDisqualifiedA}
         <span class="dsq-badge">DSQ</span>
@@ -152,7 +165,7 @@
       {/if}
     </div>
 
-    <div class="participant right" class:winner={match.winner === match.participantB} class:loser={isMatchDecided && match.winner !== match.participantB && !isBye} class:tie={isTie} class:bye-participant={isBye} class:disqualified={isDisqualifiedB}>
+    <div class="participant right" class:winner={match.winner === match.participantB} class:loser={isMatchDecided && match.winner !== match.participantB && !isBye} class:tie={isTie} class:bye-participant={isBye} class:disqualified={isDisqualifiedB} class:has-hammer={hammerHolder === match.participantB}>
       {#if isDisqualifiedB}
         <span class="dsq-badge">DSQ</span>
       {:else if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
@@ -288,6 +301,24 @@
     flex-shrink: 0;
   }
 
+  .participant.has-hammer {
+    position: relative;
+    background: #fde2e2;
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+
+  .participant.has-hammer::after {
+    content: '🔨';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.85rem;
+    opacity: 0.8;
+    pointer-events: none;
+  }
+
   .participant.disqualified .name {
     color: #dc2626 !important;
     text-decoration: line-through;
@@ -404,6 +435,10 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.walkover {
     background: rgba(220, 38, 38, 0.1);
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.has-hammer {
+    background: rgba(239, 68, 68, 0.2);
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.disqualified .name {

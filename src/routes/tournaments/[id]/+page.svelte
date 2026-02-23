@@ -51,8 +51,14 @@
 	// Bracket view state (for SPLIT_DIVISIONS)
 	let activeTab = $state<'gold' | 'silver'>('gold');
 
-	// Phase tabs state
+	// Phase tabs state - auto-detect based on tournament status
 	let activePhase = $state<'groups' | 'bracket'>('groups');
+
+	$effect(() => {
+		if (tournament?.status === 'FINAL_STAGE') {
+			activePhase = 'bracket';
+		}
+	});
 
 	// Track which groups have matches expanded
 	let expandedGroupMatches = $state<Set<string>>(new Set());
@@ -579,6 +585,12 @@
 
 	function isByeMatch(match: BracketMatch): boolean {
 		return isBye(match.participantA) || isBye(match.participantB);
+	}
+
+	function getMatchHammer(match: { rounds?: Array<{ hammer?: string | null }> }): string | null {
+		if (!match.rounds?.length) return null;
+		const lastRound = match.rounds[match.rounds.length - 1];
+		return lastRound.hammer ?? null;
 	}
 
 	function toggleGroupMatches(groupId: string) {
@@ -1412,7 +1424,7 @@
 																{#if match.tableNumber != null}
 																	<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
 																{/if}
-																<span class="match-player match-player-a" class:winner={match.winner === match.participantA}>
+																<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 																	<span class="match-player-name">{getParticipantName(match.participantA)}</span>
 																	{@render participantAvatar(match.participantA, 'sm')}
 																</span>
@@ -1423,7 +1435,7 @@
 																		vs
 																	{/if}
 																</span>
-																<span class="match-player match-player-b" class:winner={match.winner === match.participantB}>
+																<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 																	{@render participantAvatar(match.participantB, 'sm')}
 																	<span class="match-player-name">{getParticipantName(match.participantB)}</span>
 																</span>
@@ -1579,7 +1591,7 @@
 																	{#if match.tableNumber}
 																		<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
 																	{/if}
-																	<span class="match-player match-player-a" class:winner={match.winner === match.participantA}>
+																	<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 																		<span class="match-player-name">{getParticipantName(match.participantA)}</span>
 																		{@render participantAvatar(match.participantA, 'sm')}
 																	</span>
@@ -1590,7 +1602,7 @@
 																			vs
 																		{/if}
 																	</span>
-																	<span class="match-player match-player-b" class:winner={match.winner === match.participantB}>
+																	<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 																		{@render participantAvatar(match.participantB, 'sm')}
 																		<span class="match-player-name">{getParticipantName(match.participantB)}</span>
 																	</span>
@@ -1659,6 +1671,7 @@
 																class="match-participant"
 																class:winner={winnerIsA}
 																class:tbd={!match.participantA}
+																class:has-hammer={getMatchHammer(match) === match.participantA}
 															>
 																{@render participantAvatar(match.participantA, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -1674,6 +1687,7 @@
 																class="match-participant"
 																class:winner={winnerIsB}
 																class:tbd={!match.participantB}
+																class:has-hammer={getMatchHammer(match) === match.participantB}
 															>
 																{@render participantAvatar(match.participantB, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -1725,6 +1739,7 @@
 														class="match-participant"
 														class:winner={thirdMatch.winner === thirdMatch.participantA}
 														class:tbd={!thirdMatch.participantA}
+														class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantA}
 													>
 														{@render participantAvatar(thirdMatch.participantA, "sm")}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
@@ -1740,6 +1755,7 @@
 														class="match-participant"
 														class:winner={thirdMatch.winner === thirdMatch.participantB}
 														class:tbd={!thirdMatch.participantB}
+														class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantB}
 													>
 														{@render participantAvatar(thirdMatch.participantB, "sm")}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
@@ -1798,6 +1814,7 @@
 																		class="match-participant"
 																		class:winner={match.winner === match.participantA}
 																		class:tbd={!match.participantA}
+																		class:has-hammer={getMatchHammer(match) === match.participantA}
 																	>
 																		{@render participantAvatar(match.participantA, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -1813,6 +1830,7 @@
 																		class="match-participant"
 																		class:winner={match.winner === match.participantB}
 																		class:tbd={!match.participantB}
+																		class:has-hammer={getMatchHammer(match) === match.participantB}
 																	>
 																		{@render participantAvatar(match.participantB, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -1855,6 +1873,7 @@
 																		class="match-participant"
 																		class:winner={match.winner === match.participantA}
 																		class:tbd={!match.participantA}
+																		class:has-hammer={getMatchHammer(match) === match.participantA}
 																	>
 																		{@render participantAvatar(match.participantA, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -1870,6 +1889,7 @@
 																		class="match-participant"
 																		class:winner={match.winner === match.participantB}
 																		class:tbd={!match.participantB}
+																		class:has-hammer={getMatchHammer(match) === match.participantB}
 																	>
 																		{@render participantAvatar(match.participantB, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -1929,6 +1949,7 @@
 																class="match-participant"
 																class:winner={winnerIsA}
 																class:tbd={!match.participantA}
+																class:has-hammer={getMatchHammer(match) === match.participantA}
 															>
 																{@render participantAvatar(match.participantA, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -1944,6 +1965,7 @@
 																class="match-participant"
 																class:winner={winnerIsB}
 																class:tbd={!match.participantB}
+																class:has-hammer={getMatchHammer(match) === match.participantB}
 															>
 																{@render participantAvatar(match.participantB, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -1995,6 +2017,7 @@
 														class="match-participant"
 														class:winner={thirdMatch.winner === thirdMatch.participantA}
 														class:tbd={!thirdMatch.participantA}
+														class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantA}
 													>
 														{@render participantAvatar(thirdMatch.participantA, "sm")}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
@@ -2010,6 +2033,7 @@
 														class="match-participant"
 														class:winner={thirdMatch.winner === thirdMatch.participantB}
 														class:tbd={!thirdMatch.participantB}
+														class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantB}
 													>
 														{@render participantAvatar(thirdMatch.participantB, "sm")}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
@@ -2068,6 +2092,7 @@
 																		class="match-participant"
 																		class:winner={match.winner === match.participantA}
 																		class:tbd={!match.participantA}
+																		class:has-hammer={getMatchHammer(match) === match.participantA}
 																	>
 																		{@render participantAvatar(match.participantA, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -2083,6 +2108,7 @@
 																		class="match-participant"
 																		class:winner={match.winner === match.participantB}
 																		class:tbd={!match.participantB}
+																		class:has-hammer={getMatchHammer(match) === match.participantB}
 																	>
 																		{@render participantAvatar(match.participantB, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -2125,6 +2151,7 @@
 																		class="match-participant"
 																		class:winner={match.winner === match.participantA}
 																		class:tbd={!match.participantA}
+																		class:has-hammer={getMatchHammer(match) === match.participantA}
 																	>
 																		{@render participantAvatar(match.participantA, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -2140,6 +2167,7 @@
 																		class="match-participant"
 																		class:winner={match.winner === match.participantB}
 																		class:tbd={!match.participantB}
+																		class:has-hammer={getMatchHammer(match) === match.participantB}
 																	>
 																		{@render participantAvatar(match.participantB, "sm")}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -2208,6 +2236,7 @@
 																class="match-participant"
 																class:winner={winnerIsA}
 																class:tbd={!match.participantA}
+																class:has-hammer={getMatchHammer(match) === match.participantA}
 															>
 																{@render participantAvatar(match.participantA, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -2223,6 +2252,7 @@
 																class="match-participant"
 																class:winner={winnerIsB}
 																class:tbd={!match.participantB}
+																class:has-hammer={getMatchHammer(match) === match.participantB}
 															>
 																{@render participantAvatar(match.participantB, "sm")}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -2273,6 +2303,7 @@
 														class="match-participant"
 														class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantA}
 														class:tbd={!thirdPlaceMatch.participantA}
+														class:has-hammer={getMatchHammer(thirdPlaceMatch) === thirdPlaceMatch.participantA}
 													>
 														{@render participantAvatar(thirdPlaceMatch.participantA, "sm")}
 														<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
@@ -2285,6 +2316,7 @@
 														class="match-participant"
 														class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
 														class:tbd={!thirdPlaceMatch.participantB}
+														class:has-hammer={getMatchHammer(thirdPlaceMatch) === thirdPlaceMatch.participantB}
 													>
 														{@render participantAvatar(thirdPlaceMatch.participantB, "sm")}
 														<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
@@ -2339,6 +2371,7 @@
 															class="match-participant"
 															class:winner={winnerIsA}
 															class:tbd={!match.participantA}
+															class:has-hammer={getMatchHammer(match) === match.participantA}
 														>
 															{@render participantAvatar(match.participantA, "sm")}
 															<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -2354,6 +2387,7 @@
 															class="match-participant"
 															class:winner={winnerIsB}
 															class:tbd={!match.participantB}
+															class:has-hammer={getMatchHammer(match) === match.participantB}
 														>
 															{@render participantAvatar(match.participantB, "sm")}
 															<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -2405,6 +2439,7 @@
 													class="match-participant"
 													class:winner={thirdMatch.winner === thirdMatch.participantA}
 													class:tbd={!thirdMatch.participantA}
+													class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantA}
 												>
 													{@render participantAvatar(thirdMatch.participantA, "sm")}
 													<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
@@ -2420,6 +2455,7 @@
 													class="match-participant"
 													class:winner={thirdMatch.winner === thirdMatch.participantB}
 													class:tbd={!thirdMatch.participantB}
+													class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantB}
 												>
 													{@render participantAvatar(thirdMatch.participantB, "sm")}
 													<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
@@ -2478,6 +2514,7 @@
 																	class="match-participant"
 																	class:winner={match.winner === match.participantA}
 																	class:tbd={!match.participantA}
+																	class:has-hammer={getMatchHammer(match) === match.participantA}
 																>
 																	{@render participantAvatar(match.participantA, "sm")}
 																	<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -2493,6 +2530,7 @@
 																	class="match-participant"
 																	class:winner={match.winner === match.participantB}
 																	class:tbd={!match.participantB}
+																	class:has-hammer={getMatchHammer(match) === match.participantB}
 																>
 																	{@render participantAvatar(match.participantB, "sm")}
 																	<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -2535,6 +2573,7 @@
 																	class="match-participant"
 																	class:winner={match.winner === match.participantA}
 																	class:tbd={!match.participantA}
+																	class:has-hammer={getMatchHammer(match) === match.participantA}
 																>
 																	{@render participantAvatar(match.participantA, "sm")}
 																	<span class="participant-name">{getParticipantName(match.participantA)}</span>
@@ -2550,6 +2589,7 @@
 																	class="match-participant"
 																	class:winner={match.winner === match.participantB}
 																	class:tbd={!match.participantB}
+																	class:has-hammer={getMatchHammer(match) === match.participantB}
 																>
 																	{@render participantAvatar(match.participantB, "sm")}
 																	<span class="participant-name">{getParticipantName(match.participantB)}</span>
@@ -2690,14 +2730,14 @@
 							</thead>
 							<tbody>
 								<!-- Hammer row (if showHammer and any round has hammer data) -->
-								{#if showHammer && gameRounds.some(r => r.hammerSide)}
+								{#if showHammer && gameRounds.some(r => r.hammer)}
 									<tr class="hammer-row">
 										<td class="player-col hammer-label">🔨</td>
 										{#each gameRounds as round}
 											<td class="round-col hammer-cell">
-												{#if round.hammerSide === 'A'}
+												{#if round.hammer === selectedMatch.participantA}
 													<span class="hammer-indicator">▲</span>
-												{:else if round.hammerSide === 'B'}
+												{:else if round.hammer === selectedMatch.participantB}
 													<span class="hammer-indicator">▼</span>
 												{:else}
 													<span class="hammer-indicator empty">-</span>
@@ -4498,6 +4538,31 @@
 		font-weight: 600;
 	}
 
+	.match-player.has-hammer {
+		position: relative;
+		background: color-mix(in srgb, var(--color-twenties, #f59e0b) 12%, transparent);
+		border-radius: 4px;
+		padding: 0 4px;
+	}
+
+	.match-player.has-hammer::after {
+		content: '🔨';
+		position: absolute;
+		top: 50%;
+		transform: translateY(-50%);
+		font-size: 0.65rem;
+		opacity: 0.4;
+		pointer-events: none;
+	}
+
+	.match-player-a.has-hammer::after {
+		left: -2px;
+	}
+
+	.match-player-b.has-hammer::after {
+		right: -2px;
+	}
+
 	.match-score {
 		flex-shrink: 0;
 		min-width: 50px;
@@ -5085,6 +5150,22 @@
 
 	.match-participant.tbd {
 		opacity: 0.5;
+	}
+
+	.match-participant.has-hammer {
+		position: relative;
+		background: color-mix(in srgb, #f59e0b 10%, #1a1f2e);
+	}
+
+	.match-participant.has-hammer::after {
+		content: '🔨';
+		position: absolute;
+		right: 6px;
+		top: 50%;
+		transform: translateY(-50%);
+		font-size: 0.75rem;
+		opacity: 0.35;
+		pointer-events: none;
 	}
 
 	.participant-name {

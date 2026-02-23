@@ -38,8 +38,9 @@ function cleanUndefined<T>(obj: T): T {
 }
 
 /**
- * Reassign a freed table to a pending match without a table
- * Called after a match completes to dynamically assign tables
+ * Reassign a freed table to the best pending match without a table.
+ * When multiple matches are waiting, picks the one whose participants
+ * have used the freed table the least (for maximum table variety).
  *
  * @param tournament Tournament object
  * @param freedTable Table number that was freed
@@ -62,18 +63,58 @@ function reassignFreedTable(
 
   if (!round) return;
 
-  // Find a pending match without a table assigned
-  for (const match of round.matches) {
-    if (
-      match.status === 'PENDING' &&
-      match.participantB !== 'BYE' &&
-      !match.tableNumber
-    ) {
-      match.tableNumber = freedTable;
-      console.log(`🎯 Reassigned table ${freedTable} to match ${match.id}`);
-      return; // Only reassign to one match
+  // Collect all pending matches without a table
+  const waitingMatches = round.matches.filter(
+    m => m.status === 'PENDING' && m.participantB !== 'BYE' && !m.tableNumber
+  );
+
+  if (waitingMatches.length === 0) return;
+
+  // If only one match waiting, assign directly
+  if (waitingMatches.length === 1) {
+    waitingMatches[0].tableNumber = freedTable;
+    console.log(`🎯 Reassigned table ${freedTable} to match ${waitingMatches[0].id}`);
+    return;
+  }
+
+  // Build table history from all completed/in-progress group matches
+  const tableHistory = new Map<string, number[]>();
+  const record = (id: string, table: number) => {
+    if (!id || id === 'BYE') return;
+    if (!tableHistory.has(id)) tableHistory.set(id, []);
+    tableHistory.get(id)!.push(table);
+  };
+
+  for (const g of tournament.groupStage?.groups || []) {
+    for (const r of [...(g.schedule || []), ...(g.pairings || [])]) {
+      for (const m of r.matches) {
+        if (m.tableNumber && m.participantB !== 'BYE') {
+          record(m.participantA, m.tableNumber);
+          record(m.participantB, m.tableNumber);
+        }
+      }
     }
   }
+
+  // Pick the match whose participants have used the freed table the least
+  let bestMatch = waitingMatches[0];
+  let bestScore = Infinity;
+
+  for (const match of waitingMatches) {
+    const histA = tableHistory.get(match.participantA) || [];
+    const histB = tableHistory.get(match.participantB) || [];
+    const usageA = histA.filter(t => t === freedTable).length;
+    const usageB = histB.filter(t => t === freedTable).length;
+    const combinedUsage = usageA + usageB;
+
+    if (combinedUsage < bestScore) {
+      bestScore = combinedUsage;
+      bestMatch = match;
+    }
+  }
+
+  bestMatch.tableNumber = freedTable;
+  console.log(`🎯 Reassigned table ${freedTable} to match ${bestMatch.id} (score: ${bestScore})`);
 }
 
 /**
@@ -2180,8 +2221,9 @@ export async function updateTournamentMatchRounds(
     pointsB: number | null;
     twentiesA: number;
     twentiesB: number;
+    hammer?: string | null;
   }>,
-  currentGameData?: { gamesWonA: number; gamesWonB: number }
+  currentGameData?: { gamesWonA: number; gamesWonB: number; currentHammer?: string | null }
 ): Promise<boolean> {
   if (!browser || !isFirebaseEnabled() || !db) {
     return false;
@@ -2242,6 +2284,9 @@ export async function updateTournamentMatchRounds(
                   round.matches[matchIndex].gamesWonA = currentGameData.gamesWonA;
                   round.matches[matchIndex].gamesWonB = currentGameData.gamesWonB;
                 }
+                if (currentGameData?.currentHammer !== undefined) {
+                  round.matches[matchIndex].currentHammer = currentGameData.currentHammer;
+                }
                 found = true;
                 break;
               }
@@ -2260,6 +2305,9 @@ export async function updateTournamentMatchRounds(
                 if (currentGameData) {
                   pairing.matches[matchIndex].gamesWonA = currentGameData.gamesWonA;
                   pairing.matches[matchIndex].gamesWonB = currentGameData.gamesWonB;
+                }
+                if (currentGameData?.currentHammer !== undefined) {
+                  pairing.matches[matchIndex].currentHammer = currentGameData.currentHammer;
                 }
                 found = true;
                 break;
@@ -2287,6 +2335,9 @@ export async function updateTournamentMatchRounds(
           if (currentGameData) {
             match.gamesWonA = currentGameData.gamesWonA;
             match.gamesWonB = currentGameData.gamesWonB;
+          }
+          if (currentGameData?.currentHammer !== undefined) {
+            match.currentHammer = currentGameData.currentHammer;
           }
         };
 
@@ -2424,6 +2475,7 @@ export async function completeTournamentMatch(
       pointsB: number | null;
       twentiesA: number;
       twentiesB: number;
+      hammer?: string | null;
     }>;
   }
 ): Promise<boolean> {

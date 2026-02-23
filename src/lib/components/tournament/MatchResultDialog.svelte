@@ -130,6 +130,7 @@
     pointsB: number | null;
     twentiesA: number;
     twentiesB: number;
+    hammer?: string | null;
   }
 
   let rounds = $state<RoundData[]>([]);
@@ -162,7 +163,8 @@
           pointsA: r.pointsA,
           pointsB: r.pointsB,
           twentiesA: r.twentiesA || 0,
-          twentiesB: r.twentiesB || 0
+          twentiesB: r.twentiesB || 0,
+          hammer: r.hammer ?? null
         }));
 
         // For rounds mode: check if there were extra rounds (tiebreaker)
@@ -612,34 +614,6 @@
       </div>
 
       <div class="dialog-content">
-        <!-- Match Card -->
-        <div class="match-card">
-          <div class="match-participants">
-            <div class="participant participant-a">
-              <div class="participant-label">A</div>
-              <span class="participant-name">{nameA || 'Unknown'}</span>
-            </div>
-            <div class="match-center">
-              <div class="vs-circle">
-                <span>VS</span>
-              </div>
-              {#if match.tableNumber}
-                <span class="table-badge">{m.tournament_tableShort()} {match.tableNumber}</span>
-              {/if}
-            </div>
-            <div class="participant participant-b">
-              <div class="participant-label">B</div>
-              <span class="participant-name">{nameB}</span>
-            </div>
-          </div>
-          <div class="match-meta">
-            {#if isRoundsMode}
-              <span class="format-badge">{m.tournament_nRounds({ n: String(numRounds) })}</span>
-            {:else}
-              <span class="format-badge">{m.tournament_bestOf({ games: String(gameConfig.matchesToWin) })}</span>
-            {/if}
-          </div>
-        </div>
 
         {#if isBye}
           <div class="bye-notice">
@@ -658,6 +632,7 @@
               <span class="banner-icon">🏆</span>
               <span class="banner-text">{m.tournament_matchCompletedWinner({ name: gamesWonA > gamesWonB ? nameA || '' : nameB || '' })}</span>
               <span class="banner-score">{gamesWonA} - {gamesWonB}</span>
+              <span class="format-badge">{isRoundsMode ? m.tournament_nRounds({ n: String(numRounds) }) : m.tournament_bestOf({ games: String(gameConfig.matchesToWin) })}</span>
             </div>
 
             {#if rounds.length > 0}
@@ -677,55 +652,53 @@
                   </div>
 
                   <div class="rounds-table-container">
-                    <table class="rounds-table readonly">
+                    <table class="rounds-table readonly compact-rounds">
                       <thead>
                         <tr class="header-main">
-                          <th class="player-col" rowspan="2">{m.tournament_playerColumn()}</th>
+                          <th class="player-col">{m.tournament_playerColumn()}</th>
                           {#each gameRounds as _, i}
-                            <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                            <th class="round-col">R{i + 1}</th>
                           {/each}
-                          <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{m.time_total()}</th>
+                          <th class="total-col">{m.time_total()}</th>
                         </tr>
-                        {#if tournament.show20s}
-                          <tr class="header-sub">
-                            {#each gameRounds as _}
-                              <th class="sub-col points-col">P</th>
-                              <th class="sub-col twenties-col">🎯</th>
-                            {/each}
-                            <th class="sub-col points-col">P</th>
-                            <th class="sub-col twenties-col">🎯</th>
-                          </tr>
-                        {/if}
                       </thead>
                       <tbody>
                         <!-- Player A -->
                         <tr class="player-row">
                           <td class="player-name">{nameA}</td>
                           {#each gameRounds as round}
-                            <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
-                            {#if tournament.show20s}
-                              <td class="round-cell twenties-cell readonly">{round.twentiesA || 0}</td>
-                            {/if}
+                            <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantA}>
+                              <span class="cell-points" class:winner={round.pointsA === 2} class:loser={round.pointsA === 0} class:tie={round.pointsA === 1}>{round.pointsA ?? '-'}</span>
+                              {#if tournament.show20s}
+                                <span class="cell-twenties">{round.twentiesA}</span>
+                              {/if}
+                            </td>
                           {/each}
-                          <td class="total-cell points-total readonly">{gamePointsA}</td>
-                          {#if tournament.show20s}
-                            <td class="total-cell twenties-total readonly">{game20sA}</td>
-                          {/if}
+                          <td class="total-cell readonly">
+                            <span class="cell-points" class:winner={gamePointsA > gamePointsB} class:loser={gamePointsA < gamePointsB} class:tie={gamePointsA === gamePointsB}>{gamePointsA}</span>
+                            {#if tournament.show20s}
+                              <span class="cell-twenties">{game20sA}</span>
+                            {/if}
+                          </td>
                         </tr>
 
                         <!-- Player B -->
                         <tr class="player-row">
                           <td class="player-name">{nameB}</td>
                           {#each gameRounds as round}
-                            <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
-                            {#if tournament.show20s}
-                              <td class="round-cell twenties-cell readonly">{round.twentiesB || 0}</td>
-                            {/if}
+                            <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantB}>
+                              <span class="cell-points" class:winner={round.pointsB === 2} class:loser={round.pointsB === 0} class:tie={round.pointsB === 1}>{round.pointsB ?? '-'}</span>
+                              {#if tournament.show20s}
+                                <span class="cell-twenties">{round.twentiesB}</span>
+                              {/if}
+                            </td>
                           {/each}
-                          <td class="total-cell points-total readonly">{gamePointsB}</td>
-                          {#if tournament.show20s}
-                            <td class="total-cell twenties-total readonly">{game20sB}</td>
-                          {/if}
+                          <td class="total-cell readonly">
+                            <span class="cell-points" class:winner={gamePointsB > gamePointsA} class:loser={gamePointsB < gamePointsA} class:tie={gamePointsA === gamePointsB}>{gamePointsB}</span>
+                            {#if tournament.show20s}
+                              <span class="cell-twenties">{game20sB}</span>
+                            {/if}
+                          </td>
                         </tr>
                       </tbody>
                     </table>
@@ -773,49 +746,47 @@
                   <table class="rounds-table readonly">
                     <thead>
                       <tr class="header-main">
-                        <th class="player-col" rowspan="2">{m.tournament_playerColumn()}</th>
+                        <th class="player-col">{m.tournament_playerColumn()}</th>
                         {#each gameRounds as _, i}
-                          <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                          <th class="round-col">R{i + 1}</th>
                         {/each}
-                        <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{m.time_total()}</th>
+                        <th class="total-col">{m.time_total()}</th>
                       </tr>
-                      {#if tournament.show20s}
-                        <tr class="header-sub">
-                          {#each gameRounds as _}
-                            <th class="sub-col points-col">P</th>
-                            <th class="sub-col twenties-col">🎯</th>
-                          {/each}
-                          <th class="sub-col points-col">P</th>
-                          <th class="sub-col twenties-col">🎯</th>
-                        </tr>
-                      {/if}
                     </thead>
                     <tbody>
                       <tr class="player-row">
                         <td class="player-name">{nameA}</td>
                         {#each gameRounds as round}
-                          <td class="round-cell points-cell readonly">{round.pointsA ?? '-'}</td>
-                          {#if tournament.show20s}
-                            <td class="round-cell twenties-cell readonly">{round.twentiesA || 0}</td>
-                          {/if}
+                          <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantA}>
+                            <span class="cell-points" class:winner={round.pointsA === 2} class:loser={round.pointsA === 0} class:tie={round.pointsA === 1}>{round.pointsA ?? '-'}</span>
+                            {#if tournament.show20s}
+                              <span class="cell-twenties">{round.twentiesA}</span>
+                            {/if}
+                          </td>
                         {/each}
-                        <td class="total-cell points-total readonly">{gamePointsA}</td>
-                        {#if tournament.show20s}
-                          <td class="total-cell twenties-total readonly">{game20sA}</td>
-                        {/if}
+                        <td class="total-cell readonly">
+                          <span class="cell-points" class:winner={gamePointsA > gamePointsB} class:loser={gamePointsA < gamePointsB} class:tie={gamePointsA === gamePointsB}>{gamePointsA}</span>
+                          {#if tournament.show20s}
+                            <span class="cell-twenties">{game20sA}</span>
+                          {/if}
+                        </td>
                       </tr>
                       <tr class="player-row">
                         <td class="player-name">{nameB}</td>
                         {#each gameRounds as round}
-                          <td class="round-cell points-cell readonly">{round.pointsB ?? '-'}</td>
-                          {#if tournament.show20s}
-                            <td class="round-cell twenties-cell readonly">{round.twentiesB || 0}</td>
-                          {/if}
+                          <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantB}>
+                            <span class="cell-points" class:winner={round.pointsB === 2} class:loser={round.pointsB === 0} class:tie={round.pointsB === 1}>{round.pointsB ?? '-'}</span>
+                            {#if tournament.show20s}
+                              <span class="cell-twenties">{round.twentiesB}</span>
+                            {/if}
+                          </td>
                         {/each}
-                        <td class="total-cell points-total readonly">{gamePointsB}</td>
-                        {#if tournament.show20s}
-                          <td class="total-cell twenties-total readonly">{game20sB}</td>
-                        {/if}
+                        <td class="total-cell readonly">
+                          <span class="cell-points" class:winner={gamePointsB > gamePointsA} class:loser={gamePointsB < gamePointsA} class:tie={gamePointsA === gamePointsB}>{gamePointsB}</span>
+                          {#if tournament.show20s}
+                            <span class="cell-twenties">{game20sB}</span>
+                          {/if}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -849,10 +820,10 @@
                     <tr class="header-sub">
                       {#each currentGameRounds as _}
                         <th class="sub-col points-col">P</th>
-                        <th class="sub-col twenties-col">🎯</th>
+                        <th class="sub-col twenties-col">20s</th>
                       {/each}
                       <th class="sub-col points-col">P</th>
-                      <th class="sub-col twenties-col">🎯</th>
+                      <th class="sub-col twenties-col">20s</th>
                     </tr>
                   {/if}
                 </thead>
@@ -995,6 +966,7 @@
                     <span class="banner-icon">🏆</span>
                     <span class="banner-text">{m.tournament_matchCompleteWinner({ name: gamesWonA > gamesWonB ? nameA || '' : nameB || '' })}</span>
                     <span class="banner-score">{gamesWonA} - {gamesWonB}</span>
+                    <span class="format-badge">{isRoundsMode ? m.tournament_nRounds({ n: String(numRounds) }) : m.tournament_bestOf({ games: String(gameConfig.matchesToWin) })}</span>
                   </div>
                 {/if}
               {/if}
@@ -1075,60 +1047,59 @@
               <span class="banner-icon">🏆</span>
               <span class="banner-text">{m.tournament_matchCompletedWinner({ name: match.winner === match.participantA ? nameA || '' : nameB || '' })}</span>
               <span class="banner-score">{displayTotalA} - {displayTotalB}</span>
+              <span class="format-badge">{isRoundsMode ? m.tournament_nRounds({ n: String(numRounds) }) : m.tournament_bestOf({ games: String(gameConfig.matchesToWin) })}</span>
             </div>
 
             {#if rounds.length > 0}
               <!-- Show round-by-round details if available -->
               <div class="rounds-table-container">
-                <table class="rounds-table readonly">
+                <table class="rounds-table readonly compact-rounds">
                   <thead>
                     <tr class="header-main">
-                      <th class="player-col" rowspan="2">{m.tournament_playerColumn()}</th>
+                      <th class="player-col">{m.tournament_playerColumn()}</th>
                       {#each rounds as _, i}
-                        <th class="round-col" colspan={tournament.show20s ? 2 : 1}>R{i + 1}</th>
+                        <th class="round-col">R{i + 1}</th>
                       {/each}
-                      <th class="total-col" colspan={tournament.show20s ? 2 : 1}>{m.time_total()}</th>
+                      <th class="total-col">{m.time_total()}</th>
                     </tr>
-                    {#if tournament.show20s}
-                      <tr class="header-sub">
-                        {#each rounds as _}
-                          <th class="sub-col points-col">P</th>
-                          <th class="sub-col twenties-col">🎯</th>
-                        {/each}
-                        <th class="sub-col points-col">P</th>
-                        <th class="sub-col twenties-col">🎯</th>
-                      </tr>
-                    {/if}
                   </thead>
                   <tbody>
                     <!-- Player A -->
                     <tr class="player-row">
                       <td class="player-name">{nameA}</td>
                       {#each rounds as round}
-                        <td class="round-cell readonly">{round.pointsA ?? '-'}</td>
-                        {#if tournament.show20s}
-                          <td class="round-cell readonly">{round.twentiesA || 0}</td>
-                        {/if}
+                        <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantA}>
+                          <span class="cell-points" class:winner={round.pointsA === 2} class:loser={round.pointsA === 0} class:tie={round.pointsA === 1}>{round.pointsA ?? '-'}</span>
+                          {#if tournament.show20s}
+                            <span class="cell-twenties">{round.twentiesA}</span>
+                          {/if}
+                        </td>
                       {/each}
-                      <td class="total-cell readonly">{displayTotalA}</td>
-                      {#if tournament.show20s}
-                        <td class="total-cell readonly">{display20sA}</td>
-                      {/if}
+                      <td class="total-cell readonly">
+                        <span class="cell-points" class:winner={displayTotalA > displayTotalB} class:loser={displayTotalA < displayTotalB} class:tie={displayTotalA === displayTotalB}>{displayTotalA}</span>
+                        {#if tournament.show20s}
+                          <span class="cell-twenties">{display20sA}</span>
+                        {/if}
+                      </td>
                     </tr>
 
                     <!-- Player B -->
                     <tr class="player-row">
                       <td class="player-name">{nameB}</td>
                       {#each rounds as round}
-                        <td class="round-cell readonly">{round.pointsB ?? '-'}</td>
-                        {#if tournament.show20s}
-                          <td class="round-cell readonly">{round.twentiesB || 0}</td>
-                        {/if}
+                        <td class="round-cell readonly" class:has-hammer={round.hammer === match.participantB}>
+                          <span class="cell-points" class:winner={round.pointsB === 2} class:loser={round.pointsB === 0} class:tie={round.pointsB === 1}>{round.pointsB ?? '-'}</span>
+                          {#if tournament.show20s}
+                            <span class="cell-twenties">{round.twentiesB}</span>
+                          {/if}
+                        </td>
                       {/each}
-                      <td class="total-cell readonly">{displayTotalB}</td>
-                      {#if tournament.show20s}
-                        <td class="total-cell readonly">{display20sB}</td>
-                      {/if}
+                      <td class="total-cell readonly">
+                        <span class="cell-points" class:winner={displayTotalB > displayTotalA} class:loser={displayTotalB < displayTotalA} class:tie={displayTotalA === displayTotalB}>{displayTotalB}</span>
+                        {#if tournament.show20s}
+                          <span class="cell-twenties">{display20sB}</span>
+                        {/if}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -1167,10 +1138,10 @@
                     <tr class="header-sub">
                       {#each Array(numRounds) as _}
                         <th class="sub-col points-col">P</th>
-                        <th class="sub-col twenties-col">🎯</th>
+                        <th class="sub-col twenties-col">20s</th>
                       {/each}
                       <th class="sub-col points-col">P</th>
-                      <th class="sub-col twenties-col">🎯</th>
+                      <th class="sub-col twenties-col">20s</th>
                     </tr>
                   {/if}
                 </thead>
@@ -1420,12 +1391,6 @@
             </button>
           {/if}
         </div>
-      {:else}
-        <div class="dialog-footer">
-          <button class="btn btn-secondary" onclick={handleClose}>
-            {m.common_close()}
-          </button>
-        </div>
       {/if}
     </div>
   </div>
@@ -1464,22 +1429,22 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1.125rem 1.5rem;
-    background: var(--primary);
-    color: white;
+    padding: 0.875rem 1.25rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
   }
 
   .header-left {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.625rem;
   }
 
   .header-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.2);
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #f1f5f9;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1487,9 +1452,9 @@
   }
 
   .header-icon svg {
-    width: 18px;
-    height: 18px;
-    color: white;
+    width: 16px;
+    height: 16px;
+    color: #64748b;
   }
 
   .header-title {
@@ -1500,15 +1465,15 @@
 
   .dialog-header h2 {
     margin: 0;
-    font-size: 1.0625rem;
+    font-size: 0.95rem;
     font-weight: 700;
-    color: white;
+    color: #1e293b;
     letter-spacing: -0.02em;
   }
 
   .admin-edit-badge {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
+    background: #e0f2fe;
+    color: #0369a1;
     padding: 0.1875rem 0.5rem;
     border-radius: 6px;
     font-size: 0.625rem;
@@ -1521,12 +1486,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.06);
     border: none;
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.8);
+    color: #64748b;
     cursor: pointer;
     transition: all 0.15s ease;
   }
@@ -1537,8 +1502,8 @@
   }
 
   .close-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
-    color: white;
+    background: rgba(0, 0, 0, 0.1);
+    color: #1e293b;
   }
 
   .dialog-content {
@@ -1677,7 +1642,7 @@
     align-items: center;
     gap: 0.625rem;
     padding: 0.75rem 1rem;
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
     border-radius: 12px;
     margin-bottom: 1rem;
   }
@@ -1690,27 +1655,27 @@
   .banner-text {
     font-size: 0.875rem;
     font-weight: 700;
-    color: #78350f;
+    color: #166534;
     flex: 1;
   }
 
   .banner-score {
     font-size: 1.125rem;
     font-weight: 800;
-    color: #92400e;
+    color: #15803d;
     letter-spacing: -0.02em;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-complete-banner {
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(251, 191, 36, 0.06));
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.06));
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .banner-text {
-    color: #fbbf24;
+    color: #4ade80;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .banner-score {
-    color: #fcd34d;
+    color: #86efac;
   }
 
   /* ── Rounds Table ───────────────────────────── */
@@ -1809,6 +1774,65 @@
     min-width: 40px;
     max-width: 50px;
     background: #fffbeb !important;
+  }
+
+  /* Compact rounds: score + twenties stacked in one cell */
+  .compact-rounds .round-cell,
+  .compact-rounds .total-cell {
+    vertical-align: middle;
+  }
+
+  .cell-points {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .cell-twenties {
+    display: block;
+    font-size: 0.7rem;
+    color: #fbbf24;
+    line-height: 1;
+    margin-top: 1px;
+  }
+
+  .total-cell .cell-points {
+    font-size: 1.25rem;
+    font-weight: 800;
+  }
+
+  .total-cell .cell-twenties {
+    font-size: 0.8rem;
+  }
+
+  .cell-points.winner {
+    color: #059669;
+  }
+
+  .cell-points.loser {
+    color: #dc2626;
+  }
+
+  .cell-points.tie {
+    color: #6b7280;
+  }
+
+  .round-cell.has-hammer {
+    position: relative;
+    background: #fde2e2 !important;
+  }
+
+  .round-cell.has-hammer::after {
+    content: '🔨';
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    font-size: 0.85rem;
+    opacity: 0.7;
+    pointer-events: none;
+    line-height: 1;
   }
 
   .points-selector {
@@ -2452,7 +2476,35 @@
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .dialog-header {
-    background: var(--primary);
+    background: #1e293b;
+    border-bottom-color: #334155;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .close-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #e2e8f0;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .header-icon {
+    background: #334155;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .header-icon svg {
+    color: #94a3b8;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .dialog-header h2 {
+    color: #e2e8f0;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .admin-edit-badge {
+    background: rgba(14, 165, 233, 0.15);
+    color: #38bdf8;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .dialog-content {
@@ -2556,6 +2608,10 @@
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .round-cell.twenties-cell {
     background: rgba(251, 191, 36, 0.05) !important;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .round-cell.has-hammer {
+    background: rgba(239, 68, 68, 0.15) !important;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .twenties-input {

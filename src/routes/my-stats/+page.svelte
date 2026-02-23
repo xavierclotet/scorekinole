@@ -21,13 +21,12 @@
 	import TwentiesHammerChart from '$lib/components/charts/TwentiesHammerChart.svelte';
 	import TwentiesPerRoundTrend from '$lib/components/charts/TwentiesPerRoundTrend.svelte';
 	import TwentiesAccuracyLine from '$lib/components/charts/TwentiesAccuracyLine.svelte';
-	import TwentiesGauge from '$lib/components/charts/TwentiesGauge.svelte';
 	import TwentiesByPhase from '$lib/components/charts/TwentiesByPhase.svelte';
+	import TournamentPositionsChart from '$lib/components/charts/TournamentPositionsChart.svelte';
 	import {
 		buildTwentiesHammerData,
 		buildTwentiesPerRoundData,
 		buildTwentiesAccuracyData,
-		buildTwentiesGaugeData,
 		buildTwentiesByPhaseData,
 	} from '$lib/utils/chartData';
 
@@ -416,14 +415,10 @@
 		return d.singlesPoints.length > 0 || d.doublesPoints.length > 0;
 	})());
 
-	let hasGaugeData = $derived((() => {
-		const d = buildTwentiesGaugeData(filteredMatches, getUserTeam);
-		return d.historicalCount > 0;
-	})());
-
-	let hasDurationData = $derived((() => {
-		const d = buildMatchDurationData(filteredMatches, getOpponentName);
-		return d.singlesPoints.length > 0 || d.doublesPoints.length > 0;
+	let filteredTournamentRecords = $derived((() => {
+		if (!filterYear) return tournamentRecords;
+		const y = parseInt(filterYear);
+		return tournamentRecords.filter(r => new Date(r.tournamentDate).getFullYear() === y);
 	})());
 
 	let hasPhaseData = $derived((() => {
@@ -659,7 +654,7 @@
 				</div>
 			</ChartWrapper>
 
-			<ChartWrapper title={m.stats_twentiesHammer()} hasData={hasHammerData}>
+			<ChartWrapper title={m.stats_twentiesHammer()} hasData={hasHammerData} autoHeight>
 				<TwentiesHammerChart matches={filteredMatches} {getUserTeam} />
 			</ChartWrapper>
 
@@ -675,13 +670,12 @@
 				<TwentiesAccuracyLine matches={filteredMatches} {getUserTeam} {getOpponentName} />
 			</ChartWrapper>
 
-			<ChartWrapper title={m.stats_twentiesGauge()} hasData={hasGaugeData}>
-				<TwentiesGauge matches={filteredMatches} {getUserTeam} />
-			</ChartWrapper>
+			{#if filterType !== 'friendly'}
+				<ChartWrapper title={m.stats_positionsChart()} hasData={filteredTournamentRecords.length > 0} autoHeight>
+					<TournamentPositionsChart records={filteredTournamentRecords} year={filterYear} />
+				</ChartWrapper>
+			{/if}
 
-			<ChartWrapper title={m.stats_matchDuration()} hasData={hasDurationData}>
-				<MatchDurationChart matches={filteredMatches} {getOpponentName} />
-			</ChartWrapper>
 		</div>
 
 		<!-- Match List -->

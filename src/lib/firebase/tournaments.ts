@@ -1899,7 +1899,7 @@ export async function transformImportedToLive(
               pointsB: rr.pointsB,
               twentiesA: rr.twentiesA,
               twentiesB: rr.twentiesB,
-              hammerSide: null
+              hammer: null
             }));
           }
 

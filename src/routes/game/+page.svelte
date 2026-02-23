@@ -233,6 +233,20 @@
 	let _prevT1Won: boolean | undefined = undefined;
 	let _prevT2Won: boolean | undefined = undefined;
 	let _prevIsTie: boolean | undefined = undefined;
+
+	/** Reset all winner-splash state so it won't re-appear after a match reset */
+	function clearWinnerSplash() {
+		showWinnerSplash = false;
+		splashWinnerName = '';
+		splashLabel = '';
+		splashScore = '';
+		splashIsTie = false;
+		// Mark as "first run" so the $effect below records current values
+		// without triggering a splash
+		_prevT1Won = undefined;
+		_prevT2Won = undefined;
+		_prevIsTie = undefined;
+	}
 	$effect(() => {
 		const t1 = $team1.hasWon;
 		const t2 = $team2.hasWon;
@@ -338,7 +352,7 @@
 				try {
 					const savedData = saveTournamentProgressToLocalStorage();
 					if (savedData) {
-						await syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB);
+						await syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
 						setSyncStatus('success');
 						console.log('✅ Tournament data synced after reconnect');
 					} else {
@@ -607,14 +621,24 @@
 				console.log('⏭️ User has more local rounds than Firebase - keeping local data as source of truth');
 				// Just update the context with local rounds for persistence
 				updateTournamentContext({
-					existingRounds: currentLocalRounds.map((r, idx) => ({
-						gameNumber: savedContext.currentGameData?.currentGameNumber || 1,
-						roundInGame: idx + 1,
-						pointsA: savedContext.currentUserSide === 'A' ? r.team1Points : r.team2Points,
-						pointsB: savedContext.currentUserSide === 'A' ? r.team2Points : r.team1Points,
-						twentiesA: savedContext.currentUserSide === 'A' ? (r.team1Twenty || 0) : (r.team2Twenty || 0),
-						twentiesB: savedContext.currentUserSide === 'A' ? (r.team2Twenty || 0) : (r.team1Twenty || 0)
-					}))
+					existingRounds: currentLocalRounds.map((r, idx) => {
+						const sideA = savedContext.currentUserSide === 'A';
+						let hammer: string | null = null;
+						if (r.hammerTeam === 1) {
+							hammer = sideA ? savedContext.participantAId : savedContext.participantBId;
+						} else if (r.hammerTeam === 2) {
+							hammer = sideA ? savedContext.participantBId : savedContext.participantAId;
+						}
+						return {
+							gameNumber: savedContext.currentGameData?.currentGameNumber || 1,
+							roundInGame: idx + 1,
+							pointsA: sideA ? r.team1Points : r.team2Points,
+							pointsB: sideA ? r.team2Points : r.team1Points,
+							twentiesA: sideA ? (r.team1Twenty || 0) : (r.team2Twenty || 0),
+							twentiesB: sideA ? (r.team2Twenty || 0) : (r.team1Twenty || 0),
+							hammer
+						};
+					})
 				});
 				return;
 			}
@@ -816,13 +840,21 @@
 				const twentiesA = r.twentiesA || 0;
 				const twentiesB = r.twentiesB || 0;
 
+				// Convert hammer (participantId) back to hammerTeam (1/2)
+				let hammerTeam: 1 | 2 | null = null;
+				const hammerPid = r.hammer ?? null;
+				if (hammerPid) {
+					const hammerIsA = hammerPid === context.participantAId;
+					hammerTeam = (hammerIsA === isUserSideA) ? 1 : 2;
+				}
+
 				return {
 					roundNumber: index + 1,
 					team1Points: isUserSideA ? pointsA : pointsB,
 					team2Points: isUserSideA ? pointsB : pointsA,
 					team1Twenty: isUserSideA ? twentiesA : twentiesB,
 					team2Twenty: isUserSideA ? twentiesB : twentiesA,
-					hammerTeam: null as 1 | 2 | null,
+					hammerTeam,
 					timestamp: Date.now()
 				};
 			});
@@ -926,14 +958,22 @@
 					team2Points: g.team2Points,
 					rounds: (context.existingRounds || [])
 						.filter((r: any) => r.gameNumber === g.gameNumber)
-						.map((r: any, idx: number) => ({
-							roundNumber: idx + 1,
-							team1Points: isUserSideA ? (r.pointsA || 0) : (r.pointsB || 0),
-							team2Points: isUserSideA ? (r.pointsB || 0) : (r.pointsA || 0),
-							team1Twenty: isUserSideA ? (r.twentiesA || 0) : (r.twentiesB || 0),
-							team2Twenty: isUserSideA ? (r.twentiesB || 0) : (r.twentiesA || 0),
-							hammerTeam: null as 1 | 2 | null
-						}))
+						.map((r: any, idx: number) => {
+							let hammerTeam: 1 | 2 | null = null;
+							const hammerPid = r.hammer ?? null;
+							if (hammerPid) {
+								const hammerIsA = hammerPid === context.participantAId;
+								hammerTeam = (hammerIsA === isUserSideA) ? 1 : 2;
+							}
+							return {
+								roundNumber: idx + 1,
+								team1Points: isUserSideA ? (r.pointsA || 0) : (r.pointsB || 0),
+								team2Points: isUserSideA ? (r.pointsB || 0) : (r.pointsA || 0),
+								team1Twenty: isUserSideA ? (r.twentiesA || 0) : (r.twentiesB || 0),
+								team2Twenty: isUserSideA ? (r.twentiesB || 0) : (r.twentiesA || 0),
+								hammerTeam
+							};
+						})
 				}))
 			}));
 		}
@@ -998,6 +1038,14 @@
 			setTimeout(() => {
 				showHammerDialog = true;
 			}, 100);
+		} else if (!hasExistingProgress) {
+			// No hammer dialog shown - sync initial state with default hammer
+			setTimeout(() => {
+				const savedData = saveTournamentProgressToLocalStorage();
+				if (savedData) {
+					syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
+				}
+			}, 200);
 		}
 	}
 
@@ -1368,7 +1416,8 @@
 			pointsA: r.pointsA,
 			pointsB: r.pointsB,
 			twentiesA: r.twentiesA || 0,
-			twentiesB: r.twentiesB || 0
+			twentiesB: r.twentiesB || 0,
+			hammer: r.hammer ?? null
 		}));
 
 		console.log('📤 Sending to Firebase:', {
@@ -1450,6 +1499,9 @@
 		if ($gameTournamentContext) {
 			exitTournamentMode();
 		}
+
+		// Ensure winner splash never leaks into the next match
+		clearWinnerSplash();
 
 		// Clear the last tournament result block if there was one
 		gameSettings.update(s => ({ ...s, lastTournamentResult: null }));
@@ -1606,6 +1658,14 @@
 
 	function handleHammerSelected() {
 		showHammerDialog = false;
+
+		// Sync initial hammer to Firebase immediately so tournament page shows it
+		if (inTournamentMode && !tournamentMatchCompletedSent) {
+			const savedData = saveTournamentProgressToLocalStorage();
+			if (savedData) {
+				syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
+			}
+		}
 	}
 
 	function handleMatchReset() {
@@ -1707,17 +1767,11 @@
 			await tick();
 			const savedData = saveTournamentProgressToLocalStorage();
 
-			console.log('🔄 Post-round sync check:', {
-				hasSavedData: !!savedData,
-				tournamentMatchCompletedSent,
-				allRoundsLength: savedData?.allRounds?.length
-			});
-
 			// Sincronizar a Firebase SOLO si el match no ha sido completado
 			// Si tournamentMatchCompletedSent es true, completeMatch ya envió los datos finales
 			// y no debemos sobrescribirlos con syncMatchProgress (evita race condition)
 			if (savedData && !tournamentMatchCompletedSent) {
-				await syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB);
+				await syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
 			}
 		}
 	}
@@ -1726,11 +1780,13 @@
 	 * Guarda el progreso del torneo a localStorage para persistencia al recargar
 	 * Retorna los datos guardados para poder usarlos en el sync a Firebase
 	 */
-	function saveTournamentProgressToLocalStorage(): { allRounds: TournamentMatchContext['existingRounds']; gamesWonA: number; gamesWonB: number } | null {
+	function saveTournamentProgressToLocalStorage(): { allRounds: TournamentMatchContext['existingRounds']; gamesWonA: number; gamesWonB: number; currentHammer: string | null } | null {
 		const context = $gameTournamentContext;
 		if (!context) return null;
 
 		const isUserSideA = context.currentUserSide === 'A';
+		const participantAId = context.participantAId;
+		const participantBId = context.participantBId;
 		const allRounds: Array<{
 			gameNumber: number;
 			roundInGame: number;
@@ -1738,7 +1794,7 @@
 			pointsB: number | null;
 			twentiesA: number;
 			twentiesB: number;
-			hammerSide?: 'A' | 'B' | null;
+			hammer?: string | null;
 		}> = [];
 
 		// Use currentMatch which has games with rounds (currentMatchGames doesn't have rounds)
@@ -1762,7 +1818,8 @@
 					pointsA: round.pointsA,
 					pointsB: round.pointsB,
 					twentiesA: round.twentiesA,
-					twentiesB: round.twentiesB
+					twentiesB: round.twentiesB,
+					hammer: round.hammer ?? null
 				});
 			});
 		} else {
@@ -1775,12 +1832,12 @@
 							const pointsB = isUserSideA ? round.team2Points : round.team1Points;
 							const twentiesA = isUserSideA ? (round.team1Twenty || 0) : (round.team2Twenty || 0);
 							const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
-							// Convert hammerTeam (1 or 2) to hammerSide ('A' or 'B') based on user side
-							let hammerSide: 'A' | 'B' | null = null;
+							// Convert hammerTeam (1 or 2) to participant ID
+							let hammer: string | null = null;
 							if (round.hammerTeam === 1) {
-								hammerSide = isUserSideA ? 'A' : 'B';
+								hammer = isUserSideA ? participantAId : participantBId;
 							} else if (round.hammerTeam === 2) {
-								hammerSide = isUserSideA ? 'B' : 'A';
+								hammer = isUserSideA ? participantBId : participantAId;
 							}
 
 							allRounds.push({
@@ -1790,7 +1847,7 @@
 								pointsB,
 								twentiesA,
 								twentiesB,
-								hammerSide
+								hammer
 							});
 						});
 					}
@@ -1813,12 +1870,12 @@
 				const pointsB = isUserSideA ? round.team2Points : round.team1Points;
 				const twentiesA = isUserSideA ? (round.team1Twenty || 0) : (round.team2Twenty || 0);
 				const twentiesB = isUserSideA ? (round.team2Twenty || 0) : (round.team1Twenty || 0);
-				// Convert hammerTeam (1 or 2) to hammerSide ('A' or 'B') based on user side
-				let hammerSide: 'A' | 'B' | null = null;
+				// Convert hammerTeam (1 or 2) to participant ID
+				let hammer: string | null = null;
 				if (round.hammerTeam === 1) {
-					hammerSide = isUserSideA ? 'A' : 'B';
+					hammer = isUserSideA ? participantAId : participantBId;
 				} else if (round.hammerTeam === 2) {
-					hammerSide = isUserSideA ? 'B' : 'A';
+					hammer = isUserSideA ? participantBId : participantAId;
 				}
 
 				allRounds.push({
@@ -1828,7 +1885,7 @@
 					pointsB,
 					twentiesA,
 					twentiesB,
-					hammerSide
+					hammer
 				});
 			});
 		}
@@ -1941,7 +1998,17 @@
 			}
 		});
 
-		return { allRounds, gamesWonA, gamesWonB };
+		// Compute current hammer holder (who has the hammer RIGHT NOW, for live indicator)
+		const t1 = get(team1);
+		const t2 = get(team2);
+		let currentHammer: string | null = null;
+		if (t1.hasHammer) {
+			currentHammer = isUserSideA ? participantAId : participantBId;
+		} else if (t2.hasHammer) {
+			currentHammer = isUserSideA ? participantBId : participantAId;
+		}
+
+		return { allRounds, gamesWonA, gamesWonB, currentHammer };
 	}
 
 	/**
@@ -1950,12 +2017,13 @@
 	async function syncTournamentRounds(
 		allRounds: TournamentMatchContext['existingRounds'],
 		gamesWonA: number,
-		gamesWonB: number
+		gamesWonB: number,
+		currentHammer?: string | null
 	) {
 		const context = $gameTournamentContext;
 		if (!context || !allRounds) return;
 
-		console.log('📤 Syncing rounds to Firebase:', { roundsCount: allRounds.length, gamesWonA, gamesWonB });
+		console.log('📤 Syncing rounds to Firebase:', { roundsCount: allRounds.length, gamesWonA, gamesWonB, currentHammer });
 
 		try {
 			const success = await syncMatchProgress(
@@ -1966,7 +2034,8 @@
 				{
 					rounds: allRounds,
 					gamesWonA,
-					gamesWonB
+					gamesWonB,
+					currentHammer
 				}
 			);
 
@@ -1993,7 +2062,7 @@
 				});
 
 				// Siempre sincronizar a Firebase (modo real-time único)
-				await syncTournamentRounds(preResetData.allRounds, preResetData.gamesWonA, preResetData.gamesWonB);
+				await syncTournamentRounds(preResetData.allRounds, preResetData.gamesWonA, preResetData.gamesWonB, preResetData.currentHammer);
 				console.log('📤 Synced completed game to Firebase');
 			}
 		}

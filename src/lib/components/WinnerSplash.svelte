@@ -80,15 +80,12 @@
 		ondismiss?.();
 	}
 
-	function stopProp(e: Event) {
-		e.stopPropagation();
-	}
 </script>
 
 {#if isVisible}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="splash-overlay" class:tie-mode={isTie} onclick={dismiss} role="dialog" aria-modal="true" aria-label={isTie ? label : winnerName} tabindex="-1">
+	<div class="splash-overlay" class:tie-mode={isTie} role="dialog" aria-label={isTie ? label : winnerName}>
 		<!-- Confetti rain — only for wins -->
 		{#if !isTie}
 			<div class="confetti-stage" aria-hidden="true">
@@ -116,7 +113,7 @@
 		<!-- Card -->
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="card" class:tie-card={isTie} onclick={stopProp}>
+		<div class="card" class:tie-card={isTie} onclick={dismiss}>
 			<!-- Shimmer sweep -->
 			<div class="shimmer" aria-hidden="true"></div>
 
@@ -161,6 +158,7 @@
 		backdrop-filter: blur(8px);
 		-webkit-backdrop-filter: blur(8px);
 		animation: overlay-in 0.18s ease-out forwards;
+		pointer-events: none;
 	}
 
 	@keyframes overlay-in {
@@ -219,6 +217,8 @@
 			0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent),
 			0 0 40px color-mix(in srgb, var(--primary) 12%, transparent),
 			0 24px 64px rgba(0, 0, 0, 0.55);
+		pointer-events: auto;
+		cursor: pointer;
 	}
 
 	@keyframes card-punch {

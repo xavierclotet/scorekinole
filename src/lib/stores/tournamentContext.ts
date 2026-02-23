@@ -90,6 +90,7 @@ export interface TournamentMatchContext {
     pointsB: number | null;
     twentiesA: number;
     twentiesB: number;
+    hammer?: string | null;
   }>;
 
   // Offline support

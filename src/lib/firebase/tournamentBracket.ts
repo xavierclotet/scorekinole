@@ -19,7 +19,7 @@ import {
   MIN_PARTICIPANTS_FOR_CONSOLATION
 } from '$lib/algorithms/bracket';
 import { calculateFinalPositionsForTournament, applyRankingUpdates } from './tournamentRanking';
-import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig } from '$lib/types/tournament';
+import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig, Tournament } from '$lib/types/tournament';
 
 /**
  * Recursively remove undefined values from an object
@@ -130,17 +130,135 @@ function getAvailableTables(usedTables: Set<number>, numTables: number): number[
 }
 
 /**
+ * Build a complete table history from ALL matches in the tournament (groups + brackets + consolation).
+ * Returns a Map where each participant ID maps to an array of table numbers they've played on.
+ * Only includes matches that have a table assigned (completed, in progress, or pending with table).
+ */
+function buildTableHistory(tournament: Tournament): Map<string, number[]> {
+  const history = new Map<string, number[]>();
+
+  const record = (id: string, table: number) => {
+    if (!id || id === 'BYE') return;
+    if (!history.has(id)) history.set(id, []);
+    history.get(id)!.push(table);
+  };
+
+  // 1. Group stage: schedule (RR) + pairings (Swiss)
+  for (const group of tournament.groupStage?.groups || []) {
+    for (const round of [...(group.schedule || []), ...(group.pairings || [])]) {
+      for (const match of round.matches) {
+        if (match.tableNumber && match.participantB !== 'BYE') {
+          record(match.participantA, match.tableNumber);
+          record(match.participantB, match.tableNumber);
+        }
+      }
+    }
+  }
+
+  // 2. Final stage brackets (gold, silver)
+  const recordBracketMatches = (bracket: Bracket) => {
+    for (const round of bracket.rounds) {
+      for (const match of round.matches) {
+        if (match.tableNumber && match.participantA && match.participantB &&
+            match.participantA !== 'BYE' && match.participantB !== 'BYE') {
+          record(match.participantA, match.tableNumber);
+          record(match.participantB, match.tableNumber);
+        }
+      }
+    }
+    if (bracket.thirdPlaceMatch?.tableNumber &&
+        bracket.thirdPlaceMatch.participantA && bracket.thirdPlaceMatch.participantB) {
+      record(bracket.thirdPlaceMatch.participantA, bracket.thirdPlaceMatch.tableNumber);
+      record(bracket.thirdPlaceMatch.participantB, bracket.thirdPlaceMatch.tableNumber);
+    }
+    // Consolation brackets
+    const consolations = (bracket as BracketWithConfig).consolationBrackets;
+    if (consolations) {
+      for (const consolation of consolations) {
+        for (const round of consolation.rounds) {
+          for (const match of round.matches) {
+            if (match.tableNumber && match.participantA && match.participantB &&
+                match.participantA !== 'BYE' && match.participantB !== 'BYE' &&
+                !match.participantA.startsWith('LOSER:') && !match.participantB.startsWith('LOSER:')) {
+              record(match.participantA, match.tableNumber);
+              record(match.participantB, match.tableNumber);
+            }
+          }
+        }
+      }
+    }
+  };
+
+  if (tournament.finalStage?.goldBracket) {
+    recordBracketMatches(tournament.finalStage.goldBracket);
+  }
+  if (tournament.finalStage?.silverBracket) {
+    recordBracketMatches(tournament.finalStage.silverBracket);
+  }
+
+  return history;
+}
+
+/**
+ * Pick the best table for a match based on both participants' table history.
+ * Chooses the table with the lowest combined usage. On tie, prefers tables
+ * not recently used by either participant.
+ *
+ * @returns The best table number, or null if no tables available
+ */
+function pickBestTable(
+  participantA: string,
+  participantB: string,
+  availableTables: number[],
+  tableHistory: Map<string, number[]>
+): number | null {
+  if (availableTables.length === 0) return null;
+
+  const historyA = tableHistory.get(participantA) || [];
+  const historyB = tableHistory.get(participantB) || [];
+
+  let bestTable = availableTables[0];
+  let bestScore = Infinity;
+
+  for (const table of availableTables) {
+    const usageA = historyA.filter(t => t === table).length;
+    const usageB = historyB.filter(t => t === table).length;
+    const combinedUsage = usageA + usageB;
+
+    if (combinedUsage < bestScore) {
+      bestScore = combinedUsage;
+      bestTable = table;
+    } else if (combinedUsage === bestScore) {
+      // Tie-breaker: prefer table not recently used by either participant
+      const recentA = historyA.length > 0 && historyA[historyA.length - 1] === table;
+      const recentB = historyB.length > 0 && historyB[historyB.length - 1] === table;
+      const currentBestRecentA = historyA.length > 0 && historyA[historyA.length - 1] === bestTable;
+      const currentBestRecentB = historyB.length > 0 && historyB[historyB.length - 1] === bestTable;
+
+      if ((!recentA && !recentB) && (currentBestRecentA || currentBestRecentB)) {
+        bestTable = table;
+      }
+    }
+  }
+
+  return bestTable;
+}
+
+/**
  * Assign tables to playable matches in brackets, respecting the table limit
  * If there are 2 brackets, tables are split between them (half each)
+ * Uses table history to maximize variety - participants play on different tables
  *
  * @param goldBracket Gold bracket (or main bracket if no split)
  * @param silverBracket Silver bracket (optional)
  * @param numTables Maximum number of tables available
+ * @param tableHistory Historical table usage per participant (from groups + previous bracket matches)
  */
 function assignTablesToBrackets(
   goldBracket: Bracket,
   silverBracket: Bracket | null,
-  numTables: number
+  numTables: number,
+  tableHistory: Map<string, number[]> = new Map()
 ): void {
   // Get tables currently used by both brackets
   const usedByGold = getUsedTables(goldBracket);
@@ -148,7 +266,7 @@ function assignTablesToBrackets(
   const allUsed = new Set([...usedByGold, ...usedBySilver]);
 
   // Get available tables
-  const availableTables = getAvailableTables(allUsed, numTables);
+  let availableTables = getAvailableTables(allUsed, numTables);
 
   if (availableTables.length === 0) {
     return; // No tables available
@@ -165,24 +283,34 @@ function assignTablesToBrackets(
     silverPlayableCount: silverPlayable.length
   });
 
+  // Helper: assign best table to a match and remove it from available pool
+  const assignBestTable = (match: BracketMatch): boolean => {
+    if (!match.participantA || !match.participantB) return false;
+    const table = pickBestTable(match.participantA, match.participantB, availableTables, tableHistory);
+    if (table === null) return false;
+
+    match.tableNumber = table;
+    availableTables = availableTables.filter(t => t !== table);
+
+    // Update history so subsequent assignments in the same batch see this
+    if (!tableHistory.has(match.participantA)) tableHistory.set(match.participantA, []);
+    if (!tableHistory.has(match.participantB)) tableHistory.set(match.participantB, []);
+    tableHistory.get(match.participantA)!.push(table);
+    tableHistory.get(match.participantB)!.push(table);
+    return true;
+  };
+
   if (silverBracket) {
-    // Calculate how many tables each bracket actually needs
     const goldNeeds = goldPlayable.length;
     const silverNeeds = silverPlayable.length;
     const totalNeeds = goldNeeds + silverNeeds;
 
     console.log('🎯 Table needs:', { goldNeeds, silverNeeds, totalNeeds, availableTables: availableTables.length });
 
-    let tableIndex = 0;
-
     if (totalNeeds <= availableTables.length) {
-      // Enough tables for everyone - assign all needed
-      for (let i = 0; i < goldNeeds; i++) {
-        goldPlayable[i].tableNumber = availableTables[tableIndex++];
-      }
-      for (let i = 0; i < silverNeeds; i++) {
-        silverPlayable[i].tableNumber = availableTables[tableIndex++];
-      }
+      // Enough tables for everyone - assign best table to each match
+      for (const match of goldPlayable) assignBestTable(match);
+      for (const match of silverPlayable) assignBestTable(match);
       console.log('🎯 All matches got tables:', { goldAssigned: goldNeeds, silverAssigned: silverNeeds });
     } else {
       // Not enough tables - split proportionally (prioritize gold slightly)
@@ -190,17 +318,17 @@ function assignTablesToBrackets(
       const tablesForSilver = availableTables.length - tablesForGold;
 
       for (let i = 0; i < Math.min(tablesForGold, goldNeeds); i++) {
-        goldPlayable[i].tableNumber = availableTables[tableIndex++];
+        assignBestTable(goldPlayable[i]);
       }
       for (let i = 0; i < Math.min(tablesForSilver, silverNeeds); i++) {
-        silverPlayable[i].tableNumber = availableTables[tableIndex++];
+        assignBestTable(silverPlayable[i]);
       }
       console.log('🎯 Split tables (not enough):', { tablesForGold, tablesForSilver });
     }
   } else {
     // Single bracket: all tables go to gold
     for (let i = 0; i < Math.min(availableTables.length, goldPlayable.length); i++) {
-      goldPlayable[i].tableNumber = availableTables[i];
+      assignBestTable(goldPlayable[i]);
     }
   }
 }
@@ -237,11 +365,13 @@ function getPlayableConsolationMatches(bracket: BracketWithConfig): BracketMatch
 
 /**
  * Assign tables to playable consolation matches
+ * Uses table history to maximize variety across all tournament phases
  */
 function assignTablesToConsolation(
   goldBracket: BracketWithConfig,
   silverBracket: BracketWithConfig | null,
-  numTables: number
+  numTables: number,
+  tableHistory: Map<string, number[]> = new Map()
 ): void {
   // Get tables currently used by main brackets and existing consolation
   const usedByGold = getUsedTables(goldBracket);
@@ -249,7 +379,7 @@ function assignTablesToConsolation(
   const allUsed = new Set([...usedByGold, ...usedBySilver]);
 
   // Get available tables
-  const availableTables = getAvailableTables(allUsed, numTables);
+  let availableTables = getAvailableTables(allUsed, numTables);
 
   if (availableTables.length === 0) {
     console.log('🎯 No tables available for consolation');
@@ -267,26 +397,38 @@ function assignTablesToConsolation(
     silverConsolationCount: silverConsolationPlayable.length
   });
 
-  let tableIndex = 0;
+  // Helper: assign best table to a match and remove it from available pool
+  const assignBestTable = (match: BracketMatch): boolean => {
+    if (!match.participantA || !match.participantB) return false;
+    const table = pickBestTable(match.participantA, match.participantB, availableTables, tableHistory);
+    if (table === null) return false;
+
+    match.tableNumber = table;
+    availableTables = availableTables.filter(t => t !== table);
+
+    if (!tableHistory.has(match.participantA)) tableHistory.set(match.participantA, []);
+    if (!tableHistory.has(match.participantB)) tableHistory.set(match.participantB, []);
+    tableHistory.get(match.participantA)!.push(table);
+    tableHistory.get(match.participantB)!.push(table);
+    return true;
+  };
+
   const totalNeeds = goldConsolationPlayable.length + silverConsolationPlayable.length;
 
   if (totalNeeds <= availableTables.length) {
-    // Enough tables - assign all
-    for (const match of goldConsolationPlayable) {
-      match.tableNumber = availableTables[tableIndex++];
-    }
-    for (const match of silverConsolationPlayable) {
-      match.tableNumber = availableTables[tableIndex++];
-    }
+    // Enough tables - assign best to each
+    for (const match of goldConsolationPlayable) assignBestTable(match);
+    for (const match of silverConsolationPlayable) assignBestTable(match);
     console.log('🎯 All consolation matches got tables');
   } else {
     // Not enough - prioritize gold
     const tablesForGold = Math.ceil(availableTables.length / 2);
     for (let i = 0; i < Math.min(tablesForGold, goldConsolationPlayable.length); i++) {
-      goldConsolationPlayable[i].tableNumber = availableTables[tableIndex++];
+      assignBestTable(goldConsolationPlayable[i]);
     }
-    for (let i = 0; i < Math.min(availableTables.length - tablesForGold, silverConsolationPlayable.length); i++) {
-      silverConsolationPlayable[i].tableNumber = availableTables[tableIndex++];
+    const tablesForSilver = availableTables.length; // remaining after gold assignments
+    for (let i = 0; i < Math.min(tablesForSilver, silverConsolationPlayable.length); i++) {
+      assignBestTable(silverConsolationPlayable[i]);
     }
     console.log('🎯 Split consolation tables (not enough)');
   }
@@ -361,15 +503,19 @@ export async function reassignTables(
       clearPendingTables(silverBracket);
     }
 
+    // Build table history from all tournament phases for equitable assignment
+    const tableHistory = buildTableHistory(tournament);
+
     // Reassign tables for main brackets
-    assignTablesToBrackets(goldBracket, silverBracket, numTables);
+    assignTablesToBrackets(goldBracket, silverBracket, numTables, tableHistory);
 
     // Reassign tables for consolation brackets (only if consolation enabled)
     if (consolationEnabled) {
       assignTablesToConsolation(
         goldBracket as BracketWithConfig,
         silverBracket as BracketWithConfig | null,
-        numTables
+        numTables,
+        tableHistory
       );
     }
 
@@ -480,7 +626,8 @@ export async function generateSplitBrackets(
     // Assign table numbers to brackets respecting the table limit
     // Tables are distributed fairly between gold and silver brackets
     const numTables = tournament.numTables || 4;
-    assignTablesToBrackets(goldBracketRaw, silverBracketRaw, numTables);
+    const tableHistory = buildTableHistory(tournament);
+    assignTablesToBrackets(goldBracketRaw, silverBracketRaw, numTables, tableHistory);
 
     console.log('🥇 Generated Gold bracket with', goldParticipants.length, 'participants');
     console.log('🥈 Generated Silver bracket with', silverParticipants.length, 'participants');
@@ -652,7 +799,8 @@ export async function generateBracket(
 
     // Assign table numbers respecting the table limit
     const numTables = tournament.numTables || 4;
-    assignTablesToBrackets(bracketRaw, null, numTables);
+    const tableHistory = buildTableHistory(tournament);
+    assignTablesToBrackets(bracketRaw, null, numTables, tableHistory);
 
     // Default config: points mode (7 points), best of 1 for all phases
     const defaultPhaseConfig: PhaseConfig = {
@@ -920,13 +1068,14 @@ export async function advanceWinner(
       );
       updatedGoldBracket = await checkAndGenerateConsolation(tournamentId, updatedGoldBracket, 'gold', consolationEnabled);
 
-      // Assign tables to any newly ready matches
+      // Assign tables to any newly ready matches (with full tournament table history)
       const numTables = tournament.numTables || 4;
       const silverBracketForTables = tournament.finalStage.silverBracket || null;
-      assignTablesToBrackets(updatedGoldBracket, silverBracketForTables, numTables);
+      const tableHistory = buildTableHistory(tournament);
+      assignTablesToBrackets(updatedGoldBracket, silverBracketForTables, numTables, tableHistory);
 
       if (consolationEnabled) {
-        assignTablesToConsolation(updatedGoldBracket, silverBracketForTables as BracketWithConfig | null, numTables);
+        assignTablesToConsolation(updatedGoldBracket, silverBracketForTables as BracketWithConfig | null, numTables, tableHistory);
       }
 
       // Check if gold bracket is complete (including consolation)
@@ -1164,13 +1313,15 @@ export async function advanceSilverWinner(
       updatedSilverBracket = await checkAndGenerateConsolation(tournamentId, updatedSilverBracket, 'silver', consolationEnabled);
 
       const numTables = tournament.numTables || 4;
-      assignTablesToBrackets(tournament.finalStage.goldBracket, updatedSilverBracket, numTables);
+      const tableHistory = buildTableHistory(tournament);
+      assignTablesToBrackets(tournament.finalStage.goldBracket, updatedSilverBracket, numTables, tableHistory);
 
       if (consolationEnabled) {
         assignTablesToConsolation(
           tournament.finalStage.goldBracket as BracketWithConfig,
           updatedSilverBracket,
-          numTables
+          numTables,
+          tableHistory
         );
       }
 
@@ -1821,10 +1972,12 @@ export async function forceRegenerateConsolationBrackets(
       ? updatedBracket
       : tournament.finalStage.goldBracket as BracketWithConfig;
 
+    const tableHistory = buildTableHistory(tournament);
+
     if (bracketType === 'gold') {
-      assignTablesToConsolation(updatedBracket, silverBracket, numTables);
+      assignTablesToConsolation(updatedBracket, silverBracket, numTables, tableHistory);
     } else {
-      assignTablesToConsolation(goldBracketForTables, updatedBracket, numTables);
+      assignTablesToConsolation(goldBracketForTables, updatedBracket, numTables, tableHistory);
     }
 
     // Log assigned tables
@@ -1998,12 +2151,13 @@ export async function advanceConsolationWinner(
 
       bracket.consolationBrackets[consolationIndex] = updatedConsolation;
 
-      // Assign tables to any newly playable consolation matches
+      // Assign tables to any newly playable consolation matches (with full history)
       const numTables = tournament.numTables || 4;
       const goldBracket = bracketType === 'gold' ? bracket : tournament.finalStage.goldBracket;
       const silverBracket = bracketType === 'silver' ? bracket : tournament.finalStage.silverBracket;
+      const tableHistory = buildTableHistory(tournament);
       console.log('🎯 advanceConsolationWinner: Assigning tables after match completion');
-      assignTablesToConsolation(goldBracket!, silverBracket || null, numTables);
+      assignTablesToConsolation(goldBracket!, silverBracket || null, numTables, tableHistory);
 
       // Check if tournament is complete
       const consolationEnabled = tournament.finalStage.consolationEnabled ?? false;

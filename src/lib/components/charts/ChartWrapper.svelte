@@ -6,10 +6,11 @@
 		hasData: boolean;
 		isLoading?: boolean;
 		emptyMessage?: string;
+		autoHeight?: boolean;
 		children: import('svelte').Snippet;
 	}
 
-	let { title, hasData, isLoading = false, emptyMessage, children }: Props = $props();
+	let { title, hasData, isLoading = false, emptyMessage, autoHeight = false, children }: Props = $props();
 </script>
 
 <div class="chart-card">
@@ -21,7 +22,7 @@
 	{:else if !hasData}
 		<div class="chart-empty">{emptyMessage || m.stats_noDataForChart()}</div>
 	{:else}
-		<div class="chart-canvas-wrapper">
+		<div class={["chart-canvas-wrapper", autoHeight && "auto-height"]}>
 			{@render children()}
 		</div>
 	{/if}
@@ -46,6 +47,10 @@
 	.chart-canvas-wrapper {
 		position: relative;
 		height: 200px;
+	}
+
+	.chart-canvas-wrapper.auto-height {
+		height: auto;
 	}
 
 	.chart-canvas-wrapper :global(canvas) {

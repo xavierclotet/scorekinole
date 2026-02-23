@@ -259,7 +259,11 @@ export interface GroupMatch {
     pointsB: number | null;
     twentiesA: number;
     twentiesB: number;
+    hammer?: string | null;  // Participant ID who had hammer this round
   }>;
+
+  // Live hammer tracking
+  currentHammer?: string | null; // Participant ID who currently has the hammer
 
   // No-show handling
   noShowParticipant?: string;  // Participant ID who didn't show
@@ -434,8 +438,11 @@ export interface BracketMatch {
     pointsB: number | null;
     twentiesA: number;
     twentiesB: number;
-    hammerSide?: 'A' | 'B' | null;  // Which participant had the hammer in this round
+    hammer?: string | null;  // Participant ID who had hammer this round
   }>;
+
+  // Live hammer tracking
+  currentHammer?: string | null; // Participant ID who currently has the hammer
 
   // No-show
   noShowParticipant?: string;

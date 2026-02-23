@@ -403,6 +403,17 @@
 		expandedRounds = { ...expandedRounds };
 	}
 
+	// Get current hammer holder: only show during IN_PROGRESS matches
+	function getMatchHammer(match: { rounds?: Array<{ hammer?: string | null }>; currentHammer?: string | null; status?: string }): string | null {
+		if (match.status !== 'IN_PROGRESS') return null;
+		if (match.currentHammer) return match.currentHammer;
+		if (match.rounds?.length) {
+			const lastRound = match.rounds[match.rounds.length - 1];
+			if (lastRound.hammer) return lastRound.hammer;
+		}
+		return null;
+	}
+
 	// Get participant object
 	function getParticipant(participantId: string): TournamentParticipant | null {
 		if (!participantId || participantId === 'BYE') return null;
@@ -913,7 +924,7 @@
 														LIVE
 													</div>
 												{/if}
-												<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA}>
+												<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 													{#if match.seedA}
 														<span class="seed">#{match.seedA}</span>
 													{/if}
@@ -949,7 +960,7 @@
 													{/if}
 												</div>
 												<div class="match-divider"></div>
-												<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB}>
+												<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 													{#if match.seedB}
 														<span class="seed">#{match.seedB}</span>
 													{/if}
@@ -1033,7 +1044,7 @@
 													LIVE
 												</div>
 											{/if}
-											<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA}>
+											<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
 												{#if tpm.seedA}
 													<span class="seed">#{tpm.seedA}</span>
 												{/if}
@@ -1063,7 +1074,7 @@
 												</span>
 											</div>
 											<div class="match-divider"></div>
-											<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB}>
+											<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
 												{#if tpm.seedB}
 													<span class="seed">#{tpm.seedB}</span>
 												{/if}
@@ -1264,7 +1275,7 @@
 															LIVE
 														</div>
 													{/if}
-													<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA}>
+													<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 														{#if match.seedA}
 															<span class="seed">#{match.seedA}</span>
 														{/if}
@@ -1300,7 +1311,7 @@
 														{/if}
 													</div>
 													<div class="match-divider"></div>
-													<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB}>
+													<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 														{#if match.seedB}
 															<span class="seed">#{match.seedB}</span>
 														{/if}
@@ -1384,7 +1395,7 @@
 														LIVE
 													</div>
 												{/if}
-												<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA}>
+												<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
 													{#if tpm.seedA}
 														<span class="seed">#{tpm.seedA}</span>
 													{/if}
@@ -1406,7 +1417,7 @@
 													</span>
 												</div>
 												<div class="match-divider"></div>
-												<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB}>
+												<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
 													{#if tpm.seedB}
 														<span class="seed">#{tpm.seedB}</span>
 													{/if}
@@ -1564,7 +1575,7 @@
 															LIVE
 														</div>
 													{/if}
-													<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA}>
+													<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 														{#if match.seedA}
 															<span class="seed">#{match.seedA}</span>
 														{/if}
@@ -1600,7 +1611,7 @@
 														{/if}
 													</div>
 													<div class="match-divider"></div>
-													<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB}>
+													<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 														{#if match.seedB}
 															<span class="seed">#{match.seedB}</span>
 														{/if}
@@ -1703,7 +1714,7 @@
 														LIVE
 													</div>
 												{/if}
-												<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA}>
+												<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 													{#if match.seedA}
 														<span class="seed">#{match.seedA}</span>
 													{/if}
@@ -1739,7 +1750,7 @@
 													{/if}
 												</div>
 												<div class="match-divider"></div>
-												<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB}>
+												<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 													{#if match.seedB}
 														<span class="seed">#{match.seedB}</span>
 													{/if}
@@ -1822,7 +1833,7 @@
 													LIVE
 												</div>
 											{/if}
-											<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA}>
+											<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
 												{#if tpm.seedA}
 													<span class="seed">#{tpm.seedA}</span>
 												{/if}
@@ -1850,7 +1861,7 @@
 												</span>
 											</div>
 											<div class="match-divider"></div>
-											<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB}>
+											<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
 												{#if tpm.seedB}
 													<span class="seed">#{tpm.seedB}</span>
 												{/if}
@@ -2952,6 +2963,22 @@
 	.match-player.winner .player-name {
 		color: #10b981;
 		font-weight: 700;
+	}
+
+	.match-player.has-hammer {
+		position: relative;
+		background: rgba(239, 68, 68, 0.15);
+	}
+
+	.match-player.has-hammer::after {
+		content: '🔨';
+		position: absolute;
+		right: 6px;
+		top: 50%;
+		transform: translateY(-50%);
+		font-size: 0.7rem;
+		opacity: 0.6;
+		pointer-events: none;
 	}
 
 	.match-player.tbd {

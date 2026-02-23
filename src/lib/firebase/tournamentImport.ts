@@ -436,7 +436,7 @@ export async function createHistoricalTournament(
           pointsB: r.pointsB,
           twentiesA: r.twentiesA,
           twentiesB: r.twentiesB,
-          hammerSide: null
+          hammer: null
         }));
       }
 
@@ -994,7 +994,7 @@ export async function completeUpcomingTournament(
           pointsB: r.pointsB,
           twentiesA: r.twentiesA,
           twentiesB: r.twentiesB,
-          hammerSide: null
+          hammer: null
         }));
       }
 

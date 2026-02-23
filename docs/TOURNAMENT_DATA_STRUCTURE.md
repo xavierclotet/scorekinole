@@ -504,7 +504,7 @@ interface BracketMatch {
     pointsB: number | null;
     twentiesA: number;
     twentiesB: number;
-    hammerSide?: 'A' | 'B' | null;
+    hammer?: string | null;  // Participant ID who had hammer this round
   }>;
 
   // No-show

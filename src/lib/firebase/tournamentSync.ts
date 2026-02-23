@@ -35,7 +35,7 @@ export interface MatchRound {
   pointsB: number | null;
   twentiesA: number;
   twentiesB: number;
-  hammerSide?: 'A' | 'B' | null;  // Which participant had the hammer in this round
+  hammer?: string | null;  // Participant ID who had hammer this round
 }
 
 /**
@@ -45,6 +45,7 @@ export interface MatchProgressData {
   rounds: MatchRound[];
   gamesWonA: number;
   gamesWonB: number;
+  currentHammer?: string | null;
 }
 
 /**
@@ -102,7 +103,7 @@ export async function syncMatchProgress(
       phase,
       groupId,
       data.rounds,
-      { gamesWonA: data.gamesWonA, gamesWonB: data.gamesWonB }
+      { gamesWonA: data.gamesWonA, gamesWonB: data.gamesWonB, currentHammer: data.currentHammer ?? null }
     );
 
     if (success) {

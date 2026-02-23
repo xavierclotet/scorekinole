@@ -727,14 +727,18 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 					// Create game entries
 					for (const [gameNum, gameRounds] of roundsByGame) {
 						const matchRounds: MatchRound[] = gameRounds.map((r, idx) => {
-							// hammerSide only exists on BracketMatch rounds
-							const hammerSide = 'hammerSide' in r ? r.hammerSide : undefined;
+							// hammer = participant ID who had hammer; team1 = user's team
+							const hammerPid = 'hammer' in r ? r.hammer : null;
+							let hammerTeam: 1 | 2 | null = null;
+							if (hammerPid) {
+								hammerTeam = hammerPid === team1Id ? 1 : 2;
+							}
 							return {
 								team1Points: userIsA ? (r.pointsA ?? 0) : (r.pointsB ?? 0),
 								team2Points: userIsA ? (r.pointsB ?? 0) : (r.pointsA ?? 0),
 								team1Twenty: userIsA ? (r.twentiesA ?? 0) : (r.twentiesB ?? 0),
 								team2Twenty: userIsA ? (r.twentiesB ?? 0) : (r.twentiesA ?? 0),
-								hammerTeam: hammerSide ? (userIsA ? (hammerSide === 'A' ? 1 : 2) : (hammerSide === 'B' ? 1 : 2)) : null,
+								hammerTeam,
 								roundNumber: r.roundInGame ?? idx + 1
 							};
 						});
