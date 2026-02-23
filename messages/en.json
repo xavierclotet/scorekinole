@@ -1332,5 +1332,8 @@
   "stats_twentiesHammer": "20s with/without Hammer",
   "stats_twentiesPerRound": "20s per Round Number",
   "stats_withHammer": "With Hammer",
-  "stats_withoutHammer": "Sin Hammer"
+  "stats_withoutHammer": "Sin Hammer",
+  "stats_twentiesByPhase": "20s per Phase",
+  "stats_withHammerLabel": "with hammer",
+  "tournament_rounds": "Rounds"
 }

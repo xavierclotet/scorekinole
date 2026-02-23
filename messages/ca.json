@@ -1332,5 +1332,8 @@
   "stats_twentiesHammer": "20s amb/sense Hammer",
   "stats_twentiesPerRound": "20s per Nº de Ronda",
   "stats_withHammer": "Amb Hammer",
-  "stats_withoutHammer": "Sense Hammer"
+  "stats_withoutHammer": "Sense Hammer",
+  "stats_twentiesByPhase": "20s per Fase",
+  "stats_withHammerLabel": "amb hammer",
+  "tournament_rounds": "Rondes"
 }
