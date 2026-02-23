@@ -1,10 +1,11 @@
 <script lang="ts">
 	import {
 		Chart,
-		BarController,
-		BarElement,
-		LinearScale,
-		CategoryScale,
+		RadarController,
+		RadialLinearScale,
+		PointElement,
+		LineElement,
+		Filler,
 		Tooltip,
 	} from 'chart.js';
 	import { getChartColors, getBaseChartOptions } from '$lib/utils/chartTheme';
@@ -13,7 +14,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import type { MatchHistory } from '$lib/types/history';
 
-	Chart.register(BarController, BarElement, LinearScale, CategoryScale, Tooltip);
+	Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip);
 
 	interface Props {
 		matches: MatchHistory[];
@@ -30,45 +31,51 @@
 		const base = getBaseChartOptions(colors);
 
 		const chart = new Chart(canvas, {
-			type: 'bar',
+			type: 'radar',
 			data: {
 				labels: phaseData.phases.map(p => p.phase),
 				datasets: [{
 					data: phaseData.phases.map(p => p.avgTwenties),
-					backgroundColor: phaseData.phases.map((_, i) => {
-						const opacity = 0.5 + (i / Math.max(phaseData.phases.length - 1, 1)) * 0.5;
-						const hex = Math.round(opacity * 255).toString(16).padStart(2, '0');
-						return `${colors.twenties}${hex}`;
-					}),
-					hoverBackgroundColor: colors.twenties,
-					borderRadius: 6,
-					borderSkipped: false,
-					barThickness: 28,
+					backgroundColor: `${colors.twenties}30`,
+					borderColor: colors.twenties,
+					borderWidth: 2,
+					pointBackgroundColor: colors.twenties,
+					pointBorderColor: colors.twenties,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					fill: true,
 				}],
 			},
 			options: {
-				...base,
-				indexAxis: 'y' as const,
+				responsive: true,
+				maintainAspectRatio: false,
 				plugins: {
-					...base.plugins,
 					legend: { display: false },
-					tooltip: {
-						...base.plugins.tooltip,
-						callbacks: {
-							label(ctx: any) {
-								const phase = phaseData.phases[ctx.dataIndex];
-								return ` ${m.stats_avgTwenties()}: ${phase.avgTwenties} (${phase.totalRounds} ${m.stats_rounds()})`;
-							},
-						},
-					},
+					tooltip: { enabled: false },
 				},
 				scales: {
-					x: {
-						...base.scales.x,
+					r: {
 						beginAtZero: true,
-					},
-					y: {
-						...base.scales.y,
+						ticks: {
+							stepSize: 1,
+							color: colors.mutedForeground,
+							backdropColor: colors.card,
+							backdropPadding: 2,
+							font: { size: 10 },
+						},
+						grid: {
+							color: `${colors.border}60`,
+						},
+						angleLines: {
+							color: `${colors.border}60`,
+						},
+						pointLabels: {
+							color: colors.foreground,
+							font: { size: 12, weight: 'bold' as const },
+							callback(label: string, idx: number) {
+								return `${label} (${phaseData.phases[idx].avgTwenties})`;
+							},
+						},
 					},
 				},
 			},
