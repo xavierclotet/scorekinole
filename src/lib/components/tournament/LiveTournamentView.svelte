@@ -1157,13 +1157,14 @@
 															{@const winnerIsB = match.winner === match.participantB}
 															{@const cParticipantA = getParticipant(match.participantA || '')}
 															{@const cParticipantB = getParticipant(match.participantB || '')}
+															{@const matchPosStart = cb.startPosition + (match.position ?? 0) * 2}
 															<div
 																class="consolation-match"
 																class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																class:in-progress={match.status === 'IN_PROGRESS'}
 															>
 																{#if roundIndex === cb.rounds.length - 1}
-																	<span class="consolation-position-badge">{round.name}</span>
+																	<span class="consolation-position-badge">{matchPosStart}º-{matchPosStart + 1}º</span>
 																{/if}
 																{#if match.status === 'IN_PROGRESS'}
 																	<div class="live-badge compact">
@@ -1491,13 +1492,14 @@
 																{@const winnerIsB = match.winner === match.participantB}
 																{@const cParticipantA = getParticipant(match.participantA || '')}
 																{@const cParticipantB = getParticipant(match.participantB || '')}
+																{@const matchPosStart = cb.startPosition + (match.position ?? 0) * 2}
 																<div
 																	class="consolation-match"
 																	class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	class:in-progress={match.status === 'IN_PROGRESS'}
 																>
 																	{#if roundIndex === cb.rounds.length - 1}
-																	<span class="consolation-position-badge">{round.name}</span>
+																	<span class="consolation-position-badge">{matchPosStart}º-{matchPosStart + 1}º</span>
 																{/if}
 																	{#if match.status === 'IN_PROGRESS'}
 																		<div class="live-badge compact">
@@ -1944,13 +1946,14 @@
 															{@const winnerIsB = match.winner === match.participantB}
 															{@const cParticipantA = getParticipant(match.participantA || '')}
 															{@const cParticipantB = getParticipant(match.participantB || '')}
+															{@const matchPosStart = cb.startPosition + (match.position ?? 0) * 2}
 															<div
 																class="consolation-match"
 																class:completed={match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																class:in-progress={match.status === 'IN_PROGRESS'}
 															>
 																{#if roundIndex === cb.rounds.length - 1}
-																	<span class="consolation-position-badge">{round.name}</span>
+																	<span class="consolation-position-badge">{matchPosStart}º-{matchPosStart + 1}º</span>
 																{/if}
 																{#if match.status === 'IN_PROGRESS'}
 																	<div class="live-badge compact">
@@ -3307,7 +3310,7 @@
 		top: -0.45rem;
 		left: 50%;
 		transform: translateX(-50%);
-		font-size: 0.65rem;
+		font-size: 0.7rem;
 		font-weight: 700;
 		color: #fff;
 		background: var(--primary);

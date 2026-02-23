@@ -108,6 +108,17 @@
 
 	let isCompleted = $derived(tournament?.status === 'COMPLETED');
 
+	// Admin route based on tournament phase
+	let adminRoute = $derived.by(() => {
+		const base = `/admin/tournaments/${resolvedDocId}`;
+		switch (tournament?.status) {
+			case 'GROUP_STAGE': return `${base}/groups`;
+			case 'TRANSITION': return `${base}/transition`;
+			case 'FINAL_STAGE': return `${base}/bracket`;
+			default: return base;
+		}
+	});
+
 	// Check if tournament is upcoming (imported with future date)
 	let isUpcoming = $derived(
 		tournament?.isImported &&
@@ -679,7 +690,7 @@
 				{/if}
 
 				{#if canEdit}
-					<a href="/admin/tournaments/{resolvedDocId}" class="admin-link" title="Administrar torneo">
+					<a href={adminRoute} class="admin-link" title="Administrar torneo">
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
 							<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
@@ -1842,7 +1853,7 @@
 																		{/if}
 																	</div>
 																	{#if isLastRound}
-																		{@const posStart = r16Bracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																		{@const posStart = r16Bracket.startPosition + (match.position ?? 0) * 2}
 																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
 																	{/if}
 																</div>
@@ -1901,7 +1912,7 @@
 																		{/if}
 																	</div>
 																	{#if isLastRound}
-																		{@const posStart = qfBracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																		{@const posStart = qfBracket.startPosition + (match.position ?? 0) * 2}
 																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
 																	{/if}
 																</div>
@@ -2120,7 +2131,7 @@
 																		{/if}
 																	</div>
 																	{#if isLastRound}
-																		{@const posStart = r16Bracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																		{@const posStart = r16Bracket.startPosition + (match.position ?? 0) * 2}
 																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
 																	{/if}
 																</div>
@@ -2179,7 +2190,7 @@
 																		{/if}
 																	</div>
 																	{#if isLastRound}
-																		{@const posStart = qfBracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																		{@const posStart = qfBracket.startPosition + (match.position ?? 0) * 2}
 																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
 																	{/if}
 																</div>
@@ -2542,7 +2553,7 @@
 																	{/if}
 																</div>
 																{#if isLastRound}
-																	{@const posStart = r16Bracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																	{@const posStart = r16Bracket.startPosition + (match.position ?? 0) * 2}
 																	<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
 																{/if}
 															</div>
@@ -2601,7 +2612,7 @@
 																	{/if}
 																</div>
 																{#if isLastRound}
-																	{@const posStart = qfBracket.startPosition + (match.isThirdPlace ? 2 : 0)}
+																	{@const posStart = qfBracket.startPosition + (match.position ?? 0) * 2}
 																	<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
 																{/if}
 															</div>

@@ -177,7 +177,7 @@
   "admin_resolveTiesFirst": "Please resolve ties first",
   "admin_resultSavedSuccessfully": "Result saved successfully",
   "admin_retry": "Retry",
-  "admin_role": "Role",
+  "admin_role": "Admin",
   "admin_roundResults": "Round Results",
   "admin_roundRobin": "Round Robin",
   "admin_roundsToPlayLabel": "Rounds to play",
@@ -1335,5 +1335,10 @@
   "stats_withoutHammer": "Sin Hammer",
   "stats_twentiesByPhase": "20s per Phase",
   "stats_withHammerLabel": "with hammer",
-  "tournament_rounds": "Rounds"
+  "tournament_rounds": "Rounds",
+  "tournament_matchPreviewCancel": "Cancel",
+  "tournament_matchPreviewTitle": "Your next game",
+  "tournament_resumeMatch": "Resume",
+  "tournament_startMatch": "Play",
+  "scoring_canTie": "possible tie"
 }

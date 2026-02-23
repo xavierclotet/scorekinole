@@ -51,6 +51,17 @@
   let nextYearQuota = $state(getInitialQuotaForYear(nextYear));
   // svelte-ignore state_referenced_locally
   let showNextYear = $state(getQuotaForYear(user.quotaEntries, nextYear) > 0);
+
+  // When admin is toggled OFF, reset permissions and quota in local state
+  $effect(() => {
+    if (!isAdmin) {
+      canAutofill = false;
+      canImportTournaments = false;
+      currentYearQuota = 0;
+      nextYearQuota = 0;
+      showNextYear = false;
+    }
+  });
   let isSaving = $state(false);
   let errorMessage = $state('');
 

@@ -310,10 +310,19 @@ export async function toggleAdminStatus(
 
   try {
     const userRef = doc(db!, 'users', userId);
-    await updateDoc(userRef, {
+    const updates: Record<string, any> = {
       isAdmin: isAdminStatus,
       updatedAt: serverTimestamp()
-    });
+    };
+
+    // When revoking admin, also clear associated permissions and quota
+    if (!isAdminStatus) {
+      updates.canAutofill = false;
+      updates.canImportTournaments = false;
+      updates.quotaEntries = [];
+    }
+
+    await updateDoc(userRef, updates);
 
     console.log(`✅ Admin status ${isAdminStatus ? 'granted' : 'revoked'} for user:`, userId);
     return true;

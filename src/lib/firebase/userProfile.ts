@@ -5,7 +5,6 @@ import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { TournamentRecord } from '$lib/types/tournament';
 import type { QuotaEntry } from '$lib/types/quota';
-import { createInitialQuota } from '$lib/types/quota';
 import { getDeviceInfo, type DeviceInfo } from '$lib/utils/deviceInfo';
 
 export interface UserProfile {
@@ -98,7 +97,6 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 
 /**
  * Save or update user profile
- * For NEW users: auto-assigns isAdmin=true and 1 live tournament quota for current year
  */
 export async function saveUserProfile(
   playerName: string,
@@ -122,8 +120,6 @@ export async function saveUserProfile(
     const existingDoc = await getDoc(profileRef);
     const isNewUser = !existingDoc.exists();
 
-    const currentYear = new Date().getFullYear();
-
     const profile: Partial<UserProfile & { playerNameLower: string }> = {
       playerName: playerName.trim(),
       playerNameLower: playerName.trim().toLowerCase(),
@@ -138,15 +134,10 @@ export async function saveUserProfile(
       profile.country = options.country || undefined; // Remove if empty string
     }
 
-    // For NEW users only: auto-assign admin status, initial quota, and capture device info
+    // For NEW users only: capture device info for fraud detection
     if (isNewUser) {
-      profile.isAdmin = true;
-      profile.canImportTournaments = true;
-      profile.canAutofill = true;
-      profile.quotaEntries = createInitialQuota(currentYear, 1);
       profile.createdAt = serverTimestamp();
 
-      // Capture device info for fraud detection
       try {
         const deviceInfo = await getDeviceInfo();
         profile.registrationIP = deviceInfo.ip;
@@ -157,7 +148,7 @@ export async function saveUserProfile(
         console.warn('⚠️ Could not capture device info:', error);
       }
 
-      console.log('🎉 New user - auto-assigning admin + canImportTournaments + canAutofill + 1 live tournament quota for', currentYear);
+      console.log('🆕 New user registered:', playerName);
     }
 
     await setDoc(profileRef, profile, { merge: true });

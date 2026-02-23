@@ -159,17 +159,19 @@ function buildTableHistory(tournament: Tournament): Map<string, number[]> {
   const recordBracketMatches = (bracket: Bracket) => {
     for (const round of bracket.rounds) {
       for (const match of round.matches) {
-        if (match.tableNumber && match.participantA && match.participantB &&
+        const table = match.tableNumber || match.playedOnTable;
+        if (table && match.participantA && match.participantB &&
             match.participantA !== 'BYE' && match.participantB !== 'BYE') {
-          record(match.participantA, match.tableNumber);
-          record(match.participantB, match.tableNumber);
+          record(match.participantA, table);
+          record(match.participantB, table);
         }
       }
     }
-    if (bracket.thirdPlaceMatch?.tableNumber &&
-        bracket.thirdPlaceMatch.participantA && bracket.thirdPlaceMatch.participantB) {
-      record(bracket.thirdPlaceMatch.participantA, bracket.thirdPlaceMatch.tableNumber);
-      record(bracket.thirdPlaceMatch.participantB, bracket.thirdPlaceMatch.tableNumber);
+    const tpm = bracket.thirdPlaceMatch;
+    const tpmTable = tpm?.tableNumber || tpm?.playedOnTable;
+    if (tpmTable && tpm?.participantA && tpm?.participantB) {
+      record(tpm.participantA, tpmTable);
+      record(tpm.participantB, tpmTable);
     }
     // Consolation brackets
     const consolations = (bracket as BracketWithConfig).consolationBrackets;
@@ -177,11 +179,12 @@ function buildTableHistory(tournament: Tournament): Map<string, number[]> {
       for (const consolation of consolations) {
         for (const round of consolation.rounds) {
           for (const match of round.matches) {
-            if (match.tableNumber && match.participantA && match.participantB &&
+            const table = match.tableNumber || match.playedOnTable;
+            if (table && match.participantA && match.participantB &&
                 match.participantA !== 'BYE' && match.participantB !== 'BYE' &&
                 !match.participantA.startsWith('LOSER:') && !match.participantB.startsWith('LOSER:')) {
-              record(match.participantA, match.tableNumber);
-              record(match.participantB, match.tableNumber);
+              record(match.participantA, table);
+              record(match.participantB, table);
             }
           }
         }
@@ -196,13 +199,19 @@ function buildTableHistory(tournament: Tournament): Map<string, number[]> {
     recordBracketMatches(tournament.finalStage.silverBracket);
   }
 
+  // Log full table history
+  console.log(`📊 Table history (${history.size} participants):`);
+  for (const [id, tables] of history) {
+    console.log(`   ${id.slice(-6)}: [${tables.join(',')}]`);
+  }
+
   return history;
 }
 
 /**
- * Pick the best table for a match based on both participants' table history.
- * Chooses the table with the lowest combined usage. On tie, prefers tables
- * not recently used by either participant.
+ * Pick the best table for a match using Fair Table Rotation.
+ * Prioritizes tables that don't break any player's cycle (no repeat before visiting all tables).
+ * On tie, uses combined usage as secondary score and recency as final tiebreak.
  *
  * @returns The best table number, or null if no tables available
  */
@@ -210,36 +219,76 @@ function pickBestTable(
   participantA: string,
   participantB: string,
   availableTables: number[],
-  tableHistory: Map<string, number[]>
+  tableHistory: Map<string, number[]>,
+  totalTables: number
 ): number | null {
   if (availableTables.length === 0) return null;
 
   const historyA = tableHistory.get(participantA) || [];
   const historyB = tableHistory.get(participantB) || [];
 
+  // Build usage maps for O(1) lookup
+  const usageMapA = new Map<number, number>();
+  const usageMapB = new Map<number, number>();
+  for (const t of historyA) usageMapA.set(t, (usageMapA.get(t) || 0) + 1);
+  for (const t of historyB) usageMapB.set(t, (usageMapB.get(t) || 0) + 1);
+
+  // Compute minimum usage across ALL tables (cycle level)
+  // If a player hasn't visited all tables yet, min = 0
+  let minA = Infinity;
+  let minB = Infinity;
+  for (let t = 1; t <= totalTables; t++) {
+    minA = Math.min(minA, usageMapA.get(t) || 0);
+    minB = Math.min(minB, usageMapB.get(t) || 0);
+  }
+  if (minA === Infinity) minA = 0;
+  if (minB === Infinity) minB = 0;
+
+  // Log player cycle status
+  const usageAStr = Array.from({ length: totalTables }, (_, i) => `T${i + 1}:${usageMapA.get(i + 1) || 0}`).join(' ');
+  const usageBStr = Array.from({ length: totalTables }, (_, i) => `T${i + 1}:${usageMapB.get(i + 1) || 0}`).join(' ');
+  console.log(`🎲 pickBestTable: ${participantA.slice(-6)} vs ${participantB.slice(-6)}`);
+  console.log(`   A usage: [${usageAStr}] minA=${minA}`);
+  console.log(`   B usage: [${usageBStr}] minB=${minB}`);
+
   let bestTable = availableTables[0];
-  let bestScore = Infinity;
+  let bestPrimary = Infinity;
+  let bestSecondary = Infinity;
+
+  const tableScores: string[] = [];
 
   for (const table of availableTables) {
-    const usageA = historyA.filter(t => t === table).length;
-    const usageB = historyB.filter(t => t === table).length;
-    const combinedUsage = usageA + usageB;
+    const uA = usageMapA.get(table) || 0;
+    const uB = usageMapB.get(table) || 0;
 
-    if (combinedUsage < bestScore) {
-      bestScore = combinedUsage;
+    // Fair Table Rotation: prioritize tables that don't break any player's cycle
+    const deltaA = uA - minA;
+    const deltaB = uB - minB;
+    const primaryScore = Math.max(deltaA, deltaB);
+    const secondaryScore = uA + uB;
+
+    tableScores.push(`T${table}(p=${primaryScore},s=${secondaryScore})`);
+
+    if (primaryScore < bestPrimary
+        || (primaryScore === bestPrimary && secondaryScore < bestSecondary)) {
+      bestPrimary = primaryScore;
+      bestSecondary = secondaryScore;
       bestTable = table;
-    } else if (combinedUsage === bestScore) {
+    } else if (primaryScore === bestPrimary && secondaryScore === bestSecondary) {
       // Tie-breaker: prefer table not recently used by either participant
       const recentA = historyA.length > 0 && historyA[historyA.length - 1] === table;
       const recentB = historyB.length > 0 && historyB[historyB.length - 1] === table;
-      const currentBestRecentA = historyA.length > 0 && historyA[historyA.length - 1] === bestTable;
-      const currentBestRecentB = historyB.length > 0 && historyB[historyB.length - 1] === bestTable;
+      const currentRecentA = historyA.length > 0 && historyA[historyA.length - 1] === bestTable;
+      const currentRecentB = historyB.length > 0 && historyB[historyB.length - 1] === bestTable;
 
-      if ((!recentA && !recentB) && (currentBestRecentA || currentBestRecentB)) {
+      if ((!recentA && !recentB) && (currentRecentA || currentRecentB)) {
         bestTable = table;
       }
     }
   }
+
+  console.log(`   Scores: ${tableScores.join(' ')}`);
+  console.log(`   → Table ${bestTable} (primary=${bestPrimary}, secondary=${bestSecondary})`);
 
   return bestTable;
 }
@@ -286,7 +335,7 @@ function assignTablesToBrackets(
   // Helper: assign best table to a match and remove it from available pool
   const assignBestTable = (match: BracketMatch): boolean => {
     if (!match.participantA || !match.participantB) return false;
-    const table = pickBestTable(match.participantA, match.participantB, availableTables, tableHistory);
+    const table = pickBestTable(match.participantA, match.participantB, availableTables, tableHistory, numTables);
     if (table === null) return false;
 
     match.tableNumber = table;
@@ -317,18 +366,23 @@ function assignTablesToBrackets(
       const tablesForGold = Math.ceil(availableTables.length / 2);
       const tablesForSilver = availableTables.length - tablesForGold;
 
-      for (let i = 0; i < Math.min(tablesForGold, goldNeeds); i++) {
-        assignBestTable(goldPlayable[i]);
+      let goldAssigned = 0;
+      for (const match of goldPlayable) {
+        if (goldAssigned >= tablesForGold || availableTables.length === 0) break;
+        if (assignBestTable(match)) goldAssigned++;
       }
-      for (let i = 0; i < Math.min(tablesForSilver, silverNeeds); i++) {
-        assignBestTable(silverPlayable[i]);
+      let silverAssigned = 0;
+      for (const match of silverPlayable) {
+        if (silverAssigned >= tablesForSilver || availableTables.length === 0) break;
+        if (assignBestTable(match)) silverAssigned++;
       }
-      console.log('🎯 Split tables (not enough):', { tablesForGold, tablesForSilver });
+      console.log('🎯 Split tables (not enough):', { tablesForGold: goldAssigned, tablesForSilver: silverAssigned });
     }
   } else {
     // Single bracket: all tables go to gold
-    for (let i = 0; i < Math.min(availableTables.length, goldPlayable.length); i++) {
-      assignBestTable(goldPlayable[i]);
+    for (const match of goldPlayable) {
+      if (availableTables.length === 0) break;
+      assignBestTable(match);
     }
   }
 }
@@ -400,7 +454,7 @@ function assignTablesToConsolation(
   // Helper: assign best table to a match and remove it from available pool
   const assignBestTable = (match: BracketMatch): boolean => {
     if (!match.participantA || !match.participantB) return false;
-    const table = pickBestTable(match.participantA, match.participantB, availableTables, tableHistory);
+    const table = pickBestTable(match.participantA, match.participantB, availableTables, tableHistory, numTables);
     if (table === null) return false;
 
     match.tableNumber = table;
@@ -423,14 +477,17 @@ function assignTablesToConsolation(
   } else {
     // Not enough - prioritize gold
     const tablesForGold = Math.ceil(availableTables.length / 2);
-    for (let i = 0; i < Math.min(tablesForGold, goldConsolationPlayable.length); i++) {
-      assignBestTable(goldConsolationPlayable[i]);
+    let goldAssigned = 0;
+    for (const match of goldConsolationPlayable) {
+      if (goldAssigned >= tablesForGold || availableTables.length === 0) break;
+      if (assignBestTable(match)) goldAssigned++;
     }
-    const tablesForSilver = availableTables.length; // remaining after gold assignments
-    for (let i = 0; i < Math.min(tablesForSilver, silverConsolationPlayable.length); i++) {
-      assignBestTable(silverConsolationPlayable[i]);
+    let silverAssigned = 0;
+    for (const match of silverConsolationPlayable) {
+      if (availableTables.length === 0) break;
+      if (assignBestTable(match)) silverAssigned++;
     }
-    console.log('🎯 Split consolation tables (not enough)');
+    console.log('🎯 Split consolation tables (not enough):', { gold: goldAssigned, silver: silverAssigned });
   }
 }
 
@@ -915,36 +972,34 @@ export async function updateBracketMatch(
       console.log('🔧 cleanResult after cleaning:', cleanResult);
       console.log('🔧 cleanResult.rounds:', cleanResult.rounds);
 
-      // Add completedAt, duration and clear tableNumber if status is COMPLETED (release the table)
+      // Add completedAt and clear tableNumber if status is COMPLETED (release the table)
       if (result.status === 'COMPLETED') {
         cleanResult.completedAt = Date.now();
         cleanResult.tableNumber = undefined; // Release table for other matches
       }
 
-      // Find and update match (check 3rd place match first)
-      if (goldBracket.thirdPlaceMatch?.id === matchId) {
-        const existing = goldBracket.thirdPlaceMatch;
+      // Helper: merge result into existing match, preserving playedOnTable from existing tableNumber
+      const mergeMatch = (existing: BracketMatch): BracketMatch => {
         if (cleanResult.completedAt) {
           cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
         }
-        goldBracket.thirdPlaceMatch = {
-          ...existing,
-          ...cleanResult
-        };
+        // Preserve which table was used before clearing it
+        if (result.status === 'COMPLETED' && existing.tableNumber) {
+          cleanResult.playedOnTable = existing.tableNumber;
+        }
+        return { ...existing, ...cleanResult };
+      };
+
+      // Find and update match (check 3rd place match first)
+      if (goldBracket.thirdPlaceMatch?.id === matchId) {
+        goldBracket.thirdPlaceMatch = mergeMatch(goldBracket.thirdPlaceMatch);
         matchUpdated = true;
       } else {
         // Search in rounds
         for (const round of goldBracket.rounds) {
           const matchIndex = round.matches.findIndex(m => m.id === matchId);
           if (matchIndex !== -1) {
-            const existing = round.matches[matchIndex];
-            if (cleanResult.completedAt) {
-              cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
-            }
-            round.matches[matchIndex] = {
-              ...existing,
-              ...cleanResult
-            };
+            round.matches[matchIndex] = mergeMatch(round.matches[matchIndex]);
             matchUpdated = true;
             break;
           }
@@ -957,10 +1012,7 @@ export async function updateBracketMatch(
           for (const round of consolation.rounds) {
             const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
             if (matchIndex !== -1) {
-              round.matches[matchIndex] = {
-                ...round.matches[matchIndex],
-                ...cleanResult
-              };
+              round.matches[matchIndex] = mergeMatch(round.matches[matchIndex]);
               matchUpdated = true;
               break;
             }
@@ -1187,35 +1239,32 @@ export async function updateSilverBracketMatch(
         }
       });
 
-      // Add completedAt, duration and clear tableNumber if status is COMPLETED (release the table)
+      // Add completedAt and clear tableNumber if status is COMPLETED (release the table)
       if (result.status === 'COMPLETED') {
         cleanResult.completedAt = Date.now();
         cleanResult.tableNumber = undefined;
       }
 
-      // Find and update match (check 3rd place match first)
-      if (silverBracket.thirdPlaceMatch?.id === matchId) {
-        const existing = silverBracket.thirdPlaceMatch;
+      // Helper: merge result into existing match, preserving playedOnTable from existing tableNumber
+      const mergeMatch = (existing: BracketMatch): BracketMatch => {
         if (cleanResult.completedAt) {
           cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
         }
-        silverBracket.thirdPlaceMatch = {
-          ...existing,
-          ...cleanResult
-        };
+        if (result.status === 'COMPLETED' && existing.tableNumber) {
+          cleanResult.playedOnTable = existing.tableNumber;
+        }
+        return { ...existing, ...cleanResult };
+      };
+
+      // Find and update match (check 3rd place match first)
+      if (silverBracket.thirdPlaceMatch?.id === matchId) {
+        silverBracket.thirdPlaceMatch = mergeMatch(silverBracket.thirdPlaceMatch);
         matchUpdated = true;
       } else {
         for (const round of silverBracket.rounds) {
           const matchIndex = round.matches.findIndex(m => m.id === matchId);
           if (matchIndex !== -1) {
-            const existing = round.matches[matchIndex];
-            if (cleanResult.completedAt) {
-              cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
-            }
-            round.matches[matchIndex] = {
-              ...existing,
-              ...cleanResult
-            };
+            round.matches[matchIndex] = mergeMatch(round.matches[matchIndex]);
             matchUpdated = true;
             break;
           }
@@ -1228,10 +1277,7 @@ export async function updateSilverBracketMatch(
           for (const round of consolation.rounds) {
             const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
             if (matchIndex !== -1) {
-              round.matches[matchIndex] = {
-                ...round.matches[matchIndex],
-                ...cleanResult
-              };
+              round.matches[matchIndex] = mergeMatch(round.matches[matchIndex]);
               matchUpdated = true;
               break;
             }

@@ -33,7 +33,8 @@ description: "Interfaz principal de puntuación de partidas, gestión de rondas,
 | **Configuraciones / Settings** | `[data-webmcp="settings-btn"]` | Abre `SettingsModal` (`showSettings = true`) |
 | **Cambiar Modo ("Points" o "Rounds")** | Desde `SettingsModal` | Cambia las condiciones de victoria de la partida. |
 | **Nueva Partida** | `[data-webmcp="btn-new-match"]` o `.new-match-button` | Resetea puntuaciones (`resetTeams()`) e historial. |
-| **Cargar/Ir a Torneo** | `[data-webmcp="btn-tournament"]` o `.tournament-button` | Abre modal de selección/escaneo de torneo (`TournamentMatchModal`). |
+| **Cargar/Ir a Torneo** | `[data-webmcp="btn-tournament"]` o `.tournament-button` | Si hay 1 solo partido pendiente → abre `MatchPreviewDialog`. Si hay 0 o 2+ → abre `TournamentMatchModal`. |
+| **Preview de Partido** | `MatchPreviewDialog` (`showMatchPreview`) | Muestra vista previa del partido auto-detectado: fase (grupos/final), grupo y ronda o nombre de ronda bracket, mesa, jugadores con avatares, config. Botón "Jugar" (o "Reanudar" si IN_PROGRESS) inicia el partido. "Cancelar" cierra sin acción. Botón deshabilitado si no hay mesa asignada. |
 
 ## 🛠️ Notas de Implementación (Svelte 5)
 - Toda la página depende fuertemente de los stores (`$team1`, `$team2`, `$gameSettings`, `$matchState`).

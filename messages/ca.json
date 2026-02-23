@@ -177,7 +177,7 @@
   "admin_resolveTiesFirst": "Si us plau resolgui els empats primer",
   "admin_resultSavedSuccessfully": "Resultat desat amb èxit",
   "admin_retry": "Reintentar",
-  "admin_role": "Rol",
+  "admin_role": "Admin",
   "admin_roundResults": "Resultats de Ronda",
   "admin_roundRobin": "Round Robin",
   "admin_roundsToPlayLabel": "Rondes a jugar",
@@ -1335,5 +1335,10 @@
   "stats_withoutHammer": "Sense Hammer",
   "stats_twentiesByPhase": "20s per Fase",
   "stats_withHammerLabel": "amb hammer",
-  "tournament_rounds": "Rondes"
+  "tournament_rounds": "Rondes",
+  "tournament_matchPreviewCancel": "Cancel·la",
+  "tournament_matchPreviewTitle": "El teu proper partit",
+  "tournament_resumeMatch": "Reprendre",
+  "tournament_startMatch": "Jugar",
+  "scoring_canTie": "possible empatar"
 }

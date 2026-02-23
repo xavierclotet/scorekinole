@@ -96,25 +96,49 @@ function reassignFreedTable(
     }
   }
 
-  // Pick the match whose participants have used the freed table the least
+  // Fair Table Rotation: pick the match where the freed table best helps complete a player's cycle
+  const numTables = tournament.numTables || 1;
   let bestMatch = waitingMatches[0];
-  let bestScore = Infinity;
+  let bestPrimary = Infinity;
+  let bestSecondary = Infinity;
 
   for (const match of waitingMatches) {
     const histA = tableHistory.get(match.participantA) || [];
     const histB = tableHistory.get(match.participantB) || [];
-    const usageA = histA.filter(t => t === freedTable).length;
-    const usageB = histB.filter(t => t === freedTable).length;
-    const combinedUsage = usageA + usageB;
 
-    if (combinedUsage < bestScore) {
-      bestScore = combinedUsage;
+    // Build usage maps
+    const usageMapA = new Map<number, number>();
+    const usageMapB = new Map<number, number>();
+    for (const t of histA) usageMapA.set(t, (usageMapA.get(t) || 0) + 1);
+    for (const t of histB) usageMapB.set(t, (usageMapB.get(t) || 0) + 1);
+
+    // Compute minimum usage across ALL tables
+    let minA = Infinity;
+    let minB = Infinity;
+    for (let t = 1; t <= numTables; t++) {
+      minA = Math.min(minA, usageMapA.get(t) || 0);
+      minB = Math.min(minB, usageMapB.get(t) || 0);
+    }
+    if (minA === Infinity) minA = 0;
+    if (minB === Infinity) minB = 0;
+
+    const uA = usageMapA.get(freedTable) || 0;
+    const uB = usageMapB.get(freedTable) || 0;
+    const deltaA = uA - minA;
+    const deltaB = uB - minB;
+    const primaryScore = Math.max(deltaA, deltaB);
+    const secondaryScore = uA + uB;
+
+    if (primaryScore < bestPrimary
+        || (primaryScore === bestPrimary && secondaryScore < bestSecondary)) {
+      bestPrimary = primaryScore;
+      bestSecondary = secondaryScore;
       bestMatch = match;
     }
   }
 
   bestMatch.tableNumber = freedTable;
-  console.log(`🎯 Reassigned table ${freedTable} to match ${bestMatch.id} (score: ${bestScore})`);
+  console.log(`🎯 Reassigned table ${freedTable} to match ${bestMatch.id} (primary: ${bestPrimary}, secondary: ${bestSecondary})`);
 }
 
 /**

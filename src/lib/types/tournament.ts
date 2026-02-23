@@ -418,6 +418,7 @@ export interface BracketMatch {
   seedA?: number;               // Seed from group stage
   seedB?: number;
   tableNumber?: number;
+  playedOnTable?: number;       // Table where the match was played (preserved after completion)
   status: MatchStatus;
 
   // Results

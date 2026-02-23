@@ -2125,11 +2125,15 @@
                       </div>
                     {/if}
 
-                    <!-- Table number badge - hide for completed matches since table is released -->
-                    {#if !isByeMatch(match) && match.participantA && match.participantB && match.status !== 'COMPLETED'}
-                      <div class="table-badge" class:tbd={!match.tableNumber}>
-                        {match.tableNumber ? `${m.tournament_tableShort()}${match.tableNumber}` : 'TBD'}
-                      </div>
+                    <!-- Table number badge -->
+                    {#if !isByeMatch(match) && match.participantA && match.participantB}
+                      {#if match.status === 'COMPLETED' && (match.playedOnTable || match.tableNumber)}
+                        <div class="table-badge completed">{m.tournament_tableShort()}{match.playedOnTable || match.tableNumber}</div>
+                      {:else if match.status !== 'COMPLETED'}
+                        <div class="table-badge" class:tbd={!match.tableNumber}>
+                          {match.tableNumber ? `${m.tournament_tableShort()}${match.tableNumber}` : 'TBD'}
+                        </div>
+                      {/if}
                     {/if}
 
                     <!-- Games won badge (bottom-left) - only for multi-game matches in progress -->
@@ -2255,11 +2259,15 @@
                     </div>
                   {/if}
 
-                  <!-- Table number badge - hide for completed matches since table is released -->
-                  {#if thirdPlaceMatch.participantA && thirdPlaceMatch.participantB && thirdPlaceMatch.status !== 'COMPLETED'}
-                    <div class="table-badge" class:tbd={!thirdPlaceMatch.tableNumber}>
-                      {thirdPlaceMatch.tableNumber ? `${m.tournament_tableShort()}${thirdPlaceMatch.tableNumber}` : 'TBD'}
-                    </div>
+                  <!-- Table number badge -->
+                  {#if thirdPlaceMatch.participantA && thirdPlaceMatch.participantB}
+                    {#if thirdPlaceMatch.status === 'COMPLETED' && (thirdPlaceMatch.playedOnTable || thirdPlaceMatch.tableNumber)}
+                      <div class="table-badge completed">{m.tournament_tableShort()}{thirdPlaceMatch.playedOnTable || thirdPlaceMatch.tableNumber}</div>
+                    {:else if thirdPlaceMatch.status !== 'COMPLETED'}
+                      <div class="table-badge" class:tbd={!thirdPlaceMatch.tableNumber}>
+                        {thirdPlaceMatch.tableNumber ? `${m.tournament_tableShort()}${thirdPlaceMatch.tableNumber}` : 'TBD'}
+                      </div>
+                    {/if}
                   {/if}
 
                   <!-- Games won badge (bottom-left) - only for multi-game matches in progress -->
@@ -3480,6 +3488,18 @@
     background: #422006;
     border-color: #a16207;
     color: #fcd34d;
+  }
+
+  .table-badge.completed {
+    background: #d1fae5;
+    border-color: #6ee7b7;
+    color: #065f46;
+  }
+
+  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .table-badge.completed {
+    background: #064e3b;
+    border-color: #047857;
+    color: #6ee7b7;
   }
 
   /* 3rd/4th place match styles */

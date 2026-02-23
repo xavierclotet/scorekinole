@@ -253,11 +253,30 @@ export function assignTablesWithVariety(
     const usedByA = tableHistory.get(match.participantA) || [];
     const usedByB = tableHistory.get(match.participantB) || [];
 
-    // Find the best available table that:
+    // Build usage maps for O(1) lookup
+    const usageMapA = new Map<number, number>();
+    const usageMapB = new Map<number, number>();
+    for (const t of usedByA) usageMapA.set(t, (usageMapA.get(t) || 0) + 1);
+    for (const t of usedByB) usageMapB.set(t, (usageMapB.get(t) || 0) + 1);
+
+    // Compute minimum usage across ALL tables (cycle level)
+    let minA = Infinity;
+    let minB = Infinity;
+    for (let t = 1; t <= totalTables; t++) {
+      minA = Math.min(minA, usageMapA.get(t) || 0);
+      minB = Math.min(minB, usageMapB.get(t) || 0);
+    }
+    if (minA === Infinity) minA = 0;
+    if (minB === Infinity) minB = 0;
+
+    // Find the best available table using Fair Table Rotation:
     // 1. Is NOT already used in this round (CRITICAL - no duplicates)
-    // 2. Has least usage by both participants historically
+    // 2. Lowest primaryScore = max(deltaA, deltaB) — cycle fairness
+    // 3. Lowest secondaryScore = usageA + usageB — global balance
+    // 4. Not recently used — recency tiebreak
     let bestTable: number | null = null;
-    let minUsage = Infinity;
+    let bestPrimary = Infinity;
+    let bestSecondary = Infinity;
 
     for (let table = 1; table <= totalTables; table++) {
       // CRITICAL: Skip if table already used in this round
@@ -265,14 +284,30 @@ export function assignTablesWithVariety(
         continue;
       }
 
-      // Calculate historical usage
-      const usageA = usedByA.filter(t => t === table).length;
-      const usageB = usedByB.filter(t => t === table).length;
-      const totalUsage = usageA + usageB;
+      const uA = usageMapA.get(table) || 0;
+      const uB = usageMapB.get(table) || 0;
 
-      if (totalUsage < minUsage) {
-        minUsage = totalUsage;
+      const deltaA = uA - minA;
+      const deltaB = uB - minB;
+      const primaryScore = Math.max(deltaA, deltaB);
+      const secondaryScore = uA + uB;
+
+      if (primaryScore < bestPrimary
+          || (primaryScore === bestPrimary && secondaryScore < bestSecondary)) {
+        bestPrimary = primaryScore;
+        bestSecondary = secondaryScore;
         bestTable = table;
+      } else if (primaryScore === bestPrimary && secondaryScore === bestSecondary) {
+        // Tie-breaker: prefer tables not recently used
+        const recentA = usedByA.length > 0 && usedByA[usedByA.length - 1] === table;
+        const recentB = usedByB.length > 0 && usedByB[usedByB.length - 1] === table;
+        if (bestTable !== null) {
+          const currentRecentA = usedByA.length > 0 && usedByA[usedByA.length - 1] === bestTable;
+          const currentRecentB = usedByB.length > 0 && usedByB[usedByB.length - 1] === bestTable;
+          if ((!recentA && !recentB) && (currentRecentA || currentRecentB)) {
+            bestTable = table;
+          }
+        }
       }
     }
 

@@ -13,6 +13,7 @@
 	import RoundsPanel from '$lib/components/RoundsPanel.svelte';
 	import ColorPickerModal from '$lib/components/ColorPickerModal.svelte';
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
+	import MatchPreviewDialog from '$lib/components/MatchPreviewDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
 	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
 	import WinnerSplash from '$lib/components/WinnerSplash.svelte';
@@ -71,6 +72,9 @@
 	let showTournamentModal = $state(false);
 	let isCheckingTournament = $state(false);
 	let showTournamentExitConfirm = $state(false);
+	let showMatchPreview = $state(false);
+	let matchPreviewInfo = $state<PendingMatchInfo | null>(null);
+	let matchPreviewTournament = $state<any>(null);
 
 	let showMatchCompletedExternally = $state(false);
 	let externalMatchWinner = $state<string | null>(null);
@@ -370,7 +374,7 @@
 			// Skip if any modal is open or if typing in an input
 			const hasModalOpen = showSettings || showQRScanner || showColorPicker || showHammerDialog ||
 				showNewMatchConfirm || showTournamentModal || showTournamentExitConfirm ||
-				showMatchCompletedExternally || $isInviteModalOpen;
+				showMatchCompletedExternally || $isInviteModalOpen || showMatchPreview;
 
 			if (hasModalOpen) return;
 			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1166,11 +1170,12 @@
 				console.log('📊 User matches (current round):', userMatches.length);
 			}
 
-			// If exactly 1 PENDING match (not already in progress), auto-start
-			const pendingOnly = userMatches.filter(m => !m.isInProgress);
-			if (pendingOnly.length === 1 && userMatches.length === 1) {
-				console.log('🚀 Auto-starting single pending match');
-				await autoStartMatch(tournament, pendingOnly[0]);
+			// If exactly 1 match (pending or in-progress), show preview dialog
+			if (userMatches.length === 1) {
+				console.log('🎯 Showing match preview for single match');
+				matchPreviewInfo = userMatches[0];
+				matchPreviewTournament = tournament;
+				showMatchPreview = true;
 				return;
 			}
 
@@ -1183,6 +1188,21 @@
 		} finally {
 			isCheckingTournament = false;
 		}
+	}
+
+	async function handleMatchPreviewPlay() {
+		showMatchPreview = false;
+		if (matchPreviewTournament && matchPreviewInfo) {
+			await autoStartMatch(matchPreviewTournament, matchPreviewInfo);
+		}
+		matchPreviewInfo = null;
+		matchPreviewTournament = null;
+	}
+
+	function handleMatchPreviewCancel() {
+		showMatchPreview = false;
+		matchPreviewInfo = null;
+		matchPreviewTournament = null;
 	}
 
 	/**
@@ -2419,6 +2439,17 @@
 	isOpen={showTournamentModal}
 	onclose={() => showTournamentModal = false}
 	onmatchstarted={handleTournamentMatchStarted}
+/>
+
+<!-- Match Preview Dialog (auto-detected single match) -->
+<MatchPreviewDialog
+	bind:isOpen={showMatchPreview}
+	matchInfo={matchPreviewInfo}
+	tournamentName={matchPreviewTournament?.name}
+	tournamentEdition={matchPreviewTournament?.edition}
+	isDoubles={matchPreviewTournament?.gameType === 'doubles'}
+	onplay={handleMatchPreviewPlay}
+	oncancel={handleMatchPreviewCancel}
 />
 
 <!-- Match Invite Modal (Friendly Mode) -->

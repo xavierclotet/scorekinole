@@ -6,28 +6,49 @@ The table assignment system ensures **equitable distribution** of tables across 
 
 The algorithm considers **both participants' combined table history** when assigning a table to a match. This applies to group stage (Round Robin, Swiss System) and final stage (brackets, consolation, third-place matches).
 
-## Core Algorithm: `pickBestTable()`
+## Core Algorithm: Fair Table Rotation
 
-For each match that needs a table, the algorithm:
+The algorithm ensures **no player repeats a table until they've played on all tables** (completed a "cycle"). When that's not possible, it minimizes repetition as much as possible.
 
-1. Gets the full table history for both participants (all tables they've played on across ALL phases)
-2. For each available table, calculates `combinedUsage = usageByA + usageByB`
-3. Picks the table with the **lowest combined usage**
-4. On tie, prefers the table **not recently used** by either participant
+### Scoring Formula
+
+For each match (Player A vs Player B) and each available table:
+
+1. Compute `minA` = minimum usage of Player A across **all** tables (1..totalTables)
+2. Compute `minB` = minimum usage of Player B across **all** tables
+3. `deltaA = usage[A][table] - minA` (how far ahead of cycle this table is for A)
+4. `deltaB = usage[B][table] - minB` (how far ahead of cycle this table is for B)
+
+**Selection priority:**
+1. **Lowest `primaryScore = max(deltaA, deltaB)`** — cycle fairness (no player repeats ahead of schedule)
+2. **Lowest `secondaryScore = usageA + usageB`** — global balance (tiebreak)
+3. **Not recently used** by either participant — recency (tiebreak)
+
+If a player hasn't visited some tables yet (min = 0), those unvisited tables get delta = 0 (best score), while already-visited ones get delta > 0 (penalized). This forces rotation through all tables before any repetition.
 
 ```
-Example: 4 tables, Match = Player X vs Player Y
+Example: 4 tables, Match = Player A vs Player B
 
-Player X history: [1, 2, 1, 3]  -> Table 1: 2x, Table 2: 1x, Table 3: 1x, Table 4: 0x
-Player Y history: [2, 3, 2]     -> Table 1: 0x, Table 2: 2x, Table 3: 1x, Table 4: 0x
+Player A history: [1, 2, 1, 3]  -> T1: 2x, T2: 1x, T3: 1x, T4: 0x  (minA = 0)
+Player B history: [2, 3, 2]     -> T1: 0x, T2: 2x, T3: 1x, T4: 0x  (minB = 0)
 
-Combined usage per table:
-  Table 1: 2 + 0 = 2
-  Table 2: 1 + 2 = 3
-  Table 3: 1 + 1 = 2
-  Table 4: 0 + 0 = 0  <-- BEST (lowest combined usage)
+Per table:
+  T1: deltaA=2, deltaB=0 → primary=2, secondary=2
+  T2: deltaA=1, deltaB=2 → primary=2, secondary=3
+  T3: deltaA=1, deltaB=1 → primary=1, secondary=2
+  T4: deltaA=0, deltaB=0 → primary=0, secondary=0  <-- BEST
 
-Result: Table 4 assigned
+Result: Table 4 assigned (neither player has used it — completes both cycles)
+```
+
+```
+Example: cycle enforcement
+
+4 tables, Player A: [1, 2, 1, 3, 2, 3]  -> T1: 2x, T2: 2x, T3: 2x, T4: 0x (minA = 0)
+
+Even though T1-T3 have equal usage (2x each), T4 is strongly preferred
+because minA = 0 (T4 never visited), so deltaA for T4 = 0 vs deltaA for T1 = 2.
+Player A must visit T4 before repeating any other table.
 ```
 
 ## Table History
@@ -47,7 +68,7 @@ This history is built fresh before each assignment and carries table usage acros
 - **Function**: `assignTablesToRounds(rounds, totalTables, tablesUsedByRound?)`
 - All rounds are generated upfront, so the algorithm tracks an internal history as it processes rounds sequentially
 - Cross-group coordination via `assignTablesGlobally()` ensures no table is used twice in the same round across different groups
-- Uses the same "least combined usage" logic with tie-breaking on recently used tables
+- Uses the same Fair Table Rotation scoring (primaryScore → secondaryScore → recency)
 
 ### Swiss System (`swiss.ts`)
 
@@ -70,7 +91,7 @@ This history is built fresh before each assignment and carries table usage acros
 
 - **Function**: `reassignFreedTable(tournament, freedTable, groupIndex, roundIndex)`
 - When a group-stage match completes and frees a table, it's reassigned to a waiting match (one without a table)
-- If multiple matches are waiting, the algorithm picks the one whose participants have used that specific freed table the **least**
+- If multiple matches are waiting, the algorithm uses Fair Table Rotation to rank matches: computes `primaryScore = max(deltaA, deltaB)` for the freed table, picks the match where assigning that table best helps complete a player's cycle
 - Since there's only one table available (the freed one), the optimization is about **which match** receives it, not which table to give
 
 ## Table Assignment Flow
