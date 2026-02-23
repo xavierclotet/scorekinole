@@ -10,13 +10,28 @@
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { PAGE_SIZE } from '$lib/constants';
-	import { ChevronRight, Trophy, Users, User, Info } from '@lucide/svelte';
-	import * as Popover from '$lib/components/ui/popover/index.js';
+	import { ChevronRight, Trophy, Users, User } from '@lucide/svelte';
 	import SEO from '$lib/components/SEO.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { getUserProfile } from '$lib/firebase/userProfile';
 	import type { TournamentRecord } from '$lib/types/tournament';
 	import WinLossDonut from '$lib/components/charts/WinLossDonut.svelte';
+	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
+	import TwentiesAccuracyDonut from '$lib/components/charts/TwentiesAccuracyDonut.svelte';
+	import TwentiesHammerChart from '$lib/components/charts/TwentiesHammerChart.svelte';
+	import TwentiesPerRoundTrend from '$lib/components/charts/TwentiesPerRoundTrend.svelte';
+	import TwentiesStreaks from '$lib/components/charts/TwentiesStreaks.svelte';
+	import TwentiesGauge from '$lib/components/charts/TwentiesGauge.svelte';
+	import MatchDurationChart from '$lib/components/charts/MatchDurationChart.svelte';
+	import TwentiesByPhase from '$lib/components/charts/TwentiesByPhase.svelte';
+	import {
+		buildTwentiesHammerData,
+		buildTwentiesPerRoundData,
+		buildTwentiesStreakData,
+		buildTwentiesGaugeData,
+		buildMatchDurationData,
+		buildTwentiesByPhaseData,
+	} from '$lib/utils/chartData';
 
 	// Data state
 	let isLoading = $state(true);
@@ -387,6 +402,37 @@
 		};
 	})());
 
+	// Chart hasData checks
+	let hasHammerData = $derived((() => {
+		const d = buildTwentiesHammerData(filteredMatches, getUserTeam);
+		return d.withHammer.totalRounds > 0 || d.withoutHammer.totalRounds > 0;
+	})());
+
+	let hasPerRoundData = $derived((() => {
+		const d = buildTwentiesPerRoundData(filteredMatches, getUserTeam);
+		return d.roundLabels.length > 0;
+	})());
+
+	let hasStreakData = $derived((() => {
+		const d = buildTwentiesStreakData(filteredMatches, getUserTeam);
+		return d.bestStreak > 0;
+	})());
+
+	let hasGaugeData = $derived((() => {
+		const d = buildTwentiesGaugeData(filteredMatches, getUserTeam);
+		return d.historicalCount > 0;
+	})());
+
+	let hasDurationData = $derived((() => {
+		const d = buildMatchDurationData(filteredMatches, getOpponentName);
+		return d.singlesPoints.length > 0 || d.doublesPoints.length > 0;
+	})());
+
+	let hasPhaseData = $derived((() => {
+		const d = buildTwentiesByPhaseData(filteredMatches, getUserTeam);
+		return d.phases.length > 0;
+	})());
+
 	function formatDate(timestamp: number): string {
 		const date = new Date(timestamp);
 		return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -556,105 +602,88 @@
 			<h3>{m.stats_noMatchesYet()}</h3>
 		</div>
 	{:else}
-		<!-- Stats Overview: Donut + Legend + 20s -->
-		<div class="stats-overview">
-			<div class="donut-section">
-				<div class="donut-container">
-					<WinLossDonut wins={stats.wins} losses={stats.losses} ties={stats.ties} total={stats.total} compact />
-				</div>
-				<div class="donut-legend">
-					<div class="legend-item">
-						<span class="legend-value win">{stats.wins}</span>
-						<span class="legend-label">{m.stats_wins()}</span>
-						<span class="legend-percent">{stats.winRate}%</span>
+		<!-- Charts Grid -->
+		<div class="charts-grid">
+			<ChartWrapper title={m.stats_winLossChart()} hasData={stats.total > 0}>
+				<div class="donut-chart-content">
+					<div class="donut-container">
+						<WinLossDonut wins={stats.wins} losses={stats.losses} ties={stats.ties} total={stats.total} compact />
 					</div>
-					<div class="legend-item">
-						<span class="legend-value loss">{stats.losses}</span>
-						<span class="legend-label">{m.stats_losses()}</span>
-						<span class="legend-percent">{stats.lossRate}%</span>
-					</div>
-					{#if stats.ties > 0}
+					<div class="donut-legend">
 						<div class="legend-item">
-							<span class="legend-value tie">{stats.ties}</span>
-							<span class="legend-label">{m.stats_ties()}</span>
-							<span class="legend-percent">{stats.tieRate}%</span>
+							<span class="legend-value win">{stats.wins}</span>
+							<span class="legend-label">{m.stats_wins()}</span>
+							<span class="legend-percent">{stats.winRate}%</span>
 						</div>
-					{/if}
-				</div>
-			</div>
-			<!-- 20s Stats - Show separately for singles and doubles -->
-			{#if stats.singlesPercentage !== null && stats.doublesPercentage !== null}
-				<!-- Both singles and doubles matches exist -->
-				<div class="stat-card twenties split">
-					<div class="split-stats">
-						<div class="split-stat">
-							<User class="size-3" />
-							<span class="split-value">{stats.singlesPercentage}%</span>
+						<div class="legend-item">
+							<span class="legend-value loss">{stats.losses}</span>
+							<span class="legend-label">{m.stats_losses()}</span>
+							<span class="legend-percent">{stats.lossRate}%</span>
 						</div>
-						<div class="split-stat">
-							<Users class="size-3" />
-							<span class="split-value">{stats.doublesPercentage}%</span>
-						</div>
+						{#if stats.ties > 0}
+							<div class="legend-item">
+								<span class="legend-value tie">{stats.ties}</span>
+								<span class="legend-label">{m.stats_ties()}</span>
+								<span class="legend-percent">{stats.tieRate}%</span>
+							</div>
+						{/if}
 					</div>
-					<div class="stat-info-wrapper">
-						<span class="stat-percent">{stats.totalTwenties}</span>
-						<Popover.Root>
-							<Popover.Trigger class="info-trigger">
-								<Info class="size-3" />
-							</Popover.Trigger>
-							<Popover.Content class="twenties-popover">
-								<p class="popover-text"><strong>{m.scoring_singles()}:</strong> {stats.singlesTwenties ?? 0} ({stats.singlesPercentage ?? '-'}%)</p>
-								<p class="popover-text"><strong>{m.scoring_doubles()}:</strong> {stats.doublesTwenties ?? 0} ({stats.doublesPercentage ?? '-'}%)</p>
-								<hr class="popover-separator" />
-								<p class="popover-text">{m.tournament_totalTwentiesLabel()}: {stats.totalTwenties}</p>
-							</Popover.Content>
-						</Popover.Root>
+				</div>
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesAccuracy()} hasData={stats.singlesPercentage !== null || stats.doublesPercentage !== null}>
+				<div class="twenties-accuracy-content">
+					<div class="twenties-accuracy-chart">
+						<TwentiesAccuracyDonut
+							singlesPercentage={stats.singlesPercentage ? parseFloat(stats.singlesPercentage) : null}
+							doublesPercentage={stats.doublesPercentage ? parseFloat(stats.doublesPercentage) : null}
+							combinedPercentage={stats.combinedPercentage}
+							singlesTwenties={stats.singlesTwenties}
+							doublesTwenties={stats.doublesTwenties}
+						/>
 					</div>
-					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
-				</div>
-			{:else if stats.singlesPercentage !== null}
-				<!-- Only singles -->
-				<div class="stat-card twenties">
-					<span class="stat-value">{stats.singlesPercentage}%</span>
-					<div class="stat-info-wrapper">
-						<span class="stat-percent">{stats.singlesTwenties}</span>
-						<Popover.Root>
-							<Popover.Trigger class="info-trigger">
-								<Info class="size-3" />
-							</Popover.Trigger>
-							<Popover.Content class="twenties-popover">
-								<p class="popover-text">{m.tournament_totalTwentiesLabel()}: {stats.singlesTwenties}</p>
-								<p class="popover-text">{m.stats_twentiesAccuracy()}: {stats.singlesPercentage}%</p>
-							</Popover.Content>
-						</Popover.Root>
+					<div class="twenties-legend">
+						{#if stats.singlesPercentage !== null}
+							<div class="twenties-legend-item">
+								<span class="twenties-legend-label singles">{m.scoring_singles()}</span>
+								<span class="twenties-legend-text">{stats.singlesPercentage}%</span>
+								<span class="twenties-legend-count">({stats.singlesTwenties})</span>
+							</div>
+						{/if}
+						{#if stats.doublesPercentage !== null}
+							<div class="twenties-legend-item">
+								<span class="twenties-legend-label doubles">{m.scoring_doubles()}</span>
+								<span class="twenties-legend-text">{stats.doublesPercentage}%</span>
+								<span class="twenties-legend-count">({stats.doublesTwenties})</span>
+							</div>
+						{/if}
 					</div>
-					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
 				</div>
-			{:else if stats.doublesPercentage !== null}
-				<!-- Only doubles -->
-				<div class="stat-card twenties">
-					<span class="stat-value">{stats.doublesPercentage}%</span>
-					<div class="stat-info-wrapper">
-						<span class="stat-percent">{stats.doublesTwenties}</span>
-						<Popover.Root>
-							<Popover.Trigger class="info-trigger">
-								<Info class="size-3" />
-							</Popover.Trigger>
-							<Popover.Content class="twenties-popover">
-								<p class="popover-text">{m.tournament_totalTwentiesLabel()}: {stats.doublesTwenties}</p>
-								<p class="popover-text">{m.stats_twentiesAccuracy()}: {stats.doublesPercentage}%</p>
-							</Popover.Content>
-						</Popover.Root>
-					</div>
-					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
-				</div>
-			{:else}
-				<!-- No matches with 20s data -->
-				<div class="stat-card twenties">
-					<span class="stat-value">-</span>
-					<span class="stat-label">{m.stats_twentiesAccuracy()}</span>
-				</div>
-			{/if}
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesHammer()} hasData={hasHammerData}>
+				<TwentiesHammerChart matches={filteredMatches} {getUserTeam} />
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesPerRound()} hasData={hasPerRoundData}>
+				<TwentiesPerRoundTrend matches={filteredMatches} {getUserTeam} />
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesByPhase()} hasData={hasPhaseData}>
+				<TwentiesByPhase matches={filteredMatches} {getUserTeam} />
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesStreaks()} hasData={hasStreakData}>
+				<TwentiesStreaks matches={filteredMatches} {getUserTeam} />
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesGauge()} hasData={hasGaugeData}>
+				<TwentiesGauge matches={filteredMatches} {getUserTeam} />
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_matchDuration()} hasData={hasDurationData}>
+				<MatchDurationChart matches={filteredMatches} {getOpponentName} />
+			</ChartWrapper>
 		</div>
 
 		<!-- Match List -->
@@ -773,14 +802,11 @@
 													<div class="game-row" class:winner-row={game.winner === 1}>
 														<span class="team-name">{getTeamDisplayName(match, 1)}</span>
 														{#each game.rounds || [] as round, rIdx (rIdx)}
-															<span class="round-col">
+															<span class="round-col" class:has-hammer={round.hammerTeam === 1}>
 																<span class="round-score">
 																	{round.team1Points}
 																</span>
 																<div class="round-meta">
-																	{#if match.showHammer && round.hammerTeam === 1}
-																		<span class="hammer" title="Hammer">🔨</span>
-																	{/if}
 																	{#if match.show20s ?? $gameSettings.show20s}
 																		<span class="twenty">{round.team1Twenty}</span>
 																	{/if}
@@ -802,14 +828,11 @@
 													<div class="game-row" class:winner-row={game.winner === 2}>
 														<span class="team-name">{getTeamDisplayName(match, 2)}</span>
 														{#each game.rounds || [] as round, rIdx2 (rIdx2)}
-															<span class="round-col">
+															<span class="round-col" class:has-hammer={round.hammerTeam === 2}>
 																<span class="round-score">
 																	{round.team2Points}
 																</span>
 																<div class="round-meta">
-																	{#if match.showHammer && round.hammerTeam === 2}
-																		<span class="hammer" title="Hammer">🔨</span>
-																	{/if}
 																	{#if match.show20s ?? $gameSettings.show20s}
 																		<span class="twenty">{round.team2Twenty}</span>
 																	{/if}
@@ -968,30 +991,25 @@
 		margin: 0;
 	}
 
-	/* Stats Overview */
-	.stats-overview {
-		display: flex;
-		align-items: stretch;
+	/* Charts Grid */
+	.charts-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
 		gap: 0.75rem;
 		margin: 1rem 0 1.5rem;
 	}
 
-	.donut-section {
+	.donut-chart-content {
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		background: var(--card);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		padding: 0.75rem;
-		box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+		height: 100%;
 	}
 
 	.donut-container {
 		flex-shrink: 0;
-		aspect-ratio: 1;
-		height: 100%;
-		max-height: 110px;
+		width: 130px;
+		height: 130px;
 	}
 
 	.donut-container :global(canvas) {
@@ -1011,17 +1029,6 @@
 		align-items: center;
 		gap: 0.4rem;
 	}
-
-	.legend-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.legend-dot.win { background: var(--color-win); }
-	.legend-dot.loss { background: var(--color-loss); }
-	.legend-dot.tie { background: var(--color-tie); }
 
 	.legend-value {
 		font-size: 1.1rem;
@@ -1048,54 +1055,58 @@
 		font-weight: 800;
 	}
 
-	/* 20s Stat Card (kept from old design) */
-	.stat-card {
-		background: var(--card);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		padding: 0.75rem 0.5rem;
-		text-align: center;
-		box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+	.twenties-accuracy-content {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		height: 100%;
+	}
+
+	.twenties-accuracy-chart {
+		flex: 1;
+		width: 100%;
+		min-height: 0;
+	}
+
+	.twenties-accuracy-chart :global(canvas) {
+		width: 100% !important;
+		height: 100% !important;
+	}
+
+	.twenties-legend {
+		display: flex;
+		gap: 0.75rem;
 		justify-content: center;
-		min-width: 80px;
+		padding-top: 0.4rem;
 	}
 
-	.stat-value {
-		display: block;
-		font-size: 1.5rem;
-		font-weight: 800;
-		color: var(--primary);
-		line-height: 1.1;
+	.twenties-legend-item {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
 	}
 
-	.stat-percent {
-		display: block;
-		font-size: 0.7rem;
-		font-weight: 600;
-		color: var(--muted-foreground);
-		margin-top: 0.1rem;
-	}
-
-	.stat-label {
-		display: block;
+	.twenties-legend-label {
 		font-size: 0.65rem;
-		color: var(--muted-foreground);
-		margin-top: 0.2rem;
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.03em;
+	}
+
+	.twenties-legend-label.singles { color: var(--color-singles); }
+	.twenties-legend-label.doubles { color: var(--color-doubles); }
+
+	.twenties-legend-text {
+		font-size: 0.75rem;
+		color: var(--primary);
+		font-weight: 700;
+	}
+
+	.twenties-legend-count {
+		font-size: 0.65rem;
+		color: var(--secondary-foreground);
 		font-weight: 500;
 	}
-
-	.stat-card.twenties .stat-value, .stat-card.twenties .stat-percent { color: var(--color-twenties); }
-
-	/* Split stats */
-	.stat-card.split { padding: 0.5rem 0.25rem; }
-	.split-stats { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 0.1rem; }
-	.split-stat { display: flex; align-items: center; gap: 0.15rem; color: var(--color-twenties); }
-	.split-value { font-size: 1rem; font-weight: 700; }
 
 	/* Filters */
 	.filters-section {
@@ -1312,7 +1323,6 @@
 		font-weight: 600;
 	}
 	
-	.bullseye { font-size: 0.7rem; }
 	.twenties-pct { opacity: 0.8; font-size: 0.65rem; margin-left: 0.1rem; }
 
 	/* Expand Arrow */
@@ -1385,14 +1395,32 @@
 		align-items: center;
 		justify-content: center;
 		gap: 2px;
-		height: 12px; /* Fixed height to prevent jumping */
+		height: 12px;
 		margin-top: 1px;
 	}
 
-	.hammer {
-		font-size: 0.7rem;
-		color: var(--primary);
+	.game-row .round-col.has-hammer {
+		position: relative;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		border-radius: 6px;
+	}
+
+	.game-row .round-col.has-hammer::after {
+		content: '🔨';
+		position: absolute;
+		top: 50%;
+		right: -2px;
+		transform: translateY(-50%);
+		font-size: 0.55rem;
+		opacity: 0.35;
+		pointer-events: none;
 		line-height: 1;
+	}
+
+	.game-row .round-col.has-hammer .round-score,
+	.game-row .round-col.has-hammer .round-meta {
+		position: relative;
+		z-index: 1;
 	}
 
 	.twenty {
@@ -1445,15 +1473,10 @@
 		
 		.match-result-box { min-width: 60px; padding-left: 0.5rem; }
 		
-		.stats-overview { gap: 0.5rem; margin-bottom: 1rem; }
-		.donut-section { gap: 0.5rem; padding: 0.6rem; }
-		.donut-container { max-height: 85px; }
+		.donut-container { width: 100px; height: 100px; }
 		.legend-value { font-size: 0.95rem; }
 		.legend-label { font-size: 0.6rem; }
 		.legend-percent { font-size: 0.6rem; }
-		.stat-card { padding: 0.5rem 0.2rem; }
-		.stat-value { font-size: 1rem; }
-		.stat-percent, .stat-label { font-size: 0.55rem; }
 	}
 
 </style>

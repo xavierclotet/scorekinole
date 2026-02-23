@@ -767,7 +767,7 @@ export async function updateBracketMatch(
       console.log('🔧 cleanResult after cleaning:', cleanResult);
       console.log('🔧 cleanResult.rounds:', cleanResult.rounds);
 
-      // Add completedAt and clear tableNumber if status is COMPLETED (release the table)
+      // Add completedAt, duration and clear tableNumber if status is COMPLETED (release the table)
       if (result.status === 'COMPLETED') {
         cleanResult.completedAt = Date.now();
         cleanResult.tableNumber = undefined; // Release table for other matches
@@ -775,8 +775,12 @@ export async function updateBracketMatch(
 
       // Find and update match (check 3rd place match first)
       if (goldBracket.thirdPlaceMatch?.id === matchId) {
+        const existing = goldBracket.thirdPlaceMatch;
+        if (cleanResult.completedAt) {
+          cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
+        }
         goldBracket.thirdPlaceMatch = {
-          ...goldBracket.thirdPlaceMatch,
+          ...existing,
           ...cleanResult
         };
         matchUpdated = true;
@@ -785,8 +789,12 @@ export async function updateBracketMatch(
         for (const round of goldBracket.rounds) {
           const matchIndex = round.matches.findIndex(m => m.id === matchId);
           if (matchIndex !== -1) {
+            const existing = round.matches[matchIndex];
+            if (cleanResult.completedAt) {
+              cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
+            }
             round.matches[matchIndex] = {
-              ...round.matches[matchIndex],
+              ...existing,
               ...cleanResult
             };
             matchUpdated = true;
@@ -1030,7 +1038,7 @@ export async function updateSilverBracketMatch(
         }
       });
 
-      // Add completedAt and clear tableNumber if status is COMPLETED (release the table)
+      // Add completedAt, duration and clear tableNumber if status is COMPLETED (release the table)
       if (result.status === 'COMPLETED') {
         cleanResult.completedAt = Date.now();
         cleanResult.tableNumber = undefined;
@@ -1038,8 +1046,12 @@ export async function updateSilverBracketMatch(
 
       // Find and update match (check 3rd place match first)
       if (silverBracket.thirdPlaceMatch?.id === matchId) {
+        const existing = silverBracket.thirdPlaceMatch;
+        if (cleanResult.completedAt) {
+          cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
+        }
         silverBracket.thirdPlaceMatch = {
-          ...silverBracket.thirdPlaceMatch,
+          ...existing,
           ...cleanResult
         };
         matchUpdated = true;
@@ -1047,8 +1059,12 @@ export async function updateSilverBracketMatch(
         for (const round of silverBracket.rounds) {
           const matchIndex = round.matches.findIndex(m => m.id === matchId);
           if (matchIndex !== -1) {
+            const existing = round.matches[matchIndex];
+            if (cleanResult.completedAt) {
+              cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
+            }
             round.matches[matchIndex] = {
-              ...round.matches[matchIndex],
+              ...existing,
               ...cleanResult
             };
             matchUpdated = true;
@@ -1887,8 +1903,12 @@ export async function updateConsolationMatch(
         for (const round of consolation.rounds) {
           const matchIndex = round.matches.findIndex(m => m.id === matchId);
           if (matchIndex !== -1) {
+            const existing = round.matches[matchIndex];
+            if (cleanResult.completedAt) {
+              cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
+            }
             round.matches[matchIndex] = {
-              ...round.matches[matchIndex],
+              ...existing,
               ...cleanResult
             };
             matchUpdated = true;

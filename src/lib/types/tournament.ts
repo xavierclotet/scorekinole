@@ -268,6 +268,7 @@ export interface GroupMatch {
   // Timestamps
   startedAt?: number;
   completedAt?: number;
+  duration?: number;             // Match duration in ms (completedAt - startedAt), 0 if admin-entered
 
   // Video attachment
   videoUrl?: string;             // Full YouTube URL
@@ -443,6 +444,7 @@ export interface BracketMatch {
   // Timestamps
   startedAt?: number;
   completedAt?: number;
+  duration?: number;             // Match duration in ms (completedAt - startedAt), 0 if admin-entered
 
   // Navigation
   nextMatchId?: string;         // Where winner advances

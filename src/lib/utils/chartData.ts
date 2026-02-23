@@ -475,3 +475,398 @@ export function buildTwentiesGroupedData(
 
 	return { roundLabels, datasets };
 }
+
+// ============================================================================
+// 7. 20s Distribution (Histogram)
+// ============================================================================
+
+export interface TwentiesDistributionData {
+	labels: string[];
+	frequencies: number[];
+	totalRounds: number;
+}
+
+export function buildTwentiesDistributionData(
+	matches: MatchHistory[],
+	getUserTeam: (match: MatchHistory) => 1 | 2 | null,
+): TwentiesDistributionData {
+	const frequencyMap = new Map<number, number>();
+	let totalRounds = 0;
+
+	for (const match of matches) {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) continue;
+
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				const twenties = userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				frequencyMap.set(twenties, (frequencyMap.get(twenties) ?? 0) + 1);
+				totalRounds++;
+			}
+		}
+	}
+
+	if (totalRounds === 0) return { labels: [], frequencies: [], totalRounds: 0 };
+
+	const maxKey = Math.max(...frequencyMap.keys());
+	const labels: string[] = [];
+	const frequencies: number[] = [];
+
+	for (let i = 0; i <= maxKey; i++) {
+		labels.push(String(i));
+		frequencies.push(frequencyMap.get(i) ?? 0);
+	}
+
+	return { labels, frequencies, totalRounds };
+}
+
+// ============================================================================
+// 8. 20s Hammer Correlation
+// ============================================================================
+
+export interface TwentiesHammerBucket {
+	avgTwenties: number;
+	totalRounds: number;
+	totalTwenties: number;
+}
+
+export interface TwentiesHammerData {
+	withHammer: TwentiesHammerBucket;
+	withoutHammer: TwentiesHammerBucket;
+}
+
+export function buildTwentiesHammerData(
+	matches: MatchHistory[],
+	getUserTeam: (match: MatchHistory) => 1 | 2 | null,
+): TwentiesHammerData {
+	let hammerTwenties = 0, hammerRounds = 0;
+	let noHammerTwenties = 0, noHammerRounds = 0;
+
+	for (const match of matches) {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) continue;
+
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				if (round.hammerTeam == null) continue;
+				const twenties = userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				if (round.hammerTeam === userTeam) {
+					hammerTwenties += twenties;
+					hammerRounds++;
+				} else {
+					noHammerTwenties += twenties;
+					noHammerRounds++;
+				}
+			}
+		}
+	}
+
+	return {
+		withHammer: {
+			avgTwenties: hammerRounds > 0 ? Math.round((hammerTwenties / hammerRounds) * 100) / 100 : 0,
+			totalRounds: hammerRounds,
+			totalTwenties: hammerTwenties,
+		},
+		withoutHammer: {
+			avgTwenties: noHammerRounds > 0 ? Math.round((noHammerTwenties / noHammerRounds) * 100) / 100 : 0,
+			totalRounds: noHammerRounds,
+			totalTwenties: noHammerTwenties,
+		},
+	};
+}
+
+// ============================================================================
+// 9. 20s Per Round Number Trend
+// ============================================================================
+
+export interface TwentiesPerRoundData {
+	roundLabels: string[];
+	averages: number[];
+	counts: number[];
+}
+
+export function buildTwentiesPerRoundData(
+	matches: MatchHistory[],
+	getUserTeam: (match: MatchHistory) => 1 | 2 | null,
+): TwentiesPerRoundData {
+	const buckets = new Map<number, { sum: number; count: number }>();
+
+	for (const match of matches) {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) continue;
+
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				const rn = round.roundNumber || 1;
+				const twenties = userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				const bucket = buckets.get(rn) ?? { sum: 0, count: 0 };
+				bucket.sum += twenties;
+				bucket.count++;
+				buckets.set(rn, bucket);
+			}
+		}
+	}
+
+	if (buckets.size === 0) return { roundLabels: [], averages: [], counts: [] };
+
+	const sortedKeys = [...buckets.keys()].sort((a, b) => a - b);
+	const roundLabels = sortedKeys.map(k => `R${k}`);
+	const averages = sortedKeys.map(k => {
+		const b = buckets.get(k)!;
+		return Math.round((b.sum / b.count) * 10) / 10;
+	});
+	const counts = sortedKeys.map(k => buckets.get(k)!.count);
+
+	return { roundLabels, averages, counts };
+}
+
+// ============================================================================
+// 10. 20s Streaks
+// ============================================================================
+
+export interface TwentiesStreakData {
+	bestStreak: number;
+	currentStreak: number;
+	averageStreak: number;
+	totalStreaks: number;
+}
+
+export function buildTwentiesStreakData(
+	matches: MatchHistory[],
+	getUserTeam: (match: MatchHistory) => 1 | 2 | null,
+): TwentiesStreakData {
+	const sorted = [...matches].sort((a, b) => a.startTime - b.startTime);
+
+	let current = 0;
+	let best = 0;
+	const allStreaks: number[] = [];
+
+	for (const match of sorted) {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) continue;
+
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				const twenties = userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				if (twenties >= 1) {
+					current++;
+					if (current > best) best = current;
+				} else {
+					if (current > 0) allStreaks.push(current);
+					current = 0;
+				}
+			}
+		}
+	}
+
+	if (current > 0) allStreaks.push(current);
+
+	const totalStreaks = allStreaks.length;
+	const avg = totalStreaks > 0
+		? Math.round((allStreaks.reduce((s, v) => s + v, 0) / totalStreaks) * 10) / 10
+		: 0;
+
+	return {
+		bestStreak: best,
+		currentStreak: current,
+		averageStreak: avg,
+		totalStreaks,
+	};
+}
+
+// ============================================================================
+// 11. 20s Gauge (Recent vs Historical)
+// ============================================================================
+
+export interface TwentiesGaugeData {
+	recentPercentage: number;
+	historicalPercentage: number;
+	recentCount: number;
+	historicalCount: number;
+}
+
+export function buildTwentiesGaugeData(
+	matches: MatchHistory[],
+	getUserTeam: (match: MatchHistory) => 1 | 2 | null,
+): TwentiesGaugeData {
+	const sorted = [...matches].sort((a, b) => b.startTime - a.startTime);
+
+	let histTwenties = 0, histMax = 0, histCount = 0;
+	let recentTwenties = 0, recentMax = 0, recentCount = 0;
+
+	for (const match of sorted) {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) continue;
+
+		let matchTwenties = 0, matchMax = 0;
+		let hasRounds = false;
+
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				matchTwenties += userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				const maxPerRound = match.gameType === 'doubles' ? 12 : 8;
+				matchMax += maxPerRound;
+				hasRounds = true;
+			}
+		}
+
+		if (!hasRounds) continue;
+
+		histTwenties += matchTwenties;
+		histMax += matchMax;
+		histCount++;
+
+		if (recentCount < 10) {
+			recentTwenties += matchTwenties;
+			recentMax += matchMax;
+			recentCount++;
+		}
+	}
+
+	return {
+		recentPercentage: recentMax > 0 ? Math.round((recentTwenties / recentMax) * 1000) / 10 : 0,
+		historicalPercentage: histMax > 0 ? Math.round((histTwenties / histMax) * 1000) / 10 : 0,
+		recentCount,
+		historicalCount: histCount,
+	};
+}
+
+// ============================================================================
+// 8. Match Duration
+// ============================================================================
+
+export interface DurationDataPoint {
+	date: string;
+	timestamp: number;
+	durationMinutes: number;
+	opponent: string;
+	mode: 'singles' | 'doubles';
+}
+
+export interface MatchDurationChartData {
+	singlesPoints: DurationDataPoint[];
+	doublesPoints: DurationDataPoint[];
+	singlesAvg: number;
+	doublesAvg: number;
+}
+
+export function buildMatchDurationData(
+	matches: MatchHistory[],
+	getOpponentName: (match: MatchHistory) => string,
+): MatchDurationChartData {
+	const singlesPoints: DurationDataPoint[] = [];
+	const doublesPoints: DurationDataPoint[] = [];
+
+	const sorted = [...matches].sort((a, b) => a.startTime - b.startTime);
+
+	for (const match of sorted) {
+		if (!match.duration || match.duration <= 0) continue;
+
+		const minutes = Math.round(match.duration / 60000);
+		if (minutes <= 0) continue;
+
+		const date = new Date(match.startTime);
+		const dateStr = date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' });
+
+		const point: DurationDataPoint = {
+			date: dateStr,
+			timestamp: match.startTime,
+			durationMinutes: minutes,
+			opponent: getOpponentName(match),
+			mode: match.gameType === 'doubles' ? 'doubles' : 'singles',
+		};
+
+		if (match.gameType === 'doubles') {
+			doublesPoints.push(point);
+		} else {
+			singlesPoints.push(point);
+		}
+	}
+
+	const singlesAvg = singlesPoints.length > 0
+		? Math.round(singlesPoints.reduce((sum, p) => sum + p.durationMinutes, 0) / singlesPoints.length)
+		: 0;
+	const doublesAvg = doublesPoints.length > 0
+		? Math.round(doublesPoints.reduce((sum, p) => sum + p.durationMinutes, 0) / doublesPoints.length)
+		: 0;
+
+	return { singlesPoints, doublesPoints, singlesAvg, doublesAvg };
+}
+
+// ============================================================================
+// 12. 20s By Tournament Phase
+// ============================================================================
+
+export interface TwentiesByPhaseBucket {
+	phase: string;
+	avgTwenties: number;
+	totalTwenties: number;
+	totalRounds: number;
+}
+
+export interface TwentiesByPhaseData {
+	phases: TwentiesByPhaseBucket[];
+}
+
+// Normalize matchPhase values to a canonical display name and order
+// Supports: English (quarterfinals), Spanish (Cuartos), mixed case, etc.
+const PHASE_MAP: Record<string, { label: string; order: number }> = {
+	'R8': { label: 'Octavos', order: 0 },
+	'octavos': { label: 'Octavos', order: 0 },
+	'round of 16': { label: 'Octavos', order: 0 },
+	'quarterfinals': { label: 'Cuartos', order: 1 },
+	'cuartos': { label: 'Cuartos', order: 1 },
+	'semifinals': { label: 'Semifinales', order: 2 },
+	'semifinales': { label: 'Semifinales', order: 2 },
+	'3er puesto': { label: '3er puesto', order: 3 },
+	'third place': { label: '3er puesto', order: 3 },
+	'finals': { label: 'Final', order: 4 },
+	'final': { label: 'Final', order: 4 },
+};
+
+function normalizeBracketPhase(raw: string): { label: string; order: number } | null {
+	return PHASE_MAP[raw.toLowerCase()] ?? null;
+}
+
+export function buildTwentiesByPhaseData(
+	matches: MatchHistory[],
+	getUserTeam: (match: MatchHistory) => 1 | 2 | null,
+): TwentiesByPhaseData {
+	const buckets = new Map<string, { sum: number; rounds: number; order: number }>();
+
+	for (const match of matches) {
+		if (!match.matchPhase || !match.eventTitle) continue;
+		const normalized = normalizeBracketPhase(match.matchPhase);
+		if (!normalized) continue;
+		const userTeam = getUserTeam(match);
+		if (!userTeam) continue;
+
+		const { label, order } = normalized;
+
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				const twenties = userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				const bucket = buckets.get(label) ?? { sum: 0, rounds: 0, order };
+				bucket.sum += twenties;
+				bucket.rounds++;
+				buckets.set(label, bucket);
+			}
+		}
+	}
+
+	const phases: TwentiesByPhaseBucket[] = [...buckets.entries()]
+		.filter(([, b]) => b.rounds > 0)
+		.map(([phase, b]) => ({
+			phase,
+			avgTwenties: Math.round((b.sum / b.rounds) * 100) / 100,
+			totalTwenties: b.sum,
+			totalRounds: b.rounds,
+		}))
+		.sort((a, b) => {
+			const orderA = buckets.get(a.phase)!.order;
+			const orderB = buckets.get(b.phase)!.order;
+			return orderA - orderB;
+		});
+
+	return { phases };
+}

@@ -200,6 +200,7 @@ export async function updateMatchResult(
       match.gamesWonA = result.gamesWonA;
       match.gamesWonB = result.gamesWonB;
       match.completedAt = Date.now();
+      match.duration = match.startedAt ? match.completedAt - match.startedAt : 0;
 
       if (result.totalPointsA !== undefined) {
         match.totalPointsA = result.totalPointsA;
@@ -448,6 +449,7 @@ export async function markNoShow(
       match.noShowParticipant = noShowParticipantId;
       match.walkedOverAt = Date.now();
       match.completedAt = Date.now();
+      match.duration = match.startedAt ? match.completedAt - match.startedAt : 0;
 
       // Set games won
       if (winner === match.participantA) {
