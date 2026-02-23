@@ -46,6 +46,9 @@ export interface GameSettings {
     /** Optional event/tournament title to display */
     eventTitle: string;
 
+    /** Optional tournament edition number */
+    eventEdition?: number;
+
     /** Optional match phase label (e.g., "Final", "Semi-Final") */
     matchPhase: string;
 

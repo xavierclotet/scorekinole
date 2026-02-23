@@ -690,7 +690,7 @@
 										</span>
 										{#if isTournamentMatch(match) && match.eventTitle}
 											<span class="separator">•</span>
-											<span class="tournament-name">{match.eventTitle}</span>
+											<span class="tournament-name">{match.eventEdition ? `${match.eventEdition} ${match.eventTitle}` : match.eventTitle}</span>
 											{#if match.matchPhase}
 												<span class="separator">•</span>
 												<span class="phase-text">{match.matchPhase}</span>
@@ -760,7 +760,7 @@
 									{#if match.games && match.games.length > 0}
 										<div class="games-section">
 											{#each match.games as game, gameIndex (gameIndex)}
-												<div class="game-table">
+												<div class="game-table" style="--rounds: {(game.rounds || []).length}">
 													<div class="game-row header">
 														<span class="team-name">{m.history_game()} {gameIndex + 1}</span>
 														{#each game.rounds || [] as _, idx (idx)}
@@ -782,9 +782,7 @@
 																		<span class="hammer" title="Hammer">🔨</span>
 																	{/if}
 																	{#if match.show20s ?? $gameSettings.show20s}
-																		{#if round.team1Twenty > 0}
-																			<span class="twenty">{round.team1Twenty}</span>
-																		{/if}
+																		<span class="twenty">{round.team1Twenty}</span>
 																	{/if}
 																</div>
 															</span>
@@ -813,9 +811,7 @@
 																		<span class="hammer" title="Hammer">🔨</span>
 																	{/if}
 																	{#if match.show20s ?? $gameSettings.show20s}
-																		{#if round.team2Twenty > 0}
-																			<span class="twenty">{round.team2Twenty}</span>
-																		{/if}
+																		<span class="twenty">{round.team2Twenty}</span>
 																	{/if}
 																</div>
 															</span>
@@ -1213,7 +1209,8 @@
 	
 	.separator { opacity: 0.4; }
 	.tournament-name { font-weight: 500; color: var(--foreground); }
-	.phase-text { font-variant: small-caps; letter-spacing: 0.03em; }
+	.phase-text { text-transform: lowercase; letter-spacing: 0.03em; }
+	.phase-text::first-letter { text-transform: uppercase; }
 
 	/* Players Row */
 	.match-players {
@@ -1337,13 +1334,26 @@
 
 	/* Games Table Styles (kept mostly same but cleaned up) */
 	.games-section { padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
-	.game-table { background: var(--card); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
-	.game-row { display: flex; padding: 0.5rem 0.75rem; align-items: center; gap: 0.5rem; }
+	.game-table {
+		background: var(--card);
+		border-radius: 8px;
+		border: 1px solid var(--border);
+		overflow: hidden;
+		display: grid;
+		grid-template-columns: 1fr repeat(var(--rounds), minmax(38px, auto)) minmax(45px, auto);
+	}
+	.game-row {
+		display: grid;
+		grid-template-columns: subgrid;
+		grid-column: 1 / -1;
+		padding: 0.5rem 0.75rem;
+		align-items: center;
+		gap: 0.5rem;
+	}
 	.game-row.header { background: var(--secondary); font-size: 0.7rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; }
-	
+
 	.game-row .team-name {
-		width: 110px;
-		flex-shrink: 0;
+		min-width: 0;
 		font-weight: 600;
 		white-space: nowrap;
 		overflow: hidden;
@@ -1351,10 +1361,8 @@
 		font-size: 0.8rem;
 		color: var(--foreground);
 	}
-	
+
 	.game-row .round-col {
-		flex: 1;
-		min-width: 32px;
 		text-align: center;
 		display: flex;
 		flex-direction: column;
@@ -1382,13 +1390,13 @@
 	}
 
 	.hammer {
-		font-size: 0.6rem;
+		font-size: 0.7rem;
 		color: var(--primary);
 		line-height: 1;
 	}
 
 	.twenty {
-		font-size: 0.55rem;
+		font-size: 0.65rem;
 		color: #d97706;
 		font-weight: 600;
 		display: flex;
@@ -1404,7 +1412,6 @@
 	}
 	
 	.game-row .total-col {
-		min-width: 45px;
 		text-align: center;
 		font-weight: 700;
 		font-size: 0.9rem;

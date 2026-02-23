@@ -690,6 +690,7 @@
 			showHammer: config.showHammer,
 			gameType: config.gameType,
 			eventTitle: context.tournamentName,
+			eventEdition: context.tournamentEdition,
 			matchPhase: context.bracketRoundName || (context.phase === 'GROUP' ? 'Fase de Grupos' : 'Bracket'),
 			lastTournamentResult: null
 		}));
@@ -1203,6 +1204,7 @@
 			tournamentId: tournament.id,
 			tournamentKey: tournament.key,
 			tournamentName: tournament.name,
+			tournamentEdition: tournament.edition,
 			matchId: matchInfo.match.id,
 			phase: matchInfo.phase,
 			roundNumber: matchInfo.roundNumber,

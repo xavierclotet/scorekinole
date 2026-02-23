@@ -42,6 +42,7 @@ export interface TournamentMatchContext {
   tournamentId: string;
   tournamentKey: string;
   tournamentName: string;
+  tournamentEdition?: number;
 
   // Match identification
   matchId: string;

@@ -619,6 +619,7 @@
 			pointsToWin: settings.pointsToWin,
 			roundsToPlay: settings.roundsToPlay,
 			eventTitle: settings.eventTitle,
+			eventEdition: settings.eventEdition,
 			matchPhase: settings.matchPhase,
 			showHammer: settings.showHammer,
 			show20s: settings.show20s,

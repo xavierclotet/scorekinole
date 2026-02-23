@@ -784,6 +784,7 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 					endTime: completedAt,
 					duration: 0,
 					eventTitle: tournament.name,
+					eventEdition: tournament.edition,
 					matchPhase: phaseDetails || phase,
 					showHammer: tournament.showHammer,
 					show20s: tournament.show20s,

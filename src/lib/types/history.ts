@@ -37,6 +37,7 @@ export interface MatchHistory {
     endTime: number;
     duration: number;
     eventTitle?: string;
+    eventEdition?: number;
     matchPhase?: string;
     showHammer?: boolean;
     show20s?: boolean;
