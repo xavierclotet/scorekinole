@@ -33,12 +33,12 @@ export function getChartColors(): ChartColors {
 		card: style.getPropertyValue('--card').trim(),
 		primary: style.getPropertyValue('--primary').trim(),
 		background: style.getPropertyValue('--background').trim(),
-		win: '#10b981',
-		loss: '#ef4444',
-		tie: '#6b7280',
-		twenties: '#f59e0b',
-		singles: '#3b82f6',
-		doubles: '#f97316',
+		win: style.getPropertyValue('--color-win').trim() || '#00ff88',
+		loss: style.getPropertyValue('--color-loss').trim() || '#ff3366',
+		tie: style.getPropertyValue('--color-tie').trim() || '#6b7280',
+		twenties: style.getPropertyValue('--color-twenties').trim() || '#f59e0b',
+		singles: style.getPropertyValue('--color-singles').trim() || '#3b82f6',
+		doubles: style.getPropertyValue('--color-doubles').trim() || '#f97316',
 	};
 }
 

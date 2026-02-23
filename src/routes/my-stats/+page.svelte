@@ -10,18 +10,13 @@
 	import { theme } from '$lib/stores/theme';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { PAGE_SIZE } from '$lib/constants';
-	import { ChevronRight, ChevronDown, Trophy, Users, User, Info, BarChart3 } from '@lucide/svelte';
+	import { ChevronRight, Trophy, Users, User, Info } from '@lucide/svelte';
 	import * as Popover from '$lib/components/ui/popover/index.js';
-	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import SEO from '$lib/components/SEO.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { getUserProfile } from '$lib/firebase/userProfile';
 	import type { TournamentRecord } from '$lib/types/tournament';
-	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
 	import WinLossDonut from '$lib/components/charts/WinLossDonut.svelte';
-	import TwentiesAccuracyLine from '$lib/components/charts/TwentiesAccuracyLine.svelte';
-	import RankingEvolutionLine from '$lib/components/charts/RankingEvolutionLine.svelte';
-	import TournamentPositionsChart from '$lib/components/charts/TournamentPositionsChart.svelte';
 
 	// Data state
 	let isLoading = $state(true);
@@ -392,26 +387,6 @@
 		};
 	})());
 
-	// Charts state
-	let chartsExpanded = $state(false);
-
-	// Check if 20s trend data is available
-	let hasTwentiesChartData = $derived(
-		filteredMatches.some(match => {
-			const userTeam = getUserTeam(match);
-			if (!userTeam) return false;
-			return (match.games ?? []).some(g => (g.rounds ?? []).length > 0);
-		})
-	);
-
-	// Check if user has tournament records for ranking charts
-	let hasRankingData = $derived((() => {
-		if (tournamentRecords.length === 0) return false;
-		if (!filterYear) return true;
-		const y = parseInt(filterYear);
-		return tournamentRecords.some(r => new Date(r.tournamentDate).getFullYear() === y);
-	})());
-
 	function formatDate(timestamp: number): string {
 		const date = new Date(timestamp);
 		return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -581,26 +556,31 @@
 			<h3>{m.stats_noMatchesYet()}</h3>
 		</div>
 	{:else}
-		<!-- Stats Cards -->
-		<div class="stats-cards">
-			<div class="stat-card">
-				<span class="stat-value">{stats.total}</span>
-				<span class="stat-label">{m.stats_matchesPlayed()}</span>
-			</div>
-			<div class="stat-card won">
-				<span class="stat-value">{stats.wins}</span>
-				<span class="stat-percent">{stats.winRate}%</span>
-				<span class="stat-label">{m.stats_wins()}</span>
-			</div>
-			<div class="stat-card tied">
-				<span class="stat-value">{stats.ties}</span>
-				<span class="stat-percent">{stats.tieRate}%</span>
-				<span class="stat-label">{m.stats_ties()}</span>
-			</div>
-			<div class="stat-card lost">
-				<span class="stat-value">{stats.losses}</span>
-				<span class="stat-percent">{stats.lossRate}%</span>
-				<span class="stat-label">{m.stats_losses()}</span>
+		<!-- Stats Overview: Donut + Legend + 20s -->
+		<div class="stats-overview">
+			<div class="donut-section">
+				<div class="donut-container">
+					<WinLossDonut wins={stats.wins} losses={stats.losses} ties={stats.ties} total={stats.total} compact />
+				</div>
+				<div class="donut-legend">
+					<div class="legend-item">
+						<span class="legend-value win">{stats.wins}</span>
+						<span class="legend-label">{m.stats_wins()}</span>
+						<span class="legend-percent">{stats.winRate}%</span>
+					</div>
+					<div class="legend-item">
+						<span class="legend-value loss">{stats.losses}</span>
+						<span class="legend-label">{m.stats_losses()}</span>
+						<span class="legend-percent">{stats.lossRate}%</span>
+					</div>
+					{#if stats.ties > 0}
+						<div class="legend-item">
+							<span class="legend-value tie">{stats.ties}</span>
+							<span class="legend-label">{m.stats_ties()}</span>
+							<span class="legend-percent">{stats.tieRate}%</span>
+						</div>
+					{/if}
+				</div>
 			</div>
 			<!-- 20s Stats - Show separately for singles and doubles -->
 			{#if stats.singlesPercentage !== null && stats.doublesPercentage !== null}
@@ -676,94 +656,6 @@
 				</div>
 			{/if}
 		</div>
-
-		<!-- Charts Section -->
-		{#if stats.total > 0}
-			<div class="charts-section">
-				<button class="charts-toggle" onclick={() => chartsExpanded = !chartsExpanded}>
-					<BarChart3 class="size-4" />
-					<span>{m.stats_charts()}</span>
-					<span class="charts-toggle-action">
-						{chartsExpanded ? m.stats_hideCharts() : m.stats_showCharts()}
-					</span>
-					<ChevronDown class={['size-4 charts-chevron', chartsExpanded && 'rotated']} />
-				</button>
-
-				{#if chartsExpanded}
-					<!-- Mobile: Carousel -->
-					<div class="charts-mobile">
-						<Carousel.Root opts={{ align: 'start', loop: false }}>
-							<Carousel.Content>
-								<Carousel.Item>
-									<ChartWrapper title={m.stats_winLossChart()} hasData={stats.total > 0}>
-										{#snippet children()}
-											<WinLossDonut wins={stats.wins} losses={stats.losses} ties={stats.ties} total={stats.total} />
-										{/snippet}
-									</ChartWrapper>
-								</Carousel.Item>
-								{#if hasTwentiesChartData}
-									<Carousel.Item>
-										<ChartWrapper title={m.stats_twentiesChart()} hasData={hasTwentiesChartData}>
-											{#snippet children()}
-												<TwentiesAccuracyLine matches={filteredMatches} {getUserTeam} {getOpponentName} />
-											{/snippet}
-										</ChartWrapper>
-									</Carousel.Item>
-								{/if}
-								{#if hasRankingData}
-									<Carousel.Item>
-										<ChartWrapper title={m.stats_rankingChart()} hasData={hasRankingData}>
-											{#snippet children()}
-												<RankingEvolutionLine records={tournamentRecords} year={filterYear} />
-											{/snippet}
-										</ChartWrapper>
-									</Carousel.Item>
-								{/if}
-								{#if hasRankingData}
-									<Carousel.Item>
-										<ChartWrapper title={m.stats_positionsChart()} hasData={hasRankingData}>
-											{#snippet children()}
-												<TournamentPositionsChart records={tournamentRecords} year={filterYear} />
-											{/snippet}
-										</ChartWrapper>
-									</Carousel.Item>
-								{/if}
-							</Carousel.Content>
-						</Carousel.Root>
-					</div>
-
-					<!-- Desktop: Grid -->
-					<div class="charts-desktop">
-						<ChartWrapper title={m.stats_winLossChart()} hasData={stats.total > 0}>
-							{#snippet children()}
-								<WinLossDonut wins={stats.wins} losses={stats.losses} ties={stats.ties} total={stats.total} />
-							{/snippet}
-						</ChartWrapper>
-						{#if hasTwentiesChartData}
-							<ChartWrapper title={m.stats_twentiesChart()} hasData={hasTwentiesChartData}>
-								{#snippet children()}
-									<TwentiesAccuracyLine matches={filteredMatches} {getUserTeam} {getOpponentName} />
-								{/snippet}
-							</ChartWrapper>
-						{/if}
-						{#if hasRankingData}
-							<ChartWrapper title={m.stats_rankingChart()} hasData={hasRankingData}>
-								{#snippet children()}
-									<RankingEvolutionLine records={tournamentRecords} year={filterYear} />
-								{/snippet}
-							</ChartWrapper>
-						{/if}
-						{#if hasRankingData}
-							<ChartWrapper title={m.stats_positionsChart()} hasData={hasRankingData}>
-								{#snippet children()}
-									<TournamentPositionsChart records={tournamentRecords} year={filterYear} />
-								{/snippet}
-							</ChartWrapper>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		{/if}
 
 		<!-- Match List -->
 		{#if filteredMatches.length === 0}
@@ -1080,27 +972,99 @@
 		margin: 0;
 	}
 
-	/* Stats Cards */
-	.stats-cards {
-		display: grid;
-		grid-template-columns: repeat(5, 1fr);
-		gap: 1rem;
+	/* Stats Overview */
+	.stats-overview {
+		display: flex;
+		align-items: stretch;
+		gap: 0.75rem;
 		margin: 1rem 0 1.5rem;
 	}
 
+	.donut-section {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		padding: 0.75rem;
+		box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+	}
+
+	.donut-container {
+		flex-shrink: 0;
+		aspect-ratio: 1;
+		height: 100%;
+		max-height: 110px;
+	}
+
+	.donut-container :global(canvas) {
+		width: 100% !important;
+		height: 100% !important;
+	}
+
+	.donut-legend {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	.legend-item {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.legend-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.legend-dot.win { background: var(--color-win); }
+	.legend-dot.loss { background: var(--color-loss); }
+	.legend-dot.tie { background: var(--color-tie); }
+
+	.legend-value {
+		font-size: 1.1rem;
+		font-weight: 800;
+		line-height: 1;
+	}
+
+	.legend-value.win { color: var(--color-win); }
+	.legend-value.loss { color: var(--color-loss); }
+	.legend-value.tie { color: var(--color-tie); }
+
+	.legend-label {
+		font-size: 0.7rem;
+		color: var(--muted-foreground);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		font-weight: 500;
+	}
+
+	.legend-percent {
+		font-size: 1.1rem;
+		color: var(--muted-foreground);
+		margin-left: auto;
+		font-weight: 800;
+	}
+
+	/* 20s Stat Card (kept from old design) */
 	.stat-card {
 		background: var(--card);
 		border: 1px solid var(--border);
 		border-radius: 12px;
 		padding: 0.75rem 0.5rem;
 		text-align: center;
-		transition: transform 0.2s ease, box-shadow 0.2s ease;
 		box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-	}
-
-	.stat-card:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		min-width: 80px;
 	}
 
 	.stat-value {
@@ -1129,16 +1093,12 @@
 		font-weight: 500;
 	}
 
-	/* Stat card variants */
-	.stat-card.won .stat-value, .stat-card.won .stat-percent { color: #10b981; }
-	.stat-card.tied .stat-value { color: var(--muted-foreground); }
-	.stat-card.lost .stat-value, .stat-card.lost .stat-percent { color: #ef4444; }
-	.stat-card.twenties .stat-value, .stat-card.twenties .stat-percent { color: #f59e0b; }
+	.stat-card.twenties .stat-value, .stat-card.twenties .stat-percent { color: var(--color-twenties); }
 
 	/* Split stats */
 	.stat-card.split { padding: 0.5rem 0.25rem; }
 	.split-stats { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 0.1rem; }
-	.split-stat { display: flex; align-items: center; gap: 0.15rem; color: #f59e0b; }
+	.split-stat { display: flex; align-items: center; gap: 0.15rem; color: var(--color-twenties); }
 	.split-value { font-size: 1rem; font-weight: 700; }
 
 	/* Filters */
@@ -1215,8 +1175,8 @@
 		background: var(--muted);
 		z-index: 1;
 	}
-	.status-strip.won { background: #10b981; }
-	.status-strip.lost { background: #ef4444; }
+	.status-strip.won { background: var(--color-win); }
+	.status-strip.lost { background: var(--color-loss); }
 	.status-strip.tied { background: var(--muted-foreground); }
 
 	.match-header {
@@ -1339,16 +1299,16 @@
 		opacity: 0.8;
 	}
 	
-	.score-container.won { color: #10b981; }
-	.score-container.lost { color: #ef4444; }
+	.score-container.won { color: var(--color-win); }
+	.score-container.lost { color: var(--color-loss); }
 	.score-container.tied { color: var(--muted-foreground); }
 
 	.twenties-badge {
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
-		background: color-mix(in srgb, #f59e0b 10%, transparent);
-		color: #d97706;
+		background: color-mix(in srgb, var(--color-twenties) 10%, transparent);
+		color: var(--color-twenties);
 		padding: 0.15rem 0.5rem;
 		border-radius: 99px;
 		font-size: 0.75rem;
@@ -1455,15 +1415,15 @@
 	}
 	
 	.game-row .total-col.winner {
-		color: #10b981;
+		color: var(--color-win);
 	}
-	
+
 	.game-row.winner-row {
-		background: color-mix(in srgb, #10b981 5%, transparent);
+		background: color-mix(in srgb, var(--color-win) 5%, transparent);
 	}
-	
+
 	.game-row.winner-row .team-name {
-		color: #10b981;
+		color: var(--color-win);
 	}
 
 	/* Responsive */
@@ -1478,81 +1438,15 @@
 		
 		.match-result-box { min-width: 60px; padding-left: 0.5rem; }
 		
-		.stats-cards { grid-template-columns: repeat(5, 1fr); gap: 0.35rem; margin-bottom: 1rem; }
+		.stats-overview { gap: 0.5rem; margin-bottom: 1rem; }
+		.donut-section { gap: 0.5rem; padding: 0.6rem; }
+		.donut-container { max-height: 85px; }
+		.legend-value { font-size: 0.95rem; }
+		.legend-label { font-size: 0.6rem; }
+		.legend-percent { font-size: 0.6rem; }
 		.stat-card { padding: 0.5rem 0.2rem; }
 		.stat-value { font-size: 1rem; }
 		.stat-percent, .stat-label { font-size: 0.55rem; }
 	}
 
-	/* Charts Section */
-	.charts-section {
-		margin: 0 0 1rem;
-	}
-
-	.charts-toggle {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		width: 100%;
-		padding: 0.65rem 0.75rem;
-		background: var(--card);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		color: var(--foreground);
-		font-size: 0.85rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.charts-toggle:hover {
-		border-color: var(--primary);
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
-	}
-
-	.charts-toggle-action {
-		margin-left: auto;
-		font-size: 0.75rem;
-		font-weight: 500;
-		color: var(--primary);
-	}
-
-	.charts-section :global(.charts-chevron) {
-		transition: transform 0.2s;
-	}
-
-	.charts-section :global(.charts-chevron.rotated) {
-		transform: rotate(180deg);
-	}
-
-	/* Mobile: carousel */
-	.charts-mobile {
-		display: block;
-		margin-top: 0.75rem;
-	}
-
-	/* Desktop: grid */
-	.charts-desktop {
-		display: none;
-	}
-
-	/* Carousel item padding */
-	.charts-mobile :global([data-embla-slide]) {
-		padding-left: 0.5rem;
-		min-width: 85%;
-	}
-
-	.charts-mobile :global([data-embla-slide]:first-child) {
-		padding-left: 0;
-	}
-
-	@media (min-width: 768px) {
-		.charts-mobile { display: none; }
-		.charts-desktop {
-			display: grid;
-			grid-template-columns: 1fr 1fr;
-			gap: 0.75rem;
-			margin-top: 0.75rem;
-		}
-	}
 </style>

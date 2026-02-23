@@ -19,17 +19,19 @@
 		losses: number;
 		ties: number;
 		total: number;
+		compact?: boolean;
 	}
 
-	let { wins, losses, ties, total }: Props = $props();
+	let { wins, losses, ties, total, compact = false }: Props = $props();
 
-	let chartKey = $derived(`${$theme}-${wins}-${losses}-${ties}-${total}`);
+	let chartKey = $derived(`${$theme}-${wins}-${losses}-${ties}-${total}-${compact}`);
 
 	function initChart(canvas: HTMLCanvasElement) {
 		const colors = getChartColors();
 		const wlData = buildWinLossData(
 			wins, losses, ties,
 			m.stats_wins(), m.stats_losses(), m.stats_ties(),
+			{ win: colors.win, loss: colors.loss, tie: colors.tie },
 		);
 		const t = wins + losses + ties;
 
@@ -44,12 +46,18 @@
 				ctx.save();
 				ctx.textAlign = 'center';
 				ctx.textBaseline = 'middle';
-				ctx.font = 'bold 1.5rem system-ui, sans-serif';
-				ctx.fillStyle = c.foreground;
-				ctx.fillText(String(total), centerX, centerY - 6);
-				ctx.font = '0.6rem system-ui, sans-serif';
-				ctx.fillStyle = c.mutedForeground;
-				ctx.fillText(m.stats_matchesPlayed(), centerX, centerY + 14);
+				if (compact) {
+					ctx.font = 'bold 1.25rem system-ui, sans-serif';
+					ctx.fillStyle = c.foreground;
+					ctx.fillText(String(total), centerX, centerY);
+				} else {
+					ctx.font = 'bold 1.5rem system-ui, sans-serif';
+					ctx.fillStyle = c.foreground;
+					ctx.fillText(String(total), centerX, centerY - 6);
+					ctx.font = '0.6rem system-ui, sans-serif';
+					ctx.fillStyle = c.mutedForeground;
+					ctx.fillText(m.stats_matchesPlayed(), centerX, centerY + 14);
+				}
 				ctx.restore();
 			},
 		};
@@ -62,16 +70,16 @@
 					data: wlData.data,
 					backgroundColor: wlData.colors,
 					borderColor: colors.card,
-					borderWidth: 2,
-					hoverOffset: 6,
+					borderWidth: compact ? 1 : 2,
+					hoverOffset: compact ? 3 : 6,
 				}],
 			},
 			options: {
 				responsive: true,
 				maintainAspectRatio: false,
-				cutout: '65%',
+				cutout: compact ? '60%' : '65%',
 				plugins: {
-					legend: {
+					legend: compact ? { display: false } : {
 						position: 'bottom',
 						labels: {
 							color: colors.mutedForeground,
@@ -81,7 +89,7 @@
 							pointStyleWidth: 8,
 						},
 					},
-					tooltip: {
+					tooltip: compact ? { enabled: false } : {
 						backgroundColor: colors.card,
 						titleColor: colors.foreground,
 						bodyColor: colors.foreground,

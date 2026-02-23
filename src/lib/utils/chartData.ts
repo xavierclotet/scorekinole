@@ -23,7 +23,9 @@ export function buildWinLossData(
 	labelWins: string,
 	labelLosses: string,
 	labelTies: string,
+	palette?: { win: string; loss: string; tie: string },
 ): WinLossChartData {
+	const c = palette ?? { win: '#00ff88', loss: '#ff3366', tie: '#6b7280' };
 	const labels: string[] = [];
 	const data: number[] = [];
 	const colors: string[] = [];
@@ -31,17 +33,17 @@ export function buildWinLossData(
 	if (wins > 0) {
 		labels.push(labelWins);
 		data.push(wins);
-		colors.push('#10b981');
+		colors.push(c.win);
 	}
 	if (losses > 0) {
 		labels.push(labelLosses);
 		data.push(losses);
-		colors.push('#ef4444');
+		colors.push(c.loss);
 	}
 	if (ties > 0) {
 		labels.push(labelTies);
 		data.push(ties);
-		colors.push('#6b7280');
+		colors.push(c.tie);
 	}
 
 	return { labels, data, colors };

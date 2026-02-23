@@ -28,6 +28,14 @@
 	--text-dim: #8899aa;
 	--divider: #2a3a4a;
 
+	/* === DATA VISUALIZATION COLORS (fixed, theme-independent) === */
+	--color-win: #00ff88;
+	--color-loss: #ff3366;
+	--color-tie: #6b7280;
+	--color-twenties: #f59e0b;
+	--color-singles: #3b82f6;
+	--color-doubles: #f97316;
+
 	/* === SHADCN SEMANTIC COLORS (dark theme as default) === */
 	--background: oklch(0.145 0.02 250);
 	--foreground: oklch(0.985 0 0);
