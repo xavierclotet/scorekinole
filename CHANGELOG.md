@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.43] - 2026-02-23
+- Add charts grid with 20s statistics, accuracy donut, and radar charts
+- Add live hammer indicator and match result dialog redesign
+- Fix round progress display and add player filter in schedule view
+- Remove DSQ button and ranking points from standings table (TV-friendly)
+- Add tournament edition to match header and improve game detail layout
+
 ## [2.4.42] - 2026-02-22
 - Fix {@const} invalid placement in CompletedTournamentView (build error)
 - Fix TypeScript errors in bracket page (PhaseConfig types, unused vars)
