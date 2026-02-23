@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.44] - 2026-02-23
+- Add match preview dialog showing phase, table, players and config before starting tournament matches
+- Improve table assignment algorithm with cycle-fair rotation scoring
+
 ## [2.4.43] - 2026-02-23
 - Add charts grid with 20s statistics, accuracy donut, and radar charts
 - Add live hammer indicator and match result dialog redesign
