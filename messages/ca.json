@@ -1325,9 +1325,6 @@
   "tournament_hideChart": "Amagar gràfic",
   "tournament_twentiesPerRound": "20s per ronda",
   "stats_accuracy": "Fiabilitat",
-  "stats_avgStreak": "Ratxa mitjana",
-  "stats_bestStreak": "Millor ratxa",
-  "stats_currentStreak": "Ratxa actual",
   "stats_historical": "Històric",
   "stats_recent": "Últimes 10",
   "stats_recentVsHistorical": "Recent vs Històric",
@@ -1338,7 +1335,6 @@
   "stats_twentiesGauge": "Fiabilitat Recent",
   "stats_twentiesHammer": "20s amb/sense Hammer",
   "stats_twentiesPerRound": "20s per Nº de Ronda",
-  "stats_twentiesStreaks": "Ratxes de 20s",
   "stats_withHammer": "Amb Hammer",
   "stats_withoutHammer": "Sense Hammer"
 }

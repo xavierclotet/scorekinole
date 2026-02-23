@@ -621,60 +621,6 @@ export function buildTwentiesPerRoundData(
 }
 
 // ============================================================================
-// 10. 20s Streaks
-// ============================================================================
-
-export interface TwentiesStreakData {
-	bestStreak: number;
-	currentStreak: number;
-	averageStreak: number;
-	totalStreaks: number;
-}
-
-export function buildTwentiesStreakData(
-	matches: MatchHistory[],
-	getUserTeam: (match: MatchHistory) => 1 | 2 | null,
-): TwentiesStreakData {
-	const sorted = [...matches].sort((a, b) => a.startTime - b.startTime);
-
-	let current = 0;
-	let best = 0;
-	const allStreaks: number[] = [];
-
-	for (const match of sorted) {
-		const userTeam = getUserTeam(match);
-		if (!userTeam) continue;
-
-		for (const game of match.games ?? []) {
-			for (const round of game.rounds ?? []) {
-				const twenties = userTeam === 1 ? round.team1Twenty : round.team2Twenty;
-				if (twenties >= 1) {
-					current++;
-					if (current > best) best = current;
-				} else {
-					if (current > 0) allStreaks.push(current);
-					current = 0;
-				}
-			}
-		}
-	}
-
-	if (current > 0) allStreaks.push(current);
-
-	const totalStreaks = allStreaks.length;
-	const avg = totalStreaks > 0
-		? Math.round((allStreaks.reduce((s, v) => s + v, 0) / totalStreaks) * 10) / 10
-		: 0;
-
-	return {
-		bestStreak: best,
-		currentStreak: current,
-		averageStreak: avg,
-		totalStreaks,
-	};
-}
-
-// ============================================================================
 // 11. 20s Gauge (Recent vs Historical)
 // ============================================================================
 
@@ -746,8 +692,8 @@ export interface DurationDataPoint {
 export interface MatchDurationChartData {
 	singlesPoints: DurationDataPoint[];
 	doublesPoints: DurationDataPoint[];
-	singlesAvg: number;
-	doublesAvg: number;
+	singlesMA: number[];
+	doublesMA: number[];
 }
 
 export function buildMatchDurationData(
@@ -783,14 +729,12 @@ export function buildMatchDurationData(
 		}
 	}
 
-	const singlesAvg = singlesPoints.length > 0
-		? Math.round(singlesPoints.reduce((sum, p) => sum + p.durationMinutes, 0) / singlesPoints.length)
-		: 0;
-	const doublesAvg = doublesPoints.length > 0
-		? Math.round(doublesPoints.reduce((sum, p) => sum + p.durationMinutes, 0) / doublesPoints.length)
-		: 0;
-
-	return { singlesPoints, doublesPoints, singlesAvg, doublesAvg };
+	return {
+		singlesPoints,
+		doublesPoints,
+		singlesMA: computeMovingAverage(singlesPoints.map(p => p.durationMinutes), 5),
+		doublesMA: computeMovingAverage(doublesPoints.map(p => p.durationMinutes), 5),
+	};
 }
 
 // ============================================================================

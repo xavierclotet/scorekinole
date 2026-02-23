@@ -1325,9 +1325,6 @@
   "tournament_hideChart": "Hide chart",
   "tournament_twentiesPerRound": "20s per round",
   "stats_accuracy": "Reliability",
-  "stats_avgStreak": "Average streak",
-  "stats_bestStreak": "Best streak",
-  "stats_currentStreak": "Current streak",
   "stats_historical": "Historical",
   "stats_recent": "Last 10",
   "stats_recentVsHistorical": "Recent vs. Historical",
@@ -1338,7 +1335,6 @@
   "stats_twentiesGauge": "Recent Reliability",
   "stats_twentiesHammer": "20s with/without Hammer",
   "stats_twentiesPerRound": "20s per Round Number",
-  "stats_twentiesStreaks": "20s streaks",
   "stats_withHammer": "With Hammer",
   "stats_withoutHammer": "Sin Hammer"
 }

@@ -20,16 +20,14 @@
 	import TwentiesAccuracyDonut from '$lib/components/charts/TwentiesAccuracyDonut.svelte';
 	import TwentiesHammerChart from '$lib/components/charts/TwentiesHammerChart.svelte';
 	import TwentiesPerRoundTrend from '$lib/components/charts/TwentiesPerRoundTrend.svelte';
-	import TwentiesStreaks from '$lib/components/charts/TwentiesStreaks.svelte';
+	import TwentiesAccuracyLine from '$lib/components/charts/TwentiesAccuracyLine.svelte';
 	import TwentiesGauge from '$lib/components/charts/TwentiesGauge.svelte';
-	import MatchDurationChart from '$lib/components/charts/MatchDurationChart.svelte';
 	import TwentiesByPhase from '$lib/components/charts/TwentiesByPhase.svelte';
 	import {
 		buildTwentiesHammerData,
 		buildTwentiesPerRoundData,
-		buildTwentiesStreakData,
+		buildTwentiesAccuracyData,
 		buildTwentiesGaugeData,
-		buildMatchDurationData,
 		buildTwentiesByPhaseData,
 	} from '$lib/utils/chartData';
 
@@ -413,9 +411,9 @@
 		return d.roundLabels.length > 0;
 	})());
 
-	let hasStreakData = $derived((() => {
-		const d = buildTwentiesStreakData(filteredMatches, getUserTeam);
-		return d.bestStreak > 0;
+	let hasAccuracyLineData = $derived((() => {
+		const d = buildTwentiesAccuracyData(filteredMatches, getUserTeam, getOpponentName);
+		return d.singlesPoints.length > 0 || d.doublesPoints.length > 0;
 	})());
 
 	let hasGaugeData = $derived((() => {
@@ -673,8 +671,8 @@
 				<TwentiesByPhase matches={filteredMatches} {getUserTeam} />
 			</ChartWrapper>
 
-			<ChartWrapper title={m.stats_twentiesStreaks()} hasData={hasStreakData}>
-				<TwentiesStreaks matches={filteredMatches} {getUserTeam} />
+			<ChartWrapper title={m.stats_twentiesChart()} hasData={hasAccuracyLineData}>
+				<TwentiesAccuracyLine matches={filteredMatches} {getUserTeam} {getOpponentName} />
 			</ChartWrapper>
 
 			<ChartWrapper title={m.stats_twentiesGauge()} hasData={hasGaugeData}>

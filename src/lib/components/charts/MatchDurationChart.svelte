@@ -1,6 +1,8 @@
 <script lang="ts">
 	import {
 		Chart,
+		BarController,
+		BarElement,
 		LineController,
 		LineElement,
 		PointElement,
@@ -8,7 +10,6 @@
 		CategoryScale,
 		Tooltip,
 		Legend,
-		Filler,
 	} from 'chart.js';
 	import { getChartColors, getBaseChartOptions } from '$lib/utils/chartTheme';
 	import { buildMatchDurationData } from '$lib/utils/chartData';
@@ -16,7 +17,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import type { MatchHistory } from '$lib/types/history';
 
-	Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
+	Chart.register(BarController, BarElement, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend);
 
 	interface Props {
 		matches: MatchHistory[];
@@ -40,80 +41,59 @@
 		const data = buildMatchDurationData(matches, getOpponentName);
 		const colors = getChartColors();
 		const base = getBaseChartOptions(colors);
-		const hasSingles = data.singlesPoints.length > 0;
-		const hasDoubles = data.doublesPoints.length > 0;
 
-		// Build unified labels from all points sorted by timestamp
+		// Merge all points in chronological order for a unified timeline
 		const allPoints = [
-			...data.singlesPoints.map(p => ({ ...p, type: 'singles' as const })),
-			...data.doublesPoints.map(p => ({ ...p, type: 'doubles' as const })),
+			...data.singlesPoints.map((p, i) => ({ ...p, maValue: data.singlesMA[i] })),
+			...data.doublesPoints.map((p, i) => ({ ...p, maValue: data.doublesMA[i] })),
 		].sort((a, b) => a.timestamp - b.timestamp);
+
+		if (allPoints.length === 0) return { destroy() {} };
+
 		const labels = allPoints.map(p => p.date);
+		const barColors = allPoints.map(p => p.mode === 'doubles' ? colors.doubles : colors.singles);
 
-		const datasets: any[] = [];
+		const datasets: any[] = [
+			{
+				type: 'bar' as const,
+				label: m.stats_matchDuration(),
+				data: allPoints.map(p => p.durationMinutes),
+				backgroundColor: barColors.map(c => `${c}99`),
+				borderColor: barColors,
+				borderWidth: 1,
+				borderRadius: 4,
+				borderSkipped: false,
+				order: 2,
+			},
+		];
 
-		if (hasSingles) {
-			datasets.push({
-				label: m.scoring_singles(),
-				data: allPoints.map(p => p.type === 'singles' ? p.durationMinutes : null),
-				borderColor: colors.singles,
-				backgroundColor: `${colors.singles}40`,
-				pointBackgroundColor: colors.singles,
-				pointRadius: 5,
-				pointHoverRadius: 7,
-				tension: 0,
-				fill: false,
-				spanGaps: false,
-				showLine: false,
-			});
-			// Average line
-			if (data.singlesAvg > 0) {
-				datasets.push({
-					label: `${m.scoring_singles()} (${m.stats_movingAverage()})`,
-					data: allPoints.map(() => data.singlesAvg),
-					borderColor: colors.singles,
-					borderDash: [5, 5],
-					pointRadius: 0,
-					pointHoverRadius: 0,
-					tension: 0,
-					fill: false,
-					borderWidth: 1.5,
-				});
+		// Add moving average line if enough data
+		if (allPoints.length > 2) {
+			const values = allPoints.map(p => p.durationMinutes);
+			const window = Math.min(5, values.length);
+			const ma: number[] = [];
+			for (let i = 0; i < values.length; i++) {
+				const start = Math.max(0, i - window + 1);
+				const slice = values.slice(start, i + 1);
+				ma.push(Math.round(slice.reduce((s, v) => s + v, 0) / slice.length));
 			}
-		}
 
-		if (hasDoubles) {
 			datasets.push({
-				label: m.scoring_doubles(),
-				data: allPoints.map(p => p.type === 'doubles' ? p.durationMinutes : null),
-				borderColor: colors.doubles,
-				backgroundColor: `${colors.doubles}40`,
-				pointBackgroundColor: colors.doubles,
-				pointRadius: 5,
-				pointHoverRadius: 7,
-				tension: 0,
+				type: 'line' as const,
+				label: m.stats_movingAverage(),
+				data: ma,
+				borderColor: colors.foreground,
+				borderWidth: 2,
+				pointRadius: 0,
+				pointHoverRadius: 4,
+				tension: 0.4,
 				fill: false,
-				spanGaps: false,
-				showLine: false,
+				order: 1,
 			});
-			// Average line
-			if (data.doublesAvg > 0) {
-				datasets.push({
-					label: `${m.scoring_doubles()} (${m.stats_movingAverage()})`,
-					data: allPoints.map(() => data.doublesAvg),
-					borderColor: colors.doubles,
-					borderDash: [5, 5],
-					pointRadius: 0,
-					pointHoverRadius: 0,
-					tension: 0,
-					fill: false,
-					borderWidth: 1.5,
-				});
-			}
 		}
 
 		const chart = new Chart(canvas, {
-			type: 'line',
+			type: 'bar',
 			data: { labels, datasets },
 			options: {
 				...base,
@@ -121,30 +101,35 @@
 					...base.plugins,
 					tooltip: {
 						...base.plugins.tooltip,
-						filter(item: any) {
-							// Hide tooltip for average lines
-							return item.dataset.borderDash === undefined;
-						},
 						callbacks: {
 							title(items: any[]) {
 								if (!items.length) return '';
 								const idx = items[0].dataIndex;
-								const point = allPoints[idx];
-								return point?.date || '';
+								const p = allPoints[idx];
+								return `${p.date} — vs ${p.opponent}`;
 							},
 							label(ctx: any) {
-								const idx = ctx.dataIndex;
-								const point = allPoints[idx];
-								if (!point) return '';
-								const dur = formatDuration(point.durationMinutes);
-								return ` ${point.opponent}: ${dur}`;
+								if (ctx.dataset.type === 'line') {
+									return ` ${ctx.dataset.label}: ${formatDuration(ctx.parsed.y)}`;
+								}
+								const p = allPoints[ctx.dataIndex];
+								const mode = p.mode === 'doubles' ? m.scoring_doubles() : m.scoring_singles();
+								return ` ${formatDuration(p.durationMinutes)} (${mode})`;
 							},
 						},
 					},
 				},
 				scales: {
 					...base.scales,
-					x: { ...base.scales.x, type: 'category' },
+					x: {
+						...base.scales.x,
+						ticks: {
+							...base.scales.x.ticks,
+							maxRotation: 45,
+							autoSkip: true,
+							maxTicksLimit: 12,
+						},
+					},
 					y: {
 						...base.scales.y,
 						min: 0,
