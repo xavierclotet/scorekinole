@@ -25,6 +25,7 @@
 	let expandedRounds = $state<Record<string, Set<number>>>({});
 	let initialized = $state(false);
 	let showBumpChart = $state<Set<string>>(new Set());
+	let scheduleFilter = $state<Record<string, string>>({});
 
 	function toggleBumpChart(groupId: string) {
 		if (showBumpChart.has(groupId)) {
@@ -106,12 +107,9 @@
 			}
 		}
 
-		// Current round = the highest existing round (could be in progress or complete)
-		// If no rounds exist, show 0
-		const currentRound = highestExistingRound || 0;
-
 		return {
-			current: currentRound,
+			current: highestCompleteRound,
+			highestExisting: highestExistingRound,
 			total: totalRounds,
 			percentage: totalRounds > 0 ? Math.round((highestCompleteRound / totalRounds) * 100) : 0
 		};
@@ -156,15 +154,15 @@
 				expandedRounds[group.id] = expanded;
 			});
 			expandedRounds = { ...expandedRounds };
-			lastKnownHighestRound = roundProgress.current;
+			lastKnownHighestRound = roundProgress.highestExisting;
 			initialized = true;
 		}
 	});
 
 	// Detect when a new round appears and auto-expand it, collapse the previous
 	$effect(() => {
-		if (initialized && roundProgress.current > lastKnownHighestRound) {
-			const newRound = roundProgress.current;
+		if (initialized && roundProgress.highestExisting > lastKnownHighestRound) {
+			const newRound = roundProgress.highestExisting;
 			const previousRound = lastKnownHighestRound;
 
 			// Update expanded rounds for all groups
@@ -642,7 +640,7 @@
 			{/if}
 			{#if isGroupStage && roundProgress.total > 0}
 				<div class="progress-inline">
-					<span class="progress-text-mini">{m.admin_matches?.() || 'Partidos'}:</span>
+					<span class="progress-text-mini">{m.tournament_rounds?.() || 'Rondas'}:</span>
 					<div class="progress-bar-mini">
 						<div
 							class="progress-fill-mini"
@@ -763,11 +761,33 @@
 
 							<!-- Matches by Round -->
 							<div class="column schedule-column">
-								<h4 class="column-title">{m.tournament_schedule()}</h4>
+								<div class="schedule-header">
+									<h4 class="column-title">{m.tournament_schedule()}</h4>
+									<select
+										class="player-filter"
+										value={scheduleFilter[group.id] || ''}
+										onchange={(e) => {
+											const val = (e.target as HTMLSelectElement).value;
+											scheduleFilter[group.id] = val;
+											scheduleFilter = { ...scheduleFilter };
+											if (val) {
+												expandedRounds[group.id] = new Set(rounds.map((r: { roundNumber: number }) => r.roundNumber));
+												expandedRounds = { ...expandedRounds };
+											}
+										}}
+									>
+										<option value="">{m.tournament_all()}</option>
+										{#each group.participants as pid}
+											<option value={pid}>{getParticipantName(pid)}</option>
+										{/each}
+									</select>
+								</div>
 								<div class="rounds-container">
 									{#each rounds as round (round.roundNumber)}
+										{@const filteredMatches = scheduleFilter[group.id] ? round.matches.filter((mt: GroupMatch) => mt.participantA === scheduleFilter[group.id] || mt.participantB === scheduleFilter[group.id]) : round.matches}
 										{@const roundProgress = getRoundProgress(round.matches)}
 										{@const isRoundExpanded = expandedRounds[group.id]?.has(round.roundNumber)}
+										{#if filteredMatches.length > 0}
 										<div class="round-section" class:complete={roundProgress.percentage === 100}>
 											<button
 												class="round-header"
@@ -794,7 +814,7 @@
 
 											{#if isRoundExpanded}
 												<div class="matches-list">
-													{#each round.matches as match (match.id)}
+													{#each filteredMatches as match (match.id)}
 														<MatchCard
 															{match}
 															participants={tournament.participants}
@@ -807,6 +827,7 @@
 												</div>
 											{/if}
 										</div>
+										{/if}
 									{/each}
 								</div>
 							</div>
@@ -2162,6 +2183,29 @@
 
 	.column {
 		min-width: 0;
+	}
+
+	.schedule-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.5rem;
+		gap: 0.5rem;
+	}
+
+	.schedule-header .column-title {
+		margin: 0;
+	}
+
+	.player-filter {
+		font-size: 0.7rem;
+		padding: 0.15rem 0.4rem;
+		border-radius: 4px;
+		border: 1px solid var(--border);
+		background: var(--background);
+		color: var(--foreground);
+		max-width: 130px;
+		text-overflow: ellipsis;
 	}
 
 	.column-title {

@@ -18,8 +18,6 @@
     // Number of participants that will qualify (for cutoff tie highlighting)
     // If null/undefined, no cutoff highlighting will be shown
     qualifyingCount?: number | null;
-    // Callback when admin wants to disqualify a participant
-    onDisqualify?: (participantId: string, participantName: string) => void;
   }
 
   let {
@@ -29,8 +27,7 @@
     qualificationMode = 'WINS',
     enableTiebreaker = true,
     isDoubles = false,
-    qualifyingCount = null,
-    onDisqualify
+    qualifyingCount = null
   }: Props = $props();
 
   // Use qualificationMode if provided
@@ -79,12 +76,6 @@
   function isDisqualified(participantId: string): boolean {
     const participant = participantMap.get(participantId);
     return participant?.status === 'DISQUALIFIED';
-  }
-
-  // Get participant ranking snapshot (seeding points)
-  function getParticipantRanking(participantId: string): number {
-    const participant = participantMap.get(participantId);
-    return participant?.rankingSnapshot || 0;
   }
 
   // Get names of participants in a tie
@@ -310,9 +301,6 @@
               {/if}
               <span class="participant-name">
               {getParticipantName(standing.participantId)}
-              {#if getParticipantRanking(standing.participantId) > 0}
-                <span class="ranking-pts">{getParticipantRanking(standing.participantId)}</span>
-              {/if}
               {#if enableTiebreaker && showTieStyles && isFirstInMultiTie(standing.participantId)}
                 <!-- First player in 3+ tie group - show mini-league button (only for WINS mode) -->
                 <button
@@ -336,17 +324,6 @@
               {/if}
               {#if isDisqualified(standing.participantId)}
                 <span class="disqualified-badge" title={m.admin_disqualified()}>{m.admin_disqualified()}</span>
-              {:else if onDisqualify}
-                <button
-                  class="disqualify-btn"
-                  onclick={(e: MouseEvent) => { e.stopPropagation(); onDisqualify(standing.participantId, getParticipantName(standing.participantId)); }}
-                  title={m.admin_disqualify()}
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-                  </svg>
-                </button>
               {/if}
             </span>
             </div>
@@ -611,13 +588,6 @@
     z-index: 1;
   }
 
-  .ranking-pts {
-    font-size: 0.6rem;
-    color: #9ca3af;
-    font-weight: 500;
-    opacity: 0.8;
-  }
-
   .position-badge {
     display: inline-flex;
     align-items: center;
@@ -671,32 +641,6 @@
   }
 
   .tie-badge svg {
-    display: block;
-  }
-
-  /* Disqualify button (admin action) */
-  .disqualify-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 0.3rem;
-    padding: 0.2rem;
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    border: none;
-    border-radius: 4px;
-    color: white;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-    opacity: 0.7;
-  }
-
-  .disqualify-btn:hover {
-    transform: scale(1.1);
-    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
-    opacity: 1;
-  }
-
-  .disqualify-btn svg {
     display: block;
   }
 

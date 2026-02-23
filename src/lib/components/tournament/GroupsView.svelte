@@ -13,15 +13,13 @@
     onMatchClick?: (match: GroupMatch) => void;
     activeGroupId?: string | null; // Track which group had recent activity
     onGenerateNextRound?: () => Promise<void>;
-    onDisqualify?: (participantId: string, participantName: string) => void;
   }
 
   let {
     tournament,
     onMatchClick,
     activeGroupId = null,
-    onGenerateNextRound,
-    onDisqualify
+    onGenerateNextRound
   }: Props = $props();
 
   let expandedGroups = $state<Set<string>>(new Set());
@@ -545,7 +543,6 @@
                     {qualificationMode}
                     enableTiebreaker={false}
                     isDoubles={tournament.gameType === 'doubles'}
-                    {onDisqualify}
                   />
                 {/if}
               </div>

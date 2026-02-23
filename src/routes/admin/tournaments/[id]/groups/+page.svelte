@@ -882,7 +882,7 @@
           </div>
         {/if}
 
-        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} onGenerateNextRound={handleGenerateNextRound} onDisqualify={handleDisqualify} />
+        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} onGenerateNextRound={handleGenerateNextRound} />
       {/if}
     </div>
   </div>
