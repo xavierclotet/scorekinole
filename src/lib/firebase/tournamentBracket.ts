@@ -5,7 +5,7 @@
 
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from './config';
-import { getTournament, updateTournament, updateTournamentPublic, parseTournamentData } from './tournaments';
+import { getTournament, updateTournament, parseTournamentData } from './tournaments';
 import {
   generateBracket as generateBracketAlgorithm,
   advanceWinner as advanceWinnerAlgorithm,
@@ -18,7 +18,7 @@ import {
   isBye,
   MIN_PARTICIPANTS_FOR_CONSOLATION
 } from '$lib/algorithms/bracket';
-import { calculateFinalPositionsForTournament, applyRankingUpdates } from './tournamentRanking';
+import { calculateFinalPositionsForTournament } from './tournamentRanking';
 import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig, Tournament } from '$lib/types/tournament';
 
 /**
@@ -1317,8 +1317,6 @@ export async function advanceSilverWinner(
   if (!db) return false;
   console.log(`🥈 advanceSilverWinner called: matchId=${matchId}, winnerId=${winnerId}`);
 
-  let shouldApplyRankings = false;
-
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
 
@@ -1403,17 +1401,11 @@ export async function advanceSilverWinner(
           finalStage: { ...tournament.finalStage, silverBracket: updatedSilverBracket, isComplete: true }
         };
         updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
-        shouldApplyRankings = true;
+        // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
       }
 
       transaction.update(tournamentRef, updateData);
     });
-
-    // Apply ranking updates AFTER transaction commits
-    if (shouldApplyRankings) {
-      console.log('📈 Applying ranking updates from silver bracket completion...');
-      await applyRankingUpdates(tournamentId);
-    }
 
     return true;
   } catch (error) {
@@ -1435,50 +1427,55 @@ export async function markSilverBracketNoShow(
   matchId: string,
   participantId: string
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage || !tournament.finalStage.silverBracket) {
-    console.error('Tournament or silver bracket not found');
+  // Use single-transaction completeBracketMatchAndAdvance which handles
+  // phase detection, match update, and winner advancement atomically
+  if (!db) return false;
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    // Read match inside transaction to determine winner, then delegate to atomic function
+    let winner: string | undefined;
+    let matchParticipantA: string | undefined;
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.finalStage?.silverBracket) {
+        throw new Error('Tournament or silver bracket not found');
+      }
+
+      // Find match in silver bracket
+      let match: BracketMatch | undefined;
+      for (const round of tournament.finalStage.silverBracket.rounds) {
+        match = round.matches.find(m => m.id === matchId);
+        if (match) break;
+      }
+      if (!match && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
+        match = tournament.finalStage.silverBracket.thirdPlaceMatch;
+      }
+      if (!match) throw new Error('Match not found in silver bracket');
+
+      winner = match.participantA === participantId ? match.participantB : match.participantA;
+      matchParticipantA = match.participantA;
+      if (!winner) throw new Error('Cannot determine winner for walkover');
+    });
+
+    // Now use the atomic function with the determined winner
+    return await completeBracketMatchAndAdvance(tournamentId, matchId, {
+      status: 'WALKOVER',
+      winner: winner!,
+      gamesWonA: matchParticipantA === winner ? 2 : 0,
+      gamesWonB: matchParticipantA === winner ? 0 : 2,
+      noShowParticipant: participantId,
+      walkedOverAt: Date.now()
+    });
+  } catch (error) {
+    console.error('❌ Error marking silver bracket no-show:', error);
     return false;
   }
-
-  // Find match in silver bracket
-  let match: BracketMatch | undefined;
-  for (const round of tournament.finalStage.silverBracket.rounds) {
-    match = round.matches.find(m => m.id === matchId);
-    if (match) break;
-  }
-
-  // Also check 3rd place match
-  if (!match && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
-    match = tournament.finalStage.silverBracket.thirdPlaceMatch;
-  }
-
-  if (!match) {
-    console.error('Match not found in silver bracket');
-    return false;
-  }
-
-  // Determine winner (opponent)
-  const winner =
-    match.participantA === participantId ? match.participantB : match.participantA;
-
-  if (!winner) {
-    console.error('Cannot determine winner for walkover');
-    return false;
-  }
-
-  // Update match as walkover
-  await updateSilverBracketMatch(tournamentId, matchId, {
-    status: 'WALKOVER',
-    winner,
-    gamesWonA: match.participantA === winner ? 2 : 0,
-    gamesWonB: match.participantB === winner ? 2 : 0,
-    noShowParticipant: participantId,
-    walkedOverAt: Date.now()
-  });
-
-  // Advance winner
-  return await advanceSilverWinner(tournamentId, matchId, winner);
 }
 
 /**
@@ -1494,45 +1491,50 @@ export async function markBracketNoShow(
   matchId: string,
   participantId: string
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage || !tournament.finalStage.goldBracket) {
-    console.error('Tournament or gold bracket not found');
+  if (!db) return false;
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    // Read match inside transaction to determine winner, then delegate to atomic function
+    let winner: string | undefined;
+    let matchParticipantA: string | undefined;
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.finalStage?.goldBracket) {
+        throw new Error('Tournament or gold bracket not found');
+      }
+
+      // Find match in gold bracket
+      let match: BracketMatch | undefined;
+      for (const round of tournament.finalStage.goldBracket.rounds) {
+        match = round.matches.find(m => m.id === matchId);
+        if (match) break;
+      }
+      if (!match) throw new Error('Match not found');
+
+      winner = match.participantA === participantId ? match.participantB : match.participantA;
+      matchParticipantA = match.participantA;
+      if (!winner) throw new Error('Cannot determine winner for walkover');
+    });
+
+    // Now use the atomic function with the determined winner
+    return await completeBracketMatchAndAdvance(tournamentId, matchId, {
+      status: 'WALKOVER',
+      winner: winner!,
+      gamesWonA: matchParticipantA === winner ? 2 : 0,
+      gamesWonB: matchParticipantA === winner ? 0 : 2,
+      noShowParticipant: participantId,
+      walkedOverAt: Date.now()
+    });
+  } catch (error) {
+    console.error('❌ Error marking bracket no-show:', error);
     return false;
   }
-
-  // Find match
-  let match: BracketMatch | undefined;
-  for (const round of tournament.finalStage.goldBracket.rounds) {
-    match = round.matches.find(m => m.id === matchId);
-    if (match) break;
-  }
-
-  if (!match) {
-    console.error('Match not found');
-    return false;
-  }
-
-  // Determine winner (opponent)
-  const winner =
-    match.participantA === participantId ? match.participantB : match.participantA;
-
-  if (!winner) {
-    console.error('Cannot determine winner for walkover');
-    return false;
-  }
-
-  // Update match as walkover
-  await updateBracketMatch(tournamentId, matchId, {
-    status: 'WALKOVER',
-    winner,
-    gamesWonA: match.participantA === winner ? 2 : 0,
-    gamesWonB: match.participantB === winner ? 2 : 0,
-    noShowParticipant: participantId,
-    walkedOverAt: Date.now()
-  });
-
-  // Advance winner
-  return await advanceWinner(tournamentId, matchId, winner);
 }
 
 /**
@@ -1542,86 +1544,92 @@ export async function markBracketNoShow(
  * @returns true if successful
  */
 export async function completeFinalStage(tournamentId: string): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.finalStage || !tournament.finalStage.goldBracket) {
-    console.error('Tournament or gold bracket not found');
-    return false;
-  }
+  if (!db) return false;
 
-  // Check if tournament was already completed (to avoid double ranking application)
-  if (tournament.status === 'COMPLETED') {
-    console.log('Tournament already completed - skipping ranking updates');
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.finalStage || !tournament.finalStage.goldBracket) {
+        throw new Error('Tournament or gold bracket not found');
+      }
+
+      // Check if tournament was already completed
+      if (tournament.status === 'COMPLETED') {
+        console.log('Tournament already completed - skipping');
+        return;
+      }
+
+      const consolationEnabled = tournament.finalStage.consolationEnabled ?? false;
+      const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
+
+      // Check if gold bracket is complete (main + consolation)
+      const isGoldMainComplete = isBracketComplete(tournament.finalStage.goldBracket);
+      const isGoldConsolationComplete = areConsolationBracketsComplete(tournament.finalStage.goldBracket, consolationEnabled);
+      const isGoldComplete = isGoldMainComplete && isGoldConsolationComplete;
+
+      if (!isGoldComplete) {
+        throw new Error(`Gold bracket is not complete (main: ${isGoldMainComplete}, consolation: ${isGoldConsolationComplete})`);
+      }
+
+      // For SPLIT_DIVISIONS, also check silver bracket (main + consolation)
+      if (isSplitDivisions) {
+        const isSilverMainComplete = isBracketComplete(tournament.finalStage.silverBracket);
+        const isSilverConsolationComplete = areConsolationBracketsComplete(tournament.finalStage.silverBracket, consolationEnabled);
+        const isSilverComplete = isSilverMainComplete && isSilverConsolationComplete;
+
+        if (!isSilverComplete) {
+          throw new Error(`Silver bracket is not complete (main: ${isSilverMainComplete}, consolation: ${isSilverConsolationComplete})`);
+        }
+      }
+
+      // Get gold bracket winner
+      const goldFinalRound = tournament.finalStage.goldBracket.rounds[tournament.finalStage.goldBracket.rounds.length - 1];
+      const goldFinalMatch = goldFinalRound.matches[0];
+      const goldWinner = goldFinalMatch.winner;
+
+      // Get silver bracket winner (if SPLIT_DIVISIONS)
+      let silverWinner: string | undefined;
+      if (isSplitDivisions && tournament.finalStage.silverBracket) {
+        const silverFinalRound = tournament.finalStage.silverBracket.rounds[tournament.finalStage.silverBracket.rounds.length - 1];
+        const silverFinalMatch = silverFinalRound.matches[0];
+        silverWinner = silverFinalMatch.winner;
+      }
+
+      // Calculate final positions BEFORE marking as COMPLETED so Cloud Function has the data
+      console.log('📊 Calculating final positions...');
+      const tournamentWithComplete = {
+        ...tournament,
+        finalStage: { ...tournament.finalStage, isComplete: true }
+      };
+      const updatedParticipants = calculateFinalPositionsForTournament(tournamentWithComplete);
+      console.log('📊 Final positions calculated and included in update.');
+
+      // Mark final stage as complete and update tournament status with positions
+      transaction.update(tournamentRef, {
+        status: 'COMPLETED',
+        completedAt: Date.now(),
+        participants: updatedParticipants,
+        finalStage: cleanUndefined({
+          ...tournament.finalStage,
+          isComplete: true,
+          winner: goldWinner,
+          silverWinner: silverWinner
+        }),
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
     return true;
-  }
-
-  const consolationEnabled = tournament.finalStage.consolationEnabled ?? false;
-  const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
-
-  // Check if gold bracket is complete (main + consolation)
-  const isGoldMainComplete = isBracketComplete(tournament.finalStage.goldBracket);
-  const isGoldConsolationComplete = areConsolationBracketsComplete(tournament.finalStage.goldBracket, consolationEnabled);
-  const isGoldComplete = isGoldMainComplete && isGoldConsolationComplete;
-
-  if (!isGoldComplete) {
-    console.error('Gold bracket is not complete (main:', isGoldMainComplete, ', consolation:', isGoldConsolationComplete, ')');
+  } catch (error) {
+    console.error('❌ Error completing final stage:', error);
     return false;
   }
-
-  // For SPLIT_DIVISIONS, also check silver bracket (main + consolation)
-  if (isSplitDivisions) {
-    const isSilverMainComplete = isBracketComplete(tournament.finalStage.silverBracket);
-    const isSilverConsolationComplete = areConsolationBracketsComplete(tournament.finalStage.silverBracket, consolationEnabled);
-    const isSilverComplete = isSilverMainComplete && isSilverConsolationComplete;
-
-    if (!isSilverComplete) {
-      console.error('Silver bracket is not complete (main:', isSilverMainComplete, ', consolation:', isSilverConsolationComplete, ')');
-      return false;
-    }
-  }
-
-  // Get gold bracket winner
-  const goldFinalRound = tournament.finalStage.goldBracket.rounds[tournament.finalStage.goldBracket.rounds.length - 1];
-  const goldFinalMatch = goldFinalRound.matches[0];
-  const goldWinner = goldFinalMatch.winner;
-
-  // Get silver bracket winner (if SPLIT_DIVISIONS)
-  let silverWinner: string | undefined;
-  if (isSplitDivisions && tournament.finalStage.silverBracket) {
-    const silverFinalRound = tournament.finalStage.silverBracket.rounds[tournament.finalStage.silverBracket.rounds.length - 1];
-    const silverFinalMatch = silverFinalRound.matches[0];
-    silverWinner = silverFinalMatch.winner;
-  }
-
-  // Calculate final positions BEFORE marking as COMPLETED so Cloud Function has the data
-  console.log('📊 Calculating final positions...');
-  const tournamentWithComplete = {
-    ...tournament,
-    finalStage: { ...tournament.finalStage, isComplete: true }
-  };
-  const updatedParticipants = calculateFinalPositionsForTournament(tournamentWithComplete);
-  console.log('📊 Final positions calculated and included in update.');
-
-  // Mark final stage as complete and update tournament status with positions
-  const success = await updateTournamentPublic(tournamentId, {
-    status: 'COMPLETED',
-    completedAt: Date.now(),
-    participants: updatedParticipants,
-    finalStage: {
-      ...tournament.finalStage,
-      isComplete: true,
-      winner: goldWinner,
-      silverWinner: silverWinner
-    }
-  });
-
-  // Apply ranking updates if ranking is enabled
-  if (success && tournament.rankingConfig?.enabled) {
-    console.log('🏅 Applying ranking updates...');
-    await applyRankingUpdates(tournamentId);
-    console.log('🏅 Ranking updates applied.');
-  }
-
-  return success;
 }
 
 /**
@@ -2144,8 +2152,6 @@ export async function advanceConsolationWinner(
 ): Promise<boolean> {
   if (!db) return false;
 
-  let shouldApplyRankings = false;
-
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
 
@@ -2241,19 +2247,13 @@ export async function advanceConsolationWinner(
           }
         };
         updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
-        shouldApplyRankings = true;
+        // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
       } else if (!isTournamentComplete) {
         console.log('📋 Consolation check - goldComplete=' + isGoldComplete + ', silverComplete=' + isSilverComplete);
       }
 
       transaction.update(tournamentRef, updateData);
     });
-
-    // Apply ranking updates AFTER transaction commits
-    if (shouldApplyRankings) {
-      console.log('📈 Applying ranking updates from consolation bracket completion...');
-      await applyRankingUpdates(tournamentId);
-    }
 
     return true;
   } catch (error) {
@@ -2309,4 +2309,266 @@ function areConsolationBracketsComplete(bracket: BracketWithConfig | undefined, 
   }
 
   return bracket.consolationBrackets.every(c => c.isComplete);
+}
+
+/**
+ * Complete a bracket match and advance the winner in a SINGLE atomic transaction.
+ * This eliminates stale reads and partial-failure risks from the two-transaction pattern.
+ *
+ * Handles all bracket types: gold main, silver main, gold consolation, silver consolation.
+ */
+export async function completeBracketMatchAndAdvance(
+  tournamentId: string,
+  matchId: string,
+  result: Partial<BracketMatch>
+): Promise<boolean> {
+  if (!db) return false;
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.finalStage) throw new Error('Final stage not found');
+
+      const consolationEnabled = Boolean(
+        tournament.finalStage.consolationEnabled
+        ?? (tournament.finalStage as unknown as Record<string, unknown>)['consolationEnabled ']
+      );
+
+      // --- Phase 1: Clean result and prepare merge helper ---
+      const cleanResult: Partial<BracketMatch> = {};
+      Object.entries(result).forEach(([key, value]) => {
+        if (value !== undefined) {
+          (cleanResult as any)[key] = value;
+        }
+      });
+
+      if (result.status === 'COMPLETED') {
+        cleanResult.completedAt = Date.now();
+        cleanResult.tableNumber = undefined;
+      }
+
+      const mergeMatch = (existing: BracketMatch): BracketMatch => {
+        if (cleanResult.completedAt) {
+          cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
+        }
+        if (result.status === 'COMPLETED' && existing.tableNumber) {
+          cleanResult.playedOnTable = existing.tableNumber;
+        }
+        return { ...existing, ...cleanResult };
+      };
+
+      // --- Phase 2: Detect match location and update it ---
+      type MatchLocation = 'gold' | 'silver' | 'gold_consolation' | 'silver_consolation';
+      let location: MatchLocation | null = null;
+      let consolationBracketIndex = -1;
+      let loserId: string | undefined;
+
+      // Check gold bracket (main + 3rd place)
+      const goldBracket = tournament.finalStage.goldBracket;
+      if (goldBracket) {
+        if (goldBracket.thirdPlaceMatch?.id === matchId) {
+          goldBracket.thirdPlaceMatch = mergeMatch(goldBracket.thirdPlaceMatch);
+          location = 'gold';
+        } else {
+          for (const round of goldBracket.rounds) {
+            const idx = round.matches.findIndex(m => m.id === matchId);
+            if (idx !== -1) {
+              round.matches[idx] = mergeMatch(round.matches[idx]);
+              location = 'gold';
+              break;
+            }
+          }
+        }
+
+        // Check gold consolation brackets
+        if (!location && consolationEnabled && goldBracket.consolationBrackets) {
+          for (let i = 0; i < goldBracket.consolationBrackets.length; i++) {
+            for (const round of goldBracket.consolationBrackets[i].rounds) {
+              const idx = round.matches.findIndex(m => m.id === matchId);
+              if (idx !== -1) {
+                const existing = round.matches[idx];
+                if (result.winner && existing.participantA && existing.participantB) {
+                  loserId = result.winner === existing.participantA ? existing.participantB : existing.participantA;
+                }
+                round.matches[idx] = mergeMatch(existing);
+                location = 'gold_consolation';
+                consolationBracketIndex = i;
+                break;
+              }
+            }
+            if (location) break;
+          }
+        }
+      }
+
+      // Check silver bracket (main + 3rd place)
+      const silverBracket = tournament.finalStage.silverBracket;
+      if (!location && silverBracket) {
+        if (silverBracket.thirdPlaceMatch?.id === matchId) {
+          silverBracket.thirdPlaceMatch = mergeMatch(silverBracket.thirdPlaceMatch);
+          location = 'silver';
+        } else {
+          for (const round of silverBracket.rounds) {
+            const idx = round.matches.findIndex(m => m.id === matchId);
+            if (idx !== -1) {
+              round.matches[idx] = mergeMatch(round.matches[idx]);
+              location = 'silver';
+              break;
+            }
+          }
+        }
+
+        // Check silver consolation brackets
+        if (!location && consolationEnabled && silverBracket.consolationBrackets) {
+          for (let i = 0; i < silverBracket.consolationBrackets.length; i++) {
+            for (const round of silverBracket.consolationBrackets[i].rounds) {
+              const idx = round.matches.findIndex(m => m.id === matchId);
+              if (idx !== -1) {
+                const existing = round.matches[idx];
+                if (result.winner && existing.participantA && existing.participantB) {
+                  loserId = result.winner === existing.participantA ? existing.participantB : existing.participantA;
+                }
+                round.matches[idx] = mergeMatch(existing);
+                location = 'silver_consolation';
+                consolationBracketIndex = i;
+                break;
+              }
+            }
+            if (location) break;
+          }
+        }
+      }
+
+      if (!location) {
+        throw new Error('Match not found in any bracket');
+      }
+
+      // --- Phase 3: Advance winner if applicable ---
+      const winnerId = result.winner;
+      if (winnerId) {
+        const numTables = tournament.numTables || 4;
+        const tableHistory = buildTableHistory(tournament);
+
+        if (location === 'gold' && goldBracket) {
+          // Advance in gold bracket
+          const updatedBracketRaw = advanceWinnerAlgorithm(goldBracket, matchId, winnerId);
+          let updatedGoldBracket: BracketWithConfig = {
+            ...updatedBracketRaw,
+            config: goldBracket.config,
+            consolationBrackets: goldBracket.consolationBrackets
+          };
+
+          updatedGoldBracket = await checkAndGenerateConsolation(tournamentId, updatedGoldBracket, 'gold', consolationEnabled);
+          assignTablesToBrackets(updatedGoldBracket, silverBracket || null, numTables, tableHistory);
+          if (consolationEnabled) {
+            assignTablesToConsolation(updatedGoldBracket, silverBracket as BracketWithConfig | null, numTables, tableHistory);
+          }
+
+          tournament.finalStage.goldBracket = updatedGoldBracket;
+
+        } else if (location === 'silver' && silverBracket) {
+          // Advance in silver bracket
+          const updatedBracketRaw = advanceWinnerAlgorithm(silverBracket, matchId, winnerId);
+          let updatedSilverBracket: BracketWithConfig = {
+            ...updatedBracketRaw,
+            config: silverBracket.config,
+            consolationBrackets: silverBracket.consolationBrackets
+          };
+
+          updatedSilverBracket = await checkAndGenerateConsolation(tournamentId, updatedSilverBracket, 'silver', consolationEnabled);
+          assignTablesToBrackets(goldBracket!, updatedSilverBracket, numTables, tableHistory);
+          if (consolationEnabled) {
+            assignTablesToConsolation(goldBracket as BracketWithConfig, updatedSilverBracket, numTables, tableHistory);
+          }
+
+          tournament.finalStage.silverBracket = updatedSilverBracket;
+
+        } else if (location === 'gold_consolation' && goldBracket?.consolationBrackets) {
+          // Advance in gold consolation
+          const updatedConsolation = advanceConsolationWinnerAlgorithm(
+            goldBracket.consolationBrackets[consolationBracketIndex],
+            matchId, winnerId, loserId
+          );
+          goldBracket.consolationBrackets[consolationBracketIndex] = updatedConsolation;
+          assignTablesToConsolation(goldBracket, silverBracket || null, numTables, tableHistory);
+
+        } else if (location === 'silver_consolation' && silverBracket?.consolationBrackets) {
+          // Advance in silver consolation
+          const updatedConsolation = advanceConsolationWinnerAlgorithm(
+            silverBracket.consolationBrackets[consolationBracketIndex],
+            matchId, winnerId, loserId
+          );
+          silverBracket.consolationBrackets[consolationBracketIndex] = updatedConsolation;
+          assignTablesToConsolation(goldBracket!, silverBracket, numTables, tableHistory);
+        }
+      }
+
+      // --- Phase 4: Check tournament completion ---
+      const updatedGold = tournament.finalStage.goldBracket;
+      const updatedSilver = tournament.finalStage.silverBracket;
+      const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
+
+      const isGoldMainComplete = isBracketComplete(updatedGold);
+      const isGoldConsolationComplete = areConsolationBracketsComplete(updatedGold, consolationEnabled);
+      const isGoldComplete = isGoldMainComplete && isGoldConsolationComplete;
+
+      const isSilverMainComplete = !isSplitDivisions || isBracketComplete(updatedSilver);
+      const isSilverConsolationComplete = !isSplitDivisions || areConsolationBracketsComplete(updatedSilver, consolationEnabled);
+      const isSilverComplete = isSilverMainComplete && isSilverConsolationComplete;
+
+      const isTournamentComplete = isGoldComplete && isSilverComplete;
+
+      // Get winners for update
+      const goldFinalRound = updatedGold?.rounds[updatedGold.rounds.length - 1];
+      const goldFinalMatch = goldFinalRound?.matches[0];
+      const goldWinner = (goldFinalMatch?.status === 'COMPLETED' || goldFinalMatch?.status === 'WALKOVER')
+        ? goldFinalMatch.winner : undefined;
+
+      let silverWinner: string | undefined;
+      if (isSplitDivisions && updatedSilver) {
+        const silverFinalRound = updatedSilver.rounds[updatedSilver.rounds.length - 1];
+        const silverFinalMatch = silverFinalRound?.matches[0];
+        silverWinner = (silverFinalMatch?.status === 'COMPLETED' || silverFinalMatch?.status === 'WALKOVER')
+          ? silverFinalMatch.winner : undefined;
+      }
+
+      // --- Phase 5: Build and execute atomic write ---
+      const updateData: any = {
+        finalStage: cleanUndefined({
+          ...tournament.finalStage,
+          isComplete: isTournamentComplete,
+          winner: goldWinner,
+          silverWinner: silverWinner
+        }),
+        updatedAt: serverTimestamp()
+      };
+
+      const wasAlreadyCompleted = tournament.status === 'COMPLETED';
+
+      if (isTournamentComplete && !wasAlreadyCompleted) {
+        updateData.status = 'COMPLETED';
+        updateData.completedAt = Date.now();
+        console.log('🏆 All brackets completed - marking tournament as COMPLETED');
+
+        const tournamentWithComplete = {
+          ...tournament,
+          finalStage: { ...tournament.finalStage, isComplete: true }
+        };
+        updateData.participants = calculateFinalPositionsForTournament(tournamentWithComplete);
+        // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
+      }
+
+      transaction.update(tournamentRef, updateData);
+    });
+
+    return true;
+  } catch (error) {
+    console.error('❌ Error completing bracket match:', error);
+    return false;
+  }
 }

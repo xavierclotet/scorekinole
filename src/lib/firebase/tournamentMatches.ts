@@ -2530,90 +2530,12 @@ export async function completeTournamentMatch(
       });
       return success;
     } else {
-      // For bracket matches, use updateBracketMatch and advanceWinner
-      const { updateBracketMatch, advanceWinner, updateSilverBracketMatch, advanceSilverWinner, advanceConsolationWinner, updateConsolationMatch } = await import('./tournamentBracket');
+      // For bracket matches, use single atomic transaction for phase detection + update + advance
+      const { completeBracketMatchAndAdvance } = await import('./tournamentBracket');
 
-      // First, determine if this is a silver bracket match or consolation match
-      const tournament = await getTournament(tournamentId);
-      if (!tournament || !tournament.finalStage) {
-        return false;
-      }
-
-      // Check consolationEnabled
-      const consolationEnabled = Boolean(
-        tournament.finalStage.consolationEnabled ??
-        (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
-      );
-
-      let isSilverBracket = false;
-      let isConsolationMatch = false;
-      let consolationBracketType: 'gold' | 'silver' = 'gold';
-      let loserId: string | undefined;
-
-      // Check if match is in gold bracket consolation (only if consolationEnabled)
-      if (consolationEnabled && tournament.finalStage.goldBracket?.consolationBrackets) {
-        for (const consolation of tournament.finalStage.goldBracket.consolationBrackets) {
-          for (const round of consolation.rounds) {
-            const match = round.matches.find(m => m.id === matchId);
-            if (match) {
-              isConsolationMatch = true;
-              consolationBracketType = 'gold';
-              // Find loser for 3rd place match advancement
-              if (result.winner && match.participantA && match.participantB) {
-                loserId = result.winner === match.participantA ? match.participantB : match.participantA;
-              }
-              break;
-            }
-          }
-          if (isConsolationMatch) break;
-        }
-      }
-
-      // Check if match is in silver bracket consolation (only if consolationEnabled)
-      if (!isConsolationMatch && consolationEnabled && tournament.finalStage.silverBracket?.consolationBrackets) {
-        for (const consolation of tournament.finalStage.silverBracket.consolationBrackets) {
-          for (const round of consolation.rounds) {
-            const match = round.matches.find(m => m.id === matchId);
-            if (match) {
-              isConsolationMatch = true;
-              consolationBracketType = 'silver';
-              // Find loser for 3rd place match advancement
-              if (result.winner && match.participantA && match.participantB) {
-                loserId = result.winner === match.participantA ? match.participantB : match.participantA;
-              }
-              break;
-            }
-          }
-          if (isConsolationMatch) break;
-        }
-      }
-
-      // Check if match is in silver bracket main rounds
-      if (!isConsolationMatch && tournament.finalStage.silverBracket) {
-        console.log(`🔍 Checking silver bracket for match ${matchId}...`);
-        for (const round of tournament.finalStage.silverBracket.rounds) {
-          const foundMatch = round.matches.find(m => m.id === matchId);
-          if (foundMatch) {
-            isSilverBracket = true;
-            console.log(`  ✅ Found in silver bracket round ${round.roundNumber} (${round.name})`);
-            console.log(`  📍 nextMatchId: ${foundMatch.nextMatchId || 'FINAL'}`);
-            break;
-          }
-        }
-        if (!isSilverBracket && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
-          isSilverBracket = true;
-          console.log(`  ✅ Found as silver bracket 3rd place match`);
-        }
-        if (!isSilverBracket) {
-          console.log(`  ⚠️ Match NOT found in silver bracket`);
-        }
-      }
-
-      // Update match result
-      let updateSuccess: boolean;
-      const matchData = {
+      return await completeBracketMatchAndAdvance(tournamentId, matchId, {
         status: 'COMPLETED' as const,
-        winner: result.winner ?? undefined, // Convert null to undefined for type compatibility
+        winner: result.winner ?? undefined,
         gamesWonA: result.gamesWonA,
         gamesWonB: result.gamesWonB,
         totalPointsA: result.totalPointsA,
@@ -2623,38 +2545,7 @@ export async function completeTournamentMatch(
         rounds: result.rounds,
         videoUrl: result.videoUrl,
         videoId: result.videoId
-      };
-
-      if (isConsolationMatch) {
-        // Use consolation-specific update function with correct bracket type
-        updateSuccess = await updateConsolationMatch(tournamentId, matchId, matchData, consolationBracketType);
-      } else {
-        const updateFn = isSilverBracket ? updateSilverBracketMatch : updateBracketMatch;
-        updateSuccess = await updateFn(tournamentId, matchId, matchData);
-      }
-
-      if (!updateSuccess) {
-        return false;
-      }
-
-      // Only advance winner if there is one (not a tie)
-      // In bracket matches, ties shouldn't normally happen, but handle gracefully
-      if (result.winner) {
-        console.log(`🏆 Advancing winner: ${result.winner}, isSilverBracket: ${isSilverBracket}, isConsolationMatch: ${isConsolationMatch}`);
-        if (isConsolationMatch) {
-          // Use consolation-specific advancement (also advances loser to 3rd place matches)
-          console.log(`  📤 Calling advanceConsolationWinner (${consolationBracketType})`);
-          return await advanceConsolationWinner(tournamentId, matchId, result.winner, consolationBracketType, loserId);
-        } else {
-          const advanceFn = isSilverBracket ? advanceSilverWinner : advanceWinner;
-          console.log(`  📤 Calling ${isSilverBracket ? 'advanceSilverWinner' : 'advanceWinner'}`);
-          return await advanceFn(tournamentId, matchId, result.winner);
-        }
-      } else {
-        console.log(`⚠️ No winner to advance (result.winner is falsy)`);
-      }
-
-      return true; // Match completed but no winner to advance (tie)
+      });
     }
   } catch (error) {
     console.error('❌ Error completing tournament match:', error);

@@ -5,7 +5,7 @@
 
 import { getTournament, updateTournament } from '$lib/firebase/tournaments';
 import { generateBracket } from '$lib/firebase/tournamentBracket';
-import { calculateFinalPositions, applyRankingUpdates, syncParticipantRankings } from '$lib/firebase/tournamentRanking';
+import { calculateFinalPositions, syncParticipantRankings } from '$lib/firebase/tournamentRanking';
 import type { TournamentStatus } from '$lib/types/tournament';
 
 /**
@@ -371,13 +371,8 @@ async function completeTournament(tournamentId: string): Promise<boolean> {
     console.warn('Failed to calculate final positions');
   }
 
-  // Apply ranking updates using the updated tournament data
-  if (tournament.rankingConfig?.enabled && updatedTournament) {
-    const rankingSuccess = await applyRankingUpdates(tournamentId, updatedTournament);
-    if (!rankingSuccess) {
-      console.warn('Failed to apply ranking updates');
-    }
-  }
+  // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
+  // to avoid double-application of ranking points
 
   // Update status
   return await updateTournament(tournamentId, {

@@ -215,29 +215,34 @@ async function addTournamentRecord(
 ): Promise<boolean> {
   try {
     const userRef = getDb().collection("users").doc(userId);
-    const userSnap = await userRef.get();
 
-    // Check for duplicates
-    if (userSnap.exists) {
-      const profile = userSnap.data() as UserProfile;
-      const existingRecord = profile.tournaments?.find(
-        (t) => t.tournamentId === record.tournamentId
-      );
-      if (existingRecord) {
-        logger.info(
-          `Tournament ${record.tournamentId} already in user ${userId} history - skipping`
+    // Use transaction to ensure atomic duplicate check + write
+    await getDb().runTransaction(async (transaction) => {
+      const userSnap = await transaction.get(userRef);
+
+      // Check for duplicates
+      if (userSnap.exists) {
+        const profile = userSnap.data() as UserProfile;
+        const existingRecord = profile.tournaments?.find(
+          (t) => t.tournamentId === record.tournamentId
         );
-        return true;
+        if (existingRecord) {
+          logger.info(
+            `Tournament ${record.tournamentId} already in user ${userId} history - skipping`
+          );
+          return;
+        }
       }
-    }
 
-    await userRef.set(
-      {
-        tournaments: FieldValue.arrayUnion(record),
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+      transaction.set(
+        userRef,
+        {
+          tournaments: FieldValue.arrayUnion(record),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
 
     logger.info(
       `Added tournament record for user ${userId}: +${record.rankingDelta} points`

@@ -1,6 +1,6 @@
 import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
-import { doc, getDoc, setDoc, getDocs, query, where, collection, addDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, query, where, collection, addDoc, arrayUnion, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { TournamentRecord } from '$lib/types/tournament';
@@ -191,22 +191,26 @@ export async function addTournamentRecord(
 
   try {
     const userRef = doc(db!, 'users', userId);
-    const userSnap = await getDoc(userRef);
 
-    // Check if tournament record already exists (prevent duplicates)
-    if (userSnap.exists()) {
-      const profile = userSnap.data() as UserProfile;
-      const existingRecord = profile.tournaments?.find(t => t.tournamentId === record.tournamentId);
-      if (existingRecord) {
-        console.log(`⚠️ Tournament ${record.tournamentId} already in user ${userId} history - skipping duplicate`);
-        return true; // Already exists, don't add duplicate
+    // Use transaction to ensure atomic duplicate check + write
+    await runTransaction(db!, async (transaction) => {
+      const userSnap = await transaction.get(userRef);
+
+      // Check if tournament record already exists (prevent duplicates)
+      if (userSnap.exists()) {
+        const profile = userSnap.data() as UserProfile;
+        const existingRecord = profile.tournaments?.find(t => t.tournamentId === record.tournamentId);
+        if (existingRecord) {
+          console.log(`⚠️ Tournament ${record.tournamentId} already in user ${userId} history - skipping duplicate`);
+          return; // Already exists, don't add duplicate
+        }
       }
-    }
 
-    await setDoc(userRef, {
-      tournaments: arrayUnion(record),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+      transaction.set(userRef, {
+        tournaments: arrayUnion(record),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    });
 
     console.log(`✅ Added tournament record for user ${userId}: +${record.rankingDelta} points`);
     return true;
