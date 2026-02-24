@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.45] - 2026-02-24
+- Add page view analytics dashboard (super admin only) with daily stats, top pages, devices, platforms, and top users charts
+- Add Crokinole Series ranking system replacing NCA tiers
+- Add analytics link to admin dropdown menu
+
 ## [2.4.44] - 2026-02-23
 - Add match preview dialog showing phase, table, players and config before starting tournament matches
 - Improve table assignment algorithm with cycle-fair rotation scoring
