@@ -109,6 +109,58 @@ export async function saveFriendlyMatchToFirestore(
 	}
 }
 
+// --- Pending friendly match offline queue ---
+
+const PENDING_FRIENDLY_KEY = 'pendingFriendlyMatch';
+
+interface PendingFriendlyMatch {
+	match: MatchHistory;
+	team1UserId: string | null;
+	team2UserId: string | null;
+	team1PartnerUserId?: string | null;
+	team2PartnerUserId?: string | null;
+	team1PartnerName?: string;
+	team2PartnerName?: string;
+}
+
+export function savePendingFriendlyMatch(data: PendingFriendlyMatch): void {
+	if (!browser) return;
+	localStorage.setItem(PENDING_FRIENDLY_KEY, JSON.stringify(data));
+}
+
+export function removePendingFriendlyMatch(): void {
+	if (!browser) return;
+	localStorage.removeItem(PENDING_FRIENDLY_KEY);
+}
+
+export async function retryPendingFriendlyMatch(): Promise<boolean> {
+	if (!browser) return false;
+	const raw = localStorage.getItem(PENDING_FRIENDLY_KEY);
+	if (!raw) return false;
+
+	try {
+		const data: PendingFriendlyMatch = JSON.parse(raw);
+		const saved = await saveFriendlyMatchToFirestore(
+			data.match,
+			data.team1UserId,
+			data.team2UserId,
+			data.team1PartnerUserId,
+			data.team2PartnerUserId,
+			data.team1PartnerName,
+			data.team2PartnerName
+		);
+		if (saved) {
+			removePendingFriendlyMatch();
+			console.log('✅ Pending friendly match synced to Firestore:', saved.id);
+			return true;
+		}
+		return false;
+	} catch (error) {
+		console.error('❌ Error retrying pending friendly match:', error);
+		return false;
+	}
+}
+
 /**
  * Sync match to Firestore (root-level matches collection)
  */

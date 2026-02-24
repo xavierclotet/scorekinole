@@ -5,7 +5,7 @@
 	import { team1, team2, updateTeam, updatePartnerName } from '$lib/stores/teams';
 	import * as m from '$lib/paraglide/messages.js';
 	import { buildCompletedMatch, currentMatch, addGameToCurrentMatch } from '$lib/stores/history';
-	import { saveFriendlyMatchToFirestore } from '$lib/firebase/firestore';
+	import { saveFriendlyMatchToFirestore, savePendingFriendlyMatch, removePendingFriendlyMatch } from '$lib/firebase/firestore';
 	import { lastRoundPoints, completeRound, roundsPlayed, resetGameOnly, currentMatchGames, currentMatchRounds, currentGameStartHammer, setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { currentUser } from '$lib/firebase/auth';
@@ -629,18 +629,32 @@
 		// Save to Firestore if at least one player is registered
 		// Only pass partner info if it's a doubles match
 		const isDoublesMatch = settings.gameType === 'doubles';
+		const team1UserId = t1.userId || null;
+		const team2UserId = t2.userId || null;
+		const team1PartnerUserId = isDoublesMatch ? (t1.partner?.userId ?? null) : null;
+		const team2PartnerUserId = isDoublesMatch ? (t2.partner?.userId ?? null) : null;
+		const team1PartnerName = isDoublesMatch ? t1.partner?.name : undefined;
+		const team2PartnerName = isDoublesMatch ? t2.partner?.name : undefined;
+
+		// Backup to localStorage before attempting Firestore write
+		const hasRegisteredPlayer = team1UserId || team2UserId || team1PartnerUserId || team2PartnerUserId;
+		if (hasRegisteredPlayer) {
+			savePendingFriendlyMatch({
+				match: completedMatch, team1UserId, team2UserId,
+				team1PartnerUserId, team2PartnerUserId, team1PartnerName, team2PartnerName
+			});
+		}
+
 		const saved = await saveFriendlyMatchToFirestore(
-			completedMatch,
-			t1.userId,
-			t2.userId,
-			isDoublesMatch ? (t1.partner?.userId ?? null) : null,
-			isDoublesMatch ? (t2.partner?.userId ?? null) : null,
-			isDoublesMatch ? t1.partner?.name : undefined,
-			isDoublesMatch ? t2.partner?.name : undefined
+			completedMatch, team1UserId, team2UserId,
+			team1PartnerUserId, team2PartnerUserId, team1PartnerName, team2PartnerName
 		);
 
 		if (saved) {
+			removePendingFriendlyMatch();
 			console.log('✅ Match saved to cloud:', saved.id);
+		} else if (hasRegisteredPlayer) {
+			console.log('⚠️ Match saved to localStorage for later sync');
 		} else {
 			console.log('ℹ️ Match not saved (no registered players)');
 		}

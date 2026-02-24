@@ -551,7 +551,6 @@
     display: flex;
   }
 
-  .twenties-row .score-input,
   .twenties-row .twenty-input {
     height: 28px;
     width: 36px;

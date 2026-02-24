@@ -3,16 +3,15 @@
 	import { theme } from '$lib/stores/theme';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { RankedPlayer } from '$lib/firebase/rankings';
-	import { type TournamentTier, normalizeTier } from '$lib/types/tournament';
+	import { normalizeTier } from '$lib/types/tournament';
 
 	interface Props {
 		isOpen?: boolean;
 		player?: RankedPlayer | null;
-		bestOfN?: number;
 		onClose?: () => void;
 	}
 
-	let { isOpen = false, player = null, bestOfN = 2, onClose = () => {} }: Props = $props();
+	let { isOpen = false, player = null, onClose = () => {} }: Props = $props();
 
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp).toLocaleDateString(undefined, {
@@ -44,7 +43,7 @@
 	{#if player}
 		<div class="ranking-detail" data-theme={$theme}>
 			<div class="tournaments-list">
-				{#each player.tournaments as tournament, index}
+				{#each player.tournaments as tournament}
 					<div class="tournament-row">
 						<div class="tournament-left">
 							<div class="position-badge" class:gold={tournament.finalPosition === 1} class:silver={tournament.finalPosition === 2} class:bronze={tournament.finalPosition === 3}>

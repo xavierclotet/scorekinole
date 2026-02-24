@@ -1512,28 +1512,6 @@
     padding: 1.5rem;
   }
 
-  /* ── Match Card ─────────────────────────────── */
-  .match-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 1.25rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .match-participants {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .participant {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
   .participant-a {
     text-align: left;
     justify-content: flex-start;

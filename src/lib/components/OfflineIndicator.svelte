@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { isOnline, connectionStatus } from '$lib/utils/networkStatus';
+	import { connectionStatus } from '$lib/utils/networkStatus';
 	import * as m from '$lib/paraglide/messages.js';
 
 	let status = $derived($connectionStatus);

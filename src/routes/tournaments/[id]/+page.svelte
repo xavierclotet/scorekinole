@@ -6385,10 +6385,6 @@
 		color: #059669;
 	}
 
-	.match-detail-overlay:is([data-theme='light'], [data-theme='violet-light']) .md-player.is-winner {
-		background: rgba(255, 255, 255, 0.18);
-	}
-
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) button.match-result-row.has-detail:hover {
 		background: rgba(0, 0, 0, 0.04);
 	}
@@ -6413,10 +6409,6 @@
 		.md-player-name {
 			max-width: 140px;
 			font-size: 0.8125rem;
-		}
-
-		.match-detail-final-score .final-score {
-			font-size: 2rem;
 		}
 
 		.rounds-table .player-col {

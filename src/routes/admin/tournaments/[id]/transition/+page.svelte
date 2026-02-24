@@ -2348,41 +2348,6 @@
     font-style: italic;
   }
 
-  /* SPLIT_DIVISIONS Styles */
-  .split-divisions-header {
-    text-align: center;
-    margin-bottom: 1rem;
-  }
-
-  .split-divisions-header h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 0.25rem 0;
-  }
-
-  .split-divisions-header .help-text {
-    color: #6b7280;
-    font-size: 0.8rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .auto-distribute-btn {
-    padding: 0.35rem 0.75rem;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .auto-distribute-btn:hover {
-    transform: translateY(-1px);
-  }
-
   .dual-config-section {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -2422,186 +2387,7 @@
     color: #4b5563;
   }
 
-  .distribution-section {
-    margin-bottom: 1rem;
-  }
-
-  .brackets-distribution {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 0.75rem;
-  }
-
-  .bracket-card {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    padding: 0.75rem;
-    min-height: 120px;
-  }
-
-  .bracket-card.gold {
-    border-color: #fbbf24;
-    background: #fffef5;
-  }
-
-  .bracket-card.silver {
-    border-color: #9ca3af;
-    background: #fafafa;
-  }
-
-  .bracket-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.35rem;
-    padding-bottom: 0.35rem;
-    border-bottom: 1px solid #e5e7eb;
-  }
-
-  .bracket-header h4 {
-    margin: 0;
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-
-  .bracket-card.gold .bracket-header h4 {
-    color: #b45309;
-  }
-
-  .bracket-card.silver .bracket-header h4 {
-    color: #4b5563;
-  }
-
-  .validity-badge {
-    font-size: 0.9rem;
-  }
-
-  .validity-badge.valid {
-    color: #10b981;
-  }
-
-  .validity-badge.invalid {
-    color: #ef4444;
-  }
-
-  .rounds-preview {
-    font-size: 0.7rem;
-    color: #6b7280;
-    margin: 0 0 0.5rem 0;
-    font-style: italic;
-  }
-
-  .participant-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .participant-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.3rem 0.5rem;
-    background: white;
-    border-radius: 4px;
-    border: 1px solid #e5e7eb;
-    font-size: 0.8rem;
-    transition: all 0.2s;
-  }
-
-  .participant-row:hover {
-    background: #f9fafb;
-  }
-
-  .participant-row.gold {
-    border-left: 2px solid #fbbf24;
-  }
-
-  .participant-row.silver {
-    border-left: 2px solid #9ca3af;
-  }
-
-  .participant-row.unassigned {
-    border-left: 2px solid #f59e0b;
-    background: #fffbeb;
-  }
-
-  .participant-info {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .position-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.25rem;
-    height: 1.25rem;
-    background: var(--primary);
-    color: white;
-    border-radius: 50%;
-    font-size: 0.65rem;
-    font-weight: 700;
-  }
-
-  .seed-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.25rem;
-    height: 1.25rem;
-    background: #10b981;
-    color: white;
-    border-radius: 50%;
-    font-size: 0.65rem;
-    font-weight: 700;
-    margin-right: 0.35rem;
-  }
-
-  .participant-info .name,
-  .participant-row .name {
-    font-weight: 600;
-    color: #1a1a1a;
-    font-size: 0.8rem;
-  }
-
-  .group-tag {
-    font-size: 0.65rem;
-    background: #e5e7eb;
-    color: #6b7280;
-    padding: 0.1rem 0.35rem;
-    border-radius: 3px;
-  }
-
-  .position-tag {
-    font-size: 0.65rem;
-    background: #dbeafe;
-    color: var(--primary);
-    padding: 0.1rem 0.35rem;
-    border-radius: 3px;
-    font-weight: 600;
-    margin-left: auto;
-  }
-
-  .empty-message {
-    text-align: center;
-    color: #9ca3af;
-    font-style: italic;
-    padding: 1rem;
-    font-size: 0.8rem;
-  }
-
   /* Dark mode for SPLIT_DIVISIONS */
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .split-divisions-header h2 {
-    color: #e1e8ed;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .split-divisions-header .help-text {
-    color: #8b9bb3;
-  }
-
   :global(:is([data-theme='dark'], [data-theme='violet'])) .bracket-config {
     background: #1a2332;
     border-color: #2d3748;
@@ -2623,44 +2409,6 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .dual-config-section.advanced .bracket-config h3 {
     border-bottom-color: rgba(255,255,255,0.1);
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .bracket-card {
-    background: #1a2332;
-    border-color: #2d3748;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .bracket-card.gold {
-    border-color: #b45309;
-    background: #1a2332;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .bracket-card.silver {
-    border-color: #6b7280;
-    background: #1a2332;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant-row {
-    background: #0f1419;
-    border-color: #2d3748;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant-row:hover {
-    background: #1a2332;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant-info .name,
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .participant-row .name {
-    color: #e1e8ed;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .unassigned-card {
-    background: #2d3748;
-    border-color: #b45309;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .unassigned-card h4 {
-    color: #fbbf24;
   }
 
   /* Responsive */
@@ -2708,8 +2456,7 @@
       grid-template-columns: 1fr;
     }
 
-    .dual-config-section,
-    .brackets-distribution {
+    .dual-config-section {
       grid-template-columns: 1fr;
     }
 
@@ -2774,7 +2521,6 @@
       font-size: 0.7rem;
     }
 
-    .bracket-card,
     .bracket-config {
       padding: 0.5rem;
     }
@@ -3123,98 +2869,6 @@
   .transition-page:is([data-theme='dark'], [data-theme='violet']) .rounds-content::-webkit-scrollbar-track {
     background: #0f1419;
   }
-
-  /* Division summary badges */
-  .division-summary {
-    display: flex;
-    gap: 0.75rem;
-    margin-top: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .division-badge {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
-    border: 1px solid #e5e7eb;
-    background: white;
-    flex: 1;
-    min-width: 140px;
-    transition: all 0.2s;
-  }
-
-  .division-badge.gold {
-    border-color: #fbbf24;
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
-  }
-
-  .division-badge.silver {
-    border-color: #9ca3af;
-    background: linear-gradient(135deg, rgba(156, 163, 175, 0.1) 0%, rgba(107, 114, 128, 0.05) 100%);
-  }
-
-  .division-badge.valid {
-    border-color: #10b981;
-  }
-
-  .division-badge.invalid {
-    border-color: #ef4444;
-  }
-
-  .division-icon {
-    font-size: 1rem;
-  }
-
-  .division-label {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #6b7280;
-  }
-
-  .division-count {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1a1a1a;
-    margin-left: auto;
-  }
-
-  .validity-icon {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #10b981;
-  }
-
-  .validity-icon.invalid {
-    color: #ef4444;
-  }
-
-  .division-validation-hint {
-    margin-top: 0.5rem;
-    padding: 0.4rem 0.75rem;
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    border-radius: 6px;
-    font-size: 0.75rem;
-    color: #dc2626;
-  }
-
-  .transition-page:is([data-theme='dark'], [data-theme='violet']) .division-badge {
-    background: #1a2332;
-    border-color: #2d3748;
-  }
-
-  .transition-page:is([data-theme='dark'], [data-theme='violet']) .division-badge.gold {
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.08) 100%);
-    border-color: #b45309;
-  }
-
-  .transition-page:is([data-theme='dark'], [data-theme='violet']) .division-badge.silver {
-    background: linear-gradient(135deg, rgba(156, 163, 175, 0.15) 0%, rgba(107, 114, 128, 0.08) 100%);
-    border-color: #4b5563;
-  }
-
 
   /* Loading Overlay */
   .loading-overlay {

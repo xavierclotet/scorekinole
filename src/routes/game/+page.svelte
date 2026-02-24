@@ -24,6 +24,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { onReconnect, setSyncStatus } from '$lib/utils/networkStatus';
+	import { retryPendingFriendlyMatch } from '$lib/firebase/firestore';
 	import {
 		gameTournamentContext,
 		loadTournamentContext,
@@ -339,6 +340,9 @@
 			startCurrentMatch();
 		}
 
+		// Retry any pending friendly match from a previous offline session
+		retryPendingFriendlyMatch();
+
 		const unsubSettings = gameSettings.subscribe($settings => {
 			// Initialize timer if not set
 			if ($timeRemaining === 0) {
@@ -367,6 +371,9 @@
 					setSyncStatus('error');
 				}
 			}
+
+			// Retry pending friendly match
+			await retryPendingFriendlyMatch();
 		});
 
 		// Keyboard shortcuts for page-specific actions (QR Scanner, Settings)

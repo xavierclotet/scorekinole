@@ -1261,7 +1261,6 @@
     overflow-x: hidden;
   }
 
-  .loading-state,
   .error-state {
     display: flex;
     flex-direction: column;
@@ -1626,43 +1625,6 @@
 
   .loading-overlay:is([data-theme='dark'], [data-theme='violet']) .loading-content {
     background: #1a2332;
-  }
-
-  .loading-overlay .spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid #e5e7eb;
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 1rem;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .loading-text {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 0.5rem;
-  }
-
-  .loading-overlay:is([data-theme='dark'], [data-theme='violet']) .loading-text {
-    color: #e1e8ed;
-  }
-
-  .loading-subtext {
-    font-size: 0.85rem;
-    color: #6b7280;
-    margin: 0;
-  }
-
-  .loading-overlay:is([data-theme='dark'], [data-theme='violet']) .loading-subtext {
-    color: #8b9bb3;
   }
 
   /* Swiss Config Section */

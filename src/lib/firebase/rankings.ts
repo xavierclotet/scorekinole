@@ -6,6 +6,8 @@
 import { db, isFirebaseEnabled } from './config';
 import type { UserProfile } from './userProfile';
 import type { TournamentRecord, TournamentTier } from '$lib/types/tournament';
+import { normalizeTier } from '$lib/types/tournament';
+import { calculateRankingPoints } from '$lib/algorithms/ranking';
 import {
   collection,
   getDocs,
@@ -30,6 +32,7 @@ export interface UserWithId extends UserProfile {
 export interface TournamentInfo {
   id: string;
   tier?: TournamentTier;
+  gameType: 'singles' | 'doubles';
   country: string;
   completedAt: number;
 }
@@ -134,6 +137,7 @@ export async function getCompletedTournaments(): Promise<Map<string, TournamentI
       tournamentsMap.set(docSnap.id, {
         id: docSnap.id,
         tier: data.rankingConfig?.tier,
+        gameType: data.gameType || 'singles',
         country: data.country || '',
         completedAt: completedAt || 0
       });
@@ -255,26 +259,36 @@ export function calculateRankings(
   for (const user of users) {
     if (!user.tournaments?.length) continue;
 
-    // 1. Filter user's tournaments by year and country
-    const matchingTournaments = user.tournaments.filter(record => {
-      const tournament = tournamentsMap.get(record.tournamentId);
-      if (!tournament) return false;
+    // 1. Filter user's tournaments by year and country, recalculate points with current system
+    const matchingTournaments = user.tournaments
+      .map(record => {
+        const tournament = tournamentsMap.get(record.tournamentId);
+        if (!tournament) return null;
 
-      // Year filter using tournamentDate from record
-      const year = new Date(record.tournamentDate).getFullYear();
-      if (year !== filters.year) return false;
+        // Year filter using tournamentDate from record
+        const year = new Date(record.tournamentDate).getFullYear();
+        if (year !== filters.year) return null;
 
-      // Country filter
-      if (filters.filterType === 'country' && filters.countryValue) {
-        return tournament.country === filters.countryValue;
-      }
+        // Country filter
+        if (filters.filterType === 'country' && filters.countryValue) {
+          if (tournament.country !== filters.countryValue) return null;
+        }
 
-      return true; // filterType === 'all'
-    });
+        // Recalculate points using current Series system (normalizes legacy tiers)
+        const recalculatedPoints = calculateRankingPoints(
+          record.finalPosition,
+          normalizeTier(tournament.tier),
+          record.totalParticipants,
+          tournament.gameType
+        );
+
+        return { ...record, rankingDelta: recalculatedPoints, tier: tournament.tier, gameType: tournament.gameType, country: tournament.country };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
 
     if (matchingTournaments.length === 0) continue;
 
-    // 2. Sort by points (rankingDelta) descending
+    // 2. Sort by recalculated points descending
     matchingTournaments.sort((a, b) => b.rankingDelta - a.rankingDelta);
 
     // 3. Take top N results
@@ -284,14 +298,11 @@ export function calculateRankings(
     const totalPoints = topN.reduce((sum, t) => sum + t.rankingDelta, 0);
 
     // 5. Add tournament details for modal display
-    const tournamentsWithDetails: TournamentRecordWithDetails[] = topN.map(t => {
-      const tournamentInfo = tournamentsMap.get(t.tournamentId);
-      return {
-        ...t,
-        tier: tournamentInfo?.tier,
-        country: tournamentInfo?.country
-      };
-    });
+    const tournamentsWithDetails: TournamentRecordWithDetails[] = topN.map(t => ({
+      ...t,
+      tier: t.tier ? normalizeTier(t.tier) : undefined,
+      country: t.country
+    }));
 
     // 6. Calculate best result (lowest finalPosition)
     const bestResult = matchingTournaments.length > 0

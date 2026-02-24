@@ -803,40 +803,6 @@
     flex-shrink: 0;
   }
 
-  .import-btn {
-    padding: 0.35rem 0.65rem;
-    background: transparent;
-    color: #6b7280;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-    letter-spacing: 0.02em;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .import-btn:hover {
-    background: #f3f4f6;
-    color: #374151;
-    border-color: #9ca3af;
-  }
-
-  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .import-btn {
-    color: #9ca3af;
-    border-color: #4b5563;
-  }
-
-  .tournaments-container:is([data-theme='dark'], [data-theme='violet']) .import-btn:hover {
-    background: #374151;
-    color: #e5e7eb;
-    border-color: #6b7280;
-  }
-
   /* Controls */
   /* Action buttons */
   .action-buttons {
@@ -1667,20 +1633,6 @@
       gap: 0.35rem;
     }
 
-    .create-btn,
-    .import-btn {
-      padding: 0.4rem 0.6rem;
-      font-size: 0.85rem;
-    }
-
-    .btn-icon {
-      display: inline;
-    }
-
-    .btn-text {
-      display: none;
-    }
-
     .controls-section {
       flex-direction: column;
       gap: 0.75rem;
@@ -1776,12 +1728,6 @@
       gap: 0.35rem;
     }
 
-    .create-btn,
-    .import-btn {
-      padding: 0.45rem 0.6rem;
-      font-size: 0.9rem;
-    }
-
     .name-cell {
       max-width: 100px;
     }
@@ -1834,20 +1780,6 @@
 
     .header-actions {
       gap: 0.35rem;
-    }
-
-    .create-btn,
-    .import-btn {
-      padding: 0.4rem 0.55rem;
-      font-size: 0.85rem;
-    }
-
-    .btn-icon {
-      display: inline;
-    }
-
-    .btn-text {
-      display: none;
     }
 
     .title-section h1 {
