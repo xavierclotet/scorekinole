@@ -1,6 +1,6 @@
 /**
  * Tournament ranking points calculation
- * NCA (National Crokinole Association) point system with interpolation
+ * Crokinole Series point system with interpolation
  */
 
 import type { TournamentTier } from '$lib/types/tournament';
@@ -12,6 +12,8 @@ export interface TierInfo {
   name: string;
   description: string;
   basePoints: number;
+  minPlayers?: number;
+  minPlayersStrict?: boolean;
 }
 
 /**
@@ -19,10 +21,9 @@ export interface TierInfo {
  */
 export function getTierInfo(tier: TournamentTier): TierInfo {
   const tiers: Record<TournamentTier, TierInfo> = {
-    CLUB: { name: 'Club (Tier 4)', description: 'Torneo local', basePoints: 30 },
-    REGIONAL: { name: 'Regional (Tier 3)', description: 'Torneo inter-clubes', basePoints: 35 },
-    NATIONAL: { name: 'Nacional (Tier 2)', description: 'Open nacional', basePoints: 40 },
-    MAJOR: { name: 'Major (Tier 1)', description: 'Tavistock / Mundial', basePoints: 50 }
+    SERIES_50: { name: 'Series 50', description: 'Campeonato de España o torneos masivos', basePoints: 50, minPlayers: 30, minPlayersStrict: true },
+    SERIES_40: { name: 'Series 40', description: 'Torneos regionales grandes', basePoints: 40, minPlayers: 20, minPlayersStrict: false },
+    SERIES_35: { name: 'Series 35', description: 'Torneos locales y de clubes', basePoints: 35 }
   };
   return tiers[tier];
 }
@@ -32,24 +33,23 @@ export function getTierInfo(tier: TournamentTier): TierInfo {
  */
 export function getAllTiers(): { tier: TournamentTier; info: TierInfo }[] {
   return [
-    { tier: 'MAJOR', info: getTierInfo('MAJOR') },
-    { tier: 'NATIONAL', info: getTierInfo('NATIONAL') },
-    { tier: 'REGIONAL', info: getTierInfo('REGIONAL') },
-    { tier: 'CLUB', info: getTierInfo('CLUB') }
+    { tier: 'SERIES_50', info: getTierInfo('SERIES_50') },
+    { tier: 'SERIES_40', info: getTierInfo('SERIES_40') },
+    { tier: 'SERIES_35', info: getTierInfo('SERIES_35') }
   ];
 }
 
 /**
- * Calculate NCA ranking points.
+ * Calculate ranking points.
  *
  * Two regimes:
- * - 16+ participants: use official NCA raw drop curve (Singles: -3,-2,-2,-2,-1... / Doubles: -5,-4,-2,-2...)
- *   Winner gets full basePoints. Lower positions may still get high points (e.g. last of 16 in Tier 1 = 30pts).
+ * - 16+ participants: use drop curve (Singles: -3,-2,-2,-2,-1... / Doubles: -5,-4,-2,-2...)
+ *   Winner gets full basePoints. Lower positions may still get high points.
  * - <16 participants: winner scaled by N/16, then interpolate drops to reach 1 at last place.
  *   Hamilton method when standard drops exceed target (Doubles), level fill when insufficient (Singles).
  *
  * @param position Final position (1 = winner)
- * @param tier Tournament tier (CLUB, REGIONAL, NATIONAL, MAJOR)
+ * @param tier Tournament series (SERIES_50, SERIES_40, SERIES_35)
  * @param participantsCount Number of participating teams/players (default 16)
  * @param mode Game mode: 'singles' or 'doubles' (default 'singles')
  * @returns Points earned
@@ -69,7 +69,7 @@ export function calculateRankingPoints(
   if (position > participantsCount) return 0;
   if (winnerPoints <= 1) return 1;
 
-  // Build the standard NCA drop curve
+  // Build the standard drop curve
   const standardDrops: number[] = [];
   for (let i = 2; i <= participantsCount; i++) {
     if (mode === 'singles') {
@@ -83,7 +83,7 @@ export function calculateRankingPoints(
     }
   }
 
-  // 16+ participants: use official NCA raw drops (no interpolation)
+  // 16+ participants: use raw drops (no interpolation)
   if (participantsCount >= 16) {
     let cumDrop = 0;
     for (let i = 0; i < position - 1; i++) cumDrop += standardDrops[i];

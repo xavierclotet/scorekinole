@@ -8,6 +8,7 @@
 		getAvailableTournamentCountries,
 		type TournamentListItem
 	} from '$lib/firebase/publicTournaments';
+	import { normalizeTier } from '$lib/types/tournament';
 	import TournamentCard from '$lib/components/TournamentCard.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -20,7 +21,7 @@
 	let selectedYear = $state<number | undefined>(undefined);
 	let selectedCountry = $state('');
 	let selectedMode = $state<'all' | 'singles' | 'doubles'>('all');
-	let selectedTier = $state<'all' | 'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR'>('all');
+	let selectedTier = $state<'all' | 'SERIES_50' | 'SERIES_40' | 'SERIES_35'>('all');
 	let timeFilter = $state<'all' | 'past' | 'future'>('all');
 
 	// Data state
@@ -60,7 +61,7 @@
 		}
 
 		if (selectedTier !== 'all') {
-			result = result.filter((t) => t.tier === selectedTier);
+			result = result.filter((t) => t.tier && normalizeTier(t.tier) === selectedTier);
 		}
 
 		if (timeFilter !== 'all') {
@@ -260,10 +261,9 @@
 
 			<select class="filter-select" bind:value={selectedTier}>
 				<option value="all">{m.tournaments_allTiers()}</option>
-				<option value="CLUB">{m.tournaments_tierClub()}</option>
-				<option value="REGIONAL">{m.tournaments_tierRegional()}</option>
-				<option value="NATIONAL">{m.tournaments_tierNational()}</option>
-				<option value="MAJOR">{m.tournaments_tierMajor()}</option>
+				<option value="SERIES_35">{m.tournaments_seriesThirtyFive()}</option>
+				<option value="SERIES_40">{m.tournaments_seriesForty()}</option>
+				<option value="SERIES_50">{m.tournaments_seriesFifty()}</option>
 			</select>
 		</div>
 

@@ -27,7 +27,19 @@ function getDb(): Firestore {
 }
 
 // Types (mirrored from client for server-side use)
-type TournamentTier = "CLUB" | "REGIONAL" | "NATIONAL" | "MAJOR";
+type TournamentTier = "SERIES_50" | "SERIES_40" | "SERIES_35";
+
+/**
+ * Normalize tier values (handles legacy CLUB/REGIONAL/NATIONAL/MAJOR from Firestore)
+ */
+function normalizeTier(tier: string | undefined): TournamentTier {
+  const map: Record<string, TournamentTier> = {
+    MAJOR: "SERIES_50", NATIONAL: "SERIES_40",
+    REGIONAL: "SERIES_35", CLUB: "SERIES_35",
+    SERIES_50: "SERIES_50", SERIES_40: "SERIES_40", SERIES_35: "SERIES_35",
+  };
+  return map[tier || ""] || "SERIES_35";
+}
 
 interface TournamentRecord {
   tournamentId: string;
@@ -99,16 +111,15 @@ interface UserProfile {
   tournaments?: TournamentRecord[];
 }
 
-// Tier base points (NCA system)
-const TIER_BASE_POINTS: Record<TournamentTier, number> = {
-  CLUB: 30,
-  REGIONAL: 35,
-  NATIONAL: 40,
-  MAJOR: 50,
+// Series base points
+const TIER_BASE_POINTS: Record<string, number> = {
+  SERIES_50: 50, SERIES_40: 40, SERIES_35: 35,
+  // Legacy support
+  MAJOR: 50, NATIONAL: 40, REGIONAL: 35, CLUB: 35,
 };
 
 /**
- * Calculate NCA ranking points with smart interpolation.
+ * Calculate ranking points with smart interpolation.
  */
 function calculateRankingPoints(
   position: number,
@@ -423,7 +434,7 @@ export const onTournamentComplete = onDocumentUpdated(
       return;
     }
 
-    const tier: TournamentTier = afterData.rankingConfig?.tier || "CLUB";
+    const tier: TournamentTier = normalizeTier(afterData.rankingConfig?.tier);
 
     // Filter for ACTIVE participants (treat missing status as ACTIVE for legacy data)
     // DISQUALIFIED and WITHDRAWN participants should NOT receive ranking points

@@ -8,7 +8,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	import { theme } from '$lib/stores/theme';
-	import type { Tournament, BracketMatch, GroupMatch } from '$lib/types/tournament';
+	import { type Tournament, type BracketMatch, type GroupMatch, normalizeTier } from '$lib/types/tournament';
 	import { isBye } from '$lib/algorithms/bracket';
 	import { translateCountry } from '$lib/utils/countryTranslations';
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
@@ -178,7 +178,7 @@
 	// Get ranking points earned based on final position and tier
 	function getRankingPoints(position: number): number {
 		if (!tournament?.rankingConfig?.enabled) return 0;
-		const tier = tournament.rankingConfig.tier || 'CLUB';
+		const tier = normalizeTier(tournament.rankingConfig.tier);
 		const totalParticipants = tournament.participants.filter(p => p.status === 'ACTIVE' || !p.status).length;
 		return calculateRankingPoints(position, tier, totalParticipants, tournament.gameType);
 	}
@@ -547,13 +547,17 @@
 	}
 
 	function getTierLabel(tier: string | undefined): string {
-		switch (tier) {
-			case 'CLUB': return m.tournaments_tierClub();
-			case 'REGIONAL': return m.tournaments_tierRegional();
-			case 'NATIONAL': return m.tournaments_tierNational();
-			case 'MAJOR': return m.tournaments_tierMajor();
-			default: return '';
-		}
+		if (!tier) return '';
+		const labels: Record<string, () => string> = {
+			SERIES_50: () => m.tournaments_seriesFifty(),
+			SERIES_40: () => m.tournaments_seriesForty(),
+			SERIES_35: () => m.tournaments_seriesThirtyFive(),
+			MAJOR: () => m.tournaments_seriesFifty(),
+			NATIONAL: () => m.tournaments_seriesForty(),
+			REGIONAL: () => m.tournaments_seriesThirtyFive(),
+			CLUB: () => m.tournaments_seriesThirtyFive()
+		};
+		return labels[tier]?.() || '';
 	}
 
 	function getModeLabel(mode: string | undefined): string {
@@ -883,7 +887,7 @@
 					</div>
 					{#if tournament.rankingConfig?.enabled && tournament.rankingConfig.tier}
 						<div class="info-card">
-							<span class="info-label">Tier</span>
+							<span class="info-label">Series</span>
 							<span class="info-value tier-{tournament.rankingConfig.tier}">{getTierLabel(tournament.rankingConfig.tier)}</span>
 						</div>
 					{/if}
@@ -3076,10 +3080,9 @@
 		font-weight: 600;
 	}
 
-	.info-value.tier-MAJOR { color: #f59e0b; }
-	.info-value.tier-NATIONAL { color: #8b5cf6; }
-	.info-value.tier-REGIONAL { color: #10b981; }
-	.info-value.tier-CLUB { color: #6b7a94; }
+	.info-value.tier-SERIES_50, .info-value.tier-MAJOR { color: #d4af37; }
+	.info-value.tier-SERIES_40, .info-value.tier-NATIONAL { color: #3b82f6; }
+	.info-value.tier-SERIES_35, .info-value.tier-REGIONAL, .info-value.tier-CLUB { color: #388e3c; }
 
 	/* External Link Card */
 	.link-card {
@@ -3332,10 +3335,9 @@
 		text-transform: uppercase;
 	}
 
-	.hero-badge .tier-CLUB { background: #6b7280; }
-	.hero-badge .tier-REGIONAL { background: #3b82f6; }
-	.hero-badge .tier-NATIONAL { background: #8b5cf6; }
-	.hero-badge .tier-MAJOR { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+	.hero-badge .tier-SERIES_35, .hero-badge .tier-CLUB, .hero-badge .tier-REGIONAL { background: #388e3c; }
+	.hero-badge .tier-SERIES_40, .hero-badge .tier-NATIONAL { background: #3b82f6; }
+	.hero-badge .tier-SERIES_50, .hero-badge .tier-MAJOR { background: linear-gradient(135deg, #d4af37 0%, #b8972e 100%); }
 
 	.hero-title {
 		margin: 0 0 0.5rem 0;

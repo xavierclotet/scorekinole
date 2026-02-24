@@ -2591,35 +2591,6 @@
 
 
 
-	.header-input {
-		font-family: 'Lexend', sans-serif;
-		font-size: 1.1rem;
-		font-weight: 600;
-		color: var(--game-text);
-		opacity: 0.95;
-		background: var(--game-surface-hover);
-		border: 1px solid var(--game-border);
-		border-radius: 6px;
-		padding: 0.3rem 0.6rem;
-		outline: none;
-		text-align: center;
-		min-width: 100px;
-		max-width: 250px;
-	}
-
-	.header-input:focus {
-		background: var(--game-btn-bg-hover);
-		border-color: var(--game-text-muted);
-	}
-
-	.header-input-small {
-		font-size: 0.9rem;
-		font-weight: 500;
-		min-width: 70px;
-		max-width: 120px;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
 
 	/* Header buttons - minimal */
 	.header-btn {
@@ -2981,22 +2952,6 @@
 		transform: none;
 	}
 
-	/* Confirmation Modal */
-	.confirm-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(0, 0, 0, 0.7);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 2000;
-		opacity: 0;
-		animation: overlayFadeIn 0.15s ease-out forwards;
-	}
-
 	@keyframes overlayFadeIn {
 		to {
 			opacity: 1;
@@ -3265,11 +3220,7 @@
 		transform: scale(0.98);
 	}
 
-	.confirm-buttons.single-button {
-		display: flex;
-		justify-content: center;
-		gap: 1rem;
-	}
+
 
 	/* Responsive for floating button */
 	@media (max-width: 768px) {

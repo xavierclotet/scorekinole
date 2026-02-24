@@ -11,7 +11,7 @@ import { getUserProfileById, removeTournamentRecord } from './userProfile';
 import { calculateUserRanking } from './rankings';
 import { savingParticipantResults } from '$lib/stores/tournament';
 import type { ConsolationBracket } from '$lib/types/tournament';
-import { getParticipantDisplayName } from '$lib/types/tournament';
+import { getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
 
 /**
  * Sync current ranking for all participants from Firestore users collection
@@ -512,7 +512,7 @@ export async function applyRankingUpdates(
   try {
     const { addTournamentRecord } = await import('./userProfile');
 
-    const tier = tournament.rankingConfig?.tier || 'CLUB';
+    const tier = normalizeTier(tournament.rankingConfig?.tier);
 
     // Treat missing status as ACTIVE for backward compatibility with legacy data
     const totalParticipants = tournament.participants.filter((p: any) => p.status === 'ACTIVE' || !p.status).length;

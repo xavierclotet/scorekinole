@@ -58,19 +58,27 @@
 	};
 
 	const tierColors: Record<string, string> = {
-		CLUB: '#6b7280',
-		REGIONAL: '#3b82f6',
-		NATIONAL: '#f59e0b',
-		MAJOR: '#ef4444'
+		SERIES_50: '#d4af37',
+		SERIES_40: '#3b82f6',
+		SERIES_35: '#388e3c',
+		// Legacy support
+		MAJOR: '#d4af37',
+		NATIONAL: '#3b82f6',
+		REGIONAL: '#388e3c',
+		CLUB: '#388e3c'
 	};
 
 	// Use translated tier labels
 	const getTierLabel = (tier: string): string => {
 		const labels: Record<string, () => string> = {
-			CLUB: () => m.tournaments_tierClub(),
-			REGIONAL: () => m.tournaments_tierRegional(),
-			NATIONAL: () => m.tournaments_tierNational(),
-			MAJOR: () => m.tournaments_tierMajor()
+			SERIES_50: () => m.tournaments_seriesFifty(),
+			SERIES_40: () => m.tournaments_seriesForty(),
+			SERIES_35: () => m.tournaments_seriesThirtyFive(),
+			// Legacy support
+			MAJOR: () => m.tournaments_seriesFifty(),
+			NATIONAL: () => m.tournaments_seriesForty(),
+			REGIONAL: () => m.tournaments_seriesThirtyFive(),
+			CLUB: () => m.tournaments_seriesThirtyFive()
 		};
 		return labels[tier]?.() || tier;
 	};

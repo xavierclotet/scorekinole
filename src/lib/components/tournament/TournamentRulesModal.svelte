@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Tournament } from '$lib/types/tournament';
+  import { type Tournament, normalizeTier } from '$lib/types/tournament';
   import { formatDuration, calculateTimeBreakdown } from '$lib/utils/tournamentTime';
   import * as m from '$lib/paraglide/messages.js';
   import { getLocale } from '$lib/paraglide/runtime';
@@ -149,13 +149,13 @@
   // Get ranking tier display name and max points
   let rankingInfo = $derived((() => {
     if (!tournament.rankingConfig?.enabled) return null;
+    const normalized = normalizeTier(tournament.rankingConfig.tier);
     const tierMap: Record<string, { name: string; maxPoints: number }> = {
-      'CLUB': { name: m.admin_tierClub(), maxPoints: 15 },
-      'REGIONAL': { name: m.admin_tierRegional(), maxPoints: 25 },
-      'NATIONAL': { name: m.admin_tierNational(), maxPoints: 40 },
-      'MAJOR': { name: m.admin_tierMajor(), maxPoints: 50 }
+      'SERIES_50': { name: m.admin_seriesFifty(), maxPoints: 50 },
+      'SERIES_40': { name: m.admin_seriesForty(), maxPoints: 40 },
+      'SERIES_35': { name: m.admin_seriesThirtyFive(), maxPoints: 35 }
     };
-    return tierMap[tournament.rankingConfig.tier || 'CLUB'];
+    return tierMap[normalized];
   })());
 
   // Check if tournament has split divisions (Gold/Silver)

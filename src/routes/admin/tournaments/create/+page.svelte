@@ -15,6 +15,7 @@
   import { createTournament, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
+  import { normalizeTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution, calculateRankingPoints } from '$lib/algorithms/ranking';
   import { getUserProfileById, createGuestUserProfile, type UserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
@@ -137,7 +138,7 @@
 
   // Step 3: Ranking Configuration
   let rankingEnabled = $state(false);
-  let selectedTier = $state<TournamentTier>('CLUB');
+  let selectedTier = $state<TournamentTier>('SERIES_35');
 
   // Step 4: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
@@ -447,7 +448,7 @@
 
       // Step 3
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
-      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      selectedTier = normalizeTier(tournament.rankingConfig?.tier);
 
       // Step 4 - Load participants directly into array (preserves userId links)
       participants = await Promise.all(tournament.participants.map(async (p) => {
@@ -635,7 +636,7 @@
 
       // Step 3
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
-      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      selectedTier = normalizeTier(tournament.rankingConfig?.tier);
 
       // Step 4 - Copy participants and refresh photos from user profiles
       // Also migrate old pair format (name with " / " but no partner field) to new format
@@ -828,7 +829,7 @@
 
       // Step 3
       rankingEnabled = data.rankingEnabled ?? false;
-      selectedTier = data.selectedTier || 'CLUB';
+      selectedTier = normalizeTier(data.selectedTier);
 
       // Step 4
       participants = data.participants || [];
@@ -2477,54 +2478,42 @@
           {#if rankingEnabled}
             <div class="ranking-config">
               <h4>🏆 {m.wizard_selectTierTitle()}</h4>
-              <p class="tier-description">{m.wizard_tierDescription()}</p>
+              <p class="tier-description">{m.wizard_seriesDescription()}</p>
 
               <div class="tier-selection">
-                <label class="tier-option {selectedTier === 'CLUB' ? 'selected' : ''}">
-                  <input type="radio" bind:group={selectedTier} value="CLUB" />
+                <label class="tier-option {selectedTier === 'SERIES_50' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="SERIES_50" />
                   <div class="tier-card">
                     <div class="tier-header">
-                      <span class="tier-badge tier-4">Tier 4</span>
-                      <span class="tier-name">{m.wizard_tierClub()}</span>
+                      <span class="tier-badge series-50">50 pts</span>
+                      <span class="tier-name">{m.wizard_seriesFifty()}</span>
                     </div>
-                    <div class="tier-desc">{m.wizard_tierClubDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'CLUB', participantCount || 16, gameType)} pts al 1º</div>
+                    <div class="tier-desc">{m.wizard_seriesFiftyDesc()}</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_50', participantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
 
-                <label class="tier-option {selectedTier === 'REGIONAL' ? 'selected' : ''}">
-                  <input type="radio" bind:group={selectedTier} value="REGIONAL" />
+                <label class="tier-option {selectedTier === 'SERIES_40' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="SERIES_40" />
                   <div class="tier-card">
                     <div class="tier-header">
-                      <span class="tier-badge tier-3">Tier 3</span>
-                      <span class="tier-name">{m.wizard_tierRegional()}</span>
+                      <span class="tier-badge series-40">40 pts</span>
+                      <span class="tier-name">{m.wizard_seriesForty()}</span>
                     </div>
-                    <div class="tier-desc">{m.wizard_tierRegionalDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'REGIONAL', participantCount || 16, gameType)} pts al 1º</div>
+                    <div class="tier-desc">{m.wizard_seriesFortyDesc()}</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_40', participantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
 
-                <label class="tier-option {selectedTier === 'NATIONAL' ? 'selected' : ''}">
-                  <input type="radio" bind:group={selectedTier} value="NATIONAL" />
+                <label class="tier-option {selectedTier === 'SERIES_35' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="SERIES_35" />
                   <div class="tier-card">
                     <div class="tier-header">
-                      <span class="tier-badge tier-2">Tier 2</span>
-                      <span class="tier-name">{m.wizard_tierNational()}</span>
+                      <span class="tier-badge series-35">35 pts</span>
+                      <span class="tier-name">{m.wizard_seriesThirtyFive()}</span>
                     </div>
-                    <div class="tier-desc">{m.wizard_tierNationalDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'NATIONAL', participantCount || 16, gameType)} pts al 1º</div>
-                  </div>
-                </label>
-
-                <label class="tier-option {selectedTier === 'MAJOR' ? 'selected' : ''}">
-                  <input type="radio" bind:group={selectedTier} value="MAJOR" />
-                  <div class="tier-card">
-                    <div class="tier-header">
-                      <span class="tier-badge tier-1">Tier 1</span>
-                      <span class="tier-name">{m.wizard_tierMajor()}</span>
-                    </div>
-                    <div class="tier-desc">{m.wizard_tierMajorDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'MAJOR', participantCount || 16, gameType)} pts al 1º</div>
+                    <div class="tier-desc">{m.wizard_seriesThirtyFiveDesc()}</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_35', participantCount || 16, gameType)} pts al 1º</div>
                   </div>
                 </label>
               </div>
@@ -4190,10 +4179,9 @@
     color: #fff;
   }
 
-  .tier-badge.tier-1 { background: #d4af37; }
-  .tier-badge.tier-2 { background: #1976d2; }
-  .tier-badge.tier-3 { background: #388e3c; }
-  .tier-badge.tier-4 { background: #7b1fa2; }
+  .tier-badge.series-50 { background: #d4af37; }
+  .tier-badge.series-40 { background: #1976d2; }
+  .tier-badge.series-35 { background: #388e3c; }
 
   .tier-name {
     font-weight: 600;

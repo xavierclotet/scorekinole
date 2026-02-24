@@ -22,7 +22,7 @@
   import { searchUsers, getTournament, transformImportedToLive } from '$lib/firebase/tournaments';
   import type { UserProfile } from '$lib/firebase/userProfile';
   import type { TournamentTier, TournamentParticipant, Tournament } from '$lib/types/tournament';
-  import { getParticipantDisplayName } from '$lib/types/tournament';
+  import { getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import CountrySelect from '$lib/components/CountrySelect.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
@@ -139,7 +139,7 @@
       tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType || 'singles';
       rankingEnabled = tournament.rankingConfig?.enabled || false;
-      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      selectedTier = normalizeTier(tournament.rankingConfig?.tier);
       qualificationMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || 'WINS';
       description = tournament.description || '';
       externalLink = tournament.externalLink || '';
@@ -272,7 +272,7 @@
       tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType || 'singles';
       rankingEnabled = tournament.rankingConfig?.enabled || false;
-      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      selectedTier = normalizeTier(tournament.rankingConfig?.tier);
       qualificationMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || 'WINS';
       description = '';  // Clear notes for new tournament
       externalLink = tournament.externalLink || '';
@@ -410,7 +410,7 @@
       tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType || 'singles';
       rankingEnabled = tournament.rankingConfig?.enabled || false;
-      selectedTier = tournament.rankingConfig?.tier || 'CLUB';
+      selectedTier = normalizeTier(tournament.rankingConfig?.tier);
       qualificationMode = 'POINTS';  // Default for transform mode (user configures explicitly)
       description = tournament.description || '';
       externalLink = tournament.externalLink || '';
@@ -536,7 +536,7 @@
   let tournamentTime = $state('');
   let gameType = $state<'singles' | 'doubles'>('singles');
   let rankingEnabled = $state(false);
-  let selectedTier = $state<TournamentTier>('CLUB');
+  let selectedTier = $state<TournamentTier>('SERIES_35');
   let qualificationMode = $state<'WINS' | 'POINTS'>('POINTS');
   let description = $state('');
   let externalLink = $state('');
@@ -776,7 +776,7 @@
       tournamentTime = data.tournamentTime ?? '';
       gameType = data.gameType ?? 'singles';
       rankingEnabled = data.rankingEnabled ?? false;
-      selectedTier = data.selectedTier ?? 'CLUB';
+      selectedTier = normalizeTier(data.selectedTier);
       description = data.description ?? '';
       externalLink = data.externalLink ?? '';
       posterUrl = data.posterUrl ?? '';
@@ -1989,10 +1989,9 @@
 
                 {#if rankingEnabled}
                   <select id="tier" bind:value={selectedTier} class="input-field" style="margin-top: 0.5rem;">
-                    <option value="CLUB">Club</option>
-                    <option value="REGIONAL">Regional</option>
-                    <option value="NATIONAL">Nacional</option>
-                    <option value="MAJOR">Major</option>
+                    <option value="SERIES_35">Series 35 · 35p</option>
+                    <option value="SERIES_40">Series 40 · 40p</option>
+                    <option value="SERIES_50">Series 50 · 50p</option>
                   </select>
                 {/if}
               </div>

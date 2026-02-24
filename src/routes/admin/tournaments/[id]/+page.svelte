@@ -11,7 +11,7 @@
   import { currentUser } from '$lib/firebase/auth';
   import { getTournament, cancelTournament as cancelTournamentFirebase, updateTournament } from '$lib/firebase/tournaments';
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
-  import { type Tournament, getParticipantDisplayName } from '$lib/types/tournament';
+  import { type Tournament, type TournamentTier, getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
   import Toast from '$lib/components/Toast.svelte';
   import * as m from '$lib/paraglide/messages.js';
   import { formatDuration, calculateRemainingTime, calculateTournamentTimeEstimate, calculateTimeBreakdown, type TimeBreakdown } from '$lib/utils/tournamentTime';
@@ -45,7 +45,7 @@
   let editShow20s = $state(false);
   let editShowHammer = $state(false);
   let editRankingEnabled = $state(false);
-  let editRankingTier = $state<'CLUB' | 'REGIONAL' | 'NATIONAL' | 'MAJOR'>('CLUB');
+  let editRankingTier = $state<TournamentTier>('SERIES_35');
   let editConsolationEnabled = $state(false);
   let editThirdPlaceMatchEnabled = $state(true);
   let editIsTest = $state(false);
@@ -283,7 +283,7 @@
     editShow20s = tournament.show20s;
     editShowHammer = tournament.showHammer;
     editRankingEnabled = tournament.rankingConfig?.enabled ?? true;
-    editRankingTier = tournament.rankingConfig?.tier || 'CLUB';
+    editRankingTier = normalizeTier(tournament.rankingConfig?.tier);
     // Initialize consolation toggle from current tournament state
     editConsolationEnabled = Boolean(
       tournament.finalStage?.consolationEnabled ??
@@ -618,9 +618,8 @@
                 <span class="config-label">{m.admin_rankingSystem()}:</span>
                 <span class="config-value">
                   {#if tournament.rankingConfig?.enabled}
-                    {tournament.rankingConfig.tier === 'MAJOR' ? `${m.admin_tierMajor()} (Tier 1)` :
-                        tournament.rankingConfig.tier === 'NATIONAL' ? `${m.admin_tierNational()} (Tier 2)` :
-                        tournament.rankingConfig.tier === 'REGIONAL' ? `${m.admin_tierRegional()} (Tier 3)` : `${m.admin_tierClub()} (Tier 4)`}
+                    {normalizeTier(tournament.rankingConfig.tier) === 'SERIES_50' ? m.admin_seriesFifty() :
+                        normalizeTier(tournament.rankingConfig.tier) === 'SERIES_40' ? m.admin_seriesForty() : m.admin_seriesThirtyFive()}
                   {:else}
                     {m.admin_disabled()}
                   {/if}
@@ -1089,10 +1088,9 @@
                   <div class="qe-field">
                     <label for="edit-tier">{m.admin_category()}</label>
                     <select id="edit-tier" bind:value={editRankingTier}>
-                      <option value="CLUB">{m.admin_tierClub()} · 15p</option>
-                      <option value="REGIONAL">{m.admin_tierRegional()} · 25p</option>
-                      <option value="NATIONAL">{m.admin_tierNational()} · 40p</option>
-                      <option value="MAJOR">{m.admin_tierMajor()} · 50p</option>
+                      <option value="SERIES_35">{m.admin_seriesThirtyFive()} · 35p</option>
+                      <option value="SERIES_40">{m.admin_seriesForty()} · 40p</option>
+                      <option value="SERIES_50">{m.admin_seriesFifty()} · 50p</option>
                     </select>
                   </div>
                 {/if}

@@ -12,7 +12,8 @@
     Swords,
     Trophy,
     Shield,
-    ArrowRight
+    ArrowRight,
+    BarChart3
   } from '@lucide/svelte';
 
   const allAdminSections = [
@@ -34,6 +35,13 @@
       description: m.admin_manageUsersDesc,
       Icon: Users,
       path: '/admin/users',
+      superAdminOnly: true
+    },
+    {
+      title: m.analytics_title,
+      description: m.analytics_description,
+      Icon: BarChart3,
+      path: '/admin/analytics',
       superAdminOnly: true
     }
   ];

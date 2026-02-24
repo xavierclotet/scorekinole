@@ -10,6 +10,7 @@
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import { checkForUpdates, type VersionCheckResult } from '$lib/utils/versionCheck';
 	import { adminTheme } from '$lib/stores/theme';
+	import { trackPageView } from '$lib/utils/pageViewTracker';
 	import CompleteProfileModal from '$lib/components/CompleteProfileModal.svelte';
 	import UpdateAvailableModal from '$lib/components/UpdateAvailableModal.svelte';
 	import '../app.css';
@@ -24,6 +25,13 @@
 	$effect(() => {
 		if (browser) {
 			document.documentElement.setAttribute('data-theme', $adminTheme);
+		}
+	});
+
+	// Track page views on route changes
+	$effect(() => {
+		if (browser) {
+			trackPageView(page.url.pathname);
 		}
 	});
 

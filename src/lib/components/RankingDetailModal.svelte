@@ -3,7 +3,7 @@
 	import { theme } from '$lib/stores/theme';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { RankedPlayer } from '$lib/firebase/rankings';
-	import type { TournamentTier } from '$lib/types/tournament';
+	import { type TournamentTier, normalizeTier } from '$lib/types/tournament';
 
 	interface Props {
 		isOpen?: boolean;
@@ -22,9 +22,21 @@
 		});
 	}
 
-	function getTierClass(tier?: TournamentTier): string {
+	function getTierClass(tier?: string): string {
 		if (!tier) return '';
-		return `tier-${tier.toLowerCase()}`;
+		const normalized = normalizeTier(tier);
+		return `tier-${normalized.toLowerCase()}`;
+	}
+
+	function getTierDisplayName(tier?: string): string {
+		if (!tier) return '';
+		const normalized = normalizeTier(tier);
+		const labels: Record<string, () => string> = {
+			SERIES_50: () => m.tournaments_seriesFifty(),
+			SERIES_40: () => m.tournaments_seriesForty(),
+			SERIES_35: () => m.tournaments_seriesThirtyFive()
+		};
+		return labels[normalized]?.() || normalized;
 	}
 </script>
 
@@ -45,7 +57,7 @@
 								<span class="tournament-name">{tournament.tournamentName}</span>
 								{#if tournament.tier}
 									<span class="tournament-tier {getTierClass(tournament.tier)}">
-										{tournament.tier}
+										{getTierDisplayName(tournament.tier)}
 									</span>
 								{/if}
 							</div>
@@ -184,24 +196,19 @@
 		letter-spacing: 0.03em;
 	}
 
-	.tier-club {
-		background: rgba(156, 163, 175, 0.25);
-		color: #9ca3af;
+	.tier-series_50 {
+		background: rgba(212, 175, 55, 0.25);
+		color: #d4af37;
 	}
 
-	.tier-regional {
+	.tier-series_40 {
 		background: rgba(59, 130, 246, 0.25);
 		color: #60a5fa;
 	}
 
-	.tier-national {
-		background: rgba(168, 85, 247, 0.25);
-		color: #a78bfa;
-	}
-
-	.tier-major {
-		background: rgba(234, 179, 8, 0.25);
-		color: #facc15;
+	.tier-series_35 {
+		background: rgba(56, 142, 60, 0.25);
+		color: #66bb6a;
 	}
 
 	.tournament-meta {

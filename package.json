@@ -19,7 +19,8 @@
 		"deploy:functions": "set FUNCTIONS_DISCOVERY_TIMEOUT=60 && firebase deploy --only functions --force",
 		"deploy:hosting": "npm run build && firebase deploy --only hosting",
 		"functions:log": "firebase functions:log",
-		"machine-translate": "inlang machine translate --project project.inlang"
+		"machine-translate": "inlang machine translate --project project.inlang",
+		"preview:prod": "npm run build && npm run preview"
 	},
 	"devDependencies": {
 		"@capacitor/assets": "^3.0.5",

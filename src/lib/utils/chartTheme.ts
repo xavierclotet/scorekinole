@@ -62,12 +62,16 @@ export const BUMP_CHART_COLORS = [
 	'#eab308', // yellow
 ];
 
-/** Tier colors for ranking charts */
+/** Series colors for ranking charts */
 export const TIER_COLORS: Record<string, string> = {
-	CLUB: '#6b7280',
-	REGIONAL: '#3b82f6',
-	NATIONAL: '#f59e0b',
-	MAJOR: '#ef4444',
+	SERIES_50: '#d4af37',
+	SERIES_40: '#3b82f6',
+	SERIES_35: '#388e3c',
+	// Legacy support
+	MAJOR: '#d4af37',
+	NATIONAL: '#3b82f6',
+	REGIONAL: '#388e3c',
+	CLUB: '#388e3c',
 };
 
 /**

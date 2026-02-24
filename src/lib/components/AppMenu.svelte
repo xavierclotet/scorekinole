@@ -5,7 +5,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { APP_VERSION } from '$lib/constants';
 
-	import { Home, ChevronDown, Globe, Check, Trophy, BarChart3, CirclePlus, Shield, User, Users, Swords } from '@lucide/svelte';
+	import { Home, ChevronDown, Globe, Check, Trophy, BarChart3, ChartLine, CirclePlus, Shield, User, Users, Swords } from '@lucide/svelte';
 	import { setLocale, getLocale } from '$lib/paraglide/runtime.js';
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserLanguage } from '$lib/firebase/userProfile';
@@ -243,6 +243,16 @@
 									<Swords class="size-3.5 text-primary" />
 								</div>
 								<span class="flex-1 text-sm">{m.admin_matchManagement()}</span>
+							</DropdownMenu.Item>
+
+							<DropdownMenu.Item
+								onclick={() => goto('/admin/analytics')}
+								class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
+							>
+								<div class="flex items-center justify-center size-6 rounded bg-primary/10">
+									<ChartLine class="size-3.5 text-primary" />
+								</div>
+								<span class="flex-1 text-sm">{m.analytics_title()}</span>
 							</DropdownMenu.Item>
 
 							<DropdownMenu.Separator class="my-1" />

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Tournament, GroupMatch, BracketMatch } from '$lib/types/tournament';
-  import { getParticipantDisplayName } from '$lib/types/tournament';
+  import { getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
   import BumpChart from '$lib/components/charts/BumpChart.svelte';
@@ -239,7 +239,7 @@
   // Calculate ranking points earned based on final position and tier
   function getRankingDelta(participant: typeof tournament.participants[0]): number {
     if (!participant.finalPosition || !tournament.rankingConfig?.enabled) return 0;
-    const tier = tournament.rankingConfig?.tier || 'CLUB';
+    const tier = normalizeTier(tournament.rankingConfig?.tier);
     const totalParticipants = tournament.participants.filter(p => p.status === 'ACTIVE' || !p.status).length;
     return calculateRankingPoints(participant.finalPosition, tier, totalParticipants, tournament.gameType);
   }
