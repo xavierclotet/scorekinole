@@ -2270,6 +2270,24 @@ export async function advanceConsolationWinner(
 }
 
 /**
+ * Check if all matches in a consolation bracket's final round are completed
+ * This is a fallback check when isComplete flag might not be set
+ */
+function areAllConsolationMatchesCompleted(consolation: { rounds: Array<{ matches: BracketMatch[] }>; isComplete?: boolean }): boolean {
+  if (!consolation.rounds || consolation.rounds.length === 0) return true;
+
+  // Check ALL matches in ALL rounds (not just final round)
+  for (const round of consolation.rounds) {
+    for (const match of round.matches) {
+      if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+/**
  * Check if all consolation brackets are complete
  */
 function areConsolationBracketsComplete(bracket: BracketWithConfig | undefined, consolationEnabled: boolean): boolean {
@@ -2288,6 +2306,13 @@ function areConsolationBracketsComplete(bracket: BracketWithConfig | undefined, 
       if (available.hasR16 && isRoundComplete(bracket, 'R16')) return false;
     }
     return true;
+  }
+
+  // Check each consolation bracket, auto-fixing isComplete flag if all matches are done
+  for (const c of bracket.consolationBrackets) {
+    if (!c.isComplete && areAllConsolationMatchesCompleted(c)) {
+      c.isComplete = true;
+    }
   }
 
   return bracket.consolationBrackets.every(c => c.isComplete);

@@ -897,13 +897,13 @@ export function advanceConsolationWinner(
     }
   }
 
-  // Check if bracket is complete (all final round matches done)
-  if (roundIndex === updated.rounds.length - 1 || !completedMatch.nextMatchId) {
-    const finalRound = updated.rounds[updated.rounds.length - 1];
-    const allComplete = finalRound.matches.every(m => m.status === 'COMPLETED');
-    if (allComplete) {
-      updated.isComplete = true;
-    }
+  // Check if bracket is complete (all matches in ALL rounds are done)
+  // Previously only checked final round, but this missed cases where isComplete wasn't set
+  const allMatchesComplete = updated.rounds.every(round =>
+    round.matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER')
+  );
+  if (allMatchesComplete) {
+    updated.isComplete = true;
   }
 
   return updated;
