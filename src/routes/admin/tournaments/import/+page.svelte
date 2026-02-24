@@ -536,7 +536,7 @@
   let tournamentTime = $state('');
   let gameType = $state<'singles' | 'doubles'>('singles');
   let rankingEnabled = $state(false);
-  let selectedTier = $state<TournamentTier>('SERIES_35');
+  let selectedTier = $state<TournamentTier>('SERIES_15');
   let qualificationMode = $state<'WINS' | 'POINTS'>('POINTS');
   let description = $state('');
   let externalLink = $state('');
@@ -1989,9 +1989,9 @@
 
                 {#if rankingEnabled}
                   <select id="tier" bind:value={selectedTier} class="input-field" style="margin-top: 0.5rem;">
+                    <option value="SERIES_15">Series 15 · 15p</option>
+                    <option value="SERIES_25">Series 25 · 25p</option>
                     <option value="SERIES_35">Series 35 · 35p</option>
-                    <option value="SERIES_40">Series 40 · 40p</option>
-                    <option value="SERIES_50">Series 50 · 50p</option>
                   </select>
                 {/if}
               </div>

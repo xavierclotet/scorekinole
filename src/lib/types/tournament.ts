@@ -120,18 +120,22 @@ export interface Tournament {
 /**
  * Tournament tier type (Crokinole Series system)
  */
-export type TournamentTier = 'SERIES_50' | 'SERIES_40' | 'SERIES_35';
+export type TournamentTier = 'SERIES_35' | 'SERIES_25' | 'SERIES_15';
 
 /**
  * Normalize tier values (handles legacy CLUB/REGIONAL/NATIONAL/MAJOR from Firestore)
  */
 export function normalizeTier(tier: string | undefined): TournamentTier {
   const map: Record<string, TournamentTier> = {
-    MAJOR: 'SERIES_50', NATIONAL: 'SERIES_40',
-    REGIONAL: 'SERIES_35', CLUB: 'SERIES_35',
-    SERIES_50: 'SERIES_50', SERIES_40: 'SERIES_40', SERIES_35: 'SERIES_35'
+    // Current values
+    SERIES_35: 'SERIES_35', SERIES_25: 'SERIES_25', SERIES_15: 'SERIES_15',
+    // Pre-migration legacy (old SERIES_50/40/35 → new SERIES_35/25/15)
+    SERIES_50: 'SERIES_35', SERIES_40: 'SERIES_25',
+    // Very old legacy
+    MAJOR: 'SERIES_35', NATIONAL: 'SERIES_25',
+    REGIONAL: 'SERIES_15', CLUB: 'SERIES_15'
   };
-  return map[tier || ''] || 'SERIES_35';
+  return map[tier || ''] || 'SERIES_15';
 }
 
 /**

@@ -16,7 +16,7 @@
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { normalizeTier } from '$lib/types/tournament';
-  import { getTierInfo, getPointsDistribution, calculateRankingPoints } from '$lib/algorithms/ranking';
+  import { getTierInfo, getPointsDistribution, calculateRankingPoints, getNaturalThreshold } from '$lib/algorithms/ranking';
   import { getUserProfileById, createGuestUserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
@@ -136,11 +136,11 @@
   let roundsToPlay = $state(4);
   let matchesToWin = $state(3);
 
-  // Step 3: Ranking Configuration
+  // Step 4: Ranking Configuration
   let rankingEnabled = $state(false);
-  let selectedTier = $state<TournamentTier>('SERIES_35');
+  let selectedTier = $state<TournamentTier>('SERIES_15');
 
-  // Step 4: Participants
+  // Step 3: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
 
   // Participant count (replaces participantCount)
@@ -190,10 +190,10 @@
   let validationErrors = $state<string[]>([]);
   let validationWarnings = $state<string[]>([]);
 
-  // Check if Next button should be disabled (step 4 has special validation)
+  // Check if Next button should be disabled (step 3 has special validation)
   let nextButtonDisabled = $derived(
     validationErrors.length > 0 ||
-    (currentStep === 4 && participants.length < 2)
+    (currentStep === 3 && participants.length < 2)
   );
 
   // Field-specific error checks
@@ -446,11 +446,11 @@
         }
       }
 
-      // Step 3
+      // Step 4: Ranking
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = normalizeTier(tournament.rankingConfig?.tier);
 
-      // Step 4 - Load participants directly into array (preserves userId links)
+      // Step 3: Participants - Load directly into array (preserves userId links)
       participants = await Promise.all(tournament.participants.map(async (p) => {
         const participant: Partial<TournamentParticipant> = {
           id: p.id,
@@ -634,11 +634,11 @@
         }
       }
 
-      // Step 3
+      // Step 4: Ranking
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = normalizeTier(tournament.rankingConfig?.tier);
 
-      // Step 4 - Copy participants and refresh photos from user profiles
+      // Step 3: Participants - Copy and refresh photos from user profiles
       // Also migrate old pair format (name with " / " but no partner field) to new format
       participants = await Promise.all(tournament.participants.map(async (p) => {
         let photoURL = p.photoURL;
@@ -827,11 +827,11 @@
       roundsToPlay = data.roundsToPlay || 4;
       matchesToWin = data.matchesToWin || 3;
 
-      // Step 3
+      // Step 4: Ranking
       rankingEnabled = data.rankingEnabled ?? false;
       selectedTier = normalizeTier(data.selectedTier);
 
-      // Step 4
+      // Step 3: Participants
       participants = data.participants || [];
 
       // Step 5 - Time configuration
@@ -1164,9 +1164,9 @@
     } else if (step === 2) {
       return [getStep2Errors(), []];
     } else if (step === 3) {
-      return [getStep3Errors(), []];
-    } else if (step === 4) {
       return [getStep4Errors(), getStep4Warnings()];
+    } else if (step === 4) {
+      return [getStep3Errors(), []];
     }
     return [[], []];
   }
@@ -1597,8 +1597,8 @@
             <div class="step-label">
               {#if i === 0}{m.wizard_stepInfo()}
               {:else if i === 1}{m.wizard_stepFormat()}
-              {:else if i === 2}{m.wizard_stepRanking()}
-              {:else if i === 3}{m.wizard_stepPlayers()}
+              {:else if i === 2}{m.wizard_stepPlayers()}
+              {:else if i === 3}{m.wizard_stepRanking()}
               {:else if i === 4}{m.wizard_stepTimes()}
               {:else}{m.wizard_stepReview()}
               {/if}
@@ -2456,8 +2456,8 @@
         </div>
       {/if}
 
-      <!-- Step 3: Ranking Configuration -->
-      {#if currentStep === 3}
+      <!-- Step 4: Ranking Configuration -->
+      {#if currentStep === 4}
         <div class="step-container">
           <h2>📊 {m.wizard_rankingConfiguration()}</h2>
 
@@ -2477,30 +2477,6 @@
               <p class="tier-description">{m.wizard_seriesDescription()}</p>
 
               <div class="tier-selection">
-                <label class="tier-option {selectedTier === 'SERIES_50' ? 'selected' : ''}">
-                  <input type="radio" bind:group={selectedTier} value="SERIES_50" />
-                  <div class="tier-card">
-                    <div class="tier-header">
-                      <span class="tier-badge series-50">50 pts</span>
-                      <span class="tier-name">{m.wizard_seriesFifty()}</span>
-                    </div>
-                    <div class="tier-desc">{m.wizard_seriesFiftyDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_50', participantCount || 16, gameType)} pts al 1º</div>
-                  </div>
-                </label>
-
-                <label class="tier-option {selectedTier === 'SERIES_40' ? 'selected' : ''}">
-                  <input type="radio" bind:group={selectedTier} value="SERIES_40" />
-                  <div class="tier-card">
-                    <div class="tier-header">
-                      <span class="tier-badge series-40">40 pts</span>
-                      <span class="tier-name">{m.wizard_seriesForty()}</span>
-                    </div>
-                    <div class="tier-desc">{m.wizard_seriesFortyDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_40', participantCount || 16, gameType)} pts al 1º</div>
-                  </div>
-                </label>
-
                 <label class="tier-option {selectedTier === 'SERIES_35' ? 'selected' : ''}">
                   <input type="radio" bind:group={selectedTier} value="SERIES_35" />
                   <div class="tier-card">
@@ -2509,7 +2485,34 @@
                       <span class="tier-name">{m.wizard_seriesThirtyFive()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_seriesThirtyFiveDesc()}</div>
-                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_35', participantCount || 16, gameType)} pts al 1º</div>
+                    <div class="tier-min">{m.wizard_tierMinRecommended({ n: getNaturalThreshold(35, gameType), unit: gameType === 'singles' ? m.wizard_nPlayers({ n: getNaturalThreshold(35, gameType) }) : m.wizard_nTeams({ n: getNaturalThreshold(35, gameType) }) })}</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_35', participantCount || getNaturalThreshold(35, gameType), gameType)} pts al 1º</div>
+                  </div>
+                </label>
+
+                <label class="tier-option {selectedTier === 'SERIES_25' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="SERIES_25" />
+                  <div class="tier-card">
+                    <div class="tier-header">
+                      <span class="tier-badge series-25">25 pts</span>
+                      <span class="tier-name">{m.wizard_seriesTwentyFive()}</span>
+                    </div>
+                    <div class="tier-desc">{m.wizard_seriesTwentyFiveDesc()}</div>
+                    <div class="tier-min">{m.wizard_tierMinRecommended({ n: getNaturalThreshold(25, gameType), unit: gameType === 'singles' ? m.wizard_nPlayers({ n: getNaturalThreshold(25, gameType) }) : m.wizard_nTeams({ n: getNaturalThreshold(25, gameType) }) })}</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_25', participantCount || getNaturalThreshold(25, gameType), gameType)} pts al 1º</div>
+                  </div>
+                </label>
+
+                <label class="tier-option {selectedTier === 'SERIES_15' ? 'selected' : ''}">
+                  <input type="radio" bind:group={selectedTier} value="SERIES_15" />
+                  <div class="tier-card">
+                    <div class="tier-header">
+                      <span class="tier-badge series-15">15 pts</span>
+                      <span class="tier-name">{m.wizard_seriesFifteen()}</span>
+                    </div>
+                    <div class="tier-desc">{m.wizard_seriesFifteenDesc()}</div>
+                    <div class="tier-min">{m.wizard_tierMinRecommended({ n: getNaturalThreshold(15, gameType), unit: gameType === 'singles' ? m.wizard_nPlayers({ n: getNaturalThreshold(15, gameType) }) : m.wizard_nTeams({ n: getNaturalThreshold(15, gameType) }) })}</div>
+                    <div class="tier-points">🥇 {calculateRankingPoints(1, 'SERIES_15', participantCount || getNaturalThreshold(15, gameType), gameType)} pts al 1º</div>
                   </div>
                 </label>
               </div>
@@ -2529,7 +2532,7 @@
                   <thead>
                     <tr>
                       <th>{m.wizard_position()}</th>
-                      {#each getPointsDistribution(selectedTier, participantCount || 16, gameType) as item}
+                      {#each getPointsDistribution(selectedTier, participantCount || getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType), gameType) as item}
                         <th>{item.position}º</th>
                       {/each}
                     </tr>
@@ -2537,13 +2540,13 @@
                   <tbody>
                     <tr>
                       <td>{m.scoring_points()}</td>
-                      {#each getPointsDistribution(selectedTier, participantCount || 16, gameType) as item}
+                      {#each getPointsDistribution(selectedTier, participantCount || getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType), gameType) as item}
                         <td class="points">{item.points}</td>
                       {/each}
                     </tr>
                   </tbody>
                 </table>
-                {#if participantCount > 0 && participantCount < 16}
+                {#if participantCount > 0 && participantCount < getNaturalThreshold(getTierInfo(selectedTier).basePoints, gameType)}
                   <small class="help-text note-dynamic">{m.wizard_pointsNoteDynamic()}</small>
                 {:else}
                   <small class="help-text note-dynamic">{m.wizard_pointsNoteOfficial()}</small>
@@ -2556,8 +2559,8 @@
         </div>
       {/if}
 
-      <!-- Step 4: Participants -->
-      {#if currentStep === 4}
+      <!-- Step 3: Participants -->
+      {#if currentStep === 3}
         <div class="step-container step-participants">
           <h2>👥 {m.wizard_participants()}</h2>
 
@@ -4077,9 +4080,9 @@
     color: #fff;
   }
 
-  .tier-badge.series-50 { background: #d4af37; }
-  .tier-badge.series-40 { background: #1976d2; }
-  .tier-badge.series-35 { background: #388e3c; }
+  .tier-badge.series-35 { background: #d4af37; }
+  .tier-badge.series-25 { background: #1976d2; }
+  .tier-badge.series-15 { background: #388e3c; }
 
   .tier-name {
     font-weight: 600;
@@ -4099,6 +4102,16 @@
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .tier-desc {
     color: #8b9bb3;
+  }
+
+  .tier-min {
+    font-size: 0.65rem;
+    color: #888;
+    margin-bottom: 0.2rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .tier-min {
+    color: #7a8a9e;
   }
 
   .tier-points {
@@ -5079,7 +5092,7 @@
     }
   }
 
-  /* Step 4: Participants - Compact Professional Design */
+  /* Step 3: Participants - Compact Professional Design */
   .step-participants h2 {
     margin-bottom: 0.75rem;
   }

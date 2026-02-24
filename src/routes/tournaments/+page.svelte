@@ -21,7 +21,7 @@
 	let selectedYear = $state<number | undefined>(undefined);
 	let selectedCountry = $state('');
 	let selectedMode = $state<'all' | 'singles' | 'doubles'>('all');
-	let selectedTier = $state<'all' | 'SERIES_50' | 'SERIES_40' | 'SERIES_35'>('all');
+	let selectedTier = $state<'all' | 'SERIES_35' | 'SERIES_25' | 'SERIES_15'>('all');
 	let timeFilter = $state<'all' | 'past' | 'future'>('all');
 
 	// Data state
@@ -261,9 +261,9 @@
 
 			<select class="filter-select" bind:value={selectedTier}>
 				<option value="all">{m.tournaments_allTiers()}</option>
+				<option value="SERIES_15">{m.tournaments_seriesFifteen()}</option>
+				<option value="SERIES_25">{m.tournaments_seriesTwentyFive()}</option>
 				<option value="SERIES_35">{m.tournaments_seriesThirtyFive()}</option>
-				<option value="SERIES_40">{m.tournaments_seriesForty()}</option>
-				<option value="SERIES_50">{m.tournaments_seriesFifty()}</option>
 			</select>
 		</div>
 

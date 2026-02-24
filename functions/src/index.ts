@@ -27,18 +27,18 @@ function getDb(): Firestore {
 }
 
 // Types (mirrored from client for server-side use)
-type TournamentTier = "SERIES_50" | "SERIES_40" | "SERIES_35";
+type TournamentTier = "SERIES_35" | "SERIES_25" | "SERIES_15";
 
 /**
  * Normalize tier values (handles legacy CLUB/REGIONAL/NATIONAL/MAJOR from Firestore)
  */
 function normalizeTier(tier: string | undefined): TournamentTier {
   const map: Record<string, TournamentTier> = {
-    MAJOR: "SERIES_50", NATIONAL: "SERIES_40",
-    REGIONAL: "SERIES_35", CLUB: "SERIES_35",
-    SERIES_50: "SERIES_50", SERIES_40: "SERIES_40", SERIES_35: "SERIES_35",
+    MAJOR: "SERIES_35", NATIONAL: "SERIES_25",
+    REGIONAL: "SERIES_15", CLUB: "SERIES_15",
+    SERIES_35: "SERIES_35", SERIES_25: "SERIES_25", SERIES_15: "SERIES_15",
   };
-  return map[tier || ""] || "SERIES_35";
+  return map[tier || ""] || "SERIES_15";
 }
 
 interface TournamentRecord {
@@ -113,10 +113,19 @@ interface UserProfile {
 
 // Series base points
 const TIER_BASE_POINTS: Record<string, number> = {
-  SERIES_50: 50, SERIES_40: 40, SERIES_35: 35,
-  // Legacy support
-  MAJOR: 50, NATIONAL: 40, REGIONAL: 35, CLUB: 35,
+  SERIES_35: 35, SERIES_25: 25, SERIES_15: 15,
+  // Legacy support (pre-migration old tier names)
+  SERIES_50: 35, SERIES_40: 25,
+  MAJOR: 35, NATIONAL: 25, REGIONAL: 15, CLUB: 15,
 };
+
+/**
+ * Natural threshold: participant count where drop curve reaches 1 pt for last place.
+ */
+function getNaturalThreshold(basePoints: number, mode: "singles" | "doubles"): number {
+  if (mode === "singles") return basePoints - 5;
+  return Math.ceil((basePoints - 4) / 2);
+}
 
 /**
  * Calculate ranking points with smart interpolation.
@@ -128,7 +137,8 @@ function calculateRankingPoints(
   mode: "singles" | "doubles" = "singles"
 ): number {
   const basePoints = TIER_BASE_POINTS[tier];
-  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / 16));
+  const threshold = getNaturalThreshold(basePoints, mode);
+  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / threshold));
 
   if (position === 1) return winnerPoints;
   if (position > participantsCount) return 0;
@@ -147,8 +157,8 @@ function calculateRankingPoints(
     }
   }
 
-  // 16+ participants: use official NCA raw drops (no interpolation)
-  if (participantsCount >= 16) {
+  // N >= threshold: use raw drops (no interpolation)
+  if (participantsCount >= threshold) {
     let cumDrop = 0;
     for (let i = 0; i < position - 1; i++) cumDrop += standardDrops[i];
     return Math.max(1, winnerPoints - cumDrop);
@@ -701,3 +711,4 @@ export const onTournamentCreated = onDocumentCreated(
     }
   }
 );
+

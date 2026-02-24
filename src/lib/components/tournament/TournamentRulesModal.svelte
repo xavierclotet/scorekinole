@@ -151,9 +151,9 @@
     if (!tournament.rankingConfig?.enabled) return null;
     const normalized = normalizeTier(tournament.rankingConfig.tier);
     const tierMap: Record<string, { name: string; maxPoints: number }> = {
-      'SERIES_50': { name: m.admin_seriesFifty(), maxPoints: 50 },
-      'SERIES_40': { name: m.admin_seriesForty(), maxPoints: 40 },
-      'SERIES_35': { name: m.admin_seriesThirtyFive(), maxPoints: 35 }
+      'SERIES_35': { name: m.admin_seriesThirtyFive(), maxPoints: 35 },
+      'SERIES_25': { name: m.admin_seriesTwentyFive(), maxPoints: 25 },
+      'SERIES_15': { name: m.admin_seriesFifteen(), maxPoints: 15 }
     };
     return tierMap[normalized];
   })());

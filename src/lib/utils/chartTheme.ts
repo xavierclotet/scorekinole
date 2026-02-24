@@ -64,9 +64,9 @@ export const BUMP_CHART_COLORS = [
 
 /** Series colors for ranking charts */
 export const TIER_COLORS: Record<string, string> = {
-	SERIES_50: '#d4af37',
-	SERIES_40: '#3b82f6',
-	SERIES_35: '#388e3c',
+	SERIES_35: '#d4af37',
+	SERIES_25: '#3b82f6',
+	SERIES_15: '#388e3c',
 	// Legacy support
 	MAJOR: '#d4af37',
 	NATIONAL: '#3b82f6',

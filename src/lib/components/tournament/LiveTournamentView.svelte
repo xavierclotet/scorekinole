@@ -281,13 +281,13 @@
 	function getTierLabel(tier: string | undefined): string {
 		if (!tier) return '';
 		const labels: Record<string, () => string> = {
-			SERIES_50: () => m.tournaments_seriesFifty(),
-			SERIES_40: () => m.tournaments_seriesForty(),
 			SERIES_35: () => m.tournaments_seriesThirtyFive(),
-			MAJOR: () => m.tournaments_seriesFifty(),
-			NATIONAL: () => m.tournaments_seriesForty(),
-			REGIONAL: () => m.tournaments_seriesThirtyFive(),
-			CLUB: () => m.tournaments_seriesThirtyFive()
+			SERIES_25: () => m.tournaments_seriesTwentyFive(),
+			SERIES_15: () => m.tournaments_seriesFifteen(),
+			MAJOR: () => m.tournaments_seriesThirtyFive(),
+			NATIONAL: () => m.tournaments_seriesTwentyFive(),
+			REGIONAL: () => m.tournaments_seriesFifteen(),
+			CLUB: () => m.tournaments_seriesFifteen()
 		};
 		return labels[tier]?.() || '';
 	}
@@ -2117,9 +2117,9 @@
 		font-weight: 600;
 	}
 
-	.info-chip.tier-SERIES_50, .info-chip.tier-MAJOR { background: rgba(212, 175, 55, 0.15); color: #d4af37; }
-	.info-chip.tier-SERIES_40, .info-chip.tier-NATIONAL { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-	.info-chip.tier-SERIES_35, .info-chip.tier-REGIONAL, .info-chip.tier-CLUB { background: rgba(56, 142, 60, 0.15); color: #388e3c; }
+	.info-chip.tier-SERIES_35, .info-chip.tier-MAJOR { background: rgba(212, 175, 55, 0.15); color: #d4af37; }
+	.info-chip.tier-SERIES_25, .info-chip.tier-NATIONAL { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+	.info-chip.tier-SERIES_15, .info-chip.tier-REGIONAL, .info-chip.tier-CLUB { background: rgba(56, 142, 60, 0.15); color: #388e3c; }
 
 	.info-chip.live-chip {
 		gap: 0.35rem;

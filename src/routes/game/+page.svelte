@@ -1226,12 +1226,14 @@
 
 		// Start or resume match in Firebase
 		console.log('🔄 Starting match in Firebase...', { isResuming });
+		const user = get(currentUser);
 		const result = await startTournamentMatch(
 			tournament.id,
 			matchInfo.match.id,
 			matchInfo.phase,
 			matchInfo.groupId,
-			isResuming
+			isResuming,
+			user ? { userId: user.id, userName: user.name } : undefined
 		);
 
 		console.log('📡 startTournamentMatch result:', result);

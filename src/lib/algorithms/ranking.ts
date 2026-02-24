@@ -21,9 +21,9 @@ export interface TierInfo {
  */
 export function getTierInfo(tier: TournamentTier): TierInfo {
   const tiers: Record<TournamentTier, TierInfo> = {
-    SERIES_50: { name: 'Series 50', description: 'Campeonato de España o torneos masivos', basePoints: 50, minPlayers: 30, minPlayersStrict: true },
-    SERIES_40: { name: 'Series 40', description: 'Torneos regionales grandes', basePoints: 40, minPlayers: 20, minPlayersStrict: false },
-    SERIES_35: { name: 'Series 35', description: 'Torneos locales y de clubes', basePoints: 35 }
+    SERIES_35: { name: 'Series 35', description: 'Campeonato de España o torneos masivos', basePoints: 35 },
+    SERIES_25: { name: 'Series 25', description: 'Torneos regionales', basePoints: 25 },
+    SERIES_15: { name: 'Series 15', description: 'Torneos locales y de clubes', basePoints: 15 }
   };
   return tiers[tier];
 }
@@ -33,23 +33,35 @@ export function getTierInfo(tier: TournamentTier): TierInfo {
  */
 export function getAllTiers(): { tier: TournamentTier; info: TierInfo }[] {
   return [
-    { tier: 'SERIES_50', info: getTierInfo('SERIES_50') },
-    { tier: 'SERIES_40', info: getTierInfo('SERIES_40') },
-    { tier: 'SERIES_35', info: getTierInfo('SERIES_35') }
+    { tier: 'SERIES_35', info: getTierInfo('SERIES_35') },
+    { tier: 'SERIES_25', info: getTierInfo('SERIES_25') },
+    { tier: 'SERIES_15', info: getTierInfo('SERIES_15') }
   ];
+}
+
+/**
+ * Calculate the natural threshold: the participant count at which
+ * the standard drop curve naturally reaches 1 point for last place.
+ * Below this threshold, interpolation is used.
+ *
+ * Singles (N>=6): totalDrop = N+4, threshold = basePoints - 5
+ * Doubles (N>=4): totalDrop = 2N+3, threshold = ceil((basePoints-4)/2)
+ */
+export function getNaturalThreshold(basePoints: number, mode: 'singles' | 'doubles'): number {
+  if (mode === 'singles') return basePoints - 5;
+  return Math.ceil((basePoints - 4) / 2);
 }
 
 /**
  * Calculate ranking points.
  *
- * Two regimes:
- * - 16+ participants: use drop curve (Singles: -3,-2,-2,-2,-1... / Doubles: -5,-4,-2,-2...)
- *   Winner gets full basePoints. Lower positions may still get high points.
- * - <16 participants: winner scaled by N/16, then interpolate drops to reach 1 at last place.
+ * Two regimes based on dynamic threshold (where drop curve naturally reaches 1 pt):
+ * - N >= threshold: use raw drop curve. Winner gets full basePoints.
+ * - N < threshold: winner scaled by N/threshold, interpolate drops so last place = 1 pt.
  *   Hamilton method when standard drops exceed target (Doubles), level fill when insufficient (Singles).
  *
  * @param position Final position (1 = winner)
- * @param tier Tournament series (SERIES_50, SERIES_40, SERIES_35)
+ * @param tier Tournament series (SERIES_35, SERIES_25, SERIES_15)
  * @param participantsCount Number of participating teams/players (default 16)
  * @param mode Game mode: 'singles' or 'doubles' (default 'singles')
  * @returns Points earned
@@ -62,8 +74,9 @@ export function calculateRankingPoints(
 ): number {
   const tierInfo = getTierInfo(tier);
   const basePoints = tierInfo.basePoints;
+  const threshold = getNaturalThreshold(basePoints, mode);
 
-  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / 16));
+  const winnerPoints = Math.round(basePoints * Math.min(1, participantsCount / threshold));
 
   if (position === 1) return winnerPoints;
   if (position > participantsCount) return 0;
@@ -83,14 +96,14 @@ export function calculateRankingPoints(
     }
   }
 
-  // 16+ participants: use raw drops (no interpolation)
-  if (participantsCount >= 16) {
+  // N >= threshold: use raw drops (no interpolation)
+  if (participantsCount >= threshold) {
     let cumDrop = 0;
     for (let i = 0; i < position - 1; i++) cumDrop += standardDrops[i];
     return Math.max(1, winnerPoints - cumDrop);
   }
 
-  // <16 participants: interpolate so last place gets 1 point
+  // N < threshold: interpolate so last place gets 1 point
   const targetDrop = winnerPoints - 1;
   const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
 
@@ -139,7 +152,9 @@ export function getPointsDistribution(
   participantsCount: number = 16,
   mode: 'singles' | 'doubles' = 'singles'
 ): { position: number; points: number }[] {
-  const count = Math.min(Math.max(2, participantsCount), 16);
+  const tierInfo = getTierInfo(tier);
+  const threshold = getNaturalThreshold(tierInfo.basePoints, mode);
+  const count = Math.max(2, participantsCount);
   const result: { position: number; points: number }[] = [];
   for (let pos = 1; pos <= count; pos++) {
     result.push({ position: pos, points: calculateRankingPoints(pos, tier, participantsCount, mode) });

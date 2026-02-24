@@ -46,3 +46,25 @@ Admins can force-finish a tournament match when time runs out.
 ### Transition Page (`/admin/tournaments/[id]/transition`)
 - DSQ participants excluded from gold/silver bracket distribution
 - DSQ/WO badges shown in round results
+
+## Live Scoring Control (`scoringBy`)
+
+When a user starts or resumes a tournament match, their identity is recorded in the match's `scoringBy` field:
+
+```typescript
+scoringBy?: { userId: string; userName: string }
+```
+
+**Behavior:**
+- Written on every `startTournamentMatch()` call (both new starts and resumes)
+- If another user tries to resume an IN_PROGRESS match:
+  - `MatchPreviewDialog`: shows amber warning "{name} está controlando este partido"
+  - `TournamentMatchModal`: shows `confirm()` dialog before proceeding
+- If confirmed, the new user takes over and `scoringBy` updates in Firebase
+- No heartbeat/cleanup — purely informational
+
+**Key Files:**
+- `src/lib/types/tournament.ts`: `scoringBy` field on `GroupMatch` and `BracketMatch`
+- `src/lib/firebase/tournamentMatches.ts`: `startTournamentMatch()` writes `scoringBy`
+- `src/lib/components/TournamentMatchModal.svelte`: confirmation + display
+- `src/lib/components/MatchPreviewDialog.svelte`: amber warning display

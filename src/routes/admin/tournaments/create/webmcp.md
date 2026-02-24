@@ -13,7 +13,7 @@ The wizard consists of 6 steps:
    - Core scoring mechanics: "By Points" vs "By Rounds", "Best of N", Hammer tracking, 20s tracking.
 3. **Phases & Ranking Configuration**:
    - Tournament structure (Direct Elimination vs Groups + Elimination).
-   - If Ranking is enabled, selecting the Crokinole Series (SERIES_50, SERIES_40, SERIES_35).
+   - If Ranking is enabled, selecting the Crokinole Series (SERIES_35, SERIES_25, SERIES_15).
    - **Ranking Points**: Points are calculated dynamically based on series, participant count, game mode (Singles/Doubles), and final position. See Ranking System below.
 4. **Participants**:
    - Organizers can input participants (singular or pairs) manually, search from registered users, or add guests.
@@ -88,5 +88,5 @@ This dual strategy ensures Singles keeps its uniform curve shape while Doubles k
 - **State Management**: The wizard maintains a complex object representing the entire tournament draft.
 - **Dynamic Points Calculation**: The `calculateRankingPoints()` function accepts 4 parameters: `position`, `tier`, `participantsCount` (default 16), and `mode` ('singles' | 'doubles', default 'singles'). The UI in Step 3 reactively previews the points distribution table based on `textareaParticipantCount` and `gameType`.
 - **Cloud Function Sync**: The same formula is duplicated in `functions/src/index.ts` for server-side calculation when a tournament completes. Both implementations must stay in sync.
-- **Legacy Support**: The `normalizeTier()` function maps old tier values (MAJOR→SERIES_50, NATIONAL→SERIES_40, REGIONAL/CLUB→SERIES_35) for backward compatibility with existing Firestore data.
+- **Legacy Support**: The `normalizeTier()` function maps old tier values (MAJOR→SERIES_35, NATIONAL→SERIES_25, REGIONAL/CLUB→SERIES_15) for backward compatibility with existing Firestore data.
 - **LocalStorage Cleanup**: To prevent stale data between sessions, there are mechanisms to save drafts and clean them when a tournament is successfully created.

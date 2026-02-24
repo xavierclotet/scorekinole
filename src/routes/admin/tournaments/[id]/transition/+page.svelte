@@ -147,8 +147,9 @@
         // SINGLE_BRACKET with single group: all participants
         topNPerGroup = tournament.participants?.length || suggestedQualifiers.perGroup;
       } else if (isSplitDiv) {
-        // SPLIT_DIVISIONS: top 4 per group
-        topNPerGroup = 4;
+        // SPLIT_DIVISIONS: top half per group (they go to Gold bracket)
+        const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
+        topNPerGroup = Math.ceil(participantsPerGroup / 2);
       } else {
         // SINGLE_BRACKET with multiple groups: half participants per group
         const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);

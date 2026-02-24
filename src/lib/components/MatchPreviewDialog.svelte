@@ -69,6 +69,7 @@
 	}
 
 	let isResuming = $derived(matchInfo?.isInProgress === true);
+	let scorerName = $derived((matchInfo?.match as any)?.scoringBy?.userName as string | undefined);
 
 	let phaseLabel = $derived((() => {
 		if (!matchInfo) return '';
@@ -187,6 +188,10 @@
 					</div>
 				</div>
 			</div>
+
+			{#if isResuming && scorerName}
+				<p class="scoring-by-warning">{m.tournament_scoringByConfirm({ name: scorerName })}</p>
+			{/if}
 
 			<!-- Actions -->
 			<div class="actions">
@@ -383,6 +388,16 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		flex-shrink: 0;
+	}
+
+	.scoring-by-warning {
+		text-align: center;
+		font-size: 0.8rem;
+		color: #f59e0b;
+		margin: 0;
+		padding: 0.4rem 0.8rem;
+		background: rgba(245, 158, 11, 0.1);
+		border-radius: 6px;
 	}
 
 	/* Actions */

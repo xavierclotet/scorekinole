@@ -31,9 +31,9 @@
 		if (!tier) return '';
 		const normalized = normalizeTier(tier);
 		const labels: Record<string, () => string> = {
-			SERIES_50: () => m.tournaments_seriesFifty(),
-			SERIES_40: () => m.tournaments_seriesForty(),
-			SERIES_35: () => m.tournaments_seriesThirtyFive()
+			SERIES_35: () => m.tournaments_seriesThirtyFive(),
+			SERIES_25: () => m.tournaments_seriesTwentyFive(),
+			SERIES_15: () => m.tournaments_seriesFifteen()
 		};
 		return labels[normalized]?.() || normalized;
 	}

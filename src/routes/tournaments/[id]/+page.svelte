@@ -549,13 +549,13 @@
 	function getTierLabel(tier: string | undefined): string {
 		if (!tier) return '';
 		const labels: Record<string, () => string> = {
-			SERIES_50: () => m.tournaments_seriesFifty(),
-			SERIES_40: () => m.tournaments_seriesForty(),
 			SERIES_35: () => m.tournaments_seriesThirtyFive(),
-			MAJOR: () => m.tournaments_seriesFifty(),
-			NATIONAL: () => m.tournaments_seriesForty(),
-			REGIONAL: () => m.tournaments_seriesThirtyFive(),
-			CLUB: () => m.tournaments_seriesThirtyFive()
+			SERIES_25: () => m.tournaments_seriesTwentyFive(),
+			SERIES_15: () => m.tournaments_seriesFifteen(),
+			MAJOR: () => m.tournaments_seriesThirtyFive(),
+			NATIONAL: () => m.tournaments_seriesTwentyFive(),
+			REGIONAL: () => m.tournaments_seriesFifteen(),
+			CLUB: () => m.tournaments_seriesFifteen()
 		};
 		return labels[tier]?.() || '';
 	}
@@ -3080,9 +3080,9 @@
 		font-weight: 600;
 	}
 
-	.info-value.tier-SERIES_50, .info-value.tier-MAJOR { color: #d4af37; }
-	.info-value.tier-SERIES_40, .info-value.tier-NATIONAL { color: #3b82f6; }
-	.info-value.tier-SERIES_35, .info-value.tier-REGIONAL, .info-value.tier-CLUB { color: #388e3c; }
+	.info-value.tier-SERIES_35, .info-value.tier-MAJOR { color: #d4af37; }
+	.info-value.tier-SERIES_25, .info-value.tier-NATIONAL { color: #3b82f6; }
+	.info-value.tier-SERIES_15, .info-value.tier-REGIONAL, .info-value.tier-CLUB { color: #388e3c; }
 
 	/* External Link Card */
 	.link-card {
@@ -3335,9 +3335,9 @@
 		text-transform: uppercase;
 	}
 
-	.hero-badge .tier-SERIES_35, .hero-badge .tier-CLUB, .hero-badge .tier-REGIONAL { background: #388e3c; }
-	.hero-badge .tier-SERIES_40, .hero-badge .tier-NATIONAL { background: #3b82f6; }
-	.hero-badge .tier-SERIES_50, .hero-badge .tier-MAJOR { background: linear-gradient(135deg, #d4af37 0%, #b8972e 100%); }
+	.hero-badge .tier-SERIES_15, .hero-badge .tier-CLUB, .hero-badge .tier-REGIONAL { background: #388e3c; }
+	.hero-badge .tier-SERIES_25, .hero-badge .tier-NATIONAL { background: #3b82f6; }
+	.hero-badge .tier-SERIES_35, .hero-badge .tier-MAJOR { background: linear-gradient(135deg, #d4af37 0%, #b8972e 100%); }
 
 	.hero-title {
 		margin: 0 0 0.5rem 0;

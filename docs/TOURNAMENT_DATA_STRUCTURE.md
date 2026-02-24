@@ -197,7 +197,7 @@ type QualificationMode = 'WINS' | 'POINTS';
 type MatchStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'WALKOVER';
 type ParticipantStatus = 'ACTIVE' | 'WITHDRAWN' | 'DISQUALIFIED';
 type ParticipantType = 'REGISTERED' | 'GUEST';
-type TournamentTier = 'SERIES_50' | 'SERIES_40' | 'SERIES_35';
+type TournamentTier = 'SERIES_35' | 'SERIES_25' | 'SERIES_15';
 ```
 
 ---

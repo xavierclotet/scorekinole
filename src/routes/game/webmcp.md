@@ -34,7 +34,7 @@ description: "Interfaz principal de puntuación de partidas, gestión de rondas,
 | **Cambiar Modo ("Points" o "Rounds")** | Desde `SettingsModal` | Cambia las condiciones de victoria de la partida. |
 | **Nueva Partida** | `[data-webmcp="btn-new-match"]` o `.new-match-button` | Resetea puntuaciones (`resetTeams()`) e historial. |
 | **Cargar/Ir a Torneo** | `[data-webmcp="btn-tournament"]` o `.tournament-button` | Si hay 1 solo partido pendiente → abre `MatchPreviewDialog`. Si hay 0 o 2+ → abre `TournamentMatchModal`. |
-| **Preview de Partido** | `MatchPreviewDialog` (`showMatchPreview`) | Muestra vista previa del partido auto-detectado: fase (grupos/final), grupo y ronda o nombre de ronda bracket, mesa, jugadores con avatares, config. Botón "Jugar" (o "Reanudar" si IN_PROGRESS) inicia el partido. "Cancelar" cierra sin acción. Botón deshabilitado si no hay mesa asignada. |
+| **Preview de Partido** | `MatchPreviewDialog` (`showMatchPreview`) | Muestra vista previa del partido auto-detectado: fase (grupos/final), grupo y ronda o nombre de ronda bracket, mesa, jugadores con avatares, config. Botón "Jugar" (o "Reanudar" si IN_PROGRESS) inicia el partido. "Cancelar" cierra sin acción. Botón deshabilitado si no hay mesa asignada. Si el partido tiene `scoringBy` (otro usuario controlándolo), muestra aviso amber con el nombre del scorer. |
 
 ## 🛠️ Notas de Implementación (Svelte 5)
 - Toda la página depende fuertemente de los stores (`$team1`, `$team2`, `$gameSettings`, `$matchState`).
@@ -47,3 +47,5 @@ description: "Interfaz principal de puntuación de partidas, gestión de rondas,
 | `crokinoleGame` | Objeto principal. Guarda preferencias (idioma configurado, theme oscuro/claro), posición X/Y arrastrable del timer (`timerX`, `timerY`) y el `tournamentKey` activo (si lo hay). |
 | `crokinoleTournamentContext` | Cache/persistencia en crudo de la partida de torneo activa actual. (Permite recargar la página `/game` sin perder la partida de torneo). |
 | `crokinolePreTournamentBackup` | Guarda temporalmente los datos / estado de un partido "Amistoso" que quedó a medias si el árbitro decide entrar en Modo Torneo repentinamente. |
+| `pendingFriendlyMatch` | Backup de partido friendly completado offline. Se reintenta en `onReconnect` y `onMount`. Se borra tras sync exitoso. |
+| `pendingTournamentCompletion` | Backup de completion de partido de torneo fallida offline. Mismo mecanismo de retry. |

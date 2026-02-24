@@ -298,7 +298,7 @@ export async function createTournament(data: Partial<Tournament>): Promise<strin
       numTables: data.numTables || 1,
       rankingConfig: data.rankingConfig || {
         enabled: true,
-        tier: 'SERIES_35'
+        tier: 'SERIES_15'
       },
       participants: [],
       finalStage: data.finalStage || {

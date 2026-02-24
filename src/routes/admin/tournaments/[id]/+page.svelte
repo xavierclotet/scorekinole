@@ -45,7 +45,7 @@
   let editShow20s = $state(false);
   let editShowHammer = $state(false);
   let editRankingEnabled = $state(false);
-  let editRankingTier = $state<TournamentTier>('SERIES_35');
+  let editRankingTier = $state<TournamentTier>('SERIES_15');
   let editConsolationEnabled = $state(false);
   let editThirdPlaceMatchEnabled = $state(true);
   let editIsTest = $state(false);
@@ -618,8 +618,8 @@
                 <span class="config-label">{m.admin_rankingSystem()}:</span>
                 <span class="config-value">
                   {#if tournament.rankingConfig?.enabled}
-                    {normalizeTier(tournament.rankingConfig.tier) === 'SERIES_50' ? m.admin_seriesFifty() :
-                        normalizeTier(tournament.rankingConfig.tier) === 'SERIES_40' ? m.admin_seriesForty() : m.admin_seriesThirtyFive()}
+                    {normalizeTier(tournament.rankingConfig.tier) === 'SERIES_35' ? m.admin_seriesThirtyFive() :
+                        normalizeTier(tournament.rankingConfig.tier) === 'SERIES_25' ? m.admin_seriesTwentyFive() : m.admin_seriesFifteen()}
                   {:else}
                     {m.admin_disabled()}
                   {/if}
@@ -1088,9 +1088,9 @@
                   <div class="qe-field">
                     <label for="edit-tier">{m.admin_category()}</label>
                     <select id="edit-tier" bind:value={editRankingTier}>
+                      <option value="SERIES_15">{m.admin_seriesFifteen()} · 15p</option>
+                      <option value="SERIES_25">{m.admin_seriesTwentyFive()} · 25p</option>
                       <option value="SERIES_35">{m.admin_seriesThirtyFive()} · 35p</option>
-                      <option value="SERIES_40">{m.admin_seriesForty()} · 40p</option>
-                      <option value="SERIES_50">{m.admin_seriesFifty()} · 50p</option>
                     </select>
                   </div>
                 {/if}
