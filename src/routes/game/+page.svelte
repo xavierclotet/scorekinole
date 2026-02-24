@@ -2182,14 +2182,14 @@
 			<!-- Normal/Friendly mode header -->
 			<div class="header-left">
 				<AppMenu showHome homeHref="/" currentPage="game">
-					<DropdownMenu.Item onclick={() => showQRScanner = true} class="cursor-pointer !pl-3 !pr-4 !py-2.5 !gap-2 rounded-lg transition-colors duration-150 hover:bg-accent group">
+					<DropdownMenu.Item onclick={() => showQRScanner = true} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 							<QrCode class="size-4 text-primary" />
 						</div>
 						<span class="flex-1 font-medium">{m.scan_title()}</span>
 						<DropdownMenu.Shortcut>Ctrl+Q</DropdownMenu.Shortcut>
 					</DropdownMenu.Item>
-					<DropdownMenu.Item onclick={() => showSettings = true} class="cursor-pointer !pl-3 !pr-4 !py-2.5 !gap-2 rounded-lg transition-colors duration-150 hover:bg-accent group">
+					<DropdownMenu.Item onclick={() => showSettings = true} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 							<Settings class="size-4 text-primary" />
 						</div>
@@ -2558,7 +2558,7 @@
 		white-space: nowrap;
 	}
 
-	.tournament-mode-icon {
+	:global(.tournament-mode-icon) {
 		color: var(--muted-foreground);
 		opacity: 0.6;
 		flex-shrink: 0;
@@ -2580,24 +2580,6 @@
 
 	
 	/* Friendly mode header styling */
-	.friendly-title {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		cursor: default;
-		max-width: 300px;
-	}
-
-	.friendly-title:hover {
-		background: none;
-	}
-
-	.friendly-title-text {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
 	/* Normal mode header - minimal clean design */
 	.header-left,
 	.header-right {
@@ -2608,82 +2590,6 @@
 	}
 
 
-
-	.header-title {
-		font-family: 'Lexend', sans-serif;
-		font-size: 1.3rem;
-		font-weight: 600;
-		color: var(--primary);
-		background: none;
-		border: none;
-		padding: 0.3rem 0.6rem;
-		border-radius: 6px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		max-width: 400px;
-		letter-spacing: 0.02em;
-	}
-
-	.header-title-placeholder {
-		color: var(--game-text-dim);
-	}
-
-	.header-separator {
-		color: var(--game-text-dim);
-		font-size: 0.9rem;
-		font-weight: 300;
-	}
-
-	.header-phase {
-		font-family: 'Lexend', sans-serif;
-		font-size: 1.3rem;
-		font-weight: 600;
-		color: var(--primary);
-		background: transparent;
-		border: none;
-		padding: 0;
-		cursor: default;
-		white-space: nowrap;
-		text-transform: capitalize;
-		letter-spacing: -0.01em;
-	}
-
-	.header-format {
-		font-family: 'Lexend', sans-serif;
-		font-size: 1.2rem;
-		font-weight: 500;
-		color: var(--primary);
-		opacity: 0.7;
-		background: transparent;
-		padding: 0;
-		white-space: nowrap;
-		margin-left: 0.5rem;
-	}
-
-	.header-format::before {
-		content: '·';
-		margin-right: 0.5rem;
-		opacity: 0.4;
-	}
-
-	.bracket-type {
-		font-size: 0.85em;
-		font-weight: 500;
-		margin-left: 0.35rem;
-		padding: 0.1rem 0.4rem;
-		border-radius: 3px;
-	}
-
-	.bracket-type.gold {
-		color: #fbbf24;
-		background: rgba(251, 191, 36, 0.15);
-	}
-
-	.bracket-type.silver {
-		color: #94a3b8;
-		background: rgba(148, 163, 184, 0.15);
-	}
 
 	.header-input {
 		font-family: 'Lexend', sans-serif;
@@ -2943,22 +2849,6 @@
 			padding-top: 0.5rem;
 		}
 
-		/* Simplify header in portrait */
-		.header-title {
-			max-width: 220px;
-		}
-
-		.header-phase {
-			font-size: 0.95rem;
-		}
-
-		.header-format {
-			font-size: 0.85rem;
-		}
-
-		.header-separator {
-			display: none;
-		}
 	}
 
 	/* Landscape: menos espacio superior */
@@ -2974,12 +2864,6 @@
 		}
 	}
 
-	@media (max-width: 640px) {
-		.header-phase {
-			display: none;
-		}
-	}
-
 	@media (max-width: 480px) {
 		.game-page {
 			padding: 0.3rem;
@@ -2988,19 +2872,6 @@
 
 		.game-header {
 			padding: 0.25rem 0.4rem;
-		}
-
-		.header-title {
-			font-size: 0.75rem;
-			max-width: 180px;
-		}
-
-		.header-phase {
-			font-size: 0.85rem;
-		}
-
-		.header-format {
-			font-size: 0.75rem;
 		}
 
 		.header-btn {
@@ -3022,18 +2893,6 @@
 			padding: 0.2rem 0.4rem;
 			margin-bottom: 0.3rem;
 			min-height: 32px;
-		}
-
-		.header-title {
-			font-size: 0.75rem;
-		}
-
-		.header-phase {
-			font-size: 0.85rem;
-		}
-
-		.header-format {
-			font-size: 0.75rem;
 		}
 
 		.header-btn {
@@ -3122,21 +2981,6 @@
 		transform: none;
 	}
 
-	/* Invite Player Button */
-	.invite-button {
-		left: auto;
-		right: 9.5rem;
-		background: rgba(100, 200, 150, 0.15);
-		color: rgba(100, 200, 150, 0.9);
-		border: 1px solid rgba(100, 200, 150, 0.25);
-	}
-
-	.invite-button:hover {
-		background: rgba(100, 200, 150, 0.25);
-		border-color: rgba(100, 200, 150, 0.4);
-	}
-
-
 	/* Confirmation Modal */
 	.confirm-overlay {
 		position: fixed;
@@ -3157,22 +3001,6 @@
 		to {
 			opacity: 1;
 		}
-	}
-
-	.confirm-modal {
-		background: #1a1f35;
-		padding: 2rem;
-		border-radius: 12px;
-		border: 2px solid rgba(0, 255, 136, 0.3);
-		max-width: 90%;
-		width: 400px;
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-	}
-
-	.confirm-buttons {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1rem;
 	}
 
 	/* New match dialog */
@@ -3460,22 +3288,9 @@
 			right: 1.5rem;
 		}
 
-		.invite-button {
-			right: 8.5rem;
-		}
-
-		.confirm-modal {
-			width: 90%;
-			padding: 1.5rem;
-		}
 	}
 
 	@media (orientation: landscape) {
-		.confirm-modal {
-			width: 350px;
-			max-width: 60%;
-		}
-
 		.exit-dialog {
 			width: min(450px, 70vw);
 		}
@@ -3497,16 +3312,6 @@
 		.tournament-button {
 			left: auto;
 			right: 1rem;
-		}
-
-		.invite-button {
-			right: 8rem;
-		}
-
-		.confirm-modal {
-			width: 300px;
-			max-width: 50%;
-			padding: 1rem;
 		}
 
 		.exit-dialog {

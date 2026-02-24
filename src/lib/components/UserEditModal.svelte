@@ -3,6 +3,7 @@
   import { adminTheme } from '$lib/stores/theme';
   import type { AdminUserInfo } from '$lib/firebase/admin';
   import { updateUserProfile, toggleAdminStatus } from '$lib/firebase/admin';
+  import { uploadAvatarForUser, deleteAvatarForUser } from '$lib/firebase/avatarStorage';
   import { getQuotaForYear, getQuotaEntryForYear, setQuotaForYear, type QuotaEntry } from '$lib/types/quota';
   import { currentUser } from '$lib/firebase/auth';
   import { get } from 'svelte/store';
@@ -62,6 +63,13 @@
       showNextYear = false;
     }
   });
+  // Photo management
+  let showPhotoPreview = $state(false);
+  // svelte-ignore state_referenced_locally
+  let currentPhotoURL = $state(user.photoURL);
+  let isUploadingPhoto = $state(false);
+  let fileInput: HTMLInputElement | null = $state(null);
+
   let isSaving = $state(false);
   let errorMessage = $state('');
 
@@ -86,6 +94,55 @@
     });
   }
 
+  async function handleFileUpload(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    isUploadingPhoto = true;
+    errorMessage = '';
+
+    const result = await uploadAvatarForUser(user.userId, file);
+    if (result.success && result.url) {
+      currentPhotoURL = result.url;
+    } else {
+      errorMessage = result.error || 'Error al subir la imagen';
+    }
+
+    isUploadingPhoto = false;
+    input.value = '';
+  }
+
+  async function handleDownloadPhoto() {
+    if (!currentPhotoURL) return;
+    try {
+      const response = await fetch(currentPhotoURL);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${user.playerName || 'avatar'}.jpg`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.open(currentPhotoURL, '_blank');
+    }
+  }
+
+  async function handleDeletePhoto() {
+    isUploadingPhoto = true;
+    errorMessage = '';
+
+    const result = await deleteAvatarForUser(user.userId);
+    if (result.success) {
+      currentPhotoURL = null;
+    } else {
+      errorMessage = result.error || 'Error al eliminar la imagen';
+    }
+
+    isUploadingPhoto = false;
+  }
+
   async function saveChanges() {
     if (!playerName.trim()) {
       errorMessage = 'Player name cannot be empty';
@@ -96,10 +153,14 @@
     errorMessage = '';
 
     try {
-      const updates: { playerName?: string; quotaEntries?: QuotaEntry[]; canAutofill?: boolean; canImportTournaments?: boolean } = {};
+      const updates: { playerName?: string; photoURL?: string | null; quotaEntries?: QuotaEntry[]; canAutofill?: boolean; canImportTournaments?: boolean } = {};
 
       if (playerName !== user.playerName) {
         updates.playerName = playerName;
+      }
+
+      if (currentPhotoURL !== user.photoURL) {
+        updates.photoURL = currentPhotoURL || null;
       }
 
       if (canAutofill !== (user.canAutofill || false)) {
@@ -197,13 +258,38 @@
       <!-- User Card -->
       <div class="user-card">
         <div class="user-avatar-section">
-          {#if user.photoURL}
-            <img src={user.photoURL} alt="" class="avatar" referrerpolicy="no-referrer" />
-          {:else}
-            <div class="avatar-placeholder">
-              {user.playerName?.charAt(0).toUpperCase() || '?'}
-            </div>
-          {/if}
+          <div class="avatar-wrapper" role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && currentPhotoURL && (showPhotoPreview = true)} onclick={() => currentPhotoURL && (showPhotoPreview = true)}>
+            {#if currentPhotoURL}
+              <img src={currentPhotoURL} alt="" class="avatar" referrerpolicy="no-referrer" />
+              <div class="avatar-zoom-hint">🔍</div>
+            {:else}
+              <div class="avatar-placeholder">
+                {user.playerName?.charAt(0).toUpperCase() || '?'}
+              </div>
+            {/if}
+            {#if isUploadingPhoto}
+              <div class="avatar-loading">
+                <span class="spinner"></span>
+              </div>
+            {/if}
+          </div>
+          <div class="avatar-actions">
+            <button class="avatar-action-btn" onclick={() => fileInput?.click()} title="Subir foto" disabled={isUploadingPhoto}>
+              📤
+            </button>
+            {#if currentPhotoURL}
+              <button class="avatar-action-btn delete" onclick={handleDeletePhoto} title="Eliminar foto" disabled={isUploadingPhoto}>
+                🗑️
+              </button>
+            {/if}
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            class="file-input-hidden"
+            bind:this={fileInput}
+            onchange={handleFileUpload}
+          />
           <div class="user-badges">
             {#if user.isSuperAdmin}
               <span class="badge super">Super</span>
@@ -244,6 +330,13 @@
         </div>
       </div>
 
+      {#if errorMessage}
+        <div class="error-alert">
+          <span class="error-icon">!</span>
+          <span>{errorMessage}</span>
+        </div>
+      {/if}
+
       <!-- Form Grid -->
       <div class="form-grid">
         <!-- Left Column -->
@@ -257,6 +350,16 @@
               type="text"
               bind:value={playerName}
               placeholder="Nombre del jugador"
+            />
+          </div>
+
+          <div class="field">
+            <label for="photoURL">Photo URL</label>
+            <input
+              id="photoURL"
+              type="text"
+              bind:value={currentPhotoURL}
+              placeholder="https://..."
             />
           </div>
         </div>
@@ -376,17 +479,21 @@
         </div>
         {/if}
       </div>
-
-      {#if errorMessage}
-        <div class="error-alert">
-          <span class="error-icon">!</span>
-          <span>{errorMessage}</span>
-        </div>
-      {/if}
     </div>
 
   </div>
 </div>
+
+{#if showPhotoPreview && currentPhotoURL}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="photo-lightbox" data-theme={$adminTheme} onclick={() => showPhotoPreview = false} role="presentation">
+    <div class="lightbox-toolbar">
+      <button class="lightbox-btn" onclick={(e) => { e.stopPropagation(); handleDownloadPhoto(); }} title="Descargar">⬇️</button>
+      <button class="lightbox-btn close" onclick={() => showPhotoPreview = false} title="Cerrar">×</button>
+    </div>
+    <img src={currentPhotoURL} alt={user.playerName || ''} class="lightbox-img" referrerpolicy="no-referrer" />
+  </div>
+{/if}
 
 <style>
   .modal-overlay {
@@ -548,6 +655,152 @@
     justify-content: center;
     font-size: 1.25rem;
     font-weight: 600;
+  }
+
+  .avatar-wrapper {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .avatar-wrapper:hover .avatar-zoom-hint {
+    opacity: 1;
+  }
+
+  .avatar-zoom-hint {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+
+  .avatar-loading {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .avatar-actions {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .avatar-action-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+  }
+
+  .avatar-action-btn:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .avatar-action-btn.delete:hover:not(:disabled) {
+    border-color: #dc2626;
+    background: #fee2e2;
+  }
+
+  .avatar-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .avatar-action-btn {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .avatar-action-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    border-color: var(--primary);
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .avatar-action-btn.delete:hover:not(:disabled) {
+    background: #4d1f24;
+    border-color: #dc2626;
+  }
+
+  .file-input-hidden {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Photo Lightbox */
+  .photo-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    cursor: pointer;
+    padding: 2rem;
+  }
+
+  .lightbox-toolbar {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 1;
+  }
+
+  .lightbox-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-size: 1.2rem;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .lightbox-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .lightbox-btn.close {
+    font-size: 1.5rem;
+  }
+
+  .lightbox-img {
+    max-width: 90vw;
+    max-height: 85vh;
+    border-radius: 8px;
+    object-fit: contain;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
 
   .user-badges {
@@ -977,6 +1230,7 @@
     background: #4d1f24;
     border-color: #7f1d1d;
     color: #fca5a5;
+    margin-bottom: 1rem;
   }
 
   .error-icon {
@@ -1008,10 +1262,24 @@
 
   /* Responsive */
   @media (max-width: 600px) {
+    .modal-overlay {
+      padding: 0;
+    }
+
     .modal {
       max-width: 100%;
       max-height: 100vh;
       border-radius: 0;
+    }
+
+    .modal-header {
+      padding-top: calc(env(safe-area-inset-top, 0px) + 1rem);
+      padding-left: calc(env(safe-area-inset-left, 0px) + 1.25rem);
+      padding-right: calc(env(safe-area-inset-right, 0px) + 1.25rem);
+    }
+
+    .modal-content {
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem);
     }
 
     .form-grid {
@@ -1032,6 +1300,11 @@
     .meta-item {
       flex-direction: column;
       gap: 0.15rem;
+    }
+
+    .lightbox-toolbar {
+      top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+      right: calc(env(safe-area-inset-right, 0px) + 0.75rem);
     }
   }
 </style>

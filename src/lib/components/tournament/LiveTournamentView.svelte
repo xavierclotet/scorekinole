@@ -85,7 +85,7 @@
 
 	// Round progress calculation (for group stage: show "Ronda 1/5" = current round being played or last completed)
 	let roundProgress = $derived((() => {
-		if (groups.length === 0) return { current: 0, total: 0, percentage: 0 };
+		if (groups.length === 0) return { current: 0, total: 0, percentage: 0, highestExisting: 0 };
 
 		// Find the highest round that exists in the data
 		let highestExistingRound = 0;

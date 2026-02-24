@@ -223,6 +223,85 @@ export async function deleteAvatar(): Promise<UploadResult> {
 }
 
 /**
+ * Uploads an avatar for any user (admin only)
+ * Uses the target user's storage path instead of current user
+ */
+export async function uploadAvatarForUser(userId: string, file: File): Promise<UploadResult> {
+  if (!browser || !isFirebaseEnabled() || !storage) {
+    return { success: false, error: 'Firebase Storage no disponible' };
+  }
+
+  const validation = validateFile(file);
+  if (!validation.valid) {
+    return { success: false, error: validation.error };
+  }
+
+  try {
+    const compressedFile = await compressImage(file);
+    const avatarRef = ref(storage, `users/${userId}/avatar.jpg`);
+    await uploadBytes(avatarRef, compressedFile, {
+      contentType: 'image/jpeg',
+      customMetadata: {
+        uploadedAt: new Date().toISOString(),
+        originalName: file.name
+      }
+    });
+
+    const downloadURL = await getDownloadURL(avatarRef);
+
+    if (db) {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        photoURL: downloadURL,
+        updatedAt: serverTimestamp()
+      });
+    }
+
+    return { success: true, url: downloadURL };
+  } catch (error) {
+    console.error('❌ Error uploading avatar for user:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al subir la imagen'
+    };
+  }
+}
+
+/**
+ * Deletes avatar for any user (admin only)
+ */
+export async function deleteAvatarForUser(userId: string): Promise<UploadResult> {
+  if (!browser || !isFirebaseEnabled() || !storage) {
+    return { success: false, error: 'Firebase Storage no disponible' };
+  }
+
+  try {
+    const avatarRef = ref(storage, `users/${userId}/avatar.jpg`);
+    try {
+      await deleteObject(avatarRef);
+    } catch (error: any) {
+      if (error.code !== 'storage/object-not-found') throw error;
+    }
+
+    if (db) {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        photoURL: null,
+        updatedAt: serverTimestamp()
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error deleting avatar for user:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Error al eliminar la imagen'
+    };
+  }
+}
+
+/**
  * Gets the avatar URL for a user
  * Returns custom avatar if exists, otherwise Google photo
  */
