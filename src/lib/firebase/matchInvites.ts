@@ -15,7 +15,7 @@ import {
 	where,
 	getDocs,
 	onSnapshot,
-	serverTimestamp,
+	runTransaction,
 	Timestamp
 } from 'firebase/firestore';
 
@@ -221,7 +221,7 @@ export async function acceptInvite(
 	}
 
 	try {
-		// Get the invitation
+		// Query to find invite doc ID (queries can't be inside transactions)
 		const invite = await getInviteByCode(inviteCode);
 
 		if (!invite) {
@@ -229,69 +229,75 @@ export async function acceptInvite(
 			return null;
 		}
 
-		// Validate invitation
-		if (invite.status !== 'pending') {
-			console.warn('Invite is not pending:', invite.status);
-			return null;
-		}
-
-		if (isInviteExpired(invite)) {
-			console.warn('Invite has expired');
-			// Update status to expired
-			await updateDoc(doc(db, 'matchInvites', invite.id), { status: 'expired' });
-			return null;
-		}
-
-		if (invite.hostUserId === guestData.guestUserId) {
-			console.warn('Cannot accept your own invite');
-			return null;
-		}
-
-		// Determine guest team number and role based on invite type
-		const inviteType = invite.inviteType || 'opponent';
-		let guestTeamNumber: 1 | 2;
-		let guestRole: 'player' | 'partner';
-
-		switch (inviteType) {
-			case 'my_partner':
-				// Partner joins host's team as partner
-				guestTeamNumber = invite.hostTeamNumber;
-				guestRole = 'partner';
-				break;
-			case 'opponent_partner':
-				// Opponent's partner joins opposite team as partner
-				guestTeamNumber = invite.hostTeamNumber === 1 ? 2 : 1;
-				guestRole = 'partner';
-				break;
-			case 'opponent':
-			default:
-				// Opponent joins opposite team as player
-				guestTeamNumber = invite.hostTeamNumber === 1 ? 2 : 1;
-				guestRole = 'player';
-				break;
-		}
-
-		// Update invitation with guest info
+		// Use transaction for atomic status check + update (prevents double-accept)
 		const inviteRef = doc(db, 'matchInvites', invite.id);
-		await updateDoc(inviteRef, {
-			status: 'accepted',
-			guestUserId: guestData.guestUserId,
-			guestUserName: guestData.guestUserName,
-			guestUserPhotoURL: guestData.guestUserPhotoURL,
-			guestTeamNumber,
-			guestRole
+		let updatedInvite: MatchInvite | null = null;
+
+		await runTransaction(db, async (transaction) => {
+			const freshSnap = await transaction.get(inviteRef);
+			if (!freshSnap.exists()) {
+				throw new Error('Invite not found');
+			}
+
+			const freshInvite = { id: freshSnap.id, ...freshSnap.data() } as MatchInvite;
+
+			// Validate invitation with fresh data
+			if (freshInvite.status !== 'pending') {
+				throw new Error('Invite is not pending: ' + freshInvite.status);
+			}
+
+			if (isInviteExpired(freshInvite)) {
+				transaction.update(inviteRef, { status: 'expired' });
+				throw new Error('Invite has expired');
+			}
+
+			if (freshInvite.hostUserId === guestData.guestUserId) {
+				throw new Error('Cannot accept your own invite');
+			}
+
+			// Determine guest team number and role based on invite type
+			const inviteType = freshInvite.inviteType || 'opponent';
+			let guestTeamNumber: 1 | 2;
+			let guestRole: 'player' | 'partner';
+
+			switch (inviteType) {
+				case 'my_partner':
+					guestTeamNumber = freshInvite.hostTeamNumber;
+					guestRole = 'partner';
+					break;
+				case 'opponent_partner':
+					guestTeamNumber = freshInvite.hostTeamNumber === 1 ? 2 : 1;
+					guestRole = 'partner';
+					break;
+				case 'opponent':
+				default:
+					guestTeamNumber = freshInvite.hostTeamNumber === 1 ? 2 : 1;
+					guestRole = 'player';
+					break;
+			}
+
+			// Atomic update
+			transaction.update(inviteRef, {
+				status: 'accepted',
+				guestUserId: guestData.guestUserId,
+				guestUserName: guestData.guestUserName,
+				guestUserPhotoURL: guestData.guestUserPhotoURL,
+				guestTeamNumber,
+				guestRole
+			});
+
+			updatedInvite = {
+				...freshInvite,
+				status: 'accepted',
+				guestUserId: guestData.guestUserId,
+				guestUserName: guestData.guestUserName,
+				guestUserPhotoURL: guestData.guestUserPhotoURL,
+				guestTeamNumber,
+				guestRole
+			};
 		});
 
-		// Return updated invitation
-		return {
-			...invite,
-			status: 'accepted',
-			guestUserId: guestData.guestUserId,
-			guestUserName: guestData.guestUserName,
-			guestUserPhotoURL: guestData.guestUserPhotoURL,
-			guestTeamNumber,
-			guestRole
-		};
+		return updatedInvite;
 	} catch (error) {
 		console.error('Error accepting invite:', error);
 		return null;

@@ -26,6 +26,7 @@ import {
   serverTimestamp,
   Timestamp,
   onSnapshot,
+  runTransaction,
   type QueryDocumentSnapshot,
   type DocumentData
 } from 'firebase/firestore';
@@ -758,26 +759,26 @@ export async function updateTournament(
   try {
     const tournamentRef = doc(db!, 'tournaments', id);
 
-    // Check permission using canManageTournament
-    const snapshot = await getDoc(tournamentRef);
-    if (!snapshot.exists()) {
-      console.error('Tournament not found:', id);
-      return false;
-    }
-
-    const tournamentData = snapshot.data();
-    const hasPermission = await canManageTournament(tournamentData, user.id);
-    if (!hasPermission) {
-      console.error('Unauthorized: User cannot edit this tournament');
-      return false;
-    }
-
     // Recursively remove undefined values from updates
     const cleanUpdates = cleanUndefined(updates);
 
-    await updateDoc(tournamentRef, {
-      ...cleanUpdates,
-      updatedAt: serverTimestamp()
+    // Use transaction to ensure atomic read-check-write
+    await runTransaction(db!, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found: ' + id);
+      }
+
+      const tournamentData = snapshot.data();
+      const hasPermission = await canManageTournament(tournamentData, user.id);
+      if (!hasPermission) {
+        throw new Error('Unauthorized: User cannot edit this tournament');
+      }
+
+      transaction.update(tournamentRef, {
+        ...cleanUpdates,
+        updatedAt: serverTimestamp()
+      });
     });
 
     console.log('✅ Tournament updated:', id);
@@ -811,9 +812,17 @@ export async function updateTournamentPublic(
     // Recursively remove undefined values from updates
     const cleanUpdates = cleanUndefined(updates);
 
-    await updateDoc(tournamentRef, {
-      ...cleanUpdates,
-      updatedAt: serverTimestamp()
+    // Use transaction to ensure atomic read-write (prevents concurrent overwrites)
+    await runTransaction(db!, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found: ' + id);
+      }
+
+      transaction.update(tournamentRef, {
+        ...cleanUpdates,
+        updatedAt: serverTimestamp()
+      });
     });
 
     console.log('✅ Tournament updated (public):', id);
