@@ -286,6 +286,9 @@ export interface GroupMatch {
   completedAt?: number;
   duration?: number;             // Match duration in ms (completedAt - startedAt), 0 if admin-entered
 
+  // Live scoring
+  scoringBy?: { userId: string; userName: string };
+
   // Video attachment
   videoUrl?: string;             // Full YouTube URL
   videoId?: string;              // Extracted video ID for embedding
@@ -465,6 +468,9 @@ export interface BracketMatch {
   startedAt?: number;
   completedAt?: number;
   duration?: number;             // Match duration in ms (completedAt - startedAt), 0 if admin-entered
+
+  // Live scoring
+  scoringBy?: { userId: string; userName: string };
 
   // Navigation
   nextMatchId?: string;         // Where winner advances

@@ -2,7 +2,13 @@
   import { goto } from '$app/navigation';
   import { canAccessAdmin, adminCheckLoading } from '$lib/stores/admin';
   import * as m from '$lib/paraglide/messages.js';
+  import type { Snippet } from 'svelte';
 
+  interface Props {
+    children: Snippet;
+  }
+
+  let { children }: Props = $props();
   let hasChecked = $state(false);
 
   // Use $effect to react to both stores simultaneously
@@ -28,7 +34,7 @@
     <p>{m.common_loading()}</p>
   </div>
 {:else if $canAccessAdmin}
-  <slot />
+  {@render children()}
 {:else}
   <div class="admin-guard-denied">
     <h1>🔒 {m.admin_accessDenied()}</h1>

@@ -1751,7 +1751,8 @@ export async function startTournamentMatch(
   matchId: string,
   phase: 'GROUP' | 'FINAL',
   groupId?: string,
-  forceResume: boolean = false  // Allow resuming IN_PROGRESS matches (for emergency recovery)
+  forceResume: boolean = false,  // Allow resuming IN_PROGRESS matches (for emergency recovery)
+  scoringBy?: { userId: string; userName: string }
 ): Promise<{ success: boolean; error?: string }> {
   console.log(`🚀 startTournamentMatch called: matchId=${matchId}, phase=${phase}, forceResume=${forceResume}`);
 
@@ -1798,6 +1799,8 @@ export async function startTournamentMatch(
                   round.matches[matchIndex].status = 'IN_PROGRESS';
                   round.matches[matchIndex].startedAt = Date.now();
                 }
+                // Always update scoringBy (even on resume, new scorer takes over)
+                if (scoringBy) round.matches[matchIndex].scoringBy = scoringBy;
                 matchFound = true;
                 break;
               }
@@ -1821,6 +1824,7 @@ export async function startTournamentMatch(
                   pairing.matches[matchIndex].status = 'IN_PROGRESS';
                   pairing.matches[matchIndex].startedAt = Date.now();
                 }
+                if (scoringBy) pairing.matches[matchIndex].scoringBy = scoringBy;
                 matchFound = true;
                 break;
               }
@@ -1855,6 +1859,7 @@ export async function startTournamentMatch(
               bracket.thirdPlaceMatch.status = 'IN_PROGRESS';
               bracket.thirdPlaceMatch.startedAt = Date.now();
             }
+            if (scoringBy) bracket.thirdPlaceMatch.scoringBy = scoringBy;
             return 'found';
           }
 
@@ -1869,6 +1874,7 @@ export async function startTournamentMatch(
                 round.matches[matchIndex].status = 'IN_PROGRESS';
                 round.matches[matchIndex].startedAt = Date.now();
               }
+              if (scoringBy) round.matches[matchIndex].scoringBy = scoringBy;
               return 'found';
             }
           }
@@ -1886,6 +1892,7 @@ export async function startTournamentMatch(
                     round.matches[matchIndex].status = 'IN_PROGRESS';
                     round.matches[matchIndex].startedAt = Date.now();
                   }
+                  if (scoringBy) round.matches[matchIndex].scoringBy = scoringBy;
                   return 'found';
                 }
               }

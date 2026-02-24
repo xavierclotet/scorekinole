@@ -1067,6 +1067,8 @@
   "tournament_selectYourMatch": "Selecciona tu Partido",
   "tournament_semifinal": "Semifinal",
   "tournament_showKey": "Mostrar clave",
+  "tournament_scoringByConfirm": "{name} está controlando este partido. ¿Quieres tomar el control?",
+  "tournament_scoringByLabel": "Controlado por {name}",
   "tournament_showMatches": "Mostrar partidos",
   "tournament_showQR": "Mostrar QR",
   "tournament_scanQR": "Escanear QR",

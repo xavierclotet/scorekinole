@@ -475,6 +475,15 @@
 		selectedMatch = matchDisplay.match;
 		isResumingMatch = matchDisplay.isInProgress;
 
+		// Warn if another user is already scoring this match
+		if (isResumingMatch) {
+			const scorer = (matchDisplay.match.match as any).scoringBy;
+			if (scorer && scorer.userId !== $currentUser?.id) {
+				const confirmed = confirm(m.tournament_scoringByConfirm({ name: scorer.userName }));
+				if (!confirmed) return;
+			}
+		}
+
 		// For logged-in users, auto-detect their side
 		if (isLoggedIn && $currentUser && tournament) {
 			const userParticipant = tournament.participants.find(p => p.userId === $currentUser?.id);
@@ -552,7 +561,8 @@
 				selectedMatch.match.id,
 				selectedMatch.phase,
 				selectedMatch.groupId,
-				isResumingMatch  // forceResume: allow resuming IN_PROGRESS matches
+				isResumingMatch,  // forceResume: allow resuming IN_PROGRESS matches
+				$currentUser ? { userId: $currentUser.id, userName: $currentUser.name } : undefined
 			);
 
 			if (!result.success) {
@@ -1066,6 +1076,9 @@
 													{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
 												</span>
 											</div>
+											{#if (matchDisplay.match.match as any).scoringBy}
+												<p class="scoring-by-label">{m.tournament_scoringByLabel({ name: (matchDisplay.match.match as any).scoringBy.userName })}</p>
+											{/if}
 											<div class="live-match-players">
 												<span class="player-with-avatar left">
 													{#if matchDisplay.match.participantAPhotoURL}
@@ -1149,6 +1162,9 @@
 																				{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
 																			</span>
 																		</div>
+																		{#if (matchDisplay.match.match as any).scoringBy}
+																			<p class="scoring-by-label">{m.tournament_scoringByLabel({ name: (matchDisplay.match.match as any).scoringBy.userName })}</p>
+																		{/if}
 																		<div class="match-row-bottom">
 																			<span class="player-with-avatar left">
 																				{#if matchDisplay.match.participantAPhotoURL}
@@ -1198,6 +1214,9 @@
 																	{#if matchDisplay.match.gameConfig.matchesToWin > 1}{m.bracket_bestOf()}{matchDisplay.match.gameConfig.matchesToWin}{/if}
 																</span>
 															</div>
+															{#if (matchDisplay.match.match as any).scoringBy}
+																<p class="scoring-by-label">{m.tournament_scoringByLabel({ name: (matchDisplay.match.match as any).scoringBy.userName })}</p>
+															{/if}
 															<div class="match-row-bottom">
 																<span class="player-with-avatar left">
 																	{#if matchDisplay.match.participantAPhotoURL}
@@ -1993,6 +2012,12 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+	}
+
+	.scoring-by-label {
+		font-size: 0.7rem;
+		color: var(--muted-foreground);
+		margin: 0;
 	}
 
 	.live-badge {

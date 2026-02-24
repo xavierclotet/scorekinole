@@ -17,7 +17,7 @@
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { normalizeTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution, calculateRankingPoints } from '$lib/algorithms/ranking';
-  import { getUserProfileById, createGuestUserProfile, type UserProfile } from '$lib/firebase/userProfile';
+  import { getUserProfileById, createGuestUserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
@@ -1156,10 +1156,6 @@
 
   function getStep4Warnings(): string[] {
     return [];
-  }
-
-  function isStep4Valid(): boolean {
-    return participants.length >= 2;
   }
 
   function getValidationForStep(step: number): [string[], string[]] {
@@ -2724,16 +2720,16 @@
                 </div>
               </div>
               <div class="tc-group">
-                <label class="tc-lbl">{m.admin_betweenMatches()}</label>
+                <label class="tc-lbl" for="tc-break-matches">{m.admin_betweenMatches()}</label>
                 <div class="tc-input-wrap">
-                  <input type="number" bind:value={tcBreakBetweenMatches} min="0" max="30" />
+                  <input id="tc-break-matches" type="number" bind:value={tcBreakBetweenMatches} min="0" max="30" />
                   <span class="tc-suffix">min</span>
                 </div>
               </div>
               <div class="tc-group">
-                <label class="tc-lbl">{m.admin_betweenPhases()}</label>
+                <label class="tc-lbl" for="tc-break-phases">{m.admin_betweenPhases()}</label>
                 <div class="tc-input-wrap">
-                  <input type="number" bind:value={tcBreakBetweenPhases} min="0" max="60" />
+                  <input id="tc-break-phases" type="number" bind:value={tcBreakBetweenPhases} min="0" max="60" />
                   <span class="tc-suffix">min</span>
                 </div>
               </div>
@@ -2741,7 +2737,7 @@
 
             <!-- Average Rounds Row -->
             <div class="tc-row tc-rounds-row">
-              <label class="tc-lbl">{m.admin_avgRoundsTitle()}</label>
+              <span class="tc-lbl">{m.admin_avgRoundsTitle()}</span>
               <div class="tc-rounds-grid">
                 <div class="tc-round-item"><span class="tc-pts">7p</span><input type="number" bind:value={tcAvgRounds7pts} min="3" max="15" /><span class="tc-rds">rds</span></div>
                 <div class="tc-round-item"><span class="tc-pts">9p</span><input type="number" bind:value={tcAvgRounds9pts} min="4" max="20" /><span class="tc-rds">rds</span></div>
@@ -2753,13 +2749,13 @@
             <div class="tc-row tc-toggles-row">
               <div class="tc-toggle-compact">
                 <span class="tc-toggle-lbl">{m.admin_parallelSemifinals()}</span>
-                <button type="button" class="tc-switch" class:on={tcParallelSemifinals} onclick={() => tcParallelSemifinals = !tcParallelSemifinals}>
+                <button type="button" class="tc-switch" class:on={tcParallelSemifinals} onclick={() => tcParallelSemifinals = !tcParallelSemifinals} aria-label={m.admin_parallelSemifinals()}>
                   <span class="tc-switch-thumb"></span>
                 </button>
               </div>
               <div class="tc-toggle-compact">
                 <span class="tc-toggle-lbl">{m.admin_parallelFinals()}</span>
-                <button type="button" class="tc-switch" class:on={tcParallelFinals} onclick={() => tcParallelFinals = !tcParallelFinals}>
+                <button type="button" class="tc-switch" class:on={tcParallelFinals} onclick={() => tcParallelFinals = !tcParallelFinals} aria-label={m.admin_parallelFinals()}>
                   <span class="tc-switch-thumb"></span>
                 </button>
               </div>
