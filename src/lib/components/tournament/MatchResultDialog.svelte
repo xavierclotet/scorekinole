@@ -1512,87 +1512,6 @@
     padding: 1.5rem;
   }
 
-  .participant-a {
-    text-align: left;
-    justify-content: flex-start;
-  }
-
-  .participant-b {
-    text-align: right;
-    flex-direction: row-reverse;
-  }
-
-  .participant-label {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.6875rem;
-    font-weight: 800;
-    flex-shrink: 0;
-    letter-spacing: 0.02em;
-  }
-
-  .participant-a .participant-label {
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-    color: var(--primary);
-  }
-
-  .participant-b .participant-label {
-    background: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
-  }
-
-  .participant-name {
-    font-size: 0.9375rem;
-    font-weight: 700;
-    color: #0f172a;
-    line-height: 1.3;
-    letter-spacing: -0.01em;
-  }
-
-  .match-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .vs-circle {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: white;
-    border: 2px solid #e2e8f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  }
-
-  .vs-circle span {
-    font-size: 0.625rem;
-    font-weight: 800;
-    color: #94a3b8;
-    letter-spacing: 0.08em;
-  }
-
-  .table-badge {
-    font-size: 0.625rem;
-    font-weight: 500;
-    color: #94a3b8;
-  }
-
-  .match-meta {
-    display: flex;
-    justify-content: center;
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid #e2e8f0;
-  }
-
   .format-badge {
     font-size: 0.6875rem;
     font-weight: 600;
@@ -1988,30 +1907,6 @@
     transform: translateY(0);
   }
 
-  .match-complete-notice {
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    color: #78350f;
-    padding: 1.5rem;
-    border-radius: 14px;
-    text-align: center;
-    width: 100%;
-  }
-
-  .match-winner {
-    font-weight: 800;
-    font-size: 1.125rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .match-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid rgba(120, 53, 15, 0.15);
-  }
-
   .stat-row {
     display: flex;
     flex-direction: column;
@@ -2028,13 +1923,6 @@
   .stat-value {
     font-size: 1rem;
     font-weight: 700;
-  }
-
-  .match-score-summary {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #78350f;
-    margin-top: 0.375rem;
   }
 
   /* Summary only notice */
@@ -2489,41 +2377,6 @@
     background: #0f172a;
   }
 
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-card {
-    background: #1e293b;
-    border-color: #334155;
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .participant-name {
-    color: #e2e8f0;
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .participant-a .participant-label {
-    background: color-mix(in srgb, var(--primary) 20%, transparent);
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .participant-b .participant-label {
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .vs-circle {
-    background: #334155;
-    border-color: #475569;
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .vs-circle span {
-    color: #64748b;
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .table-badge {
-    color: #64748b;
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-meta {
-    border-color: #334155;
-  }
-
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .format-badge {
     background: #334155;
     border-color: #475569;
@@ -2661,19 +2514,6 @@
     background: rgba(5, 150, 105, 0.12);
     color: #34d399;
     border-color: rgba(5, 150, 105, 0.2);
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-complete-notice {
-    background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(251, 191, 36, 0.06));
-    color: #fbbf24;
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-stats {
-    border-top-color: rgba(251, 191, 36, 0.15);
-  }
-
-  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .match-score-summary {
-    color: #fbbf24;
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .summary-only-notice {
@@ -2831,11 +2671,6 @@
       padding: 0.875rem 1rem;
     }
 
-    .match-card {
-      padding: 1rem;
-      border-radius: 12px;
-    }
-
     .rounds-table-container {
       border-radius: 10px;
     }
@@ -2888,32 +2723,6 @@
       font-size: 0.625rem;
     }
 
-    .match-participants {
-      grid-template-columns: 1fr;
-      gap: 0.375rem;
-      text-align: center;
-    }
-
-    .participant {
-      justify-content: center;
-    }
-
-    .participant-a,
-    .participant-b {
-      text-align: center;
-      flex-direction: row;
-    }
-
-    .match-center {
-      order: -1;
-      flex-direction: row;
-      gap: 0.75rem;
-    }
-
-    .vs-circle {
-      width: 32px;
-      height: 32px;
-    }
 
     .noshow-buttons,
     .disqualify-buttons {

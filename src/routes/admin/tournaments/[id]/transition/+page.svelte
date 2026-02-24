@@ -1551,7 +1551,6 @@
     background: #0f1419;
   }
 
-  .loading-state,
   .error-state {
     display: flex;
     flex-direction: column;
@@ -1559,15 +1558,6 @@
     justify-content: center;
     min-height: 300px;
     text-align: center;
-  }
-
-  .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid #e5e7eb;
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
   }
 
   @keyframes spin {
@@ -1846,27 +1836,6 @@
     border-bottom: 1px solid rgba(0,0,0,0.1);
   }
 
-  .config-card {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  }
-
-  .config-card h3 {
-    margin: 0 0 0.75rem 0;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #1a1a1a;
-  }
-
-  .config-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.75rem;
-  }
-
   .config-field {
     display: flex;
     flex-direction: column;
@@ -1877,25 +1846,6 @@
     font-size: 0.75rem;
     font-weight: 600;
     color: #6b7280;
-  }
-
-  .radio-group {
-    display: flex;
-    gap: 0.75rem;
-  }
-
-  .radio-option {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    cursor: pointer;
-    font-size: 0.8rem;
-    color: #6b7280;
-  }
-
-  .radio-option:has(input:checked) span {
-    color: #1a1a1a;
-    font-weight: 600;
   }
 
   .number-input,
@@ -1916,25 +1866,8 @@
   }
 
   /* Dark mode for config section */
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .config-card {
-    background: #1a2332;
-    border-color: #2d3748;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .config-card h3 {
-    color: #e1e8ed;
-  }
-
   :global(:is([data-theme='dark'], [data-theme='violet'])) .config-field label {
     color: #8b9bb3;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .radio-option {
-    color: #8b9bb3;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .radio-option:has(input:checked) span {
-    color: #e1e8ed;
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .number-input,
@@ -2287,65 +2220,6 @@
     margin: 0.15rem 0 0 0;
     color: #6b7280;
     font-size: 0.75rem;
-  }
-
-  .qualifier-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.25rem;
-    height: 1.25rem;
-    padding: 0 0.35rem;
-    background: #6b7280;
-    color: white;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    margin-left: 0.2rem;
-  }
-
-  .qualifier-count.valid {
-    background: var(--primary);
-  }
-
-  .selection-summary {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.6rem;
-    background: #f9fafb;
-    border-radius: 4px;
-    margin-top: 0.5rem;
-    font-size: 0.8rem;
-  }
-
-  .transition-page:is([data-theme='dark'], [data-theme='violet']) .selection-summary {
-    background: #0f1419;
-  }
-
-  .summary-label {
-    font-weight: 500;
-    color: #6b7280;
-  }
-
-  .summary-value {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #1a1a1a;
-  }
-
-  .summary-value.valid {
-    color: #10b981;
-  }
-
-  .transition-page:is([data-theme='dark'], [data-theme='violet']) .summary-value {
-    color: #e1e8ed;
-  }
-
-  .summary-hint {
-    font-size: 0.75rem;
-    color: #9ca3af;
-    font-style: italic;
   }
 
   .dual-config-section {

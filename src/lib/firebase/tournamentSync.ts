@@ -184,6 +184,54 @@ export async function completeMatch(
   }
 }
 
+// --- Pending tournament match completion offline queue ---
+
+const PENDING_TOURNAMENT_COMPLETION_KEY = 'pendingTournamentCompletion';
+
+interface PendingTournamentCompletion {
+  tournamentId: string;
+  matchId: string;
+  phase: 'GROUP' | 'FINAL';
+  groupId: string | undefined;
+  data: MatchCompleteData;
+}
+
+export function savePendingTournamentCompletion(pending: PendingTournamentCompletion): void {
+  if (!browser) return;
+  localStorage.setItem(PENDING_TOURNAMENT_COMPLETION_KEY, JSON.stringify(pending));
+}
+
+export function removePendingTournamentCompletion(): void {
+  if (!browser) return;
+  localStorage.removeItem(PENDING_TOURNAMENT_COMPLETION_KEY);
+}
+
+export async function retryPendingTournamentCompletion(): Promise<boolean> {
+  if (!browser) return false;
+  const raw = localStorage.getItem(PENDING_TOURNAMENT_COMPLETION_KEY);
+  if (!raw) return false;
+
+  try {
+    const pending: PendingTournamentCompletion = JSON.parse(raw);
+    const success = await completeMatch(
+      pending.tournamentId,
+      pending.matchId,
+      pending.phase,
+      pending.groupId,
+      pending.data
+    );
+    if (success) {
+      removePendingTournamentCompletion();
+      console.log('✅ Pending tournament match completion synced:', pending.matchId);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('❌ Error retrying pending tournament completion:', error);
+    return false;
+  }
+}
+
 /**
  * Mark a participant as no-show (walkover)
  *

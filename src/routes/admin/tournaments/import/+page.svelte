@@ -4052,10 +4052,6 @@ Dan Rowe,Chris Robinson,12,6
     flex-shrink: 0;
   }
 
-  .search-result:hover .result-add {
-    background: #059669;
-  }
-
   /* Participants Grid */
   .participants-grid {
     display: grid;
@@ -4200,83 +4196,6 @@ Dan Rowe,Chris Robinson,12,6
     font-size: 0.8rem;
   }
 
-  .standings-table th,
-  .standings-table td {
-    padding: 0.5rem 0.75rem;
-    text-align: left;
-  }
-
-  .standings-table th {
-    font-weight: 600;
-    color: #6b7280;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    background: #f8f9fa;
-    border-bottom: 2px solid #e5e7eb;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .standings-table th {
-    background: #1a2332;
-    border-color: #374151;
-    color: #8b9bb3;
-  }
-
-  .standings-table tbody tr {
-    transition: background-color 0.15s;
-  }
-
-  .standings-table tbody tr:hover {
-    background: rgba(102, 126, 234, 0.04);
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .standings-table tbody tr:hover {
-    background: rgba(102, 126, 234, 0.08);
-  }
-
-  .standings-table tbody tr.zebra {
-    background: #f1f5f9;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .standings-table tbody tr.zebra {
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .standings-table tbody tr.zebra:hover {
-    background: #e2e8f0;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .standings-table tbody tr.zebra:hover {
-    background: rgba(102, 126, 234, 0.12);
-  }
-
-  .standings-table td {
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .standings-table td {
-    border-color: #2d3748;
-  }
-
-  .standings-table .col-pos {
-    width: 40px;
-    text-align: center;
-  }
-
-  .standings-table .col-name {
-    width: auto;
-  }
-
-  .standings-table .col-num {
-    width: 80px;
-    text-align: center;
-  }
-
-  .standings-table .col-action {
-    width: 36px;
-    text-align: center;
-  }
-
   .position-cell {
     font-weight: 700;
     color: #374151;
@@ -4360,17 +4279,6 @@ Dan Rowe,Chris Robinson,12,6
   .round-section:last-child {
     border-bottom: none;
     margin-bottom: 0;
-  }
-
-  .round-section h4 {
-    font-size: 0.8rem;
-    color: #6b7280;
-    margin: 0;
-    font-weight: 600;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .round-section h4 {
-    color: #9ca3af;
   }
 
   .round-header {
@@ -4756,15 +4664,6 @@ Dan Rowe,Chris Robinson,12,6
     gap: 0.35rem;
   }
 
-  .player-row.winner .player-select {
-    font-weight: 600;
-    color: #059669;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .player-row.winner .player-select {
-    color: #10b981;
-  }
-
   .player-select {
     flex: 1;
     min-width: 0;
@@ -4937,29 +4836,6 @@ Dan Rowe,Chris Robinson,12,6
     min-width: 120px;
   }
 
-  .review-group h4,
-  .review-bracket h4 {
-    font-size: 0.8rem;
-    margin-bottom: 0.5rem;
-    color: #374151;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-group h4,
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-bracket h4 {
-    color: #d1d5db;
-  }
-
-  .review-group ol {
-    margin: 0;
-    padding-left: 1.25rem;
-    font-size: 0.8rem;
-    color: #374151;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-group ol {
-    color: #d1d5db;
-  }
-
   .review-bracket {
     margin-bottom: 1rem;
   }
@@ -4967,15 +4843,6 @@ Dan Rowe,Chris Robinson,12,6
   .review-round {
     margin-bottom: 0.5rem;
     padding-left: 0.5rem;
-  }
-
-  .review-round strong {
-    font-size: 0.75rem;
-    color: #6b7280;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-round strong {
-    color: #9ca3af;
   }
 
   .review-match {
@@ -5175,12 +5042,6 @@ Dan Rowe,Chris Robinson,12,6
   }
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-standings-table tr.zebra td {
     background: #0f172a;
-  }
-  .review-standings-table tr.qualified td {
-    background: #ecfdf5;
-  }
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-standings-table tr.qualified td {
-    background: #064e3b;
   }
   .review-standings-table .pos { width: 24px; text-align: center; font-weight: 600; }
   .review-standings-table .pname { font-weight: 500; }
@@ -5570,13 +5431,6 @@ Dan Rowe,Chris Robinson,12,6
       width: 100%;
       justify-content: center;
       margin: 0.5rem 0;
-    }
-
-    .match-entry-row .remove-btn {
-      order: 4;
-      position: absolute;
-      top: 0.5rem;
-      right: 0.5rem;
     }
 
     .match-entry-row {

@@ -37,7 +37,10 @@
 		syncMatchProgress,
 		completeMatch as completeTournamentMatchSync,
 		abandonMatch as abandonTournamentMatchSync,
-		subscribeToMatchStatus
+		subscribeToMatchStatus,
+		savePendingTournamentCompletion,
+		removePendingTournamentCompletion,
+		retryPendingTournamentCompletion
 	} from '$lib/firebase/tournamentSync';
 	import { getTournamentByKey } from '$lib/firebase/tournaments';
 	import {
@@ -340,8 +343,9 @@
 			startCurrentMatch();
 		}
 
-		// Retry any pending friendly match from a previous offline session
+		// Retry any pending matches from a previous offline session
 		retryPendingFriendlyMatch();
+		retryPendingTournamentCompletion();
 
 		const unsubSettings = gameSettings.subscribe($settings => {
 			// Initialize timer if not set
@@ -372,7 +376,8 @@
 				}
 			}
 
-			// Retry pending friendly match
+			// Retry pending matches
+			await retryPendingTournamentCompletion();
 			await retryPendingFriendlyMatch();
 		});
 
@@ -1459,31 +1464,43 @@
 			totalPointsB
 		});
 
+		const completionData = {
+			winner,
+			gamesWonA: finalGamesWonA,
+			gamesWonB: finalGamesWonB,
+			totalPointsA,
+			totalPointsB,
+			total20sA,
+			total20sB,
+			rounds: allRounds
+		};
+
+		// Backup to localStorage before attempting Firebase write
+		savePendingTournamentCompletion({
+			tournamentId: context.tournamentId,
+			matchId: context.matchId,
+			phase: context.phase,
+			groupId: context.groupId,
+			data: completionData
+		});
+
 		try {
 			const success = await completeTournamentMatchSync(
 				context.tournamentId,
 				context.matchId,
 				context.phase,
 				context.groupId,
-				{
-					winner,
-					gamesWonA: finalGamesWonA,
-					gamesWonB: finalGamesWonB,
-					totalPointsA,
-					totalPointsB,
-					total20sA,
-					total20sB,
-					rounds: allRounds
-				}
+				completionData
 			);
 
 			if (success) {
+				removePendingTournamentCompletion();
 				console.log('✅ Tournament match results saved successfully');
 			} else {
-				console.error('❌ Failed to save tournament match results');
+				console.error('❌ Failed to save tournament match results - saved for retry');
 			}
 		} catch (error) {
-			console.error('Error completing tournament match:', error);
+			console.error('Error completing tournament match - saved for retry:', error);
 		}
 
 		// NO reseteamos el estado aquí - dejamos que el usuario vea el resultado final

@@ -34,6 +34,12 @@ Hidden when online and idle.
 ### Tournament matches
 On reconnect, automatically syncs current match round data to Firebase via `onReconnect` callback.
 
+**Match completion offline protection**: If a tournament match completes while offline, the `runTransaction()` fails. The completion data is saved to `localStorage` (key: `pendingTournamentCompletion`) before attempting the write. Retry happens automatically on `onReconnect` and `onMount`.
+
+Key files:
+- `src/lib/firebase/tournamentSync.ts`: `savePendingTournamentCompletion()`, `removePendingTournamentCompletion()`, `retryPendingTournamentCompletion()`
+- `src/routes/game/+page.svelte`: `handleTournamentMatchComplete()` — saves pending before Firebase call
+
 ### Friendly matches — Offline protection
 If a friendly match completes while offline, the Firestore `setDoc` fails silently. To prevent data loss, the app saves the match to `localStorage` (key: `pendingFriendlyMatch`) **before** attempting the write.
 

@@ -2261,21 +2261,6 @@
 		transform: scale(0.98);
 	}
 
-	.back-btn-subtle {
-		background: none;
-		border: none;
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.35);
-		cursor: pointer;
-		padding: 0.3rem 0.5rem;
-		transition: color 0.15s ease;
-	}
-
-	.back-btn-subtle:hover {
-		color: rgba(255, 255, 255, 0.6);
-	}
-
 	.step-content.error {
 		align-items: center;
 		text-align: center;
