@@ -1085,8 +1085,6 @@ export async function advanceWinner(
 ): Promise<boolean> {
   if (!db) return false;
 
-  let shouldApplyRankings = false;
-
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
 
@@ -1174,19 +1172,14 @@ export async function advanceWinner(
           finalStage: { ...tournament.finalStage, goldBracket: updatedGoldBracket, isComplete: true }
         };
         updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
-        shouldApplyRankings = true;
+        // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
+        // to avoid double-application of ranking points
       } else if (!isTournamentComplete) {
         console.log('📋 Bracket status: goldComplete=' + isGoldComplete + ', silverComplete=' + isSilverComplete + ', isSplitDivisions=' + isSplitDivisions);
       }
 
       transaction.update(tournamentRef, updateData);
     });
-
-    // Apply ranking updates AFTER transaction commits (writes to other documents)
-    if (shouldApplyRankings) {
-      console.log('📈 Applying ranking updates from gold bracket completion...');
-      await applyRankingUpdates(tournamentId);
-    }
 
     return true;
   } catch (error) {

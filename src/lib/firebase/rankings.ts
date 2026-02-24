@@ -320,8 +320,13 @@ export function calculateRankings(
     });
   }
 
-  // 7. Sort by total points descending
-  result.sort((a, b) => b.totalPoints - a.totalPoints);
+  // 7. Sort by total points descending, then tiebreakers
+  result.sort((a, b) =>
+    b.totalPoints - a.totalPoints
+    || b.tournamentsCount - a.tournamentsCount
+    || (a.bestResult ?? Infinity) - (b.bestResult ?? Infinity)
+    || a.playerName.localeCompare(b.playerName)
+  );
 
   return result;
 }
