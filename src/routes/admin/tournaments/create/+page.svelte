@@ -4017,15 +4017,16 @@
   /* Tier Selection Cards - 2 Columns */
   .tier-selection {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 0.75rem;
     margin-bottom: 1rem;
-    max-width: 400px;
+    max-width: 550px;
     margin-left: auto;
     margin-right: auto;
   }
 
   .tier-option {
+    display: flex;
     cursor: pointer;
   }
 
@@ -4034,6 +4035,7 @@
   }
 
   .tier-card {
+    flex: 1;
     padding: 0.75rem;
     border: 2px solid #e0e0e0;
     border-radius: 6px;
