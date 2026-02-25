@@ -544,6 +544,9 @@
           {/if}
           <th class="scored-col" class:primary-col={qualificationMode === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>PT</th>
           <th class="twenties-col">{m.tournament_twentiesShort()}</th>
+          {#if isSwiss}
+            <th class="buchholz-col" title={m.tournament_buchholzTooltip()}>Buc</th>
+          {/if}
         </tr>
       </thead>
       <tbody>
@@ -555,8 +558,8 @@
           {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
           {@const atCutoffTie = isAtCutoffTie(standing.participantId)}
           {@const showTieStyles = qualificationMode === 'WINS'}
-          {@const halfwayIndex = Math.ceil(standings.length / 2) - 1}
-          {@const isHalfwayRow = idx === halfwayIndex && standings.length > 1}
+          {@const cutoffIndex = topN - 1}
+          {@const isHalfwayRow = idx === cutoffIndex && standings.length > 1 && topN < standings.length}
           {@const disqualified = isDisqualified(standing.participantId)}
           <tr
             class:selected={isSelected}
@@ -639,6 +642,9 @@
               {#if qualificationMode === 'POINTS'}<strong>{standing.totalPointsScored}</strong>{:else}{standing.totalPointsScored}{/if}
             </td>
             <td class="twenties-col">{standing.total20s}</td>
+            {#if isSwiss}
+              <td class="buchholz-col">{standing.buchholz ?? 0}</td>
+            {/if}
           </tr>
         {/each}
       </tbody>
@@ -968,6 +974,12 @@
   .scored-col {
     width: 40px;
     color: #6b7280;
+  }
+
+  .buchholz-col {
+    width: 36px;
+    color: #8b5cf6;
+    font-size: 0.8rem;
   }
 
   .clickable-pts {

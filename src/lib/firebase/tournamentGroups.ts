@@ -92,7 +92,8 @@ export async function generateRoundRobinSchedule(tournamentId: string): Promise<
         points: 0,
         total20s: 0,
         totalPointsScored: 0,
-        qualifiedForFinal: false
+        qualifiedForFinal: false,
+        headToHeadRecord: {}
       }));
     }
 
@@ -201,7 +202,7 @@ export async function generateSwissPairings(
       }
     ];
 
-    // Update group
+    // Update group with new pairings
     const updatedGroups = tournament.groupStage.groups.map(g => {
       if (g.id === group.id) {
         return {
@@ -211,6 +212,26 @@ export async function generateSwissPairings(
       }
       return g;
     });
+
+    // Update BYE player standings inline (avoid separate recalculateStandings call
+    // which re-reads from Firestore and can overwrite with stale data)
+    const byeMatch = matchesWithTables.find(m => m.participantB === 'BYE');
+    if (byeMatch) {
+      const updatedGroup = updatedGroups.find(g => g.id === group.id);
+      if (updatedGroup?.standings) {
+        const byeStanding = updatedGroup.standings.find(s => s.participantId === byeMatch.participantA);
+        if (byeStanding) {
+          byeStanding.matchesPlayed++;
+          byeStanding.matchesWon++;
+          byeStanding.points += 2;
+          byeStanding.totalPointsScored += (byeMatch.totalPointsA || 8);
+          byeStanding.total20s += (byeMatch.total20sA || 0);
+          if (byeStanding.swissPoints !== undefined) {
+            byeStanding.swissPoints += 2;
+          }
+        }
+      }
+    }
 
     return await updateTournament(tournamentId, {
       groupStage: {
@@ -434,7 +455,7 @@ export async function recalculateStandings(
         return { name: p?.name, pts: s.points, twenties: s.total20s };
       }));
 
-      const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode);
+      const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode, tournament.show20s !== false);
 
       // Log ties detected
       const tieBreakerResults = sortedStandings.filter(s => s.tiedWith && s.tiedWith.length > 0);

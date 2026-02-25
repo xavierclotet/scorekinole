@@ -327,13 +327,14 @@ export interface GroupStanding {
       twenties: number;  // 20s scored in that specific match
     };
   };
+  buchholz?: number;               // Buchholz score: sum of opponents' primary ranking values
 
   // Qualification
   qualifiedForFinal: boolean;
 
   // Tie resolution
   tiedWith?: string[];           // IDs of participants tied with this one (unresolved)
-  tieReason?: 'head-to-head' | 'twenties' | 'unresolved';  // Why the tie exists
+  tieReason?: 'head-to-head' | 'twenties' | 'totalPointsScored' | 'buchholz' | 'unresolved';
 }
 
 /**

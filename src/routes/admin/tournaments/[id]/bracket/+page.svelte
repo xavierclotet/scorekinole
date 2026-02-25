@@ -420,7 +420,7 @@
 
       if (!tournament) {
         error = true;
-      } else if (tournament.status !== 'FINAL_STAGE') {
+      } else if (tournament.status !== 'FINAL_STAGE' && tournament.status !== 'COMPLETED') {
         toastMessage = m.admin_tournamentNotInFinalStage();
         toastType = 'warning';
         showToast = true;
@@ -1302,7 +1302,16 @@
         });
 
         if (winner) {
-          await advanceMatchWinner(currentTournamentId, match.id, winner);
+          let advanceSuccess = await advanceMatchWinner(currentTournamentId, match.id, winner);
+          if (!advanceSuccess) {
+            console.warn(`⚠️ advanceWinner failed for ${match.id}, retrying...`);
+            // Small delay before retry to let any contention settle
+            await new Promise(r => setTimeout(r, 500));
+            advanceSuccess = await advanceMatchWinner(currentTournamentId, match.id, winner);
+            if (!advanceSuccess) {
+              console.error(`❌ advanceWinner failed twice for ${match.id}`);
+            }
+          }
         }
 
         return true;
@@ -1606,6 +1615,26 @@
         if (tournament.finalStage.mode === 'SPLIT_DIVISIONS' &&
             tournament.finalStage.silverBracket?.consolationBrackets?.length) {
           filledCount += await processConsolationBrackets('silver');
+        }
+      }
+
+      // Detect and repair broken matches (completed but winner not advanced)
+      tournament = await getTournament(currentTournamentId);
+      const brokenAfterAutoFill = detectBrokenMatches();
+      if (brokenAfterAutoFill.length > 0) {
+        console.warn(`⚠️ Found ${brokenAfterAutoFill.length} broken matches after auto-fill, repairing...`);
+        for (const item of brokenAfterAutoFill) {
+          const advanceFn = item.bracketType === 'silver' ? advanceSilverWinner : advanceWinner;
+          const repaired = await advanceFn(currentTournamentId, item.match.id, item.winnerId);
+          console.log(`  🔧 Repair ${item.match.id} -> ${item.nextMatchId}: ${repaired ? 'OK' : 'FAILED'}`);
+        }
+        // Re-process brackets to fill newly eligible matches (Final, 3rd place)
+        tournament = await getTournament(currentTournamentId);
+        if (tournament?.finalStage) {
+          filledCount += await processBracket('gold');
+          if (tournament.finalStage.mode === 'SPLIT_DIVISIONS' && tournament.finalStage.silverBracket) {
+            filledCount += await processBracket('silver');
+          }
         }
       }
 

@@ -9,6 +9,7 @@ import { db, isFirebaseEnabled } from './config';
 import type { GroupMatch, GroupStanding, BracketMatch, Tournament, TournamentParticipant } from '$lib/types/tournament';
 import type { TournamentGameConfig } from '$lib/stores/tournamentContext';
 import { getTournament, parseTournamentData } from './tournaments';
+import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from '$lib/algorithms/tiebreaker';
 import { browser } from '$app/environment';
 
 /**
@@ -558,7 +559,6 @@ function calculateStandings(tournament: Tournament, groupIndex: number): void {
   if (!group) return;
 
   // Get qualification mode configuration
-  // Supports qualificationMode (new) and legacy fields (rankingSystem, swissRankingSystem)
   const qualificationMode = tournament.groupStage.qualificationMode || tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
   const isSwiss = tournament.groupStage.type === 'SWISS';
 
@@ -587,91 +587,76 @@ function calculateStandings(tournament: Tournament, groupIndex: number): void {
       swissPoints: isSwiss ? 0 : undefined,
       total20s: 0,
       totalPointsScored: 0,
-      qualifiedForFinal: false
+      qualifiedForFinal: false,
+      headToHeadRecord: {}
     });
   });
 
   // Process completed matches
   matches.forEach(match => {
     if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') return;
-    if (match.participantB === 'BYE') return;
 
     const standingA = standingsMap.get(match.participantA);
-    const standingB = standingsMap.get(match.participantB);
-    if (!standingA || !standingB) return;
+    const standingB = match.participantB !== 'BYE' ? standingsMap.get(match.participantB) : null;
+    if (!standingA) return;
 
     // Update matches played
     standingA.matchesPlayed++;
-    standingB.matchesPlayed++;
-
-    // Update wins/losses/ties and points based on ranking system
-    // Both Round Robin and Swiss use 2/1/0 (win/tie/loss)
-    if (match.winner === match.participantA) {
-      standingA.matchesWon++;
-      standingB.matchesLost++;
-      standingA.points += 2;  // 2 points for win
-      if (isSwiss) {
-        standingA.swissPoints = (standingA.swissPoints || 0) + 2;
-      }
-    } else if (match.winner === match.participantB) {
-      standingB.matchesWon++;
-      standingA.matchesLost++;
-      standingB.points += 2;  // 2 points for win
-      if (isSwiss) {
-        standingB.swissPoints = (standingB.swissPoints || 0) + 2;
-      }
-    } else {
-      // Tie (shouldn't happen in Best of X, but handle it)
-      standingA.matchesTied++;
-      standingB.matchesTied++;
-      standingA.points += 1;
-      standingB.points += 1;
-      if (isSwiss) {
-        standingA.swissPoints = (standingA.swissPoints || 0) + 1;
-        standingB.swissPoints = (standingB.swissPoints || 0) + 1;
-      }
-    }
+    if (standingB) standingB.matchesPlayed++;
 
     // Update 20s
-    if (match.total20sA) standingA.total20s += match.total20sA;
-    if (match.total20sB) standingB.total20s += match.total20sB;
+    standingA.total20s += match.total20sA || 0;
+    if (standingB) standingB.total20s += match.total20sB || 0;
 
     // Update total points scored (Crokinole points)
-    if (match.totalPointsA) standingA.totalPointsScored += match.totalPointsA;
-    if (match.totalPointsB) standingB.totalPointsScored += match.totalPointsB;
-  });
+    standingA.totalPointsScored += match.totalPointsA || 0;
+    if (standingB) standingB.totalPointsScored += match.totalPointsB || 0;
 
-  // Sort standings based on qualification mode
-  const standings = Array.from(standingsMap.values()).sort((a, b) => {
-    if (qualificationMode === 'POINTS') {
-      // Sort by total Crokinole points scored
-      if (b.totalPointsScored !== a.totalPointsScored) return b.totalPointsScored - a.totalPointsScored;
-      // Tiebreaker: total 20s
-      if (b.total20s !== a.total20s) return b.total20s - a.total20s;
-      // Tiebreaker: match points
-      return (isSwiss ? (b.swissPoints || 0) - (a.swissPoints || 0) : b.points - a.points);
-    } else {
-      // Sort by match points (WINS system - default)
-      // Both Swiss and Round Robin use 2/1/0
-      if (isSwiss) {
-        if ((b.swissPoints || 0) !== (a.swissPoints || 0)) return (b.swissPoints || 0) - (a.swissPoints || 0);
-      } else {
-        if (b.points !== a.points) return b.points - a.points;
-      }
-      // Tiebreaker 1: total 20s
-      if (b.total20s !== a.total20s) return b.total20s - a.total20s;
-      // Tiebreaker 2: total points scored
-      return b.totalPointsScored - a.totalPointsScored;
+    // Update wins/losses/ties
+    if (match.winner === match.participantA) {
+      standingA.matchesWon++;
+      if (standingB) standingB.matchesLost++;
+    } else if (match.winner === match.participantB && standingB) {
+      standingA.matchesLost++;
+      standingB.matchesWon++;
+    } else if (!match.winner) {
+      standingA.matchesTied++;
+      if (standingB) standingB.matchesTied++;
+    }
+
+    // Update head-to-head record
+    if (standingB && match.participantB !== 'BYE') {
+      const allStandings = Array.from(standingsMap.values());
+      const updatedStandings = updateHeadToHeadRecord(
+        allStandings,
+        match.participantA,
+        match.participantB,
+        match.winner || null,
+        match.total20sA || 0,
+        match.total20sB || 0
+      );
+      updatedStandings.forEach(s => standingsMap.set(s.participantId, s));
     }
   });
 
-  // Assign positions
-  standings.forEach((standing, index) => {
-    standing.position = index + 1;
+  // Calculate points
+  standingsMap.forEach(standing => {
+    standing.points = calculateMatchPoints(standing.matchesWon, standing.matchesTied);
   });
 
+  // For Swiss: calculate swissPoints
+  if (isSwiss) {
+    standingsMap.forEach(standing => {
+      standing.swissPoints = standing.matchesWon * 2 + standing.matchesTied * 1;
+    });
+  }
+
+  // Apply tiebreaker and sort (includes H2H, Buchholz, etc.)
+  const standings = Array.from(standingsMap.values());
+  const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode, tournament.show20s !== false);
+
   // Update standings in-memory
-  group.standings = standings;
+  group.standings = sortedStandings;
 }
 
 // ============================================================================

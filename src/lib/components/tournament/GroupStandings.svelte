@@ -258,6 +258,9 @@
         {/if}
         <th class="total-points-col" class:primary={effectiveQualificationMode === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>{m.tournament_totalPointsScored()}</th>
         <th class="twenties-col">{m.tournament_twentiesShort()}</th>
+        {#if isSwiss}
+          <th class="buchholz-col" title={m.tournament_buchholzTooltip()}>Buc</th>
+        {/if}
       </tr>
     </thead>
     <tbody>
@@ -341,6 +344,9 @@
             <strong>{standing.totalPointsScored}</strong>
           </td>
           <td class="twenties-col">{standing.total20s}</td>
+          {#if isSwiss}
+            <td class="buchholz-col">{standing.buchholz ?? 0}</td>
+          {/if}
         </tr>
       {/each}
     </tbody>
@@ -440,7 +446,8 @@
   th.ties-col,
   th.points-col,
   th.total-points-col,
-  th.twenties-col {
+  th.twenties-col,
+  th.buchholz-col {
     width: 36px;
     text-align: center;
   }
@@ -492,7 +499,8 @@
   td.ties-col,
   td.points-col,
   td.total-points-col,
-  td.twenties-col {
+  td.twenties-col,
+  td.buchholz-col {
     text-align: center;
   }
 
@@ -810,7 +818,8 @@
     th.ties-col,
     th.points-col,
     th.total-points-col,
-    th.twenties-col {
+    th.twenties-col,
+    th.buchholz-col {
       width: 28px;
     }
 

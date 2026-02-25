@@ -318,16 +318,33 @@
               <!-- eslint-disable-next-line svelte/no-at-html-tags -->
               <li>{@html formatText(m.rules_groupClassificationByPoints())}</li>
             {/if}
-            <!-- Tiebreaker rules based on group stage type -->
-            <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-            <li>{@html formatText(m.rules_groupTiebreak2Players())}</li>
-            {#if isSwissSystem}
+            <!-- Tiebreaker rules based on group stage type and qualification mode -->
+            {#if groupQualificationMode === 'WINS'}
               <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-              <li>{@html formatText(m.rules_groupTiebreakSwissMulti())}</li>
+              <li>{@html formatText(m.rules_groupTiebreak2PlayersWins())}</li>
             {:else}
               <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-              <li>{@html formatText(m.rules_groupTiebreakRRMulti())}</li>
+              <li>{@html formatText(m.rules_groupTiebreak2Players())}</li>
             {/if}
+            {#if isSwissSystem}
+              {#if groupQualificationMode === 'WINS'}
+                <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                <li>{@html formatText(m.rules_groupTiebreakSwissMulti())}</li>
+              {:else}
+                <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                <li>{@html formatText(m.rules_groupTiebreakSwissMultiPoints())}</li>
+              {/if}
+            {:else}
+              {#if groupQualificationMode === 'WINS'}
+                <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                <li>{@html formatText(m.rules_groupTiebreakRRMulti())}</li>
+              {:else}
+                <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                <li>{@html formatText(m.rules_groupTiebreakRRMultiPoints())}</li>
+              {/if}
+            {/if}
+            <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+            <li class="buchholz-note">{@html formatText(m.rules_groupTiebreakBuchholzNote())}</li>
             <!-- eslint-disable-next-line svelte/no-at-html-tags -->
             <li>{@html formatText(m.rules_groupTiebreakShootout())}</li>
           </ul>
@@ -693,6 +710,19 @@
     color: rgba(255, 255, 255, 0.4);
   }
 
+  .classification-rules li.buchholz-note {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-style: italic;
+    margin-top: 0.25rem;
+  }
+
+  .classification-rules li.buchholz-note::before {
+    content: 'ℹ';
+    font-size: 0.7rem;
+    font-style: normal;
+  }
+
   .tiebreak-note {
     margin-top: 0.75rem;
     font-size: 0.85rem;
@@ -875,6 +905,10 @@
 
   .modal-backdrop[data-theme='light'] .classification-rules li::before {
     color: rgba(0, 0, 0, 0.35);
+  }
+
+  .modal-backdrop[data-theme='light'] .classification-rules li.buchholz-note {
+    color: rgba(0, 0, 0, 0.45);
   }
 
   .modal-backdrop[data-theme='light'] .tiebreak-note {

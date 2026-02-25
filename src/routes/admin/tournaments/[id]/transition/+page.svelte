@@ -148,8 +148,9 @@
         topNPerGroup = tournament.participants?.length || suggestedQualifiers.perGroup;
       } else if (isSplitDiv) {
         // SPLIT_DIVISIONS: top half per group (they go to Gold bracket)
+        // Cap at 8 per group when there are more than 16 participants per group (max bracket size)
         const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
-        topNPerGroup = Math.ceil(participantsPerGroup / 2);
+        topNPerGroup = participantsPerGroup > 16 ? 8 : Math.ceil(participantsPerGroup / 2);
       } else {
         // SINGLE_BRACKET with multiple groups: half participants per group
         const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
@@ -280,7 +281,8 @@
               defaultSelection = sortedStandings.map((s: any) => s.participantId);
             } else if (isSplitDiv) {
               // SPLIT_DIVISIONS: select top half (they go to Gold bracket)
-              const halfCount = Math.ceil(standings.length / 2);
+              // Cap at 8 per group when there are more than 16 participants per group (max bracket size)
+              const halfCount = standings.length > 16 ? 8 : Math.ceil(standings.length / 2);
               defaultSelection = sortedStandings.slice(0, halfCount).map((s: any) => s.participantId);
             } else {
               // Multiple groups: use topNPerGroup
