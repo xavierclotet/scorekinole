@@ -275,11 +275,19 @@
           {/if}
           {#if tablesInfo.hasOddBye}
             <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-            {@html formatText(
-              tablesInfo.isSingles
-                ? m.rules_tablesOddByeSingles()
-                : m.rules_tablesOddByeDoubles()
-            )}
+            {#if groupQualificationMode === 'WINS'}
+              {@html formatText(
+                tablesInfo.isSingles
+                  ? m.rules_tablesOddByeSinglesWins()
+                  : m.rules_tablesOddByeDoublesWins()
+              )}
+            {:else}
+              {@html formatText(
+                tablesInfo.isSingles
+                  ? m.rules_tablesOddByeSingles()
+                  : m.rules_tablesOddByeDoubles()
+              )}
+            {/if}
           {/if}
         </p>
       </section>
