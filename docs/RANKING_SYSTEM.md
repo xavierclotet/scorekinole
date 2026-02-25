@@ -17,31 +17,31 @@ Sistema de puntos de ranking basado en el sistema Crokinole Series español.
 
 ## Umbral Natural (Natural Threshold)
 
-El umbral es el número de participantes a partir del cual la curva de drops llega naturalmente a 1 punto en la última posición. Se calcula dinámicamente:
+El umbral es el número de participantes a partir del cual el ganador recibe los basePoints completos. Se calcula dinámicamente:
 
 - **Singles**: `threshold = basePoints - 5`
-- **Doubles**: `threshold = ceil((basePoints - 4) / 2)`
+- **Doubles**: `threshold = basePoints` (el ganador recibe exactamente N puntos, donde N = nº equipos, hasta llegar a basePoints)
 
 | Serie | Singles | Doubles |
 |-------|---------|---------|
-| Series 35 | **30 jugadores** | **16 equipos** |
-| Series 25 | **20 jugadores** | **11 equipos** |
-| Series 15 | **10 jugadores** | **6 equipos** |
+| Series 35 | **30 jugadores** | **35 equipos** |
+| Series 25 | **20 jugadores** | **25 equipos** |
+| Series 15 | **10 jugadores** | **15 equipos** |
 
-## Dos Regímenes
+**Nota**: En doubles el threshold es más alto para que, a igual número de participantes, los puntos sean menores que en singles. Esto refleja que el mérito individual pesa más en singles.
 
-### N ≥ threshold: Tabla oficial (raw drops)
+## Cálculo de puntos
 
-El ganador recibe los basePoints completos. Se aplican los drops estándar directamente. La última posición recibe exactamente 1 punto (la curva llega naturalmente). Si los drops acumulados superan basePoints-1, las posiciones restantes reciben 1 punto.
+El ganador recibe `round(basePoints * min(1, N / threshold))` puntos. **Siempre se usa interpolación** para distribuir los puntos desde el ganador hasta 1 punto para el último clasificado.
 
-### N < threshold: Interpolación
+- **N ≥ threshold**: winnerPoints = basePoints (puntos completos). La interpolación reparte los puntos de forma uniforme entre todas las posiciones.
+- **N < threshold**: winnerPoints escalado proporcionalmente. Misma interpolación.
+- **N = threshold**: la interpolación produce exactamente la misma tabla que los raw drops (caso trivial).
 
-El ganador recibe `round(basePoints * N / threshold)` puntos. Los drops se interpolan para que el último clasificado siempre reciba exactamente 1 punto.
+### Métodos de interpolación
 
-Dos métodos de interpolación según el caso:
-
-- **Hamilton (mayor residuo)**: cuando los drops estándar suman más que targetDrop (típico de Doubles en torneos pequeños). Reduce los drops proporcionalmente preservando la forma front-heavy.
-- **Level fill**: cuando los drops estándar suman menos que targetDrop (típico de Singles). Incrementa los drops más pequeños primero (de izquierda a derecha dentro del mismo nivel), preservando el orden monotónicamente no-creciente.
+- **Hamilton (mayor residuo)**: cuando los drops estándar suman más que targetDrop (N > threshold en singles, siempre en doubles). Reduce los drops proporcionalmente preservando la forma front-heavy. Mejora significativa vs raw drops: más posiciones diferenciadas.
+- **Level fill**: cuando los drops estándar suman menos que targetDrop (N < threshold en singles). Incrementa los drops más pequeños primero (de izquierda a derecha dentro del mismo nivel), preservando el orden monotónicamente no-creciente.
 
 ## Tablas Oficiales (referencia, N = threshold)
 
@@ -49,19 +49,19 @@ Dos métodos de interpolación según el caso:
 
 **Singles (30 posiciones):** 35, 32, 30, 28, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
 
-**Doubles (16 posiciones):** 35, 30, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 1
+**Doubles (35 equipos):** En el threshold, el ganador recibe 35 pts con raw drops. Con interpolación Hamilton para N < 35.
 
 ### Series 25 (25 pts)
 
 **Singles (20 posiciones):** 25, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
 
-**Doubles (11 posiciones):** 25, 20, 16, 14, 12, 10, 8, 6, 4, 2, 1
+**Doubles (25 equipos):** En el threshold, el ganador recibe 25 pts con raw drops. Con interpolación Hamilton para N < 25.
 
 ### Series 15 (15 pts)
 
 **Singles (10 posiciones):** 15, 12, 10, 8, 6, 5, 4, 3, 2, 1
 
-**Doubles (6 posiciones):** 15, 10, 6, 4, 2, 1
+**Doubles (15 equipos):** En el threshold, el ganador recibe 15 pts con raw drops. Con interpolación Hamilton para N < 15.
 
 ## Ejemplos con Interpolación (N < threshold)
 
@@ -77,9 +77,17 @@ Dos métodos de interpolación según el caso:
 - winnerPoints = round(15 * 8/10) = 12
 - Level fill: interpola para llegar de 12 a 1
 
-### 8 equipos, Series 25, Doubles (threshold=11)
-- winnerPoints = round(25 * 8/11) = 18
+### 8 equipos, Series 15, Doubles (threshold=15)
+- winnerPoints = round(15 * 8/15) = 8
+- Hamilton: reduce drops proporcionalmente → 8, 6, 4, 3, 2, 2, 1, 1
+
+### 8 equipos, Series 25, Doubles (threshold=25)
+- winnerPoints = round(25 * 8/25) = 8
 - Hamilton: reduce drops proporcionalmente
+
+### Comparativa Singles vs Doubles (8 participantes, Series 15)
+- **Singles**: 1º = 12 pts (threshold=10, interpolación)
+- **Doubles**: 1º = 8 pts (threshold=15, interpolación) → menos puntos en doubles
 
 ## Migración desde sistema anterior
 

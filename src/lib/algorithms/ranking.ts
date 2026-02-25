@@ -40,25 +40,24 @@ export function getAllTiers(): { tier: TournamentTier; info: TierInfo }[] {
 }
 
 /**
- * Calculate the natural threshold: the participant count at which
- * the standard drop curve naturally reaches 1 point for last place.
- * Below this threshold, interpolation is used.
+ * Threshold: participant count at which the winner receives full basePoints.
+ * Below threshold, winnerPoints is scaled by N/threshold.
  *
- * Singles (N>=6): totalDrop = N+4, threshold = basePoints - 5
- * Doubles (N>=4): totalDrop = 2N+3, threshold = ceil((basePoints-4)/2)
+ * Singles: threshold = basePoints - 5
+ * Doubles: threshold = basePoints (fewer points than singles for same N)
  */
-export function getNaturalThreshold(basePoints: number, mode: 'singles' | 'doubles'): number {
+export function getNaturalThreshold(basePoints: number, mode: 'singles' | 'doubles' = 'singles'): number {
   if (mode === 'singles') return basePoints - 5;
-  return Math.ceil((basePoints - 4) / 2);
+  // Doubles: higher threshold so doubles gives fewer points than singles for same N.
+  // At threshold = basePoints, winner gets exactly N points (N = team count).
+  return basePoints;
 }
 
 /**
  * Calculate ranking points.
  *
- * Two regimes based on dynamic threshold (where drop curve naturally reaches 1 pt):
- * - N >= threshold: use raw drop curve. Winner gets full basePoints.
- * - N < threshold: winner scaled by N/threshold, interpolate drops so last place = 1 pt.
- *   Hamilton method when standard drops exceed target (Doubles), level fill when insufficient (Singles).
+ * Winner gets round(basePoints * min(1, N/threshold)) points.
+ * Always uses interpolation (Hamilton or level fill) to spread points from winner to 1.
  *
  * @param position Final position (1 = winner)
  * @param tier Tournament series (SERIES_35, SERIES_25, SERIES_15)
@@ -96,14 +95,8 @@ export function calculateRankingPoints(
     }
   }
 
-  // N >= threshold: use raw drops (no interpolation)
-  if (participantsCount >= threshold) {
-    let cumDrop = 0;
-    for (let i = 0; i < position - 1; i++) cumDrop += standardDrops[i];
-    return Math.max(1, winnerPoints - cumDrop);
-  }
-
-  // N < threshold: interpolate so last place gets 1 point
+  // Always interpolate: spread points from winnerPoints to 1
+  // (At threshold, standard drops sum exactly to winnerPoints-1, so interpolation = raw drops)
   const targetDrop = winnerPoints - 1;
   const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
 
@@ -152,8 +145,6 @@ export function getPointsDistribution(
   participantsCount: number = 16,
   mode: 'singles' | 'doubles' = 'singles'
 ): { position: number; points: number }[] {
-  const tierInfo = getTierInfo(tier);
-  const threshold = getNaturalThreshold(tierInfo.basePoints, mode);
   const count = Math.max(2, participantsCount);
   const result: { position: number; points: number }[] = [];
   for (let pos = 1; pos <= count; pos++) {

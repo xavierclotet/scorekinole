@@ -124,7 +124,9 @@ const TIER_BASE_POINTS: Record<string, number> = {
  */
 function getNaturalThreshold(basePoints: number, mode: "singles" | "doubles"): number {
   if (mode === "singles") return basePoints - 5;
-  return Math.ceil((basePoints - 4) / 2);
+  // Doubles: higher threshold so doubles gives fewer points than singles for same N.
+  // At threshold = basePoints, winner gets exactly N points (N = team count).
+  return basePoints;
 }
 
 /**
@@ -157,14 +159,8 @@ function calculateRankingPoints(
     }
   }
 
-  // N >= threshold: use raw drops (no interpolation)
-  if (participantsCount >= threshold) {
-    let cumDrop = 0;
-    for (let i = 0; i < position - 1; i++) cumDrop += standardDrops[i];
-    return Math.max(1, winnerPoints - cumDrop);
-  }
-
-  // <16 participants: interpolate so last place gets 1 point
+  // Always interpolate: spread points from winnerPoints to 1
+  // (At threshold, standard drops sum exactly to winnerPoints-1, so interpolation = raw drops)
   const targetDrop = winnerPoints - 1;
   const totalStandardDrop = standardDrops.reduce((acc, val) => acc + val, 0);
 

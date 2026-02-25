@@ -667,7 +667,7 @@
                   </span>
                 {/each}
               </div>
-              <button class="edit-participants-btn" onclick={() => goto(tournament.isImported ? `/admin/tournaments/import?edit=${tournamentId}` : `/admin/tournaments/create?edit=${tournamentId}&step=4`)}>
+              <button class="edit-participants-btn" onclick={() => goto(tournament.isImported ? `/admin/tournaments/import?edit=${tournamentId}` : `/admin/tournaments/create?edit=${tournamentId}&step=3`)}>
                 ✏️ {m.admin_editParticipants()}
               </button>
             </section>
