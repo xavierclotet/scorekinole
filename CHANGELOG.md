@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.46] - 2026-02-25
+- Add point totals (8-0) and zero 20s to Swiss BYE matches for fair tiebreaker scoring
+
 ## [2.4.45] - 2026-02-24
 - Add page view analytics dashboard (super admin only) with daily stats, top pages, devices, platforms, and top users charts
 - Add Crokinole Series ranking system replacing NCA tiers
