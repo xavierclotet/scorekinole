@@ -124,6 +124,9 @@
   // Check if group stage is in rounds mode (ties allowed)
   let groupAllowsTies = $derived(tournament.groupStage?.gameMode === 'rounds');
 
+  // Group stage type (SWISS vs ROUND_ROBIN) for tiebreaker display
+  let isSwissSystem = $derived(tournament.groupStage?.type === 'SWISS');
+
   // Calculate tables/players info
   let tablesInfo = $derived((() => {
     const numPlayers = tournament.participants.length;
@@ -303,14 +306,22 @@
             {#if groupQualificationMode === 'WINS'}
               <!-- eslint-disable-next-line svelte/no-at-html-tags -->
               <li>{@html formatText(m.rules_groupClassificationByWins())}</li>
-              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-              <li>{@html formatText(m.rules_groupTiebreakByWins())}</li>
             {:else}
               <!-- eslint-disable-next-line svelte/no-at-html-tags -->
               <li>{@html formatText(m.rules_groupClassificationByPoints())}</li>
-              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-              <li>{@html formatText(m.rules_groupTiebreakByPoints())}</li>
             {/if}
+            <!-- Tiebreaker rules based on group stage type -->
+            <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+            <li>{@html formatText(m.rules_groupTiebreak2Players())}</li>
+            {#if isSwissSystem}
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              <li>{@html formatText(m.rules_groupTiebreakSwissMulti())}</li>
+            {:else}
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+              <li>{@html formatText(m.rules_groupTiebreakRRMulti())}</li>
+            {/if}
+            <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+            <li>{@html formatText(m.rules_groupTiebreakShootout())}</li>
           </ul>
         </section>
       {/if}

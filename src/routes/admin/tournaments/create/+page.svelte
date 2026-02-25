@@ -3046,7 +3046,7 @@
 
       {#if currentStep < totalSteps}
         <div class="nav-buttons-right">
-          {#if currentStep === 1 && editMode}
+          {#if editMode}
             <button class="nav-button secondary" onclick={createTournamentSubmit} disabled={creating || validationErrors.length > 0}>
               {#if creating}
                 <LoadingSpinner size="small" inline={true} message={m.wizard_saving()} />
