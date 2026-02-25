@@ -214,6 +214,10 @@ function createByeMatch(participantId: string, roundNumber: number): GroupMatch 
     winner: participantId,
     gamesWonA: 2,
     gamesWonB: 0,
+    totalPointsA: 8,
+    totalPointsB: 0,
+    total20sA: 0,
+    total20sB: 0,
     walkedOverAt: Date.now()
   };
 }
