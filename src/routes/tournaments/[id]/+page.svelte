@@ -267,6 +267,17 @@
 	let isParallelBrackets = $derived(tournament?.finalStage?.mode === 'PARALLEL_BRACKETS');
 	let goldBracket = $derived(tournament?.finalStage?.goldBracket);
 	let silverBracket = $derived(tournament?.finalStage?.silverBracket);
+
+	// Count real (non-BYE) participants in Gold bracket for Silver consolation position offset
+	let goldParticipantCount = $derived.by(() => {
+		if (!goldBracket?.rounds?.[0]) return 0;
+		const ids = new Set<string>();
+		goldBracket.rounds[0].matches.forEach((m: any) => {
+			if (m.participantA && !isBye(m.participantA)) ids.add(m.participantA);
+			if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
+		});
+		return ids.size;
+	});
 	let parallelBrackets = $derived(tournament?.finalStage?.parallelBrackets || []);
 
 	// For parallel brackets, track which bracket tab is active
@@ -1430,7 +1441,18 @@
 												<h4 class="round-title">{m.tournament_round()} {round.roundNumber}</h4>
 												<div class="matches-list flex flex-col gap-1.5">
 													{#each round.matches as match}
-														{#if match.participantB !== 'BYE'}
+														{#if match.participantB === 'BYE'}
+															<div class="match-result-row bye-row max-w-full">
+																<span class="match-player match-player-a winner">
+																	<span class="match-player-name">{getParticipantName(match.participantA)}</span>
+																	{@render participantAvatar(match.participantA, 'sm')}
+																</span>
+																<span class="match-score bye-label">BYE</span>
+																<span class="match-player match-player-b bye-slot">
+																	<span class="match-player-name">BYE</span>
+																</span>
+															</div>
+														{:else}
 															<button
 																class={['match-result-row max-w-full', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
 																onclick={() => { if (match.rounds?.length) { selectedMatch = match as unknown as BracketMatch; showMatchDetail = true; } }}
@@ -1597,7 +1619,18 @@
 													<h4 class="round-title">{m.tournament_round()} {round.roundNumber}</h4>
 													<div class="matches-list">
 														{#each round.matches as match}
-															{#if match.participantB !== 'BYE'}
+															{#if match.participantB === 'BYE'}
+																<div class="match-result-row bye-row">
+																	<span class="match-player match-player-a winner">
+																		<span class="match-player-name">{getParticipantName(match.participantA)}</span>
+																		{@render participantAvatar(match.participantA, 'sm')}
+																	</span>
+																	<span class="match-score bye-label">BYE</span>
+																	<span class="match-player match-player-b bye-slot">
+																		<span class="match-player-name">BYE</span>
+																	</span>
+																</div>
+															{:else}
 																<button
 																	class={['match-result-row', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
 																	onclick={() => { if (match.rounds?.length) { selectedMatch = match as unknown as BracketMatch; showMatchDetail = true; } }}
@@ -1942,18 +1975,28 @@
 							<div class="bracket-wrapper">
 								<div class="bracket-container">
 									{#each silverBracket.rounds as round, roundIndex}
-										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
-										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
-										{#if hasEnoughVisibleMatches}
+									{#if round.matches.length > 0}
 										<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
 											<h3 class="round-name">{translateRoundName(round.name)}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
+													{@const isMatchBye = isByeMatch(match)}
 													{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
 													{@const isByeB = match.participantB?.toUpperCase().includes('BYE')}
 													{@const winnerIsA = isByeB || match.winner === match.participantA}
 													{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
-													{#if !isByeMatch(match)}
+													{#if isMatchBye}
+														<div class="bracket-match bye">
+															<div class="match-participant winner">
+																{@render participantAvatar(isByeA ? match.participantB : match.participantA, "sm")}
+																<span class="participant-name">{getParticipantName(isByeA ? match.participantB : match.participantA)}</span>
+															</div>
+															<div class="vs-divider"></div>
+															<div class="match-participant bye-slot">
+																<span class="participant-name">BYE</span>
+															</div>
+														</div>
+													{:else}
 														<!-- svelte-ignore a11y_click_events_have_key_events -->
 														<!-- svelte-ignore a11y_no_static_element_interactions -->
 														<div
@@ -2007,14 +2050,14 @@
 												{/each}
 												<!-- Horizontal connectors between pairs -->
 												{#if roundIndex < silverBracket.rounds.length - 1}
-													{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
-														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
+													{#each Array(Math.floor(round.matches.length / 2)) as _, pairIndex}
+														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.length / 2)}; --total-matches: {round.matches.length}"></div>
 													{/each}
 												{/if}
 											</div>
 										</div>
-										{/if}
-									{/each}
+									{/if}
+								{/each}
 
 									<!-- Silver third place match -->
 									{#if silverBracket.thirdPlaceMatch && !isByeMatch(silverBracket.thirdPlaceMatch)}
@@ -2081,6 +2124,7 @@
 							{#if silverConsolationBrackets.length > 0}
 								{@const r16Bracket = silverConsolationBrackets.find(c => c.source === 'R16')}
 								{@const qfBracket = silverConsolationBrackets.find(c => c.source === 'QF')}
+								{@const silverPosOffset = goldParticipantCount}
 								<div class="consolation-inline">
 									<div class="consolation-inline-header">
 										🏅 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
@@ -2135,7 +2179,7 @@
 																		{/if}
 																	</div>
 																	{#if isLastRound}
-																		{@const posStart = r16Bracket.startPosition + (match.position ?? 0) * 2}
+																		{@const posStart = r16Bracket.startPosition + (match.position ?? 0) * 2 + silverPosOffset}
 																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
 																	{/if}
 																</div>
@@ -2194,7 +2238,7 @@
 																		{/if}
 																	</div>
 																	{#if isLastRound}
-																		{@const posStart = qfBracket.startPosition + (match.position ?? 0) * 2}
+																		{@const posStart = qfBracket.startPosition + (match.position ?? 0) * 2 + silverPosOffset}
 																		<span class="match-position-badge">{posStart}º-{posStart + 1}º</span>
 																	{/if}
 																</div>
@@ -2364,18 +2408,28 @@
 						<div class="bracket-wrapper">
 							<div class="bracket-container">
 								{#each goldBracket.rounds as round, roundIndex}
-									{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
-									{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
-									{#if hasEnoughVisibleMatches}
+									{#if round.matches.length > 0}
 									<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
 										<h3 class="round-name">{translateRoundName(round.name)}</h3>
 										<div class="matches-column">
 											{#each round.matches as match}
+												{@const isMatchBye = isByeMatch(match)}
 												{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
 												{@const isByeB = match.participantB?.toUpperCase().includes('BYE')}
 												{@const winnerIsA = isByeB || match.winner === match.participantA}
 												{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
-												{#if !isByeMatch(match)}
+												{#if isMatchBye}
+													<div class="bracket-match bye">
+														<div class="match-participant winner">
+															{@render participantAvatar(isByeA ? match.participantB : match.participantA, "sm")}
+															<span class="participant-name">{getParticipantName(isByeA ? match.participantB : match.participantA)}</span>
+														</div>
+														<div class="vs-divider"></div>
+														<div class="match-participant bye-slot">
+															<span class="participant-name">BYE</span>
+														</div>
+													</div>
+												{:else}
 													<!-- svelte-ignore a11y_click_events_have_key_events -->
 													<!-- svelte-ignore a11y_no_static_element_interactions -->
 													<div
@@ -2429,8 +2483,8 @@
 											{/each}
 											<!-- Horizontal connectors between pairs -->
 											{#if roundIndex < goldBracket.rounds.length - 1}
-												{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
-													<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
+												{#each Array(Math.floor(round.matches.length / 2)) as _, pairIndex}
+													<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.length / 2)}; --total-matches: {round.matches.length}"></div>
 												{/each}
 											{/if}
 										</div>
@@ -4503,6 +4557,24 @@
 		background: rgba(0, 0, 0, 0.3);
 	}
 
+	.match-result-row.bye-row {
+		opacity: 0.5;
+		border: 1px dashed rgba(255, 255, 255, 0.15);
+		background: transparent;
+		pointer-events: none;
+	}
+
+	.bye-label {
+		font-style: italic;
+		color: #667eea;
+		font-size: 0.7rem;
+	}
+
+	.bye-slot .match-player-name {
+		font-style: italic;
+		color: #667eea;
+	}
+
 	.match-table {
 		font-size: 0.65rem;
 		font-weight: 600;
@@ -4516,34 +4588,28 @@
 	.match-player {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
+		gap: 0.35rem;
 		flex: 1;
 		min-width: 0;
 		color: #8b9bb3;
 	}
 
 	.match-player-a {
-		flex-direction: row-reverse;
+		flex-direction: row;
+		justify-content: flex-end;
 	}
 
 	.match-player-b {
 		flex-direction: row;
+		justify-content: flex-start;
 	}
 
 	.match-player-name {
-		flex: 1;
+		flex-shrink: 1;
 		min-width: 0;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.match-player-a .match-player-name {
-		text-align: right;
-	}
-
-	.match-player-b .match-player-name {
-		text-align: left;
 	}
 
 	.match-player.winner {
@@ -5067,6 +5133,19 @@
 		position: relative;
 	}
 
+	.bracket-match.bye {
+		opacity: 0.45;
+		border-style: dashed;
+		border-color: #2d3748;
+		pointer-events: none;
+	}
+
+	.bracket-match.bye .bye-slot .participant-name {
+		font-style: italic;
+		color: #667eea;
+		opacity: 0.7;
+	}
+
 	/* Connector lines between rounds */
 	/* Horizontal line going right from each match - half of gap (2.5rem of 5rem gap) */
 	.bracket-match::after {
@@ -5560,6 +5639,16 @@
 		background: rgba(0, 0, 0, 0.04);
 	}
 
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.bye-row {
+		border-color: rgba(0, 0, 0, 0.15);
+		background: transparent;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bye-label,
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bye-slot .match-player-name {
+		color: #667eea;
+	}
+
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-table {
 		background: color-mix(in srgb, var(--primary) 10%, transparent);
 		color: var(--primary);
@@ -5729,6 +5818,10 @@
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-match {
 		background: #ffffff;
 		border-color: #e2e8f0;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-match.bye .bye-slot .participant-name {
+		color: #667eea;
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-participant {
