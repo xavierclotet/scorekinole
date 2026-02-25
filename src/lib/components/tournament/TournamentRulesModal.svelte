@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type Tournament, normalizeTier } from '$lib/types/tournament';
   import { formatDuration, calculateTimeBreakdown } from '$lib/utils/tournamentTime';
+  import { getPointsDistribution } from '$lib/algorithms/ranking';
   import * as m from '$lib/paraglide/messages.js';
   import { getLocale } from '$lib/paraglide/runtime';
 
@@ -156,6 +157,16 @@
       'SERIES_15': { name: m.admin_seriesFifteen(), maxPoints: 15 }
     };
     return tierMap[normalized];
+  })());
+
+  // Points distribution for ranking section
+  let pointsDistribution = $derived((() => {
+    if (!tournament.rankingConfig?.enabled) return null;
+    const normalized = normalizeTier(tournament.rankingConfig.tier);
+    const mode = tournament.gameType === 'doubles' ? 'doubles' : 'singles';
+    const count = tournament.participants.length;
+    if (count < 2) return null;
+    return getPointsDistribution(normalized as 'SERIES_35' | 'SERIES_25' | 'SERIES_15', count, mode);
   })());
 
   // Check if tournament has split divisions (Gold/Silver)
@@ -419,6 +430,28 @@
             <!-- eslint-disable-next-line svelte/no-at-html-tags -->
             {@html formatText(m.rules_rankingPoints({ tier: rankingInfo.name, maxPoints: rankingInfo.maxPoints }))}
           </p>
+          {#if pointsDistribution}
+            <div class="points-distribution">
+              <table class="points-table">
+                <thead>
+                  <tr>
+                    <th>{m.wizard_position()}</th>
+                    {#each pointsDistribution as item}
+                      <th>{item.position}º</th>
+                    {/each}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{m.scoring_points()}</td>
+                    {#each pointsDistribution as item}
+                      <td class="points">{item.points}</td>
+                    {/each}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          {/if}
         {:else}
           <p>{m.rules_rankingNotEnabled()}</p>
         {/if}
@@ -590,7 +623,7 @@
     font-size: 0.95rem;
     line-height: 1.55;
     color: rgba(255, 255, 255, 0.85);
-    margin: 0;
+    margin: 1rem 0;
   }
 
   .rules-section strong {
@@ -731,6 +764,39 @@
     color: white;
   }
 
+  /* Points distribution table */
+  .points-distribution {
+    margin-top: 0.75rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .points-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+  }
+
+  .points-table th,
+  .points-table td {
+    padding: 0.3rem 0.4rem;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+    white-space: nowrap;
+  }
+
+  .points-table th {
+    background: rgba(255, 255, 255, 0.08);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .points-table td.points {
+    color: #66bb6a;
+    font-weight: 600;
+  }
+
   /* Light theme support */
   .modal-backdrop[data-theme='light'] .rules-modal {
     background: #ffffff;
@@ -829,6 +895,21 @@
 
   .modal-backdrop[data-theme='light'] .bracket-details .phase-list li {
     color: rgba(0, 0, 0, 0.7);
+  }
+
+  .modal-backdrop[data-theme='light'] .points-table th,
+  .modal-backdrop[data-theme='light'] .points-table td {
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #333;
+  }
+
+  .modal-backdrop[data-theme='light'] .points-table th {
+    background: rgba(0, 0, 0, 0.05);
+    color: #1a1a2e;
+  }
+
+  .modal-backdrop[data-theme='light'] .points-table td.points {
+    color: #2e7d32;
   }
 
   .modal-backdrop[data-theme='light'] .summary {
