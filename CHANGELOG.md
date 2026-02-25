@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.48] - 2026-02-25
+- Accurate tiebreaker rules in tournament rules modal (2-player vs 3+ player, Swiss vs RR, shoot-out)
+- Show ranking points distribution table in tournament rules modal
+- BYE score info (8-0, 0 twenties) shown in rules modal
+- Save button available on all wizard steps when editing a tournament
+
 ## [2.4.47] - 2026-02-25
 - Fairer ranking points: doubles threshold = basePoints (fewer pts than singles for same N)
 - Always use interpolation (Hamilton) for better position differentiation in large tournaments
