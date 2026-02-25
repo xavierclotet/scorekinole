@@ -1187,14 +1187,16 @@
         </div>
 
         <div class="video-input-group">
-          <label>URL de YouTube</label>
-          <input
-            type="url"
-            placeholder="https://youtube.com/watch?v=..."
-            bind:value={videoEditUrl}
-            class:invalid={videoEditUrl && !isVideoValid}
-            class:valid={videoEditUrl && isVideoValid}
-          />
+          <label>
+            URL de YouTube
+            <input
+              type="url"
+              placeholder="https://youtube.com/watch?v=..."
+              bind:value={videoEditUrl}
+              class:invalid={videoEditUrl && !isVideoValid}
+              class:valid={videoEditUrl && isVideoValid}
+            />
+          </label>
           {#if videoEditUrl && !isVideoValid}
             <span class="error-text">{m.video_invalidUrl?.() ?? 'URL no válida'}</span>
           {/if}

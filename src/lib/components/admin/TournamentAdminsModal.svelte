@@ -254,9 +254,9 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="modal-overlay" data-theme={$adminTheme} onclick={onClose}>
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div class="modal-overlay" data-theme={$adminTheme} onclick={onClose} role="presentation">
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="modal" onclick={stopPropagation} role="dialog" aria-modal="true" tabindex="-1">
 		<!-- Header -->
 		<div class="modal-header">
@@ -420,10 +420,10 @@
 
 	<!-- Transfer Confirmation -->
 	{#if showTransferConfirm}
-		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-		<div class="confirm-overlay" onclick={() => (showTransferConfirm = false)}>
-			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-			<div class="confirm-modal" onclick={stopPropagation}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="confirm-overlay" onclick={() => (showTransferConfirm = false)} role="presentation">
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<div class="confirm-modal" onclick={stopPropagation} role="dialog">
 				<h3>{m.admin_confirmTransfer()}</h3>
 				<p>{m.admin_transferDescription({ name: getAdminName(transferTargetId) })}</p>
 

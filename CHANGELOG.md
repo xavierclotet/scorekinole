@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.47] - 2026-02-25
+- Fairer ranking points: doubles threshold = basePoints (fewer pts than singles for same N)
+- Always use interpolation (Hamilton) for better position differentiation in large tournaments
+- Fix SettingsModal toggle accessibility (onchange instead of onclick)
+- Fix edit participants link to correct wizard step
+
 ## [2.4.46] - 2026-02-25
 - Add point totals (8-0) and zero 20s to Swiss BYE matches for fair tiebreaker scoring
 
