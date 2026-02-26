@@ -440,8 +440,11 @@
         // Auto-fix any pending matches against disqualified participants
         const fixedDSQ = await fixDisqualifiedMatches(tournamentId);
 
-        // Auto-reassign tables to ensure all playable matches have a table
-        const tableResult = await reassignTables(tournamentId);
+        // Auto-reassign tables only for active tournaments (not completed)
+        let tableResult = { success: false };
+        if (tournament.status !== 'COMPLETED') {
+          tableResult = await reassignTables(tournamentId);
+        }
 
         if (fixedDSQ || tableResult.success) {
           // Reload tournament to get updated data

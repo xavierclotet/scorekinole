@@ -3,7 +3,7 @@
  * Single elimination bracket operations
  */
 
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from './config';
 import { getTournament, updateTournament, parseTournamentData } from './tournaments';
 import {
@@ -22,12 +22,22 @@ import { calculateFinalPositionsForTournament } from './tournamentRanking';
 import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig, Tournament } from '$lib/types/tournament';
 
 /**
- * Recursively remove undefined values from an object
- * Firestore doesn't accept undefined values
+ * Recursively clean an object for Firestore compatibility.
+ * - Removes undefined values
+ * - Converts NaN/Infinity to null (Firestore rejects them)
+ * - Converts Firestore Timestamp objects to millis
  */
 function cleanUndefined<T>(obj: T): T {
   if (obj === null || obj === undefined) {
     return obj;
+  }
+
+  if (typeof obj === 'number' && !Number.isFinite(obj)) {
+    return null as T;
+  }
+
+  if (obj instanceof Timestamp) {
+    return obj.toMillis() as T;
   }
 
   if (Array.isArray(obj)) {
@@ -608,18 +618,30 @@ export async function reassignTables(
       countAssigned(silverBracket);
     }
 
-    // Update tournament
+    // Compare with original to skip unnecessary writes
+    const originalGold = JSON.stringify(tournament.finalStage.goldBracket);
+    const originalSilver = tournament.finalStage.silverBracket
+      ? JSON.stringify(tournament.finalStage.silverBracket)
+      : null;
+    const newGold = JSON.stringify(goldBracket);
+    const newSilver = silverBracket ? JSON.stringify(silverBracket) : null;
+
+    if (newGold === originalGold && newSilver === originalSilver && numTables === (tournament.numTables ?? 4)) {
+      console.log('✅ Tables unchanged, skipping write');
+      return { success: true, tablesAssigned };
+    }
+
+    // Deep-clone entire finalStage to avoid carrying Firestore Timestamps or invalid types
+    const cleanFinalStage = JSON.parse(JSON.stringify(tournament.finalStage));
+    cleanFinalStage.goldBracket = goldBracket;
+    if (silverBracket) {
+      cleanFinalStage.silverBracket = silverBracket;
+    }
+
     const updateData: any = {
       numTables,
-      finalStage: {
-        ...tournament.finalStage,
-        goldBracket
-      }
+      finalStage: cleanFinalStage
     };
-
-    if (silverBracket) {
-      updateData.finalStage.silverBracket = silverBracket;
-    }
 
     await updateTournament(tournamentId, updateData);
 

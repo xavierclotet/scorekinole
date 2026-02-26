@@ -34,8 +34,10 @@ import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 
 /**
- * Recursively remove undefined values from an object
- * Firestore doesn't accept undefined values
+ * Recursively clean an object for Firestore compatibility.
+ * - Removes undefined values
+ * - Converts NaN/Infinity to null (Firestore rejects them)
+ * - Converts Firestore Timestamp objects to millis (prevents re-serialization issues)
  */
 function cleanUndefined<T>(obj: T): T {
   if (obj === null) {
@@ -43,7 +45,17 @@ function cleanUndefined<T>(obj: T): T {
   }
 
   if (obj === undefined) {
-    return null as T; // Convert undefined to null for Firestore
+    return null as T;
+  }
+
+  // Firestore rejects NaN and Infinity
+  if (typeof obj === 'number' && !Number.isFinite(obj)) {
+    return null as T;
+  }
+
+  // Convert Firestore Timestamps to millis to avoid re-serialization issues
+  if (obj instanceof Timestamp) {
+    return obj.toMillis() as T;
   }
 
   if (Array.isArray(obj)) {

@@ -25,6 +25,10 @@
   import { updateTournament, updateTournamentPublic } from '$lib/firebase/tournaments';
   import type { Tournament } from '$lib/types/tournament';
   import { getParticipantDisplayName } from '$lib/types/tournament';
+  import * as Popover from '$lib/components/ui/popover';
+  import * as Command from '$lib/components/ui/command';
+  import Check from '@lucide/svelte/icons/check';
+  import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 
   let tournament = $state<Tournament | null>(null);
   let loading = $state(true);
@@ -40,6 +44,7 @@
   // Round results filter
   let roundsFilterParticipant = $state('');
   let roundsDetailsOpen = $state(false);
+  let comboboxOpen = $state(false);
 
   // Filtered pairings based on selected participant
   let filteredPairings = $derived.by(() => {
@@ -903,22 +908,49 @@
                   <summary class="rounds-summary">
                     <span class="summary-icon">📋</span>
                     <span>{m.admin_roundResults()} ({tournament.groupStage.groups[0].pairings.length})</span>
-                    <span class="rounds-filter-wrapper">
-                      <!-- svelte-ignore a11y_no_static_element_interactions -->
-                      <!-- svelte-ignore a11y_click_events_have_key_events -->
-                      <select
-                        class="rounds-filter-select"
-                        bind:value={roundsFilterParticipant}
-                        onclick={(e) => e.stopPropagation()}
-                        onchange={(e) => { e.stopPropagation(); if (roundsFilterParticipant) roundsDetailsOpen = true; }}
-                      >
-                        <option value="">{tournament.gameType === 'doubles' ? m.admin_allTeams() : m.admin_allPlayers()}</option>
-                        {#each tournament.participants.filter(p => p.status !== 'DISQUALIFIED').toSorted((a, b) => (getParticipantDisplayName(a, tournament.gameType === 'doubles') || '').localeCompare(getParticipantDisplayName(b, tournament.gameType === 'doubles') || '')) as participant}
-                          <option value={participant.id}>{getParticipantDisplayName(participant, tournament.gameType === 'doubles')}</option>
-                        {/each}
-                      </select>
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <span class="rounds-filter-wrapper" onclick={(e) => e.stopPropagation()}>
+                      <Popover.Root bind:open={comboboxOpen}>
+                        <Popover.Trigger class="combobox-trigger">
+                          <span class="truncate">
+                            {#if roundsFilterParticipant}
+                              {@const selected = tournament.participants.find(p => p.id === roundsFilterParticipant)}
+                              {selected ? getParticipantDisplayName(selected, tournament.gameType === 'doubles') : ''}
+                            {:else}
+                              {tournament.gameType === 'doubles' ? m.admin_allTeams() : m.admin_allPlayers()}
+                            {/if}
+                          </span>
+                          <ChevronsUpDown size={12} class="combobox-chevron" />
+                        </Popover.Trigger>
+                        <Popover.Content class="w-[200px] p-0" align="end">
+                          <Command.Root>
+                            <Command.Input placeholder={m.common_search() + '...'} />
+                            <Command.List class="max-h-[250px]">
+                              <Command.Empty>{m.common_noResults()}</Command.Empty>
+                              <Command.Group>
+                                <Command.Item
+                                  value={tournament.gameType === 'doubles' ? m.admin_allTeams() : m.admin_allPlayers()}
+                                  onSelect={() => { roundsFilterParticipant = ''; comboboxOpen = false; }}
+                                >
+                                  <Check size={14} class={roundsFilterParticipant === '' ? 'opacity-100' : 'opacity-0'} />
+                                  {tournament.gameType === 'doubles' ? m.admin_allTeams() : m.admin_allPlayers()}
+                                </Command.Item>
+                                {#each tournament.participants.filter(p => p.status !== 'DISQUALIFIED').toSorted((a, b) => (getParticipantDisplayName(a, tournament.gameType === 'doubles') || '').localeCompare(getParticipantDisplayName(b, tournament.gameType === 'doubles') || '')) as participant (participant.id)}
+                                  <Command.Item
+                                    value={getParticipantDisplayName(participant, tournament.gameType === 'doubles') || ''}
+                                    onSelect={() => { roundsFilterParticipant = participant.id; comboboxOpen = false; roundsDetailsOpen = true; }}
+                                  >
+                                    <Check size={14} class={roundsFilterParticipant === participant.id ? 'opacity-100' : 'opacity-0'} />
+                                    {getParticipantDisplayName(participant, tournament.gameType === 'doubles')}
+                                  </Command.Item>
+                                {/each}
+                              </Command.Group>
+                            </Command.List>
+                          </Command.Root>
+                        </Popover.Content>
+                      </Popover.Root>
                     </span>
-                    <span class="chevron">▼</span>
                   </summary>
                   <div class="rounds-content">
                     <div class="rounds-grid">
@@ -2492,39 +2524,35 @@
     margin-left: auto;
   }
 
-  .rounds-filter-select {
+  :global(.combobox-trigger) {
+    display: inline-flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 0.35rem;
     font-size: 0.7rem;
-    padding: 0.15rem 0.4rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    background: white;
-    color: #374151;
-    cursor: pointer;
     font-weight: 500;
-    max-width: 160px;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--background);
+    color: var(--foreground);
+    cursor: pointer;
+    height: 1.6rem;
+    white-space: nowrap;
+  }
+
+  :global(.combobox-trigger .truncate) {
+    overflow: hidden;
     text-overflow: ellipsis;
+    display: inline-block;
+    max-width: 130px;
   }
 
-  .rounds-filter-select:focus {
-    outline: none;
-    border-color: var(--primary);
+  :global(.combobox-chevron) {
+    opacity: 0.5;
+    flex-shrink: 0;
   }
 
-  .transition-page:is([data-theme='dark'], [data-theme='violet']) .rounds-filter-select {
-    background: #1a2332;
-    color: #e1e8ed;
-    border-color: #2d3748;
-  }
-
-  .chevron {
-    font-size: 0.6rem;
-    transition: transform 0.2s;
-    color: #9ca3af;
-  }
-
-  .rounds-details[open] .chevron {
-    transform: rotate(180deg);
-  }
 
   .rounds-content {
     padding: 0.75rem;
