@@ -260,8 +260,11 @@ export function advanceWinner(
 ): Bracket {
   const updatedBracket = JSON.parse(JSON.stringify(bracket)) as Bracket;
 
+  console.log(`🔀 advanceWinner called: matchId=${matchId}, winnerId=${winnerId?.substring(0, 12)}`);
+
   // Check if this is the 3rd place match
   if (updatedBracket.thirdPlaceMatch?.id === matchId) {
+    console.log('🔀 Match is 3rd place match, no advancement needed');
     return updatedBracket; // No advancement needed for 3rd place match
   }
 
@@ -279,11 +282,15 @@ export function advanceWinner(
   }
 
   if (!completedMatch) {
+    console.warn('🔀 ⚠️ Match not found in bracket!');
     return updatedBracket; // Match not found
   }
 
+  console.log(`🔀 Found match at round ${roundIndex}, participantA=${completedMatch.participantA?.substring(0, 12)}, participantB=${completedMatch.participantB?.substring(0, 12)}, winner=${completedMatch.winner?.substring(0, 12)}`);
+
   // Check if this is a semifinal match (second to last round)
   const isSemifinal = roundIndex === updatedBracket.rounds.length - 2;
+  console.log(`🔀 isSemifinal=${isSemifinal} (roundIndex=${roundIndex}, totalRounds=${updatedBracket.rounds.length})`);
 
   // Advance loser to 3rd place match if it's a semifinal
   if (isSemifinal && updatedBracket.thirdPlaceMatch) {
@@ -294,6 +301,7 @@ export function advanceWinner(
     if (loserId) {
       const currentMatchIndex = updatedBracket.rounds[roundIndex].matches.indexOf(completedMatch);
       const isFirstSemifinal = currentMatchIndex === 0;
+      console.log(`🔀 SF loser ${loserId?.substring(0, 12)} -> 3rd place match slot ${isFirstSemifinal ? 'A' : 'B'}`);
 
       if (isFirstSemifinal) {
         updatedBracket.thirdPlaceMatch.participantA = loserId;
@@ -305,6 +313,7 @@ export function advanceWinner(
 
   // If no next match (final), just return
   if (!completedMatch.nextMatchId) {
+    console.log('🔀 No nextMatchId (final match), returning');
     return updatedBracket;
   }
 
@@ -313,12 +322,16 @@ export function advanceWinner(
   const nextMatch = nextRound.matches.find(m => m.id === completedMatch!.nextMatchId);
 
   if (!nextMatch) {
+    console.warn('🔀 ⚠️ Next match not found!');
     return updatedBracket;
   }
 
   // Determine which slot (A or B)
   const currentMatchIndex = updatedBracket.rounds[roundIndex].matches.indexOf(completedMatch);
   const isFirstOfPair = currentMatchIndex % 2 === 0;
+
+  console.log(`🔀 Advancing winner ${winnerId?.substring(0, 12)} to next match ${nextMatch.id?.substring(0, 20)}, slot ${isFirstOfPair ? 'A' : 'B'} (matchIndex=${currentMatchIndex})`);
+  console.log(`🔀 Next match BEFORE: participantA=${nextMatch.participantA?.substring(0, 12) || 'none'}, participantB=${nextMatch.participantB?.substring(0, 12) || 'none'}`);
 
   if (isFirstOfPair) {
     nextMatch.participantA = winnerId;
@@ -335,6 +348,8 @@ export function advanceWinner(
       nextMatch.seedB = completedMatch.seedB;
     }
   }
+
+  console.log(`🔀 Next match AFTER: participantA=${nextMatch.participantA?.substring(0, 12) || 'none'}, participantB=${nextMatch.participantB?.substring(0, 12) || 'none'}`);
 
   return updatedBracket;
 }

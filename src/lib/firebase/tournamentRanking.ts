@@ -335,8 +335,15 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
           const participant = updatedParticipants.find(p => p.id === participantId);
           if (participant && isActiveParticipant(participant)) {
             const adjustedPosition = position + positionOffset;
-            participant.finalPosition = adjustedPosition;
-            console.log(`🏅 Consolation position: ${getDisplayName(participant)} -> ${adjustedPosition}`);
+            // Guard: don't overwrite positions from final/3rd-place matches
+            // Only overwrite positions that are within this consolation's range or higher
+            const thresholdPosition = consolation.startPosition + positionOffset;
+            if (participant.finalPosition && participant.finalPosition < thresholdPosition) {
+              console.log(`🏅 Consolation: skipping ${getDisplayName(participant)} (has position ${participant.finalPosition}, below threshold ${thresholdPosition})`);
+            } else {
+              participant.finalPosition = adjustedPosition;
+              console.log(`🏅 Consolation position: ${getDisplayName(participant)} -> ${adjustedPosition}`);
+            }
           } else if (participant) {
             console.log(`🏅 Consolation ${getDisplayName(participant)} is DISQUALIFIED, skipping`);
           }

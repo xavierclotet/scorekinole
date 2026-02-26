@@ -54,6 +54,11 @@
   let isGeneratingConsolation = $state(false);
   let isRepairing = $state(false);
 
+  // No-show (walkover) confirmation
+  let showNoShowConfirm = $state(false);
+  let noShowTarget = $state<{ id: string; name: string } | null>(null);
+  let isProcessingNoShow = $state(false);
+
   // Disqualify confirmation
   let showDisqualifyConfirm = $state(false);
   let disqualifyTarget = $state<{ id: string; name: string } | null>(null);
@@ -685,7 +690,6 @@
     }>;
   }) {
     if (!selectedMatch || !tournamentId || !tournament) return;
-    showMatchDialog = false;
 
     // Debug: Log match details before saving
     console.log('🔍 handleSaveMatch - selectedMatch details:', {
@@ -698,21 +702,53 @@
       isConsolation: !!selectedConsolationSource
     });
 
+    // Safety: if editing a completed match, block if winner would change
+    if (selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'WALKOVER') {
+      let newWinner: string;
+      if (result.gamesWonA > result.gamesWonB) {
+        newWinner = selectedMatch.participantA!;
+      } else if (result.gamesWonB > result.gamesWonA) {
+        newWinner = selectedMatch.participantB!;
+      } else {
+        newWinner = (result.totalPointsA || 0) > (result.totalPointsB || 0)
+          ? selectedMatch.participantA!
+          : selectedMatch.participantB!;
+      }
+
+      if (newWinner !== selectedMatch.winner) {
+        toastMessage = m.bracket_cannotChangeWinner();
+        toastType = 'error';
+        showToast = true;
+        return;
+      }
+    }
+
+    showMatchDialog = false;
+
     // Check if this is a consolation match
     if (selectedConsolationSource) {
       loadingMessage = m.bracket_savingQualifyingMatch();
       isSavingMatch = true;
 
       try {
-        // Determine winner and loser based on games won
+        // Determine winner and loser based on games won, with totalPoints fallback for force finish
         let winner: string;
         let loser: string;
         if (result.gamesWonA > result.gamesWonB) {
           winner = selectedMatch.participantA!;
           loser = selectedMatch.participantB!;
-        } else {
+        } else if (result.gamesWonB > result.gamesWonA) {
           winner = selectedMatch.participantB!;
           loser = selectedMatch.participantA!;
+        } else {
+          // Tie in games won (e.g., force finish before any game completed)
+          if ((result.totalPointsA || 0) > (result.totalPointsB || 0)) {
+            winner = selectedMatch.participantA!;
+            loser = selectedMatch.participantB!;
+          } else {
+            winner = selectedMatch.participantB!;
+            loser = selectedMatch.participantA!;
+          }
         }
 
         // Update consolation match
@@ -786,12 +822,20 @@
     setSyncStatus('syncing');
 
     try {
-      // Determine winner based on games won
+      // Determine winner based on games won, with totalPoints fallback for force finish
       let winner: string;
       if (result.gamesWonA > result.gamesWonB) {
         winner = selectedMatch.participantA!;
-      } else {
+      } else if (result.gamesWonB > result.gamesWonA) {
         winner = selectedMatch.participantB!;
+      } else {
+        // Tie in games won (e.g., force finish before any game completed)
+        // Use total points as tiebreaker
+        if ((result.totalPointsA || 0) > (result.totalPointsB || 0)) {
+          winner = selectedMatch.participantA!;
+        } else {
+          winner = selectedMatch.participantB!;
+        }
       }
 
       // Use centralized sync service (handles both gold and silver brackets)
@@ -836,25 +880,37 @@
     }
   }
 
-  async function handleNoShow(noShowParticipantId: string) {
+  function handleNoShow(noShowParticipantId: string) {
     if (!selectedMatch || !tournamentId) return;
+    const name = getParticipantName(noShowParticipantId);
+    noShowTarget = { id: noShowParticipantId, name };
+    showNoShowConfirm = true;
+  }
 
+  function closeNoShowModal() {
+    showNoShowConfirm = false;
+    noShowTarget = null;
+  }
+
+  async function confirmNoShow() {
+    if (!noShowTarget || !selectedMatch || !tournamentId) return;
+
+    isProcessingNoShow = true;
     try {
-      // Use centralized sync service (handles both gold and silver brackets)
       const success = await markNoShow(
         tournamentId,
         selectedMatch.id,
         'FINAL',
         undefined,
-        noShowParticipantId
+        noShowTarget.id
       );
 
       if (success) {
         toastMessage = m.admin_walkoverRegistered();
         toastType = 'success';
+        closeNoShowModal();
         showMatchDialog = false;
         selectedMatch = null;
-        // No need to reload - real-time subscription will update
       } else {
         toastMessage = m.admin_errorRegisteringWalkover();
         toastType = 'error';
@@ -865,6 +921,8 @@
       toastMessage = m.admin_errorRegisteringWalkover();
       toastType = 'error';
       showToast = true;
+    } finally {
+      isProcessingNoShow = false;
     }
   }
 
@@ -1943,7 +2001,7 @@
               <div class="phase-config-grid">
                 {#if hasEarlyRounds}
                   <div class="phase-config-item" class:locked={earlyLocked}>
-                    <label>{m.bracket_earlyPhases()}</label>
+                    <span class="config-label">{m.bracket_earlyPhases()}</span>
                     <div class="config-inputs">
                       <select
                         value={earlyConfig.gameMode}
@@ -1981,7 +2039,7 @@
 
                 {#if semiRound}
                   <div class="phase-config-item" class:locked={semiLocked || thirdPlaceLocked}>
-                    <label>{m.bracket_semisAndThird()}</label>
+                    <span class="config-label">{m.bracket_semisAndThird()}</span>
                     <div class="config-inputs">
                       <select
                         value={semiConfig.gameMode}
@@ -2019,7 +2077,7 @@
 
                 {#if finalRound}
                   <div class="phase-config-item" class:locked={finalLocked}>
-                    <label>{m.bracket_final()}</label>
+                    <span class="config-label">{m.bracket_final()}</span>
                     <div class="config-inputs">
                       <select
                         value={finalConfig.gameMode}
@@ -2656,7 +2714,8 @@
     onkeydown={(e) => e.key === 'Escape' && closeDisqualifyModal()}
     role="presentation"
   >
-    <div class="confirm-modal disqualify-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="confirm-modal disqualify-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && closeDisqualifyModal()} role="dialog" aria-modal="true" tabindex="-1">
       <div class="modal-header danger">
         <div class="header-icon danger">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -2679,6 +2738,50 @@
             ...
           {:else}
             {m.admin_disqualify()}
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- No-Show (Walkover) Confirmation Modal -->
+{#if showNoShowConfirm && noShowTarget}
+  <div
+    class="modal-backdrop"
+    style="z-index: 1100;"
+    data-theme={$adminTheme}
+    onclick={closeNoShowModal}
+    onkeydown={(e) => e.key === 'Escape' && closeNoShowModal()}
+    role="presentation"
+  >
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="confirm-modal noshow-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && closeNoShowModal()} role="dialog" aria-modal="true" tabindex="-1">
+      <div class="modal-header warning">
+        <div class="header-icon warning">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <h2>{m.admin_noShowConfirmTitle()}</h2>
+        <button class="close-btn" onclick={closeNoShowModal} aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="participant-name">{noShowTarget.name}</div>
+        <p class="info-text">{m.admin_noShowConfirmMessage({ name: noShowTarget.name })}</p>
+        {#if consolationEnabledValue}
+          <p class="notice-text">{m.admin_noShowConfirmConsolation()}</p>
+        {/if}
+      </div>
+      <div class="confirm-actions">
+        <button class="cancel-btn" onclick={closeNoShowModal}>{m.common_cancel()}</button>
+        <button class="confirm-btn warning" onclick={confirmNoShow} disabled={isProcessingNoShow}>
+          {#if isProcessingNoShow}
+            ...
+          {:else}
+            {m.admin_noShowConfirmButton()}
           {/if}
         </button>
       </div>
@@ -3716,14 +3819,14 @@
     opacity: 0.6;
   }
 
-  .phase-config-item label {
+  .phase-config-item .config-label {
     font-size: 0.8rem;
     font-weight: 600;
     color: #475569;
     min-width: 60px;
   }
 
-  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .phase-config-item label {
+  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .phase-config-item .config-label {
     color: #94a3b8;
   }
 
@@ -4672,6 +4775,48 @@
     background: rgba(255, 255, 255, 0.3);
   }
 
+  .modal-header.warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    border-bottom: none;
+  }
+
+  .header-icon.warning {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: white;
+  }
+
+  .modal-header.warning h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: white;
+    flex: 1;
+  }
+
+  .modal-header.warning .close-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    font-size: 1.2rem;
+  }
+
+  .modal-header.warning .close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
   .confirm-modal .modal-body {
     padding: 1rem;
   }
@@ -4707,6 +4852,21 @@
   .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal .warning-text {
     background: rgba(239, 68, 68, 0.15);
     color: #f87171;
+  }
+
+  .confirm-modal .notice-text {
+    color: #92400e;
+    font-size: 0.75rem;
+    margin: 0.5rem 0 0 0;
+    line-height: 1.4;
+    padding: 0.5rem;
+    background: #fffbeb;
+    border-radius: 4px;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal .notice-text {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
   }
 
   .confirm-actions {
@@ -4761,6 +4921,10 @@
 
   .confirm-btn.danger {
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  }
+
+  .confirm-btn.warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   }
 
   .confirm-btn:hover:not(:disabled) {

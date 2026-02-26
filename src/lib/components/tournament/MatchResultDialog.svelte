@@ -381,6 +381,23 @@
   // Can force finish: admin only, has partial winner, and can't save normally
   let canForceFinish = $derived(isAdmin && hasPartialWinner && !canSave);
 
+  // Detect if editing a completed bracket match would change the winner
+  let wouldChangeWinner = $derived((() => {
+    if (!isMatchCompleted || !isAdmin || !isBracket || !match.winner) return false;
+    if (!canSave && !canForceFinish) return false;
+
+    let newWinner: string | undefined;
+    if (gamesWonA > gamesWonB) {
+      newWinner = match.participantA;
+    } else if (gamesWonB > gamesWonA) {
+      newWinner = match.participantB;
+    } else {
+      // Tie in games: use total points as tiebreaker
+      newWinner = totalPointsA > totalPointsB ? match.participantA : match.participantB;
+    }
+    return newWinner !== match.winner;
+  })());
+
   // Group rounds by game number for display (completed matches)
   let gamesByNumber = $derived(rounds.reduce((map, round) => {
     if (!map.has(round.gameNumber)) {
@@ -971,8 +988,8 @@
                 {/if}
               {/if}
 
-              <!-- No-show section (only show if no results have been entered) - Points Mode -->
-              {#if !hasAnyResult}
+              <!-- No-show section (only show if no results have been entered and match not completed) - Points Mode -->
+              {#if !hasAnyResult && !isMatchCompleted}
                 <div class="noshow-section">
                   <div class="noshow-header">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -995,8 +1012,8 @@
                 </div>
               {/if}
 
-              <!-- Disqualify section (admin only) - Points Mode -->
-              {#if isAdmin && ondisqualify}
+              <!-- Disqualify section (admin only, not on completed matches) - Points Mode -->
+              {#if isAdmin && ondisqualify && !isMatchCompleted}
                 <div class="disqualify-section" class:has-disqualified={hasDisqualified}>
                   <div class="disqualify-header">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1300,8 +1317,8 @@
               </div>
             {/if}
 
-            <!-- No-show section (only show if no results have been entered) -->
-            {#if !hasAnyResult}
+            <!-- No-show section (only show if no results have been entered and match not completed) -->
+            {#if !hasAnyResult && !isMatchCompleted}
               <div class="noshow-section">
                 <div class="noshow-header">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1324,8 +1341,8 @@
               </div>
             {/if}
 
-            <!-- Disqualify section (admin only) -->
-            {#if isAdmin && ondisqualify}
+            <!-- Disqualify section (admin only, not on completed matches) -->
+            {#if isAdmin && ondisqualify && !isMatchCompleted}
               <div class="disqualify-section" class:has-disqualified={hasDisqualified}>
                 <div class="disqualify-header">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1367,12 +1384,21 @@
       </div>
 
       {#if canEdit}
+        {#if wouldChangeWinner}
+          <div class="winner-change-warning">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 8v4M12 16h.01"/>
+            </svg>
+            <span>{m.bracket_cannotChangeWinner()}</span>
+          </div>
+        {/if}
         <div class="dialog-footer">
           <button class="btn btn-secondary" onclick={handleClose}>
             {m.common_cancel()}
           </button>
           {#if !isBye}
-            {#if canForceFinish}
+            {#if canForceFinish && !wouldChangeWinner}
               <button class="btn btn-warning" onclick={handleSave} title={m.tournament_forceFinishTooltip()}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="10"/>
@@ -1381,8 +1407,8 @@
                 {m.tournament_forceFinish()}
               </button>
             {/if}
-            <button class="btn btn-primary" onclick={handleSave} disabled={!canSave}>
-              {#if canSave}
+            <button class="btn btn-primary" onclick={handleSave} disabled={!canSave || wouldChangeWinner}>
+              {#if canSave && !wouldChangeWinner}
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M20 6L9 17l-5-5"/>
                 </svg>
@@ -2257,6 +2283,24 @@
   }
 
   /* ── Footer ─────────────────────────────────── */
+  .winner-change-warning {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    margin: 0 1rem;
+    background: color-mix(in srgb, var(--destructive) 12%, transparent);
+    color: var(--destructive);
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  .winner-change-warning svg {
+    flex-shrink: 0;
+  }
+
   .dialog-footer {
     display: flex;
     justify-content: flex-end;
@@ -2609,6 +2653,11 @@
   }
 
   .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .disqualify-name {
+    color: #fca5a5;
+  }
+
+  .dialog-backdrop:is([data-theme='dark'], [data-theme='violet']) .winner-change-warning {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
     color: #fca5a5;
   }
 

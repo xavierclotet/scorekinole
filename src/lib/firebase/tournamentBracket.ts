@@ -1647,7 +1647,7 @@ function getLosersFromRound(bracket: BracketWithConfig, roundType: 'QF' | 'R16')
   const losers: { participantId: string; seed?: number }[] = [];
 
   for (const match of round.matches) {
-    if (match.status === 'COMPLETED' && match.winner) {
+    if ((match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.winner) {
       const loserId = match.participantA === match.winner ? match.participantB : match.participantA;
       if (loserId && loserId !== 'BYE') {
         const loserSeed = match.participantA === loserId ? match.seedA : match.seedB;
@@ -1758,7 +1758,7 @@ async function checkAndGenerateConsolation(
 
     for (let i = 0; i < round.matches.length; i++) {
       const match = round.matches[i];
-      if (match.status === 'COMPLETED' && match.winner) {
+      if ((match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.winner) {
         const loserId = match.participantA === match.winner ? match.participantB : match.participantA;
         const loserSeed = match.participantA === loserId ? match.seedA : match.seedB;
         if (loserId && loserId !== 'BYE') {
@@ -1786,8 +1786,8 @@ async function checkAndGenerateConsolation(
     // Process all rounds to advance winners from completed BYE matches
     for (let roundIdx = 0; roundIdx < consolation.rounds.length; roundIdx++) {
       for (const match of consolation.rounds[roundIdx].matches) {
-        // If match is completed with a winner, advance to next round
-        if (match.status === 'COMPLETED' && match.winner && match.nextMatchId) {
+        // If match is completed/walkover with a winner, advance to next round
+        if ((match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.winner && match.nextMatchId) {
           for (let nextRoundIdx = roundIdx + 1; nextRoundIdx < consolation.rounds.length; nextRoundIdx++) {
             for (const nextMatch of consolation.rounds[nextRoundIdx].matches) {
               if (nextMatch.id === match.nextMatchId) {
@@ -2347,7 +2347,7 @@ export async function completeBracketMatchAndAdvance(
         }
       });
 
-      if (result.status === 'COMPLETED') {
+      if (result.status === 'COMPLETED' || result.status === 'WALKOVER') {
         cleanResult.completedAt = Date.now();
       }
 
@@ -2355,12 +2355,12 @@ export async function completeBracketMatchAndAdvance(
         if (cleanResult.completedAt) {
           cleanResult.duration = existing.startedAt ? cleanResult.completedAt - existing.startedAt : 0;
         }
-        if (result.status === 'COMPLETED' && existing.tableNumber) {
+        if ((result.status === 'COMPLETED' || result.status === 'WALKOVER') && existing.tableNumber) {
           cleanResult.playedOnTable = existing.tableNumber;
         }
         const merged = { ...existing, ...cleanResult };
-        // Clear tableNumber on completion (table is now free) - use delete instead of undefined
-        if (result.status === 'COMPLETED') {
+        // Clear tableNumber on completion/walkover (table is now free) - use delete instead of undefined
+        if (result.status === 'COMPLETED' || result.status === 'WALKOVER') {
           delete (merged as any).tableNumber;
         }
         return merged;
@@ -2454,12 +2454,14 @@ export async function completeBracketMatchAndAdvance(
 
       // --- Phase 3: Advance winner if applicable ---
       const winnerId = result.winner;
+      console.log(`🔀 Phase 3: location=${location}, winnerId=${winnerId?.substring(0, 12)}, matchId=${matchId}`);
       if (winnerId) {
         const numTables = tournament.numTables || 4;
         const tableHistory = buildTableHistory(tournament);
 
         if (location === 'gold' && goldBracket) {
           // Advance in gold bracket
+          console.log(`🔀 Advancing in GOLD bracket, winnerId=${winnerId?.substring(0, 12)}`);
           const updatedBracketRaw = advanceWinnerAlgorithm(goldBracket, matchId, winnerId);
           let updatedGoldBracket: BracketWithConfig = {
             ...updatedBracketRaw,
@@ -2477,6 +2479,7 @@ export async function completeBracketMatchAndAdvance(
 
         } else if (location === 'silver' && silverBracket) {
           // Advance in silver bracket
+          console.log(`🔀 Advancing in SILVER bracket, winnerId=${winnerId?.substring(0, 12)}`);
           const updatedBracketRaw = advanceWinnerAlgorithm(silverBracket, matchId, winnerId);
           let updatedSilverBracket: BracketWithConfig = {
             ...updatedBracketRaw,

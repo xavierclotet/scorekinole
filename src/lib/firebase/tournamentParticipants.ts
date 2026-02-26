@@ -3,7 +3,13 @@
  */
 
 import { getTournament, updateTournament } from './tournaments';
-import { advanceWinner as advanceWinnerAlgorithm } from '$lib/algorithms/bracket';
+import {
+  advanceWinner as advanceWinnerAlgorithm,
+  replaceLoserPlaceholder,
+  advanceConsolationWinner as advanceConsolationWinnerAlgorithm,
+  isLoserPlaceholder,
+  isBye
+} from '$lib/algorithms/bracket';
 import type { TournamentParticipant, Bracket, BracketWithConfig } from '$lib/types/tournament';
 
 /**
@@ -188,6 +194,82 @@ export async function withdrawParticipant(
 }
 
 /**
+ * Resolve consolation bracket placeholders and cascade walkovers for a disqualified participant.
+ *
+ * Steps:
+ * 1. Replace LOSER: placeholders with actual losers from completed/WO matches in main bracket
+ * 2. Mark any consolation match involving the DSQ player as WALKOVER
+ * 3. Advance winners from those WALKOVER'd consolation matches (cascade)
+ */
+function resolveConsolationForDSQ(
+  bracket: BracketWithConfig,
+  participantId: string
+): void {
+  if (!bracket.consolationBrackets) return;
+
+  for (let cIdx = 0; cIdx < bracket.consolationBrackets.length; cIdx++) {
+    let consolation = bracket.consolationBrackets[cIdx];
+
+    // Step 1: Replace loser placeholders with actual losers from main bracket rounds
+    const sourceRoundIndex = consolation.source === 'QF'
+      ? bracket.totalRounds - 3
+      : bracket.totalRounds - 4;
+
+    if (sourceRoundIndex >= 0 && sourceRoundIndex < bracket.rounds.length) {
+      const sourceRound = bracket.rounds[sourceRoundIndex];
+      for (let i = 0; i < sourceRound.matches.length; i++) {
+        const match = sourceRound.matches[i];
+        if ((match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.winner) {
+          const loserId = match.participantA === match.winner ? match.participantB : match.participantA;
+          const loserSeed = match.participantA === loserId ? match.seedA : match.seedB;
+          if (loserId && !isBye(loserId)) {
+            const updated = replaceLoserPlaceholder(consolation, consolation.source, i, loserId, loserSeed);
+            consolation.rounds = updated.rounds;
+          }
+        }
+      }
+    }
+
+    // Step 2: Mark consolation matches involving DSQ player as WALKOVER
+    const newlyWalkoverMatchIds: string[] = [];
+    for (const round of consolation.rounds) {
+      for (const match of round.matches) {
+        if (match.status === 'PENDING' &&
+            (match.participantA === participantId || match.participantB === participantId)) {
+          const opponent = match.participantA === participantId ? match.participantB : match.participantA;
+          if (opponent && !isBye(opponent) && !isLoserPlaceholder(opponent)) {
+            console.log(`🚫 DSQ consolation cascade: ${match.id} -> ${opponent} wins`);
+            match.status = 'WALKOVER';
+            match.winner = opponent;
+            newlyWalkoverMatchIds.push(match.id);
+          }
+        }
+      }
+    }
+
+    // Step 3: Advance winners from newly-WALKOVER'd consolation matches
+    for (const woMatchId of newlyWalkoverMatchIds) {
+      let woMatch: { winner: string; participantA?: string; participantB?: string } | undefined;
+      for (const round of consolation.rounds) {
+        const m = round.matches.find(m => m.id === woMatchId);
+        if (m && m.winner) {
+          woMatch = m;
+          break;
+        }
+      }
+      if (woMatch?.winner) {
+        const loserId = woMatch.participantA === woMatch.winner ? woMatch.participantB : woMatch.participantA;
+        consolation = advanceConsolationWinnerAlgorithm(
+          consolation, woMatchId, woMatch.winner, loserId
+        );
+      }
+    }
+
+    bracket.consolationBrackets[cIdx] = consolation;
+  }
+}
+
+/**
  * Disqualify participant from tournament
  * Also marks all their pending matches as WALKOVER (opponent wins)
  *
@@ -288,31 +370,8 @@ export async function disqualifyParticipant(
         }
       }
 
-      // Process consolation brackets - mark all matches involving disqualified participant as WALKOVER
-      if (updatedGoldBracket.consolationBrackets) {
-        updatedGoldBracket.consolationBrackets = updatedGoldBracket.consolationBrackets.map(consolation => {
-          const updatedRounds = consolation.rounds.map(round => ({
-            ...round,
-            matches: round.matches.map(match => {
-              if (match.status === 'PENDING' &&
-                  (match.participantA === participantId || match.participantB === participantId)) {
-                const opponent = match.participantA === participantId ? match.participantB : match.participantA;
-                // Only mark as WALKOVER if opponent is determined
-                if (opponent) {
-                  console.log(`🚫 Marking consolation match ${match.id} as WALKOVER - ${opponent} wins`);
-                  return {
-                    ...match,
-                    status: 'WALKOVER' as const,
-                    winner: opponent
-                  };
-                }
-              }
-              return match;
-            })
-          }));
-          return { ...consolation, rounds: updatedRounds };
-        });
-      }
+      // Process consolation brackets: resolve placeholders, mark DSQ matches, advance winners
+      resolveConsolationForDSQ(updatedGoldBracket, participantId);
 
       finalStage.goldBracket = updatedGoldBracket;
     }
@@ -382,30 +441,8 @@ export async function disqualifyParticipant(
         }
       }
 
-      // Process consolation brackets
-      if (updatedSilverBracket.consolationBrackets) {
-        updatedSilverBracket.consolationBrackets = updatedSilverBracket.consolationBrackets.map(consolation => {
-          const updatedRounds = consolation.rounds.map(round => ({
-            ...round,
-            matches: round.matches.map(match => {
-              if (match.status === 'PENDING' &&
-                  (match.participantA === participantId || match.participantB === participantId)) {
-                const opponent = match.participantA === participantId ? match.participantB : match.participantA;
-                if (opponent) {
-                  console.log(`🚫 Marking silver consolation match ${match.id} as WALKOVER - ${opponent} wins`);
-                  return {
-                    ...match,
-                    status: 'WALKOVER' as const,
-                    winner: opponent
-                  };
-                }
-              }
-              return match;
-            })
-          }));
-          return { ...consolation, rounds: updatedRounds };
-        });
-      }
+      // Process consolation brackets: resolve placeholders, mark DSQ matches, advance winners
+      resolveConsolationForDSQ(updatedSilverBracket, participantId);
 
       finalStage.silverBracket = updatedSilverBracket;
     }
@@ -567,6 +604,11 @@ export async function fixDisqualifiedMatches(tournamentId: string): Promise<bool
         }
       }
 
+      // Fix consolation brackets for each disqualified participant
+      for (const dsqId of disqualifiedIds) {
+        resolveConsolationForDSQ(updatedGoldBracket, dsqId);
+      }
+
       finalStage.goldBracket = updatedGoldBracket;
     }
 
@@ -614,6 +656,11 @@ export async function fixDisqualifiedMatches(tournamentId: string): Promise<bool
             };
           }
         }
+      }
+
+      // Fix consolation brackets for each disqualified participant
+      for (const dsqId of disqualifiedIds) {
+        resolveConsolationForDSQ(updatedSilverBracket, dsqId);
       }
 
       finalStage.silverBracket = updatedSilverBracket;
