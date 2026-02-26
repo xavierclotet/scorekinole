@@ -37,6 +37,24 @@
   let showTimeBreakdown = $state(false);
   let timeBreakdown = $state<TimeBreakdown | null>(null);
 
+  // Round results filter
+  let roundsFilterParticipant = $state('');
+  let roundsDetailsOpen = $state(false);
+
+  // Filtered pairings based on selected participant
+  let filteredPairings = $derived.by(() => {
+    const pairings = tournament?.groupStage?.groups?.[0]?.pairings;
+    if (!pairings) return [];
+    if (!roundsFilterParticipant) return pairings;
+    return pairings.map(pairing => ({
+      ...pairing,
+      matches: pairing.matches.filter(match =>
+        match.participantA === roundsFilterParticipant ||
+        match.participantB === roundsFilterParticipant
+      )
+    })).filter(pairing => pairing.matches.length > 0);
+  });
+
   // Qualifier selections per group
   let groupQualifiers = $state<Map<number, string[]>>(new Map());
 
@@ -881,16 +899,30 @@
             <!-- Rounds accordion -->
             {#if tournament.groupStage?.groups?.[0]?.pairings?.length > 0}
               <div class="rounds-accordion">
-                <details class="rounds-details">
+                <details class="rounds-details" bind:open={roundsDetailsOpen}>
                   <summary class="rounds-summary">
                     <span class="summary-icon">📋</span>
-                    <span>{m.admin_roundResults()}</span>
-                    <span class="rounds-count">{tournament.groupStage.groups[0].pairings.length} {m.time_rounds()}</span>
+                    <span>{m.admin_roundResults()} ({tournament.groupStage.groups[0].pairings.length})</span>
+                    <span class="rounds-filter-wrapper">
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <select
+                        class="rounds-filter-select"
+                        bind:value={roundsFilterParticipant}
+                        onclick={(e) => e.stopPropagation()}
+                        onchange={(e) => { e.stopPropagation(); if (roundsFilterParticipant) roundsDetailsOpen = true; }}
+                      >
+                        <option value="">{tournament.gameType === 'doubles' ? m.admin_allTeams() : m.admin_allPlayers()}</option>
+                        {#each tournament.participants.filter(p => p.status !== 'DISQUALIFIED').toSorted((a, b) => (getParticipantDisplayName(a, tournament.gameType === 'doubles') || '').localeCompare(getParticipantDisplayName(b, tournament.gameType === 'doubles') || '')) as participant}
+                          <option value={participant.id}>{getParticipantDisplayName(participant, tournament.gameType === 'doubles')}</option>
+                        {/each}
+                      </select>
+                    </span>
                     <span class="chevron">▼</span>
                   </summary>
                   <div class="rounds-content">
                     <div class="rounds-grid">
-                      {#each tournament.groupStage.groups[0].pairings as pairing}
+                      {#each filteredPairings as pairing}
                         <div class="round-card">
                           <div class="round-card-header">
                             <span class="round-badge">{pairing.roundNumber}</span>
@@ -2456,11 +2488,32 @@
     font-size: 0.9rem;
   }
 
-  .rounds-count {
+  .rounds-filter-wrapper {
     margin-left: auto;
+  }
+
+  .rounds-filter-select {
     font-size: 0.7rem;
-    color: #6b7280;
+    padding: 0.15rem 0.4rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: white;
+    color: #374151;
+    cursor: pointer;
     font-weight: 500;
+    max-width: 160px;
+    text-overflow: ellipsis;
+  }
+
+  .rounds-filter-select:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .transition-page:is([data-theme='dark'], [data-theme='violet']) .rounds-filter-select {
+    background: #1a2332;
+    color: #e1e8ed;
+    border-color: #2d3748;
   }
 
   .chevron {

@@ -912,49 +912,65 @@ export function advanceConsolationWinner(
 /**
  * Calculate final positions for consolation bracket participants
  * Returns map of participantId -> final position
+ *
+ * Uses sequential position assignment:
+ * 1. Final round: finals first (best positions), then 3rd-place matches
+ * 2. Earlier rounds in reverse order (closest to final = better positions)
+ * 3. Guarantees positions startPos through startPos + numParticipants - 1
  */
 export function calculateConsolationPositions(
   consolationBracket: ConsolationBracket
 ): Map<string, number> {
   const positions = new Map<string, number>();
-  const startPos = consolationBracket.startPosition;
 
-  if (!consolationBracket.isComplete) {
+  if (!consolationBracket.isComplete || consolationBracket.rounds.length === 0) {
     return positions;
   }
 
-  // Process from final round backwards
-  for (let roundIdx = consolationBracket.rounds.length - 1; roundIdx >= 0; roundIdx--) {
-    const round = consolationBracket.rounds[roundIdx];
+  const startPos = consolationBracket.startPosition;
+  let nextPosition = startPos;
 
+  // Helper to get loser of a completed match
+  const getLoser = (match: BracketMatch): string | undefined => {
+    if (!match.winner) return undefined;
+    return match.participantA === match.winner ? match.participantB : match.participantA;
+  };
+
+  // Helper to check if an ID is a real participant (not BYE or placeholder)
+  const isRealParticipant = (id: string | undefined): id is string => {
+    return !!id && !isBye(id) && !isLoserPlaceholder(id);
+  };
+
+  // 1) Final round: process finals first, then 3rd-place matches
+  const finalRound = consolationBracket.rounds[consolationBracket.rounds.length - 1];
+  const finals = finalRound.matches
+    .filter(m => !m.isThirdPlace)
+    .sort((a, b) => a.position - b.position);
+  const thirdPlaces = finalRound.matches
+    .filter(m => m.isThirdPlace)
+    .sort((a, b) => a.position - b.position);
+
+  for (const match of finals) {
+    if (match.status !== 'COMPLETED' || !match.winner) continue;
+    const loserId = getLoser(match);
+    if (isRealParticipant(match.winner) && !positions.has(match.winner)) positions.set(match.winner, nextPosition++);
+    if (isRealParticipant(loserId) && !positions.has(loserId)) positions.set(loserId, nextPosition++);
+  }
+  for (const match of thirdPlaces) {
+    if (match.status !== 'COMPLETED' || !match.winner) continue;
+    const loserId = getLoser(match);
+    if (isRealParticipant(match.winner) && !positions.has(match.winner)) positions.set(match.winner, nextPosition++);
+    if (isRealParticipant(loserId) && !positions.has(loserId)) positions.set(loserId, nextPosition++);
+  }
+
+  // 2) Earlier rounds in reverse (closest to final first = better positions)
+  for (let roundIdx = consolationBracket.rounds.length - 2; roundIdx >= 0; roundIdx--) {
+    const round = consolationBracket.rounds[roundIdx];
     for (const match of round.matches) {
       if (match.status !== 'COMPLETED' || !match.winner) continue;
-
-      // If this is the final round, winner gets startPos and loser gets startPos + 1
-      if (roundIdx === consolationBracket.rounds.length - 1) {
-        const loserId = match.participantA === match.winner
-          ? match.participantB
-          : match.participantA;
-
-        if (!positions.has(match.winner)) {
-          positions.set(match.winner, startPos + match.position * 2);
-        }
-        if (loserId && !positions.has(loserId)) {
-          positions.set(loserId, startPos + match.position * 2 + 1);
-        }
-      } else {
-        // Earlier rounds - losers get positions based on which round they lost
-        const loserId = match.participantA === match.winner
-          ? match.participantB
-          : match.participantA;
-
-        if (loserId && !positions.has(loserId)) {
-          // Calculate position based on round lost
-          // Round 1 losers get worst positions, later rounds get better
-          const roundsFromFinal = consolationBracket.totalRounds - 1 - roundIdx;
-          const basePosition = startPos + Math.pow(2, roundsFromFinal + 1);
-          positions.set(loserId, basePosition + match.position);
-        }
+      const loserId = getLoser(match);
+      if (isRealParticipant(loserId) && !positions.has(loserId)) {
+        positions.set(loserId, nextPosition++);
       }
     }
   }

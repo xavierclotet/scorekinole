@@ -174,6 +174,38 @@ Check Buchholz: B (10) > C (7) → B ranks above C.
 
 ---
 
+## BYE Assignment (Swiss only)
+
+When a Swiss group has an odd number of players, one player must receive a BYE (automatic win) each round.
+
+### Priority chain
+
+1. **Never had a BYE** — Players who haven't received a BYE yet are always prioritized (fairness: everyone gets one before anyone gets a second)
+2. **Fewest Swiss points** — The weakest player gets the BYE (free win helps balance the group)
+3. **Fewest total Crokinole points scored** — Among tied Swiss points, the player who has scored fewer points overall
+4. **Fewest total 20s** — Among still-tied players, the one with fewer twenties
+5. **Lowest Buchholz** — If all above are equal, the one who faced weaker opponents
+
+### Why this order?
+
+- In early rounds (R2), most players have 0 or 2 Swiss points, so tiebreakers 3-5 matter a lot
+- Total points scored is the most intuitive measure of "who is struggling"
+- 20s reflect technical skill — fewer 20s = more likely to need the BYE boost
+- Buchholz is last because it's less intuitive and early-round Buchholz values are unstable
+
+### BYE match values
+
+A BYE match is recorded as a WALKOVER with fixed scores:
+- Games won: 2-0
+- Points: 8-0
+- 20s: 0-0
+
+### Implementation
+
+See: [`src/lib/algorithms/swiss.ts`](../src/lib/algorithms/swiss.ts) — `generatePointBasedPairings()`, `getByeHistory()`
+
+---
+
 ## Unresolved Ties: Shoot-out
 
 When players remain tied after all criteria (marked as "unresolved" in the system), the tie is resolved by a **Shoot-out** - the most exciting sudden-death tiebreaker in Crokinole.

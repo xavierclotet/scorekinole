@@ -290,9 +290,19 @@
     color: #6b7280;
   }
 
+  .participant.bye-participant {
+    flex: 0 0 auto;
+  }
+
   .participant.bye-participant .name {
     font-style: italic;
     opacity: 0.6;
+  }
+
+  /* In BYE matches, shrink the score center and let the real player name breathe */
+  .match-card.bye .score-center {
+    min-width: 2rem;
+    padding: 0.15rem 0.3rem;
   }
 
   .participant .t20 {

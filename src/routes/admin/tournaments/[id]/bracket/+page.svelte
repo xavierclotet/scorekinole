@@ -22,7 +22,8 @@
     updateConsolationMatch,
     advanceConsolationWinner,
     forceRegenerateConsolationBrackets,
-    completeFinalStage
+    completeFinalStage,
+    completeBracketMatchAndAdvance
   } from '$lib/firebase/tournamentBracket';
   import { disqualifyParticipant, fixDisqualifiedMatches } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, BracketMatch, GroupMatch, TournamentParticipant, PhaseConfig } from '$lib/types/tournament';
@@ -1285,11 +1286,8 @@
 
         const winner = gamesA > gamesB ? match.participantA : match.participantB;
 
-        // Use correct functions based on bracket type
-        const updateMatch = bracketType === 'silver' ? updateSilverBracketMatch : updateBracketMatch;
-        const advanceMatchWinner = bracketType === 'silver' ? advanceSilverWinner : advanceWinner;
-
-        await updateMatch(currentTournamentId, match.id, {
+        // Use single atomic transaction: update match + advance winner in one step
+        const success = await completeBracketMatchAndAdvance(currentTournamentId, match.id, {
           status: 'COMPLETED',
           gamesWonA: gamesA,
           gamesWonB: gamesB,
@@ -1301,16 +1299,22 @@
           winner
         });
 
-        if (winner) {
-          let advanceSuccess = await advanceMatchWinner(currentTournamentId, match.id, winner);
-          if (!advanceSuccess) {
-            console.warn(`⚠️ advanceWinner failed for ${match.id}, retrying...`);
-            // Small delay before retry to let any contention settle
-            await new Promise(r => setTimeout(r, 500));
-            advanceSuccess = await advanceMatchWinner(currentTournamentId, match.id, winner);
-            if (!advanceSuccess) {
-              console.error(`❌ advanceWinner failed twice for ${match.id}`);
-            }
+        if (!success) {
+          console.warn(`⚠️ completeBracketMatchAndAdvance failed for ${match.id}, retrying...`);
+          await new Promise(r => setTimeout(r, 500));
+          const retry = await completeBracketMatchAndAdvance(currentTournamentId, match.id, {
+            status: 'COMPLETED',
+            gamesWonA: gamesA,
+            gamesWonB: gamesB,
+            totalPointsA,
+            totalPointsB,
+            total20sA,
+            total20sB,
+            rounds: allRounds,
+            winner
+          });
+          if (!retry) {
+            console.error(`❌ completeBracketMatchAndAdvance failed twice for ${match.id}`);
           }
         }
 
@@ -1559,9 +1563,9 @@
                 }
 
                 const winner = gamesA > gamesB ? match.participantA : match.participantB;
-                const loser = gamesA > gamesB ? match.participantB : match.participantA;
 
-                await updateConsolationMatch(
+                // Use single atomic transaction for consolation too
+                const success = await completeBracketMatchAndAdvance(
                   currentTournamentId,
                   match.id,
                   {
@@ -1574,17 +1578,24 @@
                     total20sB,
                     rounds: allRounds,
                     winner
-                  },
-                  bracketType
+                  }
                 );
 
-                await advanceConsolationWinner(
-                  currentTournamentId,
-                  match.id,
-                  winner,
-                  bracketType,
-                  loser
-                );
+                if (!success) {
+                  console.warn(`⚠️ Consolation match failed for ${match.id}, retrying...`);
+                  await new Promise(r => setTimeout(r, 500));
+                  await completeBracketMatchAndAdvance(currentTournamentId, match.id, {
+                    status: 'COMPLETED',
+                    gamesWonA: gamesA,
+                    gamesWonB: gamesB,
+                    totalPointsA,
+                    totalPointsB,
+                    total20sA,
+                    total20sB,
+                    rounds: allRounds,
+                    winner
+                  });
+                }
 
                 hasMoreMatches = true;
                 consolationFilledCount++;

@@ -96,20 +96,21 @@ function generatePointBasedPairings(
   previousPairings: SwissPairing[]
 ): GroupMatch[] {
   // Create map of participant standings
+  // NOTE: standings are recalculated fresh before calling this function
   const standingsMap = new Map<string, GroupStanding>();
   standings.forEach(s => standingsMap.set(s.participantId, s));
+
+  // Helper to get Swiss points from standings (already recalculated)
+  const getSwissPoints = (id: string): number => {
+    const s = standingsMap.get(id);
+    if (!s) return 0;
+    return s.swissPoints ?? s.points ?? (s.matchesWon * 2 + s.matchesTied);
+  };
 
   // Sort participants by Swiss points (2/1/0) descending
   // This ensures players with similar scores are paired together
   const sorted = [...participants].sort((a, b) => {
-    const aStanding = standingsMap.get(a.id);
-    const bStanding = standingsMap.get(b.id);
-    if (!aStanding || !bStanding) return 0;
-
-    // Use swissPoints if available, otherwise calculate from wins/ties
-    const aSwiss = aStanding.swissPoints ?? (aStanding.matchesWon * 2 + aStanding.matchesTied);
-    const bSwiss = bStanding.swissPoints ?? (bStanding.matchesWon * 2 + bStanding.matchesTied);
-    return bSwiss - aSwiss;
+    return getSwissPoints(b.id) - getSwissPoints(a.id);
   });
 
   // Build set of previous pairings for quick lookup
@@ -135,20 +136,60 @@ function generatePointBasedPairings(
   if (sorted.length % 2 !== 0) {
     // Find the best candidate for BYE:
     // 1. Prioritize players who haven't had a BYE yet
-    // 2. Among those, pick the lowest-ranked (last in sorted order)
+    // 2. Among those, pick the weakest player by:
+    //    a. Fewest Swiss points
+    //    b. Fewest total points scored
+    //    c. Fewest total 20s
+
+    // Sort candidates specifically for BYE assignment (weakest first)
+    const byeSort = (a: TournamentParticipant, b: TournamentParticipant) => {
+      // 1. Fewest Swiss points (from fresh standings)
+      const aSwiss = getSwissPoints(a.id);
+      const bSwiss = getSwissPoints(b.id);
+      if (aSwiss !== bSwiss) return aSwiss - bSwiss;
+
+      const aS = standingsMap.get(a.id);
+      const bS = standingsMap.get(b.id);
+      if (!aS || !bS) return 0;
+
+      // 2. Fewest total Crokinole points scored
+      if (aS.totalPointsScored !== bS.totalPointsScored) return aS.totalPointsScored - bS.totalPointsScored;
+
+      // 3. Fewest total 20s
+      if (aS.total20s !== bS.total20s) return aS.total20s - bS.total20s;
+
+      // 4. Lowest Buchholz
+      return (aS.buchholz ?? 0) - (bS.buchholz ?? 0);
+    };
 
     // Get players who haven't had BYE yet
     const neverHadBye = sorted.filter(p => !byeHistory.has(p.id));
 
     let byeCandidate: TournamentParticipant;
+    let byePool: TournamentParticipant[];
 
     if (neverHadBye.length > 0) {
-      // Pick the lowest-ranked player who hasn't had BYE
-      byeCandidate = neverHadBye[neverHadBye.length - 1];
+      // Pick the weakest player who hasn't had BYE
+      byePool = [...neverHadBye].sort(byeSort);
+      byeCandidate = byePool[0];
     } else {
-      // Everyone has had at least one BYE, pick lowest-ranked overall
-      byeCandidate = sorted[sorted.length - 1];
+      // Everyone has had at least one BYE, pick weakest overall
+      byePool = [...sorted].sort(byeSort);
+      byeCandidate = byePool[0];
     }
+
+    // Log BYE selection for debugging
+    const hadByeBefore = byeHistory.size > 0
+      ? `Previous BYEs: ${sorted.filter(p => byeHistory.has(p.id)).map(p => p.name).join(', ')}`
+      : 'No previous BYEs';
+    console.log(`🎲 BYE R${roundNumber}: ${hadByeBefore}`);
+    console.log(`🎲 BYE candidates (${neverHadBye.length > 0 ? 'never had BYE' : 'all players'}, weakest first):`);
+    byePool.slice(0, 5).forEach((p, i) => {
+      const s = standingsMap.get(p.id);
+      const sw = getSwissPoints(p.id);
+      console.log(`  ${i + 1}. ${p.name}: swiss=${sw}, pts=${s?.totalPointsScored ?? '?'}, 20s=${s?.total20s ?? '?'}, buc=${s?.buchholz ?? '?'}`);
+    });
+    console.log(`🎲 BYE → ${byeCandidate.name}`);
 
     // Assign BYE to this player
     matches.push(createByeMatch(byeCandidate.id, roundNumber));

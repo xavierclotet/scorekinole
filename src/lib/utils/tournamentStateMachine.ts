@@ -190,6 +190,44 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
     const matchesWithTables = assignTablesWithVariety(matches, tournament.numTables, new Map());
 
     // Initialize single group for Swiss
+    const initialStandings = updatedParticipants.map(participantId => ({
+      participantId: participantId.id,
+      position: 0,
+      matchesPlayed: 0,
+      matchesWon: 0,
+      matchesLost: 0,
+      matchesTied: 0,
+      points: 0,
+      swissPoints: 0,
+      total20s: 0,
+      totalPointsScored: 0,
+      qualifiedForFinal: false
+    }));
+
+    // Update BYE player standings immediately so standings are correct from the start
+    const byeMatch = matchesWithTables.find(m => m.participantB === 'BYE');
+    if (byeMatch) {
+      const byeStanding = initialStandings.find(s => s.participantId === byeMatch.participantA);
+      if (byeStanding) {
+        byeStanding.matchesPlayed++;
+        byeStanding.matchesWon++;
+        byeStanding.points += 2;
+        byeStanding.swissPoints += 2;
+        byeStanding.totalPointsScored += (byeMatch.totalPointsA || 8);
+        byeStanding.total20s += (byeMatch.total20sA || 0);
+      }
+    }
+
+    // Sort standings by swissPoints so positions are correct
+    const { resolveTiebreaker } = await import('$lib/algorithms/tiebreaker');
+    const sortedStandings = resolveTiebreaker(
+      initialStandings,
+      updatedParticipants,
+      true, // isSwiss
+      qualificationMode,
+      tournament.show20s !== false
+    );
+
     const group = {
       id: 'swiss-group',
       name: 'SINGLE_GROUP',
@@ -198,18 +236,7 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
         roundNumber: 1,
         matches: matchesWithTables
       }],
-      standings: updatedParticipants.map(participantId => ({
-        participantId: participantId.id,
-        position: 0,
-        matchesPlayed: 0,
-        matchesWon: 0,
-        matchesLost: 0,
-        matchesTied: 0,
-        points: 0,
-        total20s: 0,
-        totalPointsScored: 0,
-        qualifiedForFinal: false
-      }))
+      standings: sortedStandings
     };
 
     groupStage = {

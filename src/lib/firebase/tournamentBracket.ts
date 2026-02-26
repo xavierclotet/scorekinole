@@ -1171,7 +1171,7 @@ export async function advanceWinner(
           ...tournament,
           finalStage: { ...tournament.finalStage, goldBracket: updatedGoldBracket, isComplete: true }
         };
-        updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
+        updateData.participants = cleanUndefined(calculateFinalPositionsForTournament(tournamentWithUpdatedBracket));
         // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
         // to avoid double-application of ranking points
       } else if (!isTournamentComplete) {
@@ -1400,7 +1400,7 @@ export async function advanceSilverWinner(
           ...tournament,
           finalStage: { ...tournament.finalStage, silverBracket: updatedSilverBracket, isComplete: true }
         };
-        updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
+        updateData.participants = cleanUndefined(calculateFinalPositionsForTournament(tournamentWithUpdatedBracket));
         // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
       }
 
@@ -1606,7 +1606,7 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
         ...tournament,
         finalStage: { ...tournament.finalStage, isComplete: true }
       };
-      const updatedParticipants = calculateFinalPositionsForTournament(tournamentWithComplete);
+      const updatedParticipants = cleanUndefined(calculateFinalPositionsForTournament(tournamentWithComplete));
       console.log('📊 Final positions calculated and included in update.');
 
       // Mark final stage as complete and update tournament status with positions
@@ -2246,7 +2246,7 @@ export async function advanceConsolationWinner(
             isComplete: true
           }
         };
-        updateData.participants = calculateFinalPositionsForTournament(tournamentWithUpdatedBracket);
+        updateData.participants = cleanUndefined(calculateFinalPositionsForTournament(tournamentWithUpdatedBracket));
         // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
       } else if (!isTournamentComplete) {
         console.log('📋 Consolation check - goldComplete=' + isGoldComplete + ', silverComplete=' + isSilverComplete);
@@ -2349,7 +2349,6 @@ export async function completeBracketMatchAndAdvance(
 
       if (result.status === 'COMPLETED') {
         cleanResult.completedAt = Date.now();
-        cleanResult.tableNumber = undefined;
       }
 
       const mergeMatch = (existing: BracketMatch): BracketMatch => {
@@ -2359,7 +2358,12 @@ export async function completeBracketMatchAndAdvance(
         if (result.status === 'COMPLETED' && existing.tableNumber) {
           cleanResult.playedOnTable = existing.tableNumber;
         }
-        return { ...existing, ...cleanResult };
+        const merged = { ...existing, ...cleanResult };
+        // Clear tableNumber on completion (table is now free) - use delete instead of undefined
+        if (result.status === 'COMPLETED') {
+          delete (merged as any).tableNumber;
+        }
+        return merged;
       };
 
       // --- Phase 2: Detect match location and update it ---
@@ -2559,7 +2563,7 @@ export async function completeBracketMatchAndAdvance(
           ...tournament,
           finalStage: { ...tournament.finalStage, isComplete: true }
         };
-        updateData.participants = calculateFinalPositionsForTournament(tournamentWithComplete);
+        updateData.participants = cleanUndefined(calculateFinalPositionsForTournament(tournamentWithComplete));
         // Note: Ranking updates are applied by the Cloud Function (onTournamentComplete)
       }
 

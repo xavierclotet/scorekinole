@@ -127,7 +127,7 @@ export async function generateSwissPairings(
   tournamentId: string,
   roundNumber: number
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
+  let tournament = await getTournament(tournamentId);
   if (!tournament) {
     console.error('Tournament not found');
     return false;
@@ -145,8 +145,20 @@ export async function generateSwissPairings(
   }
 
   try {
-    // Get current standings
-    const group = tournament.groupStage.groups[0]; // Swiss has single group
+    // Recalculate standings from match results before generating pairings
+    // This ensures we use fresh data (same as the classification table shows)
+    const groupId = tournament.groupStage.groups[0]?.id;
+    if (groupId) {
+      await recalculateStandings(tournamentId, groupId);
+      // Re-fetch tournament with updated standings
+      const refreshed = await getTournament(tournamentId);
+      if (refreshed?.groupStage) {
+        tournament = refreshed;
+      }
+    }
+
+    // Get current standings (now fresh from recalculation)
+    const group = tournament.groupStage!.groups[0]; // Swiss has single group
     const standings = group?.standings || [];
 
     // Get previous pairings
@@ -216,21 +228,32 @@ export async function generateSwissPairings(
     // Update BYE player standings inline (avoid separate recalculateStandings call
     // which re-reads from Firestore and can overwrite with stale data)
     const byeMatch = matchesWithTables.find(m => m.participantB === 'BYE');
-    if (byeMatch) {
-      const updatedGroup = updatedGroups.find(g => g.id === group.id);
-      if (updatedGroup?.standings) {
-        const byeStanding = updatedGroup.standings.find(s => s.participantId === byeMatch.participantA);
-        if (byeStanding) {
-          byeStanding.matchesPlayed++;
-          byeStanding.matchesWon++;
-          byeStanding.points += 2;
-          byeStanding.totalPointsScored += (byeMatch.totalPointsA || 8);
-          byeStanding.total20s += (byeMatch.total20sA || 0);
-          if (byeStanding.swissPoints !== undefined) {
-            byeStanding.swissPoints += 2;
-          }
+    const updatedGroup = updatedGroups.find(g => g.id === group.id);
+    if (byeMatch && updatedGroup?.standings) {
+      const byeStanding = updatedGroup.standings.find(s => s.participantId === byeMatch.participantA);
+      if (byeStanding) {
+        byeStanding.matchesPlayed++;
+        byeStanding.matchesWon++;
+        byeStanding.points += 2;
+        byeStanding.totalPointsScored += (byeMatch.totalPointsA || 8);
+        byeStanding.total20s += (byeMatch.total20sA || 0);
+        if (byeStanding.swissPoints !== undefined) {
+          byeStanding.swissPoints += 2;
         }
       }
+    }
+
+    // Recalculate positions after BYE update so standings display correctly between rounds
+    if (updatedGroup?.standings) {
+      const qualificationMode = tournament.groupStage.qualificationMode || tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
+      const show20s = tournament.show20s !== false;
+      updatedGroup.standings = resolveTiebreaker(
+        updatedGroup.standings,
+        tournament.participants,
+        true, // isSwiss
+        qualificationMode,
+        show20s
+      );
     }
 
     return await updateTournament(tournamentId, {
