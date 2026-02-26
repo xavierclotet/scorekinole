@@ -13,6 +13,10 @@
 	import MatchCard from './MatchCard.svelte';
 	import MatchResultDialog from './MatchResultDialog.svelte';
 	import BumpChart from '$lib/components/charts/BumpChart.svelte';
+	import * as Command from '$lib/components/ui/command';
+	import * as Popover from '$lib/components/ui/popover';
+	import { Button } from '$lib/components/ui/button';
+	import { Check, ChevronsUpDown } from '@lucide/svelte';
 
 	interface Props {
 		tournament: Tournament;
@@ -33,6 +37,36 @@
 		} else {
 			showBumpChart.add(groupId);
 		}
+	}
+
+	// Bump chart highlight filter
+	let bumpChartHighlight = $state<Map<string, Set<string>>>(new Map());
+	let bumpFilterOpen = $state<Map<string, boolean>>(new Map());
+
+	function getBumpHighlight(groupId: string): string[] {
+		const set = bumpChartHighlight.get(groupId);
+		return set ? [...set] : [];
+	}
+
+	function toggleBumpHighlight(groupId: string, participantId: string) {
+		const current = bumpChartHighlight.get(groupId) ?? new Set<string>();
+		if (current.has(participantId)) {
+			current.delete(participantId);
+		} else {
+			current.add(participantId);
+		}
+		bumpChartHighlight.set(groupId, current);
+		bumpChartHighlight = new Map(bumpChartHighlight);
+	}
+
+	function clearBumpHighlight(groupId: string) {
+		bumpChartHighlight.delete(groupId);
+		bumpChartHighlight = new Map(bumpChartHighlight);
+	}
+
+	function setBumpFilterOpen(groupId: string, open: boolean) {
+		bumpFilterOpen.set(groupId, open);
+		bumpFilterOpen = new Map(bumpFilterOpen);
 	}
 
 	// Bracket state
@@ -837,6 +871,50 @@
 							(r.matches ?? []).some(rm => rm.status === 'COMPLETED' || rm.status === 'WALKOVER')
 						).length}
 						{#if completedRoundCount >= 2}
+							<div class="charts-filter-bar">
+								<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
+									<Popover.Trigger>
+										{#snippet child({ props })}
+											<Button
+												{...props}
+												variant="outline"
+												size="sm"
+												class="h-6 justify-between text-xs bump-filter-btn"
+											>
+												{@const count = getBumpHighlight(group.id).length}
+												<span class="truncate">{count > 0 ? m.tournament_nPlayersSelected({ n: count }) : m.tournament_filterPlayers()}</span>
+												<ChevronsUpDown class="ml-1 size-3 shrink-0 opacity-50" />
+											</Button>
+										{/snippet}
+									</Popover.Trigger>
+									<Popover.Content class="w-52 p-0" align="end">
+										<Command.Root>
+											<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
+											<Command.List class="max-h-60">
+												<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
+												<Command.Group>
+													<Command.Item
+														value="__all__"
+														onSelect={() => clearBumpHighlight(group.id)}
+													>
+														<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
+														{m.admin_allPlayers()}
+													</Command.Item>
+													{#each (tournament.participants.filter(p => group.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+														<Command.Item
+															value={participant.name ?? participant.id}
+															onSelect={() => toggleBumpHighlight(group.id, participant.id)}
+														>
+															<Check class={['mr-2 size-3', (bumpChartHighlight.get(group.id)?.has(participant.id)) ? 'opacity-100' : 'opacity-0']} />
+															{getParticipantName(participant.id)}
+														</Command.Item>
+													{/each}
+												</Command.Group>
+											</Command.List>
+										</Command.Root>
+									</Popover.Content>
+								</Popover.Root>
+							</div>
 							<div class="bump-chart-section">
 								<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
 									<span>📊 {m.tournament_roundEvolution()}</span>
@@ -852,6 +930,7 @@
 											{isSwiss}
 											{qualificationMode}
 											isDoubles={tournament.gameType === 'doubles'}
+											highlightedParticipants={getBumpHighlight(group.id)}
 										/>
 									</div>
 								{/if}
@@ -2368,19 +2447,43 @@
 		font-weight: 600;
 	}
 
+	.charts-filter-bar {
+		display: flex;
+		justify-content: flex-end;
+		padding: 0 1rem;
+		margin-bottom: 0.25rem;
+	}
+
+	:global(.bump-filter-btn) {
+		background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
+		border-color: color-mix(in srgb, var(--primary) 25%, transparent) !important;
+		min-width: 120px;
+	}
+
+	:global(.bump-filter-btn:hover) {
+		background: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+	}
+
 	.bump-chart-wrapper {
 		margin-top: 0.75rem;
 		background: var(--card);
 		border: 1px solid var(--border);
 		border-radius: 10px;
 		padding: 0.75rem;
-		position: relative;
-		height: 250px;
+		display: flex;
+		flex-direction: column;
+		height: 270px;
+	}
+
+	.bump-chart-wrapper :global(canvas) {
+		width: 100% !important;
+		flex: 1;
+		min-height: 0;
 	}
 
 	@media (min-width: 640px) {
 		.bump-chart-wrapper {
-			height: 320px;
+			height: 340px;
 		}
 	}
 
