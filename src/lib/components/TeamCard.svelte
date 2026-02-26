@@ -739,6 +739,7 @@
 <div
 	class="team-card score-size-{$gameSettings.mainScoreSize || 'medium'} name-size-{$gameSettings.nameSize || 'medium'}"
 	class:winner={team.hasWon}
+	class:has-hammer={effectiveShowHammer && team.hasHammer}
 	style="--team-color: {team.color}; --text-color: {getContrastColor(team.color)}"
 >
 	<div class="team-header">
@@ -788,6 +789,9 @@
 						{/if}
 					</div>
 					<span class="player-name-badge has-avatar">{team.name}</span>
+					{#if effectiveShowHammer && team.hasHammer}
+						<span class={["hammer-floating", getContrastColor(team.color) === '#ffffff' && "light-img"]} title={m.scoring_hammer()}><img src="/4150-rblxbanhammer.png" alt="Hammer" width="32" height="32" /></span>
+					{/if}
 				</div>
 			{:else if isEditingName}
 				<input
@@ -874,12 +878,10 @@
 								{/if}
 							</div>
 						{/if}
+					{#if effectiveShowHammer && team.hasHammer}
+						<span class={["hammer-floating", getContrastColor(team.color) === '#ffffff' && "light-img"]} title={m.scoring_hammer()}><img src="/4150-rblxbanhammer.png" alt="Hammer" width="32" height="32" /></span>
+					{/if}
 					</div>
-				</div>
-			{/if}
-			{#if effectiveShowHammer && team.hasHammer}
-				<div class="hammer-indicator" title={m.scoring_hammer()}>
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12l-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L12 9"/><path d="M17.64 15L22 10.64"/><path d="M20.91 11.7l-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91"/></svg>
 				</div>
 			{/if}
 		</div>
@@ -898,6 +900,7 @@
 	>
 		<div class="score">{team.points}</div>
 	</div>
+
 </div>
 
 <style>
@@ -1210,20 +1213,37 @@
 		word-break: break-word;
 	}
 
-	.hammer-indicator {
+	.names-column,
+	.tournament-player-display {
+		position: relative;
+	}
+
+	/* Hammer indicator - floating below player name */
+	.hammer-floating {
+		position: absolute;
+		bottom: -30px;
+		left: 50%;
+		transform: translateX(-50%);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: color-mix(in srgb, var(--primary) 25%, black);
-		color: var(--primary);
-		border-radius: 8px;
-		padding: 4px;
-		opacity: 0.9;
+		line-height: 1;
+		pointer-events: none;
+		z-index: 5;
 	}
 
-	.hammer-indicator svg {
-		display: block;
-		filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+	.hammer-floating img {
+		filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+	}
+
+	/* Invert hammer image on dark team backgrounds (where text-color is white) */
+	.hammer-floating.light-img img {
+		filter: invert(1) brightness(1.5) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+	}
+
+	/* Subtle glow on card with hammer */
+	.has-hammer {
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), inset 0 0 0 2px color-mix(in srgb, var(--text-color) 20%, transparent);
 	}
 
 	.score-display {
@@ -1273,9 +1293,7 @@
 	.name-size-large .player-name-badge { font-size: 2.3rem; }
 
 	/* Hammer size scales with name size */
-	.name-size-small .hammer-indicator svg { width: 22px; height: 22px; }
-	.name-size-medium .hammer-indicator svg { width: 27px; height: 27px; }
-	.name-size-large .hammer-indicator svg { width: 32px; height: 32px; }
+	.hammer-floating img { width: 32px; height: 32px; }
 
 	/* Avatar size scales with name size - base (desktop) */
 	.name-size-small .player-avatar { width: 28px; height: 28px; }
@@ -1329,9 +1347,7 @@
 		.name-size-large .player-name-badge { font-size: 2rem; }
 
 		/* Hammer sizes for tablet */
-		.name-size-small .hammer-indicator svg { width: 20px; height: 20px; }
-		.name-size-medium .hammer-indicator svg { width: 25px; height: 25px; }
-		.name-size-large .hammer-indicator svg { width: 30px; height: 30px; }
+		.hammer-floating img { width: 28px; height: 28px; }
 
 		/* Avatar sizes for tablet */
 		.name-size-small .player-avatar { width: 24px; height: 24px; }
@@ -1397,9 +1413,7 @@
 		.name-size-large .player-name-badge { font-size: 1.75rem; }
 
 		/* Hammer sizes for mobile */
-		.name-size-small .hammer-indicator svg { width: 18px; height: 18px; }
-		.name-size-medium .hammer-indicator svg { width: 22px; height: 22px; }
-		.name-size-large .hammer-indicator svg { width: 27px; height: 27px; }
+		.hammer-floating img { width: 24px; height: 24px; }
 
 		/* Avatar sizes for mobile */
 		.name-size-small .player-avatar { width: 22px; height: 22px; }
@@ -1462,9 +1476,7 @@
 		.name-size-large .player-name-badge { font-size: 2.1rem; }
 
 		/* Hammer sizes for portrait tablet */
-		.name-size-small .hammer-indicator svg { width: 21px; height: 21px; }
-		.name-size-medium .hammer-indicator svg { width: 26px; height: 26px; }
-		.name-size-large .hammer-indicator svg { width: 31px; height: 31px; }
+		.hammer-floating img { width: 28px; height: 28px; }
 
 		/* Avatar sizes for portrait tablet */
 		.name-size-small .player-avatar { width: 26px; height: 26px; }
@@ -1499,9 +1511,7 @@
 		.name-size-large .player-name-badge { font-size: 1.8rem; }
 
 		/* Hammer sizes for portrait mobile */
-		.name-size-small .hammer-indicator svg { width: 19px; height: 19px; }
-		.name-size-medium .hammer-indicator svg { width: 23px; height: 23px; }
-		.name-size-large .hammer-indicator svg { width: 28px; height: 28px; }
+		.hammer-floating img { width: 24px; height: 24px; }
 
 		/* Avatar sizes for portrait mobile */
 		.name-size-small .player-avatar { width: 24px; height: 24px; }
@@ -1537,9 +1547,7 @@
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for very small phones */
-		.name-size-small .hammer-indicator svg { width: 17px; height: 17px; }
-		.name-size-medium .hammer-indicator svg { width: 21px; height: 21px; }
-		.name-size-large .hammer-indicator svg { width: 25px; height: 25px; }
+		.hammer-floating img { width: 22px; height: 22px; }
 
 		/* Avatar sizes for very small phones */
 		.name-size-small .player-avatar { width: 20px; height: 20px; }
@@ -1580,9 +1588,7 @@
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for landscape mobile */
-		.name-size-small .hammer-indicator svg { width: 17px; height: 17px; }
-		.name-size-medium .hammer-indicator svg { width: 21px; height: 21px; }
-		.name-size-large .hammer-indicator svg { width: 25px; height: 25px; }
+		.hammer-floating img { width: 22px; height: 22px; }
 
 		/* Avatar sizes for landscape mobile */
 		.name-size-small .player-avatar { width: 20px; height: 20px; }

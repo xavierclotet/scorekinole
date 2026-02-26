@@ -2210,6 +2210,23 @@
 			<!-- Normal/Friendly mode header -->
 			<div class="header-left">
 				<AppMenu showHome homeHref="/" currentPage="game">
+					<DropdownMenu.Item onclick={handleNewMatchClick} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
+						<div class="flex items-center justify-center size-8 rounded-md bg-blue-500/15 group-hover:bg-blue-500/25 transition-colors">
+							<Play class="size-4 text-blue-500" />
+						</div>
+						<span class="flex-1 font-medium">{m.scoring_newMatchButton()}</span>
+					</DropdownMenu.Item>
+					<DropdownMenu.Item onclick={handleJoinTournament} disabled={isCheckingTournament} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
+						<div class="flex items-center justify-center size-8 rounded-md bg-blue-500/15 group-hover:bg-blue-500/25 transition-colors">
+							{#if isCheckingTournament}
+								<LoaderCircle class="size-4 text-blue-500 animate-spin" />
+							{:else}
+								<Trophy class="size-4 text-blue-500" />
+							{/if}
+						</div>
+						<span class="flex-1 font-medium">{m.tournament_playMatch()}</span>
+					</DropdownMenu.Item>
+					<DropdownMenu.Separator class="my-2" />
 					<DropdownMenu.Item onclick={() => showQRScanner = true} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 							<QrCode class="size-4 text-primary" />
@@ -2308,7 +2325,6 @@
 		/>
 	</div>
 
-
 	<!-- Next Game Button -->
 	{#if showNextGameButton}
 		<div class="next-game-container">
@@ -2318,30 +2334,6 @@
 		</div>
 	{/if}
 
-	<!-- New Match Floating Button - hide in tournament mode -->
-	{#if !inTournamentMode}
-		<button class="floating-button new-match-button" onclick={handleNewMatchClick} aria-label={m.scoring_newMatchButton()} title={m.scoring_newMatchButton()}>
-			<Play size={20} />
-			<span class="floating-btn-label">{m.scoring_newMatchShort()}</span>
-		</button>
-
-		<!-- Tournament Mode Button -->
-		<button
-			class="floating-button tournament-button"
-			onclick={handleJoinTournament}
-			aria-label={m.tournament_playMatch() || 'Jugar partido de torneo'}
-			title={m.tournament_playMatch() || 'Jugar partido de torneo'}
-			disabled={isCheckingTournament}
-		>
-			{#if isCheckingTournament}
-				<LoaderCircle size={20} class="animate-spin" />
-			{:else}
-				<Trophy size={20} />
-			{/if}
-			<span class="floating-btn-label">{m.tournament_playShort()}</span>
-		</button>
-
-	{/if}
 
 	<!-- New Match Confirmation Modal -->
 	{#if showNewMatchConfirm}
@@ -2906,80 +2898,6 @@
 	}
 
 
-	/* Floating Button - Extended FAB */
-	.floating-button {
-		position: fixed;
-		bottom: 1.5rem;
-		left: 1.5rem;
-		z-index: 1000;
-		display: flex;
-		flex-direction: row;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		height: 48px;
-		padding: 0 1.15rem;
-		border: none;
-		border-radius: 28px;
-		cursor: pointer;
-		transition: transform 0.15s ease, box-shadow 0.15s ease;
-	}
-
-	.floating-btn-label {
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.85rem;
-		font-weight: 600;
-		letter-spacing: 0.01em;
-		line-height: 1;
-		white-space: nowrap;
-	}
-
-	.floating-button:hover {
-		transform: translateY(-2px);
-	}
-
-	.floating-button:active {
-		transform: scale(0.96);
-		transition: transform 0.08s ease;
-	}
-
-	/* New Match Button - solid primary, lightness capped so white text always works */
-	.new-match-button {
-		background: oklch(from var(--primary) clamp(0.35, l, 0.52) c h);
-		color: white;
-		box-shadow:
-			0 4px 14px color-mix(in srgb, var(--primary) 45%, transparent),
-			0 1px 4px rgba(0, 0, 0, 0.15);
-	}
-
-	.new-match-button:hover {
-		box-shadow:
-			0 6px 20px color-mix(in srgb, var(--primary) 55%, transparent),
-			0 2px 6px rgba(0, 0, 0, 0.15);
-	}
-
-	/* Tournament Button - solid amber/gold */
-	.tournament-button {
-		left: auto;
-		right: 1.5rem;
-		background: oklch(63% 0.15 75);
-		color: white;
-		box-shadow:
-			0 4px 14px color-mix(in srgb, oklch(63% 0.15 75) 45%, transparent),
-			0 1px 4px rgba(0, 0, 0, 0.15);
-	}
-
-	.tournament-button:hover {
-		box-shadow:
-			0 6px 20px color-mix(in srgb, oklch(63% 0.15 75) 55%, transparent),
-			0 2px 6px rgba(0, 0, 0, 0.15);
-	}
-
-	.tournament-button:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-		transform: none;
-	}
 
 	@keyframes overlayFadeIn {
 		to {
