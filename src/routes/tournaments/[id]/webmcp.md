@@ -105,6 +105,7 @@ Multiples variantes segun tipo de torneo:
   .bracket-wrapper > .bracket-container
     .bracket-round            ← Multiples rondas (QF, SF, F)
       .round-name
+        .scoring-badge        ← Badge con modo de juego (ej: "4R", "7P", "7P (Fw2)")
       .matches-column
         .bracket-match[.completed][.has-video][.has-detail]
           .match-participant[.winner][.tbd][.has-hammer]
@@ -140,6 +141,7 @@ Cada una tiene la misma estructura:
 ```
 .consolation-inline
   .consolation-inline-header
+    .scoring-badge            ← Badge con modo de juego de la consolacion (earlyRounds config)
   .consolation-unified
     <!-- R16 consolation -->
     .consolation-round[data-source="R16"][.final-round]

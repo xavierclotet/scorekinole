@@ -11,6 +11,7 @@
 	import { type Tournament, type BracketMatch, type GroupMatch, normalizeTier } from '$lib/types/tournament';
 	import { isBye } from '$lib/algorithms/bracket';
 	import { translateCountry } from '$lib/utils/countryTranslations';
+	import type { BracketConfig, PhaseConfig } from '$lib/types/tournament';
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
 	import LiveBadge from '$lib/components/LiveBadge.svelte';
 	import { currentUser } from '$lib/firebase/auth';
@@ -87,6 +88,36 @@
 			hiddenTwentiesCharts.add(groupId);
 		}
 		hiddenTwentiesCharts = new Set(hiddenTwentiesCharts);
+	}
+
+	// Bump chart highlight: per-group set of highlighted participant IDs
+	let bumpChartHighlight = $state<Map<string, Set<string>>>(new Map());
+	let bumpFilterOpen = $state<Map<string, boolean>>(new Map());
+
+	function getBumpHighlight(groupId: string): string[] {
+		const set = bumpChartHighlight.get(groupId);
+		return set ? [...set] : [];
+	}
+
+	function toggleBumpHighlight(groupId: string, participantId: string) {
+		const current = bumpChartHighlight.get(groupId) ?? new Set<string>();
+		if (current.has(participantId)) {
+			current.delete(participantId);
+		} else {
+			current.add(participantId);
+		}
+		bumpChartHighlight.set(groupId, current);
+		bumpChartHighlight = new Map(bumpChartHighlight);
+	}
+
+	function clearBumpHighlight(groupId: string) {
+		bumpChartHighlight.delete(groupId);
+		bumpChartHighlight = new Map(bumpChartHighlight);
+	}
+
+	function setBumpFilterOpen(groupId: string, open: boolean) {
+		bumpFilterOpen.set(groupId, open);
+		bumpFilterOpen = new Map(bumpFilterOpen);
 	}
 
 	let urlParam = $derived(page.params.id);
@@ -608,6 +639,38 @@
 		};
 		return roundTranslations[key] || name.charAt(0).toUpperCase() + name.slice(1);
 	}
+
+	// Get scoring config label for a specific bracket round (e.g., "4R", "7P", "7P (Fw2)")
+	function getScoringLabelForRound(bracketConfig: BracketConfig | undefined, roundName: string): string {
+		if (!bracketConfig) return '';
+
+		const normalizedName = roundName.toLowerCase();
+		let phaseConfig: PhaseConfig;
+
+		if (normalizedName === 'finals' || normalizedName === 'final') {
+			phaseConfig = bracketConfig.final;
+		} else if (normalizedName.includes('semi')) {
+			phaseConfig = bracketConfig.semifinal;
+		} else {
+			phaseConfig = bracketConfig.earlyRounds;
+		}
+
+		const mode = phaseConfig.gameMode;
+		const pointsToWin = phaseConfig.pointsToWin || 7;
+		const roundsToPlay = phaseConfig.roundsToPlay || 4;
+		const matchesToWin = phaseConfig.matchesToWin || 1;
+
+		let label = mode === 'rounds'
+			? `${roundsToPlay}R`
+			: `${pointsToWin}P`;
+
+		if (matchesToWin > 1) {
+			label += ` (Fw${matchesToWin})`;
+		}
+
+		return label;
+	}
+
 
 	function isByeMatch(match: BracketMatch): boolean {
 		return isBye(match.participantA) || isBye(match.participantB);
@@ -1336,12 +1399,62 @@
 									<!-- Bump Chart (single group, below standings) -->
 									{#if groupRounds.length >= 2 && tournament}
 										<div class="bump-chart-section">
-											<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
-												<span>📊 {m.tournament_roundEvolution()}</span>
-												<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-													<polyline points="18 15 12 9 6 15"></polyline>
-												</svg>
-											</button>
+											<div class="bump-chart-header">
+												<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+													<span>📊 {m.tournament_roundEvolution()}</span>
+													<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+														<polyline points="18 15 12 9 6 15"></polyline>
+													</svg>
+												</button>
+												{#if !hiddenBumpCharts.has(group.id)}
+													<!-- svelte-ignore a11y_click_events_have_key_events -->
+													<!-- svelte-ignore a11y_no_static_element_interactions -->
+													<div class="bump-filter-area" onclick={(e) => e.stopPropagation()}>
+														<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
+															<Popover.Trigger>
+																{#snippet child({ props })}
+																	<Button
+																		{...props}
+																		variant="outline"
+																		size="sm"
+																		class="h-6 justify-between text-xs bump-filter-btn"
+																	>
+																		{@const count = getBumpHighlight(group.id).length}
+																		<span class="truncate">{count > 0 ? m.tournament_nPlayersSelected({ n: count }) : m.tournament_filterPlayers()}</span>
+																		<ChevronsUpDown class="ml-1 size-3 shrink-0 opacity-50" />
+																	</Button>
+																{/snippet}
+															</Popover.Trigger>
+															<Popover.Content class="w-52 p-0" align="end">
+																<Command.Root>
+																	<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
+																	<Command.List class="max-h-60">
+																		<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
+																		<Command.Group>
+																			<Command.Item
+																				value="__all__"
+																				onSelect={() => clearBumpHighlight(group.id)}
+																			>
+																				<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
+																				{m.admin_allPlayers()}
+																			</Command.Item>
+																			{#each (tournament?.participants.filter(p => group.participants.includes(p.id)) ?? []).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+																				<Command.Item
+																					value={participant.name ?? participant.id}
+																					onSelect={() => toggleBumpHighlight(group.id, participant.id)}
+																				>
+																					<Check class={['mr-2 size-3', (bumpChartHighlight.get(group.id)?.has(participant.id)) ? 'opacity-100' : 'opacity-0']} />
+																					{getParticipantName(participant.id)}
+																				</Command.Item>
+																			{/each}
+																		</Command.Group>
+																	</Command.List>
+																</Command.Root>
+															</Popover.Content>
+														</Popover.Root>
+													</div>
+												{/if}
+											</div>
 											{#if !hiddenBumpCharts.has(group.id)}
 												<div class="bump-chart-wrapper">
 													<BumpChart
@@ -1350,9 +1463,10 @@
 														isSwiss={tournament.groupStage?.type === 'SWISS'}
 														qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
 														isDoubles={tournament.gameType === 'doubles'}
+														highlightedParticipants={getBumpHighlight(group.id)}
 													/>
 												</div>
-												{/if}
+											{/if}
 										</div>
 									{/if}
 									<div class="bump-chart-section">
@@ -1555,12 +1669,62 @@
 								<!-- Bump Chart (multiple groups, below standings) -->
 								{#if groupRounds.length >= 2 && tournament}
 									<div class="bump-chart-section">
-										<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
-											<span>📊 {m.tournament_roundEvolution()}</span>
-											<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<polyline points="18 15 12 9 6 15"></polyline>
-											</svg>
-										</button>
+										<div class="bump-chart-header">
+											<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+												<span>📊 {m.tournament_roundEvolution()}</span>
+												<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<polyline points="18 15 12 9 6 15"></polyline>
+												</svg>
+											</button>
+											{#if !hiddenBumpCharts.has(group.id)}
+												<!-- svelte-ignore a11y_click_events_have_key_events -->
+												<!-- svelte-ignore a11y_no_static_element_interactions -->
+												<div class="bump-filter-area" onclick={(e) => e.stopPropagation()}>
+													<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
+														<Popover.Trigger>
+															{#snippet child({ props })}
+																<Button
+																	{...props}
+																	variant="outline"
+																	size="sm"
+																	class="h-6 justify-between text-xs bump-filter-btn"
+																>
+																	{@const count = getBumpHighlight(group.id).length}
+																	<span class="truncate">{count > 0 ? m.tournament_nPlayersSelected({ n: count }) : m.tournament_filterPlayers()}</span>
+																	<ChevronsUpDown class="ml-1 size-3 shrink-0 opacity-50" />
+																</Button>
+															{/snippet}
+														</Popover.Trigger>
+														<Popover.Content class="w-52 p-0" align="end">
+															<Command.Root>
+																<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
+																<Command.List class="max-h-60">
+																	<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
+																	<Command.Group>
+																		<Command.Item
+																			value="__all__"
+																			onSelect={() => clearBumpHighlight(group.id)}
+																		>
+																			<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
+																			{m.admin_allPlayers()}
+																		</Command.Item>
+																		{#each (tournament?.participants.filter(p => group.participants.includes(p.id)) ?? []).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+																			<Command.Item
+																				value={participant.name ?? participant.id}
+																				onSelect={() => toggleBumpHighlight(group.id, participant.id)}
+																			>
+																				<Check class={['mr-2 size-3', (bumpChartHighlight.get(group.id)?.has(participant.id)) ? 'opacity-100' : 'opacity-0']} />
+																				{getParticipantName(participant.id)}
+																			</Command.Item>
+																		{/each}
+																	</Command.Group>
+																</Command.List>
+															</Command.Root>
+														</Popover.Content>
+													</Popover.Root>
+												</div>
+											{/if}
+										</div>
 										{#if !hiddenBumpCharts.has(group.id)}
 											<div class="bump-chart-wrapper">
 												<BumpChart
@@ -1569,6 +1733,7 @@
 													isSwiss={tournament.groupStage?.type === 'SWISS'}
 													qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
 													isDoubles={tournament.gameType === 'doubles'}
+													highlightedParticipants={getBumpHighlight(group.id)}
 												/>
 											</div>
 										{/if}
@@ -1700,8 +1865,9 @@
 										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
 										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
 										{#if hasEnoughVisibleMatches}
+										{@const goldRoundLabel = getScoringLabelForRound(goldBracket.config, round.name)}
 										<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
-											<h3 class="round-name">{translateRoundName(round.name)}</h3>
+											<h3 class="round-name">{translateRoundName(round.name)} {#if goldRoundLabel}<span class="scoring-badge">{goldRoundLabel}</span>{/if}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
 													{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
@@ -1774,8 +1940,9 @@
 									<!-- Gold third place match -->
 									{#if goldBracket.thirdPlaceMatch && !isByeMatch(goldBracket.thirdPlaceMatch)}
 										{@const thirdMatch = goldBracket.thirdPlaceMatch}
+										{@const goldThirdLabel = getScoringLabelForRound(goldBracket.config, "Semifinales")}
 										<div class="bracket-round third-place">
-											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
+											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'} {#if goldThirdLabel}<span class="scoring-badge">{goldThirdLabel}</span>{/if}</h3>
 											<div class="matches-column">
 												<!-- svelte-ignore a11y_click_events_have_key_events -->
 												<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1839,6 +2006,7 @@
 								<div class="consolation-inline">
 									<div class="consolation-inline-header">
 										🏅 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
+										{#if goldBracket?.config}<span class="scoring-badge">{getScoringLabelForRound(goldBracket.config, "earlyRounds")}</span>{/if}
 									</div>
 									<div class="consolation-unified">
 										<!-- R16 consolation rounds -->
@@ -1976,8 +2144,9 @@
 								<div class="bracket-container">
 									{#each silverBracket.rounds as round, roundIndex}
 									{#if round.matches.length > 0}
+									{@const silverRoundLabel = getScoringLabelForRound(silverBracket.config, round.name)}
 										<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
-											<h3 class="round-name">{translateRoundName(round.name)}</h3>
+											<h3 class="round-name">{translateRoundName(round.name)} {#if silverRoundLabel}<span class="scoring-badge">{silverRoundLabel}</span>{/if}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
 													{@const isMatchBye = isByeMatch(match)}
@@ -2062,8 +2231,9 @@
 									<!-- Silver third place match -->
 									{#if silverBracket.thirdPlaceMatch && !isByeMatch(silverBracket.thirdPlaceMatch)}
 										{@const thirdMatch = silverBracket.thirdPlaceMatch}
+										{@const thirdLabel0 = getScoringLabelForRound(silverBracket.config, "Semifinales")}
 										<div class="bracket-round third-place">
-											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
+											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'} {#if thirdLabel0}<span class="scoring-badge">{thirdLabel0}</span>{/if}</h3>
 											<div class="matches-column">
 												<!-- svelte-ignore a11y_click_events_have_key_events -->
 												<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -2128,6 +2298,7 @@
 								<div class="consolation-inline">
 									<div class="consolation-inline-header">
 										🏅 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
+										{#if silverBracket?.config}<span class="scoring-badge">{getScoringLabelForRound(silverBracket.config, "earlyRounds")}</span>{/if}
 									</div>
 									<div class="consolation-unified">
 										<!-- R16 consolation rounds -->
@@ -2276,8 +2447,9 @@
 										{@const visibleMatches = round.matches.filter(m => !isByeMatch(m))}
 										{@const hasEnoughVisibleMatches = visibleMatches.length > 0 && visibleMatches.length >= round.matches.length / 2}
 										{#if hasEnoughVisibleMatches}
+										{@const parallelRoundLabel = getScoringLabelForRound(currentBracket?.config, round.name)}
 										<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
-											<h3 class="round-name">{translateRoundName(round.name)}</h3>
+											<h3 class="round-name">{translateRoundName(round.name)} {#if parallelRoundLabel}<span class="scoring-badge">{parallelRoundLabel}</span>{/if}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
 													{@const isByeA = match.participantA?.toUpperCase().includes('BYE')}
@@ -2349,8 +2521,9 @@
 
 									<!-- Third place match -->
 									{#if thirdPlaceMatch && !isByeMatch(thirdPlaceMatch)}
+										{@const thirdLabel1 = getScoringLabelForRound(currentBracket?.config, "Semifinales")}
 										<div class="bracket-round third-place">
-											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
+											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'} {#if thirdLabel1}<span class="scoring-badge">{thirdLabel1}</span>{/if}</h3>
 											<div class="matches-column">
 												<!-- svelte-ignore a11y_click_events_have_key_events -->
 												<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -2409,8 +2582,9 @@
 							<div class="bracket-container">
 								{#each goldBracket.rounds as round, roundIndex}
 									{#if round.matches.length > 0}
+									{@const singleRoundLabel = getScoringLabelForRound(goldBracket.config, round.name)}
 									<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
-										<h3 class="round-name">{translateRoundName(round.name)}</h3>
+										<h3 class="round-name">{translateRoundName(round.name)} {#if singleRoundLabel}<span class="scoring-badge">{singleRoundLabel}</span>{/if}</h3>
 										<div class="matches-column">
 											{#each round.matches as match}
 												{@const isMatchBye = isByeMatch(match)}
@@ -2495,8 +2669,9 @@
 								<!-- Third place match -->
 								{#if goldBracket.thirdPlaceMatch && !isByeMatch(goldBracket.thirdPlaceMatch)}
 									{@const thirdMatch = goldBracket.thirdPlaceMatch}
+									{@const thirdLabel2 = getScoringLabelForRound(goldBracket.config, "Semifinales")}
 									<div class="bracket-round third-place">
-										<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'}</h3>
+										<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'} {#if thirdLabel2}<span class="scoring-badge">{thirdLabel2}</span>{/if}</h3>
 										<div class="matches-column">
 											<!-- svelte-ignore a11y_click_events_have_key_events -->
 											<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -2560,6 +2735,7 @@
 							<div class="consolation-inline">
 								<div class="consolation-inline-header">
 									🏅 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}
+									{#if goldBracket?.config}<span class="scoring-badge">{getScoringLabelForRound(goldBracket.config, "earlyRounds")}</span>{/if}
 								</div>
 								<div class="consolation-unified">
 									<!-- R16 consolation rounds -->
@@ -4475,6 +4651,33 @@
 		transform: rotate(180deg);
 	}
 
+	.bump-chart-header {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.bump-chart-header .bump-chart-toggle {
+		border-radius: 0;
+	}
+
+	.bump-filter-area {
+		display: flex;
+		justify-content: flex-end;
+		padding: 0.25rem 0.75rem;
+		background: color-mix(in srgb, var(--primary) 5%, transparent);
+		border-top: 1px solid color-mix(in srgb, var(--primary) 10%, transparent);
+	}
+
+	:global(.bump-filter-btn) {
+		background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
+		border-color: color-mix(in srgb, var(--primary) 25%, transparent) !important;
+		min-width: 120px;
+	}
+
+	:global(.bump-filter-btn:hover) {
+		background: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+	}
+
 	.bump-chart-wrapper {
 		background: var(--card);
 		border-top: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
@@ -5114,6 +5317,40 @@
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
 		text-align: center;
+	}
+
+	.scoring-badge {
+		display: inline-block;
+		font-size: 0.6rem;
+		font-weight: 600;
+		color: #94a3b8;
+		background: rgba(148, 163, 184, 0.12);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		padding: 0.1rem 0.4rem;
+		border-radius: 4px;
+		letter-spacing: 0.03em;
+		text-transform: none;
+		vertical-align: middle;
+		margin-left: 0.35rem;
+	}
+
+	/* Badge inside golden final round */
+	.bracket-round:last-child:not(.third-place) .scoring-badge,
+	.bracket-round:nth-last-child(2):not(.third-place):has(+ .third-place) .scoring-badge {
+		color: #92400e;
+		background: rgba(120, 53, 15, 0.15);
+	}
+
+	/* Badge inside bronze third-place round */
+	.bracket-round.third-place .scoring-badge {
+		color: #5c4033;
+		background: rgba(92, 64, 51, 0.15);
+	}
+
+	/* Badge inside consolation header */
+	.consolation-inline-header .scoring-badge {
+		font-size: 0.6rem;
+		margin-left: 0.4rem;
 	}
 
 	.matches-column {
@@ -5813,6 +6050,12 @@
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .round-name {
 		color: #4a5568;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .scoring-badge {
+		color: #64748b;
+		background: rgba(100, 116, 139, 0.08);
+		border-color: rgba(100, 116, 139, 0.2);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bracket-match {
