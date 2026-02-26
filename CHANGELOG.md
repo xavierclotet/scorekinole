@@ -2,6 +2,18 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.49] - 2026-02-26
+- Move New Match and Tournament buttons into Scorekinole menu with blue icons
+- Redesign hammer indicator as floating image below player name with dark bg inversion
+- Add Ctrl+M (new match) and Ctrl+J (tournament match) keyboard shortcuts
+- Restrict score interaction to score number only (not full card area)
+- Hammer icon scales with player name size setting
+- Add player highlight filter to bump chart and 20s chart
+- Add game mode scoring badge to public tournament view
+- Replace player filter with searchable combobox in transitions
+- Fix BYE handling, auto-fill reliability, and WO/DSQ improvements
+- Redesign wizard step 6 review with compact layout
+
 ## [2.4.48] - 2026-02-25
 - Accurate tiebreaker rules in tournament rules modal (2-player vs 3+ player, Swiss vs RR, shoot-out)
 - Show ranking points distribution table in tournament rules modal
