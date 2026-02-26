@@ -401,6 +401,20 @@
 				return;
 			}
 
+			// Ctrl/Cmd + M - New friendly match
+			if (isMod && e.key.toLowerCase() === 'm') {
+				e.preventDefault();
+				handleNewMatchClick();
+				return;
+			}
+
+			// Ctrl/Cmd + J - Join tournament match
+			if (isMod && e.key.toLowerCase() === 'j') {
+				e.preventDefault();
+				handleJoinTournament();
+				return;
+			}
+
 			// Ctrl/Cmd + , - Settings
 			if (isMod && e.key === ',') {
 				e.preventDefault();
@@ -2215,6 +2229,7 @@
 							<Play class="size-4 text-blue-500" />
 						</div>
 						<span class="flex-1 font-medium">{m.scoring_newMatchButton()}</span>
+						<DropdownMenu.Shortcut>Ctrl+M</DropdownMenu.Shortcut>
 					</DropdownMenu.Item>
 					<DropdownMenu.Item onclick={handleJoinTournament} disabled={isCheckingTournament} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
 						<div class="flex items-center justify-center size-8 rounded-md bg-blue-500/15 group-hover:bg-blue-500/25 transition-colors">
@@ -2225,6 +2240,7 @@
 							{/if}
 						</div>
 						<span class="flex-1 font-medium">{m.tournament_playMatch()}</span>
+						<DropdownMenu.Shortcut>Ctrl+J</DropdownMenu.Shortcut>
 					</DropdownMenu.Item>
 					<DropdownMenu.Separator class="my-2" />
 					<DropdownMenu.Item onclick={() => showQRScanner = true} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">

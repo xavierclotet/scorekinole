@@ -890,15 +890,17 @@
 	<div
 		class="score-display"
 		data-webmcp="score-display"
-		ontouchstart={handleTouchStart}
-		ontouchend={handleTouchEnd}
-		onmousedown={handleMouseDown}
-		onmouseup={handleMouseUp}
-		role="button"
-		tabindex="0"
-		aria-label="{team.name} score: {team.points}"
 	>
-		<div class="score">{team.points}</div>
+		<div
+			class="score"
+			ontouchstart={handleTouchStart}
+			ontouchend={handleTouchEnd}
+			onmousedown={handleMouseDown}
+			onmouseup={handleMouseUp}
+			role="button"
+			tabindex="0"
+			aria-label="{team.name} score: {team.points}"
+		>{team.points}</div>
 	</div>
 
 </div>
@@ -1221,7 +1223,7 @@
 	/* Hammer indicator - floating below player name */
 	.hammer-floating {
 		position: absolute;
-		bottom: -30px;
+		bottom: -35px;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
@@ -1254,7 +1256,7 @@
 		flex: 1;
 		gap: 0.5rem;
 		width: 100%;
-		cursor: pointer;
+		pointer-events: none;
 	}
 
 	.score-display:active .score {
@@ -1268,6 +1270,8 @@
 		line-height: 1;
 		opacity: 0.95;
 		transition: font-size 0.2s ease;
+		pointer-events: auto;
+		cursor: pointer;
 	}
 
 	/* Score size variants - base (desktop landscape) */
@@ -1293,7 +1297,9 @@
 	.name-size-large .player-name-badge { font-size: 2.3rem; }
 
 	/* Hammer size scales with name size */
-	.hammer-floating img { width: 32px; height: 32px; }
+	.name-size-small .hammer-floating img { width: 24px; height: 24px; }
+	.name-size-medium .hammer-floating img { width: 32px; height: 32px; }
+	.name-size-large .hammer-floating img { width: 40px; height: 40px; }
 
 	/* Avatar size scales with name size - base (desktop) */
 	.name-size-small .player-avatar { width: 28px; height: 28px; }
@@ -1347,7 +1353,9 @@
 		.name-size-large .player-name-badge { font-size: 2rem; }
 
 		/* Hammer sizes for tablet */
-		.hammer-floating img { width: 28px; height: 28px; }
+		.name-size-small .hammer-floating img { width: 22px; height: 22px; }
+		.name-size-medium .hammer-floating img { width: 28px; height: 28px; }
+		.name-size-large .hammer-floating img { width: 36px; height: 36px; }
 
 		/* Avatar sizes for tablet */
 		.name-size-small .player-avatar { width: 24px; height: 24px; }
@@ -1413,7 +1421,9 @@
 		.name-size-large .player-name-badge { font-size: 1.75rem; }
 
 		/* Hammer sizes for mobile */
-		.hammer-floating img { width: 24px; height: 24px; }
+		.name-size-small .hammer-floating img { width: 18px; height: 18px; }
+		.name-size-medium .hammer-floating img { width: 24px; height: 24px; }
+		.name-size-large .hammer-floating img { width: 30px; height: 30px; }
 
 		/* Avatar sizes for mobile */
 		.name-size-small .player-avatar { width: 22px; height: 22px; }
@@ -1476,7 +1486,9 @@
 		.name-size-large .player-name-badge { font-size: 2.1rem; }
 
 		/* Hammer sizes for portrait tablet */
-		.hammer-floating img { width: 28px; height: 28px; }
+		.name-size-small .hammer-floating img { width: 22px; height: 22px; }
+		.name-size-medium .hammer-floating img { width: 28px; height: 28px; }
+		.name-size-large .hammer-floating img { width: 36px; height: 36px; }
 
 		/* Avatar sizes for portrait tablet */
 		.name-size-small .player-avatar { width: 26px; height: 26px; }
@@ -1511,7 +1523,9 @@
 		.name-size-large .player-name-badge { font-size: 1.8rem; }
 
 		/* Hammer sizes for portrait mobile */
-		.hammer-floating img { width: 24px; height: 24px; }
+		.name-size-small .hammer-floating img { width: 18px; height: 18px; }
+		.name-size-medium .hammer-floating img { width: 24px; height: 24px; }
+		.name-size-large .hammer-floating img { width: 30px; height: 30px; }
 
 		/* Avatar sizes for portrait mobile */
 		.name-size-small .player-avatar { width: 24px; height: 24px; }
@@ -1547,7 +1561,9 @@
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for very small phones */
-		.hammer-floating img { width: 22px; height: 22px; }
+		.name-size-small .hammer-floating img { width: 16px; height: 16px; }
+		.name-size-medium .hammer-floating img { width: 22px; height: 22px; }
+		.name-size-large .hammer-floating img { width: 28px; height: 28px; }
 
 		/* Avatar sizes for very small phones */
 		.name-size-small .player-avatar { width: 20px; height: 20px; }
@@ -1588,7 +1604,9 @@
 		.name-size-large .player-name-badge { font-size: 1.55rem; }
 
 		/* Hammer sizes for landscape mobile */
-		.hammer-floating img { width: 22px; height: 22px; }
+		.name-size-small .hammer-floating img { width: 16px; height: 16px; }
+		.name-size-medium .hammer-floating img { width: 22px; height: 22px; }
+		.name-size-large .hammer-floating img { width: 28px; height: 28px; }
 
 		/* Avatar sizes for landscape mobile */
 		.name-size-small .player-avatar { width: 20px; height: 20px; }
