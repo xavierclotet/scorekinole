@@ -17,6 +17,7 @@
   import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { normalizeTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution, calculateRankingPoints, getNaturalThreshold } from '$lib/algorithms/ranking';
+  import { TIER_COLORS } from '$lib/constants';
   import { getUserProfileById, createGuestUserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
   import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
@@ -2602,7 +2603,7 @@
                   <input type="radio" bind:group={selectedTier} value="SERIES_35" />
                   <div class="tier-card">
                     <div class="tier-header">
-                      <span class="tier-badge series-35">35 pts</span>
+                      <span class="tier-badge" style="--tier-color: {TIER_COLORS.SERIES_35}">35 pts</span>
                       <span class="tier-name">{m.wizard_seriesThirtyFive()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_seriesThirtyFiveDesc()}</div>
@@ -2615,7 +2616,7 @@
                   <input type="radio" bind:group={selectedTier} value="SERIES_25" />
                   <div class="tier-card">
                     <div class="tier-header">
-                      <span class="tier-badge series-25">25 pts</span>
+                      <span class="tier-badge" style="--tier-color: {TIER_COLORS.SERIES_25}">25 pts</span>
                       <span class="tier-name">{m.wizard_seriesTwentyFive()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_seriesTwentyFiveDesc()}</div>
@@ -2628,7 +2629,7 @@
                   <input type="radio" bind:group={selectedTier} value="SERIES_15" />
                   <div class="tier-card">
                     <div class="tier-header">
-                      <span class="tier-badge series-15">15 pts</span>
+                      <span class="tier-badge" style="--tier-color: {TIER_COLORS.SERIES_15}">15 pts</span>
                       <span class="tier-name">{m.wizard_seriesFifteen()}</span>
                     </div>
                     <div class="tier-desc">{m.wizard_seriesFifteenDesc()}</div>
@@ -4195,11 +4196,8 @@
     font-size: 0.65rem;
     font-weight: 700;
     color: #fff;
+    background: var(--tier-color);
   }
-
-  .tier-badge.series-35 { background: #d4af37; }
-  .tier-badge.series-25 { background: #1976d2; }
-  .tier-badge.series-15 { background: #388e3c; }
 
   .tier-name {
     font-weight: 600;

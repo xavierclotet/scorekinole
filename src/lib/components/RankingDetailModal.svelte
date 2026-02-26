@@ -1,9 +1,9 @@
 <script lang="ts">
 	import Modal from './Modal.svelte';
+	import TierBadge from './TierBadge.svelte';
 	import { theme } from '$lib/stores/theme';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { RankedPlayer } from '$lib/firebase/rankings';
-	import { normalizeTier } from '$lib/types/tournament';
 
 	interface Props {
 		isOpen?: boolean;
@@ -19,23 +19,6 @@
 			month: 'short',
 			year: 'numeric'
 		});
-	}
-
-	function getTierClass(tier?: string): string {
-		if (!tier) return '';
-		const normalized = normalizeTier(tier);
-		return `tier-${normalized.toLowerCase()}`;
-	}
-
-	function getTierDisplayName(tier?: string): string {
-		if (!tier) return '';
-		const normalized = normalizeTier(tier);
-		const labels: Record<string, () => string> = {
-			SERIES_35: () => m.tournaments_seriesThirtyFive(),
-			SERIES_25: () => m.tournaments_seriesTwentyFive(),
-			SERIES_15: () => m.tournaments_seriesFifteen()
-		};
-		return labels[normalized]?.() || normalized;
 	}
 </script>
 
@@ -55,9 +38,7 @@
 							<div class="tournament-main">
 								<span class="tournament-name">{tournament.tournamentName}</span>
 								{#if tournament.tier}
-									<span class="tournament-tier {getTierClass(tournament.tier)}">
-										{getTierDisplayName(tournament.tier)}
-									</span>
+									<TierBadge tier={tournament.tier} />
 								{/if}
 							</div>
 							<div class="tournament-meta">
@@ -184,30 +165,6 @@
 		font-weight: 500;
 		color: white;
 		font-size: 0.9rem;
-	}
-
-	.tournament-tier {
-		padding: 0.1rem 0.4rem;
-		border-radius: 3px;
-		font-size: 0.6rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-	}
-
-	.tier-series_50 {
-		background: rgba(212, 175, 55, 0.25);
-		color: #d4af37;
-	}
-
-	.tier-series_40 {
-		background: rgba(59, 130, 246, 0.25);
-		color: #60a5fa;
-	}
-
-	.tier-series_35 {
-		background: rgba(56, 142, 60, 0.25);
-		color: #66bb6a;
 	}
 
 	.tournament-meta {

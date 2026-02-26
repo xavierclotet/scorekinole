@@ -1346,6 +1346,7 @@
         }
 
         const winner = gamesA > gamesB ? match.participantA : match.participantB;
+        console.log(`🎲🔵 simulateMatch: matchId=${match.id}, pA=${match.participantA?.substring(0, 12)}, pB=${match.participantB?.substring(0, 12)}, gA=${gamesA}, gB=${gamesB}, winner=${winner?.substring(0, 12)}, bracketType=${bracketType}`);
 
         // Use single atomic transaction: update match + advance winner in one step
         const success = await completeBracketMatchAndAdvance(currentTournamentId, match.id, {
@@ -1624,6 +1625,7 @@
                 }
 
                 const winner = gamesA > gamesB ? match.participantA : match.participantB;
+                console.log(`🎲🔵 consolation simulateMatch: matchId=${match.id}, pA=${match.participantA?.substring(0, 12)}, pB=${match.participantB?.substring(0, 12)}, gA=${gamesA}, gB=${gamesB}, winner=${winner?.substring(0, 12)}`);
 
                 // Use single atomic transaction for consolation too
                 const success = await completeBracketMatchAndAdvance(
@@ -1693,6 +1695,7 @@
       // Detect and repair broken matches (completed but winner not advanced)
       tournament = await getTournament(currentTournamentId);
       const brokenAfterAutoFill = detectBrokenMatches();
+      console.log(`🔧🔵 detectBrokenMatches after autofill: found ${brokenAfterAutoFill.length} broken`, brokenAfterAutoFill.map(b => ({ matchId: b.match.id, winnerId: b.winnerId?.substring(0, 12), nextMatchId: b.nextMatchId, slot: b.slot })));
       if (brokenAfterAutoFill.length > 0) {
         console.warn(`⚠️ Found ${brokenAfterAutoFill.length} broken matches after auto-fill, repairing...`);
         for (const item of brokenAfterAutoFill) {

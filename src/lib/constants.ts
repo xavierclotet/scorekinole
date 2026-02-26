@@ -64,6 +64,13 @@ export const DEVELOPED_COUNTRIES = [
     'Suiza'
 ];
 
+/** Tier badge colors (used by TierBadge component, TournamentCard, etc.) */
+export const TIER_COLORS: Record<string, string> = {
+	SERIES_35: '#d4af37',
+	SERIES_25: '#818cf8',
+	SERIES_15: '#9ca3af'
+};
+
 /** Country codes for user profiles (names come from translations) */
 export const COUNTRY_CODES = [
     'AR', 'AU', 'AT', 'BE', 'BR', 'CA', 'CAT', 'CL', 'CN', 'CO',

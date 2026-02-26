@@ -2346,10 +2346,16 @@ export async function completeBracketMatchAndAdvance(
 ): Promise<boolean> {
   if (!db) return false;
 
+  const callId = Math.random().toString(36).substring(2, 8);
+  console.log(`🔀🔵 completeBracketMatchAndAdvance ENTRY [${callId}]: matchId=${matchId}, result.winner=${result.winner?.substring(0, 12)}, caller=${new Error().stack?.split('\n')[2]?.trim()}`);
+
   try {
     const tournamentRef = doc(db, 'tournaments', tournamentId);
+    let txAttempt = 0;
 
     await runTransaction(db, async (transaction) => {
+      txAttempt++;
+      console.log(`🔀🔵 Transaction attempt ${txAttempt} [${callId}] for ${matchId}, result.winner=${result.winner?.substring(0, 12)}`);
       const snapshot = await transaction.get(tournamentRef);
       if (!snapshot.exists()) throw new Error('Tournament not found');
 
@@ -2387,6 +2393,35 @@ export async function completeBracketMatchAndAdvance(
         }
         return merged;
       };
+
+      // --- Phase 1.5: Check if match is already completed (prevents duplicate processing from stale cache) ---
+      {
+        let existingMatch: BracketMatch | undefined;
+        const gb = tournament.finalStage.goldBracket;
+        const sb = tournament.finalStage.silverBracket;
+        if (gb) {
+          if (gb.thirdPlaceMatch?.id === matchId) existingMatch = gb.thirdPlaceMatch;
+          if (!existingMatch) {
+            for (const r of gb.rounds) { existingMatch = r.matches.find(m => m.id === matchId); if (existingMatch) break; }
+          }
+          if (!existingMatch && gb.consolationBrackets) {
+            for (const c of gb.consolationBrackets) { for (const r of c.rounds) { existingMatch = r.matches.find(m => m.id === matchId); if (existingMatch) break; } if (existingMatch) break; }
+          }
+        }
+        if (!existingMatch && sb) {
+          if (sb.thirdPlaceMatch?.id === matchId) existingMatch = sb.thirdPlaceMatch;
+          if (!existingMatch) {
+            for (const r of sb.rounds) { existingMatch = r.matches.find(m => m.id === matchId); if (existingMatch) break; }
+          }
+          if (!existingMatch && sb.consolationBrackets) {
+            for (const c of sb.consolationBrackets) { for (const r of c.rounds) { existingMatch = r.matches.find(m => m.id === matchId); if (existingMatch) break; } if (existingMatch) break; }
+          }
+        }
+        if (existingMatch && (existingMatch.status === 'COMPLETED' || existingMatch.status === 'WALKOVER')) {
+          console.log(`🔀⏭️ Match ${matchId} already ${existingMatch.status} in Firestore (winner=${existingMatch.winner?.substring(0, 12)}), skipping duplicate processing [${callId}]`);
+          return;
+        }
+      }
 
       // --- Phase 2: Detect match location and update it ---
       type MatchLocation = 'gold' | 'silver' | 'gold_consolation' | 'silver_consolation';
@@ -2595,9 +2630,10 @@ export async function completeBracketMatchAndAdvance(
       transaction.update(tournamentRef, updateData);
     });
 
+    console.log(`🔀🟢 completeBracketMatchAndAdvance SUCCESS [${callId}]: matchId=${matchId}, attempts=${txAttempt}`);
     return true;
   } catch (error) {
-    console.error('❌ Error completing bracket match:', error);
+    console.error(`❌ Error completing bracket match [${callId}]:`, error);
     return false;
   }
 }

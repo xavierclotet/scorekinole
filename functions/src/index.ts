@@ -13,17 +13,13 @@ import { logger } from "firebase-functions";
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
 const telegramChatId = defineSecret("TELEGRAM_CHAT_ID");
 
-// Lazy initialization
-let db: Firestore | null = null;
+// Initialize Firebase Admin at module level (avoids race conditions with concurrent calls)
+if (getApps().length === 0) {
+  initializeApp();
+}
 
 function getDb(): Firestore {
-  if (!db) {
-    if (getApps().length === 0) {
-      initializeApp();
-    }
-    db = getFirestore();
-  }
-  return db;
+  return getFirestore();
 }
 
 // Types (mirrored from client for server-side use)

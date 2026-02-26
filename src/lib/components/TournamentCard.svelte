@@ -4,6 +4,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { translateCountry } from '$lib/utils/countryTranslations';
 	import LiveBadge from './LiveBadge.svelte';
+	import TierBadge from './TierBadge.svelte';
 
 	interface Props {
 		tournament: TournamentListItem;
@@ -55,32 +56,6 @@
 			CANCELLED: () => m.admin_cancelled()
 		};
 		return labels[status]?.() || status;
-	};
-
-	const tierColors: Record<string, string> = {
-		SERIES_35: '#d4af37',
-		SERIES_25: '#3b82f6',
-		SERIES_15: '#388e3c',
-		// Legacy support
-		MAJOR: '#d4af37',
-		NATIONAL: '#3b82f6',
-		REGIONAL: '#388e3c',
-		CLUB: '#388e3c'
-	};
-
-	// Use translated tier labels
-	const getTierLabel = (tier: string): string => {
-		const labels: Record<string, () => string> = {
-			SERIES_35: () => m.tournaments_seriesThirtyFive(),
-			SERIES_25: () => m.tournaments_seriesTwentyFive(),
-			SERIES_15: () => m.tournaments_seriesFifteen(),
-			// Legacy support
-			MAJOR: () => m.tournaments_seriesThirtyFive(),
-			NATIONAL: () => m.tournaments_seriesTwentyFive(),
-			REGIONAL: () => m.tournaments_seriesFifteen(),
-			CLUB: () => m.tournaments_seriesFifteen()
-		};
-		return labels[tier]?.() || tier;
 	};
 
 	function formatDate(timestamp?: number): string {
@@ -172,9 +147,7 @@
 				{getStatusLabel(displayStatus())}
 			</span>
 			{#if tournament.tier}
-				<span class="badge tier" style="--tier-color: {tierColors[tournament.tier]}">
-					{getTierLabel(tournament.tier)}
-				</span>
+				<TierBadge tier={tournament.tier} />
 			{/if}
 		</div>
 		<span class="participants">
@@ -420,11 +393,6 @@
 	.badge.status {
 		background: color-mix(in srgb, var(--status-color) 20%, transparent);
 		color: var(--status-color);
-	}
-
-	.badge.tier {
-		background: color-mix(in srgb, var(--tier-color) 20%, transparent);
-		color: var(--tier-color);
 	}
 
 	.live-indicator {
