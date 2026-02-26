@@ -392,6 +392,26 @@
           finalRoundsToPlay = goldConfig.final?.roundsToPlay || 4;
           finalMatchesToWin = goldConfig.final?.matchesToWin || 1;
 
+          // Gold bracket: early rounds config
+          if (goldConfig.earlyRounds) {
+            earlyRoundsGameMode = goldConfig.earlyRounds.gameMode || 'rounds';
+            earlyRoundsPointsToWin = goldConfig.earlyRounds.pointsToWin || 7;
+            earlyRoundsToPlay = goldConfig.earlyRounds.roundsToPlay || 4;
+            earlyRoundsMatchesToWin = goldConfig.earlyRounds.matchesToWin || 1;
+          }
+          // Gold bracket: semifinal config
+          if (goldConfig.semifinal) {
+            semifinalGameMode = goldConfig.semifinal.gameMode || 'points';
+            semifinalPointsToWin = goldConfig.semifinal.pointsToWin || 7;
+            semifinalRoundsToPlay = goldConfig.semifinal.roundsToPlay || 4;
+            semifinalMatchesToWin = goldConfig.semifinal.matchesToWin || 1;
+          }
+          // Gold bracket: final config (detailed variables)
+          bracketFinalGameMode = goldConfig.final?.gameMode || 'points';
+          bracketFinalPointsToWin = goldConfig.final?.pointsToWin || 9;
+          bracketFinalRoundsToPlay = goldConfig.final?.roundsToPlay || 4;
+          bracketFinalMatchesToWin = goldConfig.final?.matchesToWin || 1;
+
           // Silver bracket config
           if (tournament.finalStage.silverBracket?.config) {
             const silverConfig = tournament.finalStage.silverBracket.config;
@@ -399,6 +419,26 @@
             silverPointsToWin = silverConfig.final?.pointsToWin || 7;
             silverRoundsToPlay = silverConfig.final?.roundsToPlay || 4;
             silverMatchesToWin = silverConfig.final?.matchesToWin || 1;
+
+            // Silver bracket: early rounds config
+            if (silverConfig.earlyRounds) {
+              silverEarlyRoundsGameMode = silverConfig.earlyRounds.gameMode || 'rounds';
+              silverEarlyRoundsPointsToWin = silverConfig.earlyRounds.pointsToWin || 7;
+              silverEarlyRoundsToPlay = silverConfig.earlyRounds.roundsToPlay || 4;
+              silverEarlyRoundsMatchesToWin = silverConfig.earlyRounds.matchesToWin || 1;
+            }
+            // Silver bracket: semifinal config
+            if (silverConfig.semifinal) {
+              silverSemifinalGameMode = silverConfig.semifinal.gameMode || 'rounds';
+              silverSemifinalPointsToWin = silverConfig.semifinal.pointsToWin || 7;
+              silverSemifinalRoundsToPlay = silverConfig.semifinal.roundsToPlay || 4;
+              silverSemifinalMatchesToWin = silverConfig.semifinal.matchesToWin || 1;
+            }
+            // Silver bracket: final config (detailed variables)
+            silverBracketFinalGameMode = silverConfig.final?.gameMode || 'rounds';
+            silverBracketFinalPointsToWin = silverConfig.final?.pointsToWin || 7;
+            silverBracketFinalRoundsToPlay = silverConfig.final?.roundsToPlay || 4;
+            silverBracketFinalMatchesToWin = silverConfig.final?.matchesToWin || 1;
           } else {
             silverGameMode = 'rounds';
             silverPointsToWin = 7;
@@ -436,6 +476,26 @@
           pointsToWin = config.final?.pointsToWin || 7;
           roundsToPlay = config.final?.roundsToPlay || 4;
           matchesToWin = config.final?.matchesToWin || 3;
+
+          // ONE_PHASE: early rounds config
+          if (config.earlyRounds) {
+            earlyRoundsGameMode = config.earlyRounds.gameMode || 'rounds';
+            earlyRoundsPointsToWin = config.earlyRounds.pointsToWin || 7;
+            earlyRoundsToPlay = config.earlyRounds.roundsToPlay || 4;
+            earlyRoundsMatchesToWin = config.earlyRounds.matchesToWin || 1;
+          }
+          // ONE_PHASE: semifinal config
+          if (config.semifinal) {
+            semifinalGameMode = config.semifinal.gameMode || 'points';
+            semifinalPointsToWin = config.semifinal.pointsToWin || 7;
+            semifinalRoundsToPlay = config.semifinal.roundsToPlay || 4;
+            semifinalMatchesToWin = config.semifinal.matchesToWin || 1;
+          }
+          // ONE_PHASE: final config (detailed variables)
+          bracketFinalGameMode = config.final?.gameMode || 'points';
+          bracketFinalPointsToWin = config.final?.pointsToWin || 9;
+          bracketFinalRoundsToPlay = config.final?.roundsToPlay || 4;
+          bracketFinalMatchesToWin = config.final?.matchesToWin || 1;
         } else {
           // Legacy fallback (old tournament format)
           const legacyTournament = tournament as any;
@@ -586,12 +646,53 @@
           finalPointsToWin = goldConfig.final?.pointsToWin || 7;
           finalRoundsToPlay = goldConfig.final?.roundsToPlay || 4;
           finalMatchesToWin = goldConfig.final?.matchesToWin || 1;
+
+          // Gold bracket: early rounds config
+          if (goldConfig.earlyRounds) {
+            earlyRoundsGameMode = goldConfig.earlyRounds.gameMode || 'rounds';
+            earlyRoundsPointsToWin = goldConfig.earlyRounds.pointsToWin || 7;
+            earlyRoundsToPlay = goldConfig.earlyRounds.roundsToPlay || 4;
+            earlyRoundsMatchesToWin = goldConfig.earlyRounds.matchesToWin || 1;
+          }
+          // Gold bracket: semifinal config
+          if (goldConfig.semifinal) {
+            semifinalGameMode = goldConfig.semifinal.gameMode || 'points';
+            semifinalPointsToWin = goldConfig.semifinal.pointsToWin || 7;
+            semifinalRoundsToPlay = goldConfig.semifinal.roundsToPlay || 4;
+            semifinalMatchesToWin = goldConfig.semifinal.matchesToWin || 1;
+          }
+          // Gold bracket: final config (detailed variables)
+          bracketFinalGameMode = goldConfig.final?.gameMode || 'points';
+          bracketFinalPointsToWin = goldConfig.final?.pointsToWin || 9;
+          bracketFinalRoundsToPlay = goldConfig.final?.roundsToPlay || 4;
+          bracketFinalMatchesToWin = goldConfig.final?.matchesToWin || 1;
+
           if (tournament.finalStage.silverBracket?.config) {
             const silverConfig = tournament.finalStage.silverBracket.config;
             silverGameMode = silverConfig.final?.gameMode || 'rounds';
             silverPointsToWin = silverConfig.final?.pointsToWin || 7;
             silverRoundsToPlay = silverConfig.final?.roundsToPlay || 4;
             silverMatchesToWin = silverConfig.final?.matchesToWin || 1;
+
+            // Silver bracket: early rounds config
+            if (silverConfig.earlyRounds) {
+              silverEarlyRoundsGameMode = silverConfig.earlyRounds.gameMode || 'rounds';
+              silverEarlyRoundsPointsToWin = silverConfig.earlyRounds.pointsToWin || 7;
+              silverEarlyRoundsToPlay = silverConfig.earlyRounds.roundsToPlay || 4;
+              silverEarlyRoundsMatchesToWin = silverConfig.earlyRounds.matchesToWin || 1;
+            }
+            // Silver bracket: semifinal config
+            if (silverConfig.semifinal) {
+              silverSemifinalGameMode = silverConfig.semifinal.gameMode || 'rounds';
+              silverSemifinalPointsToWin = silverConfig.semifinal.pointsToWin || 7;
+              silverSemifinalRoundsToPlay = silverConfig.semifinal.roundsToPlay || 4;
+              silverSemifinalMatchesToWin = silverConfig.semifinal.matchesToWin || 1;
+            }
+            // Silver bracket: final config (detailed variables)
+            silverBracketFinalGameMode = silverConfig.final?.gameMode || 'rounds';
+            silverBracketFinalPointsToWin = silverConfig.final?.pointsToWin || 7;
+            silverBracketFinalRoundsToPlay = silverConfig.final?.roundsToPlay || 4;
+            silverBracketFinalMatchesToWin = silverConfig.final?.matchesToWin || 1;
           } else {
             silverGameMode = 'rounds';
             silverPointsToWin = 7;
@@ -626,6 +727,26 @@
           pointsToWin = config.final?.pointsToWin || 7;
           roundsToPlay = config.final?.roundsToPlay || 4;
           matchesToWin = config.final?.matchesToWin || 3;
+
+          // ONE_PHASE: early rounds config
+          if (config.earlyRounds) {
+            earlyRoundsGameMode = config.earlyRounds.gameMode || 'rounds';
+            earlyRoundsPointsToWin = config.earlyRounds.pointsToWin || 7;
+            earlyRoundsToPlay = config.earlyRounds.roundsToPlay || 4;
+            earlyRoundsMatchesToWin = config.earlyRounds.matchesToWin || 1;
+          }
+          // ONE_PHASE: semifinal config
+          if (config.semifinal) {
+            semifinalGameMode = config.semifinal.gameMode || 'points';
+            semifinalPointsToWin = config.semifinal.pointsToWin || 7;
+            semifinalRoundsToPlay = config.semifinal.roundsToPlay || 4;
+            semifinalMatchesToWin = config.semifinal.matchesToWin || 1;
+          }
+          // ONE_PHASE: final config (detailed variables)
+          bracketFinalGameMode = config.final?.gameMode || 'points';
+          bracketFinalPointsToWin = config.final?.pointsToWin || 9;
+          bracketFinalRoundsToPlay = config.final?.roundsToPlay || 4;
+          bracketFinalMatchesToWin = config.final?.matchesToWin || 1;
         } else {
           gameMode = 'points';
           pointsToWin = 7;
@@ -2784,182 +2905,181 @@
         <div class="step-container">
           <h2>{m.wizard_finalReview()}</h2>
 
-          <div class="review-grid">
-            <!-- Left Column -->
-            <div class="review-column">
-              <div class="review-card">
-                <div class="review-card-header">
-                  <span class="review-icon">📋</span>
-                  <span>{m.wizard_information()}</span>
-                </div>
-                <div class="review-card-body">
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_key()}</span>
-                    <span class="review-value highlight">{key.toUpperCase()}</span>
-                  </div>
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_name()}</span>
-                    <span class="review-value">{edition}º {name}</span>
-                  </div>
-                  {#if description}
-                    <div class="review-row">
-                      <span class="review-label">{m.wizard_description()}</span>
-                      <span class="review-value">{description}</span>
-                    </div>
-                  {/if}
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_location()}</span>
-                    <span class="review-value">{city}, {country}</span>
-                  </div>
-                  {#if tournamentDate}
-                    <div class="review-row">
-                      <span class="review-label">{m.wizard_date()}</span>
-                      <span class="review-value">{new Date(tournamentDate).toLocaleDateString(getLocale() === 'en' ? 'en-US' : getLocale() === 'ca' ? 'ca-ES' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}{tournamentTime ? `, ${tournamentTime}` : ''}</span>
-                    </div>
-                  {/if}
-                </div>
+          <div class="rv">
+            <!-- Header: Tournament Identity -->
+            <div class="rv-header">
+              <div class="rv-header-top">
+                <span class="rv-key">{key.toUpperCase()}</span>
+                {#if isTest}<span class="rv-badge-test">{m.tournament_isTest()}</span>{/if}
               </div>
-
-              <div class="review-card">
-                <div class="review-card-header">
-                  <span class="review-icon">🎮</span>
-                  <span>{m.wizard_gameConfiguration()}</span>
-                </div>
-                <div class="review-card-body">
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_type()}</span>
-                    <span class="review-value">{gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()}</span>
-                  </div>
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_mode()}</span>
-                    <span class="review-value">{gameMode === 'points' ? `${pointsToWin} pts` : `${roundsToPlay} ${m.scoring_rounds().toLowerCase()}`}</span>
-                  </div>
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_tables()}</span>
-                    <span class="review-value">{numTables}</span>
-                  </div>
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_participants()}</span>
-                    <span class="review-value">{participantCount}</span>
-                  </div>
-                </div>
+              <div class="rv-name">{edition}º {name}</div>
+              {#if description}<div class="rv-desc">{description}</div>{/if}
+              <div class="rv-meta">
+                <span>{city}, {country}</span>
+                {#if address}<span class="rv-sep">·</span><span>{address}</span>{/if}
+                {#if tournamentDate}
+                  <span class="rv-sep">·</span>
+                  <span>{new Date(tournamentDate).toLocaleDateString(getLocale() === 'en' ? 'en-US' : getLocale() === 'ca' ? 'ca-ES' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}{tournamentTime ? `, ${tournamentTime}` : ''}</span>
+                {/if}
               </div>
+              {#if externalLink}
+                <a class="rv-extlink" href={externalLink} target="_blank" rel="noopener">{externalLink}</a>
+              {/if}
+            </div>
 
-              <div class="review-card participants-accordion" class:expanded={participantsExpanded}>
-                <button
-                  type="button"
-                  class="accordion-header"
-                  onclick={() => participantsExpanded = !participantsExpanded}
-                >
-                  <div class="accordion-title">
-                    <span class="review-icon">👥</span>
+            <div class="rv-grid">
+              <!-- Left Column -->
+              <div class="rv-col">
+                <!-- Game Configuration -->
+                <div class="rv-section">
+                  <div class="rv-sh">{m.wizard_gameConfiguration()}</div>
+                  <div class="rv-body">
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.wizard_type()}</span>
+                      <span class="rv-val">{gameType === 'singles' ? m.scoring_singles() : m.scoring_doubles()}</span>
+                    </div>
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.wizard_tables()}</span>
+                      <span class="rv-val">{numTables}</span>
+                    </div>
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.wizard_participants()}</span>
+                      <span class="rv-val">{participantCount}</span>
+                    </div>
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.wizard_options()}</span>
+                      <span class="rv-val rv-tags">
+                        <span class="rv-tag" class:rv-tag-off={!show20s}>20s</span>
+                        <span class="rv-tag" class:rv-tag-off={!showHammer}>Hammer</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Participants Accordion -->
+                <div class="rv-section rv-accordion" class:expanded={participantsExpanded}>
+                  <button type="button" class="rv-sh rv-sh-btn" onclick={() => participantsExpanded = !participantsExpanded}>
                     <span>{m.wizard_participants()}</span>
-                    <span class="participant-count">{participantCount}</span>
-                  </div>
-                  <span class="accordion-chevron">›</span>
-                </button>
-                {#if participantsExpanded}
-                  <div class="accordion-body">
-                    <div class="participants-grid">
+                    <span class="rv-count">{participantCount}</span>
+                    <span class="rv-chevron">›</span>
+                  </button>
+                  {#if participantsExpanded}
+                    <div class="rv-participants">
                       {#each participants as participant, i (participant.id)}
-                        <div class="participant-item">
-                          <span class="participant-number">{i + 1}</span>
-                          <span class="participant-name">
+                        <div class="rv-p-item">
+                          <span class="rv-p-num">{i + 1}</span>
+                          <span class="rv-p-name">
                             {participant.name}{#if gameType === 'doubles' && participant.partner} / {participant.partner.name}{/if}{#if participant.teamName} ({participant.teamName}){/if}
                           </span>
                         </div>
                       {/each}
                     </div>
+                  {/if}
+                </div>
+
+                <!-- Ranking -->
+                {#if rankingEnabled}
+                  <div class="rv-section">
+                    <div class="rv-sh">{m.wizard_ranking()}</div>
+                    <div class="rv-body">
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.wizard_category()}</span>
+                        <span class="rv-val">{getTierInfo(selectedTier).name}</span>
+                      </div>
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.wizard_firstPlacePoints()}</span>
+                        <span class="rv-val rv-hl">{getTierInfo(selectedTier).basePoints}</span>
+                      </div>
+                    </div>
                   </div>
                 {/if}
               </div>
 
-              {#if rankingEnabled}
-                <div class="review-card compact">
-                  <div class="review-card-header">
-                    <span class="review-icon">🏅</span>
-                    <span>{m.wizard_ranking()}</span>
-                  </div>
-                  <div class="review-card-body">
-                    <div class="review-row">
-                      <span class="review-label">{m.wizard_category()}</span>
-                      <span class="review-value">{getTierInfo(selectedTier).name}</span>
+              <!-- Right Column -->
+              <div class="rv-col">
+                <!-- Format -->
+                <div class="rv-section">
+                  <div class="rv-sh">{m.wizard_format()}</div>
+                  <div class="rv-body">
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.wizard_phases()}</span>
+                      <span class="rv-val">{phaseType === 'ONE_PHASE' ? m.wizard_directElimination() : m.wizard_groupsFinal()}</span>
                     </div>
-                    <div class="review-row">
-                      <span class="review-label">{m.wizard_firstPlacePoints()}</span>
-                      <span class="review-value highlight">{getTierInfo(selectedTier).basePoints}</span>
+                    {#if phaseType === 'TWO_PHASE'}
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.tournament_groups()}</span>
+                        <span class="rv-val">
+                          {groupStageType === 'ROUND_ROBIN' ? `${m.admin_roundRobin()} (${numGroups})` : `${m.admin_swissSystem()} (${numSwissRounds}R)`}
+                        </span>
+                      </div>
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.wizard_classificationType()}</span>
+                        <span class="rv-val">{qualificationMode === 'WINS' ? m.tournament_byWins() : m.tournament_byPoints()}</span>
+                      </div>
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.tournament_finalStage()}</span>
+                        <span class="rv-val">{finalStageMode === 'SINGLE_BRACKET' ? m.admin_singleBracket() : m.admin_goldSilverDivisions()}</span>
+                      </div>
+                    {/if}
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.wizard_thirdPlaceMatch()}</span>
+                      <span class="rv-val">{thirdPlaceMatchEnabled ? m.admin_yes() : m.admin_no()}</span>
+                    </div>
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.wizard_consolationRounds()}</span>
+                      <span class="rv-val">{consolationEnabled ? m.admin_yes() : m.admin_no()}</span>
                     </div>
                   </div>
                 </div>
-              {/if}
-            </div>
 
-            <!-- Right Column -->
-            <div class="review-column">
-              <div class="review-card">
-                <div class="review-card-header">
-                  <span class="review-icon">🏆</span>
-                  <span>{m.wizard_format()}</span>
-                </div>
-                <div class="review-card-body">
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_phases()}</span>
-                    <span class="review-value">{phaseType === 'ONE_PHASE' ? m.wizard_directElimination() : m.wizard_groupsFinal()}</span>
-                  </div>
-                  {#if phaseType === 'TWO_PHASE'}
-                    <div class="review-row">
-                      <span class="review-label">{m.tournament_groups()}</span>
-                      <span class="review-value">
-                        {groupStageType === 'ROUND_ROBIN' ? `${m.admin_roundRobin()} (${numGroups})` : `${m.admin_swissSystem()} (${numSwissRounds}R)`}
-                      </span>
+                <!-- Group Stage Config (TWO_PHASE only) -->
+                {#if phaseType === 'TWO_PHASE'}
+                  <div class="rv-section">
+                    <div class="rv-sh">{m.wizard_groupStage()}</div>
+                    <div class="rv-body">
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.wizard_matchConfig()}</span>
+                        <span class="rv-val">
+                          {groupGameMode === 'points'
+                            ? `${groupPointsToWin}p${groupMatchesToWin > 1 ? ` · Pg${groupMatchesToWin}` : ''}`
+                            : `${groupRoundsToPlay}r`}
+                        </span>
+                      </div>
                     </div>
-                    <div class="review-row">
-                      <span class="review-label">{m.wizard_classificationType()}</span>
-                      <span class="review-value">{qualificationMode === 'WINS' ? m.tournament_byWins() : m.tournament_byPoints()}</span>
-                    </div>
-                    <div class="review-row">
-                      <span class="review-label">{m.tournament_finalStage()}</span>
-                      <span class="review-value">{finalStageMode === 'SINGLE_BRACKET' ? m.admin_singleBracket() : m.admin_goldSilverDivisions()}</span>
-                    </div>
-                  {/if}
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_thirdPlaceMatch()}</span>
-                    <span class="review-value">{thirdPlaceMatchEnabled ? m.admin_yes() : m.admin_no()}</span>
                   </div>
-                  <div class="review-row">
-                    <span class="review-label">{m.wizard_consolationRounds()}</span>
-                    <span class="review-value">{consolationEnabled ? m.admin_yes() : m.admin_no()}</span>
-                  </div>
-                </div>
-              </div>
+                {/if}
 
-              {#if phaseType === 'TWO_PHASE'}
-                <div class="review-card">
-                  <div class="review-card-header">
-                    <span class="review-icon">{finalStageMode === 'SPLIT_DIVISIONS' ? '🥇' : '⚙️'}</span>
-                    <span>{finalStageMode === 'SPLIT_DIVISIONS' ? m.admin_goldBracket() : m.tournament_finalStage()}</span>
+                <!-- Gold/Single Bracket Config (shown for ALL phase types) -->
+                <div class="rv-section">
+                  <div class="rv-sh">
+                    {#if phaseType === 'TWO_PHASE' && finalStageMode === 'SPLIT_DIVISIONS'}
+                      {m.admin_goldBracket()}
+                    {:else if phaseType === 'TWO_PHASE'}
+                      {m.tournament_finalStage()}
+                    {:else}
+                      {m.wizard_directElimination()}
+                    {/if}
                   </div>
-                  <div class="review-card-body">
-                    <!-- Show per-phase config -->
-                    <div class="review-row">
-                      <span class="review-label">{m.admin_earlyRounds()}</span>
-                      <span class="review-value">
+                  <div class="rv-body">
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.admin_earlyRounds()}</span>
+                      <span class="rv-val">
                         {earlyRoundsGameMode === 'points'
                           ? `${earlyRoundsPointsToWin}p${earlyRoundsMatchesToWin > 1 ? ` · Pg${earlyRoundsMatchesToWin}` : ''}`
                           : `${earlyRoundsToPlay}r`}
                       </span>
                     </div>
-                    <div class="review-row">
-                      <span class="review-label">{m.admin_semifinals()}</span>
-                      <span class="review-value">
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.admin_semifinals()}</span>
+                      <span class="rv-val">
                         {semifinalGameMode === 'points'
                           ? `${semifinalPointsToWin}p${semifinalMatchesToWin > 1 ? ` · Pg${semifinalMatchesToWin}` : ''}`
                           : `${semifinalRoundsToPlay}r`}
                       </span>
                     </div>
-                    <div class="review-row">
-                      <span class="review-label">{m.admin_final()}</span>
-                      <span class="review-value">
+                    <div class="rv-row">
+                      <span class="rv-lbl">{m.admin_final()}</span>
+                      <span class="rv-val">
                         {bracketFinalGameMode === 'points'
                           ? `${bracketFinalPointsToWin}p${bracketFinalMatchesToWin > 1 ? ` · Pg${bracketFinalMatchesToWin}` : ''}`
                           : `${bracketFinalRoundsToPlay}r`}
@@ -2968,33 +3088,30 @@
                   </div>
                 </div>
 
-                {#if finalStageMode === 'SPLIT_DIVISIONS'}
-                  <div class="review-card">
-                    <div class="review-card-header">
-                      <span class="review-icon">🥈</span>
-                      <span>{m.admin_silverBracket()}</span>
-                    </div>
-                    <div class="review-card-body">
-                      <!-- Show per-phase config for silver -->
-                      <div class="review-row">
-                        <span class="review-label">{m.admin_earlyRounds()}</span>
-                        <span class="review-value">
+                <!-- Silver Bracket Config -->
+                {#if phaseType === 'TWO_PHASE' && finalStageMode === 'SPLIT_DIVISIONS'}
+                  <div class="rv-section">
+                    <div class="rv-sh">{m.admin_silverBracket()}</div>
+                    <div class="rv-body">
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.admin_earlyRounds()}</span>
+                        <span class="rv-val">
                           {silverEarlyRoundsGameMode === 'points'
                             ? `${silverEarlyRoundsPointsToWin}p${silverEarlyRoundsMatchesToWin > 1 ? ` · Pg${silverEarlyRoundsMatchesToWin}` : ''}`
                             : `${silverEarlyRoundsToPlay}r`}
                         </span>
                       </div>
-                      <div class="review-row">
-                        <span class="review-label">{m.admin_semifinals()}</span>
-                        <span class="review-value">
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.admin_semifinals()}</span>
+                        <span class="rv-val">
                           {silverSemifinalGameMode === 'points'
                             ? `${silverSemifinalPointsToWin}p${silverSemifinalMatchesToWin > 1 ? ` · Pg${silverSemifinalMatchesToWin}` : ''}`
                             : `${silverSemifinalRoundsToPlay}r`}
                         </span>
                       </div>
-                      <div class="review-row">
-                        <span class="review-label">{m.admin_final()}</span>
-                        <span class="review-value">
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.admin_final()}</span>
+                        <span class="rv-val">
                           {silverBracketFinalGameMode === 'points'
                             ? `${silverBracketFinalPointsToWin}p${silverBracketFinalMatchesToWin > 1 ? ` · Pg${silverBracketFinalMatchesToWin}` : ''}`
                             : `${silverBracketFinalRoundsToPlay}r`}
@@ -3003,7 +3120,7 @@
                     </div>
                   </div>
                 {/if}
-              {/if}
+              </div>
             </div>
           </div>
         </div>
@@ -4867,227 +4984,327 @@
     gap: 0.5rem;
   }
 
-  /* Review - Two Column Grid */
-  .review-grid {
+  /* Review Step */
+  .rv {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .rv-header {
+    padding: 0.75rem 1rem;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    border-left: 3px solid var(--primary);
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-header {
+    background: #1a2332;
+    border-color: #2d3748;
+    border-left-color: var(--primary);
+  }
+
+  .rv-header-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .rv-key {
+    font-family: monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.12rem 0.45rem;
+    background: var(--primary);
+    color: white;
+    border-radius: 3px;
+  }
+
+  .rv-badge-test {
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 0.1rem 0.35rem;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 3px;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-badge-test {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+  }
+
+  .rv-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.3;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-name {
+    color: #f1f5f9;
+  }
+
+  .rv-desc {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 0.1rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-desc {
+    color: #8b9bb3;
+  }
+
+  .rv-meta {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-top: 0.3rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-meta {
+    color: #8b9bb3;
+  }
+
+  .rv-sep { opacity: 0.4; }
+
+  .rv-extlink {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: 0.65rem;
+    color: var(--primary);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .rv-extlink:hover { text-decoration: underline; }
+
+  .rv-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
+    gap: 0.5rem;
     align-items: start;
   }
 
-  .review-column {
+  .rv-col {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
-  .review-card {
+  .rv-section {
     background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
     overflow: hidden;
-    transition: all 0.2s;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-card {
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-section {
     background: #1a2332;
     border-color: #2d3748;
   }
 
-  .review-card-header {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.5rem 0.75rem;
-    background: #f8fafc;
-    border-bottom: 1px solid #e5e7eb;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #475569;
+  .rv-sh {
+    font-size: 0.68rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.03em;
+    padding: 0.35rem 0.7rem;
+    color: #64748b;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-card-header {
-    background: #0f1419;
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-sh {
+    background: #0f172a;
     border-color: #2d3748;
     color: #8b9bb3;
   }
 
-  .review-icon {
-    font-size: 0.85rem;
+  .rv-sh-btn {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    gap: 0.35rem;
+    border-bottom: none;
+    transition: background 0.12s;
   }
 
-  .review-card-body {
-    padding: 0.5rem 0.75rem;
+  .rv-sh-btn:hover {
+    background: #f1f5f9;
   }
 
-  .review-row {
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-sh-btn:hover {
+    background: #1e293b;
+  }
+
+  .rv-count {
+    margin-left: auto;
+    font-size: 0.6rem;
+    font-weight: 700;
+    background: var(--primary);
+    color: white;
+    padding: 0.08rem 0.35rem;
+    border-radius: 8px;
+    min-width: 1.3rem;
+    text-align: center;
+  }
+
+  .rv-chevron {
+    font-size: 1rem;
+    color: #94a3b8;
+    transition: transform 0.2s;
+    font-weight: 300;
+  }
+
+  .rv-accordion.expanded .rv-chevron {
+    transform: rotate(90deg);
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-chevron {
+    color: #64748b;
+  }
+
+  .rv-body {
+    padding: 0.3rem 0.7rem;
+  }
+
+  .rv-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.3rem 0;
-    font-size: 0.8rem;
+    padding: 0.22rem 0;
+    font-size: 0.76rem;
   }
 
-  .review-row:not(:last-child) {
+  .rv-row:not(:last-child) {
     border-bottom: 1px solid #f1f5f9;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-row:not(:last-child) {
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-row:not(:last-child) {
     border-bottom-color: #1e293b;
   }
 
-  .review-label {
+  .rv-lbl {
     color: #64748b;
     font-weight: 500;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-label {
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-lbl {
     color: #8b9bb3;
   }
 
-  .review-value {
-    color: #1e293b;
+  .rv-val {
     font-weight: 600;
+    color: #1e293b;
     text-align: right;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-value {
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-val {
     color: #e1e8ed;
   }
 
-  .review-value.highlight {
+  .rv-hl {
     color: var(--primary);
     font-family: monospace;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .review-value.highlight {
-    color: var(--primary);
-  }
-
-  .participant-count {
-    margin-left: auto;
-    background: var(--primary);
-    color: white;
-    padding: 0.15rem 0.4rem;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 700;
-  }
-
-  /* Participants Accordion */
-  .participants-accordion {
-    overflow: hidden;
-  }
-
-  .accordion-header {
+  .rv-tags {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 0.6rem 0.75rem;
-    background: none;
-    border: none;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.15s;
+    gap: 0.25rem;
+    justify-content: flex-end;
   }
 
-  .accordion-header:hover {
-    background: rgba(0, 0, 0, 0.03);
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .accordion-header:hover {
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  .accordion-title {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
+  .rv-tag {
+    font-size: 0.62rem;
     font-weight: 600;
-    color: #334155;
+    padding: 0.08rem 0.3rem;
+    border-radius: 3px;
+    background: #dbeafe;
+    color: #1d4ed8;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .accordion-title {
-    color: #e2e8f0;
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-tag {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
   }
 
-  .accordion-chevron {
-    font-size: 1.1rem;
+  .rv-tag-off {
+    background: #f1f5f9;
     color: #94a3b8;
-    transition: transform 0.2s ease;
-    font-weight: 300;
+    text-decoration: line-through;
   }
 
-  .participants-accordion.expanded .accordion-chevron {
-    transform: rotate(90deg);
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .accordion-chevron {
-    color: #64748b;
-  }
-
-  .accordion-body {
-    padding: 0 0.75rem 0.75rem;
-    border-top: 1px solid #e2e8f0;
-    margin-top: 0;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .accordion-body {
-    border-top-color: #1e293b;
-  }
-
-  .participants-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0.35rem;
-    padding-top: 0.6rem;
-    max-height: 280px;
-    overflow-y: auto;
-  }
-
-  .participant-item {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.3rem 0.5rem;
-    background: #f8fafc;
-    border-radius: 4px;
-    font-size: 0.72rem;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .participant-item {
-    background: #0f172a;
-  }
-
-  .participant-number {
-    color: #94a3b8;
-    font-size: 0.65rem;
-    min-width: 1.2rem;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .participant-number {
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-tag-off {
+    background: rgba(148, 163, 184, 0.1);
     color: #475569;
   }
 
-  .participant-name {
+  .rv-participants {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.25rem;
+    padding: 0.45rem 0.7rem 0.55rem;
+    max-height: 260px;
+    overflow-y: auto;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-participants {
+    border-top-color: #2d3748;
+  }
+
+  .rv-p-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.18rem 0.4rem;
+    font-size: 0.68rem;
+    background: #f8fafc;
+    border-radius: 3px;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-p-item {
+    background: #0f172a;
+  }
+
+  .rv-p-num {
+    color: #94a3b8;
+    font-size: 0.6rem;
+    min-width: 1rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-p-num {
+    color: #475569;
+  }
+
+  .rv-p-name {
     color: #475569;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .participant-name {
+  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .rv-p-name {
     color: #94a3b8;
   }
 
   @media (max-width: 600px) {
-    .review-grid {
+    .rv-grid {
       grid-template-columns: 1fr;
     }
   }
