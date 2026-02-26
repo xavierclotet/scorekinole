@@ -16,6 +16,11 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Play, BarChart3 } from '@lucide/svelte';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
+	import WhatsNewModal from '$lib/components/WhatsNewModal.svelte';
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
+
+	const LAST_SEEN_VERSION_KEY = 'scorekinole_last_seen_version';
 
 	const jsonLd = [
 		{
@@ -44,6 +49,28 @@
 
 	let showProfile = false;
 	let showLogin = false;
+	let showWhatsNew = $state(false);
+
+	onMount(() => {
+		if (!browser) return;
+		const lastSeen = localStorage.getItem(LAST_SEEN_VERSION_KEY);
+		const hasSettings = localStorage.getItem('crokinoleGame');
+
+		if (!lastSeen && !hasSettings) {
+			// Brand new user — set silently, don't show modal
+			localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
+		} else if (lastSeen !== APP_VERSION) {
+			// Existing user with a version change (or missing key but has settings)
+			showWhatsNew = true;
+		}
+	});
+
+	function closeWhatsNew() {
+		showWhatsNew = false;
+		if (browser) {
+			localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
+		}
+	}
 
 	function startScoring() {
 		goto('/game');
@@ -168,7 +195,7 @@
 					<span class="title-main">Scorekinole</span>
 					<span class="title-suffix">
 						<span class="title-arena">Arena</span>
-						<span class="title-version">v{APP_VERSION}</span>
+						<button class="title-version" onclick={() => showWhatsNew = true}>v{APP_VERSION}</button>
 					</span>
 				</h1>
 				<p class="hero-subtitle">{m.scoring_appTitle()}</p>
@@ -374,6 +401,7 @@
 
 <ProfileModal isOpen={showProfile} user={$currentUser} isAdmin={$canAccessAdmin} onclose={() => showProfile = false} onupdate={handleProfileUpdate} />
 <LoginModal isOpen={showLogin} onclose={() => showLogin = false} />
+<WhatsNewModal isOpen={showWhatsNew} onclose={closeWhatsNew} />
 
 <style>
 	:global(body) {
@@ -503,11 +531,26 @@
 		line-height: 1;
 		margin-top: 0.12rem;
 		margin-left: 0.1rem;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		font-family: inherit;
+		transition: color 0.15s;
+	}
+
+	.title-version:hover {
+		color: var(--primary);
 	}
 
 	.landing[data-theme='light'] .title-version,
 	.landing[data-theme='violet-light'] .title-version {
 		color: rgba(0, 0, 0, 0.35);
+	}
+
+	.landing[data-theme='light'] .title-version:hover,
+	.landing[data-theme='violet-light'] .title-version:hover {
+		color: var(--primary);
 	}
 
 	.hero-subtitle {

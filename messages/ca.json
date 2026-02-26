@@ -1247,7 +1247,7 @@
   "scoring_partner": "Company",
   "stats_duration": "Durada",
   "scoring_friendlyDoubles": "Amistós dobles",
-  "scoring_friendlyModePoints": "Primer a {n}p",
+  "scoring_friendlyModePoints": "Primer a {n}",
   "scoring_friendlyModePointsFtw": "{points}p (Pg {matches}p)",
   "scoring_friendlyModeRounds": "{n} rondes",
   "scoring_friendlySingles": "Individual",
