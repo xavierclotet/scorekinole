@@ -13,6 +13,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   getCountFromServer,
   setDoc,
@@ -389,7 +390,7 @@ export function parseTournamentData(data: DocumentData): Tournament {
  * @param id Tournament ID
  * @returns Tournament or null
  */
-export async function getTournament(id: string): Promise<Tournament | null> {
+export async function getTournament(id: string, forceServer = false): Promise<Tournament | null> {
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
     return null;
@@ -397,7 +398,9 @@ export async function getTournament(id: string): Promise<Tournament | null> {
 
   try {
     const tournamentRef = doc(db!, 'tournaments', id);
-    const snapshot = await getDoc(tournamentRef);
+    const snapshot = forceServer
+      ? await getDocFromServer(tournamentRef)
+      : await getDoc(tournamentRef);
 
     if (!snapshot.exists()) {
       console.warn('Tournament not found:', id);

@@ -335,6 +335,8 @@
   "common_editionLabel": "{n}th",
   "common_error": "Error",
   "common_estimatedEnd": "Estimated End",
+  "common_exitFullscreen": "Exit Fullscreen",
+  "common_fullscreen": "Fullscreen",
   "common_goHome": "Go Home",
   "common_lightMode": "Light Mode",
   "common_loading": "Loading",

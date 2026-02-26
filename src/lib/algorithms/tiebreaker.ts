@@ -168,15 +168,12 @@ function calculateBuchholz(
   qualificationMode: QualificationMode
 ): number {
   if (!standing.headToHeadRecord) {
-    console.log(`[Buchholz] ${standing.participantId}: NO headToHeadRecord`);
     return 0;
   }
 
   const opponentIds = Object.keys(standing.headToHeadRecord);
-  console.log(`[Buchholz] ${standing.participantId}: opponents=[${opponentIds.join(', ')}] (${opponentIds.length} opponents)`);
 
   if (opponentIds.length === 0) {
-    console.log(`[Buchholz] ${standing.participantId}: headToHeadRecord is EMPTY object`);
     return 0;
   }
 
@@ -187,14 +184,10 @@ function calculateBuchholz(
     const opponentStanding = standingsMap.get(opponentId);
     if (opponentStanding) {
       const value = getPrimaryValue(opponentStanding, isSwiss, qualificationMode);
-      console.log(`[Buchholz]   opponent ${opponentId}: primaryValue=${value}`);
       buchholz += value;
-    } else {
-      console.log(`[Buchholz]   opponent ${opponentId}: NOT FOUND in standings`);
     }
   }
 
-  console.log(`[Buchholz] ${standing.participantId}: total=${buchholz}`);
   return buchholz;
 }
 
@@ -302,15 +295,6 @@ function resolveMultiPlayerTie(
 ): GroupStanding[] {
   const tiedIds = new Set(tiedGroup.map(s => s.participantId));
 
-  const systemType = isSwiss ? 'SWISS' : `ROUND ROBIN (${qualificationMode})`;
-  console.log(`[Tiebreaker] Resolving ${tiedGroup.length}-way tie (${systemType}):`);
-  tiedGroup.forEach(s => {
-    const p = participantMap.get(s.participantId);
-    const miniPts = calculateMiniLeaguePoints(s, tiedIds);
-    const mini20s = calculateMiniLeague20s(s, tiedIds);
-    console.log(`  - ${p?.name || s.participantId}: pts=${s.points}, totalPoints=${s.totalPointsScored}, total20s=${s.total20s}, miniPts=${miniPts}, mini20s=${mini20s}`);
-  });
-
   let sorted: GroupStanding[];
 
   if (isSwiss) {
@@ -339,18 +323,6 @@ function resolveMultiPlayerTie(
       return 0;
     });
 
-    console.log('[Tiebreaker] SWISS sorted by 20s → totalPts → Buchholz:');
-    sorted.forEach((s, idx) => {
-      const p = participantMap.get(s.participantId);
-      console.log(`  ${idx + 1}. ${p?.name || s.participantId}: 20s=${s.total20s}, totalPts=${s.totalPointsScored}, buc=${s.buchholz ?? 0}`);
-    });
-
-    // Composite key for detecting sub-ties
-    const getSwissCompareKey = (s: GroupStanding): string => {
-      const pts = qualificationMode === 'WINS' ? s.totalPointsScored.toString().padStart(6, '0') : '000000';
-      return `${s.total20s.toString().padStart(6, '0')}-${pts}-${(s.buchholz ?? 0).toString().padStart(6, '0')}`;
-    };
-
     // Resolve remaining 2-player ties with H2H
     sorted = resolveRemainingTwoPlayerTies(sorted, participantMap, s => {
       // Use composite numeric key: 20s * 1e12 + totalPts * 1e6 + buchholz
@@ -378,12 +350,6 @@ function resolveMultiPlayerTie(
         return pB.rankingSnapshot - pA.rankingSnapshot;
       }
       return 0;
-    });
-
-    console.log('[Tiebreaker] ROUND ROBIN (POINTS mode) sorted by 20s → Buchholz:');
-    sorted.forEach((s, idx) => {
-      const p = participantMap.get(s.participantId);
-      console.log(`  ${idx + 1}. ${p?.name || s.participantId}: totalPoints=${s.totalPointsScored}, 20s=${s.total20s}, buc=${s.buchholz ?? 0}`);
     });
 
     // Resolve remaining 2-player ties with H2H → Buchholz
@@ -429,14 +395,6 @@ function resolveMultiPlayerTie(
 
       // No fallback to ranking - leave as truly unresolved
       return 0;
-    });
-
-    console.log('[Tiebreaker] ROUND ROBIN (WINS mode) sorted by mini-league:');
-    sorted.forEach((s, idx) => {
-      const p = participantMap.get(s.participantId);
-      const miniPts = calculateMiniLeaguePoints(s, tiedIds);
-      const mini20s = calculateMiniLeague20s(s, tiedIds);
-      console.log(`  ${idx + 1}. ${p?.name || s.participantId}: miniPts=${miniPts}, mini20s=${mini20s}, total20s=${s.total20s}, totalPts=${s.totalPointsScored}, buc=${s.buchholz ?? 0}`);
     });
 
     // Key for detecting truly unresolved ties (all criteria equal)
@@ -527,7 +485,6 @@ function resolveMultiPlayerTie(
         }
         next.tieReason = 'twenties';
 
-        console.log(`[Tiebreaker] Sub-tie detected: ${current.participantId} and ${next.participantId} (resolved by total 20s)`);
       }
     }
 
@@ -579,8 +536,6 @@ export function resolveTiebreaker(
   qualificationMode: QualificationMode = 'WINS',
   show20s: boolean = true
 ): GroupStanding[] {
-  console.log(`[Tiebreaker] Resolving standings for ${standings.length} players (${qualificationMode} mode)`);
-
   // Create participant map for quick ranking lookup
   const participantMap = new Map<string, TournamentParticipant>();
   participants.forEach(p => participantMap.set(p.id, p));
@@ -592,12 +547,6 @@ export function resolveTiebreaker(
   for (const standing of standingsCopy) {
     standing.buchholz = calculateBuchholz(standing, standingsCopy, isSwiss, qualificationMode);
   }
-
-  console.log('[Tiebreaker] Buchholz scores:');
-  standingsCopy.forEach(s => {
-    const p = participantMap.get(s.participantId);
-    console.log(`  ${p?.name || s.participantId}: buchholz=${s.buchholz}`);
-  });
 
   // Group standings by primary value
   const groups = new Map<number, GroupStanding[]>();

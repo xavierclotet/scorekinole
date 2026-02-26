@@ -328,6 +328,10 @@
     if (tournamentId) {
       unsubscribe = subscribeTournament(tournamentId, (updated) => {
         if (updated) {
+          // Skip onSnapshot updates during autofill to prevent stale cache from causing double-processing
+          if (isAutoFilling) {
+            return;
+          }
           // Force Svelte reactivity by creating new object reference for deep nested data
           tournament = JSON.parse(JSON.stringify(updated));
 
@@ -1208,6 +1212,9 @@
     console.log('📋 Silver consolation brackets:', tournament.finalStage.silverBracket?.consolationBrackets?.length || 0);
 
     try {
+      // Track processed matches to prevent double-processing from stale cache reads
+      const processedMatchIds = new Set<string>();
+
       // Helper function to simulate a match for a specific bracket type
       async function simulateMatch(
         match: BracketMatch,
@@ -1217,6 +1224,12 @@
         if (match.status !== 'PENDING' || !match.participantA || !match.participantB) {
           return false;
         }
+
+        // Guard: skip if already processed in this autofill session
+        if (processedMatchIds.has(match.id)) {
+          return false;
+        }
+        processedMatchIds.add(match.id);
 
         const { gameMode, pointsToWin = 7, roundsToPlay = 4, matchesToWin } = config;
         const isRoundsMode = gameMode === 'rounds';
@@ -1377,6 +1390,7 @@
           });
           if (!retry) {
             console.error(`❌ completeBracketMatchAndAdvance failed twice for ${match.id}`);
+            return false;
           }
         }
 
@@ -1392,8 +1406,11 @@
         while (hasMoreMatches) {
           hasMoreMatches = false;
 
-          // Reload tournament to get current bracket state
-          tournament = await getTournament(currentTournamentId);
+          // Small delay to let Firestore propagate writes from previous iteration
+          await new Promise(r => setTimeout(r, 300));
+
+          // Reload tournament from server to get current bracket state (skip cache)
+          tournament = await getTournament(currentTournamentId, true);
           if (!tournament?.finalStage) {
             console.log(`  ❌ No finalStage found`);
             break;
@@ -1477,8 +1494,11 @@
         while (hasMoreMatches) {
           hasMoreMatches = false;
 
-          // Reload tournament to get current state
-          tournament = await getTournament(currentTournamentId);
+          // Small delay to let Firestore propagate writes from previous iteration
+          await new Promise(r => setTimeout(r, 300));
+
+          // Reload tournament from server (skip cache)
+          tournament = await getTournament(currentTournamentId, true);
           if (!tournament?.finalStage) break;
 
           const mainBracket = bracketType === 'gold'
@@ -1487,9 +1507,8 @@
 
           if (!mainBracket?.consolationBrackets?.length) break;
 
-          // Process each consolation bracket (R16, QF)
+          // Process each consolation bracket (R16, QF) — reuses simulateMatch for consistency
           for (const consolation of mainBracket.consolationBrackets) {
-            // Get config - consolation uses earlyRounds config from main bracket
             const config = {
               gameMode: mainBracket.config.earlyRounds.gameMode,
               pointsToWin: mainBracket.config.earlyRounds.pointsToWin,
@@ -1499,169 +1518,10 @@
 
             for (const round of consolation.rounds) {
               for (const match of round.matches) {
-                if (match.status !== 'PENDING' || !match.participantA || !match.participantB) {
-                  continue;
+                if (await simulateMatch(match, bracketType, config)) {
+                  hasMoreMatches = true;
+                  consolationFilledCount++;
                 }
-
-                // Simulate the match using same logic as main bracket
-                const { gameMode, pointsToWin = 7, roundsToPlay = 4, matchesToWin } = config;
-                const isRoundsMode = gameMode === 'rounds';
-                const requiredWins = matchesToWin;
-
-                let gamesA = 0;
-                let gamesB = 0;
-                let totalPointsA = 0;
-                let totalPointsB = 0;
-                let total20sA = 0;
-                let total20sB = 0;
-
-                const allRounds: Array<{
-                  gameNumber: number;
-                  roundInGame: number;
-                  pointsA: number;
-                  pointsB: number;
-                  twentiesA: number;
-                  twentiesB: number;
-                }> = [];
-
-                let gameNumber = 0;
-                while (gamesA < requiredWins && gamesB < requiredWins) {
-                  gameNumber++;
-                  let gamePointsA = 0;
-                  let gamePointsB = 0;
-                  let roundInGame = 0;
-                  const maxRoundsInGame = isRoundsMode ? roundsToPlay : 100;
-
-                  while (roundInGame < maxRoundsInGame) {
-                    roundInGame++;
-                    const distribution = Math.random();
-                    let roundPointsA = 0;
-                    let roundPointsB = 0;
-                    let round20sA = 0;
-                    let round20sB = 0;
-
-                    if (distribution < 0.45) {
-                      roundPointsA = 2;
-                      roundPointsB = 0;
-                      if (Math.random() < 0.12) round20sA = 1;
-                    } else if (distribution < 0.9) {
-                      roundPointsA = 0;
-                      roundPointsB = 2;
-                      if (Math.random() < 0.12) round20sB = 1;
-                    } else {
-                      roundPointsA = 1;
-                      roundPointsB = 1;
-                    }
-
-                    gamePointsA += roundPointsA;
-                    gamePointsB += roundPointsB;
-                    total20sA += round20sA;
-                    total20sB += round20sB;
-
-                    allRounds.push({
-                      gameNumber,
-                      roundInGame,
-                      pointsA: roundPointsA,
-                      pointsB: roundPointsB,
-                      twentiesA: round20sA,
-                      twentiesB: round20sB
-                    });
-
-                    if (!isRoundsMode) {
-                      const maxPoints = Math.max(gamePointsA, gamePointsB);
-                      const diff = Math.abs(gamePointsA - gamePointsB);
-                      if (maxPoints >= pointsToWin && diff >= 2) {
-                        break;
-                      }
-                    }
-                  }
-
-                  // In rounds mode: play extra rounds until there's a winner (no ties allowed)
-                  if (isRoundsMode) {
-                    while (gamePointsA === gamePointsB) {
-                      roundInGame++;
-                      const distribution = Math.random();
-                      let roundPointsA = 0;
-                      let roundPointsB = 0;
-                      let round20sA = 0;
-                      let round20sB = 0;
-
-                      // In extra rounds, we don't allow ties (50/50 split)
-                      if (distribution < 0.5) {
-                        roundPointsA = 2;
-                        roundPointsB = 0;
-                        if (Math.random() < 0.12) round20sA = 1;
-                      } else {
-                        roundPointsA = 0;
-                        roundPointsB = 2;
-                        if (Math.random() < 0.12) round20sB = 1;
-                      }
-
-                      gamePointsA += roundPointsA;
-                      gamePointsB += roundPointsB;
-                      total20sA += round20sA;
-                      total20sB += round20sB;
-
-                      allRounds.push({
-                        gameNumber,
-                        roundInGame,
-                        pointsA: roundPointsA,
-                        pointsB: roundPointsB,
-                        twentiesA: round20sA,
-                        twentiesB: round20sB
-                      });
-                    }
-                  }
-
-                  totalPointsA += gamePointsA;
-                  totalPointsB += gamePointsB;
-
-                  if (gamePointsA > gamePointsB) {
-                    gamesA++;
-                  } else if (gamePointsB > gamePointsA) {
-                    gamesB++;
-                  }
-                  // Note: ties should not happen after extra rounds
-                }
-
-                const winner = gamesA > gamesB ? match.participantA : match.participantB;
-                console.log(`🎲🔵 consolation simulateMatch: matchId=${match.id}, pA=${match.participantA?.substring(0, 12)}, pB=${match.participantB?.substring(0, 12)}, gA=${gamesA}, gB=${gamesB}, winner=${winner?.substring(0, 12)}`);
-
-                // Use single atomic transaction for consolation too
-                const success = await completeBracketMatchAndAdvance(
-                  currentTournamentId,
-                  match.id,
-                  {
-                    status: 'COMPLETED',
-                    gamesWonA: gamesA,
-                    gamesWonB: gamesB,
-                    totalPointsA,
-                    totalPointsB,
-                    total20sA,
-                    total20sB,
-                    rounds: allRounds,
-                    winner
-                  }
-                );
-
-                if (!success) {
-                  console.warn(`⚠️ Consolation match failed for ${match.id}, retrying...`);
-                  await new Promise(r => setTimeout(r, 500));
-                  await completeBracketMatchAndAdvance(currentTournamentId, match.id, {
-                    status: 'COMPLETED',
-                    gamesWonA: gamesA,
-                    gamesWonB: gamesB,
-                    totalPointsA,
-                    totalPointsB,
-                    total20sA,
-                    total20sB,
-                    rounds: allRounds,
-                    winner
-                  });
-                }
-
-                hasMoreMatches = true;
-                consolationFilledCount++;
               }
             }
           }
@@ -1693,7 +1553,7 @@
       }
 
       // Detect and repair broken matches (completed but winner not advanced)
-      tournament = await getTournament(currentTournamentId);
+      tournament = await getTournament(currentTournamentId, true);
       const brokenAfterAutoFill = detectBrokenMatches();
       console.log(`🔧🔵 detectBrokenMatches after autofill: found ${brokenAfterAutoFill.length} broken`, brokenAfterAutoFill.map(b => ({ matchId: b.match.id, winnerId: b.winnerId?.substring(0, 12), nextMatchId: b.nextMatchId, slot: b.slot })));
       if (brokenAfterAutoFill.length > 0) {
@@ -1704,7 +1564,7 @@
           console.log(`  🔧 Repair ${item.match.id} -> ${item.nextMatchId}: ${repaired ? 'OK' : 'FAILED'}`);
         }
         // Re-process brackets to fill newly eligible matches (Final, 3rd place)
-        tournament = await getTournament(currentTournamentId);
+        tournament = await getTournament(currentTournamentId, true);
         if (tournament?.finalStage) {
           filledCount += await processBracket('gold');
           if (tournament.finalStage.mode === 'SPLIT_DIVISIONS' && tournament.finalStage.silverBracket) {

@@ -178,19 +178,6 @@ function generatePointBasedPairings(
       byeCandidate = byePool[0];
     }
 
-    // Log BYE selection for debugging
-    const hadByeBefore = byeHistory.size > 0
-      ? `Previous BYEs: ${sorted.filter(p => byeHistory.has(p.id)).map(p => p.name).join(', ')}`
-      : 'No previous BYEs';
-    console.log(`🎲 BYE R${roundNumber}: ${hadByeBefore}`);
-    console.log(`🎲 BYE candidates (${neverHadBye.length > 0 ? 'never had BYE' : 'all players'}, weakest first):`);
-    byePool.slice(0, 5).forEach((p, i) => {
-      const s = standingsMap.get(p.id);
-      const sw = getSwissPoints(p.id);
-      console.log(`  ${i + 1}. ${p.name}: swiss=${sw}, pts=${s?.totalPointsScored ?? '?'}, 20s=${s?.total20s ?? '?'}, buc=${s?.buchholz ?? '?'}`);
-    });
-    console.log(`🎲 BYE → ${byeCandidate.name}`);
-
     // Assign BYE to this player
     matches.push(createByeMatch(byeCandidate.id, roundNumber));
     paired.add(byeCandidate.id);

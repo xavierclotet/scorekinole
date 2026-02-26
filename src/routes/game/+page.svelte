@@ -22,6 +22,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Settings, User, Users, Trophy, Play } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import FullscreenToggle from '$lib/components/FullscreenToggle.svelte';
 	import { theme } from '$lib/stores/theme';
 	import { onReconnect, setSyncStatus } from '$lib/utils/networkStatus';
 	import { retryPendingFriendlyMatch } from '$lib/firebase/firestore';
@@ -2196,6 +2197,7 @@
 
 			<div class="header-right">
 				<OfflineIndicator />
+				<FullscreenToggle />
 				<ThemeToggle />
 				<button class="header-btn" onclick={handleSwitchSides} aria-label={m.scoring_switchSides()} title={m.scoring_switchSides()}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/></svg>
@@ -2244,6 +2246,7 @@
 
 			<div class="header-right">
 				<OfflineIndicator />
+				<FullscreenToggle />
 				<ThemeToggle />
 			</div>
 		{/if}
