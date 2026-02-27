@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.52] - 2026-02-27
+- Fix notification preferences defaults to off (prevent false-positive enabled state)
+- Fix FCM token registration when browser permission already granted
+- Add landscape short viewport layout for ProfileModal (scrollable, compact)
+- Add PWA Push Notifications documentation
+
 ## [2.4.51] - 2026-02-27
 - Add PWA push notifications with FCM infrastructure and Cloud Function for match table alerts
 - Add Screen Wake Lock to prevent display turning off during match scoring
