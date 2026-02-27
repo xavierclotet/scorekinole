@@ -243,6 +243,12 @@ export async function updateMatchResult(
         ? group.schedule[roundIndex].matches[matchIndex]
         : group.pairings![roundIndex].matches[matchIndex];
 
+      // Prevent overwriting already completed matches (idempotency guard)
+      if (match.status === 'COMPLETED' || match.status === 'WALKOVER') {
+        console.log(`⏭️ Match ${matchId} already ${match.status}, skipping update`);
+        return;
+      }
+
       // Determine winner based on game mode (handle ties)
       let winner: string | undefined;
 
@@ -2291,6 +2297,12 @@ export async function updateTournamentMatchRounds(
             for (const round of group.schedule) {
               const matchIndex = round.matches.findIndex(m => m.id === matchId);
               if (matchIndex !== -1) {
+                // Don't overwrite rounds on already completed matches
+                if (round.matches[matchIndex].status === 'COMPLETED' || round.matches[matchIndex].status === 'WALKOVER') {
+                  console.log(`⏭️ Match ${matchId} already ${round.matches[matchIndex].status}, skipping round sync`);
+                  found = true;
+                  break;
+                }
                 round.matches[matchIndex].rounds = rounds;
                 round.matches[matchIndex].total20sA = total20sA;
                 round.matches[matchIndex].total20sB = total20sB;
@@ -2313,6 +2325,12 @@ export async function updateTournamentMatchRounds(
             for (const pairing of group.pairings) {
               const matchIndex = pairing.matches.findIndex(m => m.id === matchId);
               if (matchIndex !== -1) {
+                // Don't overwrite rounds on already completed matches
+                if (pairing.matches[matchIndex].status === 'COMPLETED' || pairing.matches[matchIndex].status === 'WALKOVER') {
+                  console.log(`⏭️ Match ${matchId} already ${pairing.matches[matchIndex].status}, skipping round sync`);
+                  found = true;
+                  break;
+                }
                 pairing.matches[matchIndex].rounds = rounds;
                 pairing.matches[matchIndex].total20sA = total20sA;
                 pairing.matches[matchIndex].total20sB = total20sB;

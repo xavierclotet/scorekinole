@@ -3,9 +3,9 @@
  * Handle qualification and bracket preview
  */
 
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from './config';
-import { getTournament } from './tournaments';
+import { getTournament, parseTournamentData } from './tournaments';
 import type { TournamentParticipant } from '$lib/types/tournament';
 
 /**
@@ -47,39 +47,43 @@ export async function updateQualifiers(
   groupIndex: number,
   qualifiedParticipantIds: string[]
 ): Promise<boolean> {
+  if (!db) {
+    console.error('Firestore not initialized');
+    return false;
+  }
+
   try {
-    const tournament = await getTournament(tournamentId);
-    if (!tournament || !tournament.groupStage) {
-      console.error('Tournament or group stage not found');
-      return false;
-    }
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-    const group = tournament.groupStage.groups[groupIndex];
-    if (!group) {
-      console.error('Group not found');
-      return false;
-    }
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found');
+      }
 
-    // Update standings with qualification status
-    const updatedStandings = group.standings.map(standing => ({
-      ...standing,
-      qualifiedForFinal: qualifiedParticipantIds.includes(standing.participantId)
-    }));
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.groupStage) {
+        throw new Error('Group stage not found');
+      }
 
-    // Update in-memory
-    tournament.groupStage.groups[groupIndex].standings = updatedStandings;
+      const group = tournament.groupStage.groups[groupIndex];
+      if (!group) {
+        throw new Error('Group not found');
+      }
 
-    if (!db) {
-      console.error('Firestore not initialized');
-      return false;
-    }
+      // Update standings with qualification status
+      tournament.groupStage.groups[groupIndex].standings = group.standings.map(standing => ({
+        ...standing,
+        qualifiedForFinal: qualifiedParticipantIds.includes(standing.participantId)
+      }));
 
-    // Clean undefined values before writing to Firestore
-    const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+      // Clean undefined values before writing to Firestore
+      const cleanedGroupStage = cleanUndefined(tournament.groupStage);
 
-    // Write entire groupStage back to Firestore to preserve array structure
-    await updateDoc(doc(db, 'tournaments', tournamentId), {
-      groupStage: cleanedGroupStage
+      transaction.update(tournamentRef, {
+        groupStage: cleanedGroupStage,
+        updatedAt: serverTimestamp()
+      });
     });
 
     return true;
@@ -100,41 +104,49 @@ export async function autoSelectQualifiers(
   tournamentId: string,
   qualifiersPerGroup: number
 ): Promise<boolean> {
+  if (!db) {
+    console.error('Firestore not initialized');
+    return false;
+  }
+
   try {
-    const tournament = await getTournament(tournamentId);
-    if (!tournament || !tournament.groupStage) {
-      console.error('Tournament or group stage not found');
-      return false;
-    }
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-    if (!db) {
-      console.error('Firestore not initialized');
-      return false;
-    }
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found');
+      }
 
-    // Update each group
-    for (let gi = 0; gi < tournament.groupStage.groups.length; gi++) {
-      const group = tournament.groupStage.groups[gi];
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.groupStage) {
+        throw new Error('Group stage not found');
+      }
 
-      // Sort standings by position and take top N
-      const topN = group.standings
-        .sort((a, b) => a.position - b.position)
-        .slice(0, qualifiersPerGroup)
-        .map(s => s.participantId);
+      // Update each group
+      for (let gi = 0; gi < tournament.groupStage.groups.length; gi++) {
+        const group = tournament.groupStage.groups[gi];
 
-      // Update standings in-memory
-      tournament.groupStage.groups[gi].standings = group.standings.map(standing => ({
-        ...standing,
-        qualifiedForFinal: topN.includes(standing.participantId)
-      }));
-    }
+        // Sort standings by position and take top N
+        const topN = [...group.standings]
+          .sort((a, b) => a.position - b.position)
+          .slice(0, qualifiersPerGroup)
+          .map(s => s.participantId);
 
-    // Clean undefined values before writing to Firestore
-    const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+        // Update standings
+        tournament.groupStage.groups[gi].standings = group.standings.map(standing => ({
+          ...standing,
+          qualifiedForFinal: topN.includes(standing.participantId)
+        }));
+      }
 
-    // Write entire groupStage back to Firestore to preserve array structure
-    await updateDoc(doc(db, 'tournaments', tournamentId), {
-      groupStage: cleanedGroupStage
+      // Clean undefined values before writing to Firestore
+      const cleanedGroupStage = cleanUndefined(tournament.groupStage);
+
+      transaction.update(tournamentRef, {
+        groupStage: cleanedGroupStage,
+        updatedAt: serverTimestamp()
+      });
     });
 
     return true;

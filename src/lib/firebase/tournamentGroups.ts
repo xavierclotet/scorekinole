@@ -3,7 +3,9 @@
  * Round Robin and Swiss pairing operations
  */
 
-import { getTournament, updateTournament, updateTournamentPublic } from './tournaments';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { db } from './config';
+import { getTournament, updateTournament, updateTournamentPublic, parseTournamentData } from './tournaments';
 import type { QualificationMode } from '$lib/types/tournament';
 
 /**
@@ -40,7 +42,7 @@ export async function fixTournamentQualificationMode(
 import { generateRoundRobinSchedule as generateRRScheduleAlgorithm, splitIntoGroups } from '$lib/algorithms/roundRobin';
 import { generateSwissPairings as generateSwissPairingsAlgorithm, assignTablesWithVariety } from '$lib/algorithms/swiss';
 import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from '$lib/algorithms/tiebreaker';
-import type { GroupMatch, GroupStanding, Group } from '$lib/types/tournament';
+import type { GroupMatch, GroupStanding } from '$lib/types/tournament';
 
 /**
  * Generate Round Robin schedule for tournament
@@ -550,37 +552,55 @@ export async function markNoShow(
  * @returns true if successful
  */
 export async function completeGroupStage(tournamentId: string): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.groupStage) {
-    console.error('Tournament or group stage not found');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
-  // Verify all matches are complete
-  for (const group of tournament.groupStage.groups) {
-    const matches: GroupMatch[] = [];
-    if (group.schedule) {
-      group.schedule.forEach(round => matches.push(...round.matches));
-    }
-    if (group.pairings) {
-      group.pairings.forEach(pairing => matches.push(...pairing.matches));
-    }
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-    const incompleteMatches = matches.filter(
-      m => m.status !== 'COMPLETED' && m.status !== 'WALKOVER'
-    );
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
 
-    if (incompleteMatches.length > 0) {
-      console.error(`Group ${group.name} has ${incompleteMatches.length} incomplete matches`);
-      return false;
-    }
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.groupStage) {
+        throw new Error('Group stage not found');
+      }
+
+      // Verify all matches are complete (using fresh data from transaction)
+      for (const group of tournament.groupStage.groups) {
+        const matches: GroupMatch[] = [];
+        if (group.schedule) {
+          group.schedule.forEach(round => matches.push(...round.matches));
+        }
+        if (group.pairings) {
+          group.pairings.forEach(pairing => matches.push(...pairing.matches));
+        }
+
+        const incompleteMatches = matches.filter(
+          m => m.status !== 'COMPLETED' && m.status !== 'WALKOVER'
+        );
+
+        if (incompleteMatches.length > 0) {
+          throw new Error(`Group ${group.name} has ${incompleteMatches.length} incomplete matches`);
+        }
+      }
+
+      // Mark group stage as complete atomically
+      transaction.update(tournamentRef, {
+        groupStage: {
+          ...tournament.groupStage,
+          isComplete: true
+        },
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return true;
+  } catch (error) {
+    console.error('❌ Error completing group stage:', error);
+    return false;
   }
-
-  // Mark group stage as complete (public - allows non-authenticated users)
-  return await updateTournamentPublic(tournamentId, {
-    groupStage: {
-      ...tournament.groupStage,
-      isComplete: true
-    }
-  });
 }

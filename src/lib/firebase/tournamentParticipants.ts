@@ -2,7 +2,9 @@
  * Tournament participant management
  */
 
-import { getTournament, updateTournament } from './tournaments';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { db } from './config';
+import { parseTournamentData } from './tournaments';
 import {
   advanceWinner as advanceWinnerAlgorithm,
   replaceLoserPlaceholder,
@@ -23,36 +25,44 @@ export async function addParticipant(
   tournamentId: string,
   participantData: Partial<TournamentParticipant>
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament) {
-    console.error('Tournament not found');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
-  if (tournament.status !== 'DRAFT') {
-    console.error('Cannot add participants to tournament that is not in DRAFT status');
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+
+      if (tournament.status !== 'DRAFT') {
+        throw new Error('Cannot add participants to tournament that is not in DRAFT status');
+      }
+
+      const participant: TournamentParticipant = {
+        ...participantData,
+        id: participantData.id || `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+        type: participantData.type || 'GUEST',
+        name: participantData.name || 'Participante',
+        rankingSnapshot: 0,
+        status: 'ACTIVE'
+      } as TournamentParticipant;
+
+      transaction.update(tournamentRef, {
+        participants: [...tournament.participants, participant],
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error adding participant:', error);
     return false;
   }
-
-  // Ranking will be fetched when tournament starts via syncParticipantRankings
-  // For now, just use default (0)
-  const ranking = 0;
-
-  // Preserve all fields from participantData, only override defaults
-  const participant: TournamentParticipant = {
-    ...participantData,
-    id: participantData.id || `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-    type: participantData.type || 'GUEST',
-    name: participantData.name || 'Participante',
-    rankingSnapshot: ranking,
-    status: 'ACTIVE'
-  } as TournamentParticipant;
-
-  const updatedParticipants = [...tournament.participants, participant];
-
-  return await updateTournament(tournamentId, {
-    participants: updatedParticipants
-  });
 }
 
 /**
@@ -66,54 +76,62 @@ export async function addParticipants(
   tournamentId: string,
   participantsData: Partial<TournamentParticipant>[]
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament) {
-    console.error('Tournament not found');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
-  if (tournament.status !== 'DRAFT') {
-    console.error('Cannot add participants to tournament that is not in DRAFT status');
-    return false;
-  }
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-  // Ranking will be fetched when tournament starts via syncParticipantRankings
-  // For now, just use default (0)
-  const ranking = 0;
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
 
-  // Create all participant objects, preserving all fields from participantData
-  console.log('📥 addParticipants received:', participantsData.map(p => ({
-    name: p.name,
-    type: p.type,
-    userId: p.userId,
-    partner: p.partner ? { name: p.partner.name, type: p.partner.type, userId: p.partner.userId } : undefined
-  })));
+      const tournament = parseTournamentData(snapshot.data());
 
-  const newParticipants = participantsData.map((participantData, index) => {
-    const participant: TournamentParticipant = {
-      ...participantData,
-      id: participantData.id || `participant-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 11)}`,
-      type: participantData.type || 'GUEST',
-      name: participantData.name || 'Participante',
-      rankingSnapshot: ranking,
-      status: 'ACTIVE'
-    } as TournamentParticipant;
+      if (tournament.status !== 'DRAFT') {
+        throw new Error('Cannot add participants to tournament that is not in DRAFT status');
+      }
 
-    console.log('📤 Created participant:', {
-      name: participant.name,
-      type: participant.type,
-      userId: participant.userId,
-      partner: participant.partner ? { name: participant.partner.name, type: participant.partner.type, userId: participant.partner.userId } : undefined
+      console.log('📥 addParticipants received:', participantsData.map(p => ({
+        name: p.name,
+        type: p.type,
+        userId: p.userId,
+        partner: p.partner ? { name: p.partner.name, type: p.partner.type, userId: p.partner.userId } : undefined
+      })));
+
+      const newParticipants = participantsData.map((participantData, index) => {
+        const participant: TournamentParticipant = {
+          ...participantData,
+          id: participantData.id || `participant-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 11)}`,
+          type: participantData.type || 'GUEST',
+          name: participantData.name || 'Participante',
+          rankingSnapshot: 0,
+          status: 'ACTIVE'
+        } as TournamentParticipant;
+
+        console.log('📤 Created participant:', {
+          name: participant.name,
+          type: participant.type,
+          userId: participant.userId,
+          partner: participant.partner ? { name: participant.partner.name, type: participant.partner.type, userId: participant.partner.userId } : undefined
+        });
+
+        return participant;
+      });
+
+      transaction.update(tournamentRef, {
+        participants: [...tournament.participants, ...newParticipants],
+        updatedAt: serverTimestamp()
+      });
     });
 
-    return participant;
-  });
-
-  const updatedParticipants = [...tournament.participants, ...newParticipants];
-
-  return await updateTournament(tournamentId, {
-    participants: updatedParticipants
-  });
+    return true;
+  } catch (error) {
+    console.error('Error adding participants:', error);
+    return false;
+  }
 }
 
 /**
@@ -127,22 +145,35 @@ export async function removeParticipant(
   tournamentId: string,
   participantId: string
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament) {
-    console.error('Tournament not found');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
-  if (tournament.status !== 'DRAFT') {
-    console.error('Cannot remove participants from tournament that is not in DRAFT status');
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+
+      if (tournament.status !== 'DRAFT') {
+        throw new Error('Cannot remove participants from tournament that is not in DRAFT status');
+      }
+
+      transaction.update(tournamentRef, {
+        participants: tournament.participants.filter(p => p.id !== participantId),
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error removing participant:', error);
     return false;
   }
-
-  const updatedParticipants = tournament.participants.filter(p => p.id !== participantId);
-
-  return await updateTournament(tournamentId, {
-    participants: updatedParticipants
-  });
 }
 
 /**
@@ -158,22 +189,38 @@ export async function updateParticipant(
   participantId: string,
   updates: Partial<TournamentParticipant>
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament) {
-    console.error('Tournament not found');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
-  const updatedParticipants = tournament.participants.map(p => {
-    if (p.id === participantId) {
-      return { ...p, ...updates };
-    }
-    return p;
-  });
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-  return await updateTournament(tournamentId, {
-    participants: updatedParticipants
-  });
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+
+      const updatedParticipants = tournament.participants.map(p => {
+        if (p.id === participantId) {
+          return { ...p, ...updates };
+        }
+        return p;
+      });
+
+      transaction.update(tournamentRef, {
+        participants: updatedParticipants,
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating participant:', error);
+    return false;
+  }
 }
 
 /**
@@ -281,229 +328,244 @@ export async function disqualifyParticipant(
   tournamentId: string,
   participantId: string
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament) {
-    console.error('Tournament not found');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
-  // Update participant status
-  const updatedParticipants = tournament.participants.map(p => {
-    if (p.id === participantId) {
-      return { ...p, status: 'DISQUALIFIED' as const, disqualifiedAt: Date.now() };
-    }
-    return p;
-  });
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-  // Prepare updates object
-  const updates: any = { participants: updatedParticipants };
-
-  // Mark pending bracket matches as WALKOVER
-  if (tournament.finalStage) {
-    const finalStage = { ...tournament.finalStage };
-
-    // Process gold bracket - mark matches as WALKOVER and advance winners
-    if (finalStage.goldBracket?.rounds) {
-      // Track which matches we mark as WALKOVER in this call
-      const newlyWalkoverMatchIds = new Set<string>();
-
-      let updatedGoldBracket: BracketWithConfig = {
-        ...finalStage.goldBracket,
-        rounds: finalStage.goldBracket.rounds.map(round => ({
-          ...round,
-          matches: round.matches.map(match => {
-            if (match.status === 'PENDING' &&
-                (match.participantA === participantId || match.participantB === participantId)) {
-              const opponent = match.participantA === participantId ? match.participantB : match.participantA;
-              console.log(`🚫 Marking bracket match ${match.id} as WALKOVER - ${opponent} wins`);
-              newlyWalkoverMatchIds.add(match.id);
-              return {
-                ...match,
-                status: 'WALKOVER' as const,
-                winner: opponent
-              };
-            }
-            return match;
-          })
-        }))
-      };
-
-      // Advance winners for WALKOVER matches (process round by round to handle chain)
-      for (const round of updatedGoldBracket.rounds) {
-        for (const match of round.matches) {
-          if (match.status === 'WALKOVER' && match.winner && newlyWalkoverMatchIds.has(match.id)) {
-            console.log(`🔄 Advancing winner ${match.winner} from match ${match.id}`);
-            // advanceWinnerAlgorithm expects Bracket and returns Bracket, so we extract and restore config
-            const bracketOnly: Bracket = {
-              rounds: updatedGoldBracket.rounds,
-              totalRounds: updatedGoldBracket.totalRounds,
-              thirdPlaceMatch: updatedGoldBracket.thirdPlaceMatch
-            };
-            const advancedBracket = advanceWinnerAlgorithm(bracketOnly, match.id, match.winner);
-            updatedGoldBracket = {
-              ...advancedBracket,
-              config: updatedGoldBracket.config,
-              consolationBrackets: updatedGoldBracket.consolationBrackets
-            };
-          }
-        }
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found');
       }
 
-      // Process third place match - only mark as WALKOVER if opponent is determined
-      if (updatedGoldBracket.thirdPlaceMatch &&
-          updatedGoldBracket.thirdPlaceMatch.status === 'PENDING' &&
-          (updatedGoldBracket.thirdPlaceMatch.participantA === participantId ||
-           updatedGoldBracket.thirdPlaceMatch.participantB === participantId)) {
-        const opponent = updatedGoldBracket.thirdPlaceMatch.participantA === participantId
-          ? updatedGoldBracket.thirdPlaceMatch.participantB
-          : updatedGoldBracket.thirdPlaceMatch.participantA;
-        // Only mark as WALKOVER if opponent is determined
-        if (opponent) {
-          console.log(`🚫 Marking third place match as WALKOVER - ${opponent} wins`);
-          updatedGoldBracket.thirdPlaceMatch = {
-            ...updatedGoldBracket.thirdPlaceMatch,
-            status: 'WALKOVER' as const,
-            winner: opponent
+      const tournament = parseTournamentData(snapshot.data());
+
+      // Update participant status
+      const updatedParticipants = tournament.participants.map(p => {
+        if (p.id === participantId) {
+          return { ...p, status: 'DISQUALIFIED' as const, disqualifiedAt: Date.now() };
+        }
+        return p;
+      });
+
+      // Prepare updates object
+      const updates: any = { participants: updatedParticipants };
+
+      // Mark pending bracket matches as WALKOVER
+      if (tournament.finalStage) {
+        const finalStage = { ...tournament.finalStage };
+
+        // Process gold bracket - mark matches as WALKOVER and advance winners
+        if (finalStage.goldBracket?.rounds) {
+          const newlyWalkoverMatchIds = new Set<string>();
+
+          let updatedGoldBracket: BracketWithConfig = {
+            ...finalStage.goldBracket,
+            rounds: finalStage.goldBracket.rounds.map(round => ({
+              ...round,
+              matches: round.matches.map(match => {
+                if (match.status === 'PENDING' &&
+                    (match.participantA === participantId || match.participantB === participantId)) {
+                  const opponent = match.participantA === participantId ? match.participantB : match.participantA;
+                  console.log(`🚫 Marking bracket match ${match.id} as WALKOVER - ${opponent} wins`);
+                  newlyWalkoverMatchIds.add(match.id);
+                  return {
+                    ...match,
+                    status: 'WALKOVER' as const,
+                    winner: opponent
+                  };
+                }
+                return match;
+              })
+            }))
           };
-        } else {
-          console.log(`⏳ Third place match has disqualified participant but opponent not yet determined`);
-        }
-      }
 
-      // Process consolation brackets: resolve placeholders, mark DSQ matches, advance winners
-      resolveConsolationForDSQ(updatedGoldBracket, participantId);
-
-      finalStage.goldBracket = updatedGoldBracket;
-    }
-
-    // Process silver bracket - mark matches as WALKOVER and advance winners
-    if (finalStage.silverBracket?.rounds) {
-      // Track which matches we mark as WALKOVER in this call
-      const newlyWalkoverMatchIds = new Set<string>();
-
-      let updatedSilverBracket: BracketWithConfig = {
-        ...finalStage.silverBracket,
-        rounds: finalStage.silverBracket.rounds.map(round => ({
-          ...round,
-          matches: round.matches.map(match => {
-            if (match.status === 'PENDING' &&
-                (match.participantA === participantId || match.participantB === participantId)) {
-              const opponent = match.participantA === participantId ? match.participantB : match.participantA;
-              console.log(`🚫 Marking silver bracket match ${match.id} as WALKOVER - ${opponent} wins`);
-              newlyWalkoverMatchIds.add(match.id);
-              return {
-                ...match,
-                status: 'WALKOVER' as const,
-                winner: opponent
-              };
+          // Advance winners for WALKOVER matches (process round by round to handle chain)
+          for (const round of updatedGoldBracket.rounds) {
+            for (const match of round.matches) {
+              if (match.status === 'WALKOVER' && match.winner && newlyWalkoverMatchIds.has(match.id)) {
+                console.log(`🔄 Advancing winner ${match.winner} from match ${match.id}`);
+                const bracketOnly: Bracket = {
+                  rounds: updatedGoldBracket.rounds,
+                  totalRounds: updatedGoldBracket.totalRounds,
+                  thirdPlaceMatch: updatedGoldBracket.thirdPlaceMatch
+                };
+                const advancedBracket = advanceWinnerAlgorithm(bracketOnly, match.id, match.winner);
+                updatedGoldBracket = {
+                  ...advancedBracket,
+                  config: updatedGoldBracket.config,
+                  consolationBrackets: updatedGoldBracket.consolationBrackets
+                };
+              }
             }
-            return match;
-          })
-        }))
-      };
-
-      // Advance winners for WALKOVER matches
-      for (const round of updatedSilverBracket.rounds) {
-        for (const match of round.matches) {
-          if (match.status === 'WALKOVER' && match.winner && newlyWalkoverMatchIds.has(match.id)) {
-            console.log(`🔄 Advancing winner ${match.winner} from silver match ${match.id}`);
-            // advanceWinnerAlgorithm expects Bracket and returns Bracket, so we extract and restore config
-            const bracketOnly: Bracket = {
-              rounds: updatedSilverBracket.rounds,
-              totalRounds: updatedSilverBracket.totalRounds,
-              thirdPlaceMatch: updatedSilverBracket.thirdPlaceMatch
-            };
-            const advancedBracket = advanceWinnerAlgorithm(bracketOnly, match.id, match.winner);
-            updatedSilverBracket = {
-              ...advancedBracket,
-              config: updatedSilverBracket.config,
-              consolationBrackets: updatedSilverBracket.consolationBrackets
-            };
           }
-        }
-      }
 
-      // Process third place match - only mark as WALKOVER if opponent is determined
-      if (updatedSilverBracket.thirdPlaceMatch &&
-          updatedSilverBracket.thirdPlaceMatch.status === 'PENDING' &&
-          (updatedSilverBracket.thirdPlaceMatch.participantA === participantId ||
-           updatedSilverBracket.thirdPlaceMatch.participantB === participantId)) {
-        const opponent = updatedSilverBracket.thirdPlaceMatch.participantA === participantId
-          ? updatedSilverBracket.thirdPlaceMatch.participantB
-          : updatedSilverBracket.thirdPlaceMatch.participantA;
-        if (opponent) {
-          console.log(`🚫 Marking silver third place match as WALKOVER - ${opponent} wins`);
-          updatedSilverBracket.thirdPlaceMatch = {
-            ...updatedSilverBracket.thirdPlaceMatch,
-            status: 'WALKOVER' as const,
-            winner: opponent
+          // Process third place match - only mark as WALKOVER if opponent is determined
+          if (updatedGoldBracket.thirdPlaceMatch &&
+              updatedGoldBracket.thirdPlaceMatch.status === 'PENDING' &&
+              (updatedGoldBracket.thirdPlaceMatch.participantA === participantId ||
+               updatedGoldBracket.thirdPlaceMatch.participantB === participantId)) {
+            const opponent = updatedGoldBracket.thirdPlaceMatch.participantA === participantId
+              ? updatedGoldBracket.thirdPlaceMatch.participantB
+              : updatedGoldBracket.thirdPlaceMatch.participantA;
+            if (opponent) {
+              console.log(`🚫 Marking third place match as WALKOVER - ${opponent} wins`);
+              updatedGoldBracket.thirdPlaceMatch = {
+                ...updatedGoldBracket.thirdPlaceMatch,
+                status: 'WALKOVER' as const,
+                winner: opponent
+              };
+            } else {
+              console.log(`⏳ Third place match has disqualified participant but opponent not yet determined`);
+            }
+          }
+
+          // Process consolation brackets: resolve placeholders, mark DSQ matches, advance winners
+          resolveConsolationForDSQ(updatedGoldBracket, participantId);
+
+          finalStage.goldBracket = updatedGoldBracket;
+        }
+
+        // Process silver bracket - mark matches as WALKOVER and advance winners
+        if (finalStage.silverBracket?.rounds) {
+          const newlyWalkoverMatchIds = new Set<string>();
+
+          let updatedSilverBracket: BracketWithConfig = {
+            ...finalStage.silverBracket,
+            rounds: finalStage.silverBracket.rounds.map(round => ({
+              ...round,
+              matches: round.matches.map(match => {
+                if (match.status === 'PENDING' &&
+                    (match.participantA === participantId || match.participantB === participantId)) {
+                  const opponent = match.participantA === participantId ? match.participantB : match.participantA;
+                  console.log(`🚫 Marking silver bracket match ${match.id} as WALKOVER - ${opponent} wins`);
+                  newlyWalkoverMatchIds.add(match.id);
+                  return {
+                    ...match,
+                    status: 'WALKOVER' as const,
+                    winner: opponent
+                  };
+                }
+                return match;
+              })
+            }))
           };
+
+          // Advance winners for WALKOVER matches
+          for (const round of updatedSilverBracket.rounds) {
+            for (const match of round.matches) {
+              if (match.status === 'WALKOVER' && match.winner && newlyWalkoverMatchIds.has(match.id)) {
+                console.log(`🔄 Advancing winner ${match.winner} from silver match ${match.id}`);
+                const bracketOnly: Bracket = {
+                  rounds: updatedSilverBracket.rounds,
+                  totalRounds: updatedSilverBracket.totalRounds,
+                  thirdPlaceMatch: updatedSilverBracket.thirdPlaceMatch
+                };
+                const advancedBracket = advanceWinnerAlgorithm(bracketOnly, match.id, match.winner);
+                updatedSilverBracket = {
+                  ...advancedBracket,
+                  config: updatedSilverBracket.config,
+                  consolationBrackets: updatedSilverBracket.consolationBrackets
+                };
+              }
+            }
+          }
+
+          // Process third place match - only mark as WALKOVER if opponent is determined
+          if (updatedSilverBracket.thirdPlaceMatch &&
+              updatedSilverBracket.thirdPlaceMatch.status === 'PENDING' &&
+              (updatedSilverBracket.thirdPlaceMatch.participantA === participantId ||
+               updatedSilverBracket.thirdPlaceMatch.participantB === participantId)) {
+            const opponent = updatedSilverBracket.thirdPlaceMatch.participantA === participantId
+              ? updatedSilverBracket.thirdPlaceMatch.participantB
+              : updatedSilverBracket.thirdPlaceMatch.participantA;
+            if (opponent) {
+              console.log(`🚫 Marking silver third place match as WALKOVER - ${opponent} wins`);
+              updatedSilverBracket.thirdPlaceMatch = {
+                ...updatedSilverBracket.thirdPlaceMatch,
+                status: 'WALKOVER' as const,
+                winner: opponent
+              };
+            }
+          }
+
+          // Process consolation brackets: resolve placeholders, mark DSQ matches, advance winners
+          resolveConsolationForDSQ(updatedSilverBracket, participantId);
+
+          finalStage.silverBracket = updatedSilverBracket;
         }
+
+        updates.finalStage = finalStage;
       }
 
-      // Process consolation brackets: resolve placeholders, mark DSQ matches, advance winners
-      resolveConsolationForDSQ(updatedSilverBracket, participantId);
+      // Mark pending group stage matches as WALKOVER
+      if (tournament.groupStage?.groups) {
+        const groupStage = { ...tournament.groupStage };
 
-      finalStage.silverBracket = updatedSilverBracket;
-    }
+        groupStage.groups = groupStage.groups.map(group => {
+          const updatedGroup = { ...group };
 
-    updates.finalStage = finalStage;
-  }
+          // Round Robin schedule
+          if (updatedGroup.schedule) {
+            updatedGroup.schedule = updatedGroup.schedule.map(round => ({
+              ...round,
+              matches: round.matches.map(match => {
+                if (match.status === 'PENDING' &&
+                    (match.participantA === participantId || match.participantB === participantId)) {
+                  const opponent = match.participantA === participantId ? match.participantB : match.participantA;
+                  console.log(`🚫 Marking group match ${match.id} as WALKOVER - ${opponent} wins`);
+                  return {
+                    ...match,
+                    status: 'WALKOVER' as const,
+                    winner: opponent
+                  };
+                }
+                return match;
+              })
+            }));
+          }
 
-  // Mark pending group stage matches as WALKOVER
-  if (tournament.groupStage?.groups) {
-    const groupStage = { ...tournament.groupStage };
+          // Swiss pairings
+          if (updatedGroup.pairings) {
+            updatedGroup.pairings = updatedGroup.pairings.map(pairing => ({
+              ...pairing,
+              matches: pairing.matches.map(match => {
+                if (match.status === 'PENDING' &&
+                    (match.participantA === participantId || match.participantB === participantId)) {
+                  const opponent = match.participantA === participantId ? match.participantB : match.participantA;
+                  console.log(`🚫 Marking Swiss match ${match.id} as WALKOVER - ${opponent} wins`);
+                  return {
+                    ...match,
+                    status: 'WALKOVER' as const,
+                    winner: opponent
+                  };
+                }
+                return match;
+              })
+            }));
+          }
 
-    groupStage.groups = groupStage.groups.map(group => {
-      const updatedGroup = { ...group };
+          return updatedGroup;
+        });
 
-      // Round Robin schedule
-      if (updatedGroup.schedule) {
-        updatedGroup.schedule = updatedGroup.schedule.map(round => ({
-          ...round,
-          matches: round.matches.map(match => {
-            if (match.status === 'PENDING' &&
-                (match.participantA === participantId || match.participantB === participantId)) {
-              const opponent = match.participantA === participantId ? match.participantB : match.participantA;
-              console.log(`🚫 Marking group match ${match.id} as WALKOVER - ${opponent} wins`);
-              return {
-                ...match,
-                status: 'WALKOVER' as const,
-                winner: opponent
-              };
-            }
-            return match;
-          })
-        }));
+        updates.groupStage = groupStage;
       }
 
-      // Swiss pairings
-      if (updatedGroup.pairings) {
-        updatedGroup.pairings = updatedGroup.pairings.map(pairing => ({
-          ...pairing,
-          matches: pairing.matches.map(match => {
-            if (match.status === 'PENDING' &&
-                (match.participantA === participantId || match.participantB === participantId)) {
-              const opponent = match.participantA === participantId ? match.participantB : match.participantA;
-              console.log(`🚫 Marking Swiss match ${match.id} as WALKOVER - ${opponent} wins`);
-              return {
-                ...match,
-                status: 'WALKOVER' as const,
-                winner: opponent
-              };
-            }
-            return match;
-          })
-        }));
-      }
-
-      return updatedGroup;
+      transaction.update(tournamentRef, {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
     });
 
-    updates.groupStage = groupStage;
+    return true;
+  } catch (error) {
+    console.error('Error disqualifying participant:', error);
+    return false;
   }
-
-  return await updateTournament(tournamentId, updates);
 }
 
 /**
@@ -514,168 +576,187 @@ export async function disqualifyParticipant(
  * @returns true if any matches were fixed
  */
 export async function fixDisqualifiedMatches(tournamentId: string): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament) {
-    console.error('Tournament not found');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
-  // Get all disqualified participant IDs
-  const disqualifiedIds = new Set(
-    tournament.participants
-      .filter(p => p.status === 'DISQUALIFIED')
-      .map(p => p.id)
-  );
+  try {
+    let hasChanges = false;
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-  if (disqualifiedIds.size === 0) {
-    console.log('No disqualified participants found');
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) {
+        throw new Error('Tournament not found');
+      }
+
+      const tournament = parseTournamentData(snapshot.data());
+
+      // Get all disqualified participant IDs
+      const disqualifiedIds = new Set(
+        tournament.participants
+          .filter(p => p.status === 'DISQUALIFIED')
+          .map(p => p.id)
+      );
+
+      if (disqualifiedIds.size === 0) {
+        console.log('No disqualified participants found');
+        return;
+      }
+
+      console.log(`🔧 Fixing matches for ${disqualifiedIds.size} disqualified participants`);
+
+      const updates: any = {};
+
+      // Fix bracket matches
+      if (tournament.finalStage) {
+        const finalStage = { ...tournament.finalStage };
+
+        // Process gold bracket
+        if (finalStage.goldBracket?.rounds) {
+          let updatedGoldBracket: BracketWithConfig = {
+            ...finalStage.goldBracket,
+            rounds: finalStage.goldBracket.rounds.map(round => ({
+              ...round,
+              matches: round.matches.map(match => {
+                if (match.status === 'PENDING') {
+                  const isADisqualified = match.participantA && disqualifiedIds.has(match.participantA);
+                  const isBDisqualified = match.participantB && disqualifiedIds.has(match.participantB);
+
+                  if (isADisqualified && match.participantB && !isBDisqualified) {
+                    console.log(`🔧 Fixing match ${match.id}: ${match.participantB} wins by DSQ`);
+                    hasChanges = true;
+                    return { ...match, status: 'WALKOVER' as const, winner: match.participantB };
+                  }
+                  if (isBDisqualified && match.participantA && !isADisqualified) {
+                    console.log(`🔧 Fixing match ${match.id}: ${match.participantA} wins by DSQ`);
+                    hasChanges = true;
+                    return { ...match, status: 'WALKOVER' as const, winner: match.participantA };
+                  }
+                }
+                return match;
+              })
+            }))
+          };
+
+          // Advance winners for fixed matches
+          for (const round of updatedGoldBracket.rounds) {
+            for (const match of round.matches) {
+              if (match.status === 'WALKOVER' && match.winner) {
+                const bracketOnly: Bracket = {
+                  rounds: updatedGoldBracket.rounds,
+                  totalRounds: updatedGoldBracket.totalRounds,
+                  thirdPlaceMatch: updatedGoldBracket.thirdPlaceMatch
+                };
+                const advancedBracket = advanceWinnerAlgorithm(bracketOnly, match.id, match.winner);
+                updatedGoldBracket = {
+                  ...advancedBracket,
+                  config: updatedGoldBracket.config,
+                  consolationBrackets: updatedGoldBracket.consolationBrackets
+                };
+              }
+            }
+          }
+
+          // Fix third place match
+          if (updatedGoldBracket.thirdPlaceMatch?.status === 'PENDING') {
+            const match = updatedGoldBracket.thirdPlaceMatch;
+            const isADisqualified = match.participantA && disqualifiedIds.has(match.participantA);
+            const isBDisqualified = match.participantB && disqualifiedIds.has(match.participantB);
+
+            if (isADisqualified && match.participantB && !isBDisqualified) {
+              console.log(`🔧 Fixing 3rd place match: ${match.participantB} wins by DSQ`);
+              hasChanges = true;
+              updatedGoldBracket.thirdPlaceMatch = { ...match, status: 'WALKOVER' as const, winner: match.participantB };
+            } else if (isBDisqualified && match.participantA && !isADisqualified) {
+              console.log(`🔧 Fixing 3rd place match: ${match.participantA} wins by DSQ`);
+              hasChanges = true;
+              updatedGoldBracket.thirdPlaceMatch = { ...match, status: 'WALKOVER' as const, winner: match.participantA };
+            }
+          }
+
+          // Fix consolation brackets for each disqualified participant
+          for (const dsqId of disqualifiedIds) {
+            resolveConsolationForDSQ(updatedGoldBracket, dsqId);
+          }
+
+          finalStage.goldBracket = updatedGoldBracket;
+        }
+
+        // Process silver bracket (same logic)
+        if (finalStage.silverBracket?.rounds) {
+          let updatedSilverBracket: BracketWithConfig = {
+            ...finalStage.silverBracket,
+            rounds: finalStage.silverBracket.rounds.map(round => ({
+              ...round,
+              matches: round.matches.map(match => {
+                if (match.status === 'PENDING') {
+                  const isADisqualified = match.participantA && disqualifiedIds.has(match.participantA);
+                  const isBDisqualified = match.participantB && disqualifiedIds.has(match.participantB);
+
+                  if (isADisqualified && match.participantB && !isBDisqualified) {
+                    console.log(`🔧 Fixing silver match ${match.id}: ${match.participantB} wins by DSQ`);
+                    hasChanges = true;
+                    return { ...match, status: 'WALKOVER' as const, winner: match.participantB };
+                  }
+                  if (isBDisqualified && match.participantA && !isADisqualified) {
+                    console.log(`🔧 Fixing silver match ${match.id}: ${match.participantA} wins by DSQ`);
+                    hasChanges = true;
+                    return { ...match, status: 'WALKOVER' as const, winner: match.participantA };
+                  }
+                }
+                return match;
+              })
+            }))
+          };
+
+          // Advance winners
+          for (const round of updatedSilverBracket.rounds) {
+            for (const match of round.matches) {
+              if (match.status === 'WALKOVER' && match.winner) {
+                const bracketOnly: Bracket = {
+                  rounds: updatedSilverBracket.rounds,
+                  totalRounds: updatedSilverBracket.totalRounds,
+                  thirdPlaceMatch: updatedSilverBracket.thirdPlaceMatch
+                };
+                const advancedBracket = advanceWinnerAlgorithm(bracketOnly, match.id, match.winner);
+                updatedSilverBracket = {
+                  ...advancedBracket,
+                  config: updatedSilverBracket.config,
+                  consolationBrackets: updatedSilverBracket.consolationBrackets
+                };
+              }
+            }
+          }
+
+          // Fix consolation brackets for each disqualified participant
+          for (const dsqId of disqualifiedIds) {
+            resolveConsolationForDSQ(updatedSilverBracket, dsqId);
+          }
+
+          finalStage.silverBracket = updatedSilverBracket;
+        }
+
+        if (hasChanges) {
+          updates.finalStage = finalStage;
+        }
+      }
+
+      if (hasChanges) {
+        console.log('🔧 Saving fixed matches...');
+        transaction.update(tournamentRef, {
+          ...updates,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        console.log('No matches needed fixing');
+      }
+    });
+
+    return hasChanges;
+  } catch (error) {
+    console.error('Error fixing disqualified matches:', error);
     return false;
   }
-
-  console.log(`🔧 Fixing matches for ${disqualifiedIds.size} disqualified participants`);
-
-  let hasChanges = false;
-  const updates: any = {};
-
-  // Fix bracket matches
-  if (tournament.finalStage) {
-    const finalStage = { ...tournament.finalStage };
-
-    // Process gold bracket
-    if (finalStage.goldBracket?.rounds) {
-      let updatedGoldBracket: BracketWithConfig = {
-        ...finalStage.goldBracket,
-        rounds: finalStage.goldBracket.rounds.map(round => ({
-          ...round,
-          matches: round.matches.map(match => {
-            if (match.status === 'PENDING') {
-              const isADisqualified = match.participantA && disqualifiedIds.has(match.participantA);
-              const isBDisqualified = match.participantB && disqualifiedIds.has(match.participantB);
-
-              if (isADisqualified && match.participantB && !isBDisqualified) {
-                console.log(`🔧 Fixing match ${match.id}: ${match.participantB} wins by DSQ`);
-                hasChanges = true;
-                return { ...match, status: 'WALKOVER' as const, winner: match.participantB };
-              }
-              if (isBDisqualified && match.participantA && !isADisqualified) {
-                console.log(`🔧 Fixing match ${match.id}: ${match.participantA} wins by DSQ`);
-                hasChanges = true;
-                return { ...match, status: 'WALKOVER' as const, winner: match.participantA };
-              }
-            }
-            return match;
-          })
-        }))
-      };
-
-      // Advance winners for fixed matches
-      for (const round of updatedGoldBracket.rounds) {
-        for (const match of round.matches) {
-          if (match.status === 'WALKOVER' && match.winner) {
-            const bracketOnly: Bracket = {
-              rounds: updatedGoldBracket.rounds,
-              totalRounds: updatedGoldBracket.totalRounds,
-              thirdPlaceMatch: updatedGoldBracket.thirdPlaceMatch
-            };
-            const advancedBracket = advanceWinnerAlgorithm(bracketOnly, match.id, match.winner);
-            updatedGoldBracket = {
-              ...advancedBracket,
-              config: updatedGoldBracket.config,
-              consolationBrackets: updatedGoldBracket.consolationBrackets
-            };
-          }
-        }
-      }
-
-      // Fix third place match
-      if (updatedGoldBracket.thirdPlaceMatch?.status === 'PENDING') {
-        const match = updatedGoldBracket.thirdPlaceMatch;
-        const isADisqualified = match.participantA && disqualifiedIds.has(match.participantA);
-        const isBDisqualified = match.participantB && disqualifiedIds.has(match.participantB);
-
-        if (isADisqualified && match.participantB && !isBDisqualified) {
-          console.log(`🔧 Fixing 3rd place match: ${match.participantB} wins by DSQ`);
-          hasChanges = true;
-          updatedGoldBracket.thirdPlaceMatch = { ...match, status: 'WALKOVER' as const, winner: match.participantB };
-        } else if (isBDisqualified && match.participantA && !isADisqualified) {
-          console.log(`🔧 Fixing 3rd place match: ${match.participantA} wins by DSQ`);
-          hasChanges = true;
-          updatedGoldBracket.thirdPlaceMatch = { ...match, status: 'WALKOVER' as const, winner: match.participantA };
-        }
-      }
-
-      // Fix consolation brackets for each disqualified participant
-      for (const dsqId of disqualifiedIds) {
-        resolveConsolationForDSQ(updatedGoldBracket, dsqId);
-      }
-
-      finalStage.goldBracket = updatedGoldBracket;
-    }
-
-    // Process silver bracket (same logic)
-    if (finalStage.silverBracket?.rounds) {
-      let updatedSilverBracket: BracketWithConfig = {
-        ...finalStage.silverBracket,
-        rounds: finalStage.silverBracket.rounds.map(round => ({
-          ...round,
-          matches: round.matches.map(match => {
-            if (match.status === 'PENDING') {
-              const isADisqualified = match.participantA && disqualifiedIds.has(match.participantA);
-              const isBDisqualified = match.participantB && disqualifiedIds.has(match.participantB);
-
-              if (isADisqualified && match.participantB && !isBDisqualified) {
-                console.log(`🔧 Fixing silver match ${match.id}: ${match.participantB} wins by DSQ`);
-                hasChanges = true;
-                return { ...match, status: 'WALKOVER' as const, winner: match.participantB };
-              }
-              if (isBDisqualified && match.participantA && !isADisqualified) {
-                console.log(`🔧 Fixing silver match ${match.id}: ${match.participantA} wins by DSQ`);
-                hasChanges = true;
-                return { ...match, status: 'WALKOVER' as const, winner: match.participantA };
-              }
-            }
-            return match;
-          })
-        }))
-      };
-
-      // Advance winners
-      for (const round of updatedSilverBracket.rounds) {
-        for (const match of round.matches) {
-          if (match.status === 'WALKOVER' && match.winner) {
-            const bracketOnly: Bracket = {
-              rounds: updatedSilverBracket.rounds,
-              totalRounds: updatedSilverBracket.totalRounds,
-              thirdPlaceMatch: updatedSilverBracket.thirdPlaceMatch
-            };
-            const advancedBracket = advanceWinnerAlgorithm(bracketOnly, match.id, match.winner);
-            updatedSilverBracket = {
-              ...advancedBracket,
-              config: updatedSilverBracket.config,
-              consolationBrackets: updatedSilverBracket.consolationBrackets
-            };
-          }
-        }
-      }
-
-      // Fix consolation brackets for each disqualified participant
-      for (const dsqId of disqualifiedIds) {
-        resolveConsolationForDSQ(updatedSilverBracket, dsqId);
-      }
-
-      finalStage.silverBracket = updatedSilverBracket;
-    }
-
-    if (hasChanges) {
-      updates.finalStage = finalStage;
-    }
-  }
-
-  if (hasChanges) {
-    console.log('🔧 Saving fixed matches...');
-    return await updateTournament(tournamentId, updates);
-  }
-
-  console.log('No matches needed fixing');
-  return false;
 }

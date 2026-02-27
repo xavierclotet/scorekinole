@@ -1410,6 +1410,8 @@
 		if (!context || tournamentMatchCompletedSent) return;
 
 		stopTimer();
+		// Set flag to prevent concurrent calls while we're processing
+		// Will be reset if Firebase write fails
 		tournamentMatchCompletedSent = true;
 
 		// IMPORTANT: First, save the current game data to ensure we have all rounds
@@ -1516,9 +1518,13 @@
 				removePendingTournamentCompletion();
 				console.log('✅ Tournament match results saved successfully');
 			} else {
+				// Reset flag so retry can happen (data is saved in localStorage)
+				tournamentMatchCompletedSent = false;
 				console.error('❌ Failed to save tournament match results - saved for retry');
 			}
 		} catch (error) {
+			// Reset flag so retry can happen (data is saved in localStorage)
+			tournamentMatchCompletedSent = false;
 			console.error('Error completing tournament match - saved for retry:', error);
 		}
 
