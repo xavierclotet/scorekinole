@@ -43,15 +43,7 @@ function getBrowserName(): string {
 	return 'Other';
 }
 
-function getPlatform(): 'web' | 'android' | 'ios' {
-	try {
-		const { Capacitor } = window as any;
-		if (Capacitor?.getPlatform) {
-			const p = Capacitor.getPlatform();
-			if (p === 'android') return 'android';
-			if (p === 'ios') return 'ios';
-		}
-	} catch { /* web fallback */ }
+function getPlatform(): 'web' {
 	return 'web';
 }
 

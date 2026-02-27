@@ -5,21 +5,15 @@ import {
   FacebookAuthProvider,
   OAuthProvider,
   signInWithPopup,
-  signInWithCredential,
   linkWithCredential,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   type AuthCredential,
   type User as FirebaseUser
 } from 'firebase/auth';
-import { Capacitor } from '@capacitor/core';
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { setLocale } from '$lib/paraglide/runtime.js';
-
-// Google OAuth Web Client ID (for native authentication)
-const GOOGLE_WEB_CLIENT_ID = "648322505256-j4j11fqnr6p1minvnppodo02f2tbfejt.apps.googleusercontent.com";
 
 // User type
 export interface User {
@@ -89,91 +83,34 @@ export async function signInWithGoogle(): Promise<User> {
   }
 
   try {
-    // Check if running in native app (Capacitor)
-    const isNative = Capacitor.isNativePlatform();
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth!, provider);
+    const user = result.user;
 
-    if (isNative) {
-      // Use native authentication for mobile apps
-      console.log('🔐 Using native Google Sign-In...');
+    const appUser: User = {
+      id: user.uid,
+      name: user.displayName || 'Unknown',
+      email: user.email,
+      photoURL: user.photoURL,
+      providerPhotoURL: user.photoURL
+    };
 
-      const result = await FirebaseAuthentication.signInWithGoogle({
-        // @ts-expect-error - webClientId exists in runtime but not in types
-        webClientId: GOOGLE_WEB_CLIENT_ID
-      });
+    currentUser.set(appUser);
 
-      // Get the credential and sign in to Firebase
-      const credential = GoogleAuthProvider.credential(result.credential?.idToken);
-      const userCredential = await signInWithCredential(auth!, credential);
-      const user = userCredential.user;
-
-      console.log('🔍 Firebase user object:', {
-        uid: user.uid,
-        displayName: user.displayName,
-        email: user.email,
-        photoURL: user.photoURL,
-        metadata: user.metadata
-      });
-      console.log('🔍 Native result:', result);
-
-      const appUser: User = {
-        id: user.uid,
-        name: user.displayName || 'Unknown',
-        email: user.email,
-        photoURL: user.photoURL,
-        providerPhotoURL: user.photoURL
-      };
-
-      console.log('✅ User signed in (native):', appUser.name);
-      currentUser.set(appUser);
-
-      // Auto-link pending credential after successful Google sign-in (native)
-      if (pendingLinkCredential) {
-        try {
-          await linkWithCredential(user, pendingLinkCredential);
-          console.log('✅ Pending credential linked successfully (native)');
-        } catch (linkError) {
-          console.warn('⚠️ Could not link pending credential:', linkError);
-        } finally {
-          pendingLinkCredential = null;
-        }
+    // Auto-link pending credential (e.g., Facebook) after successful Google sign-in
+    if (pendingLinkCredential) {
+      try {
+        await linkWithCredential(user, pendingLinkCredential);
+      } catch (linkError) {
+        console.warn('Could not link pending credential:', linkError);
+      } finally {
+        pendingLinkCredential = null;
       }
-
-      return appUser;
-    } else {
-      // Use web popup for browser
-      console.log('🌐 Using web popup Sign-In...');
-
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth!, provider);
-      const user = result.user;
-
-      const appUser: User = {
-        id: user.uid,
-        name: user.displayName || 'Unknown',
-        email: user.email,
-        photoURL: user.photoURL,
-        providerPhotoURL: user.photoURL
-      };
-
-      console.log('✅ User signed in (web):', appUser.name);
-      currentUser.set(appUser);
-
-      // Auto-link pending credential (e.g., Facebook) after successful Google sign-in
-      if (pendingLinkCredential) {
-        try {
-          await linkWithCredential(user, pendingLinkCredential);
-          console.log('✅ Pending credential linked successfully');
-        } catch (linkError) {
-          console.warn('⚠️ Could not link pending credential:', linkError);
-        } finally {
-          pendingLinkCredential = null;
-        }
-      }
-
-      return appUser;
     }
+
+    return appUser;
   } catch (error) {
-    console.error('❌ Google sign in error:', error);
+    console.error('Google sign in error:', error);
     throw error;
   }
 }
@@ -201,50 +138,23 @@ export async function signInWithFacebook(): Promise<User> {
   }
 
   try {
-    const isNative = Capacitor.isNativePlatform();
+    const provider = new FacebookAuthProvider();
+    provider.addScope('email');
+    const result = await signInWithPopup(auth!, provider);
+    const user = result.user;
 
-    if (isNative) {
-      console.log('🔐 Using native Facebook Sign-In...');
+    const appUser: User = {
+      id: user.uid,
+      name: user.displayName || 'Unknown',
+      email: user.email,
+      photoURL: user.photoURL,
+      providerPhotoURL: user.photoURL
+    };
 
-      const result = await FirebaseAuthentication.signInWithFacebook();
-
-      const credential = FacebookAuthProvider.credential(result.credential?.accessToken!);
-      const userCredential = await signInWithCredential(auth!, credential);
-      const user = userCredential.user;
-
-      const appUser: User = {
-        id: user.uid,
-        name: user.displayName || 'Unknown',
-        email: user.email,
-        photoURL: user.photoURL,
-        providerPhotoURL: user.photoURL
-      };
-
-      console.log('✅ User signed in with Facebook (native):', appUser.name);
-      currentUser.set(appUser);
-      return appUser;
-    } else {
-      console.log('🌐 Using web popup Facebook Sign-In...');
-
-      const provider = new FacebookAuthProvider();
-      provider.addScope('email');
-      const result = await signInWithPopup(auth!, provider);
-      const user = result.user;
-
-      const appUser: User = {
-        id: user.uid,
-        name: user.displayName || 'Unknown',
-        email: user.email,
-        photoURL: user.photoURL,
-        providerPhotoURL: user.photoURL
-      };
-
-      console.log('✅ User signed in with Facebook (web):', appUser.name);
-      currentUser.set(appUser);
-      return appUser;
-    }
+    currentUser.set(appUser);
+    return appUser;
   } catch (error) {
-    console.error('❌ Facebook sign in error:', error);
+    console.error('Facebook sign in error:', error);
     throw error;
   }
 }

@@ -8,7 +8,6 @@ Technical documentation for developers working on ScoreCroki.
 - **Framework**: SvelteKit with Svelte 5 (runes syntax)
 - **Language**: TypeScript
 - **Build**: Vite 6.x
-- **Mobile**: Capacitor 6.x (Android)
 - **Backend**: Firebase (Auth, Firestore, Storage)
 - **i18n**: Paraglide (inlang)
 

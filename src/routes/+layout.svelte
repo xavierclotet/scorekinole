@@ -1,18 +1,16 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { loadMatchState } from '$lib/stores/matchState';
 	import { loadTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { initAuthListener, needsProfileSetup, currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
-	import { checkForUpdates, type VersionCheckResult } from '$lib/utils/versionCheck';
 	import { adminTheme } from '$lib/stores/theme';
 	import { trackPageView } from '$lib/utils/pageViewTracker';
 	import CompleteProfileModal from '$lib/components/CompleteProfileModal.svelte';
-	import UpdateAvailableModal from '$lib/components/UpdateAvailableModal.svelte';
+	import ReloadPrompt from '$lib/components/ReloadPrompt.svelte';
 	import '../app.css';
 
 	interface Props {
@@ -35,37 +33,7 @@
 		}
 	});
 
-	let updateInfo = $state<VersionCheckResult | null>(null);
-	let showUpdateModal = $state(false);
-
-	// Don't show update modal when playing a game
-	let isOnGamePage = $derived(page.url.pathname === '/game');
-
-	async function setupBackButtonHandler() {
-		try {
-			const { App } = await import('@capacitor/app');
-
-			App.addListener('backButton', ({ canGoBack }) => {
-				const currentPath = window.location.pathname;
-
-				// If on home page, exit the app
-				if (currentPath === '/' || currentPath === '') {
-					App.exitApp();
-					return;
-				}
-
-				// If browser has history, go back
-				if (canGoBack || window.history.length > 1) {
-					window.history.back();
-				} else {
-					// Fallback: go to home
-					goto('/');
-				}
-			});
-		} catch {
-			// Not running on Capacitor (web browser), ignore
-		}
-	}
+	let showReloadPrompt = $state(false);
 
 	onMount(() => {
 		// Load all persisted data
@@ -76,20 +44,24 @@
 		// Initialize Firebase auth listener (also handles user language from profile)
 		initAuthListener();
 
-		// Setup Android back button handler
-		setupBackButtonHandler();
+		// Register service worker and listen for updates
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.register('/service-worker.js').then((registration) => {
+				// Check for updates periodically (every 30 minutes)
+				setInterval(() => registration.update(), 30 * 60 * 1000);
 
-		// Check for updates after a delay (non-intrusive)
-		setTimeout(async () => {
-			const result = await checkForUpdates();
-			if (result.updateAvailable && result.latestVersion) {
-				updateInfo = result;
-				// Only show if not on game page
-				if (!isOnGamePage) {
-					showUpdateModal = true;
-				}
-			}
-		}, 3000);
+				registration.addEventListener('updatefound', () => {
+					const newWorker = registration.installing;
+					if (!newWorker) return;
+
+					newWorker.addEventListener('statechange', () => {
+						if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+							showReloadPrompt = true;
+						}
+					});
+				});
+			});
+		}
 	});
 
 	async function handleProfileComplete(playerName: string) {
@@ -99,12 +71,12 @@
 				// Update currentUser name and close modal
 				currentUser.update(u => u ? { ...u, name: playerName } : null);
 				needsProfileSetup.set(false);
-				console.log('✅ Profile setup completed');
+				console.log('Profile setup completed');
 			} else {
 				throw new Error('No se pudo guardar el perfil');
 			}
 		} catch (error) {
-			console.error('❌ Error completing profile setup:', error);
+			console.error('Error completing profile setup:', error);
 			throw error; // Re-throw so modal can display error
 		}
 	}
@@ -117,11 +89,4 @@
 	onsave={handleProfileComplete}
 />
 
-{#if updateInfo && showUpdateModal}
-	<UpdateAvailableModal
-		isOpen={true}
-		latestVersion={updateInfo.latestVersion ?? ''}
-		downloadUrl={updateInfo.downloadUrl}
-		onclose={() => { showUpdateModal = false; }}
-	/>
-{/if}
+<ReloadPrompt show={showReloadPrompt} />

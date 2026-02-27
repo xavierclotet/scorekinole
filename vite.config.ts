@@ -27,10 +27,6 @@ export default defineConfig({
 						if (id.includes('firebase') || id.includes('@firebase')) {
 							return 'firebase-core';
 						}
-						// Capacitor
-						if (id.includes('@capacitor')) {
-							return 'capacitor';
-						}
 					}
 				}
 			}

@@ -6,24 +6,21 @@ Beautiful and easy-to-use mobile app to track scores in your Crokinole matches. 
 
 ![Version](https://img.shields.io/badge/version-2.4.49-blue.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
-![Platform](https://img.shields.io/badge/platform-Android-brightgreen.svg)
+![Platform](https://img.shields.io/badge/platform-Web%20(PWA)-brightgreen.svg)
 
 ---
 
 ## 📥 **HOW TO USE**
 
-### 🌐 **WEB APP (Recommended)**
+### 🌐 **WEB APP**
 ### 👉 [**https://scorekinole.web.app**](https://scorekinole.web.app/) 👈
 
-Works on any device with a browser - no installation required!
+Works on any device with a browser. You can also **install it as an app** on your phone:
 
-### 📱 **ANDROID APP**
-### 👉 [**DOWNLOAD LATEST VERSION (v2.4.49)**](https://github.com/xavierclotet/scorekinole/releases/latest) 👈
-
-**Installation:**
-1. Download the APK file from the link above
-2. Enable "Install unknown apps" on your Android device
-3. Open the downloaded APK file and follow the instructions
+1. Open [scorekinole.web.app](https://scorekinole.web.app/) in Chrome on Android
+2. Tap the **"Install app"** button on the landing page (or use Chrome menu > "Add to Home Screen")
+3. The app appears on your home screen like a native app, without the browser bar
+4. Updates are automatic — you always have the latest version
 
 ---
 
@@ -175,7 +172,7 @@ Complete tournament administration system for professional Crokinole events.
 ## 📖 How to Use
 
 ### Quick Start
-1. **Open the app** - Start ScoreCroki on your Android device
+1. **Open the app** - Visit [scorekinole.web.app](https://scorekinole.web.app/) or open the installed PWA
 2. **Configure settings** - Tap ⚙️ to set your game mode and preferences
 3. **Start scoring** - Swipe up/down on the screen to add/remove points
 4. **View history** - Tap the **Match History** icon to see all your past matches
@@ -236,9 +233,8 @@ Quickly join tournaments or friendly matches by scanning QR codes instead of typ
 - Direct 6-character codes: `ABC123`
 
 #### **Camera Permissions**
-- **Web**: Browser will prompt for camera access
-- **Android APK**: Camera permission is requested automatically
-- **Fallback**: If camera is denied, manual code entry is available
+- Browser will prompt for camera access on first use
+- If camera is denied, manual code entry is always available
 
 ### Optional: Sign In with Google
 - On the landing page, tap the **profile icon** at the top right → **Log In**
@@ -295,4 +291,4 @@ Developed with ❤️ by Xavi Clotet
 
 ---
 
-**⭐ If you enjoy this app, please consider rating it on the App Store / Google Play!**
+**⭐ If you enjoy this app, please consider supporting us on [Ko-fi](https://ko-fi.com/I3I11SVYEM)!**

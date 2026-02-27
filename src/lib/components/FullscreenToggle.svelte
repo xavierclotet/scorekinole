@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { isNativeMobile } from '$lib/utils/versionCheck';
 	import * as m from '$lib/paraglide/messages.js';
 
-	const supported = browser && !!document.documentElement.requestFullscreen && !isNativeMobile();
+	const supported = browser && !!document.documentElement.requestFullscreen;
 
 	let isFullscreen = $state(browser ? !!document.fullscreenElement : false);
 

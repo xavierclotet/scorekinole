@@ -59,53 +59,6 @@ firebase hosting:channel:deploy preview
 
 ---
 
-## 📱 Build APK Android
-
-### Build completo (automático)
-```bash
-npm run build:apk
-```
-Este comando hace todo automáticamente:
-1. Build de producción (`npm run build`)
-2. Sync con Capacitor (`npx cap sync android`)
-3. Build del APK (`gradlew.bat app:assembleRelease`)
-4. Renombra APK con timestamp
-5. APK final: `ScoreCroki-vX.Y.Z-YYYYMMDD-HHMMSS.apk`
-
-### Build paso a paso (manual)
-
-```bash
-# 1. Build web
-npm run build
-
-# 2. Sync con Capacitor
-npx cap sync android
-
-# 3. Build APK
-cd android
-gradlew.bat app:assembleRelease
-
-# 4. APK generado en:
-# android/app/build/outputs/apk/release/app-release.apk
-```
-
-### Firmar APK para Play Store
-
-```bash
-# Generar keystore (solo primera vez)
-keytool -genkey -v -keystore scorekinole.keystore -alias scorekinole -keyalg RSA -keysize 2048 -validity 10000
-
-# Firmar APK
-jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore scorekinole.keystore app-release.apk scorekinole
-
-# Alinear APK
-zipalign -v 4 app-release.apk ScoreCroki-release-signed.apk
-```
-
-**IMPORTANTE**: Guarda el keystore en lugar seguro. Sin él no podrás hacer updates en Play Store.
-
----
-
 ## 🔧 Comandos Útiles
 
 ### Desarrollo
@@ -115,13 +68,6 @@ npm run preview      # Preview build local (puerto 4173)
 npm run build        # Build para producción
 ```
 
-### Capacitor
-```bash
-npm run sync                    # Sync web → native
-npx cap open android           # Abrir Android Studio
-npx cap run android            # Run en dispositivo/emulador
-```
-
 ### Firebase
 ```bash
 firebase deploy --only hosting           # Deploy web
@@ -129,32 +75,16 @@ firebase deploy --only firestore:rules   # Deploy reglas Firestore
 firebase deploy                          # Deploy todo
 ```
 
-### Testing APK
-```bash
-# Instalar APK en dispositivo conectado
-adb install -r ScoreCroki-vX.Y.Z.apk
-
-# Ver logs en tiempo real
-adb logcat | findstr "Chromium"
-```
-
 ---
 
 ## 📋 Checklist Pre-Deploy
 
 ### Web (Firebase Hosting)
-- [ ] Actualizar versión en `package.json`, `www/version.json`, `README.md`, `src/js/constants.js`
+- [ ] Actualizar versión en `package.json`, `README.md`, `src/lib/constants.ts`
 - [ ] `npm run build`
 - [ ] `npm run preview` - verificar que funciona
 - [ ] `firebase deploy --only hosting`
 - [ ] Verificar en https://scorekinole.web.app
-
-### Android APK
-- [ ] Actualizar versión en todos los archivos
-- [ ] Actualizar `versionCode` y `versionName` en `android/app/build.gradle`
-- [ ] `npm run build:apk`
-- [ ] Probar APK en dispositivo físico
-- [ ] Si es para Play Store, firmar APK
 
 ---
 
@@ -166,20 +96,6 @@ adb logcat | findstr "Chromium"
 rm -rf www/ node_modules/
 npm install
 npm run build
-```
-
-### Capacitor no sincroniza
-```bash
-npx cap sync android --force
-```
-
-### APK no instala
-```bash
-# Desinstalar versión anterior
-adb uninstall com.scorekinole.app
-
-# Reinstalar
-adb install ScoreCroki-vX.Y.Z.apk
 ```
 
 ### Firebase deploy falla
@@ -294,4 +210,4 @@ firebase functions:secrets:prune               # Eliminar versiones no usadas
 
 ---
 
-**🎯 Tip**: Usa `npm run build:apk` para generar APK completo con un solo comando.
+**🎯 Tip**: La app es una PWA. Los usuarios pueden instalarla desde el navegador con "Añadir a pantalla de inicio" y siempre tendrán la última versión.

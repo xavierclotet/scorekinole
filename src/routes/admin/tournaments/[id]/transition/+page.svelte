@@ -1212,21 +1212,21 @@
                 </div>
                 <div class="phase-config-body">
                   <div class="config-field">
-                    <label>{m.admin_gameMode()}</label>
-                    <select bind:value={earlyRoundsGameMode} class="select-input">
+                    <label for="early-game-mode">{m.admin_gameMode()}</label>
+                    <select id="early-game-mode" bind:value={earlyRoundsGameMode} class="select-input">
                       <option value="points">{m.admin_byPoints()}</option>
                       <option value="rounds">{m.admin_byRounds()}</option>
                     </select>
                   </div>
                   {#if earlyRoundsGameMode === 'points'}
                     <div class="config-field">
-                      <label>{m.admin_pointsToWinLabel()}</label>
-                      <input type="number" bind:value={earlyRoundsPointsToWin} min="1" max="15" class="number-input" />
+                      <label for="early-points-to-win">{m.admin_pointsToWinLabel()}</label>
+                      <input id="early-points-to-win" type="number" bind:value={earlyRoundsPointsToWin} min="1" max="15" class="number-input" />
                     </div>
                   {:else}
                     <div class="config-field">
-                      <label>{m.admin_roundsToPlayLabel()}</label>
-                      <input type="number" bind:value={earlyRoundsToPlay} min="1" max="12" class="number-input" />
+                      <label for="early-rounds-to-play">{m.admin_roundsToPlayLabel()}</label>
+                      <input id="early-rounds-to-play" type="number" bind:value={earlyRoundsToPlay} min="1" max="12" class="number-input" />
                     </div>
                   {/if}
                 </div>
@@ -1241,26 +1241,26 @@
                 </div>
                 <div class="phase-config-body">
                   <div class="config-field">
-                    <label>{m.admin_gameMode()}</label>
-                    <select bind:value={semifinalGameMode} class="select-input">
+                    <label for="semi-game-mode">{m.admin_gameMode()}</label>
+                    <select id="semi-game-mode" bind:value={semifinalGameMode} class="select-input">
                       <option value="points">{m.admin_byPoints()}</option>
                       <option value="rounds">{m.admin_byRounds()}</option>
                     </select>
                   </div>
                   {#if semifinalGameMode === 'points'}
                     <div class="config-field">
-                      <label>{m.admin_pointsToWinLabel()}</label>
-                      <input type="number" bind:value={semifinalPointsToWin} min="1" max="15" class="number-input" />
+                      <label for="semi-points-to-win">{m.admin_pointsToWinLabel()}</label>
+                      <input id="semi-points-to-win" type="number" bind:value={semifinalPointsToWin} min="1" max="15" class="number-input" />
                     </div>
                   {:else}
                     <div class="config-field">
-                      <label>{m.admin_roundsToPlayLabel()}</label>
-                      <input type="number" bind:value={semifinalRoundsToPlay} min="1" max="12" class="number-input" />
+                      <label for="semi-rounds-to-play">{m.admin_roundsToPlayLabel()}</label>
+                      <input id="semi-rounds-to-play" type="number" bind:value={semifinalRoundsToPlay} min="1" max="12" class="number-input" />
                     </div>
                   {/if}
                   <div class="config-field">
-                    <label>{m.admin_matchesToWinLabel()}</label>
-                    <select bind:value={semifinalMatchesToWin} class="select-input">
+                    <label for="semi-matches-to-win">{m.admin_matchesToWinLabel()}</label>
+                    <select id="semi-matches-to-win" bind:value={semifinalMatchesToWin} class="select-input">
                       <option value={1}>1</option>
                       <option value={2}>2</option>
                       <option value={3}>3</option>
@@ -1277,26 +1277,26 @@
                 </div>
                 <div class="phase-config-body">
                   <div class="config-field">
-                    <label>{m.admin_gameMode()}</label>
-                    <select bind:value={finalGameMode} class="select-input">
+                    <label for="final-game-mode">{m.admin_gameMode()}</label>
+                    <select id="final-game-mode" bind:value={finalGameMode} class="select-input">
                       <option value="points">{m.admin_byPoints()}</option>
                       <option value="rounds">{m.admin_byRounds()}</option>
                     </select>
                   </div>
                   {#if finalGameMode === 'points'}
                     <div class="config-field">
-                      <label>{m.admin_pointsToWinLabel()}</label>
-                      <input type="number" bind:value={finalPointsToWin} min="1" max="15" class="number-input" />
+                      <label for="final-points-to-win">{m.admin_pointsToWinLabel()}</label>
+                      <input id="final-points-to-win" type="number" bind:value={finalPointsToWin} min="1" max="15" class="number-input" />
                     </div>
                   {:else}
                     <div class="config-field">
-                      <label>{m.admin_roundsToPlayLabel()}</label>
-                      <input type="number" bind:value={finalRoundsToPlay} min="1" max="12" class="number-input" />
+                      <label for="final-rounds-to-play">{m.admin_roundsToPlayLabel()}</label>
+                      <input id="final-rounds-to-play" type="number" bind:value={finalRoundsToPlay} min="1" max="12" class="number-input" />
                     </div>
                   {/if}
                   <div class="config-field">
-                    <label>{m.admin_bestOfLabel()}</label>
-                    <select bind:value={finalMatchesToWin} class="select-input">
+                    <label for="final-best-of">{m.admin_bestOfLabel()}</label>
+                    <select id="final-best-of" bind:value={finalMatchesToWin} class="select-input">
                       <option value={1}>1</option>
                       <option value={2}>2</option>
                       <option value={3}>3</option>

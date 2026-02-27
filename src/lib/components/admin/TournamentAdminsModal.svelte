@@ -423,7 +423,7 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<div class="confirm-overlay" onclick={() => (showTransferConfirm = false)} role="presentation">
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<div class="confirm-modal" onclick={stopPropagation} role="dialog">
+			<div class="confirm-modal" onclick={stopPropagation} role="dialog" tabindex="-1">
 				<h3>{m.admin_confirmTransfer()}</h3>
 				<p>{m.admin_transferDescription({ name: getAdminName(transferTargetId) })}</p>
 

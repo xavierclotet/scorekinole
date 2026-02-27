@@ -14,7 +14,8 @@
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import SEO from '$lib/components/SEO.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { Play, BarChart3 } from '@lucide/svelte';
+	import { Play, BarChart3, Download } from '@lucide/svelte';
+	import { canInstall, triggerInstall } from '$lib/stores/pwaInstall';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import WhatsNewModal from '$lib/components/WhatsNewModal.svelte';
 	import { onMount } from 'svelte';
@@ -37,7 +38,7 @@
 			"name": "Scorekinole",
 			"url": "https://scorekinole.web.app",
 			"applicationCategory": "SportsApplication",
-			"operatingSystem": "Web, Android",
+			"operatingSystem": "Web",
 			"description": "Track crokinole scores, manage live tournaments, and view player rankings",
 			"offers": {
 				"@type": "Offer",
@@ -382,7 +383,15 @@
 			</Button>
 		</div>
 
-		<!-- Support Section -->
+		<!-- Install PWA + Support Section -->
+		<div class="support-section flex justify-center items-center gap-3 mt-2">
+			{#if $canInstall}
+				<button class="install-btn" onclick={() => triggerInstall()}>
+					<Download class="size-4" />
+					<span>{m.common_installApp()}</span>
+				</button>
+			{/if}
+		</div>
 		<div class="support-section flex justify-center items-center mt-2">
 			<a href="https://ko-fi.com/I3I11SVYEM" target="_blank" rel="noopener noreferrer" class="kofi-btn">
 				<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
@@ -633,6 +642,32 @@
 		}
 	}
 
+
+	.install-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.5rem 1rem;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--primary);
+		border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+		border-radius: 9999px;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.install-btn:hover {
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
+		border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+		transform: translateY(-1px);
+	}
+
+	.install-btn:active {
+		transform: translateY(0);
+	}
 
 	.kofi-btn {
 		display: inline-flex;
