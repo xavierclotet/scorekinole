@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.58] - 2026-02-27
+- Fix tournament race conditions: migrate all tournament writes to Firestore runTransaction()
+- Fix tournamentTransition.ts: replace raw updateDoc() with atomic transactions
+- Fix tournamentParticipants.ts: all participant operations now use transactions (add, remove, update, disqualify)
+- Fix tournamentGroups.ts: completeGroupStage now uses transaction with fresh data validation
+- Fix tournamentMatches.ts: add idempotency guard (skip already completed matches), block late round sync on completed matches
+- Fix game page double submission: reset flag on Firebase write failure to allow retry
+
 ## [2.4.57] - 2026-02-27
 - Fix offline navigation (cache SPA shell for offline fallback)
 - Fix service worker update race condition (skipWaiting could miss statechange)
