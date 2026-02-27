@@ -7,6 +7,7 @@
 	import { requestNotificationPermission } from '$lib/firebase/messaging';
 	import type { NotificationPreferences } from '$lib/types/notifications';
 	import { DEFAULT_NOTIFICATION_PREFERENCES } from '$lib/types/notifications';
+	import { slide } from 'svelte/transition';
 
 	let prefs = $state<NotificationPreferences>({ ...DEFAULT_NOTIFICATION_PREFERENCES });
 	let loaded = $state(false);
@@ -31,14 +32,13 @@
 	}
 
 	async function toggleMaster() {
-		if (toggling) return; // Prevent double-fire from label+button on mobile
+		if (toggling) return;
 		toggling = true;
 		try {
 			if (!prefs.enabled) {
-				// Always request token when enabling (handles both new permission and already-granted)
 				const token = await requestNotificationPermission();
 				permissionState = typeof Notification !== 'undefined' ? Notification.permission : 'default';
-				if (!token) return; // User denied permission or error
+				if (!token) return;
 				prefs.enabled = true;
 			} else {
 				prefs.enabled = false;
@@ -59,87 +59,109 @@
 
 {#if loaded}
 	<div class="notification-section">
+		<!-- Master toggle header -->
 		<div class="notification-header">
-			{#if prefs.enabled && !isDenied}
-				<Bell class="notification-icon active" />
-			{:else}
-				<BellOff class="notification-icon" />
-			{/if}
-			<span class="notification-title">{m.notifications_title()}</span>
-		</div>
+			<div class="header-left">
+				{#if prefs.enabled && !isDenied}
+					<Bell class="notification-icon active" />
+				{:else}
+					<BellOff class="notification-icon" />
+				{/if}
+				<span class="notification-title">{m.notifications_title()}</span>
+			</div>
 
-		{#if isDenied}
-			<p class="notification-denied">{m.notifications_denied()}</p>
-		{:else}
-			<!-- Master toggle -->
-			<div class="toggle-row">
-				<span class="toggle-label">{m.notifications_enabled()}</span>
+			{#if !isDenied}
 				<button
 					class="toggle-switch"
 					class:on={prefs.enabled}
 					onclick={toggleMaster}
 					role="switch"
 					aria-checked={prefs.enabled}
+					aria-label={m.notifications_enabled()}
 				>
 					<span class="toggle-dot"></span>
 				</button>
-			</div>
+			{/if}
+		</div>
 
-			{#if prefs.enabled}
-				<div class="toggle-list">
-					<div class="toggle-row sub">
-						<span class="toggle-label">{m.notifications_matchReady()}</span>
-						<button
-							class="toggle-switch"
-							class:on={prefs.tournament_matchReady}
-							onclick={() => togglePref('tournament_matchReady')}
-							role="switch"
-							aria-checked={prefs.tournament_matchReady}
-						>
-							<span class="toggle-dot"></span>
-						</button>
-					</div>
+		{#if isDenied}
+			<p class="notification-denied">{m.notifications_denied()}</p>
+		{/if}
 
-					<div class="toggle-row sub">
-						<span class="toggle-label">{m.notifications_phaseChange()}</span>
-						<button
-							class="toggle-switch"
-							class:on={prefs.tournament_phaseChange}
-							onclick={() => togglePref('tournament_phaseChange')}
-							role="switch"
-							aria-checked={prefs.tournament_phaseChange}
-						>
-							<span class="toggle-dot"></span>
-						</button>
-					</div>
+		{#if prefs.enabled && !isDenied}
+			<div class="toggle-groups" transition:slide={{ duration: 200 }}>
+				<!-- Tournament notifications -->
+				<div class="toggle-group">
+					<span class="toggle-group-label">{m.notifications_tournaments()}</span>
+					<div class="toggle-group-card">
+						<div class="toggle-row">
+							<span class="toggle-label">{m.notifications_matchReady()}</span>
+							<button
+								class="toggle-switch small"
+								class:on={prefs.tournament_matchReady}
+								onclick={() => togglePref('tournament_matchReady')}
+								role="switch"
+								aria-checked={prefs.tournament_matchReady}
+								aria-label={m.notifications_matchReady()}
+							>
+								<span class="toggle-dot"></span>
+							</button>
+						</div>
 
-					<div class="toggle-row sub">
-						<span class="toggle-label">{m.notifications_ranking()}</span>
-						<button
-							class="toggle-switch"
-							class:on={prefs.tournament_ranking}
-							onclick={() => togglePref('tournament_ranking')}
-							role="switch"
-							aria-checked={prefs.tournament_ranking}
-						>
-							<span class="toggle-dot"></span>
-						</button>
-					</div>
+						<div class="toggle-divider"></div>
 
-					<div class="toggle-row sub">
-						<span class="toggle-label">{m.notifications_inviteResponse()}</span>
-						<button
-							class="toggle-switch"
-							class:on={prefs.friendly_inviteResponse}
-							onclick={() => togglePref('friendly_inviteResponse')}
-							role="switch"
-							aria-checked={prefs.friendly_inviteResponse}
-						>
-							<span class="toggle-dot"></span>
-						</button>
+						<div class="toggle-row">
+							<span class="toggle-label">{m.notifications_phaseChange()}</span>
+							<button
+								class="toggle-switch small"
+								class:on={prefs.tournament_phaseChange}
+								onclick={() => togglePref('tournament_phaseChange')}
+								role="switch"
+								aria-checked={prefs.tournament_phaseChange}
+								aria-label={m.notifications_phaseChange()}
+							>
+								<span class="toggle-dot"></span>
+							</button>
+						</div>
+
+						<div class="toggle-divider"></div>
+
+						<div class="toggle-row">
+							<span class="toggle-label">{m.notifications_ranking()}</span>
+							<button
+								class="toggle-switch small"
+								class:on={prefs.tournament_ranking}
+								onclick={() => togglePref('tournament_ranking')}
+								role="switch"
+								aria-checked={prefs.tournament_ranking}
+								aria-label={m.notifications_ranking()}
+							>
+								<span class="toggle-dot"></span>
+							</button>
+						</div>
 					</div>
 				</div>
-			{/if}
+
+				<!-- Friendly match notifications -->
+				<div class="toggle-group">
+					<span class="toggle-group-label">{m.notifications_friendlyMatches()}</span>
+					<div class="toggle-group-card">
+						<div class="toggle-row">
+							<span class="toggle-label">{m.notifications_inviteResponse()}</span>
+							<button
+								class="toggle-switch small"
+								class:on={prefs.friendly_inviteResponse}
+								onclick={() => togglePref('friendly_inviteResponse')}
+								role="switch"
+								aria-checked={prefs.friendly_inviteResponse}
+								aria-label={m.notifications_inviteResponse()}
+							>
+								<span class="toggle-dot"></span>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
 		{/if}
 	</div>
 {/if}
@@ -148,10 +170,16 @@
 	.notification-section {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: 12px;
 	}
 
 	.notification-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.header-left {
 		display: flex;
 		align-items: center;
 		gap: 6px;
@@ -180,33 +208,53 @@
 		line-height: 1.4;
 	}
 
+	/* Toggle groups */
+	.toggle-groups {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.toggle-group {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.toggle-group-label {
+		font-size: 11px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: var(--muted-foreground);
+		padding-left: 2px;
+	}
+
+	.toggle-group-card {
+		background: color-mix(in srgb, var(--muted) 50%, transparent);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		overflow: hidden;
+	}
+
+	.toggle-divider {
+		height: 1px;
+		background: var(--border);
+		margin: 0 10px;
+	}
+
+	/* Toggle rows */
 	.toggle-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 8px;
-		cursor: pointer;
-	}
-
-	.toggle-row.sub {
-		padding-left: 4px;
+		padding: 8px 10px;
 	}
 
 	.toggle-label {
-		font-size: 13px;
+		font-size: 12.5px;
 		color: var(--foreground);
-	}
-
-	.toggle-row.sub .toggle-label {
-		font-size: 12px;
-		color: var(--muted-foreground);
-	}
-
-	.toggle-list {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding-top: 2px;
 	}
 
 	/* Custom toggle switch */
@@ -229,6 +277,12 @@
 		background: var(--primary);
 	}
 
+	.toggle-switch.small {
+		width: 32px;
+		height: 18px;
+		border-radius: 9px;
+	}
+
 	.toggle-dot {
 		position: absolute;
 		top: 2px;
@@ -242,6 +296,15 @@
 
 	.toggle-switch.on .toggle-dot {
 		transform: translateX(16px);
+	}
+
+	.toggle-switch.small .toggle-dot {
+		width: 14px;
+		height: 14px;
+	}
+
+	.toggle-switch.small.on .toggle-dot {
+		transform: translateX(14px);
 	}
 
 	@media (max-width: 380px) {
@@ -258,6 +321,20 @@
 		.toggle-switch.on .toggle-dot {
 			transform: translateX(14px);
 		}
+
+		.toggle-switch.small {
+			width: 28px;
+			height: 16px;
+		}
+
+		.toggle-switch.small .toggle-dot {
+			width: 12px;
+			height: 12px;
+		}
+
+		.toggle-switch.small.on .toggle-dot {
+			transform: translateX(12px);
+		}
 	}
 
 	@media (max-height: 500px) and (orientation: landscape) {
@@ -269,16 +346,20 @@
 			font-size: 12px;
 		}
 
-		.toggle-label {
-			font-size: 12px;
+		.toggle-groups {
+			gap: 8px;
 		}
 
-		.toggle-row.sub .toggle-label {
+		.toggle-group-label {
+			font-size: 10px;
+		}
+
+		.toggle-label {
 			font-size: 11px;
 		}
 
-		.toggle-list {
-			gap: 5px;
+		.toggle-row {
+			padding: 5px 8px;
 		}
 
 		.toggle-switch {
@@ -293,6 +374,20 @@
 
 		.toggle-switch.on .toggle-dot {
 			transform: translateX(14px);
+		}
+
+		.toggle-switch.small {
+			width: 28px;
+			height: 16px;
+		}
+
+		.toggle-switch.small .toggle-dot {
+			width: 12px;
+			height: 12px;
+		}
+
+		.toggle-switch.small.on .toggle-dot {
+			transform: translateX(12px);
 		}
 	}
 </style>

@@ -780,6 +780,53 @@ async function sendPushToUser(
   return sent;
 }
 
+// ─── Notification i18n ──────────────────────────────────────────────────────
+
+const notificationStrings: Record<string, Record<string, string>> = {
+  es: {
+    groupPhase: "Fase de Grupos",
+    finalPhase: "Fase Final",
+    consolation: "Consolación",
+    round: "Ronda",
+    table: "Mesa",
+    youVs: "Tú vs.",
+    thirdPlace: "3er/4to puesto",
+  },
+  ca: {
+    groupPhase: "Fase de Grups",
+    finalPhase: "Fase Final",
+    consolation: "Consolació",
+    round: "Ronda",
+    table: "Taula",
+    youVs: "Tu vs.",
+    thirdPlace: "3r/4t lloc",
+  },
+  en: {
+    groupPhase: "Group Stage",
+    finalPhase: "Finals",
+    consolation: "Consolation",
+    round: "Round",
+    table: "Table",
+    youVs: "You vs.",
+    thirdPlace: "3rd/4th place",
+  },
+};
+
+function nt(lang: string, key: string): string {
+  return notificationStrings[lang]?.[key] || notificationStrings["es"][key] || key;
+}
+
+/**
+ * Get user's preferred language from their Firestore profile.
+ * Defaults to "es" if not set or invalid.
+ */
+async function getUserLanguage(userId: string): Promise<string> {
+  const db = getDb();
+  const userSnap = await db.collection("users").doc(userId).get();
+  const lang = userSnap.data()?.language;
+  return lang && ["es", "ca", "en"].includes(lang) ? lang : "es";
+}
+
 // ─── Match structures for diffing ───────────────────────────────────────────
 
 interface MatchLike {
@@ -788,47 +835,86 @@ interface MatchLike {
   participantB?: string;
   tableNumber?: number;
   status: string;
+  // Notification context
+  phase: "GROUP" | "FINAL" | "CONSOLATION";
+  groupName?: string;
+  roundNumber?: number;
+  roundName?: string;
+  bracketLabel?: string;
+  isThirdPlace?: boolean;
 }
 
 /**
  * Extract all matches from a tournament document (groups + brackets)
+ * with notification context metadata (phase, group, round, bracket).
  */
 function extractAllMatches(data: any): MatchLike[] {
   const matches: MatchLike[] = [];
+  const multipleGroups = (data.groupStage?.groups?.length || 0) > 1;
 
   // Group stage matches
   if (data.groupStage?.groups) {
     for (const group of data.groupStage.groups) {
       for (const round of [...(group.schedule || []), ...(group.pairings || [])]) {
         for (const match of round.matches || []) {
-          matches.push(match);
+          matches.push({
+            ...match,
+            phase: "GROUP",
+            groupName: multipleGroups ? group.name : undefined,
+            roundNumber: round.roundNumber,
+          });
         }
       }
     }
   }
 
-  // Final stage matches
-  if (data.finalStage?.brackets) {
-    for (const bracket of data.finalStage.brackets) {
-      for (const round of bracket.rounds || []) {
-        for (const match of round.matches || []) {
-          matches.push(match);
-        }
+  // Helper to extract matches from a BracketWithConfig
+  function extractBracket(
+    bracket: any,
+    phase: "FINAL" | "CONSOLATION",
+    bracketLabel?: string
+  ) {
+    if (!bracket) return;
+    for (const round of bracket.rounds || []) {
+      for (const match of round.matches || []) {
+        matches.push({
+          ...match,
+          phase,
+          roundName: round.name,
+          bracketLabel,
+        });
       }
-      if (bracket.thirdPlaceMatch) {
-        matches.push(bracket.thirdPlaceMatch);
+    }
+    if (bracket.thirdPlaceMatch) {
+      matches.push({
+        ...bracket.thirdPlaceMatch,
+        phase,
+        isThirdPlace: true,
+        bracketLabel,
+      });
+    }
+    // Consolation brackets nested inside this bracket
+    if (bracket.consolationBrackets) {
+      for (const cb of bracket.consolationBrackets) {
+        extractBracket(cb, "CONSOLATION", bracketLabel);
       }
     }
   }
 
-  // Consolation brackets
-  if (data.finalStage?.consolationBrackets) {
-    for (const bracket of data.finalStage.consolationBrackets) {
-      for (const round of bracket.rounds || []) {
-        for (const match of round.matches || []) {
-          matches.push(match);
-        }
-      }
+  // Final stage - Gold bracket (always present)
+  if (data.finalStage?.goldBracket) {
+    extractBracket(data.finalStage.goldBracket, "FINAL");
+  }
+
+  // Final stage - Silver bracket (SPLIT_DIVISIONS mode)
+  if (data.finalStage?.silverBracket) {
+    extractBracket(data.finalStage.silverBracket, "FINAL", "Plata");
+  }
+
+  // Final stage - Parallel brackets (A/B/C Finals)
+  if (data.finalStage?.parallelBrackets) {
+    for (const nb of data.finalStage.parallelBrackets) {
+      extractBracket(nb.bracket, "FINAL", nb.name);
     }
   }
 
@@ -884,6 +970,46 @@ export const onTournamentMatchEvent = onDocumentUpdated(
 
     const tournamentKey = afterData.key || event.params.tournamentId;
 
+    // Build localized notification for a specific user language
+    function buildNotification(
+      match: MatchLike,
+      lang: string,
+      opponentName: string
+    ) {
+      let title: string;
+      if (match.phase === "GROUP") {
+        const parts = [nt(lang, "groupPhase")];
+        if (match.groupName) parts.push(match.groupName);
+        parts.push(`${nt(lang, "round")} ${match.roundNumber}`);
+        title = parts.join(" · ");
+      } else if (match.phase === "CONSOLATION") {
+        const parts = [nt(lang, "consolation")];
+        if (match.isThirdPlace) {
+          parts.push(nt(lang, "thirdPlace"));
+        } else if (match.roundName) {
+          parts.push(match.roundName);
+        }
+        title = parts.join(" · ");
+      } else {
+        // FINAL
+        const parts = [nt(lang, "finalPhase")];
+        if (match.bracketLabel) parts.push(match.bracketLabel);
+        if (match.isThirdPlace) {
+          parts.push(nt(lang, "thirdPlace"));
+        } else if (match.roundName) {
+          parts.push(match.roundName);
+        }
+        title = parts.join(" · ");
+      }
+
+      return {
+        title,
+        body: `${nt(lang, "table")} ${match.tableNumber}: ${nt(lang, "youVs")} ${opponentName}`,
+        url: `/tournaments/${tournamentKey}`,
+        tag: `match-ready-${match.id}`,
+      };
+    }
+
     // Send push notifications for each newly assigned match
     for (const match of newlyAssigned) {
       const pA = participantMap.get(match.participantA || "");
@@ -891,30 +1017,22 @@ export const onTournamentMatchEvent = onDocumentUpdated(
 
       if (!pA || !pB) continue;
 
-      // Notify participant A
+      // Notify participant A in their preferred language
       if (pA.userId) {
+        const lang = await getUserLanguage(pA.userId);
         await sendPushToUser(
           pA.userId,
-          {
-            title: "Tu partida está lista",
-            body: `Mesa ${match.tableNumber}: Tú vs. ${pB.name}`,
-            url: `/tournaments/${tournamentKey}`,
-            tag: `match-ready-${match.id}`,
-          },
+          buildNotification(match, lang, pB.name),
           "tournament_matchReady"
         );
       }
 
-      // Notify participant B
+      // Notify participant B in their preferred language
       if (pB.userId) {
+        const lang = await getUserLanguage(pB.userId);
         await sendPushToUser(
           pB.userId,
-          {
-            title: "Tu partida está lista",
-            body: `Mesa ${match.tableNumber}: Tú vs. ${pA.name}`,
-            url: `/tournaments/${tournamentKey}`,
-            tag: `match-ready-${match.id}`,
-          },
+          buildNotification(match, lang, pA.name),
           "tournament_matchReady"
         );
       }
