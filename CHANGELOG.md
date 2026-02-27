@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.56] - 2026-02-27
+- Fix critical bug: finals push notifications now fire correctly (extractAllMatches traverses goldBracket/silverBracket/parallelBrackets)
+- Push notification title shows phase, group, and round context (e.g. "Fase de Grupos · Grupo B · Ronda 1")
+- Notifications localized per user language (es/ca/en)
+- Redesign notification preferences UI with grouped cards (Torneos / Partidas amistosas)
+
 ## [2.4.55] - 2026-02-27
 - Auto-update PWA: auto-reload on safe pages, show update prompt on /game and /admin
 - Check for updates on app open, on visibility change, and every 10 minutes
