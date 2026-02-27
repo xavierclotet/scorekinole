@@ -19,6 +19,15 @@
 
 	let { children }: Props = $props();
 
+	let showReloadPrompt = $state(false);
+
+	// Pages where auto-reload is NOT safe (user might lose work)
+	const PROTECTED_PATHS = ['/game', '/admin'];
+
+	function isSafeToReload() {
+		return !PROTECTED_PATHS.some((p) => window.location.pathname.startsWith(p));
+	}
+
 	// Sync theme to document root for portaled elements (dropdowns, modals, etc.)
 	$effect(() => {
 		if (browser) {
@@ -33,7 +42,6 @@
 		}
 	});
 
-	let showReloadPrompt = $state(false);
 
 	onMount(() => {
 		// Load all persisted data
@@ -44,11 +52,19 @@
 		// Initialize Firebase auth listener (also handles user language from profile)
 		initAuthListener();
 
-		// Register service worker and listen for updates
+		// Register service worker and auto-update
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('/service-worker.js').then((registration) => {
-				// Check for updates periodically (every 30 minutes)
-				setInterval(() => registration.update(), 30 * 60 * 1000);
+				// Check for updates immediately, then every 10 minutes
+				registration.update();
+				setInterval(() => registration.update(), 10 * 60 * 1000);
+
+				// Also check when user returns to the app
+				document.addEventListener('visibilitychange', () => {
+					if (document.visibilityState === 'visible') {
+						registration.update();
+					}
+				});
 
 				registration.addEventListener('updatefound', () => {
 					const newWorker = registration.installing;
@@ -56,7 +72,12 @@
 
 					newWorker.addEventListener('statechange', () => {
 						if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
-							showReloadPrompt = true;
+							if (isSafeToReload()) {
+								window.location.reload();
+							} else {
+								// Show prompt instead — don't interrupt active game/admin
+								showReloadPrompt = true;
+							}
 						}
 					});
 				});
@@ -90,3 +111,4 @@
 />
 
 <ReloadPrompt show={showReloadPrompt} />
+
