@@ -735,35 +735,136 @@
 
 	/* Landscape phones */
 	@media (orientation: landscape) and (max-height: 500px) {
+		.landing {
+			min-height: auto;
+			height: 100vh;
+			height: 100dvh;
+			overflow-y: auto;
+		}
+
+		.navbar {
+			padding: 0.4rem 1rem;
+		}
+
 		.content {
-			flex-direction: row;
-			justify-content: space-around;
-			padding: 1rem 2rem;
-			gap: 2rem;
+			padding: 0 2rem 0.25rem;
+			gap: 0.5rem;
 		}
 
 		.hero {
-			align-items: flex-start;
-			text-align: left;
+			gap: 1rem;
 		}
 
 		.title-main {
-			font-size: 1.8rem;
+			font-size: 1.6rem;
+		}
+
+		.title-arena {
+			font-size: 0.6rem;
+		}
+
+		.title-version {
+			font-size: 0.4rem;
 		}
 
 		.hero-subtitle {
-			font-size: 0.85rem;
+			font-size: 0.75rem;
+		}
+
+		.mobile-features-carousel {
+			display: none !important;
 		}
 
 		.footer {
-			position: absolute;
-			bottom: 0;
-			left: 0;
-			right: 0;
+			padding: 0.25rem;
+		}
+
+		.footer-copy {
+			font-size: 0.65rem;
 		}
 
 		.support-section {
-			display: none;
+			margin-top: 0;
+		}
+
+		.install-btn {
+			padding: 0.25rem 0.6rem;
+			font-size: 0.65rem;
+		}
+
+		.kofi-btn {
+			padding: 0.2rem 0.5rem;
+			font-size: 0.6rem;
+		}
+
+		/* Compact New Game button */
+		.hero :global(button[data-webmcp="btn-new-game"]) {
+			height: 2.5rem;
+			font-size: 0.9rem;
+			max-width: 220px;
+		}
+
+		/* Compact quick links */
+		.content :global(.grid) {
+			gap: 0.35rem;
+			max-width: 260px;
+		}
+
+		.content :global(.grid) :global(button) {
+			min-height: 40px;
+			padding: 0.3rem 0.25rem;
+		}
+	}
+
+	/* Very short landscape phones (<460px height) */
+	@media (orientation: landscape) and (max-height: 460px) {
+		.navbar {
+			padding: 0.2rem 0.75rem;
+		}
+
+		.content {
+			padding: 0 1.5rem 0.15rem;
+			gap: 0.3rem;
+		}
+
+		.hero {
+			gap: 1rem;
+		}
+
+		.title-main {
+			font-size: 1.3rem;
+		}
+
+		.hero-subtitle {
+			font-size: 0.65rem;
+		}
+
+		.hero :global(button[data-webmcp="btn-new-game"]) {
+			height: 2rem;
+			font-size: 0.8rem;
+			max-width: 180px;
+		}
+
+		.content :global(.grid) {
+			max-width: 220px;
+		}
+
+		.content :global(.grid) :global(button) {
+			min-height: 32px;
+			padding: 0.2rem 0.15rem;
+		}
+
+		.content :global(.grid) :global(button) :global(svg) {
+			width: 0.75rem;
+			height: 0.75rem;
+		}
+
+		.content :global(.grid) :global(button) :global(span) {
+			font-size: 0.55rem;
+		}
+
+		.footer {
+			padding: 0.15rem;
 		}
 	}
 </style>
