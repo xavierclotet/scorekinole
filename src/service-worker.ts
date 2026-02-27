@@ -18,13 +18,17 @@ const STATIC_ASSETS = files.filter(
 );
 
 const ALL_ASSETS = [...BUILD_ASSETS, ...STATIC_ASSETS];
+const ASSET_SET = new Set(ALL_ASSETS);
 
-// Install: cache all build + essential static assets
+// Install: cache all build + essential static assets + SPA shell
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
 		caches
 			.open(CACHE_NAME)
-			.then((cache) => cache.addAll(ALL_ASSETS))
+			.then(async (cache) => {
+				await cache.addAll(ALL_ASSETS);
+				await cache.add('/'); // SPA shell for offline navigation fallback
+			})
 			.then(() => sw.skipWaiting())
 	);
 });
@@ -53,18 +57,25 @@ sw.addEventListener('fetch', (event) => {
 	// Skip Firebase/external API calls - always go to network
 	if (url.hostname !== sw.location.hostname) return;
 
-	// For app assets: cache-first (they have hashed filenames, safe to cache)
-	if (ALL_ASSETS.includes(url.pathname)) {
+	// For app assets: cache-first with write-back on cache miss
+	if (ASSET_SET.has(url.pathname)) {
 		event.respondWith(
-			caches.match(event.request).then((cached) => cached || fetch(event.request))
+			caches.match(event.request).then((cached) => {
+				if (cached) return cached;
+				return fetch(event.request).then((response) => {
+					const clone = response.clone();
+					caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
+					return response;
+				});
+			})
 		);
 		return;
 	}
 
-	// For HTML navigation: network-first with offline fallback
+	// For HTML navigation: network-first with offline fallback to cached SPA shell
 	if (event.request.mode === 'navigate') {
 		event.respondWith(
-			fetch(event.request).catch(() => caches.match('/index.html') as Promise<Response>)
+			fetch(event.request).catch(() => caches.match('/') as Promise<Response>)
 		);
 		return;
 	}
@@ -72,34 +83,59 @@ sw.addEventListener('fetch', (event) => {
 
 // Push notification handler
 sw.addEventListener('push', (event) => {
-	const data = event.data?.json() ?? {};
-	const { title, body, icon, url, tag } = data;
+	let title = 'Scorekinole';
+	let body = '';
+	let icon = '/icon-192.png';
+	let url = '/';
+	let tag = '';
+
+	try {
+		const raw = event.data?.json() ?? {};
+		// FCM data-only messages may arrive flat or nested under "data"
+		const payload = raw.data && typeof raw.data === 'object' && raw.data.title
+			? raw.data
+			: raw;
+		title = payload.title || 'Scorekinole';
+		body = payload.body || '';
+		icon = payload.icon || '/icon-192.png';
+		url = payload.url || '/';
+		tag = payload.tag || '';
+	} catch {
+		// JSON parse failed — show generic notification
+	}
 
 	event.waitUntil(
-		sw.registration.showNotification(title || 'Scorekinole', {
-			body: body || '',
-			icon: icon || '/icon-192.png',
+		sw.registration.showNotification(title, {
+			body,
+			icon,
 			badge: '/icon-192.png',
-			data: { url: url || '/' },
-			tag: tag,
-			renotify: !!tag
-		})
+			data: { url },
+			tag: tag || undefined,
+			...( tag ? { renotify: true } : {} )
+		} as NotificationOptions)
 	);
 });
 
-// Click on notification → open/focus the app at the correct URL
+// Click on notification → navigate existing app window or open new one
 sw.addEventListener('notificationclick', (event) => {
 	event.notification.close();
-	const url = event.notification.data?.url || '/';
+	const targetUrl = event.notification.data?.url || '/';
 
 	event.waitUntil(
 		sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+			// Prefer a client already on the target URL
 			for (const client of clients) {
-				if (new URL(client.url).pathname === url && 'focus' in client) {
+				if (new URL(client.url).pathname === targetUrl && 'focus' in client) {
 					return client.focus();
 				}
 			}
-			return sw.clients.openWindow(url);
+			// Navigate any existing app window to the target URL
+			if (clients.length > 0) {
+				const client = clients[0] as WindowClient;
+				return client.navigate(targetUrl).then((c) => c?.focus());
+			}
+			// No existing windows — open a new one
+			return sw.clients.openWindow(targetUrl);
 		})
 	);
 });

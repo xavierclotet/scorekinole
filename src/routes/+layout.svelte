@@ -7,6 +7,8 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { initAuthListener, needsProfileSetup, currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
+	import { isFirebaseEnabled } from '$lib/firebase/config';
+	import { refreshFCMTokenIfNeeded } from '$lib/firebase/messaging';
 	import { adminTheme } from '$lib/stores/theme';
 	import { trackPageView } from '$lib/utils/pageViewTracker';
 	import CompleteProfileModal from '$lib/components/CompleteProfileModal.svelte';
@@ -42,6 +44,23 @@
 		}
 	});
 
+	// Auto-reload when navigating from a protected page to a safe page after SW update
+	$effect(() => {
+		if (showReloadPrompt && browser) {
+			const path = page.url.pathname;
+			if (!PROTECTED_PATHS.some((p) => path.startsWith(p))) {
+				window.location.reload();
+			}
+		}
+	});
+
+	// Refresh FCM token on app load (handles token rotation)
+	$effect(() => {
+		if (!browser || !$currentUser || !isFirebaseEnabled()) return;
+		if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+		refreshFCMTokenIfNeeded();
+	});
+
 
 	onMount(() => {
 		// Load all persisted data
@@ -56,13 +75,13 @@
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('/service-worker.js').then((registration) => {
 				// Check for updates immediately, then every 10 minutes
-				registration.update();
-				setInterval(() => registration.update(), 10 * 60 * 1000);
+				registration.update().catch(() => {});
+				setInterval(() => registration.update().catch(() => {}), 10 * 60 * 1000);
 
 				// Also check when user returns to the app
 				document.addEventListener('visibilitychange', () => {
 					if (document.visibilityState === 'visible') {
-						registration.update();
+						registration.update().catch(() => {});
 					}
 				});
 
@@ -70,7 +89,7 @@
 					const newWorker = registration.installing;
 					if (!newWorker) return;
 
-					newWorker.addEventListener('statechange', () => {
+					const handleStateChange = () => {
 						if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
 							if (isSafeToReload()) {
 								window.location.reload();
@@ -79,7 +98,11 @@
 								showReloadPrompt = true;
 							}
 						}
-					});
+					};
+
+					newWorker.addEventListener('statechange', handleStateChange);
+					// Check immediately in case skipWaiting() already activated
+					handleStateChange();
 				});
 			});
 		}
@@ -111,4 +134,3 @@
 />
 
 <ReloadPrompt show={showReloadPrompt} />
-

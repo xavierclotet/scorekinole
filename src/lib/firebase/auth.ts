@@ -1,4 +1,5 @@
 import { auth, db, isFirebaseEnabled } from './config';
+import { deleteAllFCMTokens } from './messaging';
 import { doc, getDoc } from 'firebase/firestore';
 import {
   GoogleAuthProvider,
@@ -173,6 +174,8 @@ export async function signOut(): Promise<void> {
   }
 
   try {
+    // Delete FCM tokens before signing out (while we still have the user ID)
+    await deleteAllFCMTokens();
     await firebaseSignOut(auth!);
     currentUser.set(null);
     console.log('✅ User signed out');

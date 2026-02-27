@@ -720,18 +720,38 @@ interface PushPayload {
 }
 
 /**
+ * Fetch user data needed for push notifications (language + preferences).
+ * Single Firestore read per user to avoid duplicate reads.
+ */
+async function getUserPushData(userId: string): Promise<{
+  lang: string;
+  prefs: any;
+}> {
+  const db = getDb();
+  const userSnap = await db.collection("users").doc(userId).get();
+  const data = userSnap.data();
+  const lang = data?.language;
+  return {
+    lang: lang && ["es", "ca", "en"].includes(lang) ? lang : "es",
+    prefs: data?.notificationPreferences,
+  };
+}
+
+/**
  * Send a push notification to a user across all their registered devices.
  * Automatically cleans up invalid tokens.
  *
  * @param userId Firestore user ID
  * @param notification Push payload
  * @param preferenceKey Which notification preference to check (skipped if undefined)
+ * @param prefsOverride Pre-fetched preferences (avoids extra Firestore read)
  * @returns Number of notifications successfully sent
  */
 async function sendPushToUser(
   userId: string,
   notification: PushPayload,
-  preferenceKey?: string
+  preferenceKey?: string,
+  prefsOverride?: any
 ): Promise<number> {
   const db = getDb();
   const tokensSnap = await db
@@ -744,12 +764,13 @@ async function sendPushToUser(
 
   // Check user notification preferences
   if (preferenceKey) {
-    const userSnap = await db.collection("users").doc(userId).get();
-    const prefs = userSnap.data()?.notificationPreferences;
-    if (prefs) {
-      if (!prefs.enabled) return 0;
-      if ((prefs as any)[preferenceKey] === false) return 0;
-    }
+    const prefs = prefsOverride !== undefined
+      ? prefsOverride
+      : (await db.collection("users").doc(userId).get()).data()?.notificationPreferences;
+
+    // Default to "don't send" if no preferences set
+    if (!prefs || !prefs.enabled) return 0;
+    if ((prefs as any)[preferenceKey] === false) return 0;
   }
 
   let sent = 0;
@@ -762,6 +783,9 @@ async function sendPushToUser(
           body: notification.body,
           url: notification.url || "/",
           tag: notification.tag || "",
+        },
+        webpush: {
+          headers: { TTL: "3600" },
         },
       });
       sent++;
@@ -816,17 +840,6 @@ function nt(lang: string, key: string): string {
   return notificationStrings[lang]?.[key] || notificationStrings["es"][key] || key;
 }
 
-/**
- * Get user's preferred language from their Firestore profile.
- * Defaults to "es" if not set or invalid.
- */
-async function getUserLanguage(userId: string): Promise<string> {
-  const db = getDb();
-  const userSnap = await db.collection("users").doc(userId).get();
-  const lang = userSnap.data()?.language;
-  return lang && ["es", "ca", "en"].includes(lang) ? lang : "es";
-}
-
 // ─── Match structures for diffing ───────────────────────────────────────────
 
 interface MatchLike {
@@ -852,13 +865,24 @@ function extractAllMatches(data: any): MatchLike[] {
   const matches: MatchLike[] = [];
   const multipleGroups = (data.groupStage?.groups?.length || 0) > 1;
 
+  // Pick only the fields we need from a match object
+  function pickMatchFields(m: any): Pick<MatchLike, "id" | "participantA" | "participantB" | "tableNumber" | "status"> {
+    return {
+      id: m.id,
+      participantA: m.participantA,
+      participantB: m.participantB,
+      tableNumber: m.tableNumber,
+      status: m.status,
+    };
+  }
+
   // Group stage matches
   if (data.groupStage?.groups) {
     for (const group of data.groupStage.groups) {
       for (const round of [...(group.schedule || []), ...(group.pairings || [])]) {
         for (const match of round.matches || []) {
           matches.push({
-            ...match,
+            ...pickMatchFields(match),
             phase: "GROUP",
             groupName: multipleGroups ? group.name : undefined,
             roundNumber: round.roundNumber,
@@ -878,7 +902,7 @@ function extractAllMatches(data: any): MatchLike[] {
     for (const round of bracket.rounds || []) {
       for (const match of round.matches || []) {
         matches.push({
-          ...match,
+          ...pickMatchFields(match),
           phase,
           roundName: round.name,
           bracketLabel,
@@ -887,7 +911,7 @@ function extractAllMatches(data: any): MatchLike[] {
     }
     if (bracket.thirdPlaceMatch) {
       matches.push({
-        ...bracket.thirdPlaceMatch,
+        ...pickMatchFields(bracket.thirdPlaceMatch),
         phase,
         isThirdPlace: true,
         bracketLabel,
@@ -950,10 +974,11 @@ export const onTournamentMatchEvent = onDocumentUpdated(
       beforeMap.set(m.id, m);
     }
 
-    // Find matches where tableNumber was just assigned (undefined → number)
+    // Find PENDING matches where tableNumber was just assigned (undefined → number)
     const newlyAssigned: MatchLike[] = [];
     for (const after of afterMatches) {
       if (!after.tableNumber) continue;
+      if (after.status !== "PENDING") continue; // Only notify for pending matches
       const before = beforeMap.get(after.id);
       if (before && before.tableNumber) continue; // Already had a table
       newlyAssigned.push(after);
@@ -1010,37 +1035,58 @@ export const onTournamentMatchEvent = onDocumentUpdated(
       };
     }
 
-    // Send push notifications for each newly assigned match
+    // Send push notifications for all newly assigned matches in parallel
+    const sendPromises: Promise<void>[] = [];
+
     for (const match of newlyAssigned) {
       const pA = participantMap.get(match.participantA || "");
       const pB = participantMap.get(match.participantB || "");
 
       if (!pA || !pB) continue;
 
-      // Notify participant A in their preferred language
-      if (pA.userId) {
-        const lang = await getUserLanguage(pA.userId);
-        await sendPushToUser(
-          pA.userId,
-          buildNotification(match, lang, pB.name),
-          "tournament_matchReady"
-        );
-      }
+      sendPromises.push(
+        (async () => {
+          // Fetch user data for both participants in parallel (single read each)
+          const [dataA, dataB] = await Promise.all([
+            pA.userId ? getUserPushData(pA.userId) : null,
+            pB.userId ? getUserPushData(pB.userId) : null,
+          ]);
 
-      // Notify participant B in their preferred language
-      if (pB.userId) {
-        const lang = await getUserLanguage(pB.userId);
-        await sendPushToUser(
-          pB.userId,
-          buildNotification(match, lang, pA.name),
-          "tournament_matchReady"
-        );
-      }
+          // Send pushes in parallel
+          const pushes: Promise<number>[] = [];
+          if (pA.userId && dataA) {
+            pushes.push(
+              sendPushToUser(
+                pA.userId,
+                buildNotification(match, dataA.lang, pB.name),
+                "tournament_matchReady",
+                dataA.prefs
+              )
+            );
+          }
+          if (pB.userId && dataB) {
+            pushes.push(
+              sendPushToUser(
+                pB.userId,
+                buildNotification(match, dataB.lang, pA.name),
+                "tournament_matchReady",
+                dataB.prefs
+              )
+            );
+          }
+          await Promise.all(pushes);
 
-      logger.info(
-        `Push sent for match ${match.id}: ${pA.name} vs ${pB.name} at table ${match.tableNumber}`
+          const sampleNotif = buildNotification(match, "es", "opponent");
+          logger.info(
+            `Push sent for match ${match.id} (${match.phase}): ` +
+            `${pA.name} vs ${pB.name} at table ${match.tableNumber} — ` +
+            `title="${sampleNotif.title}", body="${sampleNotif.body}"`
+          );
+        })()
       );
     }
+
+    await Promise.all(sendPromises);
   }
 );
 

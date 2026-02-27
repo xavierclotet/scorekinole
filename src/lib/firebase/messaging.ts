@@ -114,19 +114,30 @@ export async function deleteAllFCMTokens(): Promise<void> {
 }
 
 /**
- * Listen for foreground messages (when the app is open and visible).
- * Returns an unsubscribe function.
+ * Refresh the FCM token if needed (handles token rotation).
+ * Firebase JS SDK v9+ removed onTokenRefresh, so we call getToken()
+ * on app load and save if the token is new/changed.
  */
-export function onForegroundMessage(callback: (payload: { title?: string; body?: string; url?: string }) => void): (() => void) | null {
-	const messaging = getFirebaseMessaging();
-	if (!messaging) return null;
+export async function refreshFCMTokenIfNeeded(): Promise<void> {
+	if (!browser || !isFirebaseEnabled()) return;
 
-	return onMessage(messaging, (payload) => {
-		const data = payload.data ?? {};
-		callback({
-			title: data.title || payload.notification?.title,
-			body: data.body || payload.notification?.body,
-			url: data.url
+	const user = get(currentUser);
+	if (!user) return;
+
+	const messaging = getFirebaseMessaging();
+	if (!messaging) return;
+
+	try {
+		const swRegistration = await navigator.serviceWorker.ready;
+		const token = await getToken(messaging, {
+			vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+			serviceWorkerRegistration: swRegistration
 		});
-	});
+
+		if (token) {
+			await saveFCMToken(user.id, token);
+		}
+	} catch {
+		// Token refresh failed silently — will retry on next app load
+	}
 }
