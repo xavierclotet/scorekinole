@@ -47,8 +47,8 @@
 		}
 	];
 
-	let showProfile = false;
-	let showLogin = false;
+	let showProfile = $state(false);
+	let showLogin = $state(false);
 	let showWhatsNew = $state(false);
 
 	onMount(() => {

@@ -197,7 +197,7 @@
 	async function handleDeleteAvatar() {
 		if (!currentPhotoURL) return;
 		// Don't delete if already showing Google photo
-		if (currentPhotoURL === user?.googlePhotoURL) return;
+		if (currentPhotoURL === user?.providerPhotoURL) return;
 
 		isUploading = true;
 		uploadError = null;
@@ -206,7 +206,7 @@
 
 		if (result.success) {
 			// Revert to Google photo
-			currentPhotoURL = user?.googlePhotoURL || null;
+			currentPhotoURL = user?.providerPhotoURL || null;
 		} else {
 			uploadError = result.error || m.common_error();
 		}
@@ -280,7 +280,7 @@
 									{/if}
 								</div>
 							</button>
-							{#if currentPhotoURL && currentPhotoURL !== user?.googlePhotoURL}
+							{#if currentPhotoURL && currentPhotoURL !== user?.providerPhotoURL}
 								<button
 									class="delete-photo-btn"
 									onclick={handleDeleteAvatar}

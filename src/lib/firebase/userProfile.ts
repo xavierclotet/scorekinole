@@ -1,4 +1,4 @@
-import { db, isFirebaseEnabled } from './config';
+import { db, auth as firebaseAuth, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { doc, getDoc, setDoc, getDocs, query, where, collection, addDoc, arrayUnion, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { get } from 'svelte/store';
@@ -22,7 +22,7 @@ export interface UserProfile {
   quotaEntries?: QuotaEntry[];     // Per-year quota entries (new system)
   // Tournament tracking (ranking is calculated from tournaments, not stored)
   tournaments?: TournamentRecord[];      // Tournament history
-  authProvider?: 'google' | null;        // null = GUEST without auth
+  authProvider?: 'google' | 'facebook' | null;  // null = GUEST without auth
   mergedFrom?: string[];                 // IDs of GUEST users merged into this one
   mergedTo?: string;                     // ID of registered user this GUEST was merged to
   // Device tracking (for fraud detection)
@@ -96,6 +96,16 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 }
 
 /**
+ * Detect auth provider from Firebase user
+ */
+function getAuthProvider(): 'google' | 'facebook' | null {
+  const providerId = firebaseAuth?.currentUser?.providerData[0]?.providerId;
+  if (providerId === 'facebook.com') return 'facebook';
+  if (providerId === 'google.com') return 'google';
+  return 'google'; // default fallback for existing users
+}
+
+/**
  * Save or update user profile
  */
 export async function saveUserProfile(
@@ -125,7 +135,7 @@ export async function saveUserProfile(
       playerNameLower: playerName.trim().toLowerCase(),
       email: user.email,
       photoURL: user.photoURL,
-      authProvider: 'google',
+      authProvider: getAuthProvider(),
       updatedAt: serverTimestamp()
     };
 

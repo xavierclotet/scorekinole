@@ -1,6 +1,11 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
-	import { signInWithGoogle } from '$lib/firebase/auth';
+	import {
+		signInWithGoogle,
+		signInWithFacebook,
+		setPendingLinkCredential,
+		getCredentialFromError
+	} from '$lib/firebase/auth';
 	import Button from './Button.svelte';
 
 	interface Props {
@@ -10,16 +15,18 @@
 
 	let { isOpen = $bindable(false), onclose }: Props = $props();
 
-	let isLoading = $state(false);
+	let isLoading = $state<'google' | 'facebook' | false>(false);
 	let error = $state('');
+	let linkingMessage = $state('');
 
 	async function handleGoogleSignIn() {
-		isLoading = true;
+		isLoading = 'google';
 		error = '';
 
 		try {
 			await signInWithGoogle();
-			// Close modal on successful login
+			// If we were linking, clear the message
+			linkingMessage = '';
 			close();
 		} catch (err: any) {
 			console.error('Login error:', err);
@@ -29,9 +36,38 @@
 		}
 	}
 
+	async function handleFacebookSignIn() {
+		isLoading = 'facebook';
+		error = '';
+		linkingMessage = '';
+
+		try {
+			await signInWithFacebook();
+			close();
+		} catch (err: any) {
+			console.error('Facebook login error:', err);
+			if (err.code === 'auth/account-exists-with-different-credential') {
+				// Save the Facebook credential for linking after Google sign-in
+				const credential = getCredentialFromError(err);
+				if (credential) {
+					setPendingLinkCredential(credential);
+					linkingMessage = m.auth_linkAccountSignInWithGoogle();
+				} else {
+					error = m.auth_accountExistsWithDifferentProvider();
+				}
+			} else {
+				error = err.message || m.auth_loginError();
+			}
+		} finally {
+			isLoading = false;
+		}
+	}
+
 	function close() {
 		isOpen = false;
 		error = '';
+		linkingMessage = '';
+		setPendingLinkCredential(null);
 		onclose?.();
 	}
 
@@ -66,18 +102,38 @@
 					</div>
 				{/if}
 
-				<div class="login-button-container">
+				{#if linkingMessage}
+					<div class="linking-message">
+						{linkingMessage}
+					</div>
+				{/if}
+
+				<div class="login-buttons">
 					<Button
 						variant="primary"
 						size="large"
 						onclick={handleGoogleSignIn}
-						disabled={isLoading}
+						disabled={!!isLoading}
 					>
-						{#if isLoading}
+						{#if isLoading === 'google'}
 							{m.auth_signingIn()}
 						{:else}
 							<span class="google-icon">G</span>
 							{m.auth_continueWithGoogle()}
+						{/if}
+					</Button>
+
+					<Button
+						variant="primary"
+						size="large"
+						onclick={handleFacebookSignIn}
+						disabled={!!isLoading}
+					>
+						{#if isLoading === 'facebook'}
+							{m.auth_signingIn()}
+						{:else}
+							<span class="facebook-icon">f</span>
+							{m.auth_continueWithFacebook()}
 						{/if}
 					</Button>
 				</div>
@@ -172,12 +228,23 @@
 		text-align: center;
 	}
 
-	.login-button-container {
-		display: flex;
-		justify-content: center;
+	.linking-message {
+		background: rgba(66, 133, 244, 0.15);
+		border: 1px solid rgba(66, 133, 244, 0.4);
+		color: #7ab3ff;
+		padding: 0.75rem 1rem;
+		border-radius: 8px;
+		font-size: 0.9rem;
+		text-align: center;
 	}
 
-	.login-button-container :global(button) {
+	.login-buttons {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.login-buttons :global(button) {
 		width: 100%;
 		display: flex;
 		align-items: center;
@@ -190,6 +257,19 @@
 		font-size: 1.2rem;
 		background: #fff;
 		color: #4285f4;
+		width: 24px;
+		height: 24px;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.facebook-icon {
+		font-weight: 700;
+		font-size: 1.2rem;
+		background: #fff;
+		color: #1877f2;
 		width: 24px;
 		height: 24px;
 		border-radius: 4px;

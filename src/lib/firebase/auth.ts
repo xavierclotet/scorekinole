@@ -2,10 +2,14 @@ import { auth, db, isFirebaseEnabled } from './config';
 import { doc, getDoc } from 'firebase/firestore';
 import {
   GoogleAuthProvider,
+  FacebookAuthProvider,
+  OAuthProvider,
   signInWithPopup,
   signInWithCredential,
+  linkWithCredential,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  type AuthCredential,
   type User as FirebaseUser
 } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
@@ -23,7 +27,7 @@ export interface User {
   name: string;
   email: string | null;
   photoURL: string | null;
-  googlePhotoURL: string | null; // Original Google profile photo (preserved for fallback)
+  providerPhotoURL: string | null; // Original provider profile photo (preserved for fallback)
 }
 
 // Current user store (reactive)
@@ -34,6 +38,32 @@ export const authInitialized = writable<boolean>(false);
 
 // Flag to indicate user needs to complete their profile (no document in users collection)
 export const needsProfileSetup = writable<boolean>(false);
+
+// Pending credential for account linking (when user tries Facebook but email exists with Google)
+let pendingLinkCredential: AuthCredential | null = null;
+
+/**
+ * Store a credential for later linking after the user signs in with another provider
+ */
+export function setPendingLinkCredential(credential: AuthCredential | null): void {
+  pendingLinkCredential = credential;
+}
+
+/**
+ * Check if there's a pending credential to link
+ */
+export function hasPendingLinkCredential(): boolean {
+  return pendingLinkCredential !== null;
+}
+
+/**
+ * Get credential from a failed sign-in error (account-exists-with-different-credential)
+ */
+export function getCredentialFromError(error: any): AuthCredential | null {
+  return FacebookAuthProvider.credentialFromError(error) ||
+         OAuthProvider.credentialFromError(error) ||
+         null;
+}
 
 /**
  * Sign in with Google
@@ -52,7 +82,7 @@ export async function signInWithGoogle(): Promise<User> {
       name: 'Developer User',
       email: 'dev@scorekinole.com',
       photoURL: null,
-      googlePhotoURL: null
+      providerPhotoURL: null
     };
     currentUser.set(mockUser);
     return mockUser;
@@ -90,11 +120,24 @@ export async function signInWithGoogle(): Promise<User> {
         name: user.displayName || 'Unknown',
         email: user.email,
         photoURL: user.photoURL,
-        googlePhotoURL: user.photoURL
+        providerPhotoURL: user.photoURL
       };
 
       console.log('✅ User signed in (native):', appUser.name);
       currentUser.set(appUser);
+
+      // Auto-link pending credential after successful Google sign-in (native)
+      if (pendingLinkCredential) {
+        try {
+          await linkWithCredential(user, pendingLinkCredential);
+          console.log('✅ Pending credential linked successfully (native)');
+        } catch (linkError) {
+          console.warn('⚠️ Could not link pending credential:', linkError);
+        } finally {
+          pendingLinkCredential = null;
+        }
+      }
+
       return appUser;
     } else {
       // Use web popup for browser
@@ -109,15 +152,99 @@ export async function signInWithGoogle(): Promise<User> {
         name: user.displayName || 'Unknown',
         email: user.email,
         photoURL: user.photoURL,
-        googlePhotoURL: user.photoURL
+        providerPhotoURL: user.photoURL
       };
 
       console.log('✅ User signed in (web):', appUser.name);
       currentUser.set(appUser);
+
+      // Auto-link pending credential (e.g., Facebook) after successful Google sign-in
+      if (pendingLinkCredential) {
+        try {
+          await linkWithCredential(user, pendingLinkCredential);
+          console.log('✅ Pending credential linked successfully');
+        } catch (linkError) {
+          console.warn('⚠️ Could not link pending credential:', linkError);
+        } finally {
+          pendingLinkCredential = null;
+        }
+      }
+
       return appUser;
     }
   } catch (error) {
     console.error('❌ Google sign in error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Sign in with Facebook
+ * @returns Promise with User object
+ */
+export async function signInWithFacebook(): Promise<User> {
+  if (!browser) {
+    throw new Error('Sign in can only be called in the browser');
+  }
+
+  if (!isFirebaseEnabled()) {
+    console.warn('Firebase is disabled. Using mock authentication.');
+    const mockUser: User = {
+      id: 'mock-user-123',
+      name: 'Developer User',
+      email: 'dev@scorekinole.com',
+      photoURL: null,
+      providerPhotoURL: null
+    };
+    currentUser.set(mockUser);
+    return mockUser;
+  }
+
+  try {
+    const isNative = Capacitor.isNativePlatform();
+
+    if (isNative) {
+      console.log('🔐 Using native Facebook Sign-In...');
+
+      const result = await FirebaseAuthentication.signInWithFacebook();
+
+      const credential = FacebookAuthProvider.credential(result.credential?.accessToken!);
+      const userCredential = await signInWithCredential(auth!, credential);
+      const user = userCredential.user;
+
+      const appUser: User = {
+        id: user.uid,
+        name: user.displayName || 'Unknown',
+        email: user.email,
+        photoURL: user.photoURL,
+        providerPhotoURL: user.photoURL
+      };
+
+      console.log('✅ User signed in with Facebook (native):', appUser.name);
+      currentUser.set(appUser);
+      return appUser;
+    } else {
+      console.log('🌐 Using web popup Facebook Sign-In...');
+
+      const provider = new FacebookAuthProvider();
+      provider.addScope('email');
+      const result = await signInWithPopup(auth!, provider);
+      const user = result.user;
+
+      const appUser: User = {
+        id: user.uid,
+        name: user.displayName || 'Unknown',
+        email: user.email,
+        photoURL: user.photoURL,
+        providerPhotoURL: user.photoURL
+      };
+
+      console.log('✅ User signed in with Facebook (web):', appUser.name);
+      currentUser.set(appUser);
+      return appUser;
+    }
+  } catch (error) {
+    console.error('❌ Facebook sign in error:', error);
     throw error;
   }
 }
@@ -162,14 +289,14 @@ export function initAuthListener(): void {
 
   onAuthStateChanged(auth!, async (user: FirebaseUser | null) => {
     if (user) {
-      // Start with Google Auth data (preserve Google photo for fallback)
-      const googlePhotoURL = user.photoURL;
+      // Start with auth provider data (preserve provider photo for fallback)
+      const providerPhotoURL = user.photoURL;
       let appUser: User = {
         id: user.uid,
         name: user.displayName || 'Unknown',
         email: user.email,
         photoURL: user.photoURL,
-        googlePhotoURL: googlePhotoURL
+        providerPhotoURL: providerPhotoURL
       };
 
       // Check if user has a document in the users collection
@@ -191,7 +318,7 @@ export function initAuthListener(): void {
               ...appUser,
               name: profile.playerName || appUser.name,
               // Use custom photo if set, otherwise fall back to Google photo
-              photoURL: profile.photoURL || googlePhotoURL
+              photoURL: profile.photoURL || providerPhotoURL
             };
 
             // Apply user's language preference if set

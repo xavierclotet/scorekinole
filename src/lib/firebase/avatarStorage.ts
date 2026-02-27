@@ -155,7 +155,7 @@ export async function uploadAvatar(file: File): Promise<UploadResult> {
       });
     }
 
-    // Update currentUser store so UI reflects the change immediately (preserve googlePhotoURL)
+    // Update currentUser store so UI reflects the change immediately (preserve providerPhotoURL)
     currentUser.update(u => u ? { ...u, photoURL: downloadURL } : null);
 
     console.log('✅ Avatar uploaded successfully');
@@ -207,8 +207,8 @@ export async function deleteAvatar(): Promise<UploadResult> {
       });
     }
 
-    // Update currentUser store - revert to Google photo immediately
-    currentUser.update(u => u ? { ...u, photoURL: u.googlePhotoURL } : null);
+    // Update currentUser store - revert to provider photo immediately
+    currentUser.update(u => u ? { ...u, photoURL: u.providerPhotoURL } : null);
 
     console.log('✅ Avatar deleted, reverted to default');
     return { success: true };

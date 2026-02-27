@@ -1,8 +1,12 @@
 <script lang="ts">
 	import Modal from './Modal.svelte';
 	import * as m from '$lib/paraglide/messages.js';
-	import { getRecentChanges } from '$lib/utils/changelog';
+	import { getRecentChanges, type ChangelogEntry } from '$lib/utils/changelog';
+	import { translateText } from '$lib/utils/translate';
+	import { getLocale } from '$lib/paraglide/runtime.js';
+	import { browser } from '$app/environment';
 	import { Button } from '$lib/components/ui/button';
+	import { LoaderCircle } from '@lucide/svelte';
 
 	interface Props {
 		isOpen: boolean;
@@ -12,10 +16,68 @@
 	let { isOpen, onclose }: Props = $props();
 
 	const entries = getRecentChanges(5);
+	const locale = getLocale();
+	const needsTranslation = locale !== 'en';
+
+	let translatedMap = $state<Record<string, string[]>>({});
+	let isTranslating = $state(false);
+
+	$effect(() => {
+		if (isOpen && needsTranslation && Object.keys(translatedMap).length === 0) {
+			loadTranslations();
+		}
+	});
+
+	async function loadTranslations() {
+		if (!browser) return;
+
+		const cacheKey = `scorekinole_changelog_${locale}`;
+		const cached = localStorage.getItem(cacheKey);
+
+		if (cached) {
+			try {
+				const parsed = JSON.parse(cached) as Record<string, string[]>;
+				if (entries.every(e => parsed[e.version])) {
+					translatedMap = parsed;
+					return;
+				}
+			} catch { /* ignore corrupt cache */ }
+		}
+
+		isTranslating = true;
+		const result: Record<string, string[]> = { ...translatedMap };
+
+		for (const entry of entries) {
+			if (result[entry.version]) continue;
+
+			const translated: string[] = [];
+			for (const change of entry.changes) {
+				const res = await translateText(change, 'en', locale);
+				translated.push(res.success && res.translatedText ? res.translatedText : change);
+			}
+			result[entry.version] = translated;
+			translatedMap = { ...result };
+		}
+
+		isTranslating = false;
+		localStorage.setItem(cacheKey, JSON.stringify(result));
+	}
+
+	function getChanges(entry: ChangelogEntry): string[] {
+		if (!needsTranslation) return entry.changes;
+		return translatedMap[entry.version] || entry.changes;
+	}
 </script>
 
 <Modal {isOpen} title={m.update_whatsNew()} onClose={onclose}>
 	<div class="changelog-container">
+		{#if isTranslating}
+			<div class="translating-hint">
+				<LoaderCircle class="spin-icon" size={14} />
+				<span>{m.update_translating()}</span>
+			</div>
+		{/if}
+
 		<div class="timeline">
 			{#each entries as entry, i (entry.version)}
 				<div class="version-block" class:is-current={i === 0}>
@@ -30,7 +92,7 @@
 					</div>
 
 					<ul class="changes-list">
-						{#each entry.changes as change, ci (ci)}
+						{#each getChanges(entry) as change, ci (ci)}
 							<li>{change}</li>
 						{/each}
 					</ul>
@@ -54,9 +116,33 @@
 	.changelog-container {
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 0.75rem;
 		max-height: 65vh;
 		overflow: hidden;
+	}
+
+	.translating-hint {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.68rem;
+		color: rgba(255, 255, 255, 0.35);
+		padding: 0.25rem 0;
+		flex-shrink: 0;
+	}
+
+	:global([data-theme='light']) .translating-hint,
+	:global([data-theme='violet-light']) .translating-hint {
+		color: rgba(0, 0, 0, 0.35);
+	}
+
+	:global(.spin-icon) {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	.timeline {
