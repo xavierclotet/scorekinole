@@ -43,6 +43,11 @@ service cloud.firestore {
       allow write: if isAuthenticated() && (
         request.auth.uid == userId || isAdmin()
       );
+
+      // FCM push notification tokens (subcollection)
+      match /fcmTokens/{tokenId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
     }
 
     // Current match per user - users can only access their own
