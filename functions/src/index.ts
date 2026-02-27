@@ -869,7 +869,7 @@ export const onTournamentMatchEvent = onDocumentUpdated(
     for (const after of afterMatches) {
       if (!after.tableNumber) continue;
       const before = beforeMap.get(after.id);
-      if (!before || before.tableNumber) continue; // Already had a table
+      if (before && before.tableNumber) continue; // Already had a table
       newlyAssigned.push(after);
     }
 

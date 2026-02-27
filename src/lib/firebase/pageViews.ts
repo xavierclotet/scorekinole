@@ -38,7 +38,7 @@ export async function writePageView(pageView: Omit<PageView, 'id'>): Promise<voi
 
 		// Update daily aggregation
 		const dateKey = new Date(pageView.timestamp).toISOString().split('T')[0];
-		const pathKey = pageView.normalizedPath.replace(/\//g, '_') || '_root';
+		const pathKey = pageView.normalizedPath.replace(/\//g, '_').replace(/[\[\]]/g, '') || '_root';
 		const statsDocRef = doc(db, 'pageViewStats', dateKey);
 
 		// setDoc with merge creates/updates top-level fields (does NOT support dot-notation as field paths)
