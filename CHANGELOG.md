@@ -2,6 +2,17 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.57] - 2026-02-27
+- Fix offline navigation (cache SPA shell for offline fallback)
+- Fix service worker update race condition (skipWaiting could miss statechange)
+- Fix FCM token leak on sign-out (deleteAllFCMTokens now called)
+- Add FCM token refresh on app load (handles token rotation)
+- Fix push notification payload parsing (nested FCM data detection)
+- Fix notification click to navigate existing windows instead of opening new ones
+- Auto-reload when navigating from protected to safe page after SW update
+- Cloud Function: parallel sends, merged Firestore reads, PENDING match filter, 1h TTL
+- Cache write-back on miss, O(1) asset lookup, catch update() errors
+
 ## [2.4.56] - 2026-02-27
 - Fix critical bug: finals push notifications now fire correctly (extractAllMatches traverses goldBracket/silverBracket/parallelBrackets)
 - Push notification title shows phase, group, and round context (e.g. "Fase de Grupos · Grupo B · Ronda 1")
