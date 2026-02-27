@@ -272,6 +272,7 @@
   "auth_continueWithGoogle": "Continue with Google",
   "auth_email": "Email",
   "auth_enterPlayerName": "Please enter a player name",
+  "auth_linkAccountSignInWithGoogle": "This email already has a Google account. Click 'Continue with Google' to link both accounts.",
   "auth_login": "Log In",
   "auth_loginError": "Error logging in",
   "auth_loginPrivacyNote": "Your data will be securely synced with your account",

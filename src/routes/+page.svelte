@@ -4,7 +4,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { canAccessAdmin } from '$lib/stores/admin';
 	import { APP_VERSION } from '$lib/constants';
-	import { adminTheme } from '$lib/stores/theme';
+
 	import ProfileDropdown from '$lib/components/ProfileDropdown.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ProfileModal from '$lib/components/ProfileModal.svelte';
@@ -121,7 +121,7 @@
 	{jsonLd}
 />
 
-<main class="landing" data-theme={$adminTheme}>
+<main class="landing">
 	<!-- Background image -->
 	<div class="bg-image"></div>
 
@@ -164,8 +164,8 @@
 				</div>
 
 				<div class="flex flex-col items-center gap-1.5 py-3 px-2 min-[600px]:py-4 bg-feature-card-bg border border-feature-card-border rounded-[10px] transition-all w-[125px] min-h-[70px] hover:bg-feature-card-bg-hover hover:border-feature-card-border-hover">
-					<div class="w-7 h-7 flex items-center justify-center text-[1.25rem]">
-						🔨
+					<div class="w-7 h-7 flex items-center justify-center">
+						<img class="hammer-icon" src="/4150-rblxbanhammer.png" alt="Hammer" width="24" height="24" />
 					</div>
 					<span class="text-[0.7rem] font-medium text-feature-label text-center">{m.scoring_hammer()}</span>
 				</div>
@@ -269,7 +269,7 @@
 					<!-- Hammer -->
 					<Carousel.Item class="basis-1/4">
 						<div class="mobile-feature-card">
-							<div class="w-6 h-6 flex items-center justify-center text-base">🔨</div>
+							<div class="w-6 h-6 flex items-center justify-center"><img class="hammer-icon" src="/4150-rblxbanhammer.png" alt="Hammer" width="20" height="20" /></div>
 							<span class="text-[0.65rem] font-medium text-feature-label text-center leading-tight line-clamp-2">{m.scoring_hammer()}</span>
 						</div>
 					</Carousel.Item>
@@ -423,8 +423,8 @@
 		position: relative;
 	}
 
-	.landing[data-theme='light'],
-	.landing[data-theme='violet-light'] {
+	:global([data-theme='light']) .landing,
+	:global([data-theme='violet-light']) .landing {
 		background: #f8fafc;
 		color: #1a1a2e;
 	}
@@ -440,8 +440,17 @@
 		pointer-events: none;
 	}
 
-	.landing[data-theme='light'] .bg-image,
-	.landing[data-theme='violet-light'] .bg-image {
+	/* Invert hammer icon on dark themes */
+	.landing .hammer-icon {
+		filter: invert(1) brightness(1.5);
+	}
+	:global([data-theme='light']) .landing .hammer-icon,
+	:global([data-theme='violet-light']) .landing .hammer-icon {
+		filter: none;
+	}
+
+	:global([data-theme='light']) .landing .bg-image,
+	:global([data-theme='violet-light']) .landing .bg-image {
 		opacity: 0.06;
 	}
 
@@ -543,13 +552,13 @@
 		color: var(--primary);
 	}
 
-	.landing[data-theme='light'] .title-version,
-	.landing[data-theme='violet-light'] .title-version {
+	:global([data-theme='light']) .landing .title-version,
+	:global([data-theme='violet-light']) .landing .title-version {
 		color: rgba(0, 0, 0, 0.35);
 	}
 
-	.landing[data-theme='light'] .title-version:hover,
-	.landing[data-theme='violet-light'] .title-version:hover {
+	:global([data-theme='light']) .landing .title-version:hover,
+	:global([data-theme='violet-light']) .landing .title-version:hover {
 		color: var(--primary);
 	}
 
@@ -560,8 +569,8 @@
 		font-weight: 400;
 	}
 
-	.landing[data-theme='light'] .hero-subtitle,
-	.landing[data-theme='violet-light'] .hero-subtitle {
+	:global([data-theme='light']) .landing .hero-subtitle,
+	:global([data-theme='violet-light']) .landing .hero-subtitle {
 		color: rgba(0, 0, 0, 0.5);
 	}
 
@@ -669,8 +678,8 @@
 		color: rgba(255, 255, 255, 0.3);
 	}
 
-	.landing[data-theme='light'] .footer-copy,
-	.landing[data-theme='violet-light'] .footer-copy {
+	:global([data-theme='light']) .landing .footer-copy,
+	:global([data-theme='violet-light']) .landing .footer-copy {
 		color: rgba(0, 0, 0, 0.3);
 	}
 

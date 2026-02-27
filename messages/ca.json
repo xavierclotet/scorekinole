@@ -272,6 +272,7 @@
   "auth_continueWithGoogle": "Continuar amb Google",
   "auth_email": "Email",
   "auth_enterPlayerName": "Si us plau, introdueix un nom de jugador",
+  "auth_linkAccountSignInWithGoogle": "Aquest email ja té compte amb Google. Fes clic a 'Continuar amb Google' per vincular ambdós comptes.",
   "auth_login": "Iniciar Sessió",
   "auth_loginError": "Error en iniciar sessió",
   "auth_loginPrivacyNote": "Les teves dades es sincronitzaran de forma segura amb el teu compte",
