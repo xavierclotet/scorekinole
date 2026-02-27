@@ -8,6 +8,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+	import NotificationSettings from './NotificationSettings.svelte';
 
 	// Get translated country name by code
 	function getCountryName(code: string): string {
@@ -395,6 +396,11 @@
 								{/if}
 							</button>
 						</div>
+					</div>
+
+					<!-- Notifications -->
+					<div class="field">
+						<NotificationSettings />
 					</div>
 				</div>
 

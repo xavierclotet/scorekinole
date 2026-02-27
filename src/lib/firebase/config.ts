@@ -3,6 +3,7 @@ import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getAnalytics, type Analytics } from 'firebase/analytics';
+import { getMessaging, type Messaging } from 'firebase/messaging';
 import { browser } from '$app/environment';
 
 // Check if Firebase is enabled
@@ -39,6 +40,25 @@ if (browser && isFirebaseEnabled()) {
   } catch (error) {
     console.error('❌ Firebase initialization error:', error);
   }
+}
+
+/**
+ * Get Firebase Messaging instance (lazy initialization).
+ * Only call this when the user has granted notification permission.
+ */
+let messaging: Messaging | null = null;
+
+export function getFirebaseMessaging(): Messaging | null {
+  if (!browser || !app) return null;
+  if (!messaging) {
+    try {
+      messaging = getMessaging(app);
+    } catch (error) {
+      console.error('❌ Firebase Messaging initialization error:', error);
+      return null;
+    }
+  }
+  return messaging;
 }
 
 export { app, auth, db, storage, analytics };

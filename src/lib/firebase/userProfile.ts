@@ -5,6 +5,7 @@ import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { TournamentRecord } from '$lib/types/tournament';
 import type { QuotaEntry } from '$lib/types/quota';
+import type { NotificationPreferences } from '$lib/types/notifications';
 import { getDeviceInfo, type DeviceInfo } from '$lib/utils/deviceInfo';
 
 export interface UserProfile {
@@ -25,6 +26,8 @@ export interface UserProfile {
   authProvider?: 'google' | 'facebook' | null;  // null = GUEST without auth
   mergedFrom?: string[];                 // IDs of GUEST users merged into this one
   mergedTo?: string;                     // ID of registered user this GUEST was merged to
+  // Push notification preferences
+  notificationPreferences?: NotificationPreferences;
   // Device tracking (for fraud detection)
   registrationIP?: string;               // IP address at registration
   deviceFingerprint?: string;            // Browser/device fingerprint
@@ -367,6 +370,32 @@ export async function saveUserLanguage(language: 'es' | 'ca' | 'en'): Promise<bo
     return true;
   } catch (error) {
     console.error('❌ Error saving user language:', error);
+    return false;
+  }
+}
+
+/**
+ * Save notification preferences to user profile
+ */
+export async function saveNotificationPreferences(
+  prefs: NotificationPreferences
+): Promise<boolean> {
+  if (!browser || !isFirebaseEnabled()) return false;
+
+  const user = get(currentUser);
+  if (!user) return false;
+
+  try {
+    const profileRef = doc(db!, 'users', user.id);
+    await setDoc(profileRef, {
+      notificationPreferences: prefs,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    console.log('✅ Notification preferences saved');
+    return true;
+  } catch (error) {
+    console.error('❌ Error saving notification preferences:', error);
     return false;
   }
 }

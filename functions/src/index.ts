@@ -7,6 +7,7 @@ import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/fire
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue, Firestore } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import { logger } from "firebase-functions";
 
 // Telegram secrets
@@ -705,6 +706,222 @@ export const onTournamentCreated = onDocumentCreated(
       }
     } catch (error) {
       logger.error("Error sending Telegram notification:", error);
+    }
+  }
+);
+
+// ─── Push Notification Helpers ───────────────────────────────────────────────
+
+interface PushPayload {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+}
+
+/**
+ * Send a push notification to a user across all their registered devices.
+ * Automatically cleans up invalid tokens.
+ *
+ * @param userId Firestore user ID
+ * @param notification Push payload
+ * @param preferenceKey Which notification preference to check (skipped if undefined)
+ * @returns Number of notifications successfully sent
+ */
+async function sendPushToUser(
+  userId: string,
+  notification: PushPayload,
+  preferenceKey?: string
+): Promise<number> {
+  const db = getDb();
+  const tokensSnap = await db
+    .collection("users")
+    .doc(userId)
+    .collection("fcmTokens")
+    .get();
+
+  if (tokensSnap.empty) return 0;
+
+  // Check user notification preferences
+  if (preferenceKey) {
+    const userSnap = await db.collection("users").doc(userId).get();
+    const prefs = userSnap.data()?.notificationPreferences;
+    if (prefs) {
+      if (!prefs.enabled) return 0;
+      if ((prefs as any)[preferenceKey] === false) return 0;
+    }
+  }
+
+  let sent = 0;
+  for (const tokenDoc of tokensSnap.docs) {
+    try {
+      await getMessaging().send({
+        token: tokenDoc.data().token,
+        data: {
+          title: notification.title,
+          body: notification.body,
+          url: notification.url || "/",
+          tag: notification.tag || "",
+        },
+      });
+      sent++;
+    } catch (error: any) {
+      if (
+        error.code === "messaging/registration-token-not-registered" ||
+        error.code === "messaging/invalid-registration-token"
+      ) {
+        await tokenDoc.ref.delete();
+        logger.info(`Deleted invalid FCM token for user ${userId}`);
+      } else {
+        logger.error(`Error sending push to user ${userId}:`, error);
+      }
+    }
+  }
+  return sent;
+}
+
+// ─── Match structures for diffing ───────────────────────────────────────────
+
+interface MatchLike {
+  id: string;
+  participantA?: string;
+  participantB?: string;
+  tableNumber?: number;
+  status: string;
+}
+
+/**
+ * Extract all matches from a tournament document (groups + brackets)
+ */
+function extractAllMatches(data: any): MatchLike[] {
+  const matches: MatchLike[] = [];
+
+  // Group stage matches
+  if (data.groupStage?.groups) {
+    for (const group of data.groupStage.groups) {
+      for (const round of [...(group.schedule || []), ...(group.pairings || [])]) {
+        for (const match of round.matches || []) {
+          matches.push(match);
+        }
+      }
+    }
+  }
+
+  // Final stage matches
+  if (data.finalStage?.brackets) {
+    for (const bracket of data.finalStage.brackets) {
+      for (const round of bracket.rounds || []) {
+        for (const match of round.matches || []) {
+          matches.push(match);
+        }
+      }
+      if (bracket.thirdPlaceMatch) {
+        matches.push(bracket.thirdPlaceMatch);
+      }
+    }
+  }
+
+  // Consolation brackets
+  if (data.finalStage?.consolationBrackets) {
+    for (const bracket of data.finalStage.consolationBrackets) {
+      for (const round of bracket.rounds || []) {
+        for (const match of round.matches || []) {
+          matches.push(match);
+        }
+      }
+    }
+  }
+
+  return matches;
+}
+
+/**
+ * Cloud Function: Send push notification when a table is assigned to a match.
+ * Detects new table assignments by comparing before/after tournament data.
+ */
+export const onTournamentMatchEvent = onDocumentUpdated(
+  {
+    document: "tournaments/{tournamentId}",
+    region: "europe-west1",
+  },
+  async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+
+    if (!beforeData || !afterData) return;
+
+    // Only process during active tournament phases
+    const activeStatuses = ["GROUP_STAGE", "FINAL_STAGE", "TRANSITION"];
+    if (!activeStatuses.includes(afterData.status)) return;
+
+    // --- Detect new table assignments ---
+    const beforeMatches = extractAllMatches(beforeData);
+    const afterMatches = extractAllMatches(afterData);
+
+    // Build map of before-state for quick lookup
+    const beforeMap = new Map<string, MatchLike>();
+    for (const m of beforeMatches) {
+      beforeMap.set(m.id, m);
+    }
+
+    // Find matches where tableNumber was just assigned (undefined → number)
+    const newlyAssigned: MatchLike[] = [];
+    for (const after of afterMatches) {
+      if (!after.tableNumber) continue;
+      const before = beforeMap.get(after.id);
+      if (!before || before.tableNumber) continue; // Already had a table
+      newlyAssigned.push(after);
+    }
+
+    if (newlyAssigned.length === 0) return;
+
+    // Build participant lookup
+    const participants = afterData.participants || [];
+    const participantMap = new Map<string, { name: string; userId?: string }>();
+    for (const p of participants) {
+      participantMap.set(p.id, { name: p.name, userId: p.userId });
+    }
+
+    const tournamentKey = afterData.key || event.params.tournamentId;
+
+    // Send push notifications for each newly assigned match
+    for (const match of newlyAssigned) {
+      const pA = participantMap.get(match.participantA || "");
+      const pB = participantMap.get(match.participantB || "");
+
+      if (!pA || !pB) continue;
+
+      // Notify participant A
+      if (pA.userId) {
+        await sendPushToUser(
+          pA.userId,
+          {
+            title: "Tu partida está lista",
+            body: `Mesa ${match.tableNumber}: Tú vs. ${pB.name}`,
+            url: `/tournaments/${tournamentKey}`,
+            tag: `match-ready-${match.id}`,
+          },
+          "tournament_matchReady"
+        );
+      }
+
+      // Notify participant B
+      if (pB.userId) {
+        await sendPushToUser(
+          pB.userId,
+          {
+            title: "Tu partida está lista",
+            body: `Mesa ${match.tableNumber}: Tú vs. ${pA.name}`,
+            url: `/tournaments/${tournamentKey}`,
+            tag: `match-ready-${match.id}`,
+          },
+          "tournament_matchReady"
+        );
+      }
+
+      logger.info(
+        `Push sent for match ${match.id}: ${pA.name} vs ${pB.name} at table ${match.tableNumber}`
+      );
     }
   }
 );

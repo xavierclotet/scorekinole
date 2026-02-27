@@ -56,6 +56,7 @@
 	import InvitePlayerModal from '$lib/components/InvitePlayerModal.svelte';
 	import QRScanner from '$lib/components/QRScanner.svelte';
 	import { QrCode } from '@lucide/svelte';
+	import { requestWakeLock, releaseWakeLock } from '$lib/utils/wakeLock';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { assignUserToTeam, unassignUserFromTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
@@ -322,6 +323,7 @@
 	});
 
 	onMount(() => {
+		requestWakeLock();
 		gameSettings.load();
 		loadTeams();
 		loadMatchState();
@@ -1547,6 +1549,7 @@
 	}
 
 	onDestroy(() => {
+		releaseWakeLock();
 		cleanupTimer();
 		// Cleanup match status subscription
 		if (unsubscribeMatchStatus) {

@@ -69,3 +69,37 @@ sw.addEventListener('fetch', (event) => {
 		return;
 	}
 });
+
+// Push notification handler
+sw.addEventListener('push', (event) => {
+	const data = event.data?.json() ?? {};
+	const { title, body, icon, url, tag } = data;
+
+	event.waitUntil(
+		sw.registration.showNotification(title || 'Scorekinole', {
+			body: body || '',
+			icon: icon || '/icon-192.png',
+			badge: '/icon-192.png',
+			data: { url: url || '/' },
+			tag: tag,
+			renotify: !!tag
+		})
+	);
+});
+
+// Click on notification → open/focus the app at the correct URL
+sw.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+	const url = event.notification.data?.url || '/';
+
+	event.waitUntil(
+		sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+			for (const client of clients) {
+				if (new URL(client.url).pathname === url && 'focus' in client) {
+					return client.focus();
+				}
+			}
+			return sw.clients.openWindow(url);
+		})
+	);
+});

@@ -1243,7 +1243,7 @@
   .city-col { width: 120px; text-align: left; }
   .status-col { width: 110px; text-align: left; }
   .type-col { width: 60px; text-align: center; }
-  .mode-col { width: 80px; text-align: left; }
+  .mode-col { width: 120px; text-align: left; }
   .participants-col { width: 80px; text-align: left; }
   .created-col { width: 140px; text-align: left; }
   .actions-col { width: 100px; text-align: right; }
