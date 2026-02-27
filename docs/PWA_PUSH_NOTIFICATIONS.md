@@ -104,13 +104,17 @@ interface NotificationPreferences {
 }
 ```
 
-Stored on the `UserProfile` document in Firestore as `notificationPreferences`. Defaults: all `true`.
+Stored on the `UserProfile` document in Firestore as `notificationPreferences`. Defaults: all `false`.
 
 ### UI
 
 The `NotificationSettings` component (inside `ProfileModal`) shows:
 - A master toggle that triggers the browser permission prompt on first activation
-- Per-category toggles (only visible when master toggle is on)
+- Per-category toggles grouped in cards (only visible when master toggle is on):
+  - **Torneos**: match ready, phase change, ranking
+  - **Partidas amistosas**: invite response
+- Master toggle does NOT auto-enable sub-toggles — all default to `false`
+- Each toggle saves immediately to Firestore (independent of the ProfileModal save button)
 - A "denied" message if the user blocked notifications at the browser level
 
 ---
@@ -157,17 +161,50 @@ sw.addEventListener('notificationclick', (event) => {
 
 `onTournamentMatchEvent` is an `onDocumentUpdated` Cloud Function that fires when a tournament document changes. It diffs the before/after match data to detect when a match gets a new `tableNumber` assignment.
 
+### Match Extraction (`extractAllMatches`)
+
+Extracts matches from all tournament structures with notification context metadata:
+
+- **Group stage**: `groupStage.groups[].schedule[].matches[]` and `.pairings[].matches[]`
+- **Gold bracket**: `finalStage.goldBracket.rounds[].matches[]` + `thirdPlaceMatch`
+- **Silver bracket**: `finalStage.silverBracket.rounds[].matches[]` (SPLIT_DIVISIONS mode)
+- **Parallel brackets**: `finalStage.parallelBrackets[].bracket.rounds[].matches[]` (A/B/C Finals)
+- **Consolation brackets**: Nested inside each `BracketWithConfig.consolationBrackets[]`
+
+Each extracted match includes context: `phase` (GROUP/FINAL/CONSOLATION), `groupName`, `roundNumber`/`roundName`, `bracketLabel`, `isThirdPlace`.
+
+### Localized Notifications
+
+Notifications are sent in each user's preferred language (fetched from `users/{userId}.language`). Supported: `es`, `ca`, `en` (defaults to `es`).
+
+Translation map (`notificationStrings`) covers: phase names, round prefix, table, "you vs.", 3rd place label.
+
 ### Logic
 
-1. Extract all matches from groupStage and finalStage (before and after)
+1. Extract all matches from groupStage and finalStage (before and after) with context metadata
 2. Compare: find matches where `tableNumber` changed from unset to a value
 3. For each newly assigned match, look up both participants' `userId`
-4. Check each user's `notificationPreferences.tournament_matchReady`
-5. Send push via `sendPushToUser()`:
-   - **Title**: "Tu partida esta lista" / "Your match is ready"
-   - **Body**: "Mesa {N}: {Player1} vs {Player2}"
-   - **URL**: `/tournaments/{tournamentKey}`
+4. Fetch each user's language preference from their Firestore profile
+5. Check each user's `notificationPreferences.tournament_matchReady`
+6. Send localized push via `sendPushToUser()`:
    - **Tag**: `match-ready-{matchId}` (prevents duplicate notifications)
+   - **URL**: `/tournaments/{tournamentKey}`
+
+### Notification Title by Phase
+
+| Phase | Example Title (es) |
+|-------|-------------------|
+| Group stage (1 group) | `Fase de Grupos · Ronda 2` |
+| Group stage (multi) | `Fase de Grupos · Grupo B · Ronda 1` |
+| Finals | `Fase Final · Semifinales` |
+| Finals (silver bracket) | `Fase Final · Plata · Final` |
+| Finals (parallel) | `Fase Final · A Finals · Cuartos` |
+| 3rd place match | `Fase Final · 3er/4to puesto` |
+| Consolation | `Consolación · Final` |
+
+### Notification Body
+
+`Mesa {N}: Tú vs. {OpponentName}` (localized per user language)
 
 ### `sendPushToUser()` Helper
 
