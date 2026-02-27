@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.50] - 2026-02-27
+- Convert to Progressive Web App (PWA) with service worker, manifest, and install prompt
+- Remove Capacitor and APK distribution infrastructure
+- Add privacy policy and data deletion pages
+- Add What's New modal with changelog on version change
+- Add changelog auto-translation and Facebook auth support
+- Fix landing page theme flash and replace hammer emoji with game image
+
 ## [2.4.49] - 2026-02-26
 - Move New Match and Tournament buttons into Scorekinole menu with blue icons
 - Redesign hammer indicator as floating image below player name with dark bg inversion
