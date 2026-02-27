@@ -29,7 +29,7 @@ async function acquireLock() {
  * Automatically re-acquires after tab switch (visibilitychange).
  */
 export async function requestWakeLock() {
-	if (!('wakeLock' in navigator)) return;
+	if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
 	isRequested = true;
 	document.addEventListener('visibilitychange', onVisibilityChange);
 	await acquireLock();
@@ -40,7 +40,9 @@ export async function requestWakeLock() {
  */
 export async function releaseWakeLock() {
 	isRequested = false;
-	document.removeEventListener('visibilitychange', onVisibilityChange);
+	if (typeof document !== 'undefined') {
+		document.removeEventListener('visibilitychange', onVisibilityChange);
+	}
 	if (wakeLock) {
 		await wakeLock.release();
 		wakeLock = null;

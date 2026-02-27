@@ -1030,7 +1030,7 @@ export const onTournamentMatchEvent = onDocumentUpdated(
       return {
         title,
         body: `${nt(lang, "table")} ${match.tableNumber}: ${nt(lang, "youVs")} ${opponentName}`,
-        url: `/tournaments/${tournamentKey}`,
+        url: `/game?key=${tournamentKey}`,
         tag: `match-ready-${match.id}`,
       };
     }

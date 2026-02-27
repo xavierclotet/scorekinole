@@ -430,18 +430,23 @@
 
 			// Get pending matches
 			if (isLoggedIn && $currentUser) {
+				console.log('🔍 Modal: searching matches for user', $currentUser.id, 'in tournament', result.id, 'status:', result.status);
 				pendingMatches = await getPendingMatchesForUser(result, $currentUser.id);
 
 				if (pendingMatches.length === 0) {
+					console.log('❌ Modal: no pending matches found (pre-filter)');
 					currentStep = 'no_matches';
 					return;
 				}
+
+				console.log('✅ Modal: found', pendingMatches.length, 'matches (pre-filter)');
 
 				// Process matches (filters to current round)
 				processMatchesForDisplay(result, pendingMatches);
 
 				// Check if after round filtering there are any matches to show
 				if (pendingMatchesList.length === 0 && inProgressMatchesList.length === 0) {
+					console.log('❌ Modal: no matches after round filtering (pending:', pendingMatchesList.length, 'inProgress:', inProgressMatchesList.length, ')');
 					currentStep = 'no_matches';
 					return;
 				}
