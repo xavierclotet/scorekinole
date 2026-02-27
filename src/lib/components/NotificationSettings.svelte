@@ -31,12 +31,10 @@
 
 	async function toggleMaster() {
 		if (!prefs.enabled) {
-			// Enabling: request permission if not granted yet
-			if (permissionState !== 'granted') {
-				const token = await requestNotificationPermission();
-				permissionState = Notification.permission;
-				if (!token) return; // User denied permission
-			}
+			// Always request token when enabling (handles both new permission and already-granted)
+			const token = await requestNotificationPermission();
+			permissionState = typeof Notification !== 'undefined' ? Notification.permission : 'default';
+			if (!token) return; // User denied permission or error
 			prefs.enabled = true;
 		} else {
 			prefs.enabled = false;
@@ -238,6 +236,42 @@
 	}
 
 	@media (max-width: 380px) {
+		.toggle-switch {
+			width: 32px;
+			height: 18px;
+		}
+
+		.toggle-dot {
+			width: 14px;
+			height: 14px;
+		}
+
+		.toggle-switch.on .toggle-dot {
+			transform: translateX(14px);
+		}
+	}
+
+	@media (max-height: 500px) and (orientation: landscape) {
+		.notification-section {
+			gap: 6px;
+		}
+
+		.notification-title {
+			font-size: 12px;
+		}
+
+		.toggle-label {
+			font-size: 12px;
+		}
+
+		.toggle-row.sub .toggle-label {
+			font-size: 11px;
+		}
+
+		.toggle-list {
+			gap: 5px;
+		}
+
 		.toggle-switch {
 			width: 32px;
 			height: 18px;

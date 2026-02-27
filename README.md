@@ -65,6 +65,12 @@ Works on any device with a browser. You can also **install it as an app** on you
 - **Quick Actions**: Reset game, switch sides, swap colors instantly
 - **Edit Matches**: Modify points and 20s for any completed round
 
+### 🔔 **Push Notifications & Wake Lock**
+- **Push Notifications**: Opt-in FCM-based notifications when your tournament match is assigned to a table
+- **Per-Category Preferences**: Toggle notifications individually (match ready, phase changes, rankings, invite responses)
+- **Screen Wake Lock**: Display stays on during match scoring — no more screen timeouts mid-game
+- See [Push Notifications & Wake Lock docs](docs/PWA_PUSH_NOTIFICATIONS.md) for technical details
+
 ### 📶 **Offline Mode & Network Status**
 - **Offline-First**: Works perfectly without internet connection
 - **Connection Indicator**: Visual status icon in header shows connection state

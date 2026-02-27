@@ -7,9 +7,9 @@ export interface NotificationPreferences {
 }
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-	enabled: true,
-	tournament_matchReady: true,
-	tournament_phaseChange: true,
-	tournament_ranking: true,
-	friendly_inviteResponse: true
+	enabled: false,
+	tournament_matchReady: false,
+	tournament_phaseChange: false,
+	tournament_ranking: false,
+	friendly_inviteResponse: false
 };

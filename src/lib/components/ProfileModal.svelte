@@ -441,6 +441,10 @@
 		border-radius: 12px;
 		max-width: 420px;
 		width: 100%;
+		max-height: calc(100dvh - 32px);
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
 		animation: modalSlide 0.12s ease-out;
 		box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.35);
 	}
@@ -633,6 +637,10 @@
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
+		overflow-y: auto;
+		flex: 1;
+		min-height: 0;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.field {
@@ -809,7 +817,7 @@
 		cursor: not-allowed;
 	}
 
-	/* Responsive */
+	/* Small screens */
 	@media (max-width: 380px) {
 		.modal {
 			max-width: 100%;
@@ -839,6 +847,129 @@
 
 		.header-title {
 			font-size: 15px;
+		}
+	}
+
+	/* Landscape short viewport */
+	@media (max-height: 500px) and (orientation: landscape) {
+		.modal-overlay {
+			padding: 8px;
+		}
+
+		.modal {
+			max-width: 480px;
+			max-height: calc(100dvh - 16px);
+			border-radius: 10px;
+		}
+
+		.header {
+			padding: 10px 16px;
+		}
+
+		.header-content {
+			gap: 10px;
+		}
+
+		.photo,
+		.photo-placeholder {
+			width: 36px;
+			height: 36px;
+		}
+
+		.photo-placeholder {
+			font-size: 14px;
+		}
+
+		.photo-overlay svg {
+			width: 14px;
+			height: 14px;
+		}
+
+		.delete-photo-btn {
+			width: 14px;
+			height: 14px;
+			top: -3px;
+			right: -3px;
+		}
+
+		.delete-photo-btn svg {
+			width: 6px;
+			height: 6px;
+		}
+
+		.header-title {
+			font-size: 14px;
+		}
+
+		.header-email {
+			font-size: 11px;
+		}
+
+		.close-btn {
+			width: 24px;
+			height: 24px;
+		}
+
+		.close-btn svg {
+			width: 14px;
+			height: 14px;
+		}
+
+		.form-content {
+			padding: 12px 16px;
+			gap: 12px;
+		}
+
+		.field {
+			gap: 4px;
+		}
+
+		.field-label {
+			font-size: 12px;
+		}
+
+		.field-input {
+			padding: 7px 10px;
+			font-size: 13px;
+		}
+
+		.field-hint,
+		.field-error {
+			font-size: 11px;
+		}
+
+		.theme-swatch {
+			width: 30px;
+			height: 30px;
+			border-radius: 8px;
+		}
+
+		.swatch-color {
+			width: 18px;
+			height: 18px;
+			border-radius: 5px;
+		}
+
+		:global(.swatch-check) {
+			width: 12px;
+			height: 12px;
+			bottom: -3px;
+			right: -3px;
+		}
+
+		:global(.country-trigger) {
+			padding: 7px 10px;
+			font-size: 13px;
+		}
+
+		.footer {
+			padding: 10px 16px;
+		}
+
+		.btn-cancel,
+		.btn-save {
+			padding: 7px 12px;
+			font-size: 12px;
 		}
 	}
 </style>
