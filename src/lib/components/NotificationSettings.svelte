@@ -10,6 +10,7 @@
 
 	let prefs = $state<NotificationPreferences>({ ...DEFAULT_NOTIFICATION_PREFERENCES });
 	let loaded = $state(false);
+	let toggling = $state(false);
 	let permissionState = $state<NotificationPermission>(
 		typeof Notification !== 'undefined' ? Notification.permission : 'default'
 	);
@@ -30,16 +31,22 @@
 	}
 
 	async function toggleMaster() {
-		if (!prefs.enabled) {
-			// Always request token when enabling (handles both new permission and already-granted)
-			const token = await requestNotificationPermission();
-			permissionState = typeof Notification !== 'undefined' ? Notification.permission : 'default';
-			if (!token) return; // User denied permission or error
-			prefs.enabled = true;
-		} else {
-			prefs.enabled = false;
+		if (toggling) return; // Prevent double-fire from label+button on mobile
+		toggling = true;
+		try {
+			if (!prefs.enabled) {
+				// Always request token when enabling (handles both new permission and already-granted)
+				const token = await requestNotificationPermission();
+				permissionState = typeof Notification !== 'undefined' ? Notification.permission : 'default';
+				if (!token) return; // User denied permission or error
+				prefs.enabled = true;
+			} else {
+				prefs.enabled = false;
+			}
+			await saveNotificationPreferences(prefs);
+		} finally {
+			toggling = false;
 		}
-		await saveNotificationPreferences(prefs);
 	}
 
 	async function togglePref(key: keyof Omit<NotificationPreferences, 'enabled'>) {
@@ -65,7 +72,7 @@
 			<p class="notification-denied">{m.notifications_denied()}</p>
 		{:else}
 			<!-- Master toggle -->
-			<label class="toggle-row">
+			<div class="toggle-row">
 				<span class="toggle-label">{m.notifications_enabled()}</span>
 				<button
 					class="toggle-switch"
@@ -76,11 +83,11 @@
 				>
 					<span class="toggle-dot"></span>
 				</button>
-			</label>
+			</div>
 
 			{#if prefs.enabled}
 				<div class="toggle-list">
-					<label class="toggle-row sub">
+					<div class="toggle-row sub">
 						<span class="toggle-label">{m.notifications_matchReady()}</span>
 						<button
 							class="toggle-switch"
@@ -91,9 +98,9 @@
 						>
 							<span class="toggle-dot"></span>
 						</button>
-					</label>
+					</div>
 
-					<label class="toggle-row sub">
+					<div class="toggle-row sub">
 						<span class="toggle-label">{m.notifications_phaseChange()}</span>
 						<button
 							class="toggle-switch"
@@ -104,9 +111,9 @@
 						>
 							<span class="toggle-dot"></span>
 						</button>
-					</label>
+					</div>
 
-					<label class="toggle-row sub">
+					<div class="toggle-row sub">
 						<span class="toggle-label">{m.notifications_ranking()}</span>
 						<button
 							class="toggle-switch"
@@ -117,9 +124,9 @@
 						>
 							<span class="toggle-dot"></span>
 						</button>
-					</label>
+					</div>
 
-					<label class="toggle-row sub">
+					<div class="toggle-row sub">
 						<span class="toggle-label">{m.notifications_inviteResponse()}</span>
 						<button
 							class="toggle-switch"
@@ -130,7 +137,7 @@
 						>
 							<span class="toggle-dot"></span>
 						</button>
-					</label>
+					</div>
 				</div>
 			{/if}
 		{/if}
@@ -214,6 +221,8 @@
 		transition: background 0.2s;
 		padding: 0;
 		flex-shrink: 0;
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	.toggle-switch.on {
