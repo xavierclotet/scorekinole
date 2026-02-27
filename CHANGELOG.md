@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.53] - 2026-02-27
+- Fix notification toggle not responding on mobile PWA (label double-click issue)
+- Fix Firestore rules for fcmTokens subcollection (missing permissions)
+
 ## [2.4.52] - 2026-02-27
 - Fix notification preferences defaults to off (prevent false-positive enabled state)
 - Fix FCM token registration when browser permission already granted
