@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.51] - 2026-02-27
+- Add PWA push notifications with FCM infrastructure and Cloud Function for match table alerts
+- Add Screen Wake Lock to prevent display turning off during match scoring
+- Add NotificationSettings component with per-category toggles in user profile
+- Add fullscreen zoom for group charts with navigation and player filters
+- Improve landscape mobile layout for short viewports
+- Fix WhatsNewModal translation keys
+
 ## [2.4.50] - 2026-02-27
 - Convert to Progressive Web App (PWA) with service worker, manifest, and install prompt
 - Remove Capacitor and APK distribution infrastructure
