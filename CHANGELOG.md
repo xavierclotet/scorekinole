@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.55] - 2026-02-27
+- Auto-update PWA: auto-reload on safe pages, show update prompt on /game and /admin
+- Check for updates on app open, on visibility change, and every 10 minutes
+
 ## [2.4.54] - 2026-02-27
 - Fix Cloud Function match detection for new matches with pre-assigned tables
 
