@@ -45,7 +45,7 @@
 
 	// Prevent click-through: track when dialog opens and ignore clicks for a short period
 	let openTime = $state(0);
-	const CLICK_THROUGH_DELAY = 150; // ms to ignore clicks after opening
+	const CLICK_THROUGH_DELAY = 400; // ms to ignore clicks after opening (synthetic touch clicks arrive ~300ms after touchend)
 
 	// Reset values when dialog opens (using $effect.pre to run before render)
 	$effect.pre(() => {
@@ -95,10 +95,31 @@
 		return luminance < 0.2 ? '#ffffff' : teamColor;
 	}
 
+	// Selected button background: lighten very dark colors so they're visible against the dark modal
+	function getSelectedBgColor(teamColor: string): string {
+		const hex = teamColor.replace('#', '');
+		const r = parseInt(hex.substring(0, 2), 16);
+		const g = parseInt(hex.substring(2, 4), 16);
+		const b = parseInt(hex.substring(4, 6), 16);
+		const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+		if (luminance < 0.2) {
+			// Very dark: lighten by blending 40% toward white
+			const lr = Math.round(r + (255 - r) * 0.4);
+			const lg = Math.round(g + (255 - g) * 0.4);
+			const lb = Math.round(b + (255 - b) * 0.4);
+			return `#${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb.toString(16).padStart(2, '0')}`;
+		}
+		return teamColor;
+	}
+
 	// Color for selected buttons (solid background with team color)
 	// Use white text if team color is dark, black if light
 	let team1SelectedTextColor = $derived(isDarkColor($team1.color) ? '#ffffff' : '#000000');
 	let team2SelectedTextColor = $derived(isDarkColor($team2.color) ? '#ffffff' : '#000000');
+
+	// Selected button background: lightened for very dark colors
+	let team1SelectedBg = $derived(getSelectedBgColor($team1.color));
+	let team2SelectedBg = $derived(getSelectedBgColor($team2.color));
 
 	// Color for unselected buttons (transparent background over dark modal)
 	// Use white if team color is dark (would be invisible), otherwise use team color
@@ -199,7 +220,7 @@
 							<button
 								class="num-btn"
 								class:selected={team1Twenty === num}
-								style="--team-color: {$team1.color}; --text-selected: {team1SelectedTextColor}; --text-unselected: {team1UnselectedTextColor}; --border-color: {team1BorderColor};"
+								style="--team-color: {$team1.color}; --selected-bg: {team1SelectedBg}; --text-selected: {team1SelectedTextColor}; --text-unselected: {team1UnselectedTextColor}; --border-color: {team1BorderColor};"
 								onclick={() => selectTeam1Twenty(num)}
 							>
 								{num}
@@ -215,7 +236,7 @@
 							<button
 								class="num-btn"
 								class:selected={team2Twenty === num}
-								style="--team-color: {$team2.color}; --text-selected: {team2SelectedTextColor}; --text-unselected: {team2UnselectedTextColor}; --border-color: {team2BorderColor};"
+								style="--team-color: {$team2.color}; --selected-bg: {team2SelectedBg}; --text-selected: {team2SelectedTextColor}; --text-unselected: {team2UnselectedTextColor}; --border-color: {team2BorderColor};"
 								onclick={() => selectTeam2Twenty(num)}
 							>
 								{num}
@@ -323,8 +344,8 @@
 	}
 
 	.num-btn.selected {
-		background: var(--team-color);
-		border-color: var(--team-color);
+		background: var(--selected-bg);
+		border-color: var(--border-color);
 		color: var(--text-selected);
 	}
 

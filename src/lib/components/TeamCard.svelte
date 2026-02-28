@@ -919,7 +919,7 @@
 		min-height: 300px;
 		user-select: none;
 		transition: all 0.2s ease;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+		box-shadow: none;
 		overflow: hidden;
 	}
 
@@ -1395,7 +1395,7 @@
 		.team-card {
 			min-height: 220px;
 			padding: 1rem;
-			border-radius: 12px;
+			border-radius: 0;
 		}
 
 		/* Score sizes for mobile */

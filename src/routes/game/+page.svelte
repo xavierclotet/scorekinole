@@ -20,10 +20,11 @@
 	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { Settings, User, Users, Trophy, Play } from '@lucide/svelte';
+	import { Settings, User, Users, Trophy, Play, Menu } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import FullscreenToggle from '$lib/components/FullscreenToggle.svelte';
 	import { theme } from '$lib/stores/theme';
+	import { APP_VERSION } from '$lib/constants';
 	import { onReconnect, setSyncStatus } from '$lib/utils/networkStatus';
 	import { retryPendingFriendlyMatch } from '$lib/firebase/firestore';
 	import {
@@ -1151,6 +1152,8 @@
 	 * auto-start the match without showing the modal
 	 */
 	async function handleJoinTournament() {
+		// Wait for dropdown menu to close before opening modals
+		await tick();
 		const savedKey = $gameSettings.tournamentKey;
 
 		console.log('🎯 handleJoinTournament:', { savedKey, currentUser: $currentUser?.id });
@@ -2246,6 +2249,11 @@
 			<!-- Normal/Friendly mode header -->
 			<div class="header-left">
 				<AppMenu showHome homeHref="/" currentPage="game">
+					{#snippet trigger({ props })}
+						<button {...props} class="header-btn menu-btn">
+							<Menu class="size-5" />
+						</button>
+					{/snippet}
 					<DropdownMenu.Item onclick={handleNewMatchClick} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
 						<div class="flex items-center justify-center size-8 rounded-md bg-blue-500/15 group-hover:bg-blue-500/25 transition-colors">
 							<Play class="size-4 text-blue-500" />
@@ -2265,14 +2273,14 @@
 						<DropdownMenu.Shortcut>Ctrl+J</DropdownMenu.Shortcut>
 					</DropdownMenu.Item>
 					<DropdownMenu.Separator class="my-2" />
-					<DropdownMenu.Item onclick={() => showQRScanner = true} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
+					<DropdownMenu.Item onclick={async () => { await tick(); showQRScanner = true; }} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 							<QrCode class="size-4 text-primary" />
 						</div>
 						<span class="flex-1 font-medium">{m.scan_title()}</span>
 						<DropdownMenu.Shortcut>Ctrl+Q</DropdownMenu.Shortcut>
 					</DropdownMenu.Item>
-					<DropdownMenu.Item onclick={() => showSettings = true} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
+					<DropdownMenu.Item onclick={async () => { await tick(); showSettings = true; }} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 							<Settings class="size-4 text-primary" />
 						</div>
@@ -2280,19 +2288,7 @@
 						<DropdownMenu.Shortcut>Ctrl+,</DropdownMenu.Shortcut>
 					</DropdownMenu.Item>
 				</AppMenu>
-				<!-- Friendly match info badge -->
-				<div class="flex items-center gap-2.5">
-					<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 max-sm:px-2.5 max-sm:py-1">
-						{#if $gameSettings.gameType === 'doubles'}
-							<Users class="size-4 text-primary/80 max-sm:size-3.5" />
-						{:else}
-							<User class="size-4 text-primary/80 max-sm:size-3.5" />
-						{/if}
-						<span class="text-base font-semibold text-primary max-sm:text-sm">{friendlyMatchTitle}</span>
-					</div>
-					<span class="text-muted-foreground/40 text-base max-sm:text-sm">·</span>
-					<span class="text-base font-medium text-muted-foreground max-sm:text-sm">{friendlyMatchMode}</span>
-				</div>
+				<span class="match-info-text">{friendlyMatchTitle} · {friendlyMatchMode}</span>
 			</div>
 
 			{#if $gameSettings.showTimer}
@@ -2313,6 +2309,13 @@
 	{/if}
 
 	<div class="teams-container">
+		<div class="watermark">
+			<span class="watermark-main">Scorekinole</span>
+			<span class="watermark-suffix">
+				<span class="watermark-arena">Arena</span>
+				<span class="watermark-version">v{APP_VERSION}</span>
+			</span>
+		</div>
 		<TeamCard
 			bind:this={teamCard1}
 			teamNumber={1}
@@ -2551,6 +2554,62 @@
 		overflow: hidden;
 	}
 
+	.watermark {
+		position: absolute;
+		top: 50%;
+		left: 0.5rem;
+		transform: translateY(-50%) rotate(180deg);
+		writing-mode: vertical-lr;
+		display: flex;
+		align-items: center;
+		gap: 0.2rem;
+		pointer-events: none;
+		z-index: 10;
+		user-select: none;
+	}
+
+	.watermark-main {
+		font-family: 'Lexend', sans-serif;
+		font-size: 1.8rem;
+		font-weight: 700;
+		letter-spacing: -0.01em;
+		color: white;
+		mix-blend-mode: soft-light;
+		opacity: 0.35;
+	}
+
+	.watermark-suffix {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.watermark-arena {
+		font-family: 'Lexend', sans-serif;
+		font-style: italic;
+		font-weight: 700;
+		font-size: 0.7rem;
+		color: white;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		line-height: 1;
+		mix-blend-mode: soft-light;
+		opacity: 0.35;
+	}
+
+	.watermark-version {
+		font-family: 'Lexend', sans-serif;
+		font-style: italic;
+		font-weight: 500;
+		font-size: 0.45rem;
+		color: white;
+		letter-spacing: 0.05em;
+		line-height: 1;
+		margin-top: 0.2rem;
+		mix-blend-mode: soft-light;
+		opacity: 0.25;
+	}
+
 	.game-header {
 		display: flex;
 		justify-content: space-between;
@@ -2563,9 +2622,9 @@
 
 	/* Tournament mode header styling */
 	.game-header.tournament-mode {
-		background: var(--game-surface);
-		border: 1px solid var(--game-border);
-		border-radius: 10px;
+		background: none;
+		border: none;
+		border-radius: 0;
 	}
 
 	/* Tournament header layout */
@@ -2683,6 +2742,23 @@
 	.header-btn-danger:hover {
 		background: rgba(255, 80, 80, 0.12);
 		color: rgba(255, 100, 100, 0.95);
+	}
+
+	.menu-btn {
+		color: var(--game-text);
+		opacity: 0.7;
+	}
+
+	.menu-btn:hover {
+		opacity: 1;
+	}
+
+	.match-info-text {
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: var(--game-text-muted);
+		white-space: nowrap;
+		opacity: 0.7;
 	}
 
 	.teams-container {
@@ -3196,25 +3272,6 @@
 
 
 
-	/* Responsive for floating button */
-	@media (max-width: 768px) {
-		.floating-button {
-			height: 44px;
-			padding: 0 0.95rem;
-			gap: 0.4rem;
-		}
-
-		.floating-btn-label {
-			font-size: 0.78rem;
-		}
-
-		.tournament-button {
-			left: auto;
-			right: 1.5rem;
-		}
-
-	}
-
 	@media (orientation: landscape) {
 		.exit-dialog {
 			width: min(450px, 70vw);
@@ -3222,23 +3279,6 @@
 	}
 
 	@media (orientation: landscape) and (max-height: 600px) {
-		.floating-button {
-			bottom: 1rem;
-			left: 1rem;
-			height: 40px;
-			padding: 0 0.85rem;
-			gap: 0.35rem;
-		}
-
-		.floating-btn-label {
-			font-size: 0.72rem;
-		}
-
-		.tournament-button {
-			left: auto;
-			right: 1rem;
-		}
-
 		.exit-dialog {
 			padding: 1.25rem;
 			width: min(400px, 65vw);

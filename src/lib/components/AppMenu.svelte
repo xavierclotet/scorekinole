@@ -21,6 +21,7 @@
 		currentPage?: PageId;
 		class?: string;
 		children?: Snippet;
+		trigger?: Snippet<[{ props: Record<string, any> }]>;
 	}
 
 	let {
@@ -30,7 +31,8 @@
 		showNavigation = true,
 		currentPage,
 		class: className,
-		children
+		children,
+		trigger
 	}: Props = $props();
 
 	// Language selection
@@ -122,43 +124,47 @@
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger>
 		{#snippet child({ props })}
-			<button
-				{...props}
-				class={[
-					"flex items-center font-['Lexend'] text-[1.15rem] font-semibold",
-					"bg-transparent border-none py-1 px-2 cursor-pointer rounded",
-					"transition-all duration-150 tracking-[0.01em]",
-					"text-foreground/85 hover:text-foreground hover:bg-foreground/[0.06]",
-					"active:scale-[0.97]",
-					"max-sm:text-[1rem] max-sm:py-0.5 max-sm:px-1.5",
-					"max-[480px]:text-[0.9rem] max-[480px]:py-0.5 max-[480px]:px-1",
-					className
-				]}
-			>
-				Scorekinole
-				<span class="flex flex-col items-start ml-0.5">
-					<span
-						class={[
-							"italic font-bold text-[0.75rem] text-[#dc2626] -rotate-[8deg]",
-							"tracking-[0.08em] uppercase leading-none",
-							"max-sm:text-[0.65rem] max-[480px]:text-[0.6rem]"
-						]}
-					>
-						Arena
+			{#if trigger}
+				{@render trigger({ props })}
+			{:else}
+				<button
+					{...props}
+					class={[
+						"flex items-center font-['Lexend'] text-[1.15rem] font-semibold",
+						"bg-transparent border-none py-1 px-2 cursor-pointer rounded",
+						"transition-all duration-150 tracking-[0.01em]",
+						"text-foreground/85 hover:text-foreground hover:bg-foreground/[0.06]",
+						"active:scale-[0.97]",
+						"max-sm:text-[1rem] max-sm:py-0.5 max-sm:px-1.5",
+						"max-[480px]:text-[0.9rem] max-[480px]:py-0.5 max-[480px]:px-1",
+						className
+					]}
+				>
+					Scorekinole
+					<span class="flex flex-col items-start ml-0.5">
+						<span
+							class={[
+								"italic font-bold text-[0.75rem] text-[#dc2626] -rotate-[8deg]",
+								"tracking-[0.08em] uppercase leading-none",
+								"max-sm:text-[0.65rem] max-[480px]:text-[0.6rem]"
+							]}
+						>
+							Arena
+						</span>
+						<span
+							class={[
+								"italic font-medium text-[0.6rem] -rotate-[8deg]",
+								"tracking-[0.05em] leading-none mt-0.5 ml-0.5",
+								"text-foreground/55",
+								"max-sm:text-[0.5rem] max-[480px]:text-[0.45rem]"
+							]}
+						>
+							v{APP_VERSION}
+						</span>
 					</span>
-					<span
-						class={[
-							"italic font-medium text-[0.6rem] -rotate-[8deg]",
-							"tracking-[0.05em] leading-none mt-0.5 ml-0.5",
-							"text-foreground/55",
-							"max-sm:text-[0.5rem] max-[480px]:text-[0.45rem]"
-						]}
-					>
-						v{APP_VERSION}
-					</span>
-				</span>
-				<ChevronDown class="size-3.5 text-foreground/50 ml-1 shrink-0" />
-			</button>
+					<ChevronDown class="size-3.5 text-foreground/50 ml-1 shrink-0" />
+				</button>
+			{/if}
 		{/snippet}
 	</DropdownMenu.Trigger>
 

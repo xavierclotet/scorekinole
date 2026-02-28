@@ -12,12 +12,14 @@ description: "Interfaz principal de puntuación de partidas, gestión de rondas,
 - **Teams (`TeamCard.svelte`)**: Hay dos de estos componentes. Renderizan tanto las tarjetas de puntuación como los nombres de los jugadores.
 - **Temporizador (`Timer.svelte`)**: Situado en el centro de la página por defecto. Es "draggable" (se puede arrastrar) y guarda su posición (X e Y) en `localStorage` bajo `crokinoleGame` (`timerX` y `timerY`).
 - **Rounds Panel (`RoundsPanel.svelte`)**: Muestra el historial de las rondas jugadas en la partida actual.
-- **Menú principal (`AppMenu` + `DropdownMenu`)**: Menú desplegable en la esquina **superior izquierda** (icono "Scorekinole"). Contiene:
+- **Menú principal (`AppMenu` + `DropdownMenu`)**: Menú desplegable en la esquina **superior izquierda** (icono hamburger `Menu`). Contiene:
   - **Nueva partida** (icono Play, `Ctrl+M`): Resetea puntuaciones e inicia una nueva partida amistosa.
   - **Partido de torneo** (icono Trophy, `Ctrl+J`): Si hay 1 solo partido pendiente → abre `MatchPreviewDialog`. Si hay 0 o 2+ → abre `TournamentMatchModal`.
   - **Escanear QR** (icono QrCode, `Ctrl+Q`): Abre el escáner QR para unirse a torneos o partidas amistosas.
   - **Configuración** (icono Settings, `Ctrl+,`): Abre `SettingsModal`.
-- **Badge de partida amistosa**: Junto al menú, muestra el modo actual (singles/doubles), formato de juego y matchesToWin.
+  - Las acciones que abren modales usan `await tick()` para esperar a que el dropdown se cierre antes de abrir el modal.
+- **Info de partida amistosa**: Texto plano junto al menú: "{Singles/Doubles} · {formato}" (ej. "Singles · 4 Rounds").
+- **Watermark**: Branding "Scorekinole Arena v{version}" en vertical al borde izquierdo, superpuesto sobre las TeamCards con `mix-blend-mode: soft-light` y `pointer-events: none`.
 
 ## 🖥️ Estados y Contexto (UI Modes)
 1. **Modo Amistoso** (`$gameTournamentContext == null`):
@@ -33,11 +35,11 @@ description: "Interfaz principal de puntuación de partidas, gestión de rondas,
 | :--- | :--- | :--- |
 | **Añadir Puntos** | Swipe / Click en el `[data-webmcp="score-display"]` de `TeamCard` | Suma un punto al equipo correspondiente. |
 | **Añadir 20s (Ventes)** | Click en `[data-webmcp="twenty-btn"]` | Registra ventas; espera a finalizar la ronda para cerrar puntuación de mesa. |
-| **Configuraciones / Settings** | Menú Scorekinole → Configuración (`Ctrl+,`) | Abre `SettingsModal` (`showSettings = true`) |
+| **Configuraciones / Settings** | Menú hamburger → Configuración (`Ctrl+,`) | Abre `SettingsModal` (`showSettings = true`) |
 | **Cambiar Modo ("Points" o "Rounds")** | Desde `SettingsModal` | Cambia las condiciones de victoria de la partida. |
-| **Nueva Partida** | Menú Scorekinole → Nueva partida (`Ctrl+M`) | Resetea puntuaciones (`resetTeams()`) e historial. |
-| **Cargar/Ir a Torneo** | Menú Scorekinole → Partido de torneo (`Ctrl+J`) | Si hay 1 solo partido pendiente → abre `MatchPreviewDialog`. Si hay 0 o 2+ → abre `TournamentMatchModal`. |
-| **Escanear QR** | Menú Scorekinole → Escanear QR (`Ctrl+Q`) | Abre escáner QR para detectar keys de torneo o códigos de invitación amistosa. |
+| **Nueva Partida** | Menú hamburger → Nueva partida (`Ctrl+M`) | Resetea puntuaciones (`resetTeams()`) e historial. |
+| **Cargar/Ir a Torneo** | Menú hamburger → Partido de torneo (`Ctrl+J`) | Si hay 1 solo partido pendiente → abre `MatchPreviewDialog`. Si hay 0 o 2+ → abre `TournamentMatchModal`. |
+| **Escanear QR** | Menú hamburger → Escanear QR (`Ctrl+Q`) | Abre escáner QR para detectar keys de torneo o códigos de invitación amistosa. |
 | **Preview de Partido** | `MatchPreviewDialog` (`showMatchPreview`) | Muestra vista previa del partido auto-detectado: fase (grupos/final), grupo y ronda o nombre de ronda bracket, mesa, jugadores con avatares, config. Botón "Jugar" (o "Reanudar" si IN_PROGRESS) inicia el partido. "Cancelar" cierra sin acción. Botón deshabilitado si no hay mesa asignada. Si el partido tiene `scoringBy` (otro usuario controlándolo), muestra aviso amber con el nombre del scorer. |
 
 ## 🔗 Deep-link desde Push Notifications
