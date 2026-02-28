@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.66] - 2026-02-28
+- Show bracket seed numbers (#1, #2, etc.) in public tournament view for all bracket types
+
 ## [2.4.65] - 2026-02-28
 - Fix intermittent bracket seeding bug: read from $derived instead of async $state
 - Add defensive deduplication in generateSplitBrackets
