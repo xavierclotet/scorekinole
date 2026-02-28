@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
 	import { loadMatchState } from '$lib/stores/matchState';
@@ -70,6 +71,19 @@
 
 		// Initialize Firebase auth listener (also handles user language from profile)
 		initAuthListener();
+
+		// Listen for navigation requests from service worker (push notification clicks)
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.addEventListener('message', (event) => {
+				if (event.data?.type === 'PUSH_NAVIGATE' && event.data?.url) {
+					const target = event.data.url as string;
+					// Only navigate if not already on the target URL
+					if (page.url.pathname + page.url.search !== target) {
+						goto(target);
+					}
+				}
+			});
+		}
 
 		// Register service worker and auto-update
 		if ('serviceWorker' in navigator) {

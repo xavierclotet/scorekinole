@@ -1398,6 +1398,14 @@
 			border-radius: 0;
 		}
 
+		.hammer-floating {
+			bottom: -25px;
+		}
+
+		.score-display {
+			padding-top: 8px;
+		}
+
 		/* Score sizes for mobile */
 		.score-size-small .score { font-size: 4.5rem; }
 		.score-size-medium .score { font-size: 6rem; }
@@ -1579,6 +1587,14 @@
 		.team-card {
 			min-height: 180px;
 			padding: 0.75rem;
+		}
+
+		.hammer-floating {
+			bottom: -22px;
+		}
+
+		.score-display {
+			padding-top: 10px;
 		}
 
 		/* Score sizes for landscape mobile (height-limited) */

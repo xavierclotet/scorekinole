@@ -135,9 +135,20 @@ sw.addEventListener('notificationclick', (event) => {
 				if ('navigate' in client && 'focus' in client) {
 					try {
 						const navigated = await (client as WindowClient).navigate(absoluteUrl);
-						if (navigated) return navigated.focus();
+						if (navigated) {
+							// Also postMessage as fallback — navigate() may not work reliably
+							// on Android PWAs when the app is in background
+							navigated.postMessage({ type: 'PUSH_NAVIGATE', url: targetUrl });
+							return navigated.focus();
+						}
 					} catch {
-						// navigate() failed on this client — try next one
+						// navigate() failed on this client — try postMessage + focus instead
+						try {
+							(client as WindowClient).postMessage({ type: 'PUSH_NAVIGATE', url: targetUrl });
+							return (client as WindowClient).focus();
+						} catch {
+							// this client is unusable — try next one
+						}
 					}
 				}
 			}

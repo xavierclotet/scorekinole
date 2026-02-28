@@ -2549,6 +2549,7 @@
 		flex-direction: column;
 		padding: 0;
 		padding-top: env(safe-area-inset-top, 0);
+		padding-bottom: env(safe-area-inset-bottom, 0);
 		background: linear-gradient(135deg, var(--game-bg-start) 0%, var(--game-bg-end) 100%);
 		color: var(--game-text);
 		overflow: hidden;
@@ -2965,6 +2966,7 @@
 	@media (max-width: 600px) {
 		.teams-container {
 			grid-template-columns: 1fr;
+			grid-template-rows: 1fr 1fr;
 		}
 	}
 
@@ -3000,6 +3002,21 @@
 			height: 26px;
 		}
 
+		.watermark {
+			left: 0.3rem;
+		}
+
+		.watermark-main {
+			font-size: 1.3rem;
+		}
+
+		.watermark-arena {
+			font-size: 0.5rem;
+		}
+
+		.watermark-version {
+			font-size: 0.35rem;
+		}
 	}
 
 	@keyframes overlayFadeIn {
