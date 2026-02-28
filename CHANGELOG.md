@@ -2,6 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.61] - 2026-02-28
+- Add ranking push notification when tournament completes (position + points earned)
+- Add friendly invite response push notification (accepted/declined)
+- Remove unused tournament_phaseChange notification preference
+- Fix service worker notificationclick with absolute URLs, try/catch fallbacks
+- Add explicit BYE match filter in match-ready notifications
+- Add logging for blocked notifications and missing participants
+- Parallelize stale FCM token cleanup
+- Rollback notification toggle UI on save failure
+
 ## [2.4.60] - 2026-02-28
 - Fix push notification deep-link stuck at "searching tournament": wait for auth before joining
 - Persist tournament key to localStorage so gameSettings.load() won't overwrite it
