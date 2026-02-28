@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.60] - 2026-02-28
+- Fix push notification deep-link stuck at "searching tournament": wait for auth before joining
+- Persist tournament key to localStorage so gameSettings.load() won't overwrite it
+- Add cancel button and 15s timeout to tournament search loading step
+- Fix SSR admin error: derived() expects stores as input (safe store fallbacks)
+- Fix service worker URL comparison for notification click handler
+
 ## [2.4.59] - 2026-02-28
 - Fix BYE cascade in consolation brackets: BYE losers now propagate to 3rd place matches via nextMatchIdForLoser
 - Add cascadeByeWins() for iterative BYE resolution across all consolation rounds
