@@ -23,9 +23,11 @@
   import { generateSwissPairings } from '$lib/firebase/tournamentGroups';
   import { disqualifyParticipant } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
+  import { useProbabilities } from '$lib/utils/useProbabilities.svelte';
   import { Check, X } from '@lucide/svelte';
 
   let tournament: Tournament | null = $state(null);
+  const { probabilities } = useProbabilities(() => tournament);
   let loading = $state(true);
   let error = $state(false);
   let showToast = $state(false);
@@ -882,7 +884,7 @@
           </div>
         {/if}
 
-        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} onGenerateNextRound={handleGenerateNextRound} />
+        <GroupsView {tournament} onMatchClick={handleMatchClick} {activeGroupId} onGenerateNextRound={handleGenerateNextRound} {probabilities} />
       {/if}
     </div>
   </div>

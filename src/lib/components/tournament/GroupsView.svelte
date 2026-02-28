@@ -4,6 +4,7 @@
     Group,
     GroupMatch
   } from '$lib/types/tournament';
+  import type { WinProbability } from '$lib/algorithms/probability';
   import GroupStandings from './GroupStandings.svelte';
   import MatchSchedule from './MatchSchedule.svelte';
   import * as m from '$lib/paraglide/messages.js';
@@ -13,13 +14,15 @@
     onMatchClick?: (match: GroupMatch) => void;
     activeGroupId?: string | null; // Track which group had recent activity
     onGenerateNextRound?: () => Promise<void>;
+    probabilities?: Map<string, WinProbability> | null;
   }
 
   let {
     tournament,
     onMatchClick,
     activeGroupId = null,
-    onGenerateNextRound
+    onGenerateNextRound,
+    probabilities = null
   }: Props = $props();
 
   let expandedGroups = $state<Set<string>>(new Set());
@@ -534,6 +537,7 @@
                     {totalRounds}
                     isDoubles={tournament.gameType === 'doubles'}
                     matchesToWin={tournament.groupStage?.matchesToWin || 1}
+                    {probabilities}
                   />
                 {:else}
                   <GroupStandings

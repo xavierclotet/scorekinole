@@ -5,6 +5,8 @@
     RoundRobinRound,
     SwissPairing
   } from '$lib/types/tournament';
+  import type { WinProbability } from '$lib/algorithms/probability';
+  import { getMatchProbability } from '$lib/utils/tournamentProbability';
   import MatchCard from './MatchCard.svelte';
   import * as m from '$lib/paraglide/messages.js';
 
@@ -25,6 +27,8 @@
     isDoubles?: boolean;
     // Number of games to win (Pg1, Pg2, etc.)
     matchesToWin?: number;
+    // Win probabilities for pending matches
+    probabilities?: Map<string, WinProbability> | null;
   }
 
   let {
@@ -39,7 +43,8 @@
     onExpandedRoundsChange,
     totalRounds = null,
     isDoubles = false,
-    matchesToWin = 1
+    matchesToWin = 1,
+    probabilities = null
   }: Props = $props();
 
   // Internal state (used when no external state is provided)
@@ -182,6 +187,7 @@
                 {gameMode}
                 {isDoubles}
                 {matchesToWin}
+                winProbability={probabilities && match.participantA && match.participantB ? getMatchProbability(probabilities, match.participantA, match.participantB) : null}
               />
             {/each}
           </div>

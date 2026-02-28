@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { GroupMatch, TournamentParticipant } from '$lib/types/tournament';
   import { getParticipantDisplayName } from '$lib/types/tournament';
+  import type { WinProbability } from '$lib/algorithms/probability';
+  import { probabilityColor } from '$lib/algorithms/probability';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -11,6 +13,7 @@
     gameMode?: 'points' | 'rounds'; // Game mode to determine what to display
     isDoubles?: boolean; // Whether this is a doubles tournament
     matchesToWin?: number; // Number of games to win (Pg1, Pg2, etc.)
+    winProbability?: WinProbability | null; // Win probability for pending matches
   }
 
   let {
@@ -20,7 +23,8 @@
     compact = false,
     gameMode = 'points',
     isDoubles = false,
-    matchesToWin = 1
+    matchesToWin = 1,
+    winProbability = null
   }: Props = $props();
 
   // If Pg1, always show total points instead of games won (0-1 doesn't make sense)
@@ -162,6 +166,17 @@
         <span class="score live" class:score-changed={scoreChangedB}>{isBye ? '-' : currentScoreB}</span>
       {:else}
         <span class="pending">vs</span>
+        {#if winProbability && winProbability.confidence !== 'none'}
+          {@const pctA = Math.round(winProbability.probabilityA * 100)}
+          {@const pctB = Math.round(winProbability.probabilityB * 100)}
+          <div class="probability-indicator" class:low-confidence={winProbability.confidence === 'low'}>
+            <span class="prob-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
+            <div class="prob-bar">
+              <div class="prob-fill-a" style="width: {pctA}%"></div>
+            </div>
+            <span class="prob-value" style="color: {probabilityColor(pctB)}">{pctB}</span>
+          </div>
+        {/if}
       {/if}
     </div>
 
@@ -350,6 +365,7 @@
   .score-center {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.2rem;
     padding: 0.15rem 0.4rem;
     background: #f3f4f6;
@@ -387,6 +403,42 @@
     font-weight: 600;
     color: #9ca3af;
     text-transform: uppercase;
+  }
+
+  /* Win probability indicator */
+  .probability-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    width: 100%;
+    max-width: 4rem;
+  }
+
+  .probability-indicator .prob-value {
+    font-size: 0.5rem;
+    color: #9ca3af;
+    font-weight: 600;
+    min-width: 0.9rem;
+    text-align: center;
+  }
+
+  .probability-indicator .prob-bar {
+    flex: 1;
+    height: 3px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .probability-indicator .prob-fill-a {
+    height: 100%;
+    background: var(--primary, #667eea);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .probability-indicator.low-confidence {
+    opacity: 0.5;
   }
 
   .score-center .score.live {
@@ -495,6 +547,14 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .pending {
     color: #6b7280;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .probability-indicator .prob-value {
+    color: #6b7280;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .probability-indicator .prob-bar {
+    background: #374151;
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.live {

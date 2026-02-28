@@ -10,6 +10,10 @@
 	} from '$lib/types/tournament';
 	import { getParticipantDisplayName } from '$lib/types/tournament';
 	import { isBye } from '$lib/algorithms/bracket';
+	import type { WinProbability } from '$lib/algorithms/probability';
+	import { probabilityColor } from '$lib/algorithms/probability';
+	import { getMatchProbability } from '$lib/utils/tournamentProbability';
+	import { useProbabilities } from '$lib/utils/useProbabilities.svelte';
 	import MatchCard from './MatchCard.svelte';
 	import MatchResultDialog from './MatchResultDialog.svelte';
 	import BumpChart from '$lib/components/charts/BumpChart.svelte';
@@ -23,6 +27,9 @@
 	}
 
 	let { tournament }: Props = $props();
+
+	// Win probability
+	const { probabilities } = useProbabilities(() => tournament);
 
 	// View state
 	let expandedGroups = $state<Set<string>>(new Set());
@@ -651,7 +658,27 @@
 	function isByeMatch(match: BracketMatch): boolean {
 		return isBye(match.participantA) || isBye(match.participantB);
 	}
+
+	function getBracketMatchProbability(match: BracketMatch): WinProbability | null {
+		if (match.status !== 'PENDING' || !match.participantA || !match.participantB) return null;
+		return getMatchProbability(probabilities, match.participantA, match.participantB);
+	}
 </script>
+
+{#snippet bracketProbability(match: BracketMatch)}
+	{@const prob = getBracketMatchProbability(match)}
+	{#if prob && prob.confidence !== 'none'}
+		{@const pctA = Math.round(prob.probabilityA * 100)}
+		{@const pctB = Math.round(prob.probabilityB * 100)}
+		<div class="bracket-probability" class:low-confidence={prob.confidence === 'low'}>
+			<span class="bp-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
+			<div class="bp-bar">
+				<div class="bp-fill" style="width: {pctA}%"></div>
+			</div>
+			<span class="bp-value" style="color: {probabilityColor(pctB)}">{pctB}</span>
+		</div>
+	{/if}
+{/snippet}
 
 <div class="live-view">
 	<!-- Compact Info Bar -->
@@ -855,6 +882,7 @@
 															{isDoubles}
 															{matchesToWin}
 															onMatchClick={(match.status === 'COMPLETED' || match.status === 'WALKOVER') ? () => handleMatchClick(match, false) : undefined}
+															winProbability={match.participantA && match.participantB ? getMatchProbability(probabilities, match.participantA, match.participantB) : null}
 														/>
 													{/each}
 												</div>
@@ -1058,7 +1086,7 @@
 														</span>
 													{/if}
 												</div>
-												<div class="match-divider"></div>
+												<div class="match-divider">{@render bracketProbability(match)}</div>
 												<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 													{#if match.seedB}
 														<span class="seed">#{match.seedB}</span>
@@ -1172,7 +1200,7 @@
 													{/if}
 												</span>
 											</div>
-											<div class="match-divider"></div>
+											<div class="match-divider">{@render bracketProbability(tpm)}</div>
 											<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
 												{#if tpm.seedB}
 													<span class="seed">#{tpm.seedB}</span>
@@ -1410,7 +1438,7 @@
 															</span>
 														{/if}
 													</div>
-													<div class="match-divider"></div>
+													<div class="match-divider">{@render bracketProbability(match)}</div>
 													<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 														{#if match.seedB}
 															<span class="seed">#{match.seedB}</span>
@@ -1516,7 +1544,7 @@
 														{/if}
 													</span>
 												</div>
-												<div class="match-divider"></div>
+												<div class="match-divider">{@render bracketProbability(tpm)}</div>
 												<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
 													{#if tpm.seedB}
 														<span class="seed">#{tpm.seedB}</span>
@@ -1711,7 +1739,7 @@
 															</span>
 														{/if}
 													</div>
-													<div class="match-divider"></div>
+													<div class="match-divider">{@render bracketProbability(match)}</div>
 													<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 														{#if match.seedB}
 															<span class="seed">#{match.seedB}</span>
@@ -1850,7 +1878,7 @@
 														</span>
 													{/if}
 												</div>
-												<div class="match-divider"></div>
+												<div class="match-divider">{@render bracketProbability(match)}</div>
 												<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 													{#if match.seedB}
 														<span class="seed">#{match.seedB}</span>
@@ -1961,7 +1989,7 @@
 													{/if}
 												</span>
 											</div>
-											<div class="match-divider"></div>
+											<div class="match-divider">{@render bracketProbability(tpm)}</div>
 											<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
 												{#if tpm.seedB}
 													<span class="seed">#{tpm.seedB}</span>
@@ -3269,7 +3297,51 @@
 	}
 
 	.match-divider {
+		display: flex;
+		justify-content: center;
+		min-height: 0;
+	}
+
+	.match-divider:empty {
 		display: none;
+	}
+
+	/* Bracket probability indicator */
+	.bracket-probability {
+		display: flex;
+		align-items: center;
+		gap: 0.15rem;
+		width: 100%;
+		max-width: 5rem;
+		margin: 0 auto;
+		padding: 0.1rem 0;
+	}
+
+	.bracket-probability .bp-value {
+		font-size: 0.5rem;
+		color: #6b7280;
+		font-weight: 600;
+		min-width: 0.9rem;
+		text-align: center;
+	}
+
+	.bracket-probability .bp-bar {
+		flex: 1;
+		height: 3px;
+		background: #374151;
+		border-radius: 2px;
+		overflow: hidden;
+	}
+
+	.bracket-probability .bp-fill {
+		height: 100%;
+		background: var(--primary, #667eea);
+		border-radius: 2px;
+		transition: width 0.3s ease;
+	}
+
+	.bracket-probability.low-confidence {
+		opacity: 0.5;
 	}
 
 	/* Consolation Section */

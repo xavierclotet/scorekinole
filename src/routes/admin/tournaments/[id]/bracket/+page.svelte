@@ -34,8 +34,14 @@
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
   import { calculateRemainingTime, calculateTimeBreakdown, calculateTournamentTimeEstimate, type TimeBreakdown } from '$lib/utils/tournamentTime';
   import { updateTournament } from '$lib/firebase/tournaments';
+  import type { WinProbability } from '$lib/algorithms/probability';
+  import { probabilityColor } from '$lib/algorithms/probability';
+  import { getMatchProbability } from '$lib/utils/tournamentProbability';
+  import { useProbabilities } from '$lib/utils/useProbabilities.svelte';
 
   let tournament = $state<Tournament | null>(null);
+  const { probabilities } = useProbabilities(() => tournament);
+
   let loading = $state(true);
   let error = $state(false);
   let showToast = $state(false);
@@ -1644,6 +1650,23 @@
   {/if}
 {/snippet}
 
+{#snippet bracketProbability(match: BracketMatch)}
+  {#if probabilities && match.status === 'PENDING' && match.participantA && match.participantB}
+    {@const prob = getMatchProbability(probabilities, match.participantA, match.participantB)}
+    {#if prob && prob.confidence !== 'none'}
+      {@const pctA = Math.round(prob.probabilityA * 100)}
+      {@const pctB = Math.round(prob.probabilityB * 100)}
+      <div class="bracket-prob" class:low-confidence={prob.confidence === 'low'}>
+        <span class="bp-val" style="color: {probabilityColor(pctA)}">{pctA}</span>
+        <div class="bp-bar">
+          <div class="bp-fill" style="width: {pctA}%"></div>
+        </div>
+        <span class="bp-val" style="color: {probabilityColor(pctB)}">{pctB}</span>
+      </div>
+    {/if}
+  {/if}
+{/snippet}
+
 <AdminGuard>
   <div class="bracket-page" data-theme={$adminTheme}>
     <header class="page-header">
@@ -2049,7 +2072,7 @@
                       {/if}
                     </div>
 
-                    <div class="vs-divider"></div>
+                    <div class="vs-divider">{@render bracketProbability(match)}</div>
 
                     <div
                       class="match-participant"
@@ -2187,7 +2210,7 @@
                     {/if}
                   </div>
 
-                  <div class="vs-divider"></div>
+                  <div class="vs-divider">{@render bracketProbability(thirdPlaceMatch)}</div>
 
                   <div
                     class="match-participant"
@@ -2367,7 +2390,7 @@
                               {/if}
                             </div>
 
-                            <div class="vs-divider"></div>
+                            <div class="vs-divider">{@render bracketProbability(match)}</div>
 
                             <div
                               class="match-participant"
@@ -2490,7 +2513,7 @@
                                 {/if}
                               </div>
 
-                              <div class="vs-divider"></div>
+                              <div class="vs-divider">{@render bracketProbability(match)}</div>
 
                               <div
                                 class="match-participant"
@@ -3353,13 +3376,65 @@
   }
 
   .vs-divider {
-    height: 1px;
+    min-height: 1px;
     background: #e5e7eb;
     margin: 0.25rem 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .vs-divider:empty {
+    display: block;
+  }
+
+  .bracket-prob {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    width: 100%;
+    max-width: 5rem;
+    margin: 0 auto;
+    padding: 0.05rem 0.2rem;
+    background: transparent;
+  }
+
+  .bracket-prob .bp-val {
+    font-size: 0.5rem;
+    color: #9ca3af;
+    font-weight: 600;
+    min-width: 0.9rem;
+    text-align: center;
+  }
+
+  .bracket-prob .bp-bar {
+    flex: 1;
+    height: 3px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bracket-prob .bp-fill {
+    height: 100%;
+    background: var(--primary, #667eea);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .bracket-prob.low-confidence {
+    opacity: 0.5;
   }
 
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .vs-divider {
     background: #2d3748;
+  }
+
+  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .bracket-prob .bp-val {
+    color: #6b7280;
+  }
+
+  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .bracket-prob .bp-bar {
+    background: #374151;
   }
 
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .twenties {
