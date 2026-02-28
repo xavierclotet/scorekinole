@@ -124,8 +124,9 @@ sw.addEventListener('notificationclick', (event) => {
 	event.waitUntil(
 		sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
 			// Prefer a client already on the target URL
+			const target = new URL(targetUrl, sw.location.origin);
 			for (const client of clients) {
-				if (new URL(client.url).pathname === targetUrl && 'focus' in client) {
+				if (new URL(client.url).href === target.href && 'focus' in client) {
 					return client.focus();
 				}
 			}

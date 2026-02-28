@@ -114,6 +114,7 @@
 
 	function saveTournamentKey(key: string): void {
 		gameSettings.update(s => ({ ...s, tournamentKey: key.toUpperCase() }));
+		gameSettings.save();
 	}
 
 	async function checkSavedTournamentKey() {
@@ -123,11 +124,25 @@
 		isCheckingSavedKey = true;
 		currentStep = 'loading';
 
+		// Timeout to prevent infinite loading (e.g., if Firebase hangs)
+		const timeoutMs = 15_000;
+		const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
+
 		try {
-			const result = await getTournamentByKey(savedKey);
+			const result = await Promise.race([getTournamentByKey(savedKey), timeout]);
+
+			// Timeout or not found
+			if (!result) {
+				console.log('🔑 Saved tournament key timed out or not found, clearing...');
+				gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
+				gameSettings.save();
+				currentStep = 'key_input';
+				tick().then(() => { keyInputElement?.focus(); });
+				return;
+			}
 
 			// Check if tournament exists and is active (IN_PROGRESS or GROUP_STAGE or FINAL_STAGE)
-			if (result && result.status !== 'COMPLETED' && result.status !== 'CANCELLED' && result.status !== 'DRAFT') {
+			if (result.status !== 'COMPLETED' && result.status !== 'CANCELLED' && result.status !== 'DRAFT') {
 				// Tournament is active, use the saved key
 				tournamentKey = savedKey;
 				await searchTournament();
@@ -135,6 +150,7 @@
 				// Tournament not found or not active, clear saved key and show key input
 				console.log('🔑 Saved tournament key no longer active, clearing...');
 				gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
+				gameSettings.save();
 				currentStep = 'key_input';
 				// Keep isCheckingSavedKey = true to prevent reactive block from re-triggering
 				// It will be reset in resetState() when modal closes
@@ -145,6 +161,7 @@
 		} catch (error) {
 			console.error('Error checking saved tournament key:', error);
 			gameSettings.update(s => ({ ...s, tournamentKey: undefined }));
+			gameSettings.save();
 			currentStep = 'key_input';
 			tick().then(() => {
 				keyInputElement?.focus();
@@ -898,6 +915,9 @@
 							<div class="spinner"></div>
 						</div>
 						<p class="loading-text">{m.tournament_searchingTournament()}</p>
+						<button class="cancel-loading-btn" onclick={close}>
+							{m.common_cancel()}
+						</button>
 					</div>
 
 				<!-- Step: Match Selection -->
@@ -1589,6 +1609,24 @@
 		color: rgba(255, 255, 255, 0.6);
 		font-size: 0.9rem;
 		margin: 0;
+	}
+
+	.cancel-loading-btn {
+		margin-top: 1rem;
+		padding: 0.5rem 1.5rem;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 8px;
+		color: rgba(255, 255, 255, 0.6);
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.85rem;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.cancel-loading-btn:hover {
+		background: rgba(255, 255, 255, 0.12);
+		color: rgba(255, 255, 255, 0.8);
 	}
 
 	@keyframes spin {

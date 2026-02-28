@@ -2,6 +2,7 @@ import { writable, derived } from 'svelte/store';
 import { currentUser, authInitialized } from '$lib/firebase/auth';
 import { getUserProfile } from '$lib/firebase/userProfile';
 import { browser } from '$app/environment';
+import type { User } from '$lib/firebase/auth';
 
 /**
  * Admin state interface
@@ -18,15 +19,19 @@ const defaultState: AdminState = {
   isSuperAdmin: false
 };
 
+// SSR safety: stores may be undefined during server-side module evaluation
+const safeAuthInitialized = authInitialized ?? writable<boolean>(false);
+const safeCurrentUser = currentUser ?? writable<User | null>(null);
+
 /**
  * Combined admin state store
  * Uses derived with async setter to handle all state transitions correctly
  */
 export const adminState = derived<
-  [typeof authInitialized, typeof currentUser],
+  [typeof safeAuthInitialized, typeof safeCurrentUser],
   AdminState
 >(
-  [authInitialized, currentUser],
+  [safeAuthInitialized, safeCurrentUser],
   ([$authInitialized, $currentUser], set) => {
     // Don't do anything on server
     if (!browser) {
@@ -85,7 +90,7 @@ export const isSuperAdminUser = derived(adminState, ($state) => $state.isSuperAd
  * Derived store: Can access admin panel
  */
 export const canAccessAdmin = derived(
-  [adminState, currentUser],
+  [adminState, safeCurrentUser],
   ([$adminState, $currentUser]) => {
     return $currentUser !== null && $adminState.isAdmin === true;
   }
@@ -95,7 +100,7 @@ export const canAccessAdmin = derived(
  * Derived store: Can access super admin features (users/matches management)
  */
 export const canAccessSuperAdmin = derived(
-  [adminState, currentUser],
+  [adminState, safeCurrentUser],
   ([$adminState, $currentUser]) => {
     return $currentUser !== null && $adminState.isSuperAdmin === true;
   }

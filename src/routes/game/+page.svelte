@@ -50,7 +50,7 @@
 		resumeTournamentMatch,
 		type PendingMatchInfo
 	} from '$lib/firebase/tournamentMatches';
-	import { currentUser } from '$lib/firebase/auth';
+	import { currentUser, authInitialized } from '$lib/firebase/auth';
 	import { getPlayerName } from '$lib/firebase/userProfile';
 	import { LoaderCircle } from '@lucide/svelte';
 	import InvitePlayerModal from '$lib/components/InvitePlayerModal.svelte';
@@ -77,6 +77,7 @@
 	let showNewMatchConfirm = $state(false);
 	let showTournamentModal = $state(false);
 	let isCheckingTournament = $state(false);
+	let pendingDeepLinkKey = $state<string | null>(null);
 	let showTournamentExitConfirm = $state(false);
 	let showMatchPreview = $state(false);
 	let matchPreviewInfo = $state<PendingMatchInfo | null>(null);
@@ -307,17 +308,27 @@
 		}
 	}
 
-	// React to URL key parameter (works on initial load AND client-side navigation)
+	// React to URL key parameter (from push notification deep-link or direct link)
 	$effect(() => {
 		const urlKey = page.url.searchParams.get('key');
 		if (urlKey && /^[A-Za-z0-9]{6}$/i.test(urlKey)) {
-			// Save the key natively in the gameSettings
+			// Persist to localStorage immediately so gameSettings.load() won't overwrite it
 			gameSettings.update(s => ({ ...s, tournamentKey: urlKey.toUpperCase() }));
+			gameSettings.save();
 			// Clean up the URL (remove the key parameter)
 			const newUrl = new URL(window.location.href);
 			newUrl.searchParams.delete('key');
 			window.history.replaceState({}, '', newUrl.pathname);
-			// Use the same logic as clicking the tournament button (auto-start if 1 match)
+			// Defer join until auth is ready (push notifications trigger a fresh page load)
+			pendingDeepLinkKey = urlKey.toUpperCase();
+			isCheckingTournament = true;
+		}
+	});
+
+	// Process pending deep-link once Firebase auth has initialized
+	$effect(() => {
+		if (pendingDeepLinkKey && $authInitialized) {
+			pendingDeepLinkKey = null;
 			handleJoinTournament();
 		}
 	});
@@ -1107,6 +1118,7 @@
 			// Tournament key - open tournament modal with pre-filled key
 			const key = keyMatch[1].toUpperCase();
 			gameSettings.update(s => ({ ...s, tournamentKey: key }));
+			gameSettings.save();
 			showTournamentModal = true;
 			return;
 		}
@@ -1124,6 +1136,7 @@
 		if (/^[A-Za-z0-9]{6}$/i.test(data.trim())) {
 			const code = data.trim().toUpperCase();
 			gameSettings.update(s => ({ ...s, tournamentKey: code }));
+			gameSettings.save();
 			showTournamentModal = true;
 			return;
 		}
