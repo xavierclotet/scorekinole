@@ -241,7 +241,11 @@
 	let splashIsTie = $state(false);
 
 	// Detect win or tie moment (false → true transition)
-	// Uses plain vars so writes don't retrigger the effect
+	// Uses plain vars so writes don't retrigger the effect.
+	// _splashReady stays false until onMount finishes loading all state,
+	// so store changes during init (loadTeams, loadMatchState) never
+	// produce a false-positive splash.
+	let _splashReady = false;
 	let _prevT1Won: boolean | undefined = undefined;
 	let _prevT2Won: boolean | undefined = undefined;
 	let _prevIsTie: boolean | undefined = undefined;
@@ -266,8 +270,8 @@
 		const gameNum = $currentMatchGames.length;
 		const matchDone = isMatchComplete;
 
-		if (_prevT1Won === undefined) {
-			// First run — record initial state, don't trigger splash
+		if (!_splashReady || _prevT1Won === undefined) {
+			// Still loading or first run after reset — record state, don't trigger
 			_prevT1Won = t1;
 			_prevT2Won = t2;
 			_prevIsTie = tie;
@@ -339,6 +343,11 @@
 		gameSettings.load();
 		loadTeams();
 		loadMatchState();
+
+		// Arm splash detection after all state has loaded and reactive updates
+		// have settled. This prevents stale hasWon/tie from localStorage
+		// triggering a false win splash on page reload (e.g. from push notification).
+		tick().then(() => { _splashReady = true; });
 
 		// Load tournament context if any and sync with Firebase (source of truth)
 		const savedContext = loadTournamentContext();
@@ -747,6 +756,9 @@
 		// Reset completion flag when starting/resuming a tournament match
 		tournamentMatchCompletedSent = false;
 		isInExtraRounds = false;
+
+		// Clear any leftover winner splash from a previous match
+		clearWinnerSplash();
 
 		// Apply game settings from tournament
 		gameSettings.update(s => ({

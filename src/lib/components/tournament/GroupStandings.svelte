@@ -412,6 +412,7 @@
 
   table {
     width: 100%;
+    min-width: 480px;
     border-collapse: collapse;
     font-size: 0.75rem;
   }
