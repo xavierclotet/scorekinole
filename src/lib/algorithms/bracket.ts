@@ -812,11 +812,11 @@ export function replaceLoserPlaceholder(
           for (let roundIdx = 1; roundIdx < updated.rounds.length; roundIdx++) {
             for (const nextMatch of updated.rounds[roundIdx].matches) {
               if (nextMatch.id === match.nextMatchId) {
-                // Determine if this winner goes to slot A or B based on match position
-                if (!nextMatch.participantA || nextMatch.participantA === BYE_PARTICIPANT) {
-                  nextMatch.participantA = winnerId;
-                } else if (!nextMatch.participantB || nextMatch.participantB === BYE_PARTICIPANT) {
-                  nextMatch.participantB = winnerId;
+                // Determine slot based on match position parity (even=A, odd=B)
+                if (match.position % 2 === 0) {
+                  if (!nextMatch.participantA) nextMatch.participantA = winnerId;
+                } else {
+                  if (!nextMatch.participantB) nextMatch.participantB = winnerId;
                 }
                 break;
               }
@@ -827,7 +827,173 @@ export function replaceLoserPlaceholder(
     }
   }
 
-  return updated;
+  return cascadeByeWins(updated);
+}
+
+/**
+ * Fill the winner slot in the next match based on position parity.
+ * Even position → participantA, Odd position → participantB.
+ * Returns true if a slot was actually filled.
+ */
+function fillSlotInNextMatch(
+  bracket: ConsolationBracket,
+  currentRoundIdx: number,
+  currentMatch: BracketMatch,
+  participantId: string
+): boolean {
+  if (!currentMatch.nextMatchId) return false;
+  for (let roundIdx = currentRoundIdx + 1; roundIdx < bracket.rounds.length; roundIdx++) {
+    for (const nextMatch of bracket.rounds[roundIdx].matches) {
+      if (nextMatch.id === currentMatch.nextMatchId) {
+        if (currentMatch.position % 2 === 0) {
+          if (!nextMatch.participantA) {
+            nextMatch.participantA = participantId;
+            return true;
+          }
+        } else {
+          if (!nextMatch.participantB) {
+            nextMatch.participantB = participantId;
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Fill the loser slot in the loser's next match based on position parity.
+ * Used for 3rd place matches in consolation finals.
+ */
+function fillLoserSlotInNextMatch(
+  bracket: ConsolationBracket,
+  currentRoundIdx: number,
+  currentMatch: BracketMatch,
+  participantId: string
+): boolean {
+  if (!currentMatch.nextMatchIdForLoser) return false;
+  for (let roundIdx = currentRoundIdx + 1; roundIdx < bracket.rounds.length; roundIdx++) {
+    for (const nextMatch of bracket.rounds[roundIdx].matches) {
+      if (nextMatch.id === currentMatch.nextMatchIdForLoser) {
+        if (currentMatch.position % 2 === 0) {
+          if (!nextMatch.participantA) {
+            nextMatch.participantA = participantId;
+            return true;
+          }
+        } else {
+          if (!nextMatch.participantB) {
+            nextMatch.participantB = participantId;
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Cascade BYE wins through a consolation bracket.
+ * Iteratively resolves all matches where one or both participants are BYE:
+ * - PENDING match with real vs BYE → auto-complete, real player wins, advance winner
+ * - PENDING match with BYE vs BYE → auto-complete with no winner, advance BYE
+ * - COMPLETED BYE-vs-BYE with no winner → advance BYE to next round
+ * Loops until no more auto-completions are possible (stable state).
+ * Also checks and sets isComplete when all matches are done.
+ *
+ * NOTE: This function mutates the input object (callers already deep-clone).
+ */
+export function cascadeByeWins(consolationBracket: ConsolationBracket): ConsolationBracket {
+  if (!consolationBracket.rounds || consolationBracket.rounds.length === 0) {
+    return consolationBracket;
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let roundIdx = 0; roundIdx < consolationBracket.rounds.length; roundIdx++) {
+      for (const match of consolationBracket.rounds[roundIdx].matches) {
+
+        // Case A: COMPLETED BYE-vs-BYE (winner=undefined) → advance BYE to next slots
+        if (match.status === 'COMPLETED' && !match.winner &&
+            isBye(match.participantA) && isBye(match.participantB)) {
+          if (match.nextMatchId) {
+            if (fillSlotInNextMatch(consolationBracket, roundIdx, match, BYE_PARTICIPANT)) {
+              changed = true;
+            }
+          }
+          if (match.nextMatchIdForLoser) {
+            if (fillLoserSlotInNextMatch(consolationBracket, roundIdx, match, BYE_PARTICIPANT)) {
+              changed = true;
+            }
+          }
+        }
+
+        // Case B: COMPLETED with winner, one participant is BYE → ensure BYE loser advanced
+        // This handles matches auto-completed by replaceLoserPlaceholder that only advanced the winner
+        if (match.status === 'COMPLETED' && match.winner &&
+            (isBye(match.participantA) || isBye(match.participantB))) {
+          // Ensure winner is advanced (may already be done by replaceLoserPlaceholder)
+          if (match.nextMatchId) {
+            if (fillSlotInNextMatch(consolationBracket, roundIdx, match, match.winner)) {
+              changed = true;
+            }
+          }
+          // Advance BYE loser to loser match (3rd place) — this was missing!
+          if (match.nextMatchIdForLoser) {
+            if (fillLoserSlotInNextMatch(consolationBracket, roundIdx, match, BYE_PARTICIPANT)) {
+              changed = true;
+            }
+          }
+        }
+
+        // Case C: PENDING with both participants set, at least one is BYE → auto-complete
+        if (match.status === 'PENDING' && match.participantA && match.participantB) {
+          const aIsBye = isBye(match.participantA);
+          const bIsBye = isBye(match.participantB);
+
+          if (aIsBye && bIsBye) {
+            // Both BYE → complete with no winner, advance BYEs to next slots
+            match.status = 'COMPLETED';
+            match.winner = undefined;
+            if (match.nextMatchId) {
+              fillSlotInNextMatch(consolationBracket, roundIdx, match, BYE_PARTICIPANT);
+            }
+            if (match.nextMatchIdForLoser) {
+              fillLoserSlotInNextMatch(consolationBracket, roundIdx, match, BYE_PARTICIPANT);
+            }
+            changed = true;
+          } else if (aIsBye || bIsBye) {
+            // One real, one BYE → real player wins automatically
+            const winnerId = aIsBye ? match.participantB! : match.participantA!;
+            match.status = 'COMPLETED';
+            match.winner = winnerId;
+            if (match.nextMatchId) {
+              fillSlotInNextMatch(consolationBracket, roundIdx, match, winnerId);
+            }
+            // Loser is BYE → advance BYE to loser match (3rd place)
+            if (match.nextMatchIdForLoser) {
+              fillLoserSlotInNextMatch(consolationBracket, roundIdx, match, BYE_PARTICIPANT);
+            }
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Check if all matches are complete → mark bracket as complete
+  const allDone = consolationBracket.rounds.every(round =>
+    round.matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER')
+  );
+  if (allDone) {
+    consolationBracket.isComplete = true;
+  }
+
+  return consolationBracket;
 }
 
 /**
@@ -912,16 +1078,8 @@ export function advanceConsolationWinner(
     }
   }
 
-  // Check if bracket is complete (all matches in ALL rounds are done)
-  // Previously only checked final round, but this missed cases where isComplete wasn't set
-  const allMatchesComplete = updated.rounds.every(round =>
-    round.matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER')
-  );
-  if (allMatchesComplete) {
-    updated.isComplete = true;
-  }
-
-  return updated;
+  // Cascade any BYE wins triggered by this advancement, and check isComplete
+  return cascadeByeWins(updated);
 }
 
 /**

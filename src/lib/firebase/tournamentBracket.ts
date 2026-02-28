@@ -16,7 +16,7 @@ import {
   getAvailableConsolationSources,
   nextPowerOfTwo,
   isBye,
-  MIN_PARTICIPANTS_FOR_CONSOLATION
+  cascadeByeWins
 } from '$lib/algorithms/bracket';
 import { calculateFinalPositionsForTournament } from './tournamentRanking';
 import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig, Tournament } from '$lib/types/tournament';
@@ -1826,8 +1826,13 @@ async function checkAndGenerateConsolation(
       }
     }
 
+    // Cascade BYE wins through subsequent rounds (auto-complete matches where opponent is BYE)
+    const cascaded = cascadeByeWins(consolation);
+    consolation.rounds = cascaded.rounds;
+    consolation.isComplete = cascaded.isComplete;
+
     // Log the result after updates
-    console.log(`   After updates:`);
+    console.log(`   After updates (cascade applied):`);
     consolation.rounds.forEach((round, rIdx) => {
       console.log(`   Round ${rIdx + 1}:`);
       round.matches.forEach((m, i) => {
