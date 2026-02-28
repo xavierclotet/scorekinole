@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.59] - 2026-02-28
+- Fix BYE cascade in consolation brackets: BYE losers now propagate to 3rd place matches via nextMatchIdForLoser
+- Add cascadeByeWins() for iterative BYE resolution across all consolation rounds
+- Fix consolation bracket match detection for push notifications deep-link
+
 ## [2.4.58] - 2026-02-27
 - Fix tournament race conditions: migrate all tournament writes to Firestore runTransaction()
 - Fix tournamentTransition.ts: replace raw updateDoc() with atomic transactions
