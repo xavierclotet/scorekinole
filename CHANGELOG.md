@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.64] - 2026-02-28
+- Win probability indicator now shows for in-progress matches
+- Fix probability reactivity: use $derived instead of getter destructuring
+- Bump chart redesigned as card with collapsible accordion (open by default)
+- Add fullscreen mode for bump chart with embedded player filter
+- Fix bump chart toggle reactivity (Set reassignment)
+- Fix score/hammer overlap and watermark centering on mobile
+
 ## [2.4.63] - 2026-02-28
 - Game page UI refresh: hamburger menu replaces Scorekinole header text
 - Add vertical watermark branding overlay on teams container
