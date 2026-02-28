@@ -2,6 +2,19 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.63] - 2026-02-28
+- Game page UI refresh: hamburger menu replaces Scorekinole header text
+- Add vertical watermark branding overlay on teams container
+- Edge-to-edge TeamCards on mobile (no box-shadow, no border-radius)
+- Simplify friendly match info display to plain text
+- Fix dark team color visibility in TwentyInputDialog selected buttons
+- Increase touch click-through delay to 400ms
+- Add trigger snippet prop to AppMenu for custom triggers
+- Fix a11y warnings on dialog elements in groups admin page
+- Remove unused floating-button CSS selectors
+- Add webmcp docs for join, my-stats, rankings, tournaments routes
+- Improve game page space efficiency and H2H from tournament history
+
 ## [2.4.62] - 2026-02-28
 - Add win probability indicator for pending tournament matches (groups + bracket)
 - Bradley-Terry model with margin-of-victory and H2H blending
