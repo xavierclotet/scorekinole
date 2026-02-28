@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.62] - 2026-02-28
+- Add win probability indicator for pending tournament matches (groups + bracket)
+- Bradley-Terry model with margin-of-victory and H2H blending
+- DRY composable (useProbabilities) shared across admin and public views
+- Fix missing isFirebaseEnabled import in bracket admin page
+- Optimize $effect to avoid redundant Firestore H2H queries
+
 ## [2.4.61] - 2026-02-28
 - Add ranking push notification when tournament completes (position + points earned)
 - Add friendly invite response push notification (accepted/declined)
