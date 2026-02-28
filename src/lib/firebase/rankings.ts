@@ -246,6 +246,44 @@ export function calculateUserRanking(
 }
 
 /**
+ * Recalculate a user's ranking using the current ranking algorithm.
+ * Unlike calculateUserRanking() which reads stored rankingDelta values,
+ * this function recalculates points from scratch using calculateRankingPoints()
+ * with normalizeTier() — matching exactly what the /rankings page shows.
+ *
+ * @param tournaments - User's tournament records
+ * @param tournamentsMap - Map of tournamentId → { tier, gameType } for recalculation
+ * @param year - Year to filter
+ * @param bestOfN - Number of best results to count
+ * @returns Total ranking points (sum of top N recalculated results)
+ */
+export function recalculateUserRanking(
+  tournaments: TournamentRecord[] | undefined,
+  tournamentsMap: Map<string, TournamentInfo>,
+  year: number = new Date().getFullYear(),
+  bestOfN: number = 2
+): number {
+  if (!tournaments?.length) return 0;
+
+  const recalculated = tournaments
+    .filter(record => new Date(record.tournamentDate).getFullYear() === year)
+    .map(record => {
+      const info = tournamentsMap.get(record.tournamentId);
+      if (!info) return record.rankingDelta; // fallback to stored value
+      return calculateRankingPoints(
+        record.finalPosition,
+        normalizeTier(info.tier),
+        record.totalParticipants,
+        info.gameType
+      );
+    })
+    .sort((a, b) => b - a)
+    .slice(0, bestOfN);
+
+  return recalculated.reduce((sum, pts) => sum + pts, 0);
+}
+
+/**
  * Calculate rankings based on Best-of-N system
  * Only counts the N best tournament results for each player
  */

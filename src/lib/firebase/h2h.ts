@@ -1,29 +1,25 @@
 /**
- * Head-to-head query module for friendly matches.
- * Queries Firestore to find historical matches between specific player pairs.
+ * Head-to-head query module for cross-tournament data.
+ * Queries previous tournaments where both players participated
+ * and extracts H2H match data between them.
  */
 
 import { db, isFirebaseEnabled } from './config';
 import { browser } from '$app/environment';
-import type { MatchHistory } from '$lib/types/history';
+import { getTournament } from './tournaments';
+import { getUserProfileById } from './userProfile';
 import type { H2HRecord } from '$lib/algorithms/probability';
-import { matchToPerformance } from '$lib/algorithms/probability';
+import { extractH2HFromTournament, mergeH2HRecords } from '$lib/algorithms/probability';
 import { getProbabilityKey } from '$lib/utils/tournamentProbability';
-import {
-	collection,
-	getDocs,
-	query,
-	where
-} from 'firebase/firestore';
 
 /**
- * Query Firestore for H2H records between multiple player pairs.
- * Uses existing indexes (players.team1.userId + status).
+ * Get H2H records from previous tournaments where both players participated.
+ * For each userId pair, finds common tournaments, fetches them, and extracts H2H.
  *
  * @param userIdPairs Array of [userIdA, userIdB] pairs to query
  * @returns Map keyed by sorted userId pair → H2HRecord (from first userId's perspective)
  */
-export async function getH2HFromFriendlyMatches(
+export async function getH2HFromPreviousTournaments(
 	userIdPairs: Array<[string, string]>
 ): Promise<Map<string, H2HRecord>> {
 	const result = new Map<string, H2HRecord>();
@@ -41,76 +37,92 @@ export async function getH2HFromFriendlyMatches(
 		}
 	}
 
-	// Query all pairs in parallel
-	const promises = Array.from(uniquePairs.entries()).map(async ([key, [userA, userB]]) => {
-		try {
-			const matches = await queryMatchesBetween(userA, userB);
-			if (matches.length > 0) {
-				const performanceScores = matches.map((match) => {
-					const isATeam1 = match.players?.team1?.userId === userA;
-					const score1 = match.team1Score ?? 0;
-					const score2 = match.team2Score ?? 0;
-					return isATeam1
-						? matchToPerformance(score1, score2)
-						: matchToPerformance(score2, score1);
-				});
-				result.set(key, {
-					totalMatches: matches.length,
-					performanceScores
-				});
+	// 1. Collect all unique userIds and fetch their profiles
+	const allUserIds = new Set<string>();
+	for (const [a, b] of uniquePairs.values()) {
+		allUserIds.add(a);
+		allUserIds.add(b);
+	}
+
+	const profileMap = new Map<string, { tournamentIds: Set<string> }>();
+	await Promise.all(
+		Array.from(allUserIds).map(async (userId) => {
+			try {
+				const profile = await getUserProfileById(userId);
+				if (profile?.tournaments?.length) {
+					profileMap.set(userId, {
+						tournamentIds: new Set(profile.tournaments.map((t) => t.tournamentId))
+					});
+				}
+			} catch (err) {
+				console.warn(`H2H: failed to fetch profile for ${userId}:`, err);
 			}
-		} catch (err) {
-			console.warn(`H2H query failed for ${key}:`, err);
+		})
+	);
+
+	// 2. For each pair, find common tournament IDs
+	const tournamentIdsToPairs = new Map<string, Array<[string, string, string]>>(); // tournamentId → [[key, userA, userB]]
+	for (const [key, [userA, userB]] of uniquePairs) {
+		const profileA = profileMap.get(userA);
+		const profileB = profileMap.get(userB);
+		if (!profileA || !profileB) continue;
+
+		for (const tid of profileA.tournamentIds) {
+			if (profileB.tournamentIds.has(tid)) {
+				if (!tournamentIdsToPairs.has(tid)) {
+					tournamentIdsToPairs.set(tid, []);
+				}
+				tournamentIdsToPairs.get(tid)!.push([key, userA, userB]);
+			}
 		}
-	});
+	}
 
-	await Promise.all(promises);
+	if (tournamentIdsToPairs.size === 0) return result;
+
+	// 3. Fetch unique tournament documents
+	const tournamentCache = new Map<string, Awaited<ReturnType<typeof getTournament>>>();
+	await Promise.all(
+		Array.from(tournamentIdsToPairs.keys()).map(async (tid) => {
+			try {
+				const tournament = await getTournament(tid);
+				if (tournament) {
+					tournamentCache.set(tid, tournament);
+				}
+			} catch (err) {
+				console.warn(`H2H: failed to fetch tournament ${tid}:`, err);
+			}
+		})
+	);
+
+	// 4. Extract H2H from each common tournament
+	for (const [tid, pairs] of tournamentIdsToPairs) {
+		const tournament = tournamentCache.get(tid);
+		if (!tournament) continue;
+
+		// Build userId → participantId mapping for this tournament
+		const userToParticipant = new Map<string, string>();
+		for (const p of tournament.participants) {
+			if (p.userId) {
+				userToParticipant.set(p.userId, p.id);
+			}
+		}
+
+		for (const [key, userA, userB] of pairs) {
+			const participantA = userToParticipant.get(userA);
+			const participantB = userToParticipant.get(userB);
+			if (!participantA || !participantB) continue;
+
+			const h2h = extractH2HFromTournament(tournament, participantA, participantB);
+			if (h2h) {
+				// Merge with any existing H2H for this pair (from other tournaments)
+				const existing = result.get(key);
+				const merged = mergeH2HRecords(existing, h2h);
+				if (merged) {
+					result.set(key, merged);
+				}
+			}
+		}
+	}
+
 	return result;
-}
-
-/**
- * Query friendly matches between two specific users.
- * Uses existing Firestore indexes (no composite index needed).
- */
-async function queryMatchesBetween(userIdA: string, userIdB: string): Promise<MatchHistory[]> {
-	const matchesRef = collection(db!, 'matches');
-	const matchesMap = new Map<string, MatchHistory>();
-
-	// Query 1: A as team1, filter for B as team2
-	try {
-		const q1 = query(
-			matchesRef,
-			where('players.team1.userId', '==', userIdA),
-			where('status', '==', 'active')
-		);
-		const snapshot1 = await getDocs(q1);
-		snapshot1.forEach((docSnap) => {
-			const data = docSnap.data() as MatchHistory;
-			if (data.players?.team2?.userId === userIdB) {
-				matchesMap.set(docSnap.id, { ...data, id: docSnap.id });
-			}
-		});
-	} catch (err: any) {
-		console.warn('H2H query A-as-team1 failed:', err.message);
-	}
-
-	// Query 2: B as team1, filter for A as team2
-	try {
-		const q2 = query(
-			matchesRef,
-			where('players.team1.userId', '==', userIdB),
-			where('status', '==', 'active')
-		);
-		const snapshot2 = await getDocs(q2);
-		snapshot2.forEach((docSnap) => {
-			const data = docSnap.data() as MatchHistory;
-			if (data.players?.team2?.userId === userIdA) {
-				matchesMap.set(docSnap.id, { ...data, id: docSnap.id });
-			}
-		});
-	} catch (err: any) {
-		console.warn('H2H query B-as-team1 failed:', err.message);
-	}
-
-	return Array.from(matchesMap.values());
 }

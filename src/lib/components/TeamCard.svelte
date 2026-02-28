@@ -914,7 +914,7 @@
 		justify-content: center;
 		background-color: var(--team-color);
 		color: var(--text-color);
-		border-radius: 16px;
+		border-radius: 0;
 		padding: 1.5rem;
 		min-height: 300px;
 		user-select: none;

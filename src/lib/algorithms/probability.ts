@@ -52,11 +52,17 @@ export function probabilityColor(pct: number): string {
 
 /**
  * Convert ranking points to win probability using Bradley-Terry/Elo formula.
- * P(A wins) = 1 / (1 + 10^((rankB - rankA) / 400))
+ * P(A wins) = 1 / (1 + 10^((rankB - rankA) / D))
+ *
+ * Divisor D=50 is calibrated for Crokinole Series ranking scale (0-70 pts).
+ * Standard Elo uses D=400 for ratings ~1000-2500, but our Best-of-2 rankings
+ * produce small values (e.g., 3, 15, 35) where D=400 gives near 50-50 results.
  */
+const RANKING_DIVISOR = 50;
+
 export function rankingToProbability(rankA: number, rankB: number): number {
 	if (rankA === 0 && rankB === 0) return 0.5;
-	return 1 / (1 + Math.pow(10, (rankB - rankA) / 400));
+	return 1 / (1 + Math.pow(10, (rankB - rankA) / RANKING_DIVISOR));
 }
 
 /**

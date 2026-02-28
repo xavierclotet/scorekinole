@@ -10,7 +10,7 @@ import {
 	computeTournamentProbabilities,
 	getPendingUserIdPairs
 } from '$lib/utils/tournamentProbability';
-import { getH2HFromFriendlyMatches } from '$lib/firebase/h2h';
+import { getH2HFromPreviousTournaments } from '$lib/firebase/h2h';
 import { isFirebaseEnabled } from '$lib/firebase/config';
 
 export function useProbabilities(getTournament: () => Tournament | null) {
@@ -36,7 +36,7 @@ export function useProbabilities(getTournament: () => Tournament | null) {
 		const key = pendingPairsKey;
 		if (!key || !isFirebaseEnabled()) return;
 		const pairs = key.split(',').map((k) => k.split(':') as [string, string]);
-		getH2HFromFriendlyMatches(pairs).then((h2h) => {
+		getH2HFromPreviousTournaments(pairs).then((h2h) => {
 			if (h2h.size > 0) firestoreH2H = h2h;
 		});
 	});

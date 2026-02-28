@@ -111,6 +111,13 @@ export async function addParticipants(
           status: 'ACTIVE'
         } as TournamentParticipant;
 
+        // Remove undefined values — Firestore rejects them
+        for (const key of Object.keys(participant) as Array<keyof typeof participant>) {
+          if (participant[key] === undefined) {
+            delete participant[key];
+          }
+        }
+
         console.log('📤 Created participant:', {
           name: participant.name,
           type: participant.type,

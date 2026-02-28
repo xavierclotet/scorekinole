@@ -2544,8 +2544,8 @@
 		bottom: 0;
 		display: flex;
 		flex-direction: column;
-		padding: 0.5rem;
-		padding-top: max(0.5rem, env(safe-area-inset-top, 0.5rem));
+		padding: 0;
+		padding-top: env(safe-area-inset-top, 0);
 		background: linear-gradient(135deg, var(--game-bg-start) 0%, var(--game-bg-end) 100%);
 		color: var(--game-text);
 		overflow: hidden;
@@ -2557,7 +2557,7 @@
 		align-items: center;
 		flex-shrink: 0;
 		padding: 0.4rem 0.6rem;
-		margin-bottom: 0.5rem;
+		margin-bottom: 0;
 		min-height: 40px;
 	}
 
@@ -2689,7 +2689,7 @@
 		flex: 1;
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 1rem;
+		gap: 0;
 		overflow: hidden;
 		align-items: stretch;
 		position: relative;
@@ -2876,15 +2876,13 @@
 	/* Portrait: el env(safe-area-inset-top) maneja notches automáticamente */
 	@media (orientation: portrait) {
 		.game-page {
-			padding-top: 0.5rem;
+			padding-top: env(safe-area-inset-top, 0);
 		}
-
 	}
 
-	/* Landscape: menos espacio superior */
 	@media (orientation: landscape) {
 		.game-page {
-			padding-top: max(0.3rem, env(safe-area-inset-top, 0.3rem));
+			padding-top: env(safe-area-inset-top, 0);
 		}
 	}
 
@@ -2896,8 +2894,7 @@
 
 	@media (max-width: 480px) {
 		.game-page {
-			padding: 0.3rem;
-			padding-top: max(0.3rem, env(safe-area-inset-top, 0.3rem));
+			padding-top: env(safe-area-inset-top, 0);
 		}
 
 		.game-header {
@@ -2909,19 +2906,16 @@
 			height: 28px;
 		}
 
-		.teams-container {
-			gap: 0.5rem;
-		}
 	}
 
 	@media (orientation: landscape) and (max-height: 600px) {
 		.game-page {
-			padding-top: max(0.25rem, env(safe-area-inset-top, 0.25rem));
+			padding-top: env(safe-area-inset-top, 0);
 		}
 
 		.game-header {
 			padding: 0.2rem 0.4rem;
-			margin-bottom: 0.3rem;
+			margin-bottom: 0;
 			min-height: 32px;
 		}
 
@@ -2930,12 +2924,7 @@
 			height: 26px;
 		}
 
-		.teams-container {
-			gap: 0.5rem;
-		}
 	}
-
-
 
 	@keyframes overlayFadeIn {
 		to {

@@ -8,7 +8,8 @@ import { calculateRankingPoints } from '$lib/algorithms/ranking';
 import { calculateConsolationPositions } from '$lib/algorithms/bracket';
 import { browser } from '$app/environment';
 import { getUserProfileById, removeTournamentRecord } from './userProfile';
-import { calculateUserRanking } from './rankings';
+import { recalculateUserRanking } from './rankings';
+import type { TournamentInfo } from './rankings';
 import { savingParticipantResults } from '$lib/stores/tournament';
 import type { ConsolationBracket } from '$lib/types/tournament';
 import { getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
@@ -37,26 +38,64 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
 
   try {
     const currentYear = new Date().getFullYear();
-    const updatedParticipants = await Promise.all(
-      tournament.participants.map(async (participant) => {
-        let rankingPoints = 0;
 
-        // Both REGISTERED and GUEST participants can have ranking history in /users
-        // GUEST participants with a userId (persistent identity) also accumulate ranking points
-        if (participant.userId) {
-          const profile = await getUserProfileById(participant.userId);
-          if (profile?.tournaments) {
-            // Calculate Best-of-2 ranking points from tournament history
-            rankingPoints = calculateUserRanking(profile.tournaments, currentYear, 2);
-          }
-        }
-
-        return {
-          ...participant,
-          rankingSnapshot: rankingPoints
-        };
-      })
+    // 1. Fetch all participant profiles to get their tournament records
+    const profileEntries = await Promise.all(
+      tournament.participants
+        .filter(p => p.userId)
+        .map(async (p) => {
+          const profile = await getUserProfileById(p.userId!);
+          return [p.userId!, profile] as const;
+        })
     );
+    const profileMap = new Map(profileEntries.filter(([, p]) => p !== null));
+
+    // 2. Collect unique tournament IDs from all participants' records
+    const tournamentIds = new Set<string>();
+    for (const [, profile] of profileMap) {
+      if (!profile?.tournaments) continue;
+      for (const record of profile.tournaments) {
+        if (new Date(record.tournamentDate).getFullYear() === currentYear) {
+          tournamentIds.add(record.tournamentId);
+        }
+      }
+    }
+
+    // 3. Fetch tournament docs to get tier + gameType for recalculation
+    const tournamentsMap = new Map<string, TournamentInfo>();
+    if (tournamentIds.size > 0) {
+      const tournamentDocs = await Promise.all(
+        Array.from(tournamentIds).map(id => getTournament(id))
+      );
+      for (const t of tournamentDocs) {
+        if (t) {
+          tournamentsMap.set(t.id, {
+            id: t.id,
+            tier: t.rankingConfig?.tier,
+            gameType: t.gameType || 'singles',
+            country: t.country || '',
+            completedAt: t.completedAt || 0
+          });
+        }
+      }
+    }
+
+    // 4. Recalculate ranking for each participant using current algorithm
+    const updatedParticipants = tournament.participants.map((participant) => {
+      let rankingPoints = 0;
+
+      if (participant.userId) {
+        const profile = profileMap.get(participant.userId);
+        if (profile?.tournaments) {
+          rankingPoints = recalculateUserRanking(profile.tournaments, tournamentsMap, currentYear, 2);
+        }
+      }
+
+      return {
+        ...participant,
+        rankingSnapshot: rankingPoints
+      };
+    });
 
     await updateTournament(tournamentId, {
       participants: updatedParticipants
