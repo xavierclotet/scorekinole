@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.65] - 2026-02-28
+- Fix intermittent bracket seeding bug: read from $derived instead of async $state
+- Add defensive deduplication in generateSplitBrackets
+- Push notification on tournament complete now opens tournament page instead of rankings
+
 ## [2.4.64] - 2026-02-28
 - Win probability indicator now shows for in-progress matches
 - Fix probability reactivity: use $derived instead of getter destructuring
