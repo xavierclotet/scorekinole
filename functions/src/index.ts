@@ -556,7 +556,7 @@ export const onTournamentComplete = onDocumentUpdated(
                 {
                   title: afterData.name,
                   body: `${ord} ${nt(userData.lang, "place")} · +${points} pts ranking`,
-                  url: "/rankings",
+                  url: `/tournaments/${tournamentId}`,
                   tag: "ranking-completed",
                 },
                 "tournament_ranking",

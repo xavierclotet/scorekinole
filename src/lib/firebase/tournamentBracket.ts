@@ -681,17 +681,22 @@ export async function generateSplitBrackets(
   try {
     const { goldParticipantIds, silverParticipantIds, goldConfig, silverConfig, consolationEnabled, thirdPlaceMatchEnabled = true } = options;
 
-    // Note: Power of 2 validation removed - brackets now support BYEs for any participant count >= 2
+    // Deduplicate participant IDs (defensive - prevents bracket size inflation from stale reactivity)
+    const uniqueGoldIds = [...new Set(goldParticipantIds)];
+    const uniqueSilverIds = [...new Set(silverParticipantIds)];
 
     // Get participant objects for gold bracket
-    const goldParticipants = goldParticipantIds
+    const goldParticipants = uniqueGoldIds
       .map(id => tournament.participants.find(p => p.id === id))
       .filter(p => p !== undefined);
 
     // Get participant objects for silver bracket
-    const silverParticipants = silverParticipantIds
+    const silverParticipants = uniqueSilverIds
       .map(id => tournament.participants.find(p => p.id === id))
       .filter(p => p !== undefined);
+
+    console.log(`🥇 Gold bracket input: ${goldParticipantIds.length} IDs → ${uniqueGoldIds.length} unique → ${goldParticipants.length} found`);
+    console.log(`🥈 Silver bracket input: ${silverParticipantIds.length} IDs → ${uniqueSilverIds.length} unique → ${silverParticipants.length} found`);
 
     if (goldParticipants.length < 2 || silverParticipants.length < 2) {
       console.error('Not enough participants for brackets');

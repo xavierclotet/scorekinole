@@ -487,8 +487,8 @@
 
         // Generate both Gold and Silver brackets with per-phase configuration (new structure)
         const bracketSuccess = await generateSplitBrackets(tournamentId, {
-          goldParticipantIds: goldParticipants,
-          silverParticipantIds: silverParticipants,
+          goldParticipantIds: userManuallyEdited ? goldParticipants : computedDistribution.gold,
+          silverParticipantIds: userManuallyEdited ? silverParticipants : computedDistribution.silver,
           consolationEnabled,
           thirdPlaceMatchEnabled,
           goldConfig: {
