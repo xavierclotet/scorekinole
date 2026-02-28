@@ -40,7 +40,8 @@
   import { useProbabilities } from '$lib/utils/useProbabilities.svelte';
 
   let tournament = $state<Tournament | null>(null);
-  const { probabilities } = useProbabilities(() => tournament);
+  const probabilityState = useProbabilities(() => tournament);
+  let probabilities = $derived(probabilityState.probabilities);
 
   let loading = $state(true);
   let error = $state(false);
@@ -1651,7 +1652,7 @@
 {/snippet}
 
 {#snippet bracketProbability(match: BracketMatch)}
-  {#if probabilities && match.status === 'PENDING' && match.participantA && match.participantB}
+  {#if probabilities && (match.status === 'PENDING' || match.status === 'IN_PROGRESS') && match.participantA && match.participantB}
     {@const prob = getMatchProbability(probabilities, match.participantA, match.participantB)}
     {#if prob && prob.confidence !== 'none'}
       {@const pctA = Math.round(prob.probabilityA * 100)}

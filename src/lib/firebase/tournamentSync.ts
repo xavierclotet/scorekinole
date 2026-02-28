@@ -17,12 +17,7 @@ import {
   startTournamentMatch,
   abandonTournamentMatch
 } from './tournamentMatches';
-import {
-  updateBracketMatch,
-  advanceWinner,
-  updateSilverBracketMatch,
-  advanceSilverWinner
-} from './tournamentBracket';
+import { completeBracketMatchAndAdvance } from './tournamentBracket';
 import { getTournament, subscribeTournament } from './tournaments';
 
 /**
@@ -265,46 +260,47 @@ export async function markNoShow(
     if (phase === 'GROUP') {
       return await markNoShowGroup(tournamentId, matchId, noShowParticipantId);
     } else {
-      // For bracket matches, need to determine winner and update bracket
+      // For bracket matches, need to determine winner and update bracket atomically
+      // Read tournament to find match participants (stale read is safe - participants don't change)
       const tournament = await getTournament(tournamentId);
       if (!tournament || !tournament.finalStage) {
         return false;
       }
 
       // Find the match to get the other participant
+      // Searches: gold main, gold 3rd place, gold consolation, silver main, silver 3rd place, silver consolation
       let match: any;
-      let isSilverBracket = false;
 
-      // Check gold bracket
-      if (tournament.finalStage.goldBracket?.rounds) {
-        for (const round of tournament.finalStage.goldBracket.rounds) {
-          match = round.matches.find(m => m.id === matchId);
-          if (match) break;
-        }
-
-        // Check 3rd place
-        if (!match && tournament.finalStage.goldBracket.thirdPlaceMatch?.id === matchId) {
-          match = tournament.finalStage.goldBracket.thirdPlaceMatch;
-        }
-      }
-
-      // Check silver bracket
-      if (!match && tournament.finalStage.silverBracket?.rounds) {
-        for (const round of tournament.finalStage.silverBracket.rounds) {
-          match = round.matches.find(m => m.id === matchId);
-          if (match) {
-            isSilverBracket = true;
-            break;
+      const findInBracket = (bracket: any) => {
+        if (!bracket) return;
+        // Main rounds
+        if (bracket.rounds) {
+          for (const round of bracket.rounds) {
+            const found = round.matches.find((m: any) => m.id === matchId);
+            if (found) { match = found; return; }
           }
         }
-        if (!match && tournament.finalStage.silverBracket.thirdPlaceMatch?.id === matchId) {
-          match = tournament.finalStage.silverBracket.thirdPlaceMatch;
-          isSilverBracket = true;
+        // 3rd place
+        if (bracket.thirdPlaceMatch?.id === matchId) {
+          match = bracket.thirdPlaceMatch;
+          return;
         }
-      }
+        // Consolation brackets
+        if (bracket.consolationBrackets) {
+          for (const consolation of bracket.consolationBrackets) {
+            for (const round of consolation.rounds) {
+              const found = round.matches.find((m: any) => m.id === matchId);
+              if (found) { match = found; return; }
+            }
+          }
+        }
+      };
+
+      findInBracket(tournament.finalStage.goldBracket);
+      if (!match) findInBracket(tournament.finalStage.silverBracket);
 
       if (!match) {
-        console.error('Match not found');
+        console.error('Match not found in any bracket');
         return false;
       }
 
@@ -313,23 +309,14 @@ export async function markNoShow(
         ? match.participantB
         : match.participantA;
 
-      // Update match with walkover status
-      const updateFn = isSilverBracket ? updateSilverBracketMatch : updateBracketMatch;
-      const success = await updateFn(tournamentId, matchId, {
+      // Use atomic transaction: updates match, advances winner, checks completion in one go
+      return await completeBracketMatchAndAdvance(tournamentId, matchId, {
         status: 'WALKOVER',
         winner,
         noShowParticipant: noShowParticipantId,
         gamesWonA: winner === match.participantA ? 1 : 0,
         gamesWonB: winner === match.participantB ? 1 : 0
       });
-
-      if (!success) {
-        return false;
-      }
-
-      // Advance winner
-      const advanceFn = isSilverBracket ? advanceSilverWinner : advanceWinner;
-      return await advanceFn(tournamentId, matchId, winner);
     }
   } catch (error) {
     console.error('❌ Error marking no-show:', error);

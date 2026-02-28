@@ -28,22 +28,38 @@
 
 	let { tournament }: Props = $props();
 
-	// Win probability
-	const { probabilities } = useProbabilities(() => tournament);
+	// Win probability (keep object reference to preserve getter reactivity)
+	const probabilityState = useProbabilities(() => tournament);
+	let probabilities = $derived(probabilityState.probabilities);
 
 	// View state
 	let expandedGroups = $state<Set<string>>(new Set());
 	let expandedRounds = $state<Record<string, Set<number>>>({});
 	let initialized = $state(false);
-	let showBumpChart = $state<Set<string>>(new Set());
+	let hiddenBumpCharts = $state<Set<string>>(new Set());
 	let scheduleFilter = $state<Record<string, string>>({});
 
 	function toggleBumpChart(groupId: string) {
-		if (showBumpChart.has(groupId)) {
-			showBumpChart.delete(groupId);
+		const newSet = new Set(hiddenBumpCharts);
+		if (newSet.has(groupId)) {
+			newSet.delete(groupId);
 		} else {
-			showBumpChart.add(groupId);
+			newSet.add(groupId);
 		}
+		hiddenBumpCharts = newSet;
+	}
+
+	// Fullscreen chart state
+	let fullscreenChart = $state<{ groupId: string } | null>(null);
+
+	function openChartFullscreen(groupId: string) {
+		fullscreenChart = { groupId };
+		document.body.style.overflow = 'hidden';
+	}
+
+	function closeChartFullscreen() {
+		fullscreenChart = null;
+		document.body.style.overflow = '';
 	}
 
 	// Bump chart highlight filter
@@ -660,7 +676,7 @@
 	}
 
 	function getBracketMatchProbability(match: BracketMatch): WinProbability | null {
-		if (match.status !== 'PENDING' || !match.participantA || !match.participantB) return null;
+		if (!probabilities || (match.status !== 'PENDING' && match.status !== 'IN_PROGRESS') || !match.participantA || !match.participantB) return null;
 		return getMatchProbability(probabilities, match.participantA, match.participantB);
 	}
 </script>
@@ -882,7 +898,7 @@
 															{isDoubles}
 															{matchesToWin}
 															onMatchClick={(match.status === 'COMPLETED' || match.status === 'WALKOVER') ? () => handleMatchClick(match, false) : undefined}
-															winProbability={match.participantA && match.participantB ? getMatchProbability(probabilities, match.participantA, match.participantB) : null}
+															winProbability={probabilities && match.participantA && match.participantB ? getMatchProbability(probabilities, match.participantA, match.participantB) : null}
 														/>
 													{/each}
 												</div>
@@ -894,64 +910,67 @@
 							</div>
 						</div>
 
-						<!-- Bump Chart Toggle -->
+						<!-- Bump Chart -->
 						{@const completedRoundCount = rounds.filter(r =>
 							(r.matches ?? []).some(rm => rm.status === 'COMPLETED' || rm.status === 'WALKOVER')
 						).length}
 						{#if completedRoundCount >= 2}
-							<div class="charts-filter-bar">
-								<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
-									<Popover.Trigger>
-										{#snippet child({ props })}
-											<Button
-												{...props}
-												variant="outline"
-												size="sm"
-												class="h-6 justify-between text-xs bump-filter-btn"
-											>
-												{@const count = getBumpHighlight(group.id).length}
-												<span class="truncate">{count > 0 ? m.tournament_nPlayersSelected({ n: count }) : m.tournament_filterPlayers()}</span>
-												<ChevronsUpDown class="ml-1 size-3 shrink-0 opacity-50" />
-											</Button>
-										{/snippet}
-									</Popover.Trigger>
-									<Popover.Content class="w-52 p-0" align="end">
-										<Command.Root>
-											<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
-											<Command.List class="max-h-60">
-												<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
-												<Command.Group>
-													<Command.Item
-														value="__all__"
-														onSelect={() => clearBumpHighlight(group.id)}
-													>
-														<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
-														{m.admin_allPlayers()}
-													</Command.Item>
-													{#each (tournament.participants.filter(p => group.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
-														<Command.Item
-															value={participant.name ?? participant.id}
-															onSelect={() => toggleBumpHighlight(group.id, participant.id)}
-														>
-															<Check class={['mr-2 size-3', (bumpChartHighlight.get(group.id)?.has(participant.id)) ? 'opacity-100' : 'opacity-0']} />
-															{getParticipantName(participant.id)}
-														</Command.Item>
-													{/each}
-												</Command.Group>
-											</Command.List>
-										</Command.Root>
-									</Popover.Content>
-								</Popover.Root>
-							</div>
 							<div class="bump-chart-section">
 								<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
 									<span>📊 {m.tournament_roundEvolution()}</span>
-									<span class="bump-toggle-label">
-										{showBumpChart.has(group.id) ? m.tournament_hideChart() : m.tournament_showChart()}
-									</span>
+									<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<polyline points="18 15 12 9 6 15"></polyline>
+									</svg>
 								</button>
-								{#if showBumpChart.has(group.id)}
+								{#if !hiddenBumpCharts.has(group.id)}
 									<div class="bump-chart-wrapper">
+										<div class="bump-chart-actions">
+											<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
+												<Popover.Trigger>
+													{#snippet child({ props })}
+														<Button
+															{...props}
+															variant="outline"
+															size="sm"
+															class="h-6 justify-between text-xs bump-filter-btn"
+														>
+															{@const count = getBumpHighlight(group.id).length}
+															<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+															<span class="truncate">{count > 0 ? m.tournament_nPlayersSelected({ n: count }) : m.tournament_filterPlayers()}</span>
+														</Button>
+													{/snippet}
+												</Popover.Trigger>
+												<Popover.Content class="w-52 p-0" align="end">
+													<Command.Root>
+														<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
+														<Command.List class="max-h-60">
+															<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
+															<Command.Group>
+																<Command.Item
+																	value="__all__"
+																	onSelect={() => clearBumpHighlight(group.id)}
+																>
+																	<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
+																	{m.admin_allPlayers()}
+																</Command.Item>
+																{#each (tournament.participants.filter(p => group.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+																	<Command.Item
+																		value={participant.name ?? participant.id}
+																		onSelect={() => toggleBumpHighlight(group.id, participant.id)}
+																	>
+																		<Check class={['mr-2 size-3', (bumpChartHighlight.get(group.id)?.has(participant.id)) ? 'opacity-100' : 'opacity-0']} />
+																		{getParticipantName(participant.id)}
+																	</Command.Item>
+																{/each}
+															</Command.Group>
+														</Command.List>
+													</Command.Root>
+												</Popover.Content>
+											</Popover.Root>
+											<button class="chart-fullscreen-btn" onclick={() => openChartFullscreen(group.id)} title={m.common_fullscreen()}>
+												<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+											</button>
+										</div>
 										<BumpChart
 											{group}
 											participants={tournament.participants}
@@ -2175,6 +2194,77 @@
 	/>
 {/if}
 
+<!-- Fullscreen Chart Overlay -->
+{#if fullscreenChart && tournament}
+	{@const fsGroup = tournament.groupStage?.groups?.find(g => g.id === fullscreenChart.groupId)}
+	{#if fsGroup}
+		<div class="chart-fullscreen-overlay">
+			<div class="chart-fullscreen-header">
+				<span class="chart-fullscreen-title">📊 {m.tournament_roundEvolution()}</span>
+				<div class="chart-fullscreen-actions">
+					<Popover.Root>
+						<Popover.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="outline"
+									size="sm"
+									class="h-8 justify-between text-xs chart-fs-filter-btn"
+								>
+									{@const count = getBumpHighlight(fsGroup.id).length}
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+									<span class="truncate">{count > 0 ? m.tournament_nPlayersSelected({ n: count }) : m.tournament_filterPlayers()}</span>
+								</Button>
+							{/snippet}
+						</Popover.Trigger>
+						<Popover.Content class="w-52 p-0 z-[10000]" align="end">
+							<Command.Root>
+								<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
+								<Command.List class="max-h-60">
+									<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
+									<Command.Group>
+										<Command.Item
+											value="__all__"
+											onSelect={() => clearBumpHighlight(fsGroup.id)}
+										>
+											<Check class={['mr-2 size-3', getBumpHighlight(fsGroup.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
+											{m.admin_allPlayers()}
+										</Command.Item>
+										{#each (tournament.participants.filter(p => fsGroup.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+											<Command.Item
+												value={participant.name ?? participant.id}
+												onSelect={() => toggleBumpHighlight(fsGroup.id, participant.id)}
+											>
+												<Check class={['mr-2 size-3', (bumpChartHighlight.get(fsGroup.id)?.has(participant.id)) ? 'opacity-100' : 'opacity-0']} />
+												{getParticipantName(participant.id)}
+											</Command.Item>
+										{/each}
+									</Command.Group>
+								</Command.List>
+							</Command.Root>
+						</Popover.Content>
+					</Popover.Root>
+					<button class="chart-fullscreen-close" onclick={closeChartFullscreen} title={m.common_exitFullscreen()}>
+						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+					</button>
+				</div>
+			</div>
+			<div class="chart-fullscreen-body">
+				{#key `fullscreen-${fullscreenChart.groupId}`}
+					<BumpChart
+						group={fsGroup}
+						participants={tournament.participants}
+						{isSwiss}
+						{qualificationMode}
+						isDoubles={tournament.gameType === 'doubles'}
+						highlightedParticipants={getBumpHighlight(fsGroup.id)}
+					/>
+				{/key}
+			</div>
+		</div>
+	{/if}
+{/if}
+
 <style>
 	.live-view {
 		display: flex;
@@ -2443,9 +2533,13 @@
 		border-top: 1px solid #2d3748;
 	}
 
-	/* Bump Chart */
+	/* Bump Chart Card */
 	.bump-chart-section {
-		padding: 0 1rem 1rem;
+		margin: 0 1rem 1rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		overflow: hidden;
 	}
 
 	.bump-chart-toggle {
@@ -2454,53 +2548,72 @@
 		justify-content: space-between;
 		width: 100%;
 		padding: 0.5rem 0.75rem;
-		background: color-mix(in srgb, var(--primary) 8%, transparent);
-		border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
-		border-radius: 8px;
+		background: transparent;
+		border: none;
+		border-bottom: 1px solid transparent;
 		color: var(--foreground);
 		font-size: 0.8rem;
 		font-weight: 500;
 		cursor: pointer;
-		transition: all 0.2s;
+		transition: background 0.2s;
 	}
 
 	.bump-chart-toggle:hover {
-		background: color-mix(in srgb, var(--primary) 15%, transparent);
-		border-color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 
-	.bump-toggle-label {
-		font-size: 0.7rem;
-		color: var(--primary);
-		font-weight: 600;
+	.bump-toggle-icon {
+		color: var(--muted-foreground);
+		transition: transform 0.2s;
 	}
 
-	.charts-filter-bar {
+	.bump-toggle-icon.collapsed {
+		transform: rotate(180deg);
+	}
+
+	.bump-chart-wrapper {
+		padding: 0.5rem 0.75rem 0.75rem;
+		border-top: 1px solid var(--border);
+		display: flex;
+		flex-direction: column;
+		height: 270px;
+		position: relative;
+	}
+
+	.bump-chart-actions {
 		display: flex;
 		justify-content: flex-end;
-		padding: 0 1rem;
-		margin-bottom: 0.25rem;
+		gap: 0.35rem;
+		margin-bottom: 0.35rem;
 	}
 
 	:global(.bump-filter-btn) {
 		background: color-mix(in srgb, var(--primary) 12%, transparent) !important;
 		border-color: color-mix(in srgb, var(--primary) 25%, transparent) !important;
-		min-width: 120px;
+		min-width: 100px;
+		gap: 0.35rem;
 	}
 
 	:global(.bump-filter-btn:hover) {
 		background: color-mix(in srgb, var(--primary) 20%, transparent) !important;
 	}
 
-	.bump-chart-wrapper {
-		margin-top: 0.75rem;
-		background: var(--card);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		padding: 0.75rem;
+	.chart-fullscreen-btn {
 		display: flex;
-		flex-direction: column;
-		height: 270px;
+		align-items: center;
+		justify-content: center;
+		background: color-mix(in srgb, var(--background) 80%, transparent);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.3rem;
+		cursor: pointer;
+		color: var(--muted-foreground);
+		transition: color 0.2s, background 0.2s;
+	}
+
+	.chart-fullscreen-btn:hover {
+		color: var(--foreground);
+		background: color-mix(in srgb, var(--background) 95%, transparent);
 	}
 
 	.bump-chart-wrapper :global(canvas) {
@@ -2513,6 +2626,80 @@
 		.bump-chart-wrapper {
 			height: 340px;
 		}
+	}
+
+	/* Chart Fullscreen Overlay */
+	.chart-fullscreen-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 9999;
+		background: var(--background);
+		display: flex;
+		flex-direction: column;
+		animation: chartFullscreenIn 0.25s ease-out;
+	}
+
+	@keyframes chartFullscreenIn {
+		from { opacity: 0; transform: scale(0.95); }
+		to { opacity: 1; transform: scale(1); }
+	}
+
+	.chart-fullscreen-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.5rem 0.75rem;
+		border-bottom: 1px solid var(--border);
+		flex-shrink: 0;
+		gap: 0.5rem;
+	}
+
+	.chart-fullscreen-title {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--foreground);
+	}
+
+	.chart-fullscreen-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	:global(.chart-fs-filter-btn) {
+		gap: 0.35rem;
+	}
+
+	.chart-fullscreen-close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		color: var(--muted-foreground);
+		padding: 0.25rem;
+		border-radius: 6px;
+		transition: color 0.2s, background 0.2s;
+	}
+
+	.chart-fullscreen-close:hover {
+		color: var(--foreground);
+		background: color-mix(in srgb, var(--foreground) 10%, transparent);
+	}
+
+	.chart-fullscreen-body {
+		flex: 1;
+		padding: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+
+	.chart-fullscreen-body :global(canvas) {
+		width: 100% !important;
+		flex: 1;
+		min-height: 0;
 	}
 
 	/* Standings Table */

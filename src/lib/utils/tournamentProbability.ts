@@ -75,7 +75,7 @@ export function computeTournamentProbabilities(
 		}
 	}
 
-	// Collect all pending match pairs
+	// Collect match pairs that need probability (PENDING + IN_PROGRESS)
 	const pendingPairs = new Set<string>();
 
 	// Group stage
@@ -88,7 +88,7 @@ export function computeTournamentProbabilities(
 					: [];
 
 			for (const match of matches) {
-				if (match.status === 'PENDING' && match.participantA && match.participantB && match.participantB !== 'BYE') {
+				if ((match.status === 'PENDING' || match.status === 'IN_PROGRESS') && match.participantA && match.participantB && match.participantB !== 'BYE') {
 					pendingPairs.add(getProbabilityKey(match.participantA, match.participantB));
 				}
 			}
@@ -205,7 +205,7 @@ export function getPendingUserIdPairs(tournament: Tournament): Array<[string, st
 					: [];
 
 			for (const match of matches) {
-				if (match.status === 'PENDING' && match.participantA && match.participantB && match.participantB !== 'BYE') {
+				if ((match.status === 'PENDING' || match.status === 'IN_PROGRESS') && match.participantA && match.participantB && match.participantB !== 'BYE') {
 					addPair(match.participantA, match.participantB);
 				}
 			}
@@ -217,7 +217,7 @@ export function getPendingUserIdPairs(tournament: Tournament): Array<[string, st
 		if (!rounds) return;
 		for (const round of rounds) {
 			for (const match of round.matches) {
-				if (match.status === 'PENDING' && match.participantA && match.participantB) {
+				if ((match.status === 'PENDING' || match.status === 'IN_PROGRESS') && match.participantA && match.participantB) {
 					addPair(match.participantA, match.participantB);
 				}
 			}
@@ -245,7 +245,7 @@ function collectPendingBracketPairs(
 }
 
 function addPendingMatch(match: BracketMatch, pairs: Set<string>): void {
-	if (match.status === 'PENDING' && match.participantA && match.participantB) {
+	if ((match.status === 'PENDING' || match.status === 'IN_PROGRESS') && match.participantA && match.participantB) {
 		pairs.add(getProbabilityKey(match.participantA, match.participantB));
 	}
 }

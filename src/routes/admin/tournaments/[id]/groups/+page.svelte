@@ -27,7 +27,8 @@
   import { Check, X } from '@lucide/svelte';
 
   let tournament: Tournament | null = $state(null);
-  const { probabilities } = useProbabilities(() => tournament);
+  const probabilityState = useProbabilities(() => tournament);
+  let probabilities = $derived(probabilityState.probabilities);
   let loading = $state(true);
   let error = $state(false);
   let showToast = $state(false);
