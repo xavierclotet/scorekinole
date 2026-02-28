@@ -50,8 +50,13 @@
 	}
 
 	async function togglePref(key: keyof Omit<NotificationPreferences, 'enabled'>) {
-		prefs[key] = !prefs[key];
-		await saveNotificationPreferences(prefs);
+		const prev = prefs[key];
+		prefs[key] = !prev;
+		try {
+			await saveNotificationPreferences(prefs);
+		} catch {
+			prefs[key] = prev;
+		}
 	}
 
 	const isDenied = $derived(permissionState === 'denied');
@@ -103,22 +108,6 @@
 								role="switch"
 								aria-checked={prefs.tournament_matchReady}
 								aria-label={m.notifications_matchReady()}
-							>
-								<span class="toggle-dot"></span>
-							</button>
-						</div>
-
-						<div class="toggle-divider"></div>
-
-						<div class="toggle-row">
-							<span class="toggle-label">{m.notifications_phaseChange()}</span>
-							<button
-								class="toggle-switch small"
-								class:on={prefs.tournament_phaseChange}
-								onclick={() => togglePref('tournament_phaseChange')}
-								role="switch"
-								aria-checked={prefs.tournament_phaseChange}
-								aria-label={m.notifications_phaseChange()}
 							>
 								<span class="toggle-dot"></span>
 							</button>

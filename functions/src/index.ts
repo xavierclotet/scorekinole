@@ -523,6 +523,55 @@ export const onTournamentComplete = onDocumentUpdated(
     } catch (error) {
       logger.error("Error updating tournament participants:", error);
     }
+
+    // Send ranking push notifications to all participants with userId
+    try {
+      // Collect unique userIds with their ranking data
+      const userNotifications = new Map<string, { position: number; points: number }>();
+
+      for (const p of activeParticipants) {
+        const position = p.finalPosition || 0;
+        const points = calculateRankingPoints(position, tier, totalParticipants, afterData.gameType);
+        if (points <= 0) continue;
+
+        if (p.userId) {
+          userNotifications.set(p.userId, { position, points });
+        }
+        // Doubles: also notify partner
+        if (afterData.gameType === "doubles" && p.partner?.userId) {
+          userNotifications.set(p.partner.userId, { position, points });
+        }
+      }
+
+      if (userNotifications.size > 0) {
+        const pushPromises: Promise<void>[] = [];
+
+        for (const [userId, { position, points }] of userNotifications) {
+          pushPromises.push(
+            (async () => {
+              const userData = await getUserPushData(userId);
+              const ord = formatOrdinal(position, userData.lang);
+              await sendPushToUser(
+                userId,
+                {
+                  title: afterData.name,
+                  body: `${ord} ${nt(userData.lang, "place")} · +${points} pts ranking`,
+                  url: "/rankings",
+                  tag: "ranking-completed",
+                },
+                "tournament_ranking",
+                userData.prefs
+              );
+            })()
+          );
+        }
+
+        await Promise.allSettled(pushPromises);
+        logger.info(`Ranking notifications sent to ${userNotifications.size} user(s) for tournament ${tournamentId}`);
+      }
+    } catch (error) {
+      logger.error("Error sending ranking notifications:", error);
+    }
   }
 );
 
@@ -768,12 +817,19 @@ async function sendPushToUser(
       ? prefsOverride
       : (await db.collection("users").doc(userId).get()).data()?.notificationPreferences;
 
-    // Default to "don't send" if no preferences set
-    if (!prefs || !prefs.enabled) return 0;
-    if ((prefs as any)[preferenceKey] === false) return 0;
+    if (!prefs || !prefs.enabled) {
+      logger.info(`Push skipped for ${userId}: notifications disabled or no preferences`);
+      return 0;
+    }
+    if ((prefs as any)[preferenceKey] === false) {
+      logger.info(`Push skipped for ${userId}: preference "${preferenceKey}" explicitly disabled`);
+      return 0;
+    }
   }
 
   let sent = 0;
+  const staleTokenRefs: FirebaseFirestore.DocumentReference[] = [];
+
   for (const tokenDoc of tokensSnap.docs) {
     try {
       await getMessaging().send({
@@ -794,13 +850,19 @@ async function sendPushToUser(
         error.code === "messaging/registration-token-not-registered" ||
         error.code === "messaging/invalid-registration-token"
       ) {
-        await tokenDoc.ref.delete();
-        logger.info(`Deleted invalid FCM token for user ${userId}`);
+        staleTokenRefs.push(tokenDoc.ref);
       } else {
         logger.error(`Error sending push to user ${userId}:`, error);
       }
     }
   }
+
+  // Clean up stale tokens in parallel
+  if (staleTokenRefs.length > 0) {
+    await Promise.all(staleTokenRefs.map((ref) => ref.delete()));
+    logger.info(`Deleted ${staleTokenRefs.length} invalid FCM token(s) for user ${userId}`);
+  }
+
   return sent;
 }
 
@@ -815,6 +877,11 @@ const notificationStrings: Record<string, Record<string, string>> = {
     table: "Mesa",
     youVs: "Tú vs.",
     thirdPlace: "3er/4to puesto",
+    place: "puesto",
+    inviteAccepted: "Invitación aceptada",
+    inviteDeclined: "Invitación rechazada",
+    acceptedYourInvite: "ha aceptado tu invitación",
+    declinedYourInvite: "ha rechazado tu invitación",
   },
   ca: {
     groupPhase: "Fase de Grups",
@@ -824,6 +891,11 @@ const notificationStrings: Record<string, Record<string, string>> = {
     table: "Taula",
     youVs: "Tu vs.",
     thirdPlace: "3r/4t lloc",
+    place: "lloc",
+    inviteAccepted: "Invitació acceptada",
+    inviteDeclined: "Invitació rebutjada",
+    acceptedYourInvite: "ha acceptat la teva invitació",
+    declinedYourInvite: "ha rebutjat la teva invitació",
   },
   en: {
     groupPhase: "Group Stage",
@@ -833,8 +905,34 @@ const notificationStrings: Record<string, Record<string, string>> = {
     table: "Table",
     youVs: "You vs.",
     thirdPlace: "3rd/4th place",
+    place: "place",
+    inviteAccepted: "Invite accepted",
+    inviteDeclined: "Invite declined",
+    acceptedYourInvite: "accepted your invitation",
+    declinedYourInvite: "declined your invitation",
   },
 };
+
+/**
+ * Format a position number as an ordinal string per language.
+ * es: 1º, 2º, 3º  |  ca: 1r, 2n, 3r, 4t, 5è  |  en: 1st, 2nd, 3rd, 4th
+ */
+function formatOrdinal(n: number, lang: string): string {
+  if (lang === "en") {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+  if (lang === "ca") {
+    if (n === 1) return "1r";
+    if (n === 2) return "2n";
+    if (n === 3) return "3r";
+    if (n === 4) return "4t";
+    return n + "è";
+  }
+  // es (default)
+  return n + "º";
+}
 
 function nt(lang: string, key: string): string {
   return notificationStrings[lang]?.[key] || notificationStrings["es"][key] || key;
@@ -975,12 +1073,14 @@ export const onTournamentMatchEvent = onDocumentUpdated(
     }
 
     // Find PENDING matches where tableNumber was just assigned (undefined → number)
+    // Skip BYE matches — participants advance automatically without playing
     const newlyAssigned: MatchLike[] = [];
     for (const after of afterMatches) {
       if (!after.tableNumber) continue;
-      if (after.status !== "PENDING") continue; // Only notify for pending matches
+      if (after.status !== "PENDING") continue;
+      if (after.participantA === "BYE" || after.participantB === "BYE") continue;
       const before = beforeMap.get(after.id);
-      if (before && before.tableNumber) continue; // Already had a table
+      if (before && before.tableNumber) continue;
       newlyAssigned.push(after);
     }
 
@@ -1042,7 +1142,14 @@ export const onTournamentMatchEvent = onDocumentUpdated(
       const pA = participantMap.get(match.participantA || "");
       const pB = participantMap.get(match.participantB || "");
 
-      if (!pA || !pB) continue;
+      if (!pA || !pB) {
+        logger.warn(
+          `Match ${match.id}: participant not found in map — ` +
+          `A="${match.participantA}" (${pA ? "ok" : "MISSING"}), ` +
+          `B="${match.participantB}" (${pB ? "ok" : "MISSING"})`
+        );
+        continue;
+      }
 
       sendPromises.push(
         (async () => {
@@ -1087,6 +1194,58 @@ export const onTournamentMatchEvent = onDocumentUpdated(
     }
 
     await Promise.all(sendPromises);
+  }
+);
+
+// ─── Friendly Match Invite Response Notification ────────────────────────────
+
+/**
+ * Cloud Function: Send push notification when a friendly match invite is accepted or declined.
+ * Triggers on matchInvites/{inviteId} document updates.
+ * Notifies the HOST when the guest responds to their invitation.
+ */
+export const onInviteResponse = onDocumentUpdated(
+  {
+    document: "matchInvites/{inviteId}",
+    region: "europe-west1",
+  },
+  async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+
+    if (!beforeData || !afterData) return;
+
+    // Only trigger when status changes from 'pending' to 'accepted' or 'declined'
+    if (beforeData.status !== "pending") return;
+    if (afterData.status !== "accepted" && afterData.status !== "declined") return;
+
+    const hostUserId = afterData.hostUserId as string;
+    const guestName = (afterData.guestUserName as string) || "?";
+    const accepted = afterData.status === "accepted";
+
+    logger.info(
+      `Invite ${event.params.inviteId} ${afterData.status} by ${guestName} — notifying host ${hostUserId}`
+    );
+
+    try {
+      const userData = await getUserPushData(hostUserId);
+      const titleKey = accepted ? "inviteAccepted" : "inviteDeclined";
+      const bodyKey = accepted ? "acceptedYourInvite" : "declinedYourInvite";
+
+      await sendPushToUser(
+        hostUserId,
+        {
+          title: nt(userData.lang, titleKey),
+          body: `${guestName} ${nt(userData.lang, bodyKey)}`,
+          url: "/game",
+          tag: `invite-response-${event.params.inviteId}`,
+        },
+        "friendly_inviteResponse",
+        userData.prefs
+      );
+    } catch (error) {
+      logger.error("Error sending invite response notification:", error);
+    }
   }
 );
 

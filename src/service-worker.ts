@@ -120,23 +120,29 @@ sw.addEventListener('push', (event) => {
 sw.addEventListener('notificationclick', (event) => {
 	event.notification.close();
 	const targetUrl = event.notification.data?.url || '/';
+	const absoluteUrl = new URL(targetUrl, sw.location.origin).href;
 
 	event.waitUntil(
-		sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-			// Prefer a client already on the target URL
-			const target = new URL(targetUrl, sw.location.origin);
+		sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+			// Prefer a client already on the exact target URL — just focus it
 			for (const client of clients) {
-				if (new URL(client.url).href === target.href && 'focus' in client) {
+				if (new URL(client.url).href === absoluteUrl && 'focus' in client) {
 					return client.focus();
 				}
 			}
-			// Navigate any existing app window to the target URL
-			if (clients.length > 0) {
-				const client = clients[0] as WindowClient;
-				return client.navigate(targetUrl).then((c) => c?.focus());
+			// Try to navigate an existing app window to the target URL
+			for (const client of clients) {
+				if ('navigate' in client && 'focus' in client) {
+					try {
+						const navigated = await (client as WindowClient).navigate(absoluteUrl);
+						if (navigated) return navigated.focus();
+					} catch {
+						// navigate() failed on this client — try next one
+					}
+				}
 			}
-			// No existing windows — open a new one
-			return sw.clients.openWindow(targetUrl);
+			// No existing windows or all navigate attempts failed — open new window
+			return sw.clients.openWindow(absoluteUrl);
 		})
 	);
 });

@@ -372,7 +372,6 @@
   "notifications_enabled": "Enable notifications",
   "notifications_inviteResponse": "Invitation accepted/declined",
   "notifications_matchReady": "Your match is ready",
-  "notifications_phaseChange": "Tournament phase change",
   "notifications_ranking": "Ranking updated",
   "notifications_title": "Notifications",
   "ranking_allTournaments": "All Tournaments",
