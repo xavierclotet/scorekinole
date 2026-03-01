@@ -71,6 +71,8 @@ const displayName = getParticipantDisplayName(participant, isDoubles);
 1. **Client-side** (`tournamentBracket.ts`): When bracket marks tournament as COMPLETED
 2. **Cloud Function** (`functions/src/index.ts`): Triggers on Firestore `status` change (backup)
 
+**Guest name sync on completion:** The Cloud Function also syncs participant names back to `/users` profiles for guest users. This covers admin renames during the tournament (e.g., "Joan" → "Joan Garcia"). Both main participants and partners in doubles are synced. Only non-merged guests (`authProvider === null`, no `mergedTo`) are updated.
+
 ## UI Flow (Tournament Creation Step 4)
 
 - `gameType === 'doubles'` → shows `PairSelector` component

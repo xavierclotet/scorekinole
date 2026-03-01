@@ -410,6 +410,70 @@ async function processParticipant(
 }
 
 /**
+ * Sync a single guest user's name from tournament participant data back to their /users profile.
+ * Only updates if the user is a guest (authProvider === null) and not merged.
+ */
+async function syncSingleGuestName(userId: string, tournamentName: string): Promise<boolean> {
+  try {
+    const userRef = getDb().collection("users").doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) return false;
+
+    const data = userSnap.data()!;
+
+    // Only update guest users (not Google-authenticated)
+    if (data.authProvider !== null && data.authProvider !== undefined) return false;
+
+    // Skip merged guests — the canonical profile is the merge target
+    if (data.mergedTo) return false;
+
+    // Skip if name is already the same
+    if (data.playerName === tournamentName) return false;
+
+    await userRef.update({
+      playerName: tournamentName,
+      playerNameLower: tournamentName.toLowerCase(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    logger.info(`Synced guest name: "${data.playerName}" → "${tournamentName}" for user ${userId}`);
+    return true;
+  } catch (error) {
+    logger.error(`Error syncing guest name for user ${userId}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Sync all guest participant names from tournament data back to their /users profiles.
+ * Handles both singles and doubles (including partners).
+ */
+async function syncGuestNames(
+  participants: TournamentParticipant[],
+  gameType: "singles" | "doubles"
+): Promise<number> {
+  const syncPromises: Promise<boolean>[] = [];
+
+  for (const p of participants) {
+    // Main participant
+    if (p.userId && p.type === "GUEST") {
+      syncPromises.push(syncSingleGuestName(p.userId, p.name));
+    }
+
+    // Partner in doubles
+    if (gameType === "doubles" && p.partner?.userId && p.partner.type === "GUEST") {
+      syncPromises.push(syncSingleGuestName(p.partner.userId, p.partner.name));
+    }
+  }
+
+  if (syncPromises.length === 0) return 0;
+
+  const results = await Promise.allSettled(syncPromises);
+  return results.filter((r) => r.status === "fulfilled" && r.value === true).length;
+}
+
+/**
  * Cloud Function: Trigger when tournament status changes to COMPLETED
  */
 export const onTournamentComplete = onDocumentUpdated(
@@ -433,6 +497,17 @@ export const onTournamentComplete = onDocumentUpdated(
     }
 
     logger.info(`Tournament ${tournamentId} (${afterData.name}) just completed - processing participant results`);
+
+    // Sync guest user names back to /users profiles (before ranking guard so it runs even without ranking)
+    try {
+      const syncCount = await syncGuestNames(afterData.participants, afterData.gameType);
+      if (syncCount > 0) {
+        logger.info(`Synced ${syncCount} guest name(s) for tournament ${tournamentId}`);
+      }
+    } catch (error) {
+      logger.error("Error syncing guest names:", error);
+      // Non-blocking — ranking processing continues regardless
+    }
 
     const rankingEnabled = afterData.rankingConfig?.enabled ?? false;
 
