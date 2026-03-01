@@ -9,7 +9,7 @@
 
 	import { theme } from '$lib/stores/theme';
 	import { type Tournament, type BracketMatch, type GroupMatch, normalizeTier } from '$lib/types/tournament';
-	import { isBye } from '$lib/algorithms/bracket';
+	import { isBye, buildSeedMap } from '$lib/algorithms/bracket';
 	import { translateCountry } from '$lib/utils/countryTranslations';
 	import type { BracketConfig, PhaseConfig } from '$lib/types/tournament';
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
@@ -364,6 +364,18 @@
 	// Consolation brackets support
 	let goldConsolationBrackets = $derived(goldBracket?.consolationBrackets || []);
 	let silverConsolationBrackets = $derived(silverBracket?.consolationBrackets || []);
+
+	// Seed map: participantId → seed (fixed from group stage, looked up from R1)
+	let seedMap = $derived(buildSeedMap(
+		goldBracket,
+		silverBracket,
+		...(parallelBrackets.map((pb: any) => pb.bracket) || [])
+	));
+
+	// Helper to get a participant's seed from the map
+	function getSeed(participantId: string | undefined): number | undefined {
+		return participantId ? seedMap.get(participantId) : undefined;
+	}
 
 	// Find all matches with video (for highlighting in Final Standings)
 	let matchesWithVideo = $derived((() => {
@@ -1918,7 +1930,7 @@
 																class:has-hammer={getMatchHammer(match) === match.participantA}
 															>
 																{@render participantAvatar(match.participantA, "sm")}
-																{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -1935,7 +1947,7 @@
 																class:has-hammer={getMatchHammer(match) === match.participantB}
 															>
 																{@render participantAvatar(match.participantB, "sm")}
-																{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -1989,7 +2001,7 @@
 														class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantA}
 													>
 														{@render participantAvatar(thirdMatch.participantA, "sm")}
-														{#if thirdMatch.seedA}<span class="seed">#{thirdMatch.seedA}</span>{/if}
+														{#if getSeed(thirdMatch.participantA)}<span class="seed">#{getSeed(thirdMatch.participantA)}</span>{/if}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
@@ -2006,7 +2018,7 @@
 														class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantB}
 													>
 														{@render participantAvatar(thirdMatch.participantB, "sm")}
-														{#if thirdMatch.seedB}<span class="seed">#{thirdMatch.seedB}</span>{/if}
+														{#if getSeed(thirdMatch.participantB)}<span class="seed">#{getSeed(thirdMatch.participantB)}</span>{/if}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
@@ -2067,7 +2079,7 @@
 																		class:has-hammer={getMatchHammer(match) === match.participantA}
 																	>
 																		{@render participantAvatar(match.participantA, "sm")}
-																		{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																		{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2084,7 +2096,7 @@
 																		class:has-hammer={getMatchHammer(match) === match.participantB}
 																	>
 																		{@render participantAvatar(match.participantB, "sm")}
-																		{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																		{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2128,7 +2140,7 @@
 																		class:has-hammer={getMatchHammer(match) === match.participantA}
 																	>
 																		{@render participantAvatar(match.participantA, "sm")}
-																		{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																		{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2145,7 +2157,7 @@
 																		class:has-hammer={getMatchHammer(match) === match.participantB}
 																	>
 																		{@render participantAvatar(match.participantB, "sm")}
-																		{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																		{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2196,7 +2208,7 @@
 														<div class="bracket-match bye">
 															<div class="match-participant winner">
 																{@render participantAvatar(isByeA ? match.participantB : match.participantA, "sm")}
-																{#if (isByeA ? match.seedB : match.seedA)}<span class="seed">#{isByeA ? match.seedB : match.seedA}</span>{/if}
+																{#if getSeed(isByeA ? match.participantB : match.participantA)}<span class="seed">#{getSeed(isByeA ? match.participantB : match.participantA)}</span>{/if}
 																<span class="participant-name">{getParticipantName(isByeA ? match.participantB : match.participantA)}</span>
 															</div>
 															<div class="vs-divider"></div>
@@ -2218,7 +2230,7 @@
 																class:has-hammer={getMatchHammer(match) === match.participantA}
 															>
 																{@render participantAvatar(match.participantA, "sm")}
-																{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2235,7 +2247,7 @@
 																class:has-hammer={getMatchHammer(match) === match.participantB}
 															>
 																{@render participantAvatar(match.participantB, "sm")}
-																{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2289,7 +2301,7 @@
 														class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantA}
 													>
 														{@render participantAvatar(thirdMatch.participantA, "sm")}
-														{#if thirdMatch.seedA}<span class="seed">#{thirdMatch.seedA}</span>{/if}
+														{#if getSeed(thirdMatch.participantA)}<span class="seed">#{getSeed(thirdMatch.participantA)}</span>{/if}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
@@ -2306,7 +2318,7 @@
 														class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantB}
 													>
 														{@render participantAvatar(thirdMatch.participantB, "sm")}
-														{#if thirdMatch.seedB}<span class="seed">#{thirdMatch.seedB}</span>{/if}
+														{#if getSeed(thirdMatch.participantB)}<span class="seed">#{getSeed(thirdMatch.participantB)}</span>{/if}
 														<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 														{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 															<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
@@ -2368,7 +2380,7 @@
 																		class:has-hammer={getMatchHammer(match) === match.participantA}
 																	>
 																		{@render participantAvatar(match.participantA, "sm")}
-																		{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																		{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2385,7 +2397,7 @@
 																		class:has-hammer={getMatchHammer(match) === match.participantB}
 																	>
 																		{@render participantAvatar(match.participantB, "sm")}
-																		{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																		{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2429,7 +2441,7 @@
 																		class:has-hammer={getMatchHammer(match) === match.participantA}
 																	>
 																		{@render participantAvatar(match.participantA, "sm")}
-																		{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																		{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																		<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2446,7 +2458,7 @@
 																		class:has-hammer={getMatchHammer(match) === match.participantB}
 																	>
 																		{@render participantAvatar(match.participantB, "sm")}
-																		{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																		{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																		<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																			<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2517,7 +2529,7 @@
 																class:has-hammer={getMatchHammer(match) === match.participantA}
 															>
 																{@render participantAvatar(match.participantA, "sm")}
-																{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2534,7 +2546,7 @@
 																class:has-hammer={getMatchHammer(match) === match.participantB}
 															>
 																{@render participantAvatar(match.participantB, "sm")}
-																{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																	<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2587,7 +2599,7 @@
 														class:has-hammer={getMatchHammer(thirdPlaceMatch) === thirdPlaceMatch.participantA}
 													>
 														{@render participantAvatar(thirdPlaceMatch.participantA, "sm")}
-														{#if thirdPlaceMatch.seedA}<span class="seed">#{thirdPlaceMatch.seedA}</span>{/if}
+														{#if getSeed(thirdPlaceMatch.participantA)}<span class="seed">#{getSeed(thirdPlaceMatch.participantA)}</span>{/if}
 														<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantA)}</span>
 														{#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
 															<span class="score">{thirdPlaceMatch.totalPointsA || thirdPlaceMatch.gamesWonA || 0}</span>
@@ -2601,7 +2613,7 @@
 														class:has-hammer={getMatchHammer(thirdPlaceMatch) === thirdPlaceMatch.participantB}
 													>
 														{@render participantAvatar(thirdPlaceMatch.participantB, "sm")}
-														{#if thirdPlaceMatch.seedB}<span class="seed">#{thirdPlaceMatch.seedB}</span>{/if}
+														{#if getSeed(thirdPlaceMatch.participantB)}<span class="seed">#{getSeed(thirdPlaceMatch.participantB)}</span>{/if}
 														<span class="participant-name">{getParticipantName(thirdPlaceMatch.participantB)}</span>
 														{#if thirdPlaceMatch.status === 'COMPLETED' || thirdPlaceMatch.status === 'WALKOVER'}
 															<span class="score">{thirdPlaceMatch.totalPointsB || thirdPlaceMatch.gamesWonB || 0}</span>
@@ -2647,7 +2659,7 @@
 													<div class="bracket-match bye">
 														<div class="match-participant winner">
 															{@render participantAvatar(isByeA ? match.participantB : match.participantA, "sm")}
-															{#if (isByeA ? match.seedB : match.seedA)}<span class="seed">#{isByeA ? match.seedB : match.seedA}</span>{/if}
+															{#if getSeed(isByeA ? match.participantB : match.participantA)}<span class="seed">#{getSeed(isByeA ? match.participantB : match.participantA)}</span>{/if}
 															<span class="participant-name">{getParticipantName(isByeA ? match.participantB : match.participantA)}</span>
 														</div>
 														<div class="vs-divider"></div>
@@ -2669,7 +2681,7 @@
 															class:has-hammer={getMatchHammer(match) === match.participantA}
 														>
 															{@render participantAvatar(match.participantA, "sm")}
-															{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+															{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 															<span class="participant-name">{getParticipantName(match.participantA)}</span>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2686,7 +2698,7 @@
 															class:has-hammer={getMatchHammer(match) === match.participantB}
 														>
 															{@render participantAvatar(match.participantB, "sm")}
-															{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+															{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 															<span class="participant-name">{getParticipantName(match.participantB)}</span>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2740,7 +2752,7 @@
 													class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantA}
 												>
 													{@render participantAvatar(thirdMatch.participantA, "sm")}
-													{#if thirdMatch.seedA}<span class="seed">#{thirdMatch.seedA}</span>{/if}
+													{#if getSeed(thirdMatch.participantA)}<span class="seed">#{getSeed(thirdMatch.participantA)}</span>{/if}
 													<span class="participant-name">{getParticipantName(thirdMatch.participantA)}</span>
 													{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 														<span class="score">{thirdMatch.totalPointsA || thirdMatch.gamesWonA || 0}</span>
@@ -2757,7 +2769,7 @@
 													class:has-hammer={getMatchHammer(thirdMatch) === thirdMatch.participantB}
 												>
 													{@render participantAvatar(thirdMatch.participantB, "sm")}
-													{#if thirdMatch.seedB}<span class="seed">#{thirdMatch.seedB}</span>{/if}
+													{#if getSeed(thirdMatch.participantB)}<span class="seed">#{getSeed(thirdMatch.participantB)}</span>{/if}
 													<span class="participant-name">{getParticipantName(thirdMatch.participantB)}</span>
 													{#if thirdMatch.status === 'COMPLETED' || thirdMatch.status === 'WALKOVER'}
 														<span class="score">{thirdMatch.totalPointsB || thirdMatch.gamesWonB || 0}</span>
@@ -2818,7 +2830,7 @@
 																	class:has-hammer={getMatchHammer(match) === match.participantA}
 																>
 																	{@render participantAvatar(match.participantA, "sm")}
-																	{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																	{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																	<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2835,7 +2847,7 @@
 																	class:has-hammer={getMatchHammer(match) === match.participantB}
 																>
 																	{@render participantAvatar(match.participantB, "sm")}
-																	{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																	{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																	<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>
@@ -2879,7 +2891,7 @@
 																	class:has-hammer={getMatchHammer(match) === match.participantA}
 																>
 																	{@render participantAvatar(match.participantA, "sm")}
-																	{#if match.seedA}<span class="seed">#{match.seedA}</span>{/if}
+																	{#if getSeed(match.participantA)}<span class="seed">#{getSeed(match.participantA)}</span>{/if}
 																	<span class="participant-name">{getParticipantName(match.participantA)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsA || match.gamesWonA || 0}</span>
@@ -2896,7 +2908,7 @@
 																	class:has-hammer={getMatchHammer(match) === match.participantB}
 																>
 																	{@render participantAvatar(match.participantB, "sm")}
-																	{#if match.seedB}<span class="seed">#{match.seedB}</span>{/if}
+																	{#if getSeed(match.participantB)}<span class="seed">#{getSeed(match.participantB)}</span>{/if}
 																	<span class="participant-name">{getParticipantName(match.participantB)}</span>
 																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
 																		<span class="score">{match.totalPointsB || match.gamesWonB || 0}</span>

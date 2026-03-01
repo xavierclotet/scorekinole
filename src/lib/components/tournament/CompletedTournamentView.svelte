@@ -4,7 +4,7 @@
   import GroupStandings from './GroupStandings.svelte';
   import MatchResultDialog from './MatchResultDialog.svelte';
   import BumpChart from '$lib/components/charts/BumpChart.svelte';
-  import { isBye } from '$lib/algorithms/bracket';
+  import { isBye, buildSeedMap } from '$lib/algorithms/bracket';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { calculateFinalPositions, applyRankingUpdates } from '$lib/firebase/tournamentRanking';
   import { calculateRankingPoints } from '$lib/algorithms/ranking';
@@ -99,6 +99,17 @@
   let goldBracket = $derived(tournament.finalStage?.goldBracket);
   let silverBracket = $derived(tournament.finalStage?.silverBracket);
   let parallelBrackets = $derived(tournament.finalStage?.parallelBrackets);
+
+  // Seed map: participantId → seed (fixed from group stage, looked up from R1)
+  let seedMap = $derived(buildSeedMap(
+    goldBracket,
+    silverBracket,
+    ...(parallelBrackets?.map((pb: any) => pb.bracket) || [])
+  ));
+
+  function getSeed(participantId: string | undefined): number | undefined {
+    return participantId ? seedMap.get(participantId) : undefined;
+  }
 
   // For parallel brackets, track which bracket tab is active
   let activeParallelBracket = $state(0);
@@ -730,8 +741,8 @@
                         class:bye={isBye(match.participantA)}
                       >
                         <span class="participant-name">{getParticipantName(match.participantA)}</span>
-                        {#if match.seedA}
-                          <span class="seed">#{match.seedA}</span>
+                        {#if getSeed(match.participantA)}
+                          <span class="seed">#{getSeed(match.participantA)}</span>
                         {/if}
                         {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
                           <span class="score">{showGoldGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
@@ -747,8 +758,8 @@
                         class:bye={isBye(match.participantB)}
                       >
                         <span class="participant-name">{getParticipantName(match.participantB)}</span>
-                        {#if match.seedB}
-                          <span class="seed">#{match.seedB}</span>
+                        {#if getSeed(match.participantB)}
+                          <span class="seed">#{getSeed(match.participantB)}</span>
                         {/if}
                         {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
                           <span class="score">{showGoldGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
@@ -891,8 +902,8 @@
                                   <span class="final-position">{positionA}º</span>
                                 {/if}
                                 <span class="participant-name">{getParticipantName(match.participantA)}</span>
-                                {#if match.seedA}
-                                  <span class="seed">#{match.seedA}</span>
+                                {#if getSeed(match.participantA)}
+                                  <span class="seed">#{getSeed(match.participantA)}</span>
                                 {/if}
                                 {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
                                   <span class="score">{match.totalPointsA ?? 0}</span>
@@ -915,8 +926,8 @@
                                   <span class="final-position">{positionB}º</span>
                                 {/if}
                                 <span class="participant-name">{getParticipantName(match.participantB)}</span>
-                                {#if match.seedB}
-                                  <span class="seed">#{match.seedB}</span>
+                                {#if getSeed(match.participantB)}
+                                  <span class="seed">#{getSeed(match.participantB)}</span>
                                 {/if}
                                 {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
                                   <span class="score">{match.totalPointsB ?? 0}</span>
@@ -964,8 +975,8 @@
                         class:bye={isBye(match.participantA)}
                       >
                         <span class="participant-name">{getParticipantName(match.participantA)}</span>
-                        {#if match.seedA}
-                          <span class="seed">#{match.seedA}</span>
+                        {#if getSeed(match.participantA)}
+                          <span class="seed">#{getSeed(match.participantA)}</span>
                         {/if}
                         {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
                           <span class="score">{showSilverGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
@@ -981,8 +992,8 @@
                         class:bye={isBye(match.participantB)}
                       >
                         <span class="participant-name">{getParticipantName(match.participantB)}</span>
-                        {#if match.seedB}
-                          <span class="seed">#{match.seedB}</span>
+                        {#if getSeed(match.participantB)}
+                          <span class="seed">#{getSeed(match.participantB)}</span>
                         {/if}
                         {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatch(match)}
                           <span class="score">{showSilverGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>
@@ -1093,8 +1104,8 @@
                                       <span class="final-position">{positionA}º</span>
                                     {/if}
                                     <span class="participant-name">{getParticipantName(match.participantA)}</span>
-                                    {#if match.seedA}
-                                      <span class="seed">#{match.seedA}</span>
+                                    {#if getSeed(match.participantA)}
+                                      <span class="seed">#{getSeed(match.participantA)}</span>
                                     {/if}
                                     {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
                                       <span class="score">{match.totalPointsA ?? 0}</span>
@@ -1117,8 +1128,8 @@
                                       <span class="final-position">{positionB}º</span>
                                     {/if}
                                     <span class="participant-name">{getParticipantName(match.participantB)}</span>
-                                    {#if match.seedB}
-                                      <span class="seed">#{match.seedB}</span>
+                                    {#if getSeed(match.participantB)}
+                                      <span class="seed">#{getSeed(match.participantB)}</span>
                                     {/if}
                                     {#if isMatchComplete && !isByeMatch(match) && !isWalkover}
                                       <span class="score">{match.totalPointsB ?? 0}</span>

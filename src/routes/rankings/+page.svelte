@@ -216,7 +216,8 @@
 		<div class="bestof-control">
 			<label for="bestof-select">{m.ranking_bestOf()}</label>
 			<select id="bestof-select" class="bestof-select" bind:value={bestOfN}>
-				{#each [2, 3, 4, 5, 6, 7, 8, 9, 10] as n}
+				<option value={0}>{m.ranking_allTournaments()}</option>
+				{#each [2, 3, 4, 5] as n}
 					<option value={n}>{n}</option>
 				{/each}
 			</select>
@@ -300,7 +301,11 @@
 								{/if}
 							</td>
 							<td class="tournaments-cell">
-								{player.tournamentsCount}/{bestOfN}
+								{#if bestOfN === 0}
+									{player.tournamentsCount}
+								{:else}
+									{player.tournamentsCount}/{bestOfN}
+								{/if}
 							</td>
 						</tr>
 					{/each}
@@ -321,7 +326,7 @@
 	</PullToRefresh>
 </div>
 
-<RankingDetailModal isOpen={showDetailModal} player={selectedPlayer} bestOfN={bestOfN} onClose={closeModal} />
+<RankingDetailModal isOpen={showDetailModal} player={selectedPlayer} year={selectedYear} onClose={closeModal} />
 
 <style>
 	:global(body) {
@@ -740,6 +745,7 @@
 	.tournaments-cell {
 		color: #8b9bb3;
 		font-size: 0.85rem;
+		text-align: center;
 	}
 
 	/* Scroll indicators */

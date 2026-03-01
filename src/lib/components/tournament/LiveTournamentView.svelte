@@ -9,7 +9,7 @@
 		BracketMatch
 	} from '$lib/types/tournament';
 	import { getParticipantDisplayName } from '$lib/types/tournament';
-	import { isBye } from '$lib/algorithms/bracket';
+	import { isBye, buildSeedMap } from '$lib/algorithms/bracket';
 	import type { WinProbability } from '$lib/algorithms/probability';
 	import { probabilityColor } from '$lib/algorithms/probability';
 	import { getMatchProbability } from '$lib/utils/tournamentProbability';
@@ -112,6 +112,16 @@
 	let silverBracket = $derived(tournament.finalStage?.silverBracket);
 	let parallelBrackets = $derived(tournament.finalStage?.parallelBrackets || []);
 
+	// Seed map: participantId → seed (fixed from group stage, looked up from R1)
+	let seedMap = $derived(buildSeedMap(
+		goldBracket,
+		silverBracket,
+		...(parallelBrackets.map((pb: any) => pb.bracket) || [])
+	));
+
+	function getSeed(participantId: string | undefined): number | undefined {
+		return participantId ? seedMap.get(participantId) : undefined;
+	}
 
 	let groups = $derived((() => {
 		const groupsData = tournament.groupStage?.groups;
@@ -1071,8 +1081,8 @@
 													</div>
 												{/if}
 												<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
-													{#if match.seedA}
-														<span class="seed">#{match.seedA}</span>
+													{#if getSeed(match.participantA)}
+														<span class="seed">#{getSeed(match.participantA)}</span>
 													{/if}
 													<span class="player-name">
 														{#if isByeA}
@@ -1107,8 +1117,8 @@
 												</div>
 												<div class="match-divider">{@render bracketProbability(match)}</div>
 												<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
-													{#if match.seedB}
-														<span class="seed">#{match.seedB}</span>
+													{#if getSeed(match.participantB)}
+														<span class="seed">#{getSeed(match.participantB)}</span>
 													{/if}
 													<span class="player-name">
 														{#if isByeB}
@@ -1191,8 +1201,8 @@
 												</div>
 											{/if}
 											<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
-												{#if tpm.seedA}
-													<span class="seed">#{tpm.seedA}</span>
+												{#if getSeed(tpm.participantA)}
+													<span class="seed">#{getSeed(tpm.participantA)}</span>
 												{/if}
 												<span class="player-name">
 													{getParticipantName(tpm.participantA || '')}
@@ -1221,8 +1231,8 @@
 											</div>
 											<div class="match-divider">{@render bracketProbability(tpm)}</div>
 											<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
-												{#if tpm.seedB}
-													<span class="seed">#{tpm.seedB}</span>
+												{#if getSeed(tpm.participantB)}
+													<span class="seed">#{getSeed(tpm.participantB)}</span>
 												{/if}
 												<span class="player-name">
 													{getParticipantName(tpm.participantB || '')}
@@ -1423,8 +1433,8 @@
 														</div>
 													{/if}
 													<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
-														{#if match.seedA}
-															<span class="seed">#{match.seedA}</span>
+														{#if getSeed(match.participantA)}
+															<span class="seed">#{getSeed(match.participantA)}</span>
 														{/if}
 														<span class="player-name">
 															{#if isByeA}
@@ -1459,8 +1469,8 @@
 													</div>
 													<div class="match-divider">{@render bracketProbability(match)}</div>
 													<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
-														{#if match.seedB}
-															<span class="seed">#{match.seedB}</span>
+														{#if getSeed(match.participantB)}
+															<span class="seed">#{getSeed(match.participantB)}</span>
 														{/if}
 														<span class="player-name">
 															{#if isByeB}
@@ -1543,8 +1553,8 @@
 													</div>
 												{/if}
 												<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
-													{#if tpm.seedA}
-														<span class="seed">#{tpm.seedA}</span>
+													{#if getSeed(tpm.participantA)}
+														<span class="seed">#{getSeed(tpm.participantA)}</span>
 													{/if}
 													<span class="player-name">{getParticipantName(tpm.participantA || '')}</span>
 													{#if tpmParticipantA?.photoURL || tpmParticipantA?.partner?.photoURL}
@@ -1565,8 +1575,8 @@
 												</div>
 												<div class="match-divider">{@render bracketProbability(tpm)}</div>
 												<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
-													{#if tpm.seedB}
-														<span class="seed">#{tpm.seedB}</span>
+													{#if getSeed(tpm.participantB)}
+														<span class="seed">#{getSeed(tpm.participantB)}</span>
 													{/if}
 													<span class="player-name">{getParticipantName(tpm.participantB || '')}</span>
 													{#if tpmParticipantB?.photoURL || tpmParticipantB?.partner?.photoURL}
@@ -1724,8 +1734,8 @@
 														</div>
 													{/if}
 													<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
-														{#if match.seedA}
-															<span class="seed">#{match.seedA}</span>
+														{#if getSeed(match.participantA)}
+															<span class="seed">#{getSeed(match.participantA)}</span>
 														{/if}
 														<span class="player-name">
 															{#if isByeA}
@@ -1760,8 +1770,8 @@
 													</div>
 													<div class="match-divider">{@render bracketProbability(match)}</div>
 													<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
-														{#if match.seedB}
-															<span class="seed">#{match.seedB}</span>
+														{#if getSeed(match.participantB)}
+															<span class="seed">#{getSeed(match.participantB)}</span>
 														{/if}
 														<span class="player-name">
 															{#if isByeB}
@@ -1863,8 +1873,8 @@
 													</div>
 												{/if}
 												<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
-													{#if match.seedA}
-														<span class="seed">#{match.seedA}</span>
+													{#if getSeed(match.participantA)}
+														<span class="seed">#{getSeed(match.participantA)}</span>
 													{/if}
 													<span class="player-name">
 														{#if isByeA}
@@ -1899,8 +1909,8 @@
 												</div>
 												<div class="match-divider">{@render bracketProbability(match)}</div>
 												<div class="match-player" class:winner={winnerIsB && !isByeMatchFlag} class:tbd={!match.participantB} class:bye={isByeB} class:has-hammer={getMatchHammer(match) === match.participantB}>
-													{#if match.seedB}
-														<span class="seed">#{match.seedB}</span>
+													{#if getSeed(match.participantB)}
+														<span class="seed">#{getSeed(match.participantB)}</span>
 													{/if}
 													<span class="player-name">
 														{#if isByeB}
@@ -1982,8 +1992,8 @@
 												</div>
 											{/if}
 											<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
-												{#if tpm.seedA}
-													<span class="seed">#{tpm.seedA}</span>
+												{#if getSeed(tpm.participantA)}
+													<span class="seed">#{getSeed(tpm.participantA)}</span>
 												{/if}
 												<span class="player-name">{getParticipantName(tpm.participantA || '')}</span>
 												{#if tpmParticipantA}
@@ -2010,8 +2020,8 @@
 											</div>
 											<div class="match-divider">{@render bracketProbability(tpm)}</div>
 											<div class="match-player" class:winner={tpmWinnerIsB} class:tbd={!tpm.participantB} class:has-hammer={getMatchHammer(tpm) === tpm.participantB}>
-												{#if tpm.seedB}
-													<span class="seed">#{tpm.seedB}</span>
+												{#if getSeed(tpm.participantB)}
+													<span class="seed">#{getSeed(tpm.participantB)}</span>
 												{/if}
 												<span class="player-name">{getParticipantName(tpm.participantB || '')}</span>
 												{#if tpmParticipantB}

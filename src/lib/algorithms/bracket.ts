@@ -27,6 +27,47 @@ export function isBye(participantId: string | undefined): boolean {
 }
 
 /**
+ * Build a map of participantId → seed from the first round of one or more brackets.
+ * Seeds are fixed from group stage and never change, so we only need R1 data.
+ * Works for both main brackets and consolation brackets.
+ */
+export function buildSeedMap(
+  ...brackets: (
+    | { rounds: { matches: BracketMatch[] }[]; thirdPlaceMatch?: BracketMatch; consolationBrackets?: ConsolationBracket[] }
+    | null
+    | undefined
+  )[]
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const bracket of brackets) {
+    if (!bracket?.rounds?.[0]?.matches) continue;
+    for (const match of bracket.rounds[0].matches) {
+      if (match.participantA && match.seedA && !isBye(match.participantA)) {
+        map.set(match.participantA, match.seedA);
+      }
+      if (match.participantB && match.seedB && !isBye(match.participantB)) {
+        map.set(match.participantB, match.seedB);
+      }
+    }
+    // Also include consolation brackets (same original seeds)
+    if (bracket.consolationBrackets) {
+      for (const cb of bracket.consolationBrackets) {
+        if (!cb.rounds?.[0]?.matches) continue;
+        for (const match of cb.rounds[0].matches) {
+          if (match.participantA && match.seedA && !isBye(match.participantA)) {
+            map.set(match.participantA, match.seedA);
+          }
+          if (match.participantB && match.seedB && !isBye(match.participantB)) {
+            map.set(match.participantB, match.seedB);
+          }
+        }
+      }
+    }
+  }
+  return map;
+}
+
+/**
  * Generate single elimination bracket from qualified participants
  * Supports any number of participants >= 2 using BYEs
  *

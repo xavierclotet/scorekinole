@@ -28,7 +28,7 @@
   import { disqualifyParticipant, fixDisqualifiedMatches } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, BracketMatch, GroupMatch, TournamentParticipant, PhaseConfig } from '$lib/types/tournament';
   import { getPhaseConfig } from '$lib/utils/bracketPhaseConfig';
-  import { isBye, isLoserPlaceholder, parseLoserPlaceholder } from '$lib/algorithms/bracket';
+  import { isBye, isLoserPlaceholder, parseLoserPlaceholder, buildSeedMap } from '$lib/algorithms/bracket';
   import * as m from '$lib/paraglide/messages.js';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TimeBreakdownModal from '$lib/components/TimeBreakdownModal.svelte';
@@ -98,6 +98,13 @@
   let silverBracket = $derived(tournament?.finalStage?.silverBracket);
   let silverRounds = $derived(silverBracket?.rounds || []);
   let silverThirdPlaceMatch = $derived(silverBracket?.thirdPlaceMatch);
+
+  // Seed map: participantId → seed (fixed from group stage)
+  let seedMap = $derived(buildSeedMap(goldBracket, silverBracket));
+
+  function getSeed(participantId: string | undefined): number | undefined {
+    return participantId ? seedMap.get(participantId) : undefined;
+  }
 
   // Active bracket based on tab
   let bracket = $derived(activeTab === 'gold' ? goldBracket : silverBracket);
@@ -2059,8 +2066,8 @@
                       {#if disqualifiedA}
                         <span class="dsq-badge">DSQ</span>
                       {/if}
-                      {#if match.seedA}
-                        <span class="seed">#{match.seedA}</span>
+                      {#if getSeed(match.participantA)}
+                        <span class="seed">#{getSeed(match.participantA)}</span>
                       {/if}
                       {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                         <span class="score">{showGamesWon ? (match.gamesWonA || 0) : (match.totalPointsA || 0)}</span>
@@ -2092,8 +2099,8 @@
                       {#if disqualifiedB}
                         <span class="dsq-badge">DSQ</span>
                       {/if}
-                      {#if match.seedB}
-                        <span class="seed">#{match.seedB}</span>
+                      {#if getSeed(match.participantB)}
+                        <span class="seed">#{getSeed(match.participantB)}</span>
                       {/if}
                       {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                         <span class="score">{showGamesWon ? (match.gamesWonB || 0) : (match.totalPointsB || 0)}</span>

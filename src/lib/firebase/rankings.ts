@@ -31,6 +31,7 @@ export interface UserWithId extends UserProfile {
  */
 export interface TournamentInfo {
   id: string;
+  key?: string;
   tier?: TournamentTier;
   gameType: 'singles' | 'doubles';
   country: string;
@@ -43,6 +44,7 @@ export interface TournamentInfo {
 export interface TournamentRecordWithDetails extends TournamentRecord {
   tier?: TournamentTier;
   country?: string;
+  key?: string;
 }
 
 /**
@@ -56,6 +58,7 @@ export interface RankedPlayer {
   tournamentsCount: number;
   bestResult: number | null;
   tournaments: TournamentRecordWithDetails[];
+  otherTournaments: TournamentRecordWithDetails[];
 }
 
 /**
@@ -136,6 +139,7 @@ export async function getCompletedTournaments(): Promise<Map<string, TournamentI
 
       tournamentsMap.set(docSnap.id, {
         id: docSnap.id,
+        key: data.key,
         tier: data.rankingConfig?.tier,
         gameType: data.gameType || 'singles',
         country: data.country || '',
@@ -320,7 +324,7 @@ export function calculateRankings(
           tournament.gameType
         );
 
-        return { ...record, rankingDelta: recalculatedPoints, tier: tournament.tier, gameType: tournament.gameType, country: tournament.country };
+        return { ...record, rankingDelta: recalculatedPoints, tier: tournament.tier, gameType: tournament.gameType, country: tournament.country, key: tournament.key };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
 
@@ -329,8 +333,10 @@ export function calculateRankings(
     // 2. Sort by recalculated points descending
     matchingTournaments.sort((a, b) => b.rankingDelta - a.rankingDelta);
 
-    // 3. Take top N results
-    const topN = matchingTournaments.slice(0, filters.bestOfN);
+    // 3. Take top N results (0 = all)
+    const topN = filters.bestOfN === 0
+      ? matchingTournaments
+      : matchingTournaments.slice(0, filters.bestOfN);
 
     // 4. Sum points
     const totalPoints = topN.reduce((sum, t) => sum + t.rankingDelta, 0);
@@ -341,6 +347,17 @@ export function calculateRankings(
       tier: t.tier ? normalizeTier(t.tier) : undefined,
       country: t.country
     }));
+
+    // 5b. Other tournaments with points (not counted in top-N, empty when "all")
+    const otherTournaments: TournamentRecordWithDetails[] = filters.bestOfN === 0
+      ? []
+      : matchingTournaments.slice(filters.bestOfN)
+        .filter(t => t.rankingDelta > 0)
+        .map(t => ({
+          ...t,
+          tier: t.tier ? normalizeTier(t.tier) : undefined,
+          country: t.country
+        }));
 
     // 6. Calculate best result (lowest finalPosition)
     const bestResult = matchingTournaments.length > 0
@@ -354,7 +371,8 @@ export function calculateRankings(
       totalPoints,
       tournamentsCount: topN.length,
       bestResult,
-      tournaments: tournamentsWithDetails
+      tournaments: tournamentsWithDetails,
+      otherTournaments
     });
   }
 

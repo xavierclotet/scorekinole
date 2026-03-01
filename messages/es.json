@@ -787,6 +787,7 @@
   "ranking_standings": "Clasificación",
   "ranking_totalSum": "Total",
   "ranking_tournamentsCount": "Torneos",
+  "ranking_otherTournaments": "Otros torneos del {year}",
   "rules_consolation": "Rondas de consolación",
   "rules_consolationExplanation": "Los jugadores eliminados en las primeras rondas del cuadro continúan compitiendo en brackets secundarios para determinar su posición final. Nadie se va a casa tras perder un solo partido en la fase final.",
   "rules_estimatedDuration": "Duración estimada",
