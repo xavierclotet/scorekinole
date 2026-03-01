@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.69] - 2026-03-01
+- Defer tournament timer start until after hammer selection dialog
+- Document deep-link flow and SW update/ReloadPrompt in PWA docs
+
 ## [2.4.68] - 2026-03-01
 - Fix push notification deep-link not opening tournament match when already on /game
 - Fix WinnerSplash false trigger on tournament match load
