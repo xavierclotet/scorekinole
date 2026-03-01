@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.70] - 2026-03-01
+- Add seed lookup (buildSeedMap) for 3rd/4th place and consolation bracket matches
+- Show other non-counted tournaments in ranking detail modal
+- Add tournament links with short key URLs in ranking modal
+- Redesign ranking total-row with scoreboard style
+- Add "Todos" best-of-N filter option to count all tournaments
+
 ## [2.4.69] - 2026-03-01
 - Defer tournament timer start until after hammer selection dialog
 - Document deep-link flow and SW update/ReloadPrompt in PWA docs
