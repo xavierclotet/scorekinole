@@ -1358,6 +1358,7 @@
 				<div class="groups-container" class:single-group={isSingleGroup}>
 					{#each tournament.groupStage?.groups ?? [] as group, groupIndex}
 						{@const groupRounds = getGroupRounds(group)}
+						{@const completedRoundsCount = groupRounds.filter((r: any) => (r.matches ?? []).some((m: any) => m.status === 'COMPLETED' || m.status === 'WALKOVER')).length}
 						{#if isSingleGroup && groupRounds.length > 0}
 							<!-- Single group: 2-column layout -->
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
@@ -1424,7 +1425,7 @@
 										<span class="legend-item"><strong>PV</strong> Puntos por victoria (2/1/0)</span>
 									</div>
 									<!-- Charts filter + Bump Chart + 20s Chart (single group) -->
-									{#if groupRounds.length >= 2 && tournament}
+									{#if completedRoundsCount > 2 && tournament}
 										<div class="charts-filter-bar">
 											<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
 												<Popover.Trigger>
@@ -1695,7 +1696,7 @@
 								{/if}
 
 								<!-- Charts filter + Bump Chart + 20s Chart (multiple groups) -->
-								{#if groupRounds.length >= 2 && tournament}
+								{#if completedRoundsCount > 2 && tournament}
 									<div class="charts-filter-bar">
 										<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
 											<Popover.Trigger>

@@ -143,15 +143,32 @@ sw.addEventListener('push', (event) => {
 
 ### `notificationclick` Event
 
-Focuses an existing app window at the target URL, or opens a new one:
+Handles notification clicks with three strategies to ensure the deep-link always reaches the app:
 
-```typescript
-sw.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const url = event.notification.data?.url || '/';
-  // Focus existing window or open new one
-});
+1. **Exact URL match**: If a window is already at the target URL → send `postMessage` + focus (ensures the app re-processes the key even if URL is identical)
+2. **Navigate existing window**: Call `client.navigate(absoluteUrl)` + send `postMessage` as fallback (Android PWAs may not navigate reliably from background)
+3. **Open new window**: If no existing windows → `openWindow(absoluteUrl)`
+
+### Deep-Link Flow (`/game?key=...`)
+
+When a match-ready notification is clicked, the URL `/game?key={tournamentKey}` is processed through multiple layers:
+
 ```
+SW notificationclick
+  ├─ navigate() or postMessage({ type: 'PUSH_NAVIGATE', url })
+  ▼
++layout.svelte (message listener)
+  ├─ URL differs from current → goto(target)
+  └─ URL same → dispatch CustomEvent('push-deep-link')
+  ▼
+game/+page.svelte
+  ├─ $effect on page.url.searchParams.get('key') → processes key
+  ├─ push-deep-link event listener → fallback, calls handleJoinTournament() directly
+  └─ replaceState(pathname) → cleans URL using SvelteKit's replaceState
+      (NOT window.history.replaceState, which desynchronizes the page store)
+```
+
+**Key design decision**: SvelteKit's `replaceState` from `$app/navigation` is used instead of `window.history.replaceState` to keep the `page` store in sync. This ensures the layout's URL comparison works correctly for subsequent notifications.
 
 ---
 
@@ -188,7 +205,7 @@ Translation map (`notificationStrings`) covers: phase names, round prefix, table
 5. Check each user's `notificationPreferences.tournament_matchReady`
 6. Send localized push via `sendPushToUser()`:
    - **Tag**: `match-ready-{matchId}` (prevents duplicate notifications)
-   - **URL**: `/tournaments/{tournamentKey}`
+   - **URL**: `/game?key={tournamentKey}`
 
 ### Notification Title by Phase
 
@@ -252,10 +269,60 @@ This is the **standard Firebase sender ID** for web push (same for all Firebase 
 3. **Verify token**: Check Firestore `users/{uid}/fcmTokens/` for a new document
 4. **Test push**: Use Firebase Console > Messaging > Send test message with the FCM token
 5. **Match ready**: Assign a table to a tournament match from the admin panel > both players should receive a push
-6. **Click notification**: Tapping should open/focus the app at `/tournaments/{key}`
+6. **Click notification**: Tapping should open/focus the app at `/game?key={key}`
 7. **Disable category**: Turn off "Match ready" toggle > assign another table > no push should arrive
 8. **Multi-device**: Log in on two devices > both should receive notifications
 9. **Logout**: Sign out > tokens should be deleted from Firestore
+
+---
+
+## Service Worker Update & ReloadPrompt
+
+### Update Detection Flow
+
+The SW uses `skipWaiting()` on install and `clients.claim()` on activate, so updates take effect immediately.
+
+```
+Deploy new version
+  ▼
+Browser detects new SW (on page load, visibilitychange, or every 10 min)
+  ▼
+New SW installs → skipWaiting() → activates → clients.claim()
+  ▼
++layout.svelte: 'updatefound' event fires
+  ▼
+Is current page safe to reload? (isSafeToReload)
+  ├─ YES → window.location.reload() (seamless auto-update)
+  └─ NO  → showReloadPrompt = true (toast with "Update" button)
+```
+
+### Protected Paths
+
+```typescript
+const PROTECTED_PATHS = ['/game', '/admin'];
+```
+
+Pages starting with `/game` or `/admin` are **never** auto-reloaded to avoid interrupting active matches or tournament management. All other pages auto-reload silently.
+
+### Auto-Reload on Navigation
+
+An `$effect` watches `showReloadPrompt` + `page.url.pathname`. If the user navigates **away** from a protected path while the prompt is active, the page auto-reloads immediately (no need to click the button).
+
+### ReloadPrompt Component
+
+`src/lib/components/ReloadPrompt.svelte` — frosted glass toast at bottom center with:
+- Pulsing dot indicator
+- Localized "New version available" message
+- "Reload" button
+- Dismiss (X) button
+
+### Update Check Triggers
+
+| Trigger | Frequency |
+|---------|-----------|
+| Page load | Immediate |
+| `visibilitychange` (tab/app focus) | Each time |
+| Interval | Every 10 minutes |
 
 ---
 
