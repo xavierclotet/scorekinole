@@ -124,9 +124,12 @@ sw.addEventListener('notificationclick', (event) => {
 
 	event.waitUntil(
 		sw.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
-			// Prefer a client already on the exact target URL — just focus it
+			// Prefer a client already on the exact target URL — focus and notify it
 			for (const client of clients) {
 				if (new URL(client.url).href === absoluteUrl && 'focus' in client) {
+					// Still send postMessage so the app can re-process the deep-link
+					// (e.g., two notifications for same tournament, or URL cleanup hasn't run yet)
+					(client as WindowClient).postMessage({ type: 'PUSH_NAVIGATE', url: targetUrl });
 					return client.focus();
 				}
 			}

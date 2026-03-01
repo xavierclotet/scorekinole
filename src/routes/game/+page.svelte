@@ -58,7 +58,7 @@
 	import QRScanner from '$lib/components/QRScanner.svelte';
 	import { QrCode } from '@lucide/svelte';
 	import { requestWakeLock, releaseWakeLock } from '$lib/utils/wakeLock';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { assignUserToTeam, unassignUserFromTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
 	import {
@@ -262,6 +262,9 @@
 		_prevT1Won = undefined;
 		_prevT2Won = undefined;
 		_prevIsTie = undefined;
+		// Disarm splash detection until reactive state settles
+		_splashReady = false;
+		tick().then(() => { _splashReady = true; });
 	}
 	$effect(() => {
 		const t1 = $team1.hasWon;
@@ -320,10 +323,12 @@
 			// Persist to localStorage immediately so gameSettings.load() won't overwrite it
 			gameSettings.update(s => ({ ...s, tournamentKey: urlKey.toUpperCase() }));
 			gameSettings.save();
-			// Clean up the URL (remove the key parameter)
-			const newUrl = new URL(window.location.href);
-			newUrl.searchParams.delete('key');
-			window.history.replaceState({}, '', newUrl.pathname);
+			// Clean up the URL after reactive state settles using SvelteKit's replaceState
+			// (window.history.replaceState does NOT update SvelteKit's page store,
+			// causing the layout PUSH_NAVIGATE handler to think we're still at ?key=...)
+			// Deferred via tick() to avoid re-triggering this $effect (replaceState
+			// updates page.url synchronously which is a dependency of this effect)
+			tick().then(() => replaceState(page.url.pathname, {}));
 			// Defer join until auth is ready (push notifications trigger a fresh page load)
 			pendingDeepLinkKey = urlKey.toUpperCase();
 			isCheckingTournament = true;
@@ -448,10 +453,31 @@
 
 		window.addEventListener('keydown', handleKeyboardShortcuts);
 
+		// Fallback for push notification clicks when already on /game
+		// (layout dispatches this when SW postMessage arrives but URL is the same)
+		function handlePushDeepLink(e: Event) {
+			const url = (e as CustomEvent).detail?.url as string;
+			if (!url) return;
+			const parsed = new URL(url, window.location.origin);
+			const key = parsed.searchParams.get('key');
+			if (key && /^[A-Za-z0-9]{6}$/i.test(key)) {
+				gameSettings.update(s => ({ ...s, tournamentKey: key.toUpperCase() }));
+				gameSettings.save();
+				isCheckingTournament = true;
+				if ($authInitialized) {
+					handleJoinTournament();
+				} else {
+					pendingDeepLinkKey = key.toUpperCase();
+				}
+			}
+		}
+		window.addEventListener('push-deep-link', handlePushDeepLink);
+
 		return () => {
 			unsubSettings();
 			unsubReconnect();
 			window.removeEventListener('keydown', handleKeyboardShortcuts);
+			window.removeEventListener('push-deep-link', handlePushDeepLink);
 		};
 	});
 

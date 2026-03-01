@@ -77,9 +77,14 @@
 			navigator.serviceWorker.addEventListener('message', (event) => {
 				if (event.data?.type === 'PUSH_NAVIGATE' && event.data?.url) {
 					const target = event.data.url as string;
-					// Only navigate if not already on the target URL
-					if (page.url.pathname + page.url.search !== target) {
+					const current = page.url.pathname + page.url.search;
+					if (current !== target) {
 						goto(target);
+					} else {
+						// Already on target URL (e.g., SW navigate() already updated it,
+						// or page store was stale). Dispatch event so the /game page
+						// can re-process the deep-link key directly.
+						window.dispatchEvent(new CustomEvent('push-deep-link', { detail: { url: target } }));
 					}
 				}
 			});
