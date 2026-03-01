@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.67] - 2026-03-01
+- Redesign PWA update toast with frosted glass, pulsing indicator, and micro-interactions
+- Sync guest user names to /users profiles on tournament completion
+
 ## [2.4.66] - 2026-02-28
 - Show bracket seed numbers (#1, #2, etc.) in public tournament view for all bracket types
 
