@@ -1061,12 +1061,9 @@
 			}));
 		}
 
-		// Reset and auto-start timer for tournament match
+		// Reset timer for tournament match (start is deferred if hammer dialog will be shown)
 		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
 		resetTimer(totalSeconds);
-		if ($gameSettings.showTimer) {
-			startTimer();
-		}
 	}
 
 	/**
@@ -1118,17 +1115,24 @@
 			(context.currentGameData && (context.currentGameData.gamesWonA > 0 || context.currentGameData.gamesWonB > 0));
 
 		if (context.gameConfig.showHammer && !hasExistingProgress) {
+			// Timer will start after hammer is selected (in handleHammerSelected)
 			setTimeout(() => {
 				showHammerDialog = true;
 			}, 100);
-		} else if (!hasExistingProgress) {
-			// No hammer dialog shown - sync initial state with default hammer
-			setTimeout(() => {
-				const savedData = saveTournamentProgressToLocalStorage();
-				if (savedData) {
-					syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
-				}
-			}, 200);
+		} else {
+			// No hammer dialog — start timer immediately
+			if ($gameSettings.showTimer) {
+				startTimer();
+			}
+			if (!hasExistingProgress) {
+				// Sync initial state with default hammer
+				setTimeout(() => {
+					const savedData = saveTournamentProgressToLocalStorage();
+					if (savedData) {
+						syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
+					}
+				}, 200);
+			}
 		}
 	}
 
@@ -1782,6 +1786,11 @@
 
 	function handleHammerSelected() {
 		showHammerDialog = false;
+
+		// Start timer after hammer selection in tournament mode
+		if (inTournamentMode && $gameSettings.showTimer) {
+			startTimer();
+		}
 
 		// Sync initial hammer to Firebase immediately so tournament page shows it
 		if (inTournamentMode && !tournamentMatchCompletedSent) {
