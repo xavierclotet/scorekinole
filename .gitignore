@@ -2,10 +2,12 @@
 .claude/
 CLAUDE.md
 
-# AI Assistant rules
+# AI Assistant rules & skills
 .agent/
+.agents/
 .roo/
 AGENTS.md
+skills-lock.json
 
 # Environment variables
 .env
