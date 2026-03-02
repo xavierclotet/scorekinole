@@ -3113,7 +3113,7 @@
 {#if fullscreenChart && tournament}
 	{@const fsGroup = tournament.groupStage?.groups?.find(g => g.id === fullscreenChart.groupId)}
 	{#if fsGroup}
-		<div class="chart-fullscreen-overlay">
+		<div class="chart-fullscreen-overlay" data-theme={$theme}>
 			<div class="chart-fullscreen-header">
 				<div class="chart-fullscreen-nav">
 					<button
@@ -6161,6 +6161,42 @@
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .filter-button:hover {
 		background: #f1f5f9 !important;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) :global(.bump-filter-btn) {
+		background: color-mix(in srgb, var(--primary) 8%, white) !important;
+		border-color: color-mix(in srgb, var(--primary) 20%, #e2e8f0) !important;
+		color: var(--foreground) !important;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) :global(.bump-filter-btn:hover) {
+		background: color-mix(in srgb, var(--primary) 15%, white) !important;
+	}
+
+	/* Chart fullscreen overlay - light theme */
+	.chart-fullscreen-overlay:is([data-theme='light'], [data-theme='violet-light']) {
+		background: var(--background);
+	}
+
+	.chart-fullscreen-overlay:is([data-theme='light'], [data-theme='violet-light']) .chart-nav-btn {
+		color: #64748b;
+		border-color: #e2e8f0;
+	}
+
+	.chart-fullscreen-overlay:is([data-theme='light'], [data-theme='violet-light']) .chart-nav-btn:hover {
+		color: #1a202c;
+	}
+
+	.chart-fullscreen-overlay:is([data-theme='light'], [data-theme='violet-light']) .chart-nav-btn.active {
+		color: #1a202c;
+	}
+
+	.chart-fullscreen-overlay:is([data-theme='light'], [data-theme='violet-light']) .chart-fullscreen-header {
+		border-bottom-color: #e2e8f0;
+	}
+
+	.chart-fullscreen-overlay:is([data-theme='light'], [data-theme='violet-light']) .chart-fullscreen-close:hover {
+		color: #1a202c;
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .group-matches-section {

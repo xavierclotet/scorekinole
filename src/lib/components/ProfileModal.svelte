@@ -251,7 +251,7 @@
 					style="display: none;"
 				/>
 
-				<!-- Header with avatar and info -->
+				<!-- Header -->
 				<div class="header">
 					<div class="header-content">
 						<div class="photo-container">
@@ -296,7 +296,7 @@
 							{/if}
 						</div>
 						<div class="header-info">
-							<h2 class="header-title">{m.auth_myProfile()}</h2>
+							<h2 class="header-name">{playerNameInput || m.auth_myProfile()}</h2>
 							<span class="header-email">{user.email || '-'}</span>
 						</div>
 					</div>
@@ -306,100 +306,105 @@
 							<line x1="6" y1="6" x2="18" y2="18"/>
 						</svg>
 					</button>
-					{#if uploadError}
-						<p class="upload-error">{uploadError}</p>
-					{/if}
 				</div>
+				{#if uploadError}
+					<p class="upload-error">{uploadError}</p>
+				{/if}
 
-				<!-- Form content -->
+				<!-- Scrollable form content -->
 				<div class="form-content">
-					<!-- Player name -->
-					<div class="field">
-						<label for="profilePlayerNameInput" class="field-label">{m.auth_playerName()}</label>
-						<input
-							id="profilePlayerNameInput"
-							type="text"
-							class={["field-input", nameError && "field-input-error"]}
-							bind:value={playerNameInput}
-							oninput={() => nameError = null}
-							placeholder={m.auth_enterPlayerName()}
-							maxlength="20"
-						/>
-						{#if nameError}
-							<span class="field-error">{nameError}</span>
-						{:else}
-							<span class="field-hint">{m.auth_playerNameDescription()}</span>
-						{/if}
-					</div>
+					<!-- Personal data section -->
+					<div class="section-card">
+						<div class="field">
+							<label for="profilePlayerNameInput" class="field-label">{m.auth_playerName()}</label>
+							<input
+								id="profilePlayerNameInput"
+								type="text"
+								class={["field-input", nameError && "field-input-error"]}
+								bind:value={playerNameInput}
+								oninput={() => nameError = null}
+								placeholder={m.auth_enterPlayerName()}
+								maxlength="20"
+							/>
+							{#if nameError}
+								<span class="field-error">{nameError}</span>
+							{:else}
+								<span class="field-hint">{m.auth_playerNameDescription()}</span>
+							{/if}
+						</div>
 
-					<!-- Country -->
-					<div class="field">
-						<span class="field-label">{m.profile_country()}</span>
-						<Popover.Root bind:open={countrySearchOpen}>
-							<Popover.Trigger class="country-trigger">
-								<span class={["country-trigger-text", !selectedCountryName && "placeholder"]}>
-									{selectedCountryName || m.profile_selectCountry()}
-								</span>
-								<ChevronsUpDown class="size-4 shrink-0 opacity-50" />
-							</Popover.Trigger>
-							<Popover.Content class="country-popover-content p-0 z-[1100]" align="start" sideOffset={4}>
-								<Command.Root shouldFilter={false}>
-									<Command.Input
-										placeholder={m.profile_searchCountry()}
-										bind:value={countrySearch}
-									/>
-									<Command.List class="max-h-[200px]">
-										<Command.Empty>{m.profile_noCountryFound()}</Command.Empty>
-										{#each filteredCountries as country}
-											<Command.Item
-												value={country.code}
-												onSelect={() => {
-													countryCode = country.code;
-													countrySearchOpen = false;
-													countrySearch = '';
-												}}
-											>
-												<Check class={["size-4 mr-2", countryCode === country.code ? "opacity-100" : "opacity-0"]} />
-												{country.name}
-											</Command.Item>
-										{/each}
-									</Command.List>
-								</Command.Root>
-							</Popover.Content>
-						</Popover.Root>
-					</div>
+						<div class="section-divider"></div>
 
-					<!-- Color theme -->
-					<div class="field">
-						<span class="field-label">{m.profile_colorTheme()}</span>
-						<div class="flex items-center gap-3">
-							<button
-								class="theme-swatch"
-								class:selected={colorScheme === 'green'}
-								onclick={() => setColorScheme('green')}
-								aria-label={m.profile_themeGreen()}
-							>
-								<span class="swatch-color bg-emerald-500"></span>
-								{#if colorScheme === 'green'}
-									<Check class="swatch-check" />
-								{/if}
-							</button>
-							<button
-								class="theme-swatch"
-								class:selected={colorScheme === 'violet'}
-								onclick={() => setColorScheme('violet')}
-								aria-label={m.profile_themeViolet()}
-							>
-								<span class="swatch-color bg-violet-500"></span>
-								{#if colorScheme === 'violet'}
-									<Check class="swatch-check" />
-								{/if}
-							</button>
+						<div class="field">
+							<span class="field-label">{m.profile_country()}</span>
+							<Popover.Root bind:open={countrySearchOpen}>
+								<Popover.Trigger class="country-trigger">
+									<span class={["country-trigger-text", !selectedCountryName && "placeholder"]}>
+										{selectedCountryName || m.profile_selectCountry()}
+									</span>
+									<ChevronsUpDown class="size-4 shrink-0 opacity-50" />
+								</Popover.Trigger>
+								<Popover.Content class="country-popover-content p-0 z-[1100]" align="start" sideOffset={4}>
+									<Command.Root shouldFilter={false}>
+										<Command.Input
+											placeholder={m.profile_searchCountry()}
+											bind:value={countrySearch}
+										/>
+										<Command.List class="max-h-[200px]">
+											<Command.Empty>{m.profile_noCountryFound()}</Command.Empty>
+											{#each filteredCountries as country}
+												<Command.Item
+													value={country.code}
+													onSelect={() => {
+														countryCode = country.code;
+														countrySearchOpen = false;
+														countrySearch = '';
+													}}
+												>
+													<Check class={["size-4 mr-2", countryCode === country.code ? "opacity-100" : "opacity-0"]} />
+													{country.name}
+												</Command.Item>
+											{/each}
+										</Command.List>
+									</Command.Root>
+								</Popover.Content>
+							</Popover.Root>
 						</div>
 					</div>
 
-					<!-- Notifications -->
-					<div class="field">
+					<!-- Appearance section -->
+					<div class="section-card">
+						<div class="field">
+							<span class="field-label">{m.profile_colorTheme()}</span>
+							<div class="theme-options">
+								<button
+									class="theme-swatch"
+									class:selected={colorScheme === 'green'}
+									onclick={() => setColorScheme('green')}
+									aria-label={m.profile_themeGreen()}
+								>
+									<span class="swatch-color swatch-green"></span>
+									{#if colorScheme === 'green'}
+										<Check class="swatch-check" />
+									{/if}
+								</button>
+								<button
+									class="theme-swatch"
+									class:selected={colorScheme === 'violet'}
+									onclick={() => setColorScheme('violet')}
+									aria-label={m.profile_themeViolet()}
+								>
+									<span class="swatch-color swatch-violet"></span>
+									{#if colorScheme === 'violet'}
+										<Check class="swatch-check" />
+									{/if}
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- Notifications section -->
+					<div class="section-card">
 						<NotificationSettings />
 					</div>
 				</div>
@@ -417,89 +422,104 @@
 {/if}
 
 <style>
+	/* Overlay */
 	.modal-overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
-		backdrop-filter: blur(4px);
+		background: rgba(0, 0, 0, 0.55);
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
 		padding: 16px;
-		animation: fadeIn 0.1s ease-out;
+		animation: overlayIn 0.15s ease-out;
 	}
 
-	@keyframes fadeIn {
+	@keyframes overlayIn {
 		from { opacity: 0; }
 		to { opacity: 1; }
 	}
 
+	/* Modal */
 	.modal {
 		background: var(--card);
 		border: 1px solid var(--border);
-		border-radius: 12px;
-		max-width: 420px;
+		border-radius: 16px;
+		max-width: 480px;
 		width: 100%;
 		max-height: calc(100dvh - 32px);
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
-		animation: modalSlide 0.12s ease-out;
-		box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.35);
+		animation: modalIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+		box-shadow:
+			0 0 0 1px color-mix(in srgb, var(--foreground) 4%, transparent),
+			0 24px 48px -12px rgba(0, 0, 0, 0.4);
 	}
 
-	@keyframes modalSlide {
-		from { opacity: 0; transform: translateY(-6px); }
-		to { opacity: 1; transform: translateY(0); }
+	@keyframes modalIn {
+		from { opacity: 0; transform: scale(0.97) translateY(4px); }
+		to { opacity: 1; transform: scale(1) translateY(0); }
 	}
 
 	/* Header */
 	.header {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		justify-content: space-between;
-		padding: 20px;
+		padding: 20px 24px;
 		border-bottom: 1px solid var(--border);
+		background: color-mix(in srgb, var(--primary) 3%, transparent);
 	}
 
 	.header-content {
 		display: flex;
 		align-items: center;
-		gap: 14px;
+		gap: 16px;
+		min-width: 0;
 	}
 
 	.header-info {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
+		min-width: 0;
 	}
 
-	.header-title {
+	.header-name {
 		margin: 0;
-		font-size: 16px;
+		font-size: 17px;
 		font-weight: 600;
 		color: var(--foreground);
+		letter-spacing: -0.01em;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.header-email {
-		font-size: 12px;
+		font-size: 12.5px;
 		color: var(--muted-foreground);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.close-btn {
-		width: 28px;
-		height: 28px;
+		width: 32px;
+		height: 32px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: transparent;
-		border: none;
-		border-radius: 6px;
+		border: 1px solid transparent;
+		border-radius: 8px;
 		color: var(--muted-foreground);
 		cursor: pointer;
-		transition: color 0.1s, background 0.1s;
-		margin: -4px -4px 0 0;
+		transition: color 0.15s, background 0.15s, border-color 0.15s;
+		flex-shrink: 0;
 	}
 
 	.close-btn svg {
@@ -508,7 +528,8 @@
 	}
 
 	.close-btn:hover {
-		background: var(--secondary);
+		background: color-mix(in srgb, var(--foreground) 8%, transparent);
+		border-color: var(--border);
 		color: var(--foreground);
 	}
 
@@ -521,15 +542,15 @@
 	.photo-wrapper {
 		position: relative;
 		background: none;
-		border: none;
+		border: 2px solid color-mix(in srgb, var(--primary) 25%, transparent);
 		padding: 0;
 		cursor: pointer;
 		border-radius: 50%;
-		transition: opacity 0.1s;
+		transition: border-color 0.15s;
 	}
 
 	.photo-wrapper:hover {
-		opacity: 0.9;
+		border-color: var(--primary);
 	}
 
 	.photo-wrapper:disabled {
@@ -537,21 +558,22 @@
 	}
 
 	.photo {
-		width: 56px;
-		height: 56px;
+		width: 64px;
+		height: 64px;
 		border-radius: 50%;
 		object-fit: cover;
+		display: block;
 	}
 
 	.photo-placeholder {
-		width: 56px;
-		height: 56px;
+		width: 64px;
+		height: 64px;
 		border-radius: 50%;
-		background: var(--secondary);
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 20px;
+		font-size: 22px;
 		font-weight: 600;
 		color: var(--primary);
 	}
@@ -560,17 +582,17 @@
 		position: absolute;
 		inset: 0;
 		border-radius: 50%;
-		background: rgba(0, 0, 0, 0.4);
+		background: rgba(0, 0, 0, 0.45);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		opacity: 0;
-		transition: opacity 0.1s;
+		transition: opacity 0.15s;
 	}
 
 	.photo-overlay svg {
-		width: 18px;
-		height: 18px;
+		width: 20px;
+		height: 20px;
 		color: #fff;
 	}
 
@@ -592,8 +614,8 @@
 		position: absolute;
 		top: -2px;
 		right: -2px;
-		width: 18px;
-		height: 18px;
+		width: 20px;
+		height: 20px;
 		border-radius: 50%;
 		background: var(--destructive);
 		border: 2px solid var(--card);
@@ -621,28 +643,43 @@
 	}
 
 	.upload-error {
-		position: absolute;
-		bottom: -20px;
-		left: 0;
-		right: 0;
-		font-size: 11px;
+		padding: 6px 24px;
+		margin: 0;
+		font-size: 12px;
 		color: var(--destructive);
-		text-align: center;
-		white-space: nowrap;
+		background: color-mix(in srgb, var(--destructive) 6%, transparent);
 	}
 
-	/* Form content */
+	/* Scrollable form */
 	.form-content {
-		padding: 20px;
+		padding: 20px 24px;
 		display: flex;
 		flex-direction: column;
-		gap: 20px;
+		gap: 16px;
 		overflow-y: auto;
 		flex: 1;
 		min-height: 0;
 		-webkit-overflow-scrolling: touch;
 	}
 
+	/* Section cards */
+	.section-card {
+		background: color-mix(in srgb, var(--muted) 40%, transparent);
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		padding: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.section-divider {
+		height: 1px;
+		background: var(--border);
+		margin: 0 -4px;
+	}
+
+	/* Fields */
 	.field {
 		display: flex;
 		flex-direction: column;
@@ -650,42 +687,66 @@
 	}
 
 	.field-label {
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--foreground);
+		font-size: 12.5px;
+		font-weight: 600;
+		color: var(--muted-foreground);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
 	}
 
 	.field-input {
 		width: 100%;
-		padding: 10px 12px;
+		padding: 10px 14px;
 		background: var(--background);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: 10px;
 		color: var(--foreground);
 		font-size: 14px;
-		transition: border-color 0.1s;
+		transition: border-color 0.15s, box-shadow 0.15s;
 	}
 
 	.field-input:focus {
 		outline: none;
 		border-color: var(--primary);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
 	}
 
 	.field-input::placeholder {
 		color: var(--muted-foreground);
 	}
 
+	.field-hint {
+		font-size: 12px;
+		color: var(--muted-foreground);
+		line-height: 1.35;
+	}
+
+	.field-error {
+		font-size: 12px;
+		color: var(--destructive);
+	}
+
+	:global(.field-input-error) {
+		border-color: var(--destructive) !important;
+	}
+
 	/* Theme swatches */
+	.theme-options {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
 	.theme-swatch {
 		position: relative;
-		width: 36px;
-		height: 36px;
+		width: 40px;
+		height: 40px;
 		padding: 0;
 		border: 2px solid var(--border);
-		border-radius: 10px;
+		border-radius: 12px;
 		background: var(--background);
 		cursor: pointer;
-		transition: border-color 0.15s, transform 0.1s;
+		transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -696,7 +757,8 @@
 	}
 
 	.theme-swatch.selected {
-		border-color: var(--foreground);
+		border-color: var(--primary);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
 	}
 
 	.theme-swatch:active {
@@ -704,37 +766,46 @@
 	}
 
 	.swatch-color {
-		width: 22px;
-		height: 22px;
-		border-radius: 6px;
+		width: 24px;
+		height: 24px;
+		border-radius: 8px;
+	}
+
+	.swatch-green {
+		background: #10b981;
+	}
+
+	.swatch-violet {
+		background: #8b5cf6;
 	}
 
 	:global(.swatch-check) {
 		position: absolute;
-		bottom: -4px;
-		right: -4px;
-		width: 14px;
-		height: 14px;
+		bottom: -5px;
+		right: -5px;
+		width: 16px;
+		height: 16px;
 		padding: 2px;
-		background: var(--foreground);
-		color: var(--background);
+		background: var(--primary);
+		color: var(--primary-foreground);
 		border-radius: 50%;
+		border: 2px solid var(--card);
 	}
 
 	/* Country combobox trigger */
 	:global(.country-trigger) {
 		width: 100%;
-		padding: 10px 12px;
+		padding: 10px 14px;
 		background: var(--background);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: 10px;
 		color: var(--foreground);
 		font-size: 14px;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		transition: border-color 0.1s;
+		transition: border-color 0.15s, box-shadow 0.15s;
 	}
 
 	:global(.country-trigger:hover) {
@@ -744,6 +815,7 @@
 	:global(.country-trigger:focus) {
 		outline: none;
 		border-color: var(--primary);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
 	}
 
 	:global(.country-trigger-text) {
@@ -759,37 +831,24 @@
 		min-width: 200px;
 	}
 
-	.field-hint {
-		font-size: 12px;
-		color: var(--muted-foreground);
-	}
-
-	.field-error {
-		font-size: 12px;
-		color: var(--destructive);
-	}
-
-	:global(.field-input-error) {
-		border-color: var(--destructive) !important;
-	}
-
 	/* Footer */
 	.footer {
 		display: flex;
-		gap: 8px;
-		padding: 16px 20px;
+		gap: 10px;
+		padding: 16px 24px;
 		border-top: 1px solid var(--border);
+		background: color-mix(in srgb, var(--muted) 20%, transparent);
 	}
 
 	.btn-cancel,
 	.btn-save {
 		flex: 1;
-		padding: 10px 16px;
-		font-size: 13px;
-		font-weight: 500;
-		border-radius: 8px;
+		padding: 11px 16px;
+		font-size: 13.5px;
+		font-weight: 600;
+		border-radius: 10px;
 		cursor: pointer;
-		transition: background 0.1s, opacity 0.1s;
+		transition: background 0.15s, opacity 0.15s, transform 0.1s;
 	}
 
 	.btn-cancel {
@@ -802,6 +861,10 @@
 		background: var(--muted);
 	}
 
+	.btn-cancel:active {
+		transform: scale(0.98);
+	}
+
 	.btn-save {
 		background: var(--primary);
 		border: none;
@@ -809,44 +872,78 @@
 	}
 
 	.btn-save:hover:not(:disabled) {
-		opacity: 0.9;
+		opacity: 0.92;
+	}
+
+	.btn-save:active:not(:disabled) {
+		transform: scale(0.98);
 	}
 
 	.btn-save:disabled {
-		opacity: 0.4;
+		opacity: 0.35;
 		cursor: not-allowed;
 	}
 
-	/* Small screens */
-	@media (max-width: 380px) {
+	/* Mobile fullscreen (<480px) */
+	@media (max-width: 480px) {
+		.modal-overlay {
+			padding: 0;
+			align-items: stretch;
+		}
+
 		.modal {
 			max-width: 100%;
-		}
-
-		.header {
-			padding: 16px;
-		}
-
-		.form-content {
-			padding: 16px;
+			max-height: 100dvh;
+			border-radius: 0;
+			border: none;
+			box-shadow: none;
+			animation: modalSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 		}
 
 		.footer {
-			padding: 12px 16px;
+			padding-bottom: max(16px, env(safe-area-inset-bottom));
+		}
+	}
+
+	@keyframes modalSlideUp {
+		from { opacity: 0; transform: translateY(100%); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	/* Very small screens */
+	@media (max-width: 360px) {
+		.header {
+			padding: 16px 18px;
+		}
+
+		.header-content {
+			gap: 12px;
 		}
 
 		.photo,
 		.photo-placeholder {
-			width: 48px;
-			height: 48px;
+			width: 52px;
+			height: 52px;
 		}
 
 		.photo-placeholder {
 			font-size: 18px;
 		}
 
-		.header-title {
+		.header-name {
 			font-size: 15px;
+		}
+
+		.form-content {
+			padding: 16px 18px;
+		}
+
+		.section-card {
+			padding: 14px;
+		}
+
+		.footer {
+			padding: 14px 18px;
 		}
 	}
 
@@ -857,27 +954,31 @@
 		}
 
 		.modal {
-			max-width: 480px;
+			max-width: 500px;
 			max-height: calc(100dvh - 16px);
-			border-radius: 10px;
+			border-radius: 12px;
 		}
 
 		.header {
-			padding: 10px 16px;
+			padding: 12px 20px;
 		}
 
 		.header-content {
-			gap: 10px;
+			gap: 12px;
 		}
 
 		.photo,
 		.photo-placeholder {
-			width: 36px;
-			height: 36px;
+			width: 40px;
+			height: 40px;
+		}
+
+		.photo-wrapper {
+			border-width: 1.5px;
 		}
 
 		.photo-placeholder {
-			font-size: 14px;
+			font-size: 15px;
 		}
 
 		.photo-overlay svg {
@@ -886,8 +987,8 @@
 		}
 
 		.delete-photo-btn {
-			width: 14px;
-			height: 14px;
+			width: 16px;
+			height: 16px;
 			top: -3px;
 			right: -3px;
 		}
@@ -897,7 +998,7 @@
 			height: 6px;
 		}
 
-		.header-title {
+		.header-name {
 			font-size: 14px;
 		}
 
@@ -906,8 +1007,8 @@
 		}
 
 		.close-btn {
-			width: 24px;
-			height: 24px;
+			width: 28px;
+			height: 28px;
 		}
 
 		.close-btn svg {
@@ -916,8 +1017,14 @@
 		}
 
 		.form-content {
-			padding: 12px 16px;
-			gap: 12px;
+			padding: 12px 20px;
+			gap: 10px;
+		}
+
+		.section-card {
+			padding: 10px 12px;
+			gap: 8px;
+			border-radius: 10px;
 		}
 
 		.field {
@@ -925,12 +1032,13 @@
 		}
 
 		.field-label {
-			font-size: 12px;
+			font-size: 11px;
 		}
 
 		.field-input {
 			padding: 7px 10px;
 			font-size: 13px;
+			border-radius: 8px;
 		}
 
 		.field-hint,
@@ -939,20 +1047,20 @@
 		}
 
 		.theme-swatch {
-			width: 30px;
-			height: 30px;
+			width: 32px;
+			height: 32px;
 			border-radius: 8px;
 		}
 
 		.swatch-color {
-			width: 18px;
-			height: 18px;
-			border-radius: 5px;
+			width: 20px;
+			height: 20px;
+			border-radius: 6px;
 		}
 
 		:global(.swatch-check) {
-			width: 12px;
-			height: 12px;
+			width: 13px;
+			height: 13px;
 			bottom: -3px;
 			right: -3px;
 		}
@@ -960,16 +1068,18 @@
 		:global(.country-trigger) {
 			padding: 7px 10px;
 			font-size: 13px;
+			border-radius: 8px;
 		}
 
 		.footer {
-			padding: 10px 16px;
+			padding: 10px 20px;
 		}
 
 		.btn-cancel,
 		.btn-save {
-			padding: 7px 12px;
-			font-size: 12px;
+			padding: 8px 12px;
+			font-size: 12.5px;
+			border-radius: 8px;
 		}
 	}
 </style>
