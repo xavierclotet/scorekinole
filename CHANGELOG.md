@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.73] - 2026-03-02
+- Add finalize page with configurable tiebreaker priorities and match review
+- Refactor tiebreaker algorithm to support admin-configurable priority order
+- Show Buchholz column in completed tournament standings
+- Add assign-yourself hint popover and auth provider badges in admin
+
 ## [2.4.72] - 2026-03-02
 - Add email/password authentication (sign up, sign in, password reset, email verification)
 - Remove Facebook login — only Google and Email/Password remain
