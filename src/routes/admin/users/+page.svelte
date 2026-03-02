@@ -76,8 +76,8 @@
     if (filterRole === 'admin' && !user.isAdmin) return false;
 
     // Type filter (registration + merged status)
-    if (filterType === 'registered' && user.authProvider !== 'google') return false;
-    if (filterType === 'guest' && user.authProvider === 'google') return false;
+    if (filterType === 'registered' && !user.authProvider) return false;
+    if (filterType === 'guest' && user.authProvider) return false;
     if (filterType === 'merged' && !user.mergedFrom) return false;
 
     if (isSearching) {
@@ -315,7 +315,7 @@
   }
 
   function isGuestUser(user: AdminUserInfo): boolean {
-    return user.authProvider !== 'google' && !user.mergedTo;
+    return !user.authProvider && !user.mergedTo;
   }
 </script>
 
@@ -386,8 +386,9 @@
           <thead>
             <tr>
               <th class="name-col">{m.admin_playerName()}</th>
-              <th class="role-col">Admin</th>
-              <th class="tournaments-col hide-small">{m.admin_tournaments()}</th>
+              <th class="role-col">Type</th>
+              <th class="tournaments-col hide-small">Tourn.</th>
+              <th class="created-tournaments-col hide-small">Created</th>
               <th class="quota-col hide-small">Cuota</th>
               <th class="created-col hide-small">{m.admin_createdAt()}</th>
               <th class="actions-col"></th>
@@ -412,18 +413,30 @@
                   </div>
                 </td>
                 <td class="role-cell">
-                  {#if user.isSuperAdmin}
-                    <span class="role-badge super">Super</span>
-                    <span class="tournaments-created">{user.tournamentsCreatedCount ?? 0}</span>
-                  {:else if user.isAdmin}
-                    <span class="role-badge admin">Admin</span>
-                    <span class="tournaments-created">{user.tournamentsCreatedCount ?? 0}</span>
-                  {:else}
-                    <span class="role-badge user">User</span>
-                  {/if}
+                  <div class="role-badges-stack">
+                    {#if user.isSuperAdmin}
+                      <span class="role-badge super">Super</span>
+                    {:else if user.isAdmin}
+                      <span class="role-badge admin">Admin</span>
+                    {/if}
+                    {#if user.authProvider === 'google'}
+                      <span class="role-badge google">Google</span>
+                    {:else if user.authProvider === 'email'}
+                      <span class="role-badge email">Email</span>
+                    {:else}
+                      <span class="role-badge guest">Guest</span>
+                    {/if}
+                  </div>
                 </td>
                 <td class="tournaments-cell hide-small">
                   🏆 {user.tournaments?.length ?? 0}
+                </td>
+                <td class="created-tournaments-cell hide-small">
+                  {#if user.isAdmin || user.isSuperAdmin}
+                    {user.tournamentsCreatedCount ?? 0}
+                  {:else}
+                    -
+                  {/if}
                 </td>
                 <td class="quota-cell hide-small">
                   {#if user.isSuperAdmin}
@@ -683,7 +696,10 @@
 <style>
   .users-container {
     padding: 1.5rem 2rem;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     background: #fafafa;
     transition: background-color 0.3s;
   }
@@ -911,7 +927,8 @@
   .table-container {
     overflow-x: auto;
     overflow-y: auto;
-    max-height: calc(100vh - 180px);
+    flex: 1;
+    min-height: 0;
     background: white;
     border-radius: 6px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -1067,6 +1084,33 @@
     color: #9ca3af;
   }
 
+  .role-badge.google {
+    background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+    color: white;
+  }
+
+  .role-badge.email {
+    background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+    color: white;
+  }
+
+  .role-badge.guest {
+    background: #e5e7eb;
+    color: #6b7280;
+  }
+
+  .users-container:is([data-theme='dark'], [data-theme='violet']) .role-badge.guest {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  .role-badges-stack {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
   .tournaments-created {
     display: inline-flex;
     align-items: center;
@@ -1084,6 +1128,17 @@
 
   .users-container:is([data-theme='dark'], [data-theme='violet']) .tournaments-created {
     background: #0f1419;
+    color: #8b9bb3;
+  }
+
+  /* Created tournaments cell */
+  .created-tournaments-cell {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #555;
+  }
+
+  .users-container:is([data-theme='dark'], [data-theme='violet']) .created-tournaments-cell {
     color: #8b9bb3;
   }
 

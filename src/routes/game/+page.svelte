@@ -115,6 +115,21 @@
 	let canAssignPartnerToTeam1 = $derived(!inTournamentMode && !!$currentUser && $gameSettings.gameType === 'doubles');
 	let canAssignPartnerToTeam2 = $derived(!inTournamentMode && !!$currentUser && $gameSettings.gameType === 'doubles');
 
+	// Assign-yourself hint: show when logged in, friendly mode, user not assigned to either team
+	let assignHintDismissed = $state(false);
+	let shouldShowAssignHint = $derived(
+		!assignHintDismissed &&
+		!inTournamentMode &&
+		!!$currentUser &&
+		$authInitialized &&
+		!$team1.userId &&
+		!$team2.userId
+	);
+
+	function dismissAssignHint() {
+		assignHintDismissed = true;
+	}
+
 	// Friendly match header info
 	let friendlyMatchTitle = $derived(
 		$gameSettings.gameType === 'doubles'
@@ -2369,6 +2384,8 @@
 			isMatchComplete={isMatchComplete}
 			canAssignUser={canAssignUserToTeam1}
 			canAssignPartner={canAssignPartnerToTeam1}
+			showAssignHint={shouldShowAssignHint}
+			ondismissAssignHint={dismissAssignHint}
 			onchangeColor={() => openColorPicker(1)}
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}

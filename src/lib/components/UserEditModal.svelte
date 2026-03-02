@@ -298,6 +298,13 @@
             {:else}
               <span class="badge user">User</span>
             {/if}
+            {#if user.authProvider === 'google'}
+              <span class="badge google">Google</span>
+            {:else if user.authProvider === 'email'}
+              <span class="badge email">Email</span>
+            {:else}
+              <span class="badge guest">Guest</span>
+            {/if}
           </div>
         </div>
         <div class="user-meta">
@@ -833,6 +840,26 @@
   }
 
   .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .badge.user {
+    background: #374151;
+    color: #9ca3af;
+  }
+
+  .badge.google {
+    background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+    color: white;
+  }
+
+  .badge.email {
+    background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+    color: white;
+  }
+
+  .badge.guest {
+    background: #e5e7eb;
+    color: #6b7280;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .badge.guest {
     background: #374151;
     color: #9ca3af;
   }

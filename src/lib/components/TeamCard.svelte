@@ -31,6 +31,10 @@
 		onassignPartner?: () => void;
 		/** Called when user wants to unassign partner from this team */
 		onunassignPartner?: () => void;
+		/** Whether to show the assign-yourself hint on the main player button */
+		showAssignHint?: boolean;
+		/** Called when the assign hint is dismissed */
+		ondismissAssignHint?: () => void;
 	}
 
 	let {
@@ -45,7 +49,9 @@
 		onassignUser,
 		onunassignUser,
 		onassignPartner,
-		onunassignPartner
+		onunassignPartner,
+		showAssignHint = false,
+		ondismissAssignHint
 	}: Props = $props();
 
 	// Tournament mode detection
@@ -820,8 +826,10 @@
 									userPhotoURL={team.userPhotoURL}
 									userName={team.name}
 									tooltipText={userButtonTooltip}
+									showHint={showAssignHint}
 									onassign={onassignUser}
 									onunassign={onunassignUser}
+									ondismissHint={ondismissAssignHint}
 								/>
 							{/if}
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
