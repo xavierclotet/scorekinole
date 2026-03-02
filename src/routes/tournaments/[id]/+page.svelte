@@ -4,8 +4,8 @@
 	import { goto } from '$app/navigation';
 	import * as m from '$lib/paraglide/messages.js';
 	import { getTournament, subscribeTournament, getTournamentByKey } from '$lib/firebase/tournaments';
-	import ScorekinoleLogo from '$lib/components/ScorekinoleLogo.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 
 	import { theme } from '$lib/stores/theme';
 	import { type Tournament, type BracketMatch, type GroupMatch, normalizeTier } from '$lib/types/tournament';
@@ -782,7 +782,10 @@
 	<header class="page-header">
 		<div class="header-row">
 			<div class="header-left">
-				<ScorekinoleLogo href="/tournaments" />
+				<button class="back-btn" onclick={() => goto('/tournaments')}>
+					<ArrowLeft class="size-4" />
+					<span>{m.common_tournaments()}</span>
+				</button>
 			</div>
 			<div class="header-center">
 				{#if tournament}
@@ -3239,6 +3242,31 @@
 
 	.header-left {
 		flex-shrink: 0;
+	}
+
+	.back-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: none;
+		border: none;
+		color: var(--muted-foreground);
+		font-size: 0.85rem;
+		font-weight: 500;
+		padding: 6px 10px 6px 8px;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: color 0.15s, background 0.15s;
+		white-space: nowrap;
+	}
+
+	.back-btn:hover {
+		color: var(--foreground);
+		background: color-mix(in srgb, var(--foreground) 8%, transparent);
+	}
+
+	.back-btn:active {
+		transform: scale(0.97);
 	}
 
 	.header-center {

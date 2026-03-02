@@ -162,7 +162,7 @@
 							v{APP_VERSION}
 						</span>
 					</span>
-					<ChevronDown class="size-3.5 text-foreground/50 ml-1 shrink-0" />
+					<ChevronDown class="size-3.5 text-foreground/50 ml-1 shrink-0 transition-transform duration-150 menu-chevron" />
 				</button>
 			{/if}
 		{/snippet}
@@ -240,7 +240,19 @@
 								</div>
 								<span class="flex-1 text-sm">{m.admin_userManagement()}</span>
 							</DropdownMenu.Item>
-							
+						{/if}
+
+						<DropdownMenu.Item
+							onclick={() => goto('/admin/tournaments')}
+							class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
+						>
+							<div class="flex items-center justify-center size-6 rounded bg-primary/10">
+								<Trophy class="size-3.5 text-primary" />
+							</div>
+							<span class="flex-1 text-sm">{m.admin_tournamentManagement()}</span>
+						</DropdownMenu.Item>
+
+						{#if $isSuperAdminUser}
 							<DropdownMenu.Item
 								onclick={() => goto('/admin/matches')}
 								class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
@@ -251,6 +263,8 @@
 								<span class="flex-1 text-sm">{m.admin_matchManagement()}</span>
 							</DropdownMenu.Item>
 
+							<DropdownMenu.Separator class="my-1" />
+
 							<DropdownMenu.Item
 								onclick={() => goto('/admin/analytics')}
 								class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
@@ -260,19 +274,7 @@
 								</div>
 								<span class="flex-1 text-sm">{m.analytics_title()}</span>
 							</DropdownMenu.Item>
-
-							<DropdownMenu.Separator class="my-1" />
 						{/if}
-
-						<DropdownMenu.Item
-							onclick={() => goto('/admin/tournaments')}
-							class="cursor-pointer gap-3! py-2! px-3! rounded-md hover:bg-accent"
-						>
-							<div class="flex items-center justify-center size-6 rounded bg-primary/10">
-								<Trophy class="size-3.5 text-primary" />
-							</div>
-							<span class="flex-1 text-sm">{m.admin_tournaments()}</span>
-						</DropdownMenu.Item>
 					</DropdownMenu.SubContent>
 				</DropdownMenu.Sub>
 			{/if}
@@ -311,3 +313,9 @@
 		</DropdownMenu.Content>
 	</DropdownMenu.Portal>
 </DropdownMenu.Root>
+
+<style>
+	:global([data-state="open"] > .menu-chevron) {
+		transform: rotate(180deg);
+	}
+</style>
