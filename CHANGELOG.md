@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.72] - 2026-03-02
+- Add email/password authentication (sign up, sign in, password reset, email verification)
+- Remove Facebook login — only Google and Email/Password remain
+- Gmail domains redirected to Google Sign-In at registration
+- Password security requirements (8+ chars, uppercase, lowercase, number)
+- Add EmailVerificationBanner for unverified email users
+- Improve nav UX with back button, chevron animation, reorder admin menu
+
 ## [2.4.71] - 2026-03-02
 - Redesign ProfileModal: wider layout, section cards, fullscreen on mobile, refined avatar
 - Add missing i18n keys: notifications_friendlyMatches, notifications_tournaments (en/ca)
