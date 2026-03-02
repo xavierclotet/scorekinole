@@ -3,13 +3,13 @@ import { deleteAllFCMTokens } from './messaging';
 import { doc, getDoc } from 'firebase/firestore';
 import {
   GoogleAuthProvider,
-  FacebookAuthProvider,
-  OAuthProvider,
   signInWithPopup,
-  linkWithCredential,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signOut as firebaseSignOut,
   onAuthStateChanged,
-  type AuthCredential,
   type User as FirebaseUser
 } from 'firebase/auth';
 import { writable } from 'svelte/store';
@@ -34,30 +34,18 @@ export const authInitialized = writable<boolean>(false);
 // Flag to indicate user needs to complete their profile (no document in users collection)
 export const needsProfileSetup = writable<boolean>(false);
 
-// Pending credential for account linking (when user tries Facebook but email exists with Google)
-let pendingLinkCredential: AuthCredential | null = null;
+// Flag to indicate email verification is pending (email/password user not yet verified)
+export const emailVerificationPending = writable<boolean>(false);
+
+// Custom error code for Gmail accounts trying to register with email/password
+const GMAIL_DOMAINS = ['gmail.com', 'googlemail.com'];
 
 /**
- * Store a credential for later linking after the user signs in with another provider
+ * Check if an email is a Gmail/Google domain
  */
-export function setPendingLinkCredential(credential: AuthCredential | null): void {
-  pendingLinkCredential = credential;
-}
-
-/**
- * Check if there's a pending credential to link
- */
-export function hasPendingLinkCredential(): boolean {
-  return pendingLinkCredential !== null;
-}
-
-/**
- * Get credential from a failed sign-in error (account-exists-with-different-credential)
- */
-export function getCredentialFromError(error: any): AuthCredential | null {
-  return FacebookAuthProvider.credentialFromError(error) ||
-         OAuthProvider.credentialFromError(error) ||
-         null;
+function isGmailDomain(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase();
+  return GMAIL_DOMAINS.includes(domain);
 }
 
 /**
@@ -97,18 +85,6 @@ export async function signInWithGoogle(): Promise<User> {
     };
 
     currentUser.set(appUser);
-
-    // Auto-link pending credential (e.g., Facebook) after successful Google sign-in
-    if (pendingLinkCredential) {
-      try {
-        await linkWithCredential(user, pendingLinkCredential);
-      } catch (linkError) {
-        console.warn('Could not link pending credential:', linkError);
-      } finally {
-        pendingLinkCredential = null;
-      }
-    }
-
     return appUser;
   } catch (error) {
     console.error('Google sign in error:', error);
@@ -117,36 +93,74 @@ export async function signInWithGoogle(): Promise<User> {
 }
 
 /**
- * Sign in with Facebook
- * @returns Promise with User object
+ * Sign up with email and password
+ * Rejects Gmail domains (should use Google Sign-In instead)
+ * Sends email verification after registration
  */
-export async function signInWithFacebook(): Promise<User> {
+export async function signUpWithEmail(email: string, password: string): Promise<User> {
+  if (!browser) {
+    throw new Error('Sign up can only be called in the browser');
+  }
+
+  if (!isFirebaseEnabled()) {
+    throw new Error('Firebase is disabled');
+  }
+
+  // Reject Gmail domains
+  if (isGmailDomain(email)) {
+    const error: any = new Error('Gmail accounts should use Google Sign-In');
+    error.code = 'GMAIL_USE_GOOGLE_SIGNIN';
+    throw error;
+  }
+
+  try {
+    const result = await createUserWithEmailAndPassword(auth!, email, password);
+    const user = result.user;
+
+    // Send verification email
+    await sendEmailVerification(user);
+    emailVerificationPending.set(true);
+
+    const appUser: User = {
+      id: user.uid,
+      name: user.email?.split('@')[0] || 'User',
+      email: user.email,
+      photoURL: null,
+      providerPhotoURL: null
+    };
+
+    currentUser.set(appUser);
+    return appUser;
+  } catch (error) {
+    console.error('Email sign up error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Sign in with email and password
+ */
+export async function signInWithEmail(email: string, password: string): Promise<User> {
   if (!browser) {
     throw new Error('Sign in can only be called in the browser');
   }
 
   if (!isFirebaseEnabled()) {
-    console.warn('Firebase is disabled. Using mock authentication.');
-    const mockUser: User = {
-      id: 'mock-user-123',
-      name: 'Developer User',
-      email: 'dev@scorekinole.com',
-      photoURL: null,
-      providerPhotoURL: null
-    };
-    currentUser.set(mockUser);
-    return mockUser;
+    throw new Error('Firebase is disabled');
   }
 
   try {
-    const provider = new FacebookAuthProvider();
-    provider.addScope('email');
-    const result = await signInWithPopup(auth!, provider);
+    const result = await signInWithEmailAndPassword(auth!, email, password);
     const user = result.user;
+
+    // Check if email is verified
+    if (!user.emailVerified) {
+      emailVerificationPending.set(true);
+    }
 
     const appUser: User = {
       id: user.uid,
-      name: user.displayName || 'Unknown',
+      name: user.displayName || user.email?.split('@')[0] || 'User',
       email: user.email,
       photoURL: user.photoURL,
       providerPhotoURL: user.photoURL
@@ -155,9 +169,36 @@ export async function signInWithFacebook(): Promise<User> {
     currentUser.set(appUser);
     return appUser;
   } catch (error) {
-    console.error('Facebook sign in error:', error);
+    console.error('Email sign in error:', error);
     throw error;
   }
+}
+
+/**
+ * Send password reset email
+ */
+export async function resetPassword(email: string): Promise<void> {
+  if (!browser || !isFirebaseEnabled()) {
+    throw new Error('Firebase is disabled');
+  }
+
+  await sendPasswordResetEmail(auth!, email);
+}
+
+/**
+ * Resend email verification to current user
+ */
+export async function resendVerificationEmail(): Promise<void> {
+  if (!browser || !isFirebaseEnabled()) {
+    throw new Error('Firebase is disabled');
+  }
+
+  const user = auth?.currentUser;
+  if (!user) {
+    throw new Error('No user signed in');
+  }
+
+  await sendEmailVerification(user);
 }
 
 /**
@@ -178,6 +219,7 @@ export async function signOut(): Promise<void> {
     await deleteAllFCMTokens();
     await firebaseSignOut(auth!);
     currentUser.set(null);
+    emailVerificationPending.set(false);
     console.log('✅ User signed out');
   } catch (error) {
     console.error('❌ Sign out error:', error);
@@ -202,6 +244,27 @@ export function initAuthListener(): void {
 
   onAuthStateChanged(auth!, async (user: FirebaseUser | null) => {
     if (user) {
+      // Check if this is an email/password user with unverified email
+      const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
+      if (isPasswordProvider && !user.emailVerified) {
+        console.log('ℹ️ Email not verified — blocking full access');
+        emailVerificationPending.set(true);
+
+        const appUser: User = {
+          id: user.uid,
+          name: user.displayName || user.email?.split('@')[0] || 'User',
+          email: user.email,
+          photoURL: null,
+          providerPhotoURL: null
+        };
+        currentUser.set(appUser);
+        authInitialized.set(true);
+        return; // Do NOT create profile in Firestore
+      }
+
+      // Email is verified or user is Google provider — normal flow
+      emailVerificationPending.set(false);
+
       // Start with auth provider data (preserve provider photo for fallback)
       const providerPhotoURL = user.photoURL;
       let appUser: User = {
@@ -250,6 +313,7 @@ export function initAuthListener(): void {
     } else {
       currentUser.set(null);
       needsProfileSetup.set(false);
+      emailVerificationPending.set(false);
     }
 
     // Mark auth as initialized AFTER currentUser has its final value

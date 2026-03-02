@@ -14,8 +14,8 @@
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import SEO from '$lib/components/SEO.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { Play, BarChart3, Download } from '@lucide/svelte';
-	import { canInstall, triggerInstall } from '$lib/stores/pwaInstall';
+	import { Play, BarChart3, Download, X } from '@lucide/svelte';
+	import { canInstall, triggerInstall, showIOSInstallBanner, dismissIOSInstallBanner } from '$lib/stores/pwaInstall';
 	import * as Carousel from '$lib/components/ui/carousel/index.js';
 	import WhatsNewModal from '$lib/components/WhatsNewModal.svelte';
 	import { onMount } from 'svelte';
@@ -390,6 +390,28 @@
 					<Download class="size-4" />
 					<span>{m.common_installApp()}</span>
 				</button>
+			{:else if $showIOSInstallBanner}
+				<div class="ios-install-banner">
+					<button class="ios-install-close" onclick={dismissIOSInstallBanner} aria-label="Close">
+						<X class="size-3.5" />
+					</button>
+					<p class="ios-install-title">{m.common_iosInstallTitle()}</p>
+					<div class="ios-install-steps">
+						<div class="ios-install-step">
+							<span class="ios-step-number">1</span>
+							<span>{m.common_iosInstallStep1({ icon: '' })}</span>
+							<svg class="ios-share-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+								<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+								<polyline points="16 6 12 2 8 6"/>
+								<line x1="12" y1="2" x2="12" y2="15"/>
+							</svg>
+						</div>
+						<div class="ios-install-step">
+							<span class="ios-step-number">2</span>
+							<span>{m.common_iosInstallStep2()}</span>
+						</div>
+					</div>
+				</div>
 			{/if}
 		</div>
 		<div class="support-section flex justify-center items-center mt-2">
@@ -669,6 +691,88 @@
 		transform: translateY(0);
 	}
 
+	/* iOS Install Banner */
+	.ios-install-banner {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.75rem 1.25rem;
+		padding-right: 2rem;
+		background: color-mix(in srgb, var(--primary) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+		border-radius: 12px;
+		max-width: 320px;
+		width: 100%;
+	}
+
+	.ios-install-close {
+		position: absolute;
+		top: 0.5rem;
+		right: 0.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		border: none;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--primary);
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+
+	.ios-install-close:hover {
+		background: color-mix(in srgb, var(--primary) 25%, transparent);
+	}
+
+	.ios-install-title {
+		margin: 0;
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--primary);
+	}
+
+	.ios-install-steps {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.ios-install-step {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	:global([data-theme='light']) .landing .ios-install-step,
+	:global([data-theme='violet-light']) .landing .ios-install-step {
+		color: rgba(0, 0, 0, 0.6);
+	}
+
+	.ios-step-number {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		background: var(--primary);
+		color: var(--primary-foreground);
+		font-size: 0.65rem;
+		font-weight: 700;
+		flex-shrink: 0;
+	}
+
+	.ios-share-icon {
+		flex-shrink: 0;
+		color: var(--primary);
+	}
+
 	.kofi-btn {
 		display: inline-flex;
 		align-items: center;
@@ -790,6 +894,20 @@
 		.install-btn {
 			padding: 0.25rem 0.6rem;
 			font-size: 0.65rem;
+		}
+
+		.ios-install-banner {
+			padding: 0.4rem 0.75rem;
+			padding-right: 1.5rem;
+			gap: 0.25rem;
+		}
+
+		.ios-install-title {
+			font-size: 0.65rem;
+		}
+
+		.ios-install-step {
+			font-size: 0.6rem;
 		}
 
 		.kofi-btn {

@@ -13,14 +13,10 @@
 		{ code: 'en' as const, label: 'English', short: 'EN' }
 	];
 
-	// Use Paraglide's getLocale() directly - reads from cookie
 	let currentLang = $derived(getLocale());
 
 	async function selectLanguage(lang: 'es' | 'ca' | 'en') {
-		// setLocale updates the cookie and triggers page reload
 		setLocale(lang);
-
-		// If user is authenticated, also save to their profile
 		if ($currentUser) {
 			await saveUserLanguage(lang);
 		}
@@ -46,20 +42,86 @@
 		{/snippet}
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Portal>
-		<DropdownMenu.Content align="end" sideOffset={8} class="min-w-40 p-2">
-			{#each languages as lang}
-				{@const selected = isSelected(lang.code)}
-				<DropdownMenu.Item
-					onclick={() => selectLanguage(lang.code)}
-					class={['cursor-pointer gap-3 py-2.5 px-3 rounded-md', selected && 'bg-primary/15 text-primary']}
-				>
-					<span class="font-semibold text-xs w-6">{lang.short}</span>
-					<span class="flex-1">{lang.label}</span>
-					{#if selected}
-						<Check class="size-4" />
-					{/if}
-				</DropdownMenu.Item>
-			{/each}
+		<DropdownMenu.Content align="end" sideOffset={8}>
+			<div class="lang-menu" data-lang-menu>
+				{#each languages as lang}
+					{@const selected = isSelected(lang.code)}
+					<button
+						class="lang-item"
+						class:lang-selected={selected}
+						onclick={() => selectLanguage(lang.code)}
+					>
+						<span class="lang-code">{lang.short}</span>
+						<span class="lang-label">{lang.label}</span>
+						{#if selected}
+							<Check class="lang-check-icon" />
+						{/if}
+					</button>
+				{/each}
+			</div>
 		</DropdownMenu.Content>
 	</DropdownMenu.Portal>
 </DropdownMenu.Root>
+
+<style>
+	/* Portal renders outside component DOM — use :global with data attribute to scope */
+	:global([data-lang-menu]) {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 4px;
+		min-width: 160px;
+	}
+
+	:global([data-lang-menu] .lang-item) {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 12px;
+		border-radius: 8px;
+		border: none;
+		background: transparent;
+		cursor: pointer;
+		font-size: 0.875rem;
+		color: var(--foreground);
+		transition: background 0.15s ease;
+		text-align: left;
+		width: 100%;
+		font-family: inherit;
+	}
+
+	:global([data-lang-menu] .lang-item:hover) {
+		background: color-mix(in srgb, var(--foreground) 8%, transparent);
+	}
+
+	:global([data-lang-menu] .lang-item.lang-selected) {
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
+		color: var(--primary);
+	}
+
+	:global([data-lang-menu] .lang-item.lang-selected:hover) {
+		background: color-mix(in srgb, var(--primary) 18%, transparent);
+	}
+
+	:global([data-lang-menu] .lang-code) {
+		font-weight: 600;
+		font-size: 0.75rem;
+		width: 24px;
+		flex-shrink: 0;
+		opacity: 0.7;
+	}
+
+	:global([data-lang-menu] .lang-item.lang-selected .lang-code) {
+		opacity: 1;
+	}
+
+	:global([data-lang-menu] .lang-label) {
+		flex: 1;
+	}
+
+	:global([data-lang-menu] .lang-check-icon) {
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
+	}
+</style>

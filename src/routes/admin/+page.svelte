@@ -8,20 +8,19 @@
   import { goto } from '$app/navigation';
   import {
     ChevronLeft,
+    ChevronRight,
     Users,
     Swords,
     Trophy,
-    Shield,
-    ArrowRight,
     BarChart3
   } from '@lucide/svelte';
 
   const allAdminSections = [
     {
-      title: m.admin_matchManagement,
-      description: m.admin_manageMatchesDesc,
-      Icon: Swords,
-      path: '/admin/matches',
+      title: m.admin_userManagement,
+      description: m.admin_manageUsersDesc,
+      Icon: Users,
+      path: '/admin/users',
       superAdminOnly: true
     },
     {
@@ -31,10 +30,10 @@
       path: '/admin/tournaments'
     },
     {
-      title: m.admin_userManagement,
-      description: m.admin_manageUsersDesc,
-      Icon: Users,
-      path: '/admin/users',
+      title: m.admin_matchManagement,
+      description: m.admin_manageMatchesDesc,
+      Icon: Swords,
+      path: '/admin/matches',
       superAdminOnly: true
     },
     {
@@ -67,7 +66,7 @@
           <span class="admin-back-icon">
             <ChevronLeft size={16} />
           </span>
-          <span class="admin-back-label">Back to App</span>
+          <span class="admin-back-label">{m.admin_backToHome()}</span>
         </button>
 
         <div class="admin-navbar-actions">
@@ -78,14 +77,10 @@
 
     <main class="admin-content">
       <section class="admin-header">
-        <div class="admin-header-badge">
-          <Shield size={18} strokeWidth={2.5} />
-          <span>Administration</span>
-        </div>
-        <h1 class="admin-title">{m.admin_panel()}</h1>
-        <p class="admin-subtitle">
+        <p class="admin-greeting">
           {m.admin_welcome()}, <span class="admin-username">{$currentUser?.name || 'Admin'}</span>
         </p>
+        <h1 class="admin-title">{m.admin_panel()}</h1>
       </section>
 
       <section class="admin-sections">
@@ -95,13 +90,14 @@
             class="admin-card"
           >
             <div class="admin-card-icon">
-              <section.Icon size={24} strokeWidth={1.8} />
+              <section.Icon size={22} strokeWidth={1.8} />
             </div>
-            <h2 class="admin-card-title">{section.title()}</h2>
-            <p class="admin-card-desc">{section.description()}</p>
-            <span class="admin-card-action">
-              <span>Manage</span>
-              <ArrowRight size={14} />
+            <div class="admin-card-body">
+              <h2 class="admin-card-title">{section.title()}</h2>
+              <p class="admin-card-desc">{section.description()}</p>
+            </div>
+            <span class="admin-card-chevron">
+              <ChevronRight size={18} />
             </span>
           </button>
         {/each}
@@ -122,7 +118,7 @@
     font-family: system-ui, -apple-system, sans-serif;
   }
 
-  /* Navbar */
+  /* ── Navbar ── */
   .admin-navbar {
     position: sticky;
     top: 0;
@@ -131,14 +127,13 @@
     border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
     background: color-mix(in srgb, var(--background) 85%, transparent);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
 
   .admin-navbar-inner {
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
-    height: 56px;
+    padding: 0 16px;
+    height: 52px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -154,6 +149,7 @@
     background: none;
     border: none;
     cursor: pointer;
+    padding: 0;
     transition: color 0.2s;
   }
 
@@ -175,7 +171,7 @@
 
   .admin-back-btn:hover .admin-back-icon {
     border-color: color-mix(in srgb, var(--primary) 50%, transparent);
-    background: var(--accent);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
   }
 
   .admin-back-label {
@@ -185,60 +181,35 @@
   .admin-navbar-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
   }
 
-  /* Content */
+  /* ── Content ── */
   .admin-content {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
     width: 100%;
-    padding: 24px;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 16px 32px;
     gap: 24px;
     overflow-y: auto;
   }
 
-  /* Header */
+  /* ── Header ── */
   .admin-header {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 8px;
+    gap: 2px;
   }
 
-  .admin-header-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 8%, transparent);
-    margin-bottom: 4px;
-  }
-
-  .admin-title {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: var(--foreground);
-    margin: 0;
-    line-height: 1.2;
-  }
-
-  .admin-subtitle {
-    font-size: 15px;
+  .admin-greeting {
+    font-size: 13px;
     color: var(--muted-foreground);
     margin: 0;
+    font-weight: 400;
   }
 
   .admin-username {
@@ -246,39 +217,45 @@
     color: var(--primary);
   }
 
-  /* Cards */
+  .admin-title {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--foreground);
+    margin: 0;
+    line-height: 1.3;
+  }
+
+  /* ── Cards ── */
   .admin-sections {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 16px;
-    width: 100%;
-    max-width: 780px;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .admin-card {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    gap: 14px;
     width: 100%;
-    max-width: 280px;
-    min-height: 200px;
-    padding: 24px;
-    border-radius: 16px;
+    padding: 14px 16px;
+    border-radius: 14px;
     border: 1px solid var(--border);
     background: var(--card);
     text-align: left;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: all 0.2s ease;
     position: relative;
+    font-family: inherit;
   }
 
   .admin-card:hover {
-    border-color: color-mix(in srgb, var(--primary) 35%, transparent);
-    box-shadow:
-      0 1px 3px color-mix(in srgb, var(--primary) 6%, transparent),
-      0 8px 24px color-mix(in srgb, var(--primary) 8%, transparent);
-    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+    background: color-mix(in srgb, var(--primary) 4%, var(--card));
+  }
+
+  .admin-card:active {
+    transform: scale(0.985);
   }
 
   .admin-card:focus-visible {
@@ -290,26 +267,34 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
     background: color-mix(in srgb, var(--primary) 10%, transparent);
     color: var(--primary);
-    margin-bottom: 16px;
-    transition: all 0.25s;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
   }
 
   .admin-card:hover .admin-card-icon {
     background: var(--primary);
     color: var(--primary-foreground);
-    transform: scale(1.05);
+  }
+
+  .admin-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .admin-card-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--foreground);
-    margin: 0 0 6px;
+    margin: 0;
+    line-height: 1.3;
     transition: color 0.2s;
   }
 
@@ -319,39 +304,33 @@
 
   .admin-card-desc {
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.4;
     color: var(--muted-foreground);
     margin: 0;
-    flex: 1;
-    line-clamp: 3;
-    -webkit-line-clamp: 3;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .admin-card-action {
-    display: inline-flex;
+  .admin-card-chevron {
+    display: flex;
     align-items: center;
-    gap: 4px;
-    margin-top: 16px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--primary);
-    opacity: 0;
-    transform: translateX(-4px);
-    transition: all 0.25s;
+    color: var(--muted-foreground);
+    opacity: 0.4;
+    transition: all 0.2s;
+    flex-shrink: 0;
   }
 
-  .admin-card:hover .admin-card-action {
+  .admin-card:hover .admin-card-chevron {
     opacity: 1;
-    transform: translateX(0);
+    color: var(--primary);
+    transform: translateX(2px);
   }
 
-  /* Responsive */
-  @media (min-width: 640px) {
+  /* ── Desktop ── */
+  @media (min-width: 540px) {
     .admin-navbar-inner {
-      padding: 0 32px;
+      padding: 0 24px;
     }
 
     .admin-back-label {
@@ -359,46 +338,49 @@
     }
 
     .admin-content {
-      padding: 48px 32px 64px;
-      gap: 48px;
+      padding: 40px 24px 48px;
+      gap: 28px;
     }
 
     .admin-title {
-      font-size: 34px;
+      font-size: 28px;
     }
 
     .admin-sections {
-      gap: 20px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
     }
-  }
 
-  @media (max-width: 639px) {
     .admin-card {
-      max-width: 100%;
-      min-height: auto;
-      flex-direction: row;
-      align-items: center;
-      gap: 16px;
-      padding: 16px 20px;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 20px;
+      gap: 0;
+      min-height: 152px;
     }
 
     .admin-card-icon {
-      margin-bottom: 0;
-      width: 44px;
-      height: 44px;
-      flex-shrink: 0;
+      margin-bottom: 14px;
     }
 
-    .admin-card-title {
-      margin: 0;
+    .admin-card-body {
+      gap: 4px;
+      flex: 1;
     }
 
     .admin-card-desc {
-      display: none;
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
-    .admin-card-action {
-      display: none;
+    .admin-card-chevron {
+      position: absolute;
+      top: 20px;
+      right: 18px;
     }
   }
 </style>

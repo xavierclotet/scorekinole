@@ -23,7 +23,7 @@ export interface UserProfile {
   quotaEntries?: QuotaEntry[];     // Per-year quota entries (new system)
   // Tournament tracking (ranking is calculated from tournaments, not stored)
   tournaments?: TournamentRecord[];      // Tournament history
-  authProvider?: 'google' | 'facebook' | null;  // null = GUEST without auth
+  authProvider?: 'google' | 'facebook' | 'email' | null;  // null = GUEST without auth
   mergedFrom?: string[];                 // IDs of GUEST users merged into this one
   mergedTo?: string;                     // ID of registered user this GUEST was merged to
   // Push notification preferences
@@ -101,10 +101,11 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 /**
  * Detect auth provider from Firebase user
  */
-function getAuthProvider(): 'google' | 'facebook' | null {
+function getAuthProvider(): 'google' | 'facebook' | 'email' | null {
   const providerId = firebaseAuth?.currentUser?.providerData[0]?.providerId;
   if (providerId === 'facebook.com') return 'facebook';
   if (providerId === 'google.com') return 'google';
+  if (providerId === 'password') return 'email';
   return 'google'; // default fallback for existing users
 }
 

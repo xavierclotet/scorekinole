@@ -49,7 +49,8 @@ Works on any device with a browser. You can also **install it as an app** on you
 ### 📊 **Match History & Cloud Sync**
 - **Automatic History**: All your matches are saved automatically to local storage
 - **Detailed Statistics**: See round-by-round breakdown of every match
-- **Cloud Sync with Google**: Sign in with Google to sync your matches across devices
+- **Cloud Sync**: Sign in to sync your matches across devices
+  - **Two sign-in methods**: Google Sign-In or Email/Password (with email verification)
   - **Auto-sync on completion**: Matches sync automatically when completed (if signed in)
   - **Manual sync**: "Sync All" button to upload pending matches
   - **Smart team detection**: Automatically detects which team you played based on your profile name
@@ -205,7 +206,7 @@ Play casual games with friends without tournament integration:
 1. Configure your settings (⚙️) and tap the **play button (▶)** at the bottom left to start a new game
 2. Play your match - scores are saved automatically to **local storage**
 3. View your match history in the **Match History** section
-4. **Optional**: Sign in with Google and tap **"Sync All"** in History to upload your matches to the cloud
+4. **Optional**: Sign in (Google or Email/Password) and tap **"Sync All"** in History to upload your matches to the cloud
 5. Access your synced matches from any device at **/matches**
 
 #### **Tournament Match**
@@ -242,11 +243,15 @@ Quickly join tournaments or friendly matches by scanning QR codes instead of typ
 - Browser will prompt for camera access on first use
 - If camera is denied, manual code entry is always available
 
-### Optional: Sign In with Google
+### Optional: Sign In
 - On the landing page, tap the **profile icon** at the top right → **Log In**
+- **Google Sign-In**: Recommended for Gmail users — one-tap login
+- **Email/Password**: For non-Gmail users — register with your email, verify via email link, then sign in
+  - Gmail addresses (`@gmail.com`) are redirected to use Google Sign-In instead
+  - Includes password reset via email
 - Access your **friendly match** history from any device (tournament matches are viewed in the tournament detail)
 - Your profile photo will appear in the game interface
-- **Tip**: Set your team name to match your Google profile name for automatic team detection when syncing
+- **Tip**: Set your team name to match your profile name for automatic team detection when syncing
 
 ### Tips & Tricks
 - **Swipe Gestures**: Swipe up to add points, swipe down to remove points

@@ -95,10 +95,14 @@ export async function deleteAllFCMTokens(): Promise<void> {
 	if (!user) return;
 
 	try {
-		// Delete from FCM service
+		// Delete from FCM service (may fail if SW was never registered)
 		const messaging = getFirebaseMessaging();
 		if (messaging) {
-			await deleteToken(messaging);
+			try {
+				await deleteToken(messaging);
+			} catch {
+				// Ignore — SW may not be registered (e.g., user never enabled push)
+			}
 		}
 
 		// Delete all token docs from Firestore

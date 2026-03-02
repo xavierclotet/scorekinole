@@ -6,13 +6,14 @@
 	import { loadMatchState } from '$lib/stores/matchState';
 	import { loadTeams } from '$lib/stores/teams';
 	import { gameSettings } from '$lib/stores/gameSettings';
-	import { initAuthListener, needsProfileSetup, currentUser } from '$lib/firebase/auth';
+	import { initAuthListener, needsProfileSetup, currentUser, emailVerificationPending } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import { isFirebaseEnabled } from '$lib/firebase/config';
 	import { refreshFCMTokenIfNeeded } from '$lib/firebase/messaging';
 	import { adminTheme } from '$lib/stores/theme';
 	import { trackPageView } from '$lib/utils/pageViewTracker';
 	import CompleteProfileModal from '$lib/components/CompleteProfileModal.svelte';
+	import EmailVerificationBanner from '$lib/components/EmailVerificationBanner.svelte';
 	import ReloadPrompt from '$lib/components/ReloadPrompt.svelte';
 	import '../app.css';
 
@@ -144,6 +145,10 @@
 		}
 	}
 </script>
+
+{#if $emailVerificationPending && $currentUser}
+	<EmailVerificationBanner />
+{/if}
 
 {@render children()}
 
