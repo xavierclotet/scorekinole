@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.71] - 2026-03-02
+- Redesign ProfileModal: wider layout, section cards, fullscreen on mobile, refined avatar
+- Add missing i18n keys: notifications_friendlyMatches, notifications_tournaments (en/ca)
+- Fix tournament chart filters and fullscreen overlay for light/violet-light themes
+
 ## [2.4.70] - 2026-03-01
 - Add seed lookup (buildSeedMap) for 3rd/4th place and consolation bracket matches
 - Show other non-counted tournaments in ranking detail modal
