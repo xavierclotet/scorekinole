@@ -604,6 +604,7 @@
 
   // Step 3: Group Stage
   let hasGroupStage = $state(true);
+  let isGroupOnly = $state(false);
   let numGroups = $state(2);
 
   interface GroupEntry {
@@ -1437,6 +1438,10 @@
     }
     if (currentStep < totalSteps) {
       currentStep++;
+      // Skip knockout stage (step 3) for GROUP_ONLY
+      if (isGroupOnly && currentStep === 3) {
+        currentStep++;
+      }
       saveDraft();
     }
   }
@@ -1444,6 +1449,10 @@
   function prevStep() {
     if (currentStep > 1) {
       currentStep--;
+      // Skip knockout stage (step 3) for GROUP_ONLY
+      if (isGroupOnly && currentStep === 3) {
+        currentStep--;
+      }
       saveDraft();
     }
   }
@@ -1482,26 +1491,29 @@
       };
     }
 
-    const finalStageInput: HistoricalFinalStageInput = {
-      mode: brackets.length > 2 ? 'PARALLEL_BRACKETS' : (brackets.length === 2 ? 'SPLIT_DIVISIONS' : 'SINGLE_BRACKET'),
-      brackets: brackets.map(b => ({
-        name: b.name,
-        label: b.label,
-        sourcePositions: b.sourcePositions,
-        rounds: b.rounds.map(r => ({
-          name: r.name,
-          matches: r.matches.map(m => ({
-            participantAName: m.participantAName || participants.find(p => p.id === m.participantAId)?.name || '',
-            participantBName: m.participantBName || participants.find(p => p.id === m.participantBId)?.name || '',
-            scoreA: m.scoreA,
-            scoreB: m.scoreB,
-            twentiesA: m.twentiesA,
-            twentiesB: m.twentiesB,
-            isWalkover: m.isWalkover
+    let finalStageInput: HistoricalFinalStageInput | undefined;
+    if (!isGroupOnly) {
+      finalStageInput = {
+        mode: brackets.length > 2 ? 'PARALLEL_BRACKETS' : (brackets.length === 2 ? 'SPLIT_DIVISIONS' : 'SINGLE_BRACKET'),
+        brackets: brackets.map(b => ({
+          name: b.name,
+          label: b.label,
+          sourcePositions: b.sourcePositions,
+          rounds: b.rounds.map(r => ({
+            name: r.name,
+            matches: r.matches.map(m => ({
+              participantAName: m.participantAName || participants.find(p => p.id === m.participantAId)?.name || '',
+              participantBName: m.participantBName || participants.find(p => p.id === m.participantBId)?.name || '',
+              scoreA: m.scoreA,
+              scoreB: m.scoreB,
+              twentiesA: m.twentiesA,
+              twentiesB: m.twentiesB,
+              isWalkover: m.isWalkover
+            }))
           }))
         }))
-      }))
-    };
+      };
+    }
 
     // Build input object - only include optional fields if they have values
     const input: HistoricalTournamentInput = {
@@ -1514,10 +1526,10 @@
       rankingConfig: rankingEnabled
         ? { enabled: true, tier: selectedTier }
         : { enabled: false },
-      phaseType: hasGroupStage ? 'TWO_PHASE' : 'ONE_PHASE',
+      phaseType: isGroupOnly ? 'GROUP_ONLY' : (hasGroupStage ? 'TWO_PHASE' : 'ONE_PHASE'),
       show20s: true,
       participants: participantInputs,
-      finalStage: finalStageInput
+      ...(isGroupOnly ? {} : { finalStage: finalStageInput })
     };
 
     // Add optional fields only if they have values
@@ -2039,6 +2051,14 @@
           <div class="info-section transform-config-section">
             <div class="info-section-header">⚡ {m.wizard_tournamentConfig()}</div>
 
+            <!-- Group Only Toggle -->
+            <div class="tc-field" style="margin-bottom: 0.5rem">
+              <label class="option-check">
+                <input type="checkbox" bind:checked={isGroupOnly} />
+                <span>{m.admin_groupOnly()} — {m.admin_groupOnlyDescription()}</span>
+              </label>
+            </div>
+
             <!-- Group Stage -->
             <div class="tc-section">
               <div class="tc-section-title">1. {m.wizard_groupStage()}</div>
@@ -2098,7 +2118,8 @@
               </div>
             </div>
 
-            <!-- Final Stage -->
+            <!-- Final Stage (hidden for GROUP_ONLY) -->
+            {#if !isGroupOnly}
             <div class="tc-section">
               <div class="tc-section-title">2. {m.wizard_finalStage()}</div>
               <div class="tc-section-body">
@@ -2211,6 +2232,7 @@
                 </div>
               </div>
             </div>
+            {/if}
           </div>
           {/if}
 

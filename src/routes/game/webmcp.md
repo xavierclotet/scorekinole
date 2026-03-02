@@ -47,6 +47,14 @@ description: "Interfaz principal de puntuación de partidas, gestión de rondas,
 - Un `$effect` detecta el parámetro `key`, lo persiste en `gameSettings` (localStorage), y **espera a que Firebase Auth inicialice** (`$authInitialized`) antes de llamar `handleJoinTournament()`.
 - Esto asegura que `$currentUser` esté disponible para tomar el camino optimizado (auto-start del match).
 
+## 💡 Onboarding Hints (Popovers)
+En modo amistoso, se muestran hints tipo Popover para guiar a usuarios registrados:
+1. **Hint de asignación (Team 1)**: Aparece si el usuario está logueado y no se ha asignado a ningún equipo. Mensaje: "Pulsa en + para registrar esta partida en tu perfil". Se muestra con delay de 800ms y animación de pulso en el botón "+".
+2. **Hint de invitación (Team 2)**: Aparece después de que el usuario se asigne a Team 1, si el oponente no está asignado. Mensaje: "¿Tu rival tiene cuenta? Invítale para que sus estadísticas también se guarden".
+- Ambos hints son **por sesión** (no se persisten en localStorage). Se descartan al pulsar "Entendido" o al hacer click en "+".
+- Props: `showAssignHint`, `assignHintMessage`, `ondismissAssignHint` (en `TeamCard` → `PlayerAssignButton`).
+- Condiciones: `!inTournamentMode && !!$currentUser && $authInitialized && !team.userId`.
+
 ## 🛠️ Notas de Implementación (Svelte 5)
 - Toda la página depende fuertemente de los stores (`$team1`, `$team2`, `$gameSettings`, `$matchState`).
 - Cuando se finaliza un set/punto de partido completo `isMatchComplete == true` y se guarda en base de datos.

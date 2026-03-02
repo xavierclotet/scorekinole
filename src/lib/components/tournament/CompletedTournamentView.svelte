@@ -52,7 +52,7 @@
   }
 
   // svelte-ignore state_referenced_locally - intentionally capturing initial value for default tab
-  let activeTab = $state<'groups' | 'bracket'>(tournament.phaseType === 'TWO_PHASE' ? 'groups' : 'bracket');
+  let activeTab = $state<'groups' | 'bracket'>(tournament.phaseType !== 'ONE_PHASE' ? 'groups' : 'bracket');
   let showMatchDialog = $state(false);
   let expandedResults = $state<Set<string>>(new Set()); // Track which group results are expanded
   let expandedConsolation = $state<Set<string>>(new Set()); // Track which consolation brackets are expanded
@@ -496,7 +496,7 @@
 
   <!-- Tab Navigation -->
   <div class="tab-navigation">
-    {#if tournament.phaseType === 'TWO_PHASE'}
+    {#if tournament.phaseType !== 'ONE_PHASE'}
       <button
         class="tab-button"
         class:active={activeTab === 'groups'}
@@ -506,14 +506,16 @@
         <span class="tab-label">{m.tournament_groupStage()}</span>
       </button>
     {/if}
-    <button
-      class="tab-button"
-      class:active={activeTab === 'bracket'}
-      onclick={() => activeTab = 'bracket'}
-    >
-      <span class="tab-indicator"></span>
-      <span class="tab-label">{m.tournament_finalStage()}</span>
-    </button>
+    {#if tournament.phaseType !== 'GROUP_ONLY'}
+      <button
+        class="tab-button"
+        class:active={activeTab === 'bracket'}
+        onclick={() => activeTab = 'bracket'}
+      >
+        <span class="tab-indicator"></span>
+        <span class="tab-label">{m.tournament_finalStage()}</span>
+      </button>
+    {/if}
   </div>
 
   <!-- Tab Content -->
@@ -554,6 +556,7 @@
                 isSwiss={tournament.groupStage?.type === 'SWISS'}
                 qualificationMode={tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS'}
                 isDoubles={tournament.gameType === 'doubles'}
+                showBuchholz={true}
               />
             </div>
 

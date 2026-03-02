@@ -14,6 +14,7 @@
     isDoubles?: boolean; // Whether this is a doubles tournament
     matchesToWin?: number; // Number of games to win (Pg1, Pg2, etc.)
     winProbability?: WinProbability | null; // Win probability for pending matches
+    locked?: boolean; // Whether this match is locked (round not yet playable)
   }
 
   let {
@@ -24,7 +25,8 @@
     gameMode = 'points',
     isDoubles = false,
     matchesToWin = 1,
-    winProbability = null
+    winProbability = null,
+    locked = false
   }: Props = $props();
 
   // If Pg1, always show total points instead of games won (0-1 doesn't make sense)
@@ -91,7 +93,7 @@
 
   let statusInfo = $derived(getStatusDisplay(match.status));
   let isBye = $derived(match.participantB === 'BYE');
-  let isClickable = $derived(onMatchClick !== undefined && !isBye); // Allow editing all matches except BYE
+  let isClickable = $derived(onMatchClick !== undefined && !isBye && !locked);
 
   // Check if match is a tie (no winner but match is completed)
   let isTie = $derived((match.status === 'COMPLETED' || match.status === 'WALKOVER') && !match.winner);
@@ -119,6 +121,7 @@
   class:compact
   class:clickable={isClickable}
   class:bye={isBye}
+  class:locked={locked}
   class:completed={match.status === 'COMPLETED'}
   class:walkover={match.status === 'WALKOVER'}
   class:in-progress={match.status === 'IN_PROGRESS'}
@@ -249,6 +252,12 @@
   .match-card.bye {
     opacity: 0.6;
     background: #f9fafb;
+  }
+
+  .match-card.locked {
+    opacity: 0.45;
+    pointer-events: none;
+    background: #f3f4f6;
   }
 
   /* Single row layout */
@@ -524,6 +533,10 @@
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.bye {
+    background: #0f1419;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.locked {
     background: #0f1419;
   }
 

@@ -538,6 +538,7 @@
                     isDoubles={tournament.gameType === 'doubles'}
                     matchesToWin={tournament.groupStage?.matchesToWin || 1}
                     {probabilities}
+                    groupStageType={tournament.groupStage?.type}
                   />
                 {:else}
                   <GroupStandings

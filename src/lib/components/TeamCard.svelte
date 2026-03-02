@@ -31,8 +31,10 @@
 		onassignPartner?: () => void;
 		/** Called when user wants to unassign partner from this team */
 		onunassignPartner?: () => void;
-		/** Whether to show the assign-yourself hint on the main player button */
+		/** Whether to show the hint popover on the main player button */
 		showAssignHint?: boolean;
+		/** Custom hint message (defaults to assign-self message) */
+		assignHintMessage?: string;
 		/** Called when the assign hint is dismissed */
 		ondismissAssignHint?: () => void;
 	}
@@ -51,6 +53,7 @@
 		onassignPartner,
 		onunassignPartner,
 		showAssignHint = false,
+		assignHintMessage = '',
 		ondismissAssignHint
 	}: Props = $props();
 
@@ -827,6 +830,7 @@
 									userName={team.name}
 									tooltipText={userButtonTooltip}
 									showHint={showAssignHint}
+									hintMessage={assignHintMessage}
 									onassign={onassignUser}
 									onunassign={onunassignUser}
 									ondismissHint={ondismissAssignHint}

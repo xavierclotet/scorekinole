@@ -130,6 +130,21 @@
 		assignHintDismissed = true;
 	}
 
+	// Invite-opponent hint: show after user assigned themselves, opponent slot is empty
+	let inviteHintDismissed = $state(false);
+	let shouldShowInviteHint = $derived(
+		!inviteHintDismissed &&
+		!inTournamentMode &&
+		!!$currentUser &&
+		$authInitialized &&
+		!!$team1.userId &&
+		!$team2.userId
+	);
+
+	function dismissInviteHint() {
+		inviteHintDismissed = true;
+	}
+
 	// Friendly match header info
 	let friendlyMatchTitle = $derived(
 		$gameSettings.gameType === 'doubles'
@@ -2419,6 +2434,9 @@
 			isMatchComplete={isMatchComplete}
 			canAssignUser={canAssignUserToTeam2}
 			canAssignPartner={canAssignPartnerToTeam2}
+			showAssignHint={shouldShowInviteHint}
+			assignHintMessage={m.invite_inviteHintMessage()}
+			ondismissAssignHint={dismissInviteHint}
 			onchangeColor={() => openColorPicker(2)}
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}

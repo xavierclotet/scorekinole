@@ -5,7 +5,7 @@
 
 import { getTournament, updateTournament } from '$lib/firebase/tournaments';
 import { generateBracket } from '$lib/firebase/tournamentBracket';
-import { calculateFinalPositions, syncParticipantRankings } from '$lib/firebase/tournamentRanking';
+import { calculateFinalPositions, calculateFinalPositionsForTournament, syncParticipantRankings } from '$lib/firebase/tournamentRanking';
 import type { TournamentStatus } from '$lib/types/tournament';
 
 /**
@@ -14,7 +14,7 @@ import type { TournamentStatus } from '$lib/types/tournament';
 const VALID_TRANSITIONS: Record<TournamentStatus, TournamentStatus[]> = {
   DRAFT: ['GROUP_STAGE', 'FINAL_STAGE', 'CANCELLED'],
   GROUP_STAGE: ['TRANSITION', 'CANCELLED'],
-  TRANSITION: ['FINAL_STAGE', 'CANCELLED'],
+  TRANSITION: ['FINAL_STAGE', 'COMPLETED', 'CANCELLED'],
   FINAL_STAGE: ['COMPLETED', 'CANCELLED'],
   COMPLETED: [],
   CANCELLED: []
@@ -70,6 +70,9 @@ export async function transitionTournament(
 
     case 'TRANSITION->FINAL_STAGE':
       return await startFinalStage(tournamentId);
+
+    case 'TRANSITION->COMPLETED':
+      return await completeGroupOnlyTournament(tournamentId);
 
     case 'FINAL_STAGE->COMPLETED':
       return await completeTournament(tournamentId);
@@ -403,6 +406,34 @@ async function completeTournament(tournamentId: string): Promise<boolean> {
 
   // Update status
   return await updateTournament(tournamentId, {
+    status: 'COMPLETED',
+    completedAt: Date.now()
+  });
+}
+
+/**
+ * Complete GROUP_ONLY tournament
+ *
+ * Validates:
+ * - phaseType is GROUP_ONLY
+ * - Calculates final positions from group standings
+ * - Marks tournament as COMPLETED
+ */
+async function completeGroupOnlyTournament(tournamentId: string): Promise<boolean> {
+  const tournament = await getTournament(tournamentId);
+  if (!tournament) return false;
+
+  if (tournament.phaseType !== 'GROUP_ONLY') {
+    console.error('completeGroupOnlyTournament called for non-GROUP_ONLY tournament');
+    return false;
+  }
+
+  // Calculate final positions from group standings
+  const updatedParticipants = calculateFinalPositionsForTournament(tournament);
+
+  // Update status to COMPLETED with final positions
+  return await updateTournament(tournamentId, {
+    participants: updatedParticipants,
     status: 'COMPLETED',
     completedAt: Date.now()
   });

@@ -18,6 +18,8 @@
     // Number of participants that will qualify (for cutoff tie highlighting)
     // If null/undefined, no cutoff highlighting will be shown
     qualifyingCount?: number | null;
+    // Force-show the Buchholz column (always shown for Swiss; set true for finalize page)
+    showBuchholz?: boolean;
   }
 
   let {
@@ -27,8 +29,11 @@
     qualificationMode = 'WINS',
     enableTiebreaker = true,
     isDoubles = false,
-    qualifyingCount = null
+    qualifyingCount = null,
+    showBuchholz = false
   }: Props = $props();
+
+  let displayBuchholz = $derived(isSwiss || showBuchholz);
 
   // Use qualificationMode if provided
   let effectiveQualificationMode = $derived(qualificationMode || 'WINS');
@@ -258,7 +263,7 @@
         {/if}
         <th class="total-points-col" class:primary={effectiveQualificationMode === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>{m.tournament_totalPointsScored()}</th>
         <th class="twenties-col">{m.tournament_twentiesShort()}</th>
-        {#if isSwiss}
+        {#if displayBuchholz}
           <th class="buchholz-col" title={m.tournament_buchholzTooltip()}>Buc</th>
         {/if}
       </tr>
@@ -344,7 +349,7 @@
             <strong>{standing.totalPointsScored}</strong>
           </td>
           <td class="twenties-col">{standing.total20s}</td>
-          {#if isSwiss}
+          {#if displayBuchholz}
             <td class="buchholz-col">{standing.buchholz ?? 0}</td>
           {/if}
         </tr>

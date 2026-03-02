@@ -247,7 +247,8 @@ export async function generateSwissPairings(
         tournament.participants,
         true, // isSwiss
         qualificationMode,
-        show20s
+        show20s,
+        tournament.groupStage.tiebreakerPriority
       );
     }
 
@@ -465,7 +466,8 @@ export async function recalculateStandings(
 
       // Apply tie-breaker and sort
       const standings = Array.from(standingsMap.values());
-      const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode, tournament.show20s !== false);
+      const tiebreakerPriority = tournament.groupStage?.tiebreakerPriority;
+      const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode, tournament.show20s !== false, tiebreakerPriority);
 
       // Update group standings
       group.standings = sortedStandings;

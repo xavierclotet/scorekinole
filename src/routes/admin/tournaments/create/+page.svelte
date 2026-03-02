@@ -65,7 +65,7 @@
 
   // Step 2: Tournament Format
   let numTables = $state(4);
-  let phaseType = $state<'ONE_PHASE' | 'TWO_PHASE'>('TWO_PHASE');
+  let phaseType = $state<'ONE_PHASE' | 'TWO_PHASE' | 'GROUP_ONLY'>('TWO_PHASE');
   let groupStageType = $state<'ROUND_ROBIN' | 'SWISS'>('ROUND_ROBIN');
   let numGroups = $state(1);
   let numSwissRounds = $state(5);
@@ -360,7 +360,7 @@
       thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
 
       // Load game config based on phase type
-      if (tournament.phaseType === 'TWO_PHASE') {
+      if (tournament.phaseType === 'TWO_PHASE' || tournament.phaseType === 'GROUP_ONLY') {
         // For two-phase tournaments, load from groupStage object
         if (tournament.groupStage) {
           groupStageType = tournament.groupStage.type || 'ROUND_ROBIN';
@@ -618,7 +618,7 @@
       thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
 
       // Load game config based on phase type (same logic as loadTournamentForEdit)
-      if (tournament.phaseType === 'TWO_PHASE') {
+      if (tournament.phaseType === 'TWO_PHASE' || tournament.phaseType === 'GROUP_ONLY') {
         if (tournament.groupStage) {
           groupStageType = tournament.groupStage.type || 'ROUND_ROBIN';
           groupGameMode = tournament.groupStage.gameMode || 'rounds';
@@ -1251,10 +1251,10 @@
     if (numTables < 1) {
       errors.push(m.wizard_errorMinTables());
     }
-    if (phaseType === 'TWO_PHASE' && groupStageType === 'ROUND_ROBIN' && numGroups < 1) {
+    if ((phaseType === 'TWO_PHASE' || phaseType === 'GROUP_ONLY') && groupStageType === 'ROUND_ROBIN' && numGroups < 1) {
       errors.push(m.wizard_errorMinGroups());
     }
-    if (phaseType === 'TWO_PHASE' && groupStageType === 'SWISS' && numSwissRounds < 3) {
+    if ((phaseType === 'TWO_PHASE' || phaseType === 'GROUP_ONLY') && groupStageType === 'SWISS' && numSwissRounds < 3) {
       errors.push(m.wizard_errorSwissMinRounds());
     }
     return errors;
@@ -1410,7 +1410,24 @@
       };
 
       // Set phase configuration based on phase type
-      if (phaseType === 'TWO_PHASE') {
+      if (phaseType === 'GROUP_ONLY') {
+        // GROUP_ONLY: only group stage, no final stage
+        tournamentData.groupStage = {
+          type: groupStageType,
+          groups: [],
+          currentRound: 0,
+          totalRounds: 0,
+          isComplete: false,
+          gameMode: groupGameMode,
+          pointsToWin: groupGameMode === 'points' ? groupPointsToWin : undefined,
+          roundsToPlay: groupGameMode === 'rounds' ? groupRoundsToPlay : undefined,
+          matchesToWin: groupMatchesToWin,
+          numGroups: groupStageType === 'ROUND_ROBIN' ? numGroups : undefined,
+          numSwissRounds: groupStageType === 'SWISS' ? numSwissRounds : undefined,
+          qualificationMode: qualificationMode
+        };
+        // No finalStage for GROUP_ONLY
+      } else if (phaseType === 'TWO_PHASE') {
         // Group stage configuration (inside groupStage object)
         tournamentData.groupStage = {
           type: groupStageType,
@@ -1987,26 +2004,34 @@
                 <div class="config-field phase-selector-compact">
                   <!-- svelte-ignore a11y_label_has_associated_control -->
                   <label>{m.wizard_phases()}</label>
-                  <div class="phase-buttons">
+                  <div class="toggle-buttons">
                     <button
                       type="button"
-                      class="phase-btn"
+                      class="toggle-btn"
                       class:active={phaseType === 'ONE_PHASE'}
                       onclick={() => phaseType = 'ONE_PHASE'}
                     >
-                      1
+                      1 fase
                     </button>
                     <button
                       type="button"
-                      class="phase-btn"
+                      class="toggle-btn"
                       class:active={phaseType === 'TWO_PHASE'}
                       onclick={() => phaseType = 'TWO_PHASE'}
                     >
-                      2
+                      2 fases
+                    </button>
+                    <button
+                      type="button"
+                      class="toggle-btn"
+                      class:active={phaseType === 'GROUP_ONLY'}
+                      onclick={() => { phaseType = 'GROUP_ONLY'; groupStageType = 'ROUND_ROBIN'; numGroups = 1; qualificationMode = 'POINTS'; groupGameMode = 'rounds'; groupRoundsToPlay = 4; }}
+                    >
+                      {m.admin_groupOnly()}
                     </button>
                   </div>
                   <span class="field-hint">
-                    {phaseType === 'ONE_PHASE' ? m.wizard_directElimination() : m.wizard_groupsElimination()}
+                    {phaseType === 'ONE_PHASE' ? m.wizard_directElimination() : phaseType === 'GROUP_ONLY' ? m.admin_groupOnlyDescription() : m.wizard_groupsElimination()}
                   </span>
                 </div>
                 <div class="config-field options-field">
@@ -2027,7 +2052,7 @@
             </div>
           </div>
 
-          {#if phaseType === 'TWO_PHASE'}
+          {#if phaseType === 'TWO_PHASE' || phaseType === 'GROUP_ONLY'}
             <!-- FASE 1: GRUPOS -->
             <div class="format-section groups-phase">
               <div class="section-header groups">
@@ -2169,6 +2194,7 @@
               </div>
             </div>
 
+            {#if phaseType !== 'GROUP_ONLY'}
             <!-- FASE 2: ELIMINACIÓN -->
             <div class="format-section finals-phase">
               <div class="section-header finals">
@@ -2455,6 +2481,7 @@
                 </div>
               </div>
             </div>
+            {/if}
           {:else}
             <!-- ONE_PHASE: Eliminación directa -->
             <div class="format-section one-phase">
@@ -3004,9 +3031,9 @@
                   <div class="rv-body">
                     <div class="rv-row">
                       <span class="rv-lbl">{m.wizard_phases()}</span>
-                      <span class="rv-val">{phaseType === 'ONE_PHASE' ? m.wizard_directElimination() : m.wizard_groupsFinal()}</span>
+                      <span class="rv-val">{phaseType === 'ONE_PHASE' ? m.wizard_directElimination() : phaseType === 'GROUP_ONLY' ? m.admin_groupOnly() : m.wizard_groupsFinal()}</span>
                     </div>
-                    {#if phaseType === 'TWO_PHASE'}
+                    {#if phaseType === 'TWO_PHASE' || phaseType === 'GROUP_ONLY'}
                       <div class="rv-row">
                         <span class="rv-lbl">{m.tournament_groups()}</span>
                         <span class="rv-val">
@@ -3017,24 +3044,28 @@
                         <span class="rv-lbl">{m.wizard_classificationType()}</span>
                         <span class="rv-val">{qualificationMode === 'WINS' ? m.tournament_byWins() : m.tournament_byPoints()}</span>
                       </div>
+                      {#if phaseType === 'TWO_PHASE'}
+                        <div class="rv-row">
+                          <span class="rv-lbl">{m.tournament_finalStage()}</span>
+                          <span class="rv-val">{finalStageMode === 'SINGLE_BRACKET' ? m.admin_singleBracket() : m.admin_goldSilverDivisions()}</span>
+                        </div>
+                      {/if}
+                    {/if}
+                    {#if phaseType !== 'GROUP_ONLY'}
                       <div class="rv-row">
-                        <span class="rv-lbl">{m.tournament_finalStage()}</span>
-                        <span class="rv-val">{finalStageMode === 'SINGLE_BRACKET' ? m.admin_singleBracket() : m.admin_goldSilverDivisions()}</span>
+                        <span class="rv-lbl">{m.wizard_thirdPlaceMatch()}</span>
+                        <span class="rv-val">{thirdPlaceMatchEnabled ? m.admin_yes() : m.admin_no()}</span>
+                      </div>
+                      <div class="rv-row">
+                        <span class="rv-lbl">{m.wizard_consolationRounds()}</span>
+                        <span class="rv-val">{consolationEnabled ? m.admin_yes() : m.admin_no()}</span>
                       </div>
                     {/if}
-                    <div class="rv-row">
-                      <span class="rv-lbl">{m.wizard_thirdPlaceMatch()}</span>
-                      <span class="rv-val">{thirdPlaceMatchEnabled ? m.admin_yes() : m.admin_no()}</span>
-                    </div>
-                    <div class="rv-row">
-                      <span class="rv-lbl">{m.wizard_consolationRounds()}</span>
-                      <span class="rv-val">{consolationEnabled ? m.admin_yes() : m.admin_no()}</span>
-                    </div>
                   </div>
                 </div>
 
-                <!-- Group Stage Config (TWO_PHASE only) -->
-                {#if phaseType === 'TWO_PHASE'}
+                <!-- Group Stage Config (TWO_PHASE and GROUP_ONLY) -->
+                {#if phaseType === 'TWO_PHASE' || phaseType === 'GROUP_ONLY'}
                   <div class="rv-section">
                     <div class="rv-sh">{m.wizard_groupStage()}</div>
                     <div class="rv-body">
@@ -3050,7 +3081,8 @@
                   </div>
                 {/if}
 
-                <!-- Gold/Single Bracket Config (shown for ALL phase types) -->
+                <!-- Gold/Single Bracket Config (hidden for GROUP_ONLY) -->
+                {#if phaseType !== 'GROUP_ONLY'}
                 <div class="rv-section">
                   <div class="rv-sh">
                     {#if phaseType === 'TWO_PHASE' && finalStageMode === 'SPLIT_DIVISIONS'}
@@ -3120,6 +3152,7 @@
                       </div>
                     </div>
                   </div>
+                {/if}
                 {/if}
               </div>
             </div>
@@ -4490,56 +4523,6 @@
     color: #064e3b;
     font-weight: bold;
     border-color: #10b981;
-  }
-
-  /* Phase Buttons - compact exclusive toggle */
-  .phase-buttons {
-    display: inline-flex;
-    gap: 4px;
-  }
-
-  .phase-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: #f9fafb;
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #6b7280;
-    transition: all 0.15s ease;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .phase-btn {
-    background: #374151;
-    border-color: #4b5563;
-    color: #9ca3af;
-  }
-
-  .phase-btn:hover:not(.active) {
-    background: #f3f4f6;
-    border-color: #9ca3af;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .phase-btn:hover:not(.active) {
-    background: #4b5563;
-  }
-
-  .phase-btn.active {
-    background: #059669;
-    border-color: #059669;
-    color: white;
-  }
-
-  .wizard-container:is([data-theme='dark'], [data-theme='violet']) .phase-btn.active {
-    background: #10b981;
-    border-color: #10b981;
-    color: #064e3b;
-    font-weight: bold;
   }
 
   .phase-selector-compact {

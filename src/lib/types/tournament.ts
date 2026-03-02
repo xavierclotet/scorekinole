@@ -13,7 +13,7 @@ export type TournamentStatus =
   | 'CANCELLED';     // Tournament cancelled
 
 // Tournament configuration
-export type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE';
+export type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE' | 'GROUP_ONLY';
 export type GroupStageType = 'ROUND_ROBIN' | 'SWISS';
 export type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' | 'PARALLEL_BRACKETS';  // Single bracket, Gold/Silver divisions, or A/B/C parallel brackets
 
@@ -21,6 +21,9 @@ export type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' | 'PARALLEL_BR
 // WINS: Both Round Robin and Swiss use 2/1/0 (win/tie/loss)
 // POINTS: Sum of all Crokinole points scored
 export type QualificationMode = 'WINS' | 'POINTS';
+
+// Tiebreaker criteria (configurable priority order)
+export type TiebreakerCriterion = 'h2h' | 'total20s' | 'totalPoints' | 'buchholz';
 
 // Legacy aliases for backwards compatibility
 export type GroupRankingSystem = QualificationMode;
@@ -72,7 +75,7 @@ export interface Tournament {
 
   // Phases
   groupStage?: GroupStage;
-  finalStage: FinalStage;
+  finalStage?: FinalStage;
 
 
   // Time configuration (per-tournament settings for time estimation)
@@ -210,6 +213,7 @@ export interface GroupStage {
   qualificationMode?: QualificationMode;  // How players qualify: 'WINS' (2/1/0) or 'POINTS' (total scored)
   rankingSystem?: GroupRankingSystem;  // @deprecated - use qualificationMode instead
   swissRankingSystem?: SwissRankingSystem;  // @deprecated - use qualificationMode instead
+  tiebreakerPriority?: TiebreakerCriterion[];  // Custom tiebreaker order (admin-configurable)
 }
 
 /**

@@ -19,6 +19,8 @@
 		tooltipSide?: 'top' | 'bottom' | 'left' | 'right';
 		/** Whether to show the onboarding hint popover */
 		showHint?: boolean;
+		/** Custom hint message (defaults to assign-self message) */
+		hintMessage?: string;
 		/** Called when user wants to assign themselves */
 		onassign?: () => void;
 		/** Called when user wants to unassign */
@@ -35,6 +37,7 @@
 		tooltipText = '',
 		tooltipSide = 'top',
 		showHint = false,
+		hintMessage = '',
 		onassign,
 		onunassign,
 		ondismissHint
@@ -115,9 +118,9 @@
 			{/snippet}
 		</Popover.Trigger>
 		<Popover.Content side="bottom" sideOffset={8} class="hint-popover-content">
-			<p class="hint-message">{m.invite_assignHintMessage()}</p>
+			<p class="hint-message">{hintMessage || m.invite_assignHintMessage()}</p>
 			<button class="hint-dismiss-btn" onclick={handleDismissHint}>
-				{m.invite_assignHintDismiss()}
+				{m.update_gotIt()}
 			</button>
 		</Popover.Content>
 	</Popover.Root>

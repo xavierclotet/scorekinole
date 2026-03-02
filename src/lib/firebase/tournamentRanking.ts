@@ -137,8 +137,8 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
   // Disqualified participants should NOT receive finalPosition or ranking points
   const isActiveParticipant = (p: any) => p && p.status !== 'DISQUALIFIED';
 
-  if (tournament.phaseType === 'TWO_PHASE') {
-    console.log('🏅 TWO_PHASE: assigning initial positions from group standings');
+  if (tournament.phaseType === 'TWO_PHASE' || tournament.phaseType === 'GROUP_ONLY') {
+    console.log(`🏅 ${tournament.phaseType}: assigning initial positions from group standings`);
     tournament.groupStage?.groups.forEach((group: any) => {
       group.standings.forEach((standing: any) => {
         const participant = updatedParticipants.find(p => p.id === standing.participantId);

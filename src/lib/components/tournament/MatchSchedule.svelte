@@ -29,6 +29,8 @@
     matchesToWin?: number;
     // Win probabilities for pending matches
     probabilities?: Map<string, WinProbability> | null;
+    // Group stage type (for round locking in ROUND_ROBIN)
+    groupStageType?: 'ROUND_ROBIN' | 'SWISS';
   }
 
   let {
@@ -44,7 +46,8 @@
     totalRounds = null,
     isDoubles = false,
     matchesToWin = 1,
-    probabilities = null
+    probabilities = null,
+    groupStageType
   }: Props = $props();
 
   // Internal state (used when no external state is provided)
@@ -108,6 +111,19 @@
     return { completed, total, percentage };
   }
 
+  // Check if a round is locked (only for ROUND_ROBIN: previous round must be fully completed)
+  function isRoundLocked(roundNumber: number): boolean {
+    if (groupStageType !== 'ROUND_ROBIN') return false;
+    if (roundNumber <= 1) return false;
+
+    // Use safeRounds (unfiltered) to check previous round completion
+    const prevRound = safeRounds.find((r: any) => r.roundNumber === roundNumber - 1);
+    if (!prevRound) return false;
+
+    const matches = Array.isArray(prevRound.matches) ? prevRound.matches : Object.values(prevRound.matches || {});
+    return matches.some((m: any) => m.status !== 'COMPLETED' && m.status !== 'WALKOVER');
+  }
+
   function toggleRound(roundNumber: number) {
     const newExpanded = new Set(expandedRounds);
     if (newExpanded.has(roundNumber)) {
@@ -142,12 +158,14 @@
       {@const isExpanded = expandedRounds.has(round.roundNumber)}
       {@const isComplete = progress.percentage === 100}
       {@const isLastRound = round.roundNumber === totalRoundsCount}
+      {@const locked = isRoundLocked(round.roundNumber)}
       <div
         class="round-section"
         class:current={round.roundNumber === currentRound}
         class:collapsed={!isExpanded}
         class:complete={isComplete}
         class:last-round={isLastRound && !isComplete}
+        class:locked
       >
         <button
           class="round-header"
@@ -164,6 +182,14 @@
               <span class="round-number">{m.tournament_round()} {round.roundNumber}</span>
               {#if isComplete}
                 <span class="complete-badge">{m.tournament_completed()}</span>
+              {:else if locked}
+                <span class="locked-badge">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  {m.tournament_roundLocked()}
+                </span>
               {:else if isLastRound}
                 <span class="last-round-badge">{m.tournament_lastRound()}</span>
               {/if}
@@ -183,10 +209,11 @@
               <MatchCard
                 {match}
                 {participants}
-                {onMatchClick}
+                onMatchClick={locked ? undefined : onMatchClick}
                 {gameMode}
                 {isDoubles}
                 {matchesToWin}
+                {locked}
                 winProbability={probabilities && match.participantA && match.participantB ? getMatchProbability(probabilities, match.participantA, match.participantB) : null}
               />
             {/each}
@@ -328,6 +355,27 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.02em;
+  }
+
+  .locked-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.1rem 0.4rem;
+    background: #9ca3af;
+    color: white;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .locked-badge svg {
+    flex-shrink: 0;
+  }
+
+  .round-section.locked {
+    opacity: 0.7;
   }
 
   .round-section.last-round {
@@ -472,7 +520,8 @@
     }
 
     .complete-badge,
-    .last-round-badge {
+    .last-round-badge,
+    .locked-badge {
       font-size: 0.55rem;
       padding: 0.08rem 0.3rem;
     }
@@ -522,7 +571,8 @@
     }
 
     .complete-badge,
-    .last-round-badge {
+    .last-round-badge,
+    .locked-badge {
       font-size: 0.5rem;
       padding: 0.06rem 0.25rem;
     }

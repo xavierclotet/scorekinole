@@ -14,6 +14,17 @@ import {
 } from '$lib/algorithms/bracket';
 import type { TournamentParticipant, Bracket, BracketWithConfig } from '$lib/types/tournament';
 
+/** Remove undefined values recursively — Firestore rejects them */
+function removeUndefined(obj: Record<string, any>) {
+  for (const key of Object.keys(obj)) {
+    if (obj[key] === undefined) {
+      delete obj[key];
+    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+      removeUndefined(obj[key]);
+    }
+  }
+}
+
 /**
  * Add participant to tournament
  *
@@ -51,6 +62,8 @@ export async function addParticipant(
         rankingSnapshot: 0,
         status: 'ACTIVE'
       } as TournamentParticipant;
+
+      removeUndefined(participant as Record<string, any>);
 
       transaction.update(tournamentRef, {
         participants: [...tournament.participants, participant],
@@ -111,12 +124,8 @@ export async function addParticipants(
           status: 'ACTIVE'
         } as TournamentParticipant;
 
-        // Remove undefined values — Firestore rejects them
-        for (const key of Object.keys(participant) as Array<keyof typeof participant>) {
-          if (participant[key] === undefined) {
-            delete participant[key];
-          }
-        }
+        // Remove undefined values recursively — Firestore rejects them
+        removeUndefined(participant as Record<string, any>);
 
         console.log('📤 Created participant:', {
           name: participant.name,

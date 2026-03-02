@@ -669,11 +669,14 @@
       const success = await transitionTournament(tournamentId, 'TRANSITION');
 
       if (success) {
-        toastMessage = m.admin_groupStageCompletedTransition();
+        toastMessage = tournament.phaseType === 'GROUP_ONLY'
+          ? m.admin_tournamentFinalized()
+          : m.admin_groupStageCompletedTransition();
         toastType = 'success';
         showToast = true;
         // Keep loading visible during navigation - don't reset isTransitioning
-        setTimeout(() => goto(`/admin/tournaments/${tournamentId}/transition`), 1500);
+        const targetPage = tournament.phaseType === 'GROUP_ONLY' ? 'finalize' : 'transition';
+        setTimeout(() => goto(`/admin/tournaments/${tournamentId}/${targetPage}`), 1500);
         return; // Exit without resetting isTransitioning
       } else {
         toastMessage = m.admin_errorCompletingGroupStage();
@@ -800,9 +803,9 @@
                   class="final-stage-btn"
                   onclick={confirmCompleteGroups}
                   disabled={isTransitioning}
-                  title={m.admin_completeGroupStage()}
+                  title={tournament?.phaseType === 'GROUP_ONLY' ? m.admin_finalizeTournament() : m.admin_completeGroupStage()}
                 >
-                  <span class="btn-text">{m.admin_toFinalStage()}</span>
+                  <span class="btn-text">{tournament?.phaseType === 'GROUP_ONLY' ? m.admin_finalizeTournament() : m.admin_toFinalStage()}</span>
                   <span class="btn-icon">
                     {#if isTransitioning}
                       <svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -905,7 +908,7 @@
           <div class="header-icon">
             <Check size={18} strokeWidth={2.5} />
           </div>
-          <h2>{m.admin_completeGroupStage()}</h2>
+          <h2>{tournament.phaseType === 'GROUP_ONLY' ? m.admin_finalizeTournament() : m.admin_completeGroupStage()}</h2>
           <button class="close-btn" onclick={closeCompleteModal} aria-label="Close">
             <X size={18} />
           </button>
@@ -913,7 +916,9 @@
         <div class="modal-body">
           <div class="tournament-name">{tournament.name}</div>
           <p class="info-text">
-            {#if tournament.phaseType === 'TWO_PHASE'}
+            {#if tournament.phaseType === 'GROUP_ONLY'}
+              {m.admin_finalizeTournamentConfirm()}
+            {:else if tournament.phaseType === 'TWO_PHASE'}
               {m.admin_selectQualifiersAfter()}
             {:else}
               {m.admin_tournamentWillAdvanceDirectly()}
@@ -922,7 +927,7 @@
         </div>
         <div class="confirm-actions">
           <button class="cancel-btn" onclick={closeCompleteModal}>{m.common_cancel()}</button>
-          <button class="confirm-btn" onclick={completeGroupStage}>{m.admin_complete()}</button>
+          <button class="confirm-btn" onclick={completeGroupStage}>{tournament.phaseType === 'GROUP_ONLY' ? m.admin_finalizeTournament() : m.admin_complete()}</button>
         </div>
       </div>
     </div>

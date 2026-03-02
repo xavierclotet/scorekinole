@@ -440,7 +440,7 @@ export interface TimeBreakdown {
   numParticipants: number;
   numTables: number;
   gameType: 'singles' | 'doubles';
-  phaseType: 'ONE_PHASE' | 'TWO_PHASE';
+  phaseType: 'ONE_PHASE' | 'TWO_PHASE' | 'GROUP_ONLY';
 
   // Group stage breakdown
   groupStage?: {
@@ -520,8 +520,8 @@ export function calculateTimeBreakdown(
     totalMinutes: 0
   };
 
-  // Group Stage calculation (only for TWO_PHASE tournaments)
-  if (tournament.phaseType === 'TWO_PHASE' && tournament.groupStage) {
+  // Group Stage calculation (for TWO_PHASE and GROUP_ONLY tournaments)
+  if ((tournament.phaseType === 'TWO_PHASE' || tournament.phaseType === 'GROUP_ONLY') && tournament.groupStage) {
     let totalMatches = 0;
     const numGroups = tournament.groupStage.numGroups || tournament.numGroups || 1;
     const numSwissRounds = tournament.groupStage.numSwissRounds || tournament.numSwissRounds || 5;
@@ -585,7 +585,13 @@ export function calculateTimeBreakdown(
     }
   }
 
-  // Final Stage calculation
+  // Final Stage calculation (skip for GROUP_ONLY - no final stage)
+  if (tournament.phaseType === 'GROUP_ONLY') {
+    breakdown.transitionMinutes = 0;
+    breakdown.totalMinutes = breakdown.groupStage?.totalMinutes || 0;
+    return breakdown;
+  }
+
   const finalConfig = tournament.finalStage;
   const isSplitDivisions = finalConfig?.mode === 'SPLIT_DIVISIONS';
 

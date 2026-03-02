@@ -55,7 +55,7 @@ export interface HistoricalTournamentInput {
   posterUrl?: string;
 
   // Structure
-  phaseType: 'ONE_PHASE' | 'TWO_PHASE';
+  phaseType: 'ONE_PHASE' | 'TWO_PHASE' | 'GROUP_ONLY';
   show20s?: boolean;
   showHammer?: boolean;
   isTest?: boolean;
@@ -66,8 +66,8 @@ export interface HistoricalTournamentInput {
   // Group stage (optional)
   groupStage?: HistoricalGroupStageInput;
 
-  // Final stage
-  finalStage: HistoricalFinalStageInput;
+  // Final stage (optional — not present for GROUP_ONLY)
+  finalStage?: HistoricalFinalStageInput;
 }
 
 export interface HistoricalParticipantInput {
@@ -465,9 +465,12 @@ export async function createHistoricalTournament(
       };
     };
 
-    let finalStage: FinalStage;
+    let finalStage: FinalStage | undefined;
 
-    if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
+    if (input.phaseType === 'GROUP_ONLY' || !input.finalStage) {
+      // GROUP_ONLY: no final stage
+      finalStage = undefined;
+    } else if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
       // Build parallel brackets (A/B/C)
       const parallelBrackets: NamedBracket[] = input.finalStage.brackets.map((b) => {
         const bracket = buildBracket(b);
@@ -563,19 +566,21 @@ export async function createHistoricalTournament(
     const numGroups = input.groupStage?.numGroups || 0;
     let maxBracketFirstRoundMatches = 0;
 
-    if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
-      // Sum of first round matches across all parallel brackets (they play simultaneously)
-      maxBracketFirstRoundMatches = input.finalStage.brackets.reduce((sum, b) => {
-        return sum + (b.rounds[0]?.matches.length || 0);
-      }, 0);
-    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS') {
-      // Gold and silver brackets can play in parallel
-      const goldFirstRound = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
-      const silverFirstRound = input.finalStage.brackets[1]?.rounds[0]?.matches.length || 0;
-      maxBracketFirstRoundMatches = goldFirstRound + silverFirstRound;
-    } else {
-      // Single bracket
-      maxBracketFirstRoundMatches = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+    if (input.finalStage) {
+      if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
+        // Sum of first round matches across all parallel brackets (they play simultaneously)
+        maxBracketFirstRoundMatches = input.finalStage.brackets.reduce((sum, b) => {
+          return sum + (b.rounds[0]?.matches.length || 0);
+        }, 0);
+      } else if (input.finalStage.mode === 'SPLIT_DIVISIONS') {
+        // Gold and silver brackets can play in parallel
+        const goldFirstRound = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+        const silverFirstRound = input.finalStage.brackets[1]?.rounds[0]?.matches.length || 0;
+        maxBracketFirstRoundMatches = goldFirstRound + silverFirstRound;
+      } else {
+        // Single bracket
+        maxBracketFirstRoundMatches = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+      }
     }
 
     const calculatedNumTables = Math.max(numGroups, maxBracketFirstRoundMatches, 1);
@@ -597,7 +602,7 @@ export async function createHistoricalTournament(
       numTables: calculatedNumTables,
       rankingConfig: input.rankingConfig,
       participants,
-      finalStage,
+      ...(finalStage ? { finalStage } : {}),
       createdAt: Date.now(),
       createdBy: {
         userId: user.id,
@@ -1023,9 +1028,12 @@ export async function completeUpcomingTournament(
       };
     };
 
-    let finalStage: FinalStage;
+    let finalStage: FinalStage | undefined;
 
-    if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
+    if (input.phaseType === 'GROUP_ONLY' || !input.finalStage) {
+      // GROUP_ONLY: no final stage
+      finalStage = undefined;
+    } else if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
       const parallelBrackets: NamedBracket[] = input.finalStage.brackets.map((b) => {
         const bracket = buildBracket(b);
         const finalRound = bracket.rounds[bracket.rounds.length - 1];
@@ -1108,16 +1116,18 @@ export async function completeUpcomingTournament(
     const numGroups = input.groupStage?.numGroups || 0;
     let maxBracketFirstRoundMatches = 0;
 
-    if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
-      maxBracketFirstRoundMatches = input.finalStage.brackets.reduce((sum, b) => {
-        return sum + (b.rounds[0]?.matches.length || 0);
-      }, 0);
-    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS') {
-      const goldFirstRound = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
-      const silverFirstRound = input.finalStage.brackets[1]?.rounds[0]?.matches.length || 0;
-      maxBracketFirstRoundMatches = goldFirstRound + silverFirstRound;
-    } else {
-      maxBracketFirstRoundMatches = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+    if (input.finalStage) {
+      if (input.finalStage.mode === 'PARALLEL_BRACKETS') {
+        maxBracketFirstRoundMatches = input.finalStage.brackets.reduce((sum, b) => {
+          return sum + (b.rounds[0]?.matches.length || 0);
+        }, 0);
+      } else if (input.finalStage.mode === 'SPLIT_DIVISIONS') {
+        const goldFirstRound = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+        const silverFirstRound = input.finalStage.brackets[1]?.rounds[0]?.matches.length || 0;
+        maxBracketFirstRoundMatches = goldFirstRound + silverFirstRound;
+      } else {
+        maxBracketFirstRoundMatches = input.finalStage.brackets[0]?.rounds[0]?.matches.length || 0;
+      }
     }
 
     const calculatedNumTables = Math.max(numGroups, maxBracketFirstRoundMatches, 1);
@@ -1137,7 +1147,7 @@ export async function completeUpcomingTournament(
       numTables: calculatedNumTables,
       rankingConfig: input.rankingConfig,
       participants,
-      finalStage,
+      ...(finalStage ? { finalStage } : {}),
       startedAt: input.tournamentDate,
       completedAt: input.tournamentDate,
       updatedAt: serverTimestamp(),

@@ -217,7 +217,7 @@
 
     try {
       // Determine next status based on tournament phase type
-      const nextStatus = tournament.phaseType === 'TWO_PHASE' ? 'GROUP_STAGE' : 'FINAL_STAGE';
+      const nextStatus = tournament.phaseType !== 'ONE_PHASE' ? 'GROUP_STAGE' : 'FINAL_STAGE';
 
       const success = await transitionTournament(tournamentId, nextStatus);
 
@@ -471,9 +471,15 @@
                 {m.admin_edit()}
               </button>
             {:else if tournament.status === 'TRANSITION'}
-              <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/transition`)}>
-                {m.admin_selectQualified()}
-              </button>
+              {#if tournament.phaseType === 'GROUP_ONLY'}
+                <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/finalize`)}>
+                  {m.admin_finalizeTournament()}
+                </button>
+              {:else}
+                <button class="action-btn primary" onclick={() => goto(`/admin/tournaments/${tournamentId}/transition`)}>
+                  {m.admin_selectQualified()}
+                </button>
+              {/if}
               <button class="action-btn" onclick={openQuickEdit}>
                 {m.admin_edit()}
               </button>
@@ -714,7 +720,8 @@
             </section>
           {/if}
 
-          <!-- Final Stage Configuration -->
+          <!-- Final Stage Configuration (hidden for GROUP_ONLY) -->
+          {#if tournament.phaseType !== 'GROUP_ONLY'}
           <section class="dashboard-card">
             <h2>🏆 {m.time_finalStage()}</h2>
 
@@ -866,6 +873,7 @@
               </div>
             {/if}
           </section>
+          {/if}
 
 
         </div>
@@ -887,13 +895,13 @@
           <span>{tournament.participants.length} {m.admin_participants()}</span>
           <br />
           <span>
-            {tournament.phaseType === 'TWO_PHASE' && tournament.groupStage
+            {(tournament.phaseType === 'TWO_PHASE' || tournament.phaseType === 'GROUP_ONLY') && tournament.groupStage
               ? `${m.tournament_groupStage()}: ${tournament.groupStage.type === 'ROUND_ROBIN' ? 'Round Robin' : m.tournament_swissSystem()}`
               : m.admin_directElimination()}
           </span>
         </div>
         <p class="info-text">
-          {tournament.phaseType === 'TWO_PHASE'
+          {tournament.phaseType !== 'ONE_PHASE'
             ? m.admin_groupStageScheduleWillBeGenerated()
             : m.admin_bracketWillBeGenerated()}
         </p>
