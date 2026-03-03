@@ -127,7 +127,7 @@ interface Tournament {
   address?: string;
   tournamentDate?: number;
   status: TournamentStatus;
-  phaseType: TournamentPhaseType;
+  phaseType: TournamentPhaseType;           // ONE_PHASE | TWO_PHASE | GROUP_ONLY
 
   // Game configuration
   gameType: 'singles' | 'doubles';
@@ -190,6 +190,9 @@ interface Tournament {
 ## 2. Enums / Types
 
 ```typescript
+// TWO_PHASE: DRAFT → GROUP_STAGE → TRANSITION → FINAL_STAGE → COMPLETED
+// ONE_PHASE: DRAFT → FINAL_STAGE → COMPLETED
+// GROUP_ONLY: DRAFT → GROUP_STAGE → COMPLETED (no TRANSITION or FINAL_STAGE)
 type TournamentStatus =
   | 'DRAFT'
   | 'GROUP_STAGE'
@@ -198,7 +201,10 @@ type TournamentStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE';
+// ONE_PHASE: Direct elimination bracket (no group stage)
+// TWO_PHASE: Group stage → Final bracket
+// GROUP_ONLY: Group stage only, no final stage (standings determine final positions)
+type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE' | 'GROUP_ONLY';
 type GroupStageType = 'ROUND_ROBIN' | 'SWISS';
 type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' | 'PARALLEL_BRACKETS';
 type QualificationMode = 'WINS' | 'POINTS';
@@ -1162,7 +1168,7 @@ This section documents what fields are **currently filled** when creating an imp
 | `address` | ✅ Optional | |
 | `tournamentDate` | ✅ From input | |
 | `status` | ✅ `'COMPLETED'` | Always completed |
-| `phaseType` | ✅ From input | `ONE_PHASE` or `TWO_PHASE` |
+| `phaseType` | ✅ From input | `ONE_PHASE`, `TWO_PHASE`, or `GROUP_ONLY` |
 | `gameType` | ✅ From input | `singles` or `doubles` |
 | `show20s` | ✅ Default `true` | |
 | `showHammer` | ✅ Default `false` | |
