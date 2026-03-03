@@ -1023,6 +1023,7 @@ interface MatchLike {
   status: string;
   // Notification context
   phase: "GROUP" | "FINAL" | "CONSOLATION";
+  groupId?: string;
   groupName?: string;
   roundNumber?: number;
   roundName?: string;
@@ -1057,6 +1058,7 @@ function extractAllMatches(data: any): MatchLike[] {
           matches.push({
             ...pickMatchFields(match),
             phase: "GROUP",
+            groupId: group.id,
             groupName: multipleGroups ? group.name : undefined,
             roundNumber: round.roundNumber,
           });
@@ -1159,7 +1161,92 @@ export const onTournamentMatchEvent = onDocumentUpdated(
       newlyAssigned.push(after);
     }
 
-    if (newlyAssigned.length === 0) return;
+    // --- For Round Robin, only notify for matches in the current playable round ---
+    // A round is playable if all matches in the previous round are COMPLETED or WALKOVER.
+    // Two cases trigger notifications:
+    //   1) Table just assigned to a match in the current playable round
+    //   2) A round just became unlocked (last match of previous round completed),
+    //      so we notify all PENDING matches in that newly playable round that already have tables
+    const isRoundRobin = afterData.status === "GROUP_STAGE" &&
+      afterData.groupStage?.type === "ROUND_ROBIN";
+
+    // For non-RR tournaments, early exit if no new table assignments
+    if (!isRoundRobin && newlyAssigned.length === 0) return;
+
+    // Helper: find the first round with incomplete matches for each group
+    function getPlayableRounds(data: any): Map<string, number> {
+      const result = new Map<string, number>();
+      if (!data.groupStage?.groups) return result;
+      for (const group of data.groupStage.groups) {
+        if (!group.schedule) continue;
+        const sortedRounds = [...group.schedule].sort(
+          (a: any, b: any) => (a.roundNumber || 0) - (b.roundNumber || 0)
+        );
+        for (const round of sortedRounds) {
+          const matches = Array.isArray(round.matches) ? round.matches : Object.values(round.matches || {});
+          const hasIncomplete = matches.some(
+            (m: any) => m.status !== "COMPLETED" && m.status !== "WALKOVER"
+          );
+          if (hasIncomplete) {
+            result.set(group.id, round.roundNumber);
+            break;
+          }
+        }
+      }
+      return result;
+    }
+
+    let matchesToNotify: MatchLike[] = [];
+
+    if (isRoundRobin) {
+      const beforePlayable = getPlayableRounds(beforeData);
+      const afterPlayable = getPlayableRounds(afterData);
+
+      // Case 1: newly assigned matches in the current playable round
+      for (const m of newlyAssigned) {
+        if (m.phase !== "GROUP") {
+          matchesToNotify.push(m);
+          continue;
+        }
+        const currentRound = afterPlayable.get(m.groupId || "");
+        if (currentRound === undefined || m.roundNumber === currentRound) {
+          matchesToNotify.push(m);
+        }
+      }
+
+      // Case 2: a round just became unlocked (playable round advanced)
+      // Find groups where the playable round changed
+      for (const [groupId, afterRound] of afterPlayable) {
+        const beforeRound = beforePlayable.get(groupId);
+        if (beforeRound !== undefined && afterRound > beforeRound) {
+          // Round advanced! Notify all PENDING matches in the new playable round
+          // that already have table assignments (they were assigned earlier but not notified)
+          for (const m of afterMatches) {
+            if (m.phase !== "GROUP" || m.groupId !== groupId) continue;
+            if (m.roundNumber !== afterRound) continue;
+            if (m.status !== "PENDING") continue;
+            if (!m.tableNumber) continue;
+            if (m.participantA === "BYE" || m.participantB === "BYE") continue;
+            // Don't duplicate if already in matchesToNotify (from case 1)
+            if (matchesToNotify.some((n) => n.id === m.id)) continue;
+            matchesToNotify.push(m);
+          }
+          logger.info(
+            `RR round unlocked: group ${groupId} advanced from round ${beforeRound} → ${afterRound}`
+          );
+        }
+      }
+
+      if (matchesToNotify.length !== newlyAssigned.length) {
+        logger.info(
+          `RR round filter: ${newlyAssigned.length} newly assigned → ${matchesToNotify.length} to notify`
+        );
+      }
+    } else {
+      matchesToNotify = newlyAssigned;
+    }
+
+    if (matchesToNotify.length === 0) return;
 
     // Build participant lookup
     const participants = afterData.participants || [];
@@ -1213,7 +1300,7 @@ export const onTournamentMatchEvent = onDocumentUpdated(
     // Send push notifications for all newly assigned matches in parallel
     const sendPromises: Promise<void>[] = [];
 
-    for (const match of newlyAssigned) {
+    for (const match of matchesToNotify) {
       const pA = participantMap.get(match.participantA || "");
       const pB = participantMap.get(match.participantB || "");
 

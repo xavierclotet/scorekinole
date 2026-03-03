@@ -200,10 +200,13 @@ Translation map (`notificationStrings`) covers: phase names, round prefix, table
 
 1. Extract all matches from groupStage and finalStage (before and after) with context metadata
 2. Compare: find matches where `tableNumber` changed from unset to a value
-3. For each newly assigned match, look up both participants' `userId`
-4. Fetch each user's language preference from their Firestore profile
-5. Check each user's `notificationPreferences.tournament_matchReady`
-6. Send localized push via `sendPushToUser()`:
+3. **Round Robin filter**: For RR tournaments, only notify for matches in the current playable round:
+   - A round is playable when all matches in the previous round are COMPLETED or WALKOVER
+   - Also detects when a round becomes newly unlocked (last match of previous round completed) and sends notifications for already-assigned matches in the new round
+4. For each match to notify, look up both participants' `userId`
+5. Fetch each user's language preference from their Firestore profile
+6. Check each user's `notificationPreferences.tournament_matchReady`
+7. Send localized push via `sendPushToUser()`:
    - **Tag**: `match-ready-{matchId}` (prevents duplicate notifications)
    - **URL**: `/game?key={tournamentKey}`
 

@@ -316,18 +316,21 @@ function findConnectedComponents(matches: ParsedGroupMatch[]): Set<string>[] {
  * WINS mode: points = wins*2 + draws. POINTS mode: points = sum of match scores.
  * Twenties: summed from round-level detail lines.
  */
-function computeStandingsFromMatches(
+export function computeStandingsFromMatches(
 	players: Set<string>,
 	matches: ParsedGroupMatch[],
-	qualificationMode: 'WINS' | 'POINTS'
+	qualificationMode: 'WINS' | 'POINTS',
+	totalRounds?: number
 ): ParsedParticipant[] {
-	const stats = new Map<string, { wins: number; draws: number; matchPoints: number; twenties: number }>();
-	for (const p of players) stats.set(p, { wins: 0, draws: 0, matchPoints: 0, twenties: 0 });
+	const stats = new Map<string, { wins: number; draws: number; matchPoints: number; twenties: number; played: number }>();
+	for (const p of players) stats.set(p, { wins: 0, draws: 0, matchPoints: 0, twenties: 0, played: 0 });
 
 	for (const match of matches) {
 		const sA = stats.get(match.participantAName);
 		const sB = stats.get(match.participantBName);
 		if (!sA || !sB) continue;
+
+		sA.played++; sB.played++;
 
 		if (match.scoreA > match.scoreB) { sA.wins++; }
 		else if (match.scoreA < match.scoreB) { sB.wins++; }
@@ -339,6 +342,20 @@ function computeStandingsFromMatches(
 		for (const r of match.rounds) {
 			sA.twenties += r.twentiesA;
 			sB.twenties += r.twentiesB;
+		}
+	}
+
+	// BYE bonus: players who missed rounds get bonus points (like a perfect win)
+	if (totalRounds && totalRounds > 0) {
+		const maxScore = matches.length > 0
+			? Math.max(...matches.map(m => Math.max(m.scoreA, m.scoreB)))
+			: 8;
+		for (const [, s] of stats) {
+			const byes = totalRounds - s.played;
+			if (byes > 0) {
+				s.wins += byes; // BYE counts as a win
+				s.matchPoints += byes * maxScore;
+			}
 		}
 	}
 
@@ -362,13 +379,14 @@ function parseRoundBasedGroupStage(
 ): ParseResult {
 	const allMatches: ParsedGroupMatch[] = [];
 	let currentMatch: ParsedGroupMatch | null = null;
+	let totalRounds = 0;
 
 	for (const rawLine of text.split('\n')) {
 		const line = rawLine.trim();
 		if (!line) { currentMatch = null; continue; }
 
-		// Round header (SS R1, RR R2, …) → just a separator
-		if (/^(SS|RR)\s+R\d+/i.test(line)) { currentMatch = null; continue; }
+		// Round header (SS R1, RR R2, …) → count rounds and skip
+		if (/^(SS|RR)\s+R\d+/i.test(line)) { totalRounds++; currentMatch = null; continue; }
 
 		const lineType = detectGroupLineType(line);
 
@@ -407,7 +425,7 @@ function parseRoundBasedGroupStage(
 		);
 		return {
 			name: components.length > 1 ? `Grupo ${idx + 1}` : 'Grupo 1',
-			participants: computeStandingsFromMatches(playerSet, groupMatches, qualificationMode),
+			participants: computeStandingsFromMatches(playerSet, groupMatches, qualificationMode, totalRounds),
 			matches: groupMatches
 		};
 	});

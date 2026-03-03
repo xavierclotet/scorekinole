@@ -16,17 +16,21 @@
     type HistoricalTournamentInput,
     type HistoricalParticipantInput,
     type HistoricalGroupStageInput,
+    type HistoricalGroupInput,
+    type HistoricalGroupRoundInput,
+    type HistoricalMatchInput,
     type HistoricalFinalStageInput,
     type UpcomingTournamentInput
   } from '$lib/firebase/tournamentImport';
   import { searchUsers, getTournament, transformImportedToLive } from '$lib/firebase/tournaments';
   import type { UserProfile } from '$lib/firebase/userProfile';
-  import type { TournamentTier, TournamentParticipant, Tournament } from '$lib/types/tournament';
+  import type { TournamentTier, TournamentParticipant, Tournament, TiebreakerCriterion } from '$lib/types/tournament';
   import { getParticipantDisplayName, normalizeTier } from '$lib/types/tournament';
+  import { RotateCcw, ChevronUp, ChevronDown } from '@lucide/svelte';
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import CountrySelect from '$lib/components/CountrySelect.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
-  import { parseGroupStageText, serializeGroupStageData, getPlaceholderText, type ParseResult, type ParsedGroup } from '$lib/utils/groupStageParser';
+  import { parseGroupStageText, serializeGroupStageData, getPlaceholderText, computeStandingsFromMatches, type ParseResult, type ParsedGroup } from '$lib/utils/groupStageParser';
   import {
     parseKnockoutStageText,
     serializeKnockoutStageData,
@@ -54,6 +58,7 @@
   let isSaving = $state(false);
   let savingAsUpcoming = $state(false);
   let hasPermission = $state(false);
+  let hasDraft = $state(false);
 
   // Edit mode state
   let editTournamentId = $state<string | null>(null);
@@ -186,6 +191,12 @@
           }));
           groupStageText = serializeGroupStageData(groupsForSerialization, gameType);
           parsePhase = 'preview'; // Show preview directly
+
+          // Load tiebreaker priority from existing tournament
+          if (tournament.groupStage?.tiebreakerPriority) {
+            tiebreakerPriority = [...tournament.groupStage.tiebreakerPriority];
+          }
+          initTiebreakerPriority();
         }
       } else {
         hasGroupStage = false;
@@ -538,10 +549,41 @@
   let rankingEnabled = $state(false);
   let selectedTier = $state<TournamentTier>('SERIES_15');
   let qualificationMode = $state<'WINS' | 'POINTS'>('POINTS');
+  let tiebreakerPriority = $state<TiebreakerCriterion[]>([]);
   let description = $state('');
   let externalLink = $state('');
   let posterUrl = $state('');
   let isTest = $state(false);
+
+  // Tiebreaker configuration (available criteria filtered by mode)
+  let availableCriteria = $derived.by<TiebreakerCriterion[]>(() => {
+    const all: TiebreakerCriterion[] = ['h2h', 'total20s', 'totalPoints', 'buchholz'];
+    return all.filter(c => {
+      if (c === 'totalPoints' && qualificationMode === 'POINTS') return false;
+      return true;
+    });
+  });
+
+  const criterionLabels: Record<TiebreakerCriterion, () => string> = {
+    h2h: () => m.admin_tiebreakerH2h(),
+    total20s: () => m.admin_tiebreakerTotal20s(),
+    totalPoints: () => m.admin_tiebreakerTotalPoints(),
+    buchholz: () => m.admin_tiebreakerBuchholz()
+  };
+
+  function initTiebreakerPriority() {
+    const filtered = tiebreakerPriority.filter(c => availableCriteria.includes(c));
+    const missing = availableCriteria.filter(c => !filtered.includes(c));
+    tiebreakerPriority = [...filtered, ...missing];
+  }
+
+  function moveCriterion(index: number, direction: -1 | 1) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= tiebreakerPriority.length) return;
+    const copy = [...tiebreakerPriority];
+    [copy[index], copy[newIndex]] = [copy[newIndex], copy[index]];
+    tiebreakerPriority = copy;
+  }
 
   // Step 2: Participants
   interface ParticipantEntry {
@@ -607,9 +649,18 @@
   let isGroupOnly = $state(false);
   let numGroups = $state(2);
 
+  interface GroupMatchEntry {
+    participantAName: string;
+    participantBName: string;
+    scoreA: number;
+    scoreB: number;
+    rounds: Array<{ pointsA: number; pointsB: number; twentiesA: number; twentiesB: number }>;
+  }
+
   interface GroupEntry {
     name: string;
     standings: StandingEntry[];
+    matches?: GroupMatchEntry[];
   }
 
   interface StandingEntry {
@@ -790,6 +841,9 @@
       hasGroupStage = data.hasGroupStage ?? true;
       numGroups = data.numGroups ?? 2;
       groups = data.groups ?? [];
+      qualificationMode = data.qualificationMode ?? 'POINTS';
+      tiebreakerPriority = data.tiebreakerPriority ?? [];
+      if (tiebreakerPriority.length > 0) initTiebreakerPriority();
 
       // Step 4: Final Stage
       numBrackets = data.numBrackets ?? 2;
@@ -809,6 +863,7 @@
       // Wizard state
       currentStep = data.currentStep ?? 1;
 
+      hasDraft = true;
       console.log('✅ Import draft loaded from localStorage');
     } catch (error) {
       console.error('❌ Error loading import draft:', error);
@@ -843,6 +898,8 @@
         hasGroupStage,
         numGroups,
         groups,
+        qualificationMode,
+        tiebreakerPriority,
 
         // Step 4: Final Stage
         numBrackets,
@@ -861,7 +918,47 @@
   function clearDraft() {
     if (typeof localStorage === 'undefined') return;
     localStorage.removeItem(STORAGE_KEY);
+    hasDraft = false;
     console.log('✅ Import draft cleared');
+  }
+
+  function resetDraft() {
+    clearDraft();
+    // Reset all fields to defaults
+    name = '';
+    edition = undefined;
+    address = '';
+    city = '';
+    country = 'España';
+    tournamentDate = new Date().toISOString().split('T')[0];
+    tournamentTime = '';
+    gameType = 'singles';
+    rankingEnabled = false;
+    selectedTier = 'SERIES_15';
+    qualificationMode = 'POINTS';
+    description = '';
+    externalLink = '';
+    posterUrl = '';
+    isTest = false;
+    participants = [];
+    searchQuery = '';
+    searchResults = [];
+    batchInput = '';
+    showBatchInput = false;
+    groupStageText = '';
+    parsePhase = 'input';
+    parseResult = null;
+    registeredUsersMap = new Map();
+    hasGroupStage = true;
+    isGroupOnly = false;
+    numGroups = 2;
+    groups = [];
+    numBrackets = 2;
+    brackets = [];
+    knockoutStageText = '';
+    knockoutParsePhase = 'input';
+    knockoutParseResult = null;
+    currentStep = 1;
   }
 
   // Search users debounced
@@ -1074,7 +1171,14 @@
             points: p.points,
             total20s: p.twenties
           };
-        })
+        }),
+        matches: g.matches?.map(m => ({
+          participantAName: m.participantAName,
+          participantBName: m.participantBName,
+          scoreA: m.scoreA,
+          scoreB: m.scoreB,
+          rounds: m.rounds
+        }))
       }));
 
       groups = newGroups;
@@ -1083,6 +1187,7 @@
 
       parseResult = result;
       parsePhase = 'preview';
+      initTiebreakerPriority();
       saveDraft();
 
     } catch (error) {
@@ -1105,6 +1210,63 @@
     groups = [];
     parsePhase = 'preview';
     saveDraft();
+  }
+
+  // Recompute standings when qualificationMode changes (for round-based data with matches)
+  function recomputeStandings() {
+    const hasMatchData = groups.some(g => g.matches && g.matches.length > 0);
+    if (!hasMatchData) return;
+
+    for (let i = 0; i < groups.length; i++) {
+      const g = groups[i];
+      if (!g.matches?.length) continue;
+
+      const players = new Set(g.matches.flatMap(m => [m.participantAName, m.participantBName]));
+      const n = players.size;
+      // Round-robin totalRounds: even=N-1, odd=N (odd players have BYE rounds)
+      const totalRounds = n % 2 === 0 ? n - 1 : n;
+
+      const parsedMatches = g.matches.map(m => ({
+        participantAName: m.participantAName,
+        participantBName: m.participantBName,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        rounds: m.rounds
+      }));
+
+      const newStandings = computeStandingsFromMatches(players, parsedMatches, qualificationMode, totalRounds);
+
+      // Map back to StandingEntry format, preserving participantId
+      groups[i].standings = newStandings.map(ns => {
+        const existing = g.standings.find(s => s.participantName === ns.name);
+        return {
+          participantId: existing?.participantId || '',
+          participantName: ns.name,
+          position: ns.position,
+          points: ns.points,
+          total20s: ns.twenties
+        };
+      });
+    }
+    groups = groups; // trigger reactivity
+  }
+
+  // Handle qualification mode change in step 2 preview
+  function handleQualificationModeChange(mode: 'WINS' | 'POINTS') {
+    qualificationMode = mode;
+    initTiebreakerPriority();
+    recomputeStandings();
+  }
+
+  // Handle skip knockout stage (group only mode)
+  function handleSkipKnockoutStage() {
+    isGroupOnly = true;
+    brackets = [];
+    knockoutStageText = '';
+    knockoutParseResult = null;
+    knockoutParsePhase = 'input';
+    saveDraft();
+    nextStep();
   }
 
   // Go back to input phase to edit text
@@ -1402,7 +1564,8 @@
         break;
 
       case 3:
-        // Knockout stage - now uses textarea parsing
+        // Knockout stage - skip validation if GROUP_ONLY
+        if (isGroupOnly) break;
         if (knockoutParsePhase === 'input') {
           errors.push(m.import_mustParseFirst());
         } else {
@@ -1465,6 +1628,48 @@
     }
   }
 
+  // Convert flat match list to round-based schedule for HistoricalGroupInput
+  function buildGroupSchedule(matches: GroupMatchEntry[]): HistoricalGroupRoundInput[] {
+    // Group matches into rounds based on participants
+    // Each participant plays once per round, so we fill rounds sequentially
+    const playersPerRound = new Set<string>();
+    const rounds: HistoricalGroupRoundInput[] = [];
+    let currentRound: HistoricalMatchInput[] = [];
+    let roundNumber = 1;
+
+    for (const m of matches) {
+      // If either player already played this round, start a new round
+      if (playersPerRound.has(m.participantAName) || playersPerRound.has(m.participantBName)) {
+        rounds.push({ roundNumber, matches: currentRound });
+        roundNumber++;
+        currentRound = [];
+        playersPerRound.clear();
+      }
+
+      playersPerRound.add(m.participantAName);
+      playersPerRound.add(m.participantBName);
+
+      const match: HistoricalMatchInput = {
+        participantAName: m.participantAName,
+        participantBName: m.participantBName,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB
+      };
+      if (m.rounds.length > 0) {
+        match.rounds = m.rounds;
+        match.twentiesA = m.rounds.reduce((s, r) => s + r.twentiesA, 0);
+        match.twentiesB = m.rounds.reduce((s, r) => s + r.twentiesB, 0);
+      }
+      currentRound.push(match);
+    }
+
+    if (currentRound.length > 0) {
+      rounds.push({ roundNumber, matches: currentRound });
+    }
+
+    return rounds;
+  }
+
   // Build input data for Firebase
   function buildTournamentInput(): HistoricalTournamentInput {
     const participantInputs: HistoricalParticipantInput[] = participants.map(p => ({
@@ -1479,16 +1684,27 @@
       groupStageInput = {
         numGroups: groups.length,
         qualificationMode,
-        groups: groups.map(g => ({
-          name: g.name,
-          standings: g.standings.map(s => ({
-            participantName: s.participantName || participants.find(p => p.id === s.participantId)?.name || '',
-            position: s.position,
-            points: s.points,
-            total20s: s.total20s
-          }))
-        }))
+        groups: groups.map(g => {
+          const group: HistoricalGroupInput = {
+            name: g.name,
+            standings: g.standings.map(s => ({
+              participantName: s.participantName || participants.find(p => p.id === s.participantId)?.name || '',
+              position: s.position,
+              points: s.points,
+              total20s: s.total20s
+            }))
+          };
+          // Pass match schedule if available (from round-based format)
+          if (g.matches && g.matches.length > 0) {
+            group.schedule = buildGroupSchedule(g.matches);
+          }
+          return group;
+        })
       };
+      // Include tiebreaker priority if configured
+      if (tiebreakerPriority.length > 0) {
+        groupStageInput.tiebreakerPriority = tiebreakerPriority;
+      }
     }
 
     let finalStageInput: HistoricalFinalStageInput | undefined;
@@ -1694,7 +1910,6 @@
     isSaving = true;
     try {
       const input = buildTournamentInput();
-      console.log('🔍 DEBUG - Tournament input:', JSON.stringify(input, null, 2));
 
       let success: boolean | string | null;
 
@@ -1866,6 +2081,16 @@
           </div>
         </div>
         <div class="header-actions">
+          {#if hasDraft && !isEditMode && !duplicateMode && !transformMode}
+            <button
+              class="reset-draft-btn"
+              onclick={() => resetDraft()}
+              title="Empezar de cero"
+            >
+              <RotateCcw size={16} />
+              <span class="reset-label">Empezar de cero</span>
+            </button>
+          {/if}
           <ThemeToggle />
         </div>
       </div>
@@ -2370,6 +2595,49 @@ Tom Hodgetts,49,115</pre>
                 </span>
               </div>
 
+              <!-- Classification & Tiebreaker Config (only for round-based data with matches) -->
+              {#if groups.some(g => g.matches && g.matches.length > 0)}
+                <div class="import-config-bar">
+                  <div class="config-row">
+                    <span class="config-label">{m.wizard_classificationType()}</span>
+                    <div class="toggle-group">
+                      <button type="button" class="toggle-btn" class:active={qualificationMode === 'WINS'} onclick={() => handleQualificationModeChange('WINS')}>{m.tournament_byWins()}</button>
+                      <button type="button" class="toggle-btn" class:active={qualificationMode === 'POINTS'} onclick={() => handleQualificationModeChange('POINTS')}>{m.scoring_points()}</button>
+                    </div>
+                    <span class="config-hint">{qualificationMode === 'WINS' ? m.wizard_classificationWinsHint() : m.wizard_classificationPointsHint()}</span>
+                  </div>
+                  <div class="config-row">
+                    <span class="config-label">{m.admin_tiebreakerPriorities()}</span>
+                    <div class="priority-list">
+                      {#each tiebreakerPriority as criterion, i (criterion)}
+                        <div class="priority-row">
+                          <div class="priority-arrows">
+                            <button
+                              class="arrow-btn"
+                              onclick={() => moveCriterion(i, -1)}
+                              disabled={i === 0}
+                              aria-label="Move up"
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              class="arrow-btn"
+                              onclick={() => moveCriterion(i, 1)}
+                              disabled={i === tiebreakerPriority.length - 1}
+                              aria-label="Move down"
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                          </div>
+                          <span class="priority-rank">{i + 1}</span>
+                          <span class="priority-name">{criterionLabels[criterion]()}</span>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+              {/if}
+
               <!-- Preview Groups -->
               {#each groups as group}
                 <div class="info-section preview-group">
@@ -2409,8 +2677,8 @@ Tom Hodgetts,49,115</pre>
               <!-- No group stage mode -->
               <div class="info-section">
                 <div class="no-groups-message">
-                  <p>{m.import_skipGroupStageHint()}</p>
-                  <p class="participant-count">{participants.length} participantes añadidos</p>
+                  <p>{m.import_noGroupStageMode()}</p>
+                  <p class="participant-count">{participants.length} {m.import_participantsAdded()}</p>
                 </div>
               </div>
 
@@ -2471,6 +2739,10 @@ Tom Hodgetts,49,115</pre>
                     {:else}
                       <span>{m.import_parse()}</span>
                     {/if}
+                  </button>
+
+                  <button class="skip-btn" onclick={handleSkipKnockoutStage}>
+                    {m.import_skipKnockoutStage()}
                   </button>
                 </div>
               </div>
@@ -2651,6 +2923,14 @@ Dan Rowe,Chris Robinson,12,6
           {/if}
 
           <!-- Knockout Stage Brackets -->
+          {#if isGroupOnly}
+            <div class="review-section">
+              <div class="review-section-title">{m.import_knockoutStage()}</div>
+              <div class="no-groups-message" style="padding: 1rem;">
+                <p>{m.import_skipKnockoutStage()}</p>
+              </div>
+            </div>
+          {:else if brackets.length > 0}
           <div class="review-section">
             <div class="review-section-title">{m.import_knockoutStage()}</div>
             <div class="review-brackets-container">
@@ -2688,6 +2968,7 @@ Dan Rowe,Chris Robinson,12,6
               {/each}
             </div>
           </div>
+          {/if}
 
           <!-- Import Notes -->
           {#if description}
@@ -2913,6 +3194,27 @@ Dan Rowe,Chris Robinson,12,6
     align-items: center;
     gap: 0.5rem;
     flex-shrink: 0;
+  }
+
+  .reset-draft-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .reset-draft-btn:hover {
+    color: var(--destructive);
+    border-color: var(--destructive);
+    background: color-mix(in srgb, var(--destructive) 8%, transparent);
   }
 
   /* Progress Bar */
@@ -3797,6 +4099,116 @@ Dan Rowe,Chris Robinson,12,6
 
   .registered-count {
     color: #16a34a;
+  }
+
+  /* Import Config Bar (qualification mode + tiebreaker) */
+  .import-config-bar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .config-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .config-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .config-hint {
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+    font-style: italic;
+  }
+
+  .priority-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .priority-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    background: var(--background);
+  }
+
+  .priority-rank {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--muted-foreground);
+    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .priority-name {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+
+  .priority-arrows {
+    display: flex;
+    flex-shrink: 0;
+    gap: 1px;
+  }
+
+  .arrow-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.1s;
+  }
+
+  .arrow-btn:first-child {
+    border-radius: 5px 0 0 5px;
+  }
+
+  .arrow-btn:last-child {
+    border-radius: 0 5px 5px 0;
+    border-left: none;
+  }
+
+  .arrow-btn:hover:not(:disabled) {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    z-index: 1;
+  }
+
+  .arrow-btn:disabled {
+    opacity: 0.2;
+    cursor: default;
   }
 
   .preview-group {
@@ -5474,6 +5886,14 @@ Dan Rowe,Chris Robinson,12,6
 
     .title-section h1 {
       font-size: 0.85rem;
+    }
+
+    .reset-label {
+      display: none;
+    }
+
+    .reset-draft-btn {
+      padding: 0.35rem;
     }
 
     .participants-grid {

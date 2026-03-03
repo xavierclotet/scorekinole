@@ -19,6 +19,7 @@
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
   import TournamentRulesModal from '$lib/components/tournament/TournamentRulesModal.svelte';
   import TournamentAdminsModal from '$lib/components/admin/TournamentAdminsModal.svelte';
+  import ExportTournamentModal from '$lib/components/tournament/ExportTournamentModal.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
 
   let tournament: Tournament | null = $state(null);
@@ -30,6 +31,7 @@
   let showTimeBreakdown = $state(false);
   let showRules = $state(false);
   let showAdminsModal = $state(false);
+  let showExportModal = $state(false);
   let timeBreakdown: TimeBreakdown | null = $state(null);
   let showToast = $state(false);
   let toastMessage = $state('');
@@ -133,9 +135,9 @@
     const hasBracketResults = tournament.finalStage?.goldBracket?.rounds?.some(
       r => r.matches?.some(m => m.status === 'COMPLETED')
     );
-    // Check if any group has standings with matches played
+    // Check if any group has standings with data (matchesPlayed or points for imported)
     const hasGroupResults = tournament.groupStage?.groups?.some(
-      g => g.standings?.some(s => s.matchesPlayed > 0)
+      g => g.standings?.some(s => s.matchesPlayed > 0 || s.points > 0 || s.totalPointsScored > 0)
     );
     return hasBracketResults || hasGroupResults;
   });
@@ -491,6 +493,11 @@
                 {m.admin_edit()}
               </button>
             {:else if tournament.status === 'COMPLETED'}
+              {#if !tournament.isImported}
+                <button class="action-btn" onclick={() => showExportModal = true}>
+                  {m.admin_exportData()}
+                </button>
+              {/if}
               <button class="action-btn" onclick={openQuickEdit}>
                 {m.admin_edit()}
               </button>
@@ -1151,6 +1158,14 @@
     {tournament}
     onClose={() => showAdminsModal = false}
     onUpdated={loadTournament}
+  />
+{/if}
+
+{#if showExportModal && tournament}
+  <ExportTournamentModal
+    {tournament}
+    theme={$adminTheme}
+    onclose={() => showExportModal = false}
   />
 {/if}
 
