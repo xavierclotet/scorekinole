@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.75] - 2026-03-03
+- Venue selector: show all venues on focus, shared across admins with owner name
+- Update default match times: singles 10min, doubles 13min
+- Update TOURNAMENT_DATA_STRUCTURE docs for round-based import capabilities
+
 ## [2.4.74] - 2026-03-03
 - Import wizard: BYE bonus, qualificationMode toggle, tiebreaker priorities
 - Fix BYE bonus in createHistoricalTournament for round-based imports
