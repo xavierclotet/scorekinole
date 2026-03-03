@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.76] - 2026-03-03
+- Autofill modal for RR tournaments: choose between filling current round only or all rounds
+- GROUP_ONLY phaseType documentation
+
 ## [2.4.75] - 2026-03-03
 - Venue selector: show all venues on focus, shared across admins with owner name
 - Update default match times: singles 10min, doubles 13min
