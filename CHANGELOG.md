@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.74] - 2026-03-03
+- Import wizard: BYE bonus, qualificationMode toggle, tiebreaker priorities
+- Fix BYE bonus in createHistoricalTournament for round-based imports
+- Build headToHeadRecord and apply resolveTiebreaker on imported standings
+- Add qualificationMode (WINS/POINTS) toggle with live recomputation in Step 2
+- Add tiebreaker priority reorder UI in import wizard preview
+- Fix Step 4 review showing empty knockout section for group-only imports
+- Tournament export modal and push notification enhancements
+
 ## [2.4.73] - 2026-03-02
 - Add finalize page with configurable tiebreaker priorities and match review
 - Refactor tiebreaker algorithm to support admin-configurable priority order
