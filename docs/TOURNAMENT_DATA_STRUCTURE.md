@@ -98,7 +98,7 @@ This document describes all interfaces that compose a `Tournament` object in Sco
 | Round-by-round breakdown | ✅ | ❌ |
 | Match timestamps | ✅ | ❌ |
 | Group stage standings | ✅ | ❌ |
-| Head-to-head records | ✅ | ❌ |
+| Head-to-head records | ✅ | ✅ (round-based) / ❌ (standings-only) |
 | Bracket progression | ✅ | ❌ |
 
 ---
@@ -1056,32 +1056,37 @@ This section documents what fields are **currently filled** when creating an imp
 | `status` | ✅ `'ACTIVE'` | |
 
 #### Group Stage (if TWO_PHASE)
-| Field | Value | Notes |
-|-------|-------|-------|
-| `type` | ✅ `'ROUND_ROBIN'` | Hardcoded |
-| `groups[].id` | ✅ Generated | |
-| `groups[].name` | ✅ From input | |
-| `groups[].participants` | ✅ Participant IDs | |
-| `groups[].schedule` | ❌ Empty `[]` | **Missing: no match details** |
-| `groups[].standings[].participantId` | ✅ | |
-| `groups[].standings[].position` | ✅ | |
-| `groups[].standings[].points` | ✅ Crokinole points | |
-| `groups[].standings[].total20s` | ✅ Optional | |
-| `groups[].standings[].totalPointsScored` | ✅ = points | |
-| `groups[].standings[].matchesPlayed` | ❌ Always `0` | **Missing** |
-| `groups[].standings[].matchesWon` | ❌ Always `0` | **Missing** |
-| `groups[].standings[].matchesLost` | ❌ Always `0` | **Missing** |
-| `groups[].standings[].matchesTied` | ❌ Always `0` | **Missing** |
-| `groups[].standings[].headToHeadRecord` | ❌ Not set | **Missing** |
-| `groups[].standings[].qualifiedForFinal` | ✅ `true` | |
-| `currentRound` | ✅ `0` | |
-| `totalRounds` | ✅ `0` | |
-| `isComplete` | ✅ `true` | |
-| `gameMode` | ✅ `'points'` | Hardcoded |
-| `pointsToWin` | ✅ `7` | Hardcoded |
-| `matchesToWin` | ✅ `1` | Hardcoded |
-| `numGroups` | ✅ From input | |
-| `qualificationMode` | ✅ From input | `'WINS'` or `'POINTS'` |
+
+**Two import formats**: standings-only (Name,Points,20s) and round-based (SS R1/RR R1 with match lines).
+Round-based imports populate full match data, BYE bonus, h2h records, and tiebreaker resolution.
+
+| Field | Standings-only | Round-based | Notes |
+|-------|---------------|-------------|-------|
+| `type` | ✅ `'ROUND_ROBIN'` | ✅ `'ROUND_ROBIN'` | Hardcoded |
+| `groups[].id` | ✅ Generated | ✅ Generated | |
+| `groups[].name` | ✅ From input | ✅ From input | |
+| `groups[].participants` | ✅ Participant IDs | ✅ Participant IDs | |
+| `groups[].schedule` | ❌ Empty `[]` | ✅ Full match schedule | Round-based builds GroupMatch[] per round |
+| `groups[].standings[].participantId` | ✅ | ✅ | |
+| `groups[].standings[].position` | ✅ | ✅ Resolved by tiebreaker | |
+| `groups[].standings[].points` | ✅ From input | ✅ Computed (WINS or POINTS mode) | Includes BYE bonus for odd-player groups |
+| `groups[].standings[].total20s` | ✅ Optional | ✅ Summed from rounds | |
+| `groups[].standings[].totalPointsScored` | ✅ = points | ✅ Summed from matches + BYE bonus | |
+| `groups[].standings[].matchesPlayed` | ❌ `0` | ✅ From match data | |
+| `groups[].standings[].matchesWon` | ❌ `0` | ✅ Includes BYE wins | |
+| `groups[].standings[].matchesLost` | ❌ `0` | ✅ From match data | |
+| `groups[].standings[].matchesTied` | ❌ `0` | ✅ From match data | |
+| `groups[].standings[].headToHeadRecord` | ❌ Not set | ✅ Built from matches | Enables resolveTiebreaker() |
+| `groups[].standings[].qualifiedForFinal` | ✅ `true` | ✅ `true` | |
+| `currentRound` | ✅ `0` | ✅ `0` | |
+| `totalRounds` | ✅ `0` | ✅ From schedule length | |
+| `isComplete` | ✅ `true` | ✅ `true` | |
+| `gameMode` | ✅ `'points'` | ✅ `'points'` | Hardcoded |
+| `pointsToWin` | ✅ `7` | ✅ `7` | Hardcoded |
+| `matchesToWin` | ✅ `1` | ✅ `1` | Hardcoded |
+| `numGroups` | ✅ From input | ✅ From input | |
+| `qualificationMode` | ✅ From input | ✅ From input | `'WINS'` or `'POINTS'`, configurable in Step 2 |
+| `tiebreakerPriority` | ❌ Not set | ✅ Optional | Admin-configurable order: h2h, total20s, totalPoints, buchholz |
 
 #### Final Stage - Bracket Matches
 | Field | Value | Notes |

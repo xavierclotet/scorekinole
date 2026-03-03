@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createVenue, getMyVenues } from '$lib/firebase/venues';
+	import { createVenue, getAllVenues } from '$lib/firebase/venues';
 	import type { Venue } from '$lib/types/venue';
 	import { getVenueLocationDisplay } from '$lib/types/venue';
 	import CountrySelect from '$lib/components/CountrySelect.svelte';
@@ -30,10 +30,12 @@
 	// Search state
 	let searchQuery = $state('');
 	let allVenues = $state<Venue[]>([]);
+	let searchFocused = $state(false);
 
-	// Derived search results (no $effect needed)
+	// Derived search results: show all on focus, filter on typing
 	let searchResults = $derived.by(() => {
-		if (!searchQuery || searchQuery.length < 2) return [];
+		if (!searchFocused && !searchQuery) return [];
+		if (!searchQuery) return allVenues.slice(0, 8);
 		const queryLower = searchQuery.toLowerCase();
 		return allVenues
 			.filter(
@@ -108,12 +110,13 @@
 	});
 
 	async function loadVenues() {
-		const venues = await getMyVenues();
+		const venues = await getAllVenues();
 		allVenues = venues;
 	}
 
 	function selectVenue(venue: Venue) {
 		showManualForm = false;
+		searchFocused = false;
 		props.onselect({
 			address: venue.address,
 			city: venue.city,
@@ -193,18 +196,25 @@
 					placeholder={m.venue_searchPlaceholder()}
 					class="input-field"
 					autocomplete="off"
+				onfocus={() => searchFocused = true}
+				onblur={() => setTimeout(() => searchFocused = false, 200)}
 				/>
 				{#if searchResults.length > 0}
 					<div class="search-results">
 						{#each searchResults as venue (venue.id)}
 							<button class="search-result-item" onclick={() => selectVenue(venue)}>
 								<span class="result-name">{venue.name}</span>
-								<span class="result-location">{getVenueLocationDisplay(venue)}</span>
+								<span class="result-details">
+									<span class="result-location">{getVenueLocationDisplay(venue)}</span>
+									{#if venue.ownerName}
+										<span class="result-owner">({venue.ownerName})</span>
+									{/if}
+								</span>
 								<span class="result-add">+</span>
 							</button>
 						{/each}
 					</div>
-				{:else if searchQuery.length >= 2}
+				{:else if searchFocused || searchQuery.length >= 2}
 					<div class="no-results">{m.venue_noResults()}</div>
 				{/if}
 			</div>
@@ -421,14 +431,28 @@
 		font-weight: 500;
 		flex-shrink: 0;
 	}
-	.result-location {
+	.result-details {
 		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+	.result-location {
 		font-size: 0.75rem;
 		color: var(--txt-muted);
 		text-align: right;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		max-width: 100%;
+	}
+	.result-owner {
+		font-size: 0.65rem;
+		color: var(--txt-muted);
+		opacity: 0.7;
+		text-align: right;
 	}
 	.result-add {
 		color: var(--primary);

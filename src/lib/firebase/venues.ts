@@ -62,6 +62,42 @@ export async function getMyVenues(): Promise<Venue[]> {
 }
 
 /**
+ * Get all venues from all admins (for shared venue selection)
+ */
+export async function getAllVenues(): Promise<Venue[]> {
+	if (!browser || !isFirebaseEnabled()) {
+		return [];
+	}
+
+	const user = get(currentUser);
+	if (!user) {
+		return [];
+	}
+
+	const adminStatus = await isAdmin();
+	if (!adminStatus) {
+		return [];
+	}
+
+	try {
+		const venuesRef = collection(db!, 'venues');
+		const q = query(venuesRef, orderBy('name'));
+		const snapshot = await getDocs(q);
+
+		const venues: Venue[] = [];
+		snapshot.forEach((docSnap) => {
+			venues.push({ id: docSnap.id, ...docSnap.data() } as Venue);
+		});
+
+		console.log(`✅ Loaded ${venues.length} venues (all admins)`);
+		return venues;
+	} catch (error) {
+		console.error('❌ Error getting all venues:', error);
+		return [];
+	}
+}
+
+/**
  * Search venues by name, city, or address (for autocomplete)
  * Filters client-side since Firestore doesn't support partial text search
  */
@@ -118,6 +154,7 @@ export async function createVenue(data: CreateVenueData): Promise<Venue | null> 
 		const venue: Partial<Venue> = {
 			id: venueId,
 			ownerId: user.id,
+			ownerName: user.name || 'Unknown',
 			name: data.name.trim(),
 			city: data.city.trim(),
 			country: data.country

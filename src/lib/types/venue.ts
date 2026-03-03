@@ -9,6 +9,7 @@ import type { Timestamp } from 'firebase/firestore';
 export interface Venue {
 	id: string; // Auto-generated UUID
 	ownerId: string; // Admin who created this venue
+	ownerName?: string; // Display name of the admin who created it
 
 	// Location details
 	name: string; // Venue name (e.g., "Club Crokitorra")

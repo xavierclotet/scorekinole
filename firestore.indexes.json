@@ -212,32 +212,11 @@
       ]
     },
     {
-      "collectionGroup": "tournaments",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "tournamentDate", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "pageViews",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "pageViews",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "normalizedPath", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "pageViewStats",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "date", "order": "ASCENDING" }
       ]
     }
   ],

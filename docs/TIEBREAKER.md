@@ -265,6 +265,10 @@ buchholz?: number;  // Calculated upfront in resolveTiebreaker()
 
 See: [`src/lib/algorithms/tiebreaker.ts`](../src/lib/algorithms/tiebreaker.ts)
 
+**Used by both LIVE and IMPORTED tournaments:**
+- LIVE: Called from finalize page and `recalculateStandings()`
+- IMPORTED: Called from `createHistoricalTournament()` when round-based match data is available (builds `headToHeadRecord` from matches, applies BYE bonus, then resolves ties)
+
 Key functions:
 - `resolveTiebreaker()` — Main entry point; calculates Buchholz for all standings, then resolves tied groups
 - `calculateBuchholz()` — Sums opponents' primary ranking values from standings
