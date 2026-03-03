@@ -192,7 +192,7 @@ interface Tournament {
 ```typescript
 // TWO_PHASE: DRAFT → GROUP_STAGE → TRANSITION → FINAL_STAGE → COMPLETED
 // ONE_PHASE: DRAFT → FINAL_STAGE → COMPLETED
-// GROUP_ONLY: DRAFT → GROUP_STAGE → COMPLETED (no TRANSITION or FINAL_STAGE)
+// GROUP_ONLY: DRAFT → GROUP_STAGE → TRANSITION → COMPLETED (no FINAL_STAGE)
 type TournamentStatus =
   | 'DRAFT'
   | 'GROUP_STAGE'
@@ -203,7 +203,7 @@ type TournamentStatus =
 
 // ONE_PHASE: Direct elimination bracket (no group stage)
 // TWO_PHASE: Group stage → Final bracket
-// GROUP_ONLY: Group stage only, no final stage (standings determine final positions)
+// GROUP_ONLY: Group stage → Transition (tiebreaker config) → Completed (no final stage)
 type TournamentPhaseType = 'ONE_PHASE' | 'TWO_PHASE' | 'GROUP_ONLY';
 type GroupStageType = 'ROUND_ROBIN' | 'SWISS';
 type FinalStageMode = 'SINGLE_BRACKET' | 'SPLIT_DIVISIONS' | 'PARALLEL_BRACKETS';

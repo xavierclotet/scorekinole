@@ -40,6 +40,7 @@
   let selectedMatch: GroupMatch | null = $state(null);
   let activeGroupId: string | null = $state(null);
   let isAutoFilling = $state(false);
+  let showAutoFillModal = $state(false);
   let unsubscribe: (() => void) | null = $state(null);
   let showTimeBreakdown = $state(false);
   let timeBreakdown: TimeBreakdown | null = $state(null);
@@ -358,9 +359,10 @@
   /**
    * Auto-fill pending matches with random results (SuperAdmin only)
    * For Swiss system: only fills matches of the current round
-   * For Round Robin: fills all pending matches
+   * For Round Robin: fills all pending matches, or only the first pending round
    */
-  async function autoFillAllMatches() {
+  async function autoFillAllMatches(onlyCurrentRound = false) {
+    showAutoFillModal = false;
     if (!tournament || !tournament.groupStage || !tournamentId) return;
 
     isAutoFilling = true;
@@ -392,6 +394,14 @@
       const isSwiss = tournament.groupStage.type === 'SWISS';
       const currentRound = tournament.groupStage.currentRound || 1;
 
+      // Detect the first pending round number for RR (before writes change statuses)
+      const detectedPendingRound = !isSwiss && onlyCurrentRound
+        ? tournament.groupStage.groups
+            .flatMap(g => g.schedule || [])
+            .filter(r => r.matches.some(match => match.status === 'PENDING' && match.participantB !== 'BYE'))
+            .sort((a, b) => a.roundNumber - b.roundNumber)[0]?.roundNumber || 1
+        : 0;
+
       // Get matches to fill based on tournament type
       for (const group of tournament.groupStage.groups) {
         let matches: GroupMatch[];
@@ -401,8 +411,16 @@
           const currentRoundPairing = group.pairings.find(p => p.roundNumber === currentRound);
           matches = currentRoundPairing ? currentRoundPairing.matches : [];
         } else if (group.schedule) {
-          // Round Robin: get all matches
-          matches = group.schedule.flatMap(r => r.matches);
+          // Round Robin: get matches based on mode
+          if (onlyCurrentRound) {
+            // Find first round with pending matches
+            const firstPendingRound = group.schedule.find(r =>
+              r.matches.some(m => m.status === 'PENDING' && m.participantB !== 'BYE')
+            );
+            matches = firstPendingRound ? firstPendingRound.matches : [];
+          } else {
+            matches = group.schedule.flatMap(r => r.matches);
+          }
         } else if (group.pairings) {
           // Fallback for Swiss without current round filter
           matches = group.pairings.flatMap(p => p.matches);
@@ -609,9 +627,13 @@
         if (success) filledCount++;
       }
 
-      toastMessage = isSwiss
-        ? m.admin_matchesFilledForRound({ n: filledCount, round: currentRound })
-        : m.admin_matchesFilledAuto({ n: filledCount });
+      if (isSwiss) {
+        toastMessage = m.admin_matchesFilledForRound({ n: filledCount, round: currentRound });
+      } else if (onlyCurrentRound) {
+        toastMessage = m.admin_matchesFilledForRound({ n: filledCount, round: detectedPendingRound });
+      } else {
+        toastMessage = m.admin_matchesFilledAuto({ n: filledCount });
+      }
       toastType = 'success';
       showToast = true;
       await loadTournament(); // Reload to show updated results
@@ -785,7 +807,7 @@
               {#if !allMatchesComplete}
                 <button
                   class="action-btn autofill"
-                  onclick={autoFillAllMatches}
+                  onclick={isSwiss ? () => autoFillAllMatches() : () => { showAutoFillModal = true; }}
                   disabled={isAutoFilling}
                   title={isSwiss
                     ? `${m.admin_autoFillMatchesTitle()} - ${m.tournament_round()} ${currentRound}`
@@ -928,6 +950,58 @@
         <div class="confirm-actions">
           <button class="cancel-btn" onclick={closeCompleteModal}>{m.common_cancel()}</button>
           <button class="confirm-btn" onclick={completeGroupStage}>{tournament.phaseType === 'GROUP_ONLY' ? m.admin_finalizeTournament() : m.admin_complete()}</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Autofill Options Modal (RR only) -->
+  {#if showAutoFillModal && tournament?.groupStage}
+    {@const groups = tournament.groupStage.groups}
+    {@const allPendingRounds = groups.flatMap(g => g.schedule || []).filter(r => r.matches.some(match => match.status === 'PENDING' && match.participantB !== 'BYE'))}
+    {@const firstPendingRoundNumber = allPendingRounds.length > 0 ? Math.min(...allPendingRounds.map(r => r.roundNumber)) : 0}
+    {@const currentRoundPendingCount = allPendingRounds.filter(r => r.roundNumber === firstPendingRoundNumber).flatMap(r => r.matches).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length}
+    {@const totalPendingCount = groups.flatMap(g => (g.schedule || []).flatMap(r => r.matches)).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length}
+    <div
+      class="modal-backdrop"
+      data-theme={$adminTheme}
+      onclick={() => { showAutoFillModal = false; }}
+      onkeydown={(e) => e.key === 'Escape' && (showAutoFillModal = false)}
+      role="presentation"
+    >
+      <!-- svelte-ignore a11y_interactive_supports_focus a11y_click_events_have_key_events -->
+      <div class="confirm-modal autofill-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+        <div class="modal-header">
+          <div class="header-icon">
+            <span style="font-size: 14px;">🎲</span>
+          </div>
+          <h2>{m.admin_autoFillModalTitle()}</h2>
+          <button class="close-btn" onclick={() => { showAutoFillModal = false; }} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div class="modal-body autofill-options">
+          {#if firstPendingRoundNumber > 0}
+            <button
+              class="autofill-option"
+              onclick={() => autoFillAllMatches(true)}
+              disabled={isAutoFilling}
+            >
+              <div class="option-label">{m.admin_autoFillCurrentRound()}</div>
+              <div class="option-info">{m.admin_autoFillRoundInfo({ round: firstPendingRoundNumber, count: currentRoundPendingCount })}</div>
+            </button>
+          {/if}
+          <button
+            class="autofill-option"
+            onclick={() => autoFillAllMatches(false)}
+            disabled={isAutoFilling}
+          >
+            <div class="option-label">{m.admin_autoFillAllRounds()}</div>
+            <div class="option-info">{m.admin_autoFillAllInfo({ count: totalPendingCount })}</div>
+          </button>
+        </div>
+        <div class="confirm-actions">
+          <button class="cancel-btn" onclick={() => { showAutoFillModal = false; }}>{m.common_cancel()}</button>
         </div>
       </div>
     </div>
@@ -1544,6 +1618,71 @@
 
   .confirm-btn.danger:hover:not(:disabled) {
     filter: brightness(1.1);
+  }
+
+  /* Autofill modal options */
+  .autofill-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .autofill-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    padding: 0.7rem 0.85rem;
+    background: #f8f9fa;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+    text-align: left;
+  }
+
+  .autofill-option:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
+  }
+
+  .autofill-option:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .autofill-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .option-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .option-info {
+    font-size: 0.75rem;
+    color: #64748b;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .autofill-option {
+    background: #1e2d3d;
+    border-color: #2d3748;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .autofill-option:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .option-label {
+    color: #e1e8ed;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .option-info {
+    color: #8b9bb3;
   }
 
   /* Responsive */
