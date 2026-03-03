@@ -53,27 +53,29 @@ This document describes all interfaces that compose a `Tournament` object in Sco
 | | `participants[].userId` | ✅ For registered users | ❌ Rarely present |
 | | `participants[].rankingSnapshot` | ✅ Captured at registration | `0` (unknown) |
 | | `participants[].finalPosition` | Calculated at completion | ✅ Imported directly |
-| **Group Stage** | `groupStage` | ✅ Full structure | ❌ `undefined` or minimal |
-| | `groupStage.groups[]` | ✅ All groups with data | ❌ Empty or missing |
-| | `groupStage.groups[].schedule[]` | ✅ All rounds with matches | ❌ Empty `[]` |
-| | `groupStage.groups[].standings[]` | ✅ Calculated standings | ❌ Empty or minimal |
-| **Group Matches** | `GroupMatch.status` | Progresses through lifecycle | `COMPLETED` |
-| | `GroupMatch.winner` | ✅ Set when match ends | ❌ Not present |
+| **Group Stage** | `groupStage` | ✅ Full structure | ✅ Round-based / ❌ Standings-only |
+| | `groupStage.groups[]` | ✅ All groups with data | ✅ Both formats |
+| | `groupStage.groups[].schedule[]` | ✅ All rounds with matches | ✅ Round-based / ❌ Standings-only |
+| | `groupStage.groups[].standings[]` | ✅ Calculated standings | ✅ Both formats (with tiebreaker for round-based) |
+| | `groupStage.qualificationMode` | ✅ WINS or POINTS | ✅ Configurable in import wizard |
+| | `groupStage.tiebreakerPriority` | ✅ If configured | ✅ Configurable (round-based only) |
+| **Group Matches** | `GroupMatch.status` | Progresses through lifecycle | ✅ `COMPLETED` (round-based) / ❌ (standings-only) |
+| | `GroupMatch.winner` | ✅ Set when match ends | ✅ Round-based / ❌ Standings-only |
 | | `GroupMatch.gamesWonA/B` | ✅ Game scores | ❌ Not present |
-| | `GroupMatch.totalPointsA/B` | ✅ Crokinole points | ❌ Not present |
-| | `GroupMatch.total20sA/B` | ✅ 20s count | ❌ Not present |
-| | `GroupMatch.rounds[]` | ✅ Round-by-round details | ❌ Empty or missing |
+| | `GroupMatch.totalPointsA/B` | ✅ Crokinole points | ✅ Round-based / ❌ Standings-only |
+| | `GroupMatch.total20sA/B` | ✅ 20s count | ✅ Round-based / ❌ Standings-only |
+| | `GroupMatch.rounds[]` | ✅ Round-by-round details | ✅ Round-based / ❌ Standings-only |
 | | `GroupMatch.startedAt/completedAt` | ✅ Timestamps | ❌ Not present |
-| **Final Stage** | `finalStage` | ✅ Full structure | ✅ Minimal structure |
-| | `finalStage.goldBracket.rounds[]` | ✅ All bracket rounds | ❌ Empty `[]` |
-| | `finalStage.thirdPlaceMatch` | ✅ If enabled | ❌ Not present |
+| **Final Stage** | `finalStage` | ✅ Full structure | ✅ From text-based bracket input |
+| | `finalStage.goldBracket.rounds[]` | ✅ All bracket rounds | ✅ From bracket text input |
+| | `finalStage.thirdPlaceMatch` | ✅ If enabled | ✅ Auto-calculated from losers |
 | | `finalStage.consolationBrackets[]` | ✅ If enabled | ❌ Not present |
 | | `finalStage.winner` | ✅ Participant ID | ✅ Participant ID |
-| **Bracket Matches** | `BracketMatch.status` | Progresses through lifecycle | Would be `COMPLETED` if present |
-| | `BracketMatch.winner` | ✅ Set when match ends | ❌ Not present (matches missing) |
+| **Bracket Matches** | `BracketMatch.status` | Progresses through lifecycle | ✅ `COMPLETED` or `WALKOVER` |
+| | `BracketMatch.winner` | ✅ Set when match ends | ✅ From scores |
 | | `BracketMatch.gamesWonA/B` | ✅ Game scores | ❌ Not present |
-| | `BracketMatch.totalPointsA/B` | ✅ Crokinole points | ❌ Not present |
-| | `BracketMatch.total20sA/B` | ✅ 20s count | ❌ Not present |
+| | `BracketMatch.totalPointsA/B` | ✅ Crokinole points | ✅ From bracket input |
+| | `BracketMatch.total20sA/B` | ✅ 20s count | ✅ Optional (from bracket input) |
 | | `BracketMatch.rounds[]` | ✅ Round-by-round details | ❌ Not present |
 | | `BracketMatch.nextMatchId` | ✅ Navigation links | ❌ Not present |
 | **Timestamps** | `createdAt` | ✅ When draft created | ✅ When imported |
@@ -88,18 +90,24 @@ This document describes all interfaces that compose a `Tournament` object in Sco
 
 ### Data Availability Summary
 
-| Data Type | LIVE | IMPORTED |
-|-----------|------|----------|
-| Final standings (positions) | ✅ | ✅ |
-| Match results (who won) | ✅ | ❌ |
-| Game scores (2-1, 3-0) | ✅ | ❌ |
-| Crokinole points per match | ✅ | ❌ |
-| 20s count per match | ✅ | ❌ |
-| Round-by-round breakdown | ✅ | ❌ |
-| Match timestamps | ✅ | ❌ |
-| Group stage standings | ✅ | ❌ |
-| Head-to-head records | ✅ | ✅ (round-based) / ❌ (standings-only) |
-| Bracket progression | ✅ | ❌ |
+Imported tournaments support two input formats. **Standings-only** provides minimal data; **Round-based** (SS R1/RR R1 format) provides rich match data comparable to LIVE.
+
+| Data Type | LIVE | IMPORTED (standings-only) | IMPORTED (round-based) |
+|-----------|------|--------------------------|------------------------|
+| Final standings (positions) | ✅ | ✅ | ✅ |
+| Match results (who won) | ✅ | ❌ | ✅ |
+| Game scores (2-1, 3-0) | ✅ | ❌ | ❌ |
+| Crokinole points per match | ✅ | ❌ | ✅ |
+| 20s count per match | ✅ | ❌ | ✅ |
+| Round-by-round breakdown | ✅ | ❌ | ✅ |
+| Match timestamps | ✅ | ❌ | ❌ |
+| Group stage standings | ✅ | ✅ (from input) | ✅ (computed with BYE bonus) |
+| Head-to-head records | ✅ | ❌ | ✅ |
+| Tiebreaker resolution | ✅ | ❌ | ✅ (configurable priority) |
+| Buchholz scores | ✅ | ❌ | ✅ |
+| BYE bonus (odd players) | ✅ | ❌ | ✅ (auto-calculated) |
+| Bracket progression | ✅ | ✅ (from text input) | ✅ (from text input) |
+| QualificationMode toggle | ✅ | ❌ | ✅ (WINS/POINTS) |
 
 ---
 
@@ -805,10 +813,12 @@ type ActiveInvitesMap = Record<InviteType, MatchInvite | null>;
 | `externalLink` | ❌ Not present | ✅ Optional link to original results |
 | `posterUrl` | ❌ Not present | ✅ Optional poster/banner image |
 | `status` | Any status (progresses through lifecycle) | Always `'COMPLETED'` |
-| `groupStage` | ✅ Full data with all matches | ❌ Empty or minimal |
-| `groupStage.groups[].schedule` | ✅ All rounds with match details | ❌ Empty array `[]` |
-| `groupStage.groups[].standings` | ✅ Calculated standings | ❌ Minimal or empty |
-| `finalStage.goldBracket.rounds` | ✅ All bracket matches with results | ❌ Empty array `[]` |
+| `groupStage` | ✅ Full data with all matches | ✅ Round-based / minimal for standings-only |
+| `groupStage.groups[].schedule` | ✅ All rounds with match details | ✅ Round-based / ❌ Empty `[]` standings-only |
+| `groupStage.groups[].standings` | ✅ Calculated standings | ✅ Both formats (tiebreaker-resolved for round-based) |
+| `groupStage.qualificationMode` | ✅ | ✅ Configurable in wizard |
+| `groupStage.tiebreakerPriority` | ✅ Optional | ✅ Optional (round-based) |
+| `finalStage.goldBracket.rounds` | ✅ All bracket matches with results | ✅ From bracket text input (with scores) |
 | `participants[].finalPosition` | Calculated when tournament completes | Imported directly from source |
 
 ### LIVE Tournament Structure
@@ -934,6 +944,10 @@ type ActiveInvitesMap = Record<InviteType, MatchInvite | null>;
 
 ### IMPORTED Tournament Structure
 
+There are two import formats, producing different data richness:
+
+#### Standings-only Import (minimal data)
+
 ```typescript
 {
   // Metadata
@@ -948,7 +962,7 @@ type ActiveInvitesMap = Record<InviteType, MatchInvite | null>;
   showHammer: true,
   numTables: 8,
 
-  // Participants with ONLY final positions (no match history)
+  // Participants with final positions
   participants: [
     {
       id: "p1",
@@ -958,31 +972,49 @@ type ActiveInvitesMap = Record<InviteType, MatchInvite | null>;
       finalPosition: 1,           // Imported directly
       status: "ACTIVE"
     },
-    {
-      id: "p2",
-      name: "Runner Up",
-      type: "GUEST",
-      rankingSnapshot: 0,
-      finalPosition: 2,
-      status: "ACTIVE"
-    },
-    // ... more participants with finalPosition only
+    // ... more participants
   ],
 
-  // EMPTY or MINIMAL group stage
-  groupStage: undefined,  // Or minimal structure with no matches
+  // MINIMAL group stage — standings from input, no matches
+  groupStage: {
+    type: "ROUND_ROBIN",
+    groups: [{
+      id: "g1",
+      name: "Grupo 1",
+      participants: ["p1", "p2", "p3"],
+      schedule: [],              // ❌ Empty - no match data
+      standings: [{
+        participantId: "p1",
+        position: 1,
+        points: 63,              // From input (Name,Points,20s)
+        total20s: 90,
+        matchesPlayed: 0,        // Unknown
+        matchesWon: 0,
+        matchesLost: 0,
+        matchesTied: 0,
+      }]
+    }],
+    isComplete: true
+  },
 
-  // MINIMAL final stage (no detailed matches)
+  // Final stage with bracket matches from text input
   finalStage: {
     mode: "SINGLE_BRACKET",
     goldBracket: {
-      rounds: [],               // ❌ Empty - no match details
-      totalRounds: 0,
-      config: {
-        earlyRounds: { gameMode: "points", pointsToWin: 7, matchesToWin: 1 },
-        semifinal: { gameMode: "points", pointsToWin: 7, matchesToWin: 1 },
-        final: { gameMode: "points", pointsToWin: 7, matchesToWin: 1 }
-      }
+      rounds: [{
+        roundNumber: 1,
+        matches: [{
+          id: "b1",
+          participantA: "p1",
+          participantB: "p4",
+          status: "COMPLETED",
+          winner: "p1",
+          totalPointsA: 15,
+          totalPointsB: 12,
+        }]
+      }],
+      totalRounds: 2,
+      config: { /* ... */ }
     },
     isComplete: true,
     winner: "p1"
@@ -1003,6 +1035,111 @@ type ActiveInvitesMap = Record<InviteType, MatchInvite | null>;
   posterUrl: "https://example.com/poster-2023.jpg"
 }
 ```
+
+#### Round-based Import (rich data)
+
+When importing with round-based format (SS R1/RR R1), the system builds full match data, computes standings with BYE bonus, builds head-to-head records, and resolves tiebreakers — producing data comparable to LIVE tournaments.
+
+```typescript
+{
+  // Same metadata as above...
+  id: "imported456",
+  key: "RND789",
+  name: "Regional Championship 2024",
+  status: "COMPLETED",
+  gameType: "singles",
+
+  participants: [
+    {
+      id: "p1",
+      name: "Harry Rowe",
+      type: "REGISTERED",         // Auto-linked if user found in Firebase
+      userId: "user123",          // Linked user ID
+      rankingSnapshot: 0,
+      finalPosition: 1,
+      status: "ACTIVE"
+    },
+    // ...
+  ],
+
+  // FULL group stage — matches, standings, h2h, tiebreakers
+  groupStage: {
+    type: "ROUND_ROBIN",
+    qualificationMode: "WINS",    // ✅ Configurable in import wizard
+    tiebreakerPriority: ["h2h", "total20s", "totalPoints", "buchholz"],  // ✅ Custom order
+    groups: [{
+      id: "g1",
+      name: "Grupo 1",
+      participants: ["p1", "p2", "p3", "p4", "p5"],  // 5 players → BYE rounds
+      schedule: [{
+        roundNumber: 1,
+        matches: [{
+          id: "m1",
+          participantA: "p1",
+          participantB: "p2",
+          status: "COMPLETED",
+          winner: "p1",
+          totalPointsA: 8,
+          totalPointsB: 2,
+          total20sA: 2,
+          total20sB: 0,
+          rounds: [
+            { gameNumber: 1, roundInGame: 1, pointsA: 2, pointsB: 0, twentiesA: 1, twentiesB: 0 },
+            { gameNumber: 1, roundInGame: 2, pointsA: 2, pointsB: 0, twentiesA: 1, twentiesB: 0 },
+            { gameNumber: 1, roundInGame: 3, pointsA: 2, pointsB: 0, twentiesA: 0, twentiesB: 0 },
+            { gameNumber: 1, roundInGame: 4, pointsA: 2, pointsB: 2, twentiesA: 0, twentiesB: 0 },
+          ],
+          completedAt: 1700000000000,
+        }]
+      }],
+      standings: [{
+        participantId: "p1",
+        position: 1,
+        points: 10,              // WINS mode: won*2 + tied*1, includes BYE bonus
+        total20s: 15,
+        totalPointsScored: 78,   // Includes BYE bonus (8 pts per BYE)
+        matchesPlayed: 4,        // Actual matches (BYEs not counted)
+        matchesWon: 5,           // Includes BYE wins
+        matchesLost: 0,
+        matchesTied: 0,
+        buchholz: 12,            // Computed by resolveTiebreaker()
+        headToHeadRecord: {      // ✅ Built from match data
+          "p2": { result: "WIN", twenties: 2 },
+          "p3": { result: "WIN", twenties: 3 },
+          "p4": { result: "WIN", twenties: 1 },
+          // p5 was BYE — no h2h entry
+        },
+        qualifiedForFinal: true
+      }]
+    }],
+    currentRound: 0,
+    totalRounds: 5,
+    isComplete: true,
+    numGroups: 2,
+    gameMode: "points",
+    pointsToWin: 7,
+    matchesToWin: 1
+  },
+
+  // Final stage with bracket matches (same as standings-only)
+  finalStage: { /* ... same bracket structure ... */ },
+
+  // ✅ IMPORT-SPECIFIC FIELDS
+  isImported: true,
+  importedAt: 1699900000000,
+  importedBy: { userId: "admin1", userName: "Admin" },
+}
+```
+
+### Transform to LIVE
+
+The import wizard supports a **Transform to LIVE** mode (`?transform_to_live=<id>`) that converts an existing IMPORTED tournament into a new LIVE tournament with full configuration:
+
+- Loads all participants from the existing tournament
+- Allows configuring: group stage type (RR/Swiss), number of groups/rounds, match format, final stage mode
+- Creates a new tournament in `DRAFT` status with `isImported: false`
+- Sets `enrichedAt` timestamp on the original tournament to mark it as transformed
+- The original imported tournament is preserved for historical reference
 
 ---
 
@@ -1113,253 +1250,93 @@ Round-based imports populate full match data, BYE bonus, h2h records, and tiebre
 
 ### Missing Fields Summary
 
-#### Priority 1: Basic Match Data
-These fields are easy to add and provide useful context:
+Many fields that were previously missing are now populated for **round-based imports**. The remaining gaps are:
 
-| Interface | Field | Why Missing | How to Add |
-|-----------|-------|-------------|------------|
-| `BracketMatch` | `gamesWonA/B` | Not in import input | Add to `HistoricalMatchInput` |
-| `GroupStanding` | `matchesPlayed/Won/Lost/Tied` | Not calculated | Calculate from standings order |
-| `BracketMatch` | `seedA/B` | Not tracked | Calculate from group position |
+#### Still Missing (both formats)
+| Interface | Field | Notes |
+|-----------|-------|-------|
+| `BracketMatch` | `gamesWonA/B` | Not in import input — only total points |
+| `BracketMatch` | `seedA/B` | Not tracked — could calculate from group position |
+| `BracketMatch` | `nextMatchId` | Navigation links not built |
+| `BracketMatch` | `rounds[]` | No round-by-round bracket data |
+| `GroupMatch` | `startedAt/completedAt` | No timestamps in import format |
+| `GroupMatch` | `tableNumber` | Not applicable for historical data |
 
-#### Priority 2: Detailed Match Data (for full enrichment)
-These fields require additional data collection:
+#### Still Missing (standings-only format)
+| Interface | Field | Notes |
+|-----------|-------|-------|
+| `GroupStanding` | `matchesPlayed/Won/Lost/Tied` | No match data to calculate from |
+| `GroupStanding` | `headToHeadRecord` | No match data |
+| `GroupStanding` | `buchholz` | No match data |
+| `Group.schedule` | All | No match data |
 
-| Interface | Field | Data Needed |
-|-----------|-------|-------------|
-| `GroupMatch` | Full object | All group match results |
-| `Group.schedule` | `RoundRobinRound[]` | Match schedule with results |
-| `BracketMatch.rounds` | Round array | Round-by-round breakdown |
-| `GroupStanding.headToHeadRecord` | H2H data | Who beat whom in group |
-
-#### Priority 3: Navigation & Metadata
-These improve UX but aren't essential for data completeness:
-
-| Interface | Field | Purpose |
-|-----------|-------|---------|
-| `BracketMatch.nextMatchId` | Navigation | Link bracket matches |
-| `BracketMatch.startedAt` | Timeline | When match started |
-| `GroupMatch.tableNumber` | History | Which table was used |
+#### Now Populated (round-based format)
+These were previously missing but are now filled automatically:
+- ✅ `GroupMatch` — Full match objects with scores, 20s, rounds
+- ✅ `Group.schedule` — Complete `RoundRobinRound[]` with matches
+- ✅ `GroupStanding.matchesPlayed/Won/Lost/Tied` — Calculated from match data
+- ✅ `GroupStanding.headToHeadRecord` — Built from matches
+- ✅ `GroupStanding.buchholz` — Computed by `resolveTiebreaker()`
+- ✅ `GroupStanding.totalPointsScored` — Summed from matches + BYE bonus
+- ✅ BYE bonus — Auto-calculated for odd-player groups
 
 ---
 
 ## Transforming IMPORTED to LIVE
 
-To enrich an imported tournament with full match data, you need to populate the following structures:
+There are two ways to "transform" an imported tournament:
 
-### Step 1: Determine Tournament Structure
+### Option 1: Import with Round-based Data (Recommended)
 
-Decide whether the tournament had:
-- **ONE_PHASE**: Direct to bracket (no group stage)
-- **TWO_PHASE**: Group stage + final stage
+Use the import wizard with **round-based format** (SS R1/RR R1) to directly create a richly populated IMPORTED tournament. This automatically:
 
-### Step 2: Populate Group Stage (if TWO_PHASE)
+1. **Builds full match schedule** from round-based input (GroupMatch objects with scores, 20s, rounds)
+2. **Computes standings** with WINS or POINTS classification mode
+3. **Calculates BYE bonus** for odd-player groups (wins + points for missed rounds)
+4. **Builds `headToHeadRecord`** from match data for each standing
+5. **Resolves tiebreakers** using `resolveTiebreaker()` with configurable priority order
+6. **Computes Buchholz** scores for all standings
 
-For each group, you need to create:
+The result is an IMPORTED tournament with data quality comparable to a LIVE tournament's group stage.
 
-```typescript
-groupStage: {
-  type: "ROUND_ROBIN",  // or "SWISS"
-  groups: [
-    {
-      id: generateId(),
-      name: "Grupo A",
-      participants: ["p1", "p2", "p3", "p4"],  // Participant IDs
+**Implementation**: `createHistoricalTournament()` in `src/lib/firebase/tournamentImport.ts`
 
-      // Create schedule with all matches
-      schedule: [
-        {
-          roundNumber: 1,
-          matches: [
-            createGroupMatch("p1", "p2", results),
-            createGroupMatch("p3", "p4", results),
-          ]
-        },
-        // ... more rounds
-      ],
+### Option 2: Transform to LIVE Tournament
 
-      // Calculate standings from match results
-      standings: calculateStandings(matches)
-    }
-  ],
-  currentRound: totalRounds,
-  totalRounds: totalRounds,
-  isComplete: true,
-  gameMode: "points",
-  pointsToWin: 7,
-  matchesToWin: 1
-}
-```
+Use the import wizard's **Transform to LIVE** mode (`?transform_to_live=<id>`) to create a brand new LIVE tournament from an existing IMPORTED one:
 
-### Step 3: Populate Final Stage
+1. Navigate to `/admin/tournaments/import?transform_to_live=<tournamentId>`
+2. The wizard loads all participants from the existing tournament
+3. Configure full LIVE tournament settings:
+   - Group stage type (Round Robin / Swiss), number of groups and rounds
+   - Qualification mode (WINS / POINTS)
+   - Match format (points/rounds, best-of)
+   - Final stage mode (Single bracket / Split divisions / Parallel brackets)
+   - Third place match, consolation brackets
+4. Submit creates a new tournament in `DRAFT` status with `isImported: false`
+5. The original tournament gets `enrichedAt` timestamp to mark it as transformed
 
-Create bracket structure with all matches:
+**Key fields after transform:**
 
 ```typescript
-finalStage: {
-  mode: "SINGLE_BRACKET",
-  goldBracket: {
-    rounds: [
-      {
-        roundNumber: 1,
-        name: "Cuartos",
-        matches: [
-          createBracketMatch("p1", "p8", 0, results),
-          createBracketMatch("p4", "p5", 1, results),
-          createBracketMatch("p2", "p7", 2, results),
-          createBracketMatch("p3", "p6", 3, results),
-        ]
-      },
-      {
-        roundNumber: 2,
-        name: "Semifinales",
-        matches: [
-          createBracketMatch(winner1, winner2, 0, results),
-          createBracketMatch(winner3, winner4, 1, results),
-        ]
-      },
-      {
-        roundNumber: 3,
-        name: "Final",
-        matches: [
-          createBracketMatch(semifinalWinner1, semifinalWinner2, 0, results),
-        ]
-      }
-    ],
-    totalRounds: 3,
-    thirdPlaceMatch: createBracketMatch(semifinalLoser1, semifinalLoser2, 0, results),
-    config: {/* ... */}
-  },
-  isComplete: true,
-  winner: "p1"
-}
-```
-
-### Step 4: Required Data for Each Match
-
-To fully populate a match, you need:
-
-#### Minimum Required (basic enrichment):
-```typescript
+// Original imported tournament
 {
-  id: string,
-  participantA: string,
-  participantB: string,
-  status: "COMPLETED",
-  winner: string,
-  gamesWonA: number,
-  gamesWonB: number,
+  isImported: true,
+  enrichedAt: Date.now(),     // ← Marks as transformed
+  // Used in admin list to:
+  //   - Show an "enriched" badge
+  //   - Hide the "Transform to LIVE" button
 }
-```
 
-#### Full Data (complete enrichment):
-```typescript
+// New LIVE tournament
 {
-  id: string,
-  participantA: string,
-  participantB: string,
-  status: "COMPLETED",
-  winner: string,
-  gamesWonA: number,
-  gamesWonB: number,
-  totalPointsA: number,        // Sum of all crokinole points
-  totalPointsB: number,
-  total20sA: number,           // Sum of all 20s
-  total20sB: number,
-
-  // Round-by-round breakdown
-  rounds: [
-    {
-      gameNumber: 1,
-      roundInGame: 1,
-      pointsA: 2,
-      pointsB: 0,
-      twentiesA: 1,
-      twentiesB: 0,
-    },
-    // ... more rounds
-  ],
-
-  startedAt: timestamp,
-  completedAt: timestamp,
+  isImported: false,          // ← This is a real LIVE tournament
+  status: "DRAFT",            // Ready to start
+  // Full tournament configuration from wizard
 }
 ```
 
-### Step 5: Update Tournament Metadata
-
-After enrichment, update:
-
-```typescript
-{
-  // Keep import fields for historical reference
-  isImported: true,           // remains true — tournament is still "imported"
-  importedAt: originalImportTimestamp,
-
-  // Add enrichment timestamp — KEY FIELD
-  // Set by transformImportedToLive() in tournaments.ts
-  // Used in the admin tournament list to:
-  //   - Show an "enriched" badge on the tournament card
-  //   - Hide the "Transform to LIVE" button (already transformed)
-  enrichedAt: Date.now(),
-
-  // Update status to reflect full data
-  updatedAt: Date.now(),
-}
-```
-
-> **Note:** `enrichedAt` is the canonical way to check whether a tournament has been transformed. Always check `tournament.enrichedAt` (truthy) rather than checking the presence of group/bracket data, which may vary.
-
-### Helper Function Template
-
-```typescript
-function createGroupMatch(
-  participantA: string,
-  participantB: string,
-  results: MatchResults
-): GroupMatch {
-  return {
-    id: generateId(),
-    participantA,
-    participantB,
-    status: 'COMPLETED',
-    winner: results.winner,
-    gamesWonA: results.gamesA,
-    gamesWonB: results.gamesB,
-    totalPointsA: results.pointsA,
-    totalPointsB: results.pointsB,
-    total20sA: results.twentiesA,
-    total20sB: results.twentiesB,
-    rounds: results.rounds,
-    completedAt: results.timestamp,
-  };
-}
-
-function createBracketMatch(
-  participantA: string,
-  participantB: string,
-  position: number,
-  results: MatchResults,
-  nextMatchId?: string
-): BracketMatch {
-  return {
-    id: generateId(),
-    position,
-    participantA,
-    participantB,
-    status: 'COMPLETED',
-    winner: results.winner,
-    gamesWonA: results.gamesA,
-    gamesWonB: results.gamesB,
-    totalPointsA: results.pointsA,
-    totalPointsB: results.pointsB,
-    total20sA: results.twentiesA,
-    total20sB: results.twentiesB,
-    rounds: results.rounds,
-    completedAt: results.timestamp,
-    nextMatchId,
-  };
-}
-```
+> **Note:** `enrichedAt` is the canonical way to check whether a tournament has been transformed. Always check `tournament.enrichedAt` (truthy) rather than checking the presence of group/bracket data.
 
 ---
 
