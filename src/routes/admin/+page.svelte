@@ -12,7 +12,8 @@
     Users,
     Swords,
     Trophy,
-    BarChart3
+    BarChart3,
+    HardDrive
   } from '@lucide/svelte';
 
   const allAdminSections = [
@@ -41,6 +42,13 @@
       description: m.analytics_description,
       Icon: BarChart3,
       path: '/admin/analytics',
+      superAdminOnly: true
+    },
+    {
+      title: () => 'Backup / Restore',
+      description: () => 'Copias de seguridad de Firestore',
+      Icon: HardDrive,
+      path: '/admin/tools/backup',
       superAdminOnly: true
     }
   ];

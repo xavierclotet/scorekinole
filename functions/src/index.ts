@@ -4,9 +4,10 @@
  */
 
 import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore, FieldValue, Firestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, Firestore, Timestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { logger } from "firebase-functions";
 
@@ -95,6 +96,7 @@ interface Tournament {
   name: string;
   status: string;
   gameType: "singles" | "doubles";
+  isTest?: boolean;
   rankingConfig?: {
     enabled: boolean;
     tier?: TournamentTier;
@@ -1500,6 +1502,47 @@ export const onInviteResponse = onDocumentUpdated(
     } catch (error) {
       logger.error("Error sending invite response notification:", error);
     }
+  }
+);
+
+/**
+ * Weekly cleanup of expired matchInvites.
+ * Runs every Sunday at 4:00 AM (Europe/Madrid).
+ * Deletes all invites whose expiresAt has passed.
+ */
+export const cleanupExpiredInvites = onSchedule(
+  { schedule: "0 4 * * 0", timeZone: "Europe/Madrid" },
+  async () => {
+    const db = getDb();
+    const now = Timestamp.now();
+
+    const expiredSnap = await db
+      .collection("matchInvites")
+      .where("expiresAt", "<", now)
+      .get();
+
+    if (expiredSnap.empty) {
+      logger.info("No expired invites to clean up");
+      return;
+    }
+
+    // Firestore batches support max 500 operations
+    const batches: FirebaseFirestore.WriteBatch[] = [];
+    let batch = db.batch();
+    let count = 0;
+
+    for (const doc of expiredSnap.docs) {
+      batch.delete(doc.ref);
+      count++;
+      if (count % 500 === 0) {
+        batches.push(batch);
+        batch = db.batch();
+      }
+    }
+    batches.push(batch);
+
+    await Promise.all(batches.map((b) => b.commit()));
+    logger.info(`Cleaned up ${count} expired matchInvites`);
   }
 );
 
