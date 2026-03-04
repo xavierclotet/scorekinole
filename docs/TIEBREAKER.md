@@ -161,16 +161,44 @@ Check Buchholz: B (10) > C (7) → B ranks above C.
 
 ---
 
-## Summary Table
+## Quick Reference
 
-| Scenario | WINS mode | POINTS mode |
+### By PV (Victory Points) — WINS mode
+
+**2-player tie:**
+1. **H2H** — direct result between them
+2. **Total 20s** *(skipped if `show20s` off)*
+3. **Total Crokinole points** (`totalPointsScored`)
+4. **Buchholz** — sum of all opponents' victory points
+5. **Shoot-out** — unresolved → admin decision
+
+**3+ players (Swiss):**
+1. 20s → Crokinole Points → Buchholz → H2H (if 2 remain tied) → Shoot-out
+
+**3+ players (Round Robin):**
+1. **Mini-league** — recalculate standings using only matches between tied players
+2. 20s → Crokinole Points → Buchholz → H2H → Shoot-out
+
+### By SS (Crokinole points) — POINTS mode
+
+**2-player tie:**
+1. H2H → 20s → Buchholz → Shoot-out
+*(`totalPointsScored` is the primary criterion — tied players already share it)*
+
+**3+ players (Swiss or RR):**
+1. 20s → Buchholz → H2H → Shoot-out
+
+### Summary Table
+
+| Scenario | WINS (PV) | POINTS (SS) |
 |----------|-----------|-------------|
-| 2-player tie | H2H → 20s → Points → Buchholz | H2H → 20s → Buchholz |
-| Swiss 3+ | 20s → Points → Buchholz → H2H | 20s → Buchholz → H2H |
-| RR 3+ | Mini-league → 20s → Points → Buchholz → H2H | 20s → Buchholz → H2H |
+| 2-player tie | H2H → 20s → Pts → Buc | H2H → 20s → Buc |
+| Swiss 3+ | 20s → Pts → Buc → H2H | 20s → Buc → H2H |
+| RR 3+ | Mini-league → 20s → Pts → Buc → H2H | 20s → Buc → H2H |
 
 > All chains end with **Shoot-out** if the tie persists.
 > **20s** step is skipped when `show20s` is disabled.
+> Key difference: POINTS mode can't use `totalPointsScored` as tiebreaker (already tied on it), and RR with WINS uses mini-league first.
 
 ---
 
