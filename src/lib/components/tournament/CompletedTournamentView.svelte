@@ -407,16 +407,10 @@
     <span class="doubles-names">
       <span class="player-name" class:registered={participant.type === 'REGISTERED'}>
         {participant.name}
-        {#if participant.type === 'REGISTERED'}
-          <span class="reg-badge" title="Registrado">✓</span>
-        {/if}
       </span>
       <span class="separator">/</span>
       <span class="player-name" class:registered={participant.partner.type === 'REGISTERED'}>
         {participant.partner.name}
-        {#if participant.partner.type === 'REGISTERED'}
-          <span class="reg-badge" title="Registrado">✓</span>
-        {/if}
       </span>
       {#if participant.teamName}
         <span class="team-name">({participant.teamName})</span>
@@ -425,9 +419,6 @@
   {:else}
     <!-- Singles -->
     {participant.name}
-    {#if participant.type === 'REGISTERED'}
-      <span class="reg-badge" title="Registrado">✓</span>
-    {/if}
   {/if}
 {/snippet}
 
@@ -1494,13 +1485,6 @@
     color: #e1e8ed;
   }
 
-  /* Registration badge for registered users */
-  .standing-row .name .reg-badge {
-    color: #10b981;
-    font-size: 0.65rem;
-    margin-left: 0.15rem;
-    vertical-align: super;
-  }
 
   /* Doubles names styling */
   .standing-row .name .doubles-names {

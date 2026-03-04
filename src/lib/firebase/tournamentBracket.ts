@@ -9,7 +9,6 @@ import { getTournament, updateTournament, parseTournamentData } from './tourname
 import {
   generateBracket as generateBracketAlgorithm,
   advanceWinner as advanceWinnerAlgorithm,
-  generateConsolationBracket,
   generateConsolationBracketStructure,
   replaceLoserPlaceholder,
   advanceConsolationWinner as advanceConsolationWinnerAlgorithm,
@@ -1659,32 +1658,6 @@ export async function completeFinalStage(tournamentId: string): Promise<boolean>
   }
 }
 
-/**
- * Get all losers from a specific round type (QF or R16)
- */
-function getLosersFromRound(bracket: BracketWithConfig, roundType: 'QF' | 'R16'): { participantId: string; seed?: number }[] {
-  const totalRounds = bracket.totalRounds;
-  const targetRoundIndex = roundType === 'QF' ? totalRounds - 3 : totalRounds - 4;
-
-  if (targetRoundIndex < 0 || targetRoundIndex >= bracket.rounds.length) {
-    return [];
-  }
-
-  const round = bracket.rounds[targetRoundIndex];
-  const losers: { participantId: string; seed?: number }[] = [];
-
-  for (const match of round.matches) {
-    if ((match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.winner) {
-      const loserId = match.participantA === match.winner ? match.participantB : match.participantA;
-      if (loserId && loserId !== 'BYE') {
-        const loserSeed = match.participantA === loserId ? match.seedA : match.seedB;
-        losers.push({ participantId: loserId, seed: loserSeed });
-      }
-    }
-  }
-
-  return losers;
-}
 
 /**
  * Check if all matches in a round type are complete
@@ -1847,27 +1820,45 @@ async function checkAndGenerateConsolation(
   }
 
   // Check QF consolation - generate if missing and round is complete (legacy support)
+  // Uses generateConsolationBracketStructure which handles BYEs properly (not exact-count legacy)
   if (available.hasQF && isRoundComplete(bracket, 'QF')) {
     const existingQF = updatedBracket.consolationBrackets.find(c => c.source === 'QF');
     if (!existingQF) {
-      const qfLosers = getLosersFromRound(bracket, 'QF');
-      if (qfLosers.length === 4) {
-        console.log(`🏅 Generating QF consolation bracket for ${bracketType} bracket`);
-        const consolation = generateConsolationBracket(qfLosers, 'QF', bracketType);
-        updatedBracket.consolationBrackets.push(consolation);
+      const qfByePositions = getByePositionsInRound(bracket, 'QF');
+      const newBracket = generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions, bracketType);
+      if (newBracket.rounds.length > 0) {
+        console.log(`🏅 Generating QF consolation bracket for ${bracketType} bracket (${4 - qfByePositions.length} real losers)`);
+        const qfLosers = getLosersWithPositions('QF');
+        for (const { loserId, matchPosition, seed } of qfLosers) {
+          const updated = replaceLoserPlaceholder(newBracket, 'QF', matchPosition, loserId, seed);
+          newBracket.rounds = updated.rounds;
+        }
+        const cascaded = cascadeByeWins(newBracket);
+        newBracket.rounds = cascaded.rounds;
+        newBracket.isComplete = cascaded.isComplete;
+        updatedBracket.consolationBrackets.push(newBracket);
       }
     }
   }
 
   // Check R16 consolation - generate if missing and round is complete (legacy support)
+  // Uses generateConsolationBracketStructure which handles BYEs properly (not exact-count legacy)
   if (available.hasR16 && isRoundComplete(bracket, 'R16')) {
     const existingR16 = updatedBracket.consolationBrackets.find(c => c.source === 'R16');
     if (!existingR16) {
-      const r16Losers = getLosersFromRound(bracket, 'R16');
-      if (r16Losers.length === 8) {
-        console.log(`🏅 Generating R16 consolation bracket for ${bracketType} bracket`);
-        const consolation = generateConsolationBracket(r16Losers, 'R16', bracketType);
-        updatedBracket.consolationBrackets.push(consolation);
+      const r16ByePositions = getByePositionsInRound(bracket, 'R16');
+      const newBracket = generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions, bracketType);
+      if (newBracket.rounds.length > 0) {
+        console.log(`🏅 Generating R16 consolation bracket for ${bracketType} bracket (${8 - r16ByePositions.length} real losers)`);
+        const r16Losers = getLosersWithPositions('R16');
+        for (const { loserId, matchPosition, seed } of r16Losers) {
+          const updated = replaceLoserPlaceholder(newBracket, 'R16', matchPosition, loserId, seed);
+          newBracket.rounds = updated.rounds;
+        }
+        const cascaded = cascadeByeWins(newBracket);
+        newBracket.rounds = cascaded.rounds;
+        newBracket.isComplete = cascaded.isComplete;
+        updatedBracket.consolationBrackets.push(newBracket);
       }
     }
   }

@@ -496,7 +496,10 @@ export const onTournamentComplete = onDocumentUpdated(
       return;
     }
 
-    logger.info(`Tournament ${tournamentId} (${afterData.name}) just completed - processing participant results`);
+    // Skip push notifications for test tournaments
+    const isTest = afterData.isTest === true;
+
+    logger.info(`Tournament ${tournamentId} (${afterData.name}) just completed - processing participant results${isTest ? " [TEST]" : ""}`);
 
     // Sync guest user names back to /users profiles (before ranking guard so it runs even without ranking)
     try {
@@ -600,7 +603,8 @@ export const onTournamentComplete = onDocumentUpdated(
     }
 
     // Send ranking push notifications to all participants with userId
-    try {
+    // Skip for test tournaments — no need to spam players with test results
+    if (!isTest) try {
       // Collect unique userIds with their ranking data
       const userNotifications = new Map<string, { position: number; points: number }>();
 
@@ -1137,6 +1141,9 @@ export const onTournamentMatchEvent = onDocumentUpdated(
     const afterData = event.data?.after.data();
 
     if (!beforeData || !afterData) return;
+
+    // Skip push notifications for test tournaments
+    if (afterData.isTest === true) return;
 
     // Only process during active tournament phases
     const activeStatuses = ["GROUP_STAGE", "FINAL_STAGE", "TRANSITION"];
