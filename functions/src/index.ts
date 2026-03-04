@@ -1248,11 +1248,29 @@ export const onTournamentMatchEvent = onDocumentUpdated(
 
     if (matchesToNotify.length === 0) return;
 
-    // Build participant lookup
+    // Build participant lookup (including partner info for doubles)
     const participants = afterData.participants || [];
-    const participantMap = new Map<string, { name: string; userId?: string }>();
+    const participantMap = new Map<
+      string,
+      {
+        name: string;
+        userId?: string;
+        displayName: string;
+        partner?: { name: string; userId?: string };
+      }
+    >();
     for (const p of participants) {
-      participantMap.set(p.id, { name: p.name, userId: p.userId });
+      const hasPartner = p.partner && p.partner.name;
+      participantMap.set(p.id, {
+        name: p.name,
+        userId: p.userId,
+        displayName: hasPartner
+          ? p.teamName || `${p.name} / ${p.partner.name}`
+          : p.name,
+        partner: hasPartner
+          ? { name: p.partner.name, userId: p.partner.userId }
+          : undefined,
+      });
     }
 
     const tournamentKey = afterData.key || event.params.tournamentId;
@@ -1315,40 +1333,62 @@ export const onTournamentMatchEvent = onDocumentUpdated(
 
       sendPromises.push(
         (async () => {
-          // Fetch user data for both participants in parallel (single read each)
-          const [dataA, dataB] = await Promise.all([
-            pA.userId ? getUserPushData(pA.userId) : null,
-            pB.userId ? getUserPushData(pB.userId) : null,
-          ]);
+          // Collect all userIds to notify (primary + partners for doubles)
+          const teamA: { userId: string; role: string }[] = [];
+          if (pA.userId) teamA.push({ userId: pA.userId, role: "primary" });
+          if (pA.partner?.userId)
+            teamA.push({ userId: pA.partner.userId, role: "partner" });
 
-          // Send pushes in parallel
+          const teamB: { userId: string; role: string }[] = [];
+          if (pB.userId) teamB.push({ userId: pB.userId, role: "primary" });
+          if (pB.partner?.userId)
+            teamB.push({ userId: pB.partner.userId, role: "partner" });
+
+          // Fetch user data for all players in parallel
+          const allUserIds = [...teamA, ...teamB].map((u) => u.userId);
+          const userDataResults = await Promise.all(
+            allUserIds.map((uid) => getUserPushData(uid))
+          );
+          const userDataMap = new Map<
+            string,
+            { lang: string; prefs: any } | null
+          >();
+          allUserIds.forEach((uid, i) => userDataMap.set(uid, userDataResults[i]));
+
+          // Send pushes in parallel — use displayName for opponent
           const pushes: Promise<number>[] = [];
-          if (pA.userId && dataA) {
-            pushes.push(
-              sendPushToUser(
-                pA.userId,
-                buildNotification(match, dataA.lang, pB.name),
-                "tournament_matchReady",
-                dataA.prefs
-              )
-            );
+          for (const member of teamA) {
+            const data = userDataMap.get(member.userId);
+            if (data) {
+              pushes.push(
+                sendPushToUser(
+                  member.userId,
+                  buildNotification(match, data.lang, pB.displayName),
+                  "tournament_matchReady",
+                  data.prefs
+                )
+              );
+            }
           }
-          if (pB.userId && dataB) {
-            pushes.push(
-              sendPushToUser(
-                pB.userId,
-                buildNotification(match, dataB.lang, pA.name),
-                "tournament_matchReady",
-                dataB.prefs
-              )
-            );
+          for (const member of teamB) {
+            const data = userDataMap.get(member.userId);
+            if (data) {
+              pushes.push(
+                sendPushToUser(
+                  member.userId,
+                  buildNotification(match, data.lang, pA.displayName),
+                  "tournament_matchReady",
+                  data.prefs
+                )
+              );
+            }
           }
           await Promise.all(pushes);
 
           const sampleNotif = buildNotification(match, "es", "opponent");
           logger.info(
             `Push sent for match ${match.id} (${match.phase}): ` +
-            `${pA.name} vs ${pB.name} at table ${match.tableNumber} — ` +
+            `${pA.displayName} vs ${pB.displayName} at table ${match.tableNumber} — ` +
             `title="${sampleNotif.title}", body="${sampleNotif.body}"`
           );
         })()
