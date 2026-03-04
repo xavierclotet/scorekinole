@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.80] - 2026-03-04
+- Admin countdown timer widget for match time control in group tournaments
+
 ## [2.4.79] - 2026-03-04
 - Global seeds and positions for silver division in split_division tournaments
 - Position range labels (e.g., 9º-16º) in silver bracket round headers
