@@ -2,6 +2,9 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.78] - 2026-03-04
+- Fix doubles tournament pending matches: check partner.userId so both team members see their matches
+
 ## [2.4.77] - 2026-03-04
 - Fix push notifications for doubles tournaments: notify both team members (primary + partner) if registered
 - Use team display name (teamName or "Player1 / Player2") in notification body
