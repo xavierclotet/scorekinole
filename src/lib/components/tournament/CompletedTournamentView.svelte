@@ -100,6 +100,22 @@
   let silverBracket = $derived(tournament.finalStage?.silverBracket);
   let parallelBrackets = $derived(tournament.finalStage?.parallelBrackets);
 
+  // Backward compat: detect if silver bracket data has global offset (new format)
+  // Old format: silver seeds start from 1, new format: seeds are offset (start > 1)
+  let silverConsoPosOffset = $derived.by(() => {
+    if (!silverBracket?.rounds?.[0]?.matches?.[0] || !goldBracket?.rounds?.[0]) return 0;
+    const firstMatch = silverBracket.rounds[0].matches[0];
+    const firstSeed = firstMatch.seedA || firstMatch.seedB || 0;
+    if (firstSeed > 1) return 0; // New format: data already offset
+    // Old format: compute gold participant count as offset
+    const goldIds = new Set<string>();
+    goldBracket.rounds[0].matches.forEach((m: any) => {
+      if (m.participantA && !isBye(m.participantA)) goldIds.add(m.participantA);
+      if (m.participantB && !isBye(m.participantB)) goldIds.add(m.participantB);
+    });
+    return goldIds.size;
+  });
+
   // Seed map: participantId → seed (fixed from group stage, looked up from R1)
   let seedMap = $derived(buildSeedMap(
     goldBracket,
@@ -1044,7 +1060,7 @@
             {#if silverBracket.consolationBrackets?.length}
               <div class="consolation-section">
                 {#each [...silverBracket.consolationBrackets].sort((a, b) => a.startPosition - b.startPosition) as consolationBracket (consolationBracket.source)}
-                  {@const posStart = consolationBracket.startPosition}
+                  {@const posStart = consolationBracket.startPosition + silverConsoPosOffset}
                   {@const posEnd = posStart + (consolationBracket.numLosers || 4) - 1}
                   {@const bracketId = `silver-${consolationBracket.source}`}
                   {@const isExpanded = expandedConsolation.has(bracketId)}
@@ -1074,9 +1090,10 @@
                               {@const isWalkover = !hasMatchData && (match.status === 'COMPLETED' || match.status === 'WALKOVER')}
                               {@const isMatchComplete = match.status === 'COMPLETED' || match.status === 'WALKOVER'}
                               {@const isFinalRound = consolationBracket.totalRounds - round.roundNumber === 0}
-                              {@const positionA = isMatchComplete && match.winner && isFinalRound ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantA) : null}
-                              {@const positionB = isMatchComplete && match.winner && isFinalRound ? getConsolationPosition(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantB) : null}
-                              {@const matchLabel = getMatchPositionLabel(consolationBracket.startPosition, consolationBracket.totalRounds, round.roundNumber, matchIdx)}
+                              {@const effectiveStartPos = consolationBracket.startPosition + silverConsoPosOffset}
+                              {@const positionA = isMatchComplete && match.winner && isFinalRound ? getConsolationPosition(effectiveStartPos, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantA) : null}
+                              {@const positionB = isMatchComplete && match.winner && isFinalRound ? getConsolationPosition(effectiveStartPos, consolationBracket.totalRounds, round.roundNumber, matchIdx, match.winner === match.participantB) : null}
+                              {@const matchLabel = getMatchPositionLabel(effectiveStartPos, consolationBracket.totalRounds, round.roundNumber, matchIdx)}
                               <div class="match-wrapper" class:with-label={matchLabel}>
                                 {#if matchLabel}
                                   <span class="match-position-label">{matchLabel}</span>

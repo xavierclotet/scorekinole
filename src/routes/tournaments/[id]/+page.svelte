@@ -318,7 +318,7 @@
 	let goldBracket = $derived(tournament?.finalStage?.goldBracket);
 	let silverBracket = $derived(tournament?.finalStage?.silverBracket);
 
-	// Count real (non-BYE) participants in Gold bracket for Silver consolation position offset
+	// Count real (non-BYE) participants in Gold bracket for backward compat offset
 	let goldParticipantCount = $derived.by(() => {
 		if (!goldBracket?.rounds?.[0]) return 0;
 		const ids = new Set<string>();
@@ -327,6 +327,15 @@
 			if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
 		});
 		return ids.size;
+	});
+
+	// Detect if silver bracket data already has global seeds/positions (new format)
+	// Old format: silver seeds start from 1, new format: seeds are offset (start > 1)
+	let silverDataHasGlobalOffset = $derived.by(() => {
+		if (!silverBracket?.rounds?.[0]?.matches?.[0]) return false;
+		const firstMatch = silverBracket.rounds[0].matches[0];
+		const firstSeed = firstMatch.seedA || firstMatch.seedB || 0;
+		return firstSeed > 1;
 	});
 	let parallelBrackets = $derived(tournament?.finalStage?.parallelBrackets || []);
 
@@ -2352,7 +2361,7 @@
 							{#if silverConsolationBrackets.length > 0}
 								{@const r16Bracket = silverConsolationBrackets.find(c => c.source === 'R16')}
 								{@const qfBracket = silverConsolationBrackets.find(c => c.source === 'QF')}
-								{@const silverPosOffset = goldParticipantCount}
+								{@const silverPosOffset = silverDataHasGlobalOffset ? 0 : goldParticipantCount}
 								<div class="consolation-inline">
 									<div class="consolation-inline-header">
 										🏅 {m.bracket_consolationBrackets?.() ?? 'Rondas de consolación'}

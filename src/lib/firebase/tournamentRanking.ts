@@ -394,8 +394,13 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     processConsolationBrackets(goldBracket, 0);
 
     // Process silver bracket consolation (offset by gold bracket size)
+    // For new data (global seeds), consolation startPosition already includes offset → pass 0
+    // For old data (local seeds), consolation startPosition is local → pass goldPositionsAssigned
     if (isSplitDivisions && tournament.finalStage.silverBracket) {
-      processConsolationBrackets(tournament.finalStage.silverBracket, goldPositionsAssigned);
+      const silverBkt = tournament.finalStage.silverBracket;
+      const silverFirstSeed = silverBkt?.rounds?.[0]?.matches?.[0]?.seedA || silverBkt?.rounds?.[0]?.matches?.[0]?.seedB || 0;
+      const silverConsoOffset = silverFirstSeed > 1 ? 0 : goldPositionsAssigned;
+      processConsolationBrackets(silverBkt, silverConsoOffset);
 
       // Diagnostic: Final Silver positions after consolation
       const silverFinal = updatedParticipants

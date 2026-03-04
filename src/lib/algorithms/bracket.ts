@@ -83,9 +83,10 @@ export function buildSeedMap(
  *
  * @param participants Qualified participants sorted by ranking
  * @param thirdPlaceMatchEnabled Whether to generate 3rd/4th place match (default: true)
+ * @param seedOffset Offset to add to all seed values (e.g., goldParticipants.length for silver bracket)
  * @returns Complete bracket structure with BYEs if needed
  */
-export function generateBracket(participants: TournamentParticipant[], thirdPlaceMatchEnabled: boolean = true): Bracket {
+export function generateBracket(participants: TournamentParticipant[], thirdPlaceMatchEnabled: boolean = true, seedOffset: number = 0): Bracket {
   const numParticipants = participants.length;
 
   if (numParticipants < 2) {
@@ -117,8 +118,8 @@ export function generateBracket(participants: TournamentParticipant[], thirdPlac
       position: i,
       participantA: participantA?.id || BYE_PARTICIPANT,
       participantB: participantB?.id || BYE_PARTICIPANT,
-      seedA,
-      seedB,
+      seedA: seedA + seedOffset,
+      seedB: seedB + seedOffset,
       // BYE matches are pre-completed with the real participant as winner
       status: isByeMatch ? 'COMPLETED' : 'PENDING',
       winner: isByeMatch ? (participantA?.id || participantB?.id) : undefined
@@ -508,7 +509,7 @@ export function generateConsolationBracket(
 
   rounds.push({
     roundNumber: 1,
-    name: getConsolationRoundName(1, totalRounds, source),
+    name: getConsolationRoundName(1, totalRounds, startPosition),
     matches: firstRoundMatches
   });
 
@@ -538,7 +539,7 @@ export function generateConsolationBracket(
 
     rounds.push({
       roundNumber: round,
-      name: getConsolationRoundName(round, totalRounds, source),
+      name: getConsolationRoundName(round, totalRounds, startPosition),
       matches
     });
   }
@@ -557,10 +558,9 @@ export function generateConsolationBracket(
  * Shows position range being determined at each round
  * @param roundNumber Current round number (1-based)
  * @param totalRounds Total number of rounds in this consolation bracket
- * @param source Source round ('QF' or 'R16')
+ * @param startPosition Starting position for this consolation bracket (e.g., 5 for QF, 9 for R16, or offset values for silver)
  */
-function getConsolationRoundName(roundNumber: number, totalRounds: number, source: 'QF' | 'R16'): string {
-  const startPosition = source === 'QF' ? 5 : 9;
+function getConsolationRoundName(roundNumber: number, totalRounds: number, startPosition: number): string {
   const roundsFromEnd = totalRounds - roundNumber;
 
   if (roundsFromEnd === 0) {
@@ -622,13 +622,15 @@ export function createLoserPlaceholder(roundName: string, matchPosition: number)
  *
  * @param bracketSize Size of the main bracket (8, 16, 32)
  * @param source Which round losers come from ('QF' for 8+, 'R16' for 16+)
+ * @param positionOffset Offset to add to startPosition (e.g., goldParticipants.length for silver bracket)
  * @returns ConsolationBracket structure with placeholders
  */
 export function generateConsolationBracketStructure(
   _bracketSize: number,
   source: 'QF' | 'R16',
   byePositions: number[] = [],
-  bracketType: 'gold' | 'silver' = 'gold'
+  bracketType: 'gold' | 'silver' = 'gold',
+  positionOffset: number = 0
 ): ConsolationBracket {
   const sourceRoundName = source;
 
@@ -646,7 +648,7 @@ export function generateConsolationBracketStructure(
       source,
       rounds: [],
       totalRounds: 0,
-      startPosition: source === 'QF' ? 5 : 9,
+      startPosition: (source === 'QF' ? 5 : 9) + positionOffset,
       isComplete: true
     };
   }
@@ -654,7 +656,7 @@ export function generateConsolationBracketStructure(
   // Calculate rounds needed: log2 of next power of 2
   const bracketSize = nextPowerOfTwo(numRealLosers);
   const totalRounds = Math.log2(bracketSize);
-  const startPosition = source === 'QF' ? 5 : 9;
+  const startPosition = (source === 'QF' ? 5 : 9) + positionOffset;
 
   const rounds: BracketRound[] = [];
 
@@ -716,7 +718,7 @@ export function generateConsolationBracketStructure(
 
   rounds.push({
     roundNumber: 1,
-    name: getConsolationRoundName(1, totalRounds, source),
+    name: getConsolationRoundName(1, totalRounds, startPosition),
     matches: firstRoundMatches
   });
 
@@ -750,16 +752,18 @@ export function generateConsolationBracketStructure(
       });
     }
 
-    // Add 3rd place match(es) for losers of semi-finals
+    // Add 3rd place match(es) for losers of semi-finals (winner bracket)
     if (isFinalRound && matchesInRound >= 1) {
       const prevRound = rounds[round - 2];
+      // Only link primary (winner bracket) matches — LB matches are handled separately below
+      const primaryMatchesInPrevRound = Math.pow(2, totalRounds - (round - 1));
 
-      // Create 3rd place matches - one for every 2 matches in previous round
+      // Create 3rd place matches - one for every 2 primary matches in previous round
       for (let i = 0; i < matchesInRound; i++) {
         // Deterministic ID for 3rd place match
         const thirdPlaceMatchId = `consolation-${bracketType}-${source}-r${round}-3rd-${i + 1}`;
 
-        // Link previous round losers to this 3rd place match
+        // Link previous round primary match losers to this 3rd place match
         const prevMatch1 = prevRound.matches[i * 2];
         const prevMatch2 = prevRound.matches[i * 2 + 1];
 
@@ -775,9 +779,70 @@ export function generateConsolationBracketStructure(
       }
     }
 
+    // Add loser bracket matches so R1 losers play for remaining positions (13-16 etc.)
+    // Only needed when totalRounds >= 3 (8+ slot brackets), since 4-slot brackets
+    // already cover all positions with the existing final + 3rd place matches.
+    if (totalRounds >= 3) {
+      const prevRound = rounds[round - 2];
+      const primaryMatchesInPrevRound = Math.pow(2, totalRounds - (round - 1));
+
+      if (!isFinalRound) {
+        // Non-final round: create LB matches for losers from previous round's primary matches
+        const numLbMatches = primaryMatchesInPrevRound / 2;
+
+        for (let i = 0; i < numLbMatches; i++) {
+          const lbMatchId = `consolation-${bracketType}-${source}-r${round}-lb-m${i + 1}`;
+
+          // Link previous round primary matches' losers to this LB match
+          prevRound.matches[i * 2].nextMatchIdForLoser = lbMatchId;
+          prevRound.matches[i * 2 + 1].nextMatchIdForLoser = lbMatchId;
+
+          matches.push({
+            id: lbMatchId,
+            position: matchesInRound + i, // Position after winner matches
+            status: 'PENDING'
+          });
+        }
+      } else {
+        // Final round: create LB final + LB 3rd from previous round's LB matches
+        const lbMatchesInPrevRound = prevRound.matches.slice(primaryMatchesInPrevRound);
+
+        if (lbMatchesInPrevRound.length >= 2) {
+          const numLbFinals = lbMatchesInPrevRound.length / 2;
+
+          for (let i = 0; i < numLbFinals; i++) {
+            const lbFinalId = `consolation-${bracketType}-${source}-r${round}-lb-m${i + 1}`;
+            const lb3rdId = `consolation-${bracketType}-${source}-r${round}-lb-3rd-${i + 1}`;
+
+            // Link previous round LB matches to LB final (winners) and LB 3rd (losers)
+            const lbPrev1 = lbMatchesInPrevRound[i * 2];
+            const lbPrev2 = lbMatchesInPrevRound[i * 2 + 1];
+
+            lbPrev1.nextMatchId = lbFinalId;
+            lbPrev2.nextMatchId = lbFinalId;
+            lbPrev1.nextMatchIdForLoser = lb3rdId;
+            lbPrev2.nextMatchIdForLoser = lb3rdId;
+
+            matches.push({
+              id: lbFinalId,
+              position: matches.length, // After final + 3rd
+              status: 'PENDING'
+            });
+
+            matches.push({
+              id: lb3rdId,
+              position: matches.length, // After LB final
+              status: 'PENDING',
+              isThirdPlace: true
+            });
+          }
+        }
+      }
+    }
+
     rounds.push({
       roundNumber: round,
-      name: getConsolationRoundName(round, totalRounds, source),
+      name: getConsolationRoundName(round, totalRounds, startPosition),
       matches
     });
   }
@@ -1155,22 +1220,12 @@ export function calculateConsolationPositions(
     return !!id && !isBye(id) && !isLoserPlaceholder(id);
   };
 
-  // 1) Final round: process finals first, then 3rd-place matches
+  // 1) Final round: process matches in position order
+  // Position ordering: final, 3rd place, LB final, LB 3rd (ensures correct sequential positions)
   const finalRound = consolationBracket.rounds[consolationBracket.rounds.length - 1];
-  const finals = finalRound.matches
-    .filter(m => !m.isThirdPlace)
-    .sort((a, b) => a.position - b.position);
-  const thirdPlaces = finalRound.matches
-    .filter(m => m.isThirdPlace)
-    .sort((a, b) => a.position - b.position);
+  const sortedFinalMatches = [...finalRound.matches].sort((a, b) => a.position - b.position);
 
-  for (const match of finals) {
-    if (match.status !== 'COMPLETED' || !match.winner) continue;
-    const loserId = getLoser(match);
-    if (isRealParticipant(match.winner) && !positions.has(match.winner)) positions.set(match.winner, nextPosition++);
-    if (isRealParticipant(loserId) && !positions.has(loserId)) positions.set(loserId, nextPosition++);
-  }
-  for (const match of thirdPlaces) {
+  for (const match of sortedFinalMatches) {
     if (match.status !== 'COMPLETED' || !match.winner) continue;
     const loserId = getLoser(match);
     if (isRealParticipant(match.winner) && !positions.has(match.winner)) positions.set(match.winner, nextPosition++);

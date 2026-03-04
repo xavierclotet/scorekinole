@@ -115,6 +115,21 @@
   let goldConsolationBrackets = $derived(goldBracket?.consolationBrackets || []);
   let silverConsolationBrackets = $derived(silverBracket?.consolationBrackets || []);
   let consolationBrackets = $derived(activeTab === 'gold' ? goldConsolationBrackets : silverConsolationBrackets);
+
+  // Backward compat: offset for silver consolation positions (0 for new data with global offset, goldCount for old data)
+  let consolationPosOffset = $derived.by(() => {
+    if (activeTab !== 'silver' || !silverBracket?.rounds?.[0]?.matches?.[0] || !goldBracket?.rounds?.[0]) return 0;
+    const firstMatch = silverBracket.rounds[0].matches[0];
+    const firstSeed = firstMatch.seedA || firstMatch.seedB || 0;
+    if (firstSeed > 1) return 0; // New format: data already offset
+    const goldIds = new Set<string>();
+    goldBracket.rounds[0].matches.forEach((m: any) => {
+      if (m.participantA && !isBye(m.participantA)) goldIds.add(m.participantA);
+      if (m.participantB && !isBye(m.participantB)) goldIds.add(m.participantB);
+    });
+    return goldIds.size;
+  });
+
   // Fallback for consolationEnabled - check multiple locations due to migration
   let consolationEnabledValue = $derived(tournament?.finalStage?.consolationEnabled
     ?? (tournament?.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']  // Typo with trailing space
@@ -498,11 +513,6 @@
     return tournament.participants.find(p => p.id === participantId) || null;
   }
 
-  // Get participant ranking snapshot (seeding points) - returns 0 if not set
-  function getParticipantRanking(participantId: string | undefined): number {
-    const participant = getParticipant(participantId);
-    return participant?.rankingSnapshot || 0;
-  }
 
   // Check if a match is a BYE match (one participant is BYE)
   function isByeMatch(match: BracketMatch): boolean {
@@ -2060,9 +2070,6 @@
                     >
                       {@render participantAvatar(match.participantA, 'sm')}
                       <span class="participant-name" class:disqualified={disqualifiedA}>{getParticipantName(match.participantA)}</span>
-                      {#if getParticipantRanking(match.participantA) > 0}
-                        <span class="ranking-pts">{getParticipantRanking(match.participantA)}</span>
-                      {/if}
                       {#if disqualifiedA}
                         <span class="dsq-badge">DSQ</span>
                       {/if}
@@ -2093,9 +2100,6 @@
                     >
                       {@render participantAvatar(match.participantB, 'sm')}
                       <span class="participant-name" class:disqualified={disqualifiedB}>{getParticipantName(match.participantB)}</span>
-                      {#if getParticipantRanking(match.participantB) > 0}
-                        <span class="ranking-pts">{getParticipantRanking(match.participantB)}</span>
-                      {/if}
                       {#if disqualifiedB}
                         <span class="dsq-badge">DSQ</span>
                       {/if}
@@ -2201,9 +2205,6 @@
                   >
                     {@render participantAvatar(thirdPlaceMatch.participantA, 'sm')}
                     <span class="participant-name" class:disqualified={thirdDisqualifiedA}>{getParticipantName(thirdPlaceMatch.participantA)}</span>
-                    {#if getParticipantRanking(thirdPlaceMatch.participantA) > 0}
-                      <span class="ranking-pts">{getParticipantRanking(thirdPlaceMatch.participantA)}</span>
-                    {/if}
                     {#if thirdDisqualifiedA}
                       <span class="dsq-badge">DSQ</span>
                     {/if}
@@ -2230,9 +2231,6 @@
                   >
                     {@render participantAvatar(thirdPlaceMatch.participantB, 'sm')}
                     <span class="participant-name" class:disqualified={thirdDisqualifiedB}>{getParticipantName(thirdPlaceMatch.participantB)}</span>
-                    {#if getParticipantRanking(thirdPlaceMatch.participantB) > 0}
-                      <span class="ranking-pts">{getParticipantRanking(thirdPlaceMatch.participantB)}</span>
-                    {/if}
                     {#if thirdDisqualifiedB}
                       <span class="dsq-badge">DSQ</span>
                     {/if}
@@ -2349,7 +2347,7 @@
                           {@const isBothBye = isByeA && isByeB}
                           {@const isMatchBye = (isByeA || isByeB) && !isBothBye}
                           {@const finalRoundMatches = r16Bracket.rounds[r16Bracket.totalRounds - 1]?.matches.length || 1}
-                          {@const positionLabel = getConsolationPositionLabel(r16Bracket.startPosition, r16Bracket.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
+                          {@const positionLabel = getConsolationPositionLabel(r16Bracket.startPosition + consolationPosOffset, r16Bracket.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
                           {@const consDisqualifiedA = isParticipantDisqualified(match.participantA)}
                           {@const consDisqualifiedB = isParticipantDisqualified(match.participantB)}
                           {#if !isBothBye}
@@ -2379,9 +2377,6 @@
                                 {@render participantAvatar(match.participantA, 'sm')}
                               {/if}
                               <span class="participant-name" class:disqualified={consDisqualifiedA}>{displayNameA}</span>
-                              {#if !isPlaceholderA && getParticipantRanking(match.participantA) > 0}
-                                <span class="ranking-pts">{getParticipantRanking(match.participantA)}</span>
-                              {/if}
                               {#if consDisqualifiedA}
                                 <span class="dsq-badge">DSQ</span>
                               {/if}
@@ -2412,9 +2407,6 @@
                                 {@render participantAvatar(match.participantB, 'sm')}
                               {/if}
                               <span class="participant-name" class:disqualified={consDisqualifiedB}>{displayNameB}</span>
-                              {#if !isPlaceholderB && getParticipantRanking(match.participantB) > 0}
-                                <span class="ranking-pts">{getParticipantRanking(match.participantB)}</span>
-                              {/if}
                               {#if consDisqualifiedB}
                                 <span class="dsq-badge">DSQ</span>
                               {/if}
@@ -2472,7 +2464,7 @@
                           {@const isBothBye = isByeA && isByeB}
                           {@const isMatchBye = (isByeA || isByeB) && !isBothBye}
                           {@const finalRoundMatches = qfBracket.rounds[qfBracket.totalRounds - 1]?.matches.length || 1}
-                          {@const positionLabel = getConsolationPositionLabel(qfBracket.startPosition, qfBracket.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
+                          {@const positionLabel = getConsolationPositionLabel(qfBracket.startPosition + consolationPosOffset, qfBracket.totalRounds, roundIndex, matchIndex, match.isThirdPlace || false, finalRoundMatches)}
                           {@const qfDisqualifiedA = isParticipantDisqualified(match.participantA)}
                           {@const qfDisqualifiedB = isParticipantDisqualified(match.participantB)}
                           {#if !isBothBye}
@@ -2502,9 +2494,6 @@
                                   {@render participantAvatar(match.participantA, 'sm')}
                                 {/if}
                                 <span class="participant-name" class:disqualified={qfDisqualifiedA}>{displayNameA}</span>
-                                {#if !isPlaceholderA && getParticipantRanking(match.participantA) > 0}
-                                  <span class="ranking-pts">{getParticipantRanking(match.participantA)}</span>
-                                {/if}
                                 {#if qfDisqualifiedA}
                                   <span class="dsq-badge">DSQ</span>
                                 {/if}
@@ -2535,9 +2524,6 @@
                                   {@render participantAvatar(match.participantB, 'sm')}
                                 {/if}
                                 <span class="participant-name" class:disqualified={qfDisqualifiedB}>{displayNameB}</span>
-                                {#if !isPlaceholderB && getParticipantRanking(match.participantB) > 0}
-                                  <span class="ranking-pts">{getParticipantRanking(match.participantB)}</span>
-                                {/if}
                                 {#if qfDisqualifiedB}
                                   <span class="dsq-badge">DSQ</span>
                                 {/if}
@@ -3329,17 +3315,6 @@
     color: #f87171;
   }
 
-  .ranking-pts {
-    font-size: 0.55rem;
-    color: #9ca3af;
-    font-weight: 500;
-    margin-left: 0.15rem;
-    opacity: 0.8;
-  }
-
-  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .ranking-pts {
-    color: #6b7280;
-  }
 
   .match-participant.disqualified {
     opacity: 0.7;

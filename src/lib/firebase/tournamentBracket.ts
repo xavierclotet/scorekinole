@@ -703,8 +703,9 @@ export async function generateSplitBrackets(
     }
 
     // Generate both brackets using algorithm
+    // Silver bracket seeds are offset by gold participant count (e.g., if gold has 8, silver seeds start at 9)
     const goldBracketRaw = generateBracketAlgorithm(goldParticipants, thirdPlaceMatchEnabled);
-    const silverBracketRaw = generateBracketAlgorithm(silverParticipants, thirdPlaceMatchEnabled);
+    const silverBracketRaw = generateBracketAlgorithm(silverParticipants, thirdPlaceMatchEnabled, goldParticipants.length);
 
     // Assign table numbers to brackets respecting the table limit
     // Tables are distributed fairly between gold and silver brackets
@@ -758,17 +759,18 @@ export async function generateSplitBrackets(
         console.log('🎯 Generated QF consolation structure for Gold bracket');
       }
 
-      // Silver bracket consolation
+      // Silver bracket consolation (positions offset by gold participant count)
+      const silverPosOffset = goldParticipants.length;
       if (silverAvailable.hasR16) {
         const r16ByePositions = getByePositionsInRound(tempSilverBracket, 'R16');
         console.log(`🎯 R16 BYE positions for Silver bracket: [${r16ByePositions.join(', ') || 'none'}]`);
-        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'R16', r16ByePositions, 'silver'));
+        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'R16', r16ByePositions, 'silver', silverPosOffset));
         console.log('🎯 Generated R16 consolation structure for Silver bracket');
       }
       if (silverAvailable.hasQF) {
         const qfByePositions = getByePositionsInRound(tempSilverBracket, 'QF');
         console.log(`🎯 QF BYE positions for Silver bracket: [${qfByePositions.join(', ') || 'none'}]`);
-        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'QF', qfByePositions, 'silver'));
+        silverBracketWithConfig.consolationBrackets.push(generateConsolationBracketStructure(silverBracketSize, 'QF', qfByePositions, 'silver', silverPosOffset));
         console.log('🎯 Generated QF consolation structure for Silver bracket');
       }
     }
@@ -1373,7 +1375,8 @@ export async function advanceSilverWinner(
         tournament.finalStage.consolationEnabled
         ?? (tournament.finalStage as unknown as Record<string, unknown>)['consolationEnabled ']
       );
-      updatedSilverBracket = await checkAndGenerateConsolation(tournamentId, updatedSilverBracket, 'silver', consolationEnabled);
+      const silverConsoOffset = tournament.finalStage.goldBracket ? countRealParticipants(tournament.finalStage.goldBracket as BracketWithConfig) : 0;
+      updatedSilverBracket = await checkAndGenerateConsolation(tournamentId, updatedSilverBracket, 'silver', consolationEnabled, silverConsoOffset);
 
       const numTables = tournament.numTables || 4;
       const tableHistory = buildTableHistory(tournament);
@@ -1727,7 +1730,8 @@ async function checkAndGenerateConsolation(
   _tournamentId: string,
   bracket: BracketWithConfig,
   bracketType: 'gold' | 'silver',
-  consolationEnabled: boolean
+  consolationEnabled: boolean,
+  positionOffset: number = 0
 ): Promise<BracketWithConfig> {
   // Check if consolation is enabled
   if (!consolationEnabled) {
@@ -1825,7 +1829,7 @@ async function checkAndGenerateConsolation(
     const existingQF = updatedBracket.consolationBrackets.find(c => c.source === 'QF');
     if (!existingQF) {
       const qfByePositions = getByePositionsInRound(bracket, 'QF');
-      const newBracket = generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions, bracketType);
+      const newBracket = generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions, bracketType, positionOffset);
       if (newBracket.rounds.length > 0) {
         console.log(`🏅 Generating QF consolation bracket for ${bracketType} bracket (${4 - qfByePositions.length} real losers)`);
         const qfLosers = getLosersWithPositions('QF');
@@ -1847,7 +1851,7 @@ async function checkAndGenerateConsolation(
     const existingR16 = updatedBracket.consolationBrackets.find(c => c.source === 'R16');
     if (!existingR16) {
       const r16ByePositions = getByePositionsInRound(bracket, 'R16');
-      const newBracket = generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions, bracketType);
+      const newBracket = generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions, bracketType, positionOffset);
       if (newBracket.rounds.length > 0) {
         console.log(`🏅 Generating R16 consolation bracket for ${bracketType} bracket (${8 - r16ByePositions.length} real losers)`);
         const r16Losers = getLosersWithPositions('R16');
@@ -1971,13 +1975,18 @@ export async function forceRegenerateConsolationBrackets(
     console.log(`🔄 Regenerating ${existingCount} consolation bracket(s), preserving ${[...existingMatchesMap.values()].reduce((sum, m) => sum + m.size, 0)} completed matches...`);
   }
 
+  // For silver bracket, offset consolation positions by gold participant count
+  const positionOffset = bracketType === 'silver' && tournament.finalStage.goldBracket
+    ? countRealParticipants(tournament.finalStage.goldBracket as BracketWithConfig)
+    : 0;
+
   console.log('🆕 Creating consolation bracket structures with BYE handling...');
   updatedBracket.consolationBrackets = [];
 
   if (available.hasR16) {
     const r16ByePositions = getByePositionsInRound(updatedBracket, 'R16');
     console.log(`   R16 BYE positions: [${r16ByePositions.join(', ') || 'none'}]`);
-    const newR16Bracket = generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions, bracketType);
+    const newR16Bracket = generateConsolationBracketStructure(bracketSize, 'R16', r16ByePositions, bracketType, positionOffset);
 
     // Restore completed matches for R16 consolation
     const r16CompletedMatches = existingMatchesMap.get('R16');
@@ -1999,7 +2008,7 @@ export async function forceRegenerateConsolationBrackets(
   if (available.hasQF) {
     const qfByePositions = getByePositionsInRound(updatedBracket, 'QF');
     console.log(`   QF BYE positions: [${qfByePositions.join(', ') || 'none'}]`);
-    const newQFBracket = generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions, bracketType);
+    const newQFBracket = generateConsolationBracketStructure(bracketSize, 'QF', qfByePositions, bracketType, positionOffset);
 
     // Restore completed matches for QF consolation
     const qfCompletedMatches = existingMatchesMap.get('QF');
@@ -2545,7 +2554,8 @@ export async function completeBracketMatchAndAdvance(
             consolationBrackets: silverBracket.consolationBrackets
           };
 
-          updatedSilverBracket = await checkAndGenerateConsolation(tournamentId, updatedSilverBracket, 'silver', consolationEnabled);
+          const silverConsoOffset2 = goldBracket ? countRealParticipants(goldBracket as BracketWithConfig) : 0;
+          updatedSilverBracket = await checkAndGenerateConsolation(tournamentId, updatedSilverBracket, 'silver', consolationEnabled, silverConsoOffset2);
           assignTablesToBrackets(goldBracket!, updatedSilverBracket, numTables, tableHistory);
           if (consolationEnabled) {
             assignTablesToConsolation(goldBracket as BracketWithConfig, updatedSilverBracket, numTables, tableHistory);
