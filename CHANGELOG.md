@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.81] - 2026-03-04
+- Firestore backup & restore admin tool with live data browser and selective document restore
+- Add cleanupExpiredInvites cloud function (weekly scheduled)
+
 ## [2.4.80] - 2026-03-04
 - Admin countdown timer widget for match time control in group tournaments
 
