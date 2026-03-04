@@ -24,6 +24,7 @@ description: "Vista de gestion de la fase de grupos: partidos round-robin/Swiss,
 - **MatchResultDialog**: Modal para introducir resultados.
 - **Modal de descalificacion**: Confirmacion DSQ.
 - **Swiss config**: Editor de numero total de rondas Swiss.
+- **AdminCountdownTimer**: Widget flotante de cuenta atras para controlar el tiempo de los partidos.
 
 ## Estados Clave
 | Variable | Tipo | Descripcion |
@@ -34,6 +35,7 @@ description: "Vista de gestion de la fase de grupos: partidos round-robin/Swiss,
 | `isSwissTournament` | derivado | `groupStage.type === 'SWISS'` |
 | `currentSwissRound` | derivado | Ronda Swiss actual |
 | `unsubscribe` | `() => void` | Cleanup del listener onSnapshot |
+| `showCountdownTimer` | `boolean` | Visibilidad del widget de cuenta atras |
 
 ## Acciones Clave
 | Accion | Funcion | Resultado |
@@ -59,6 +61,13 @@ description: "Vista de gestion de la fase de grupos: partidos round-robin/Swiss,
 - Sincroniza `selectedMatch` cuando el partido abierto en el dialog se actualiza en Firebase.
 
 ## Notas Importantes
+- **AdminCountdownTimer** (`AdminCountdownTimer.svelte`): Widget flotante draggable/resizable con cuenta atras.
+  - Se abre/cierra con boton Timer en el header. Props: `initialMinutes`, `tournamentId`, `gameType`, `visible`, `onclose`.
+  - Titulo muestra "Cuenta atras · Individuales/Dobles · N min" segun `gameType`.
+  - Posicion y tamaño persistidos en localStorage (`adminCountdownTimer_{id}`).
+  - Modo fullscreen (Maximize). Edicion inline de MM:SS (icono lapiz, max 15:59).
+  - Efectos visuales: warning (<60s, dying light), critical (<30s, flicker erratico), timeout (pulse "TIME!").
+  - Sonido: tick beep suave cada segundo en ultimos 10s, doble-beep + vibracion al llegar a 0.
 - El componente `GroupsView` es reutilizable y recibe el torneo como prop.
 - Los partidos BYE se detectan y se saltan automaticamente.
 - La determinacion del ganador depende de `gameMode`: por puntos (mayor puntuacion) o por rondas (mas partidas ganadas).

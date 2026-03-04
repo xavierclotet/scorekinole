@@ -723,6 +723,15 @@
                   <span class="config-label">{m.admin_matchesToWinLabel()}:</span>
                   <span class="config-value">{tournament.groupStage.matchesToWin}</span>
                 </div>
+
+                <div class="config-item">
+                  <span class="config-label">{m.admin_timePerMatch()}:</span>
+                  <span class="config-value">
+                    {tournament.gameType === 'doubles'
+                      ? (tournament.timeConfig?.minutesPer4RoundsDoubles ?? 13)
+                      : (tournament.timeConfig?.minutesPer4RoundsSingles ?? 10)} min
+                  </span>
+                </div>
               </div>
             </section>
           {/if}

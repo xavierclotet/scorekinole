@@ -829,7 +829,11 @@
 			eventTitle: context.tournamentName,
 			eventEdition: context.tournamentEdition,
 			matchPhase: context.bracketRoundName || (context.phase === 'GROUP' ? 'Fase de Grupos' : 'Bracket'),
-			lastTournamentResult: null
+			lastTournamentResult: null,
+			// Tournament timer: group stage uses tournament time, final stage hides timer
+			...(config.timeLimitMinutes != null
+				? { showTimer: true, timerMinutes: config.timeLimitMinutes, timerSeconds: 0 }
+				: { showTimer: false })
 		}));
 
 		// PRIMERO: Reset match state (esto limpia todo)

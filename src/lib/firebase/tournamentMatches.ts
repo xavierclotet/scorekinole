@@ -9,6 +9,7 @@ import { db, isFirebaseEnabled } from './config';
 import type { GroupMatch, GroupStanding, BracketMatch, Tournament, TournamentParticipant } from '$lib/types/tournament';
 import type { TournamentGameConfig } from '$lib/stores/tournamentContext';
 import { getTournament, parseTournamentData } from './tournaments';
+import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
 import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from '$lib/algorithms/tiebreaker';
 import { browser } from '$app/environment';
 
@@ -703,6 +704,7 @@ function getGameConfigForMatch(
   isSilverBracket?: boolean
 ): TournamentGameConfig {
   if (phase === 'GROUP' && tournament.groupStage) {
+    const tc = tournament.timeConfig;
     return {
       gameMode: tournament.groupStage.gameMode,
       pointsToWin: tournament.groupStage.pointsToWin,
@@ -710,7 +712,10 @@ function getGameConfigForMatch(
       matchesToWin: tournament.groupStage.matchesToWin,
       show20s: tournament.show20s,
       showHammer: tournament.showHammer,
-      gameType: tournament.gameType
+      gameType: tournament.gameType,
+      timeLimitMinutes: tournament.gameType === 'doubles'
+        ? (tc?.minutesPer4RoundsDoubles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles)
+        : (tc?.minutesPer4RoundsSingles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles)
     };
   }
 

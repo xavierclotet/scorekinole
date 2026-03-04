@@ -1506,7 +1506,5 @@
   "admin_exportLevel3Desc": "Punts i 20s de cada ronda individual",
   "admin_exportCopy": "Copiar",
   "admin_exportCopied": "Copiat",
-  "admin_exportDownload": "Descarregar",
-  "import_noGroupStageMode": "Torneig sense fase de grups — només fase final",
-  "import_participantsAdded": "participants afegits"
+  "admin_exportDownload": "Descarregar"
 }

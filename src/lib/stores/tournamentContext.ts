@@ -21,6 +21,7 @@ export interface TournamentGameConfig {
   show20s: boolean;
   showHammer: boolean;
   gameType: 'singles' | 'doubles';
+  timeLimitMinutes?: number;  // Group stage only: from tournament.timeConfig
 }
 
 /**

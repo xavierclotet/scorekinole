@@ -152,6 +152,7 @@ Complete tournament administration system for professional Crokinole events.
 - **No-show handling**: Walkover (WO) support for participants who don't show up
 - **Disqualification (DSQ)**: Remove participants from tournament with automatic opponent advancement
 - **Network status indicator**: Visual feedback for connection state and sync status when saving results
+- **Admin countdown timer**: Draggable/resizable floating widget for match time control (10 min singles, 13 min doubles). Fullscreen mode, editable time, visual/audio alerts at timeout
 
 #### **Walkover (WO) & Disqualification (DSQ)**
 - **Walkover (WO)**: When a participant doesn't show up for a match

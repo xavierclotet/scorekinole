@@ -11,6 +11,7 @@
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import GroupsView from '$lib/components/tournament/GroupsView.svelte';
   import MatchResultDialog from '$lib/components/tournament/MatchResultDialog.svelte';
+  import AdminCountdownTimer from '$lib/components/tournament/AdminCountdownTimer.svelte';
   import { adminTheme } from '$lib/stores/theme';
   import * as m from '$lib/paraglide/messages.js';
   import TimeProgressBar from '$lib/components/TimeProgressBar.svelte';
@@ -24,7 +25,7 @@
   import { disqualifyParticipant } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
   import { useProbabilities } from '$lib/utils/useProbabilities.svelte';
-  import { Check, X } from '@lucide/svelte';
+  import { Check, X, Timer } from '@lucide/svelte';
 
   let tournament: Tournament | null = $state(null);
   const probabilityState = useProbabilities(() => tournament);
@@ -44,6 +45,9 @@
   let unsubscribe: (() => void) | null = $state(null);
   let showTimeBreakdown = $state(false);
   let timeBreakdown: TimeBreakdown | null = $state(null);
+
+  // Countdown timer
+  let showCountdownTimer = $state(false);
 
   // Disqualify confirmation
   let showDisqualifyConfirm = $state(false);
@@ -776,21 +780,16 @@
                   <TournamentKeyBadge tournamentKey={tournament.key} compact={true} showQRButton={true} />
                 {/if}
               </div>
-              {#if timeRemaining && tournament.status !== 'COMPLETED'}
-                <div class="header-progress">
-                  <TimeProgressBar
-                    percentComplete={timeRemaining.percentComplete}
-                    remainingMinutes={timeRemaining.remainingMinutes}
-                    showEstimatedEnd={true}
-                    compact={true}
-                    clickable={true}
-                    onclick={openTimeBreakdown}
-                  />
-                </div>
-              {/if}
             </div>
           </div>
           <div class="header-actions">
+            <button
+              class={['action-btn timer-toggle', showCountdownTimer && 'active']}
+              onclick={() => { showCountdownTimer = !showCountdownTimer; }}
+              title="Countdown timer"
+            >
+              <Timer size={16} />
+            </button>
             {#if tournament.groupStage}
               {@const isSwiss = tournament.groupStage.type === 'SWISS'}
               {@const currentRound = tournament.groupStage.currentRound || 1}
@@ -870,6 +869,18 @@
           </button>
         </div>
       {:else}
+        {#if timeRemaining && tournament.status !== 'COMPLETED'}
+          <div class="content-progress">
+            <TimeProgressBar
+              percentComplete={timeRemaining.percentComplete}
+              remainingMinutes={timeRemaining.remainingMinutes}
+              showEstimatedEnd={true}
+              clickable={true}
+              onclick={openTimeBreakdown}
+            />
+          </div>
+        {/if}
+
         <!-- Swiss Rounds Configuration -->
         {#if isSwissTournament}
           <div class="swiss-config-section" data-theme={$adminTheme}>
@@ -1092,6 +1103,17 @@
   onrecalculate={recalculateTime}
 />
 
+{#if tournament}
+  <AdminCountdownTimer
+    initialMinutes={tournament.gameType === 'doubles'
+      ? (tournament.timeConfig?.minutesPer4RoundsDoubles ?? 13)
+      : (tournament.timeConfig?.minutesPer4RoundsSingles ?? 10)}
+    tournamentId={tournamentId}
+    gameType={tournament.gameType}
+    visible={showCountdownTimer}
+    onclose={() => { showCountdownTimer = false; }}
+  />
+{/if}
 
 <style>
   .groups-page {
@@ -1220,8 +1242,8 @@
     flex-wrap: wrap;
   }
 
-  .header-progress {
-    margin-left: 0.5rem;
+  .content-progress {
+    margin-bottom: 0.75rem;
   }
 
   .info-badge {
@@ -1319,6 +1341,36 @@
   @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+  }
+
+  .action-btn.timer-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+  }
+
+  .groups-page:is([data-theme='dark'], [data-theme='violet']) .action-btn.timer-toggle {
+    background: #1f2937;
+    color: #9ca3af;
+    border-color: #2d3748;
+  }
+
+  .action-btn.timer-toggle:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .action-btn.timer-toggle.active {
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
   .action-btn.autofill {
