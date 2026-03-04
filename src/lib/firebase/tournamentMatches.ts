@@ -906,7 +906,7 @@ export async function getPendingMatchesForUser(
   const isInProgressStatus = (status: string) => status === 'IN_PROGRESS';
 
   // Find participant ID(s) for this user
-  const userParticipants = tournament.participants.filter(p => p.userId === userId);
+  const userParticipants = tournament.participants.filter(p => p.userId === userId || p.partner?.userId === userId);
   if (userParticipants.length === 0) {
     console.log('getPendingMatchesForUser: User not found as participant', {
       userId,
@@ -1601,7 +1601,7 @@ export async function getUserActiveMatches(
   const isInProgress = (status: string) => status === 'IN_PROGRESS';
 
   // Find participant ID(s) for this user
-  const userParticipants = tournament.participants.filter(p => p.userId === userId);
+  const userParticipants = tournament.participants.filter(p => p.userId === userId || p.partner?.userId === userId);
   if (userParticipants.length === 0) {
     console.log('getUserActiveMatches: User not found as participant in tournament', {
       userId,
