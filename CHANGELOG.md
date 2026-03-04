@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.79] - 2026-03-04
+- Global seeds and positions for silver division in split_division tournaments
+- Position range labels (e.g., 9º-16º) in silver bracket round headers
+- Fix consolation match-position-badge colors to use --primary
+- Handle non-power-of-2 teams in consolation legacy fallback
+
 ## [2.4.78] - 2026-03-04
 - Fix doubles tournament pending matches: check partner.userId so both team members see their matches
 
