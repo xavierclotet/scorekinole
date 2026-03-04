@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.77] - 2026-03-04
+- Fix push notifications for doubles tournaments: notify both team members (primary + partner) if registered
+- Use team display name (teamName or "Player1 / Player2") in notification body
+
 ## [2.4.76] - 2026-03-03
 - Autofill modal for RR tournaments: choose between filling current round only or all rounds
 - GROUP_ONLY phaseType documentation
