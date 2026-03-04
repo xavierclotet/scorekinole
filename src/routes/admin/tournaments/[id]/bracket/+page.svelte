@@ -130,6 +130,32 @@
     return goldIds.size;
   });
 
+  // Gold/silver participant counts for silver round position labels
+  let goldParticipantCount = $derived.by(() => {
+    if (!goldBracket?.rounds?.[0]) return 0;
+    const ids = new Set<string>();
+    goldBracket.rounds[0].matches.forEach((m: any) => {
+      if (m.participantA && !isBye(m.participantA)) ids.add(m.participantA);
+      if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
+    });
+    return ids.size;
+  });
+  let silverParticipantCount = $derived.by(() => {
+    if (!silverBracket?.rounds?.[0]) return 0;
+    const ids = new Set<string>();
+    silverBracket.rounds[0].matches.forEach((m: any) => {
+      if (m.participantA && !isBye(m.participantA)) ids.add(m.participantA);
+      if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
+    });
+    return ids.size;
+  });
+
+  function silverRoundPositionLabel(matchCount: number): string {
+    const start = goldParticipantCount + 1;
+    const end = goldParticipantCount + Math.min(matchCount * 2, silverParticipantCount);
+    return `(${start}º-${end}º)`;
+  }
+
   // Fallback for consolationEnabled - check multiple locations due to migration
   let consolationEnabledValue = $derived(tournament?.finalStage?.consolationEnabled
     ?? (tournament?.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']  // Typo with trailing space
@@ -2031,7 +2057,7 @@
           <div class="bracket-container" class:silver-bracket={activeTab === 'silver'}>
           {#each rounds as round, roundIndex (round.roundNumber)}
             <div class="bracket-round" class:has-next-round={roundIndex < rounds.length - 1} style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
-              <h2 class="round-name">{translateRoundName(round.name)}</h2>
+              <h2 class="round-name">{translateRoundName(round.name)} {#if activeTab === 'silver'}<span class="position-range-badge">{silverRoundPositionLabel(round.matches.length)}</span>{/if}</h2>
               <div class="matches-column">
                 {#each round.matches as match (match.id)}
                   {@const gamesCompleted = (match.gamesWonA || 0) + (match.gamesWonB || 0)}
@@ -2180,7 +2206,7 @@
             {@const thirdDisqualifiedA = isParticipantDisqualified(thirdPlaceMatch.participantA)}
             {@const thirdDisqualifiedB = isParticipantDisqualified(thirdPlaceMatch.participantB)}
             <div class="bracket-round third-place-round">
-              <h2 class="round-name third-place">{m.tournament_thirdFourthPlace()}</h2>
+              <h2 class="round-name third-place">{m.tournament_thirdFourthPlace()} {#if activeTab === 'silver'}<span class="position-range-badge">({goldParticipantCount + 3}º-{goldParticipantCount + 4}º)</span>{/if}</h2>
               <div class="matches-column">
                 <div
                   class="bracket-match third-place-match"
@@ -3060,6 +3086,15 @@
     background: #1a2332;
     color: #e1e8ed;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .position-range-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: inherit;
+    opacity: 0.7;
+    letter-spacing: 0;
+    text-transform: none;
   }
 
   /* Final round styling - gold/prominent (default) */

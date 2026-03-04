@@ -116,6 +116,32 @@
     return goldIds.size;
   });
 
+  // Gold/silver participant counts for position range labels
+  let goldParticipantCount = $derived.by(() => {
+    if (!goldBracket?.rounds?.[0]) return 0;
+    const ids = new Set<string>();
+    goldBracket.rounds[0].matches.forEach((m: any) => {
+      if (m.participantA && !isBye(m.participantA)) ids.add(m.participantA);
+      if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
+    });
+    return ids.size;
+  });
+  let silverParticipantCount = $derived.by(() => {
+    if (!silverBracket?.rounds?.[0]) return 0;
+    const ids = new Set<string>();
+    silverBracket.rounds[0].matches.forEach((m: any) => {
+      if (m.participantA && !isBye(m.participantA)) ids.add(m.participantA);
+      if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
+    });
+    return ids.size;
+  });
+
+  function silverRoundPositionLabel(matchCount: number): string {
+    const start = goldParticipantCount + 1;
+    const end = goldParticipantCount + Math.min(matchCount * 2, silverParticipantCount);
+    return `(${start}º-${end}º)`;
+  }
+
   // Seed map: participantId → seed (fixed from group stage, looked up from R1)
   let seedMap = $derived(buildSeedMap(
     goldBracket,
@@ -968,7 +994,7 @@
             <div class="bracket-container">
             {#each silverBracket.rounds as round (round.roundNumber)}
               <div class="bracket-round">
-                <h3 class="round-name silver">{round.name}</h3>
+                <h3 class="round-name silver">{round.name} <span class="position-badge">{silverRoundPositionLabel(round.matches.length)}</span></h3>
                 <div class="matches-column">
                   {#each round.matches as match (match.id)}
                     <button
@@ -1019,7 +1045,7 @@
             {#if silverBracket.thirdPlaceMatch}
               {@const silverThirdPlace = silverBracket.thirdPlaceMatch}
               <div class="bracket-round third-place-round">
-                <h3 class="round-name third-place silver">{m.tournament_thirdPlace()}</h3>
+                <h3 class="round-name third-place silver">{m.tournament_thirdPlace()} <span class="position-badge">({goldParticipantCount + 3}º-{goldParticipantCount + 4}º)</span></h3>
                 <div class="matches-column">
                   <button
                     class="bracket-match third-place-match"
@@ -2492,6 +2518,16 @@
   :global(:is([data-theme='dark'], [data-theme='violet'])) .round-name.third-place.silver {
     background: rgba(75, 85, 99, 0.2);
     color: #9ca3af;
+  }
+
+  .round-name.silver .position-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: inherit;
+    opacity: 0.7;
+    margin-left: 0.3rem;
+    letter-spacing: 0;
+    text-transform: none;
   }
 
   /* Responsive */

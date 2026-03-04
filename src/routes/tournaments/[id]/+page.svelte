@@ -337,6 +337,22 @@
 		const firstSeed = firstMatch.seedA || firstMatch.seedB || 0;
 		return firstSeed > 1;
 	});
+	let silverParticipantCount = $derived.by(() => {
+		if (!silverBracket?.rounds?.[0]) return 0;
+		const ids = new Set<string>();
+		silverBracket.rounds[0].matches.forEach((m: any) => {
+			if (m.participantA && !isBye(m.participantA)) ids.add(m.participantA);
+			if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
+		});
+		return ids.size;
+	});
+
+	function silverRoundPositionLabel(matchCount: number): string {
+		const start = goldParticipantCount + 1;
+		const end = goldParticipantCount + Math.min(matchCount * 2, silverParticipantCount);
+		return `(${start}º-${end}º)`;
+	}
+
 	let parallelBrackets = $derived(tournament?.finalStage?.parallelBrackets || []);
 
 	// For parallel brackets, track which bracket tab is active
@@ -1105,8 +1121,8 @@
 											{/if}
 										</span>
 										<div class="participant-cell">
-											<span class="name">{getParticipantName(participant.id)}</span>
 											{@render participantAvatar(participant.id, 'sm')}
+											<span class="name">{getParticipantName(participant.id)}</span>
 										</div>
 										{#if tournament.show20s}
 											<span class="twenties" title={m.tournament_totalTwentiesLabel()}>
@@ -1143,8 +1159,8 @@
 											{/if}
 										</span>
 										<div class="participant-cell">
-											<span class="name">{getParticipantName(participant.id)}</span>
 											{@render participantAvatar(participant.id, 'sm')}
+											<span class="name">{getParticipantName(participant.id)}</span>
 										</div>
 										{#if tournament.show20s}
 											<span class="twenties" title={m.tournament_totalTwentiesLabel()}>
@@ -2208,7 +2224,7 @@
 									{#if round.matches.length > 0}
 									{@const silverRoundLabel = getScoringLabelForRound(silverBracket.config, round.name)}
 										<div class="bracket-round" style="--round-index: {roundIndex}; --round-mult: {Math.pow(2, roundIndex)}">
-											<h3 class="round-name">{translateRoundName(round.name)} {#if silverRoundLabel}<span class="scoring-badge">{silverRoundLabel}</span>{/if}</h3>
+											<h3 class="round-name">{translateRoundName(round.name)} <span class="position-range-badge">{silverRoundPositionLabel(round.matches.length)}</span> {#if silverRoundLabel}<span class="scoring-badge">{silverRoundLabel}</span>{/if}</h3>
 											<div class="matches-column">
 												{#each round.matches as match}
 													{@const isMatchBye = isByeMatch(match)}
@@ -2298,7 +2314,7 @@
 										{@const thirdMatch = silverBracket.thirdPlaceMatch}
 										{@const thirdLabel0 = getScoringLabelForRound(silverBracket.config, "Semifinales")}
 										<div class="bracket-round third-place">
-											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'} {#if thirdLabel0}<span class="scoring-badge">{thirdLabel0}</span>{/if}</h3>
+											<h3 class="round-name">{m.tournament_thirdFourthPlace?.() || '3º/4º'} <span class="position-range-badge">({goldParticipantCount + 3}º-{goldParticipantCount + 4}º)</span> {#if thirdLabel0}<span class="scoring-badge">{thirdLabel0}</span>{/if}</h3>
 											<div class="matches-column">
 												<!-- svelte-ignore a11y_click_events_have_key_events -->
 												<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -5668,6 +5684,15 @@
 		margin-left: 0.35rem;
 	}
 
+	.position-range-badge {
+		font-size: 0.6rem;
+		font-weight: 700;
+		color: inherit;
+		opacity: 0.7;
+		letter-spacing: 0;
+		text-transform: none;
+	}
+
 	/* Badge inside golden final round */
 	.bracket-round:last-child:not(.third-place) .scoring-badge,
 	.bracket-round:nth-last-child(2):not(.third-place):has(+ .third-place) .scoring-badge {
@@ -5892,8 +5917,8 @@
 		text-align: center;
 		font-size: 0.65rem;
 		font-weight: 600;
-		color: #a78bfa;
-		background: rgba(167, 139, 250, 0.15);
+		color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
 		padding: 0.15rem 0.5rem;
 		border-radius: 7px 7px 0 0;
 		order: -1;
