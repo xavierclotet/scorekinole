@@ -167,10 +167,10 @@
         <span class="score live" class:score-changed={scoreChangedA}>{currentScoreA}</span>
         <span class="sep">-</span>
         <span class="score live" class:score-changed={scoreChangedB}>{isBye ? '-' : currentScoreB}</span>
-        {#if winProbability && winProbability.confidence !== 'none'}
+        {#if winProbability && winProbability.confidence !== 'none' && winProbability.confidence !== 'low'}
           {@const pctA = Math.round(winProbability.probabilityA * 100)}
           {@const pctB = Math.round(winProbability.probabilityB * 100)}
-          <div class="probability-indicator live-prob" class:low-confidence={winProbability.confidence === 'low'}>
+          <div class="probability-indicator live-prob">
             <span class="prob-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
             <div class="prob-bar">
               <div class="prob-fill-a" style="width: {pctA}%"></div>
@@ -180,10 +180,10 @@
         {/if}
       {:else}
         <span class="pending">vs</span>
-        {#if winProbability && winProbability.confidence !== 'none'}
+        {#if winProbability && winProbability.confidence !== 'none' && winProbability.confidence !== 'low'}
           {@const pctA = Math.round(winProbability.probabilityA * 100)}
           {@const pctB = Math.round(winProbability.probabilityB * 100)}
-          <div class="probability-indicator" class:low-confidence={winProbability.confidence === 'low'}>
+          <div class="probability-indicator">
             <span class="prob-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
             <div class="prob-bar">
               <div class="prob-fill-a" style="width: {pctA}%"></div>
@@ -455,10 +455,6 @@
     background: var(--primary, #667eea);
     border-radius: 2px;
     transition: width 0.3s ease;
-  }
-
-  .probability-indicator.low-confidence {
-    opacity: 0.5;
   }
 
   .probability-indicator.live-prob {

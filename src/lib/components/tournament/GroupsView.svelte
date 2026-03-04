@@ -4,6 +4,7 @@
     Group,
     GroupMatch
   } from '$lib/types/tournament';
+  import { getParticipantDisplayName } from '$lib/types/tournament';
   import type { WinProbability } from '$lib/algorithms/probability';
   import GroupStandings from './GroupStandings.svelte';
   import MatchSchedule from './MatchSchedule.svelte';
@@ -31,6 +32,7 @@
   let groupExpandedRounds = $state<Record<string, Set<number>>>({}); // Track expanded rounds per group
   let filterTable = $state<number | null>(null);
   let filterStatus = $state<string | null>(null);
+  let filterParticipant = $state<string | null>(null);
   let groupsInitialized = $state(false); // Prevent auto-expansion after user interaction
   let lastProcessedActiveGroupId = $state<string | null>(null); // Track which activeGroupId was already processed
   let previousRoundCompletionState = $state<Record<string, Record<number, boolean>>>({}); // Track previous completion state
@@ -249,6 +251,22 @@
   // Get available tables
   let availableTables = $derived(Array.from({ length: tournament.numTables }, (_, i) => i + 1));
 
+  let isDoubles = $derived(tournament.gameType === 'doubles');
+
+  // Get all participants sorted alphabetically for the filter dropdown
+  let sortedParticipants = $derived((() => {
+    const participantMap = new Map(tournament.participants.map(p => [p.id, p]));
+    const allIds = new Set<string>();
+    for (const group of groups) {
+      for (const pid of (group.participants || [])) {
+        if (pid && pid !== 'BYE') allIds.add(pid);
+      }
+    }
+    return [...allIds]
+      .map(id => ({ id, name: getParticipantDisplayName(participantMap.get(id), isDoubles) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  })());
+
   function toggleGroup(groupId: string) {
     const newExpanded = new Set(expandedGroups);
     if (newExpanded.has(groupId)) {
@@ -382,6 +400,24 @@
       </select>
     </div>
 
+    <div class="filter-group">
+      <label for="participant-filter">{m.tournament_participant()}</label>
+      <select
+        id="participant-filter"
+        value={filterParticipant ?? ''}
+        onchange={(e) => {
+          const val = (e.target as HTMLSelectElement).value;
+          filterParticipant = val || null;
+          if (val) expandAllRounds();
+        }}
+      >
+        <option value="">{m.tournament_all()}</option>
+        {#each sortedParticipants as p}
+          <option value={p.id}>{p.name}</option>
+        {/each}
+      </select>
+    </div>
+
     <div class="toggle-controls">
       {#if groups.length > 1}
         <button
@@ -454,7 +490,7 @@
                 </svg>
               </span>
               <span class="group-name">{translateGroupName(group.name)}</span>
-              {#if progress.percentage === 100}
+              {#if progress.percentage === 100 && (!isSwiss || (roundsProgress && roundsProgress.completed >= roundsProgress.total))}
                 <span class="complete-badge">{m.tournament_completed()}</span>
               {/if}
             </div>
@@ -531,6 +567,7 @@
                     onMatchClick={(match) => handleMatchClick(group.id, match)}
                     {filterTable}
                     {filterStatus}
+                    {filterParticipant}
                     gameMode={tournament.groupStage?.gameMode || 'rounds'}
                     expandedRoundsState={groupExpandedRounds[group.id] || null}
                     onExpandedRoundsChange={(expanded) => setGroupExpandedRounds(group.id, expanded)}

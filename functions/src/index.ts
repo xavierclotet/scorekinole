@@ -951,6 +951,7 @@ const notificationStrings: Record<string, Record<string, string>> = {
     round: "Ronda",
     table: "Mesa",
     youVs: "Tú vs.",
+    youAndPartnerVs: "Tú y {partner} vs.",
     thirdPlace: "3er/4to puesto",
     place: "puesto",
     inviteAccepted: "Invitación aceptada",
@@ -965,6 +966,7 @@ const notificationStrings: Record<string, Record<string, string>> = {
     round: "Ronda",
     table: "Taula",
     youVs: "Tu vs.",
+    youAndPartnerVs: "Tu i {partner} vs.",
     thirdPlace: "3r/4t lloc",
     place: "lloc",
     inviteAccepted: "Invitació acceptada",
@@ -979,6 +981,7 @@ const notificationStrings: Record<string, Record<string, string>> = {
     round: "Round",
     table: "Table",
     youVs: "You vs.",
+    youAndPartnerVs: "You & {partner} vs.",
     thirdPlace: "3rd/4th place",
     place: "place",
     inviteAccepted: "Invite accepted",
@@ -1256,6 +1259,7 @@ export const onTournamentMatchEvent = onDocumentUpdated(
         name: string;
         userId?: string;
         displayName: string;
+        teamName?: string;
         partner?: { name: string; userId?: string };
       }
     >();
@@ -1267,6 +1271,7 @@ export const onTournamentMatchEvent = onDocumentUpdated(
         displayName: hasPartner
           ? p.teamName || `${p.name} / ${p.partner.name}`
           : p.name,
+        teamName: hasPartner ? p.teamName : undefined,
         partner: hasPartner
           ? { name: p.partner.name, userId: p.partner.userId }
           : undefined,
@@ -1276,10 +1281,12 @@ export const onTournamentMatchEvent = onDocumentUpdated(
     const tournamentKey = afterData.key || event.params.tournamentId;
 
     // Build localized notification for a specific user language
+    // teamInfo: for doubles, provides teamName or partnerName for "your side" label
     function buildNotification(
       match: MatchLike,
       lang: string,
-      opponentName: string
+      opponentName: string,
+      teamInfo?: { teamName?: string; partnerName?: string }
     ) {
       let title: string;
       if (match.phase === "GROUP") {
@@ -1307,9 +1314,24 @@ export const onTournamentMatchEvent = onDocumentUpdated(
         title = parts.join(" · ");
       }
 
+      // Doubles: "{TeamName} vs. Opponent" or "Tú y Partner vs. Opponent"
+      // Singles: "Tú vs. Opponent"
+      let yourSide: string;
+      if (teamInfo?.teamName) {
+        yourSide = teamInfo.teamName;
+      } else if (teamInfo?.partnerName) {
+        yourSide = nt(lang, "youAndPartnerVs").replace("{partner}", teamInfo.partnerName);
+      } else {
+        yourSide = nt(lang, "youVs");
+      }
+
+      const body = teamInfo?.teamName
+        ? `${nt(lang, "table")} ${match.tableNumber}: ${yourSide} vs. ${opponentName}`
+        : `${nt(lang, "table")} ${match.tableNumber}: ${yourSide} ${opponentName}`;
+
       return {
         title,
-        body: `${nt(lang, "table")} ${match.tableNumber}: ${nt(lang, "youVs")} ${opponentName}`,
+        body,
         url: `/game?key=${tournamentKey}`,
         tag: `match-ready-${match.id}`,
       };
@@ -1355,15 +1377,31 @@ export const onTournamentMatchEvent = onDocumentUpdated(
           >();
           allUserIds.forEach((uid, i) => userDataMap.set(uid, userDataResults[i]));
 
+          // Build team info for doubles notifications
+          const teamInfoA = pA.partner
+            ? { teamName: pA.teamName, partnerName: pA.partner.name }
+            : undefined;
+          const teamInfoB = pB.partner
+            ? { teamName: pB.teamName, partnerName: pB.partner.name }
+            : undefined;
+
           // Send pushes in parallel — use displayName for opponent
           const pushes: Promise<number>[] = [];
           for (const member of teamA) {
             const data = userDataMap.get(member.userId);
             if (data) {
+              // For the partner, swap partnerName to show the primary player's name
+              const info = teamInfoA
+                ? {
+                    teamName: teamInfoA.teamName,
+                    partnerName:
+                      member.role === "partner" ? pA.name : teamInfoA.partnerName,
+                  }
+                : undefined;
               pushes.push(
                 sendPushToUser(
                   member.userId,
-                  buildNotification(match, data.lang, pB.displayName),
+                  buildNotification(match, data.lang, pB.displayName, info),
                   "tournament_matchReady",
                   data.prefs
                 )
@@ -1373,10 +1411,17 @@ export const onTournamentMatchEvent = onDocumentUpdated(
           for (const member of teamB) {
             const data = userDataMap.get(member.userId);
             if (data) {
+              const info = teamInfoB
+                ? {
+                    teamName: teamInfoB.teamName,
+                    partnerName:
+                      member.role === "partner" ? pB.name : teamInfoB.partnerName,
+                  }
+                : undefined;
               pushes.push(
                 sendPushToUser(
                   member.userId,
-                  buildNotification(match, data.lang, pA.displayName),
+                  buildNotification(match, data.lang, pA.displayName, info),
                   "tournament_matchReady",
                   data.prefs
                 )

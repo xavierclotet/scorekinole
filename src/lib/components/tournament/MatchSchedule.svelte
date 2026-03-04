@@ -17,6 +17,7 @@
     onMatchClick?: (match: GroupMatch) => void;
     filterTable?: number | null;
     filterStatus?: string | null;
+    filterParticipant?: string | null;
     gameMode?: 'points' | 'rounds';
     // External state for expanded rounds (controlled by parent)
     expandedRoundsState?: Set<number> | null;
@@ -40,6 +41,7 @@
     onMatchClick,
     filterTable = null,
     filterStatus = null,
+    filterParticipant = null,
     gameMode = 'points',
     expandedRoundsState = null,
     onExpandedRoundsChange,
@@ -78,6 +80,10 @@
         }
         // Filter by status
         if (filterStatus !== null && match.status !== filterStatus) {
+          return false;
+        }
+        // Filter by participant
+        if (filterParticipant !== null && match.participantA !== filterParticipant && match.participantB !== filterParticipant) {
           return false;
         }
         return true;
@@ -147,7 +153,7 @@
     <div class="empty-state">
       <div class="empty-icon">📅</div>
       <p>{m.tournament_noMatchesToShow()}</p>
-      {#if filterTable !== null || filterStatus !== null}
+      {#if filterTable !== null || filterStatus !== null || filterParticipant !== null}
         <p class="hint">{m.tournament_tryChangingFilters()}</p>
       {/if}
     </div>

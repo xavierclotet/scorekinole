@@ -499,16 +499,6 @@
 		return getParticipantDisplayName(participant, isDoubles);
 	}
 
-	// Check if participant is registered (has userId)
-	function isRegistered(participant: TournamentParticipant | null): boolean {
-		return !!participant?.userId;
-	}
-
-	// Check if partner is registered
-	function isPartnerRegistered(participant: TournamentParticipant | null): boolean {
-		return !!participant?.partner?.userId;
-	}
-
 	// Sort standings
 	function getSortedStandings(standings: GroupStanding[]): GroupStanding[] {
 		return [...standings].sort((a, b) => {
@@ -693,10 +683,10 @@
 
 {#snippet bracketProbability(match: BracketMatch)}
 	{@const prob = getBracketMatchProbability(match)}
-	{#if prob && prob.confidence !== 'none'}
+	{#if prob && prob.confidence !== 'none' && prob.confidence !== 'low'}
 		{@const pctA = Math.round(prob.probabilityA * 100)}
 		{@const pctB = Math.round(prob.probabilityB * 100)}
-		<div class="bracket-probability" class:low-confidence={prob.confidence === 'low'}>
+		<div class="bracket-probability">
 			<span class="bp-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
 			<div class="bp-bar">
 				<div class="bp-fill" style="width: {pctA}%"></div>
@@ -813,18 +803,15 @@
 														<span class="participant-name">
 															{#if isDoubles && participant}
 																<span class="doubles-names">
-																	<span>{participant.name}{#if isRegistered(participant)}<span class="registered-check" title="{participant.name} registrado">✓</span>{/if}</span>
+																	<span>{participant.name}</span>
 																	<span class="separator">/</span>
-																	<span>{participant.partner?.name || ''}{#if isPartnerRegistered(participant)}<span class="registered-check" title="{participant.partner?.name} registrado">✓</span>{/if}</span>
+																	<span>{participant.partner?.name || ''}</span>
 																</span>
 																{#if participant.teamName}
 																	<span class="team-name-label">({participant.teamName})</span>
 																{/if}
 															{:else}
 																{getParticipantName(standing.participantId)}
-																{#if isRegistered(participant)}
-																	<span class="registered-check" title="Usuario registrado">✓</span>
-																{/if}
 															{/if}
 														</span>
 													</td>
@@ -863,7 +850,7 @@
 										}}
 									>
 										<option value="">{m.tournament_all()}</option>
-										{#each group.participants as pid}
+										{#each [...group.participants].sort((a, b) => getParticipantName(a).localeCompare(getParticipantName(b))) as pid}
 											<option value={pid}>{getParticipantName(pid)}</option>
 										{/each}
 									</select>
@@ -2796,23 +2783,6 @@
 		font-weight: 500;
 	}
 
-	/* Registered User Indicators */
-	.registered-check {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		margin-left: 0.25rem;
-		font-size: 0.65rem;
-		color: #10b981;
-		font-weight: 700;
-	}
-
-	.registered-indicators {
-		display: inline-flex;
-		gap: 0.15rem;
-		margin-left: 0.35rem;
-	}
-
 	.doubles-names {
 		display: inline;
 	}
@@ -2830,10 +2800,6 @@
 		color: #6b7a94;
 	}
 
-	:global([data-theme='light']) .registered-check,
-	:global([data-theme='violet-light']) .registered-check {
-		color: #059669;
-	}
 
 	:global([data-theme='light']) .doubles-names .separator,
 	:global([data-theme='violet-light']) .doubles-names .separator {
@@ -3535,10 +3501,6 @@
 		background: var(--primary, #667eea);
 		border-radius: 2px;
 		transition: width 0.3s ease;
-	}
-
-	.bracket-probability.low-confidence {
-		opacity: 0.5;
 	}
 
 	/* Consolation Section */
