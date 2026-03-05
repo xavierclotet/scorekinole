@@ -147,16 +147,25 @@
 		return match.id.startsWith('tournament_');
 	}
 
-	// Get user's team in a match (checks both player and partner)
+	// Pre-computed map of match ID → user team (rebuilt only when matches or user changes)
+	let userTeamMap = $derived((() => {
+		const map = new Map<string, 1 | 2 | null>();
+		const user = $currentUser;
+		if (!user) return map;
+		for (const match of matches) {
+			let team: 1 | 2 | null = null;
+			if (match.players?.team1?.userId === user.id) team = 1;
+			else if (match.players?.team2?.userId === user.id) team = 2;
+			else if (match.players?.team1?.partner?.userId === user.id) team = 1;
+			else if (match.players?.team2?.partner?.userId === user.id) team = 2;
+			map.set(match.id, team);
+		}
+		return map;
+	})());
+
+	// Get user's team in a match — O(1) lookup from pre-computed map
 	function getUserTeam(match: MatchHistory): 1 | 2 | null {
-		if (!$currentUser) return null;
-		// Check as player
-		if (match.players?.team1?.userId === $currentUser.id) return 1;
-		if (match.players?.team2?.userId === $currentUser.id) return 2;
-		// Check as partner (for doubles matches)
-		if (match.players?.team1?.partner?.userId === $currentUser.id) return 1;
-		if (match.players?.team2?.partner?.userId === $currentUser.id) return 2;
-		return null;
+		return userTeamMap.get(match.id) ?? null;
 	}
 
 	// Get full team display name (player + partner for doubles)
@@ -399,21 +408,15 @@
 		};
 	})());
 
-	// Chart hasData checks
-	let hasHammerData = $derived((() => {
-		const d = buildTwentiesHammerData(filteredMatches, getUserTeam);
-		return d.withHammer.totalRounds > 0 || d.withoutHammer.totalRounds > 0;
-	})());
+	// Pre-compute chart data once — used for both hasData checks and passing to components
+	let hammerData = $derived(buildTwentiesHammerData(filteredMatches, getUserTeam));
+	let hasHammerData = $derived(hammerData.withHammer.totalRounds > 0 || hammerData.withoutHammer.totalRounds > 0);
 
-	let hasPerRoundData = $derived((() => {
-		const d = buildTwentiesPerRoundData(filteredMatches, getUserTeam);
-		return d.roundLabels.length > 0;
-	})());
+	let perRoundData = $derived(buildTwentiesPerRoundData(filteredMatches, getUserTeam));
+	let hasPerRoundData = $derived(perRoundData.roundLabels.length > 0);
 
-	let hasAccuracyLineData = $derived((() => {
-		const d = buildTwentiesAccuracyData(filteredMatches, getUserTeam, getOpponentName);
-		return d.singlesPoints.length > 0 || d.doublesPoints.length > 0;
-	})());
+	let accuracyLineData = $derived(buildTwentiesAccuracyData(filteredMatches, getUserTeam, getOpponentName));
+	let hasAccuracyLineData = $derived(accuracyLineData.singlesPoints.length > 0 || accuracyLineData.doublesPoints.length > 0);
 
 	let filteredTournamentRecords = $derived((() => {
 		if (!filterYear) return tournamentRecords;
@@ -421,10 +424,8 @@
 		return tournamentRecords.filter(r => new Date(r.tournamentDate).getFullYear() === y);
 	})());
 
-	let hasPhaseData = $derived((() => {
-		const d = buildTwentiesByPhaseData(filteredMatches, getUserTeam);
-		return d.phases.length > 0;
-	})());
+	let phaseData = $derived(buildTwentiesByPhaseData(filteredMatches, getUserTeam));
+	let hasPhaseData = $derived(phaseData.phases.length > 0);
 
 	function formatDate(timestamp: number): string {
 		const date = new Date(timestamp);
@@ -655,19 +656,19 @@
 			</ChartWrapper>
 
 			<ChartWrapper title={m.stats_twentiesHammer()} hasData={hasHammerData} autoHeight>
-				<TwentiesHammerChart matches={filteredMatches} {getUserTeam} />
+				<TwentiesHammerChart precomputedData={hammerData} />
 			</ChartWrapper>
 
 			<ChartWrapper title={m.stats_twentiesPerRound()} hasData={hasPerRoundData}>
-				<TwentiesPerRoundTrend matches={filteredMatches} {getUserTeam} />
+				<TwentiesPerRoundTrend precomputedData={perRoundData} />
 			</ChartWrapper>
 
 			<ChartWrapper title={m.stats_twentiesByPhase()} hasData={hasPhaseData}>
-				<TwentiesByPhase matches={filteredMatches} {getUserTeam} />
+				<TwentiesByPhase precomputedData={phaseData} />
 			</ChartWrapper>
 
 			<ChartWrapper title={m.stats_twentiesChart()} hasData={hasAccuracyLineData}>
-				<TwentiesAccuracyLine matches={filteredMatches} {getUserTeam} {getOpponentName} />
+				<TwentiesAccuracyLine precomputedData={accuracyLineData} />
 			</ChartWrapper>
 
 			{#if filterType !== 'friendly'}

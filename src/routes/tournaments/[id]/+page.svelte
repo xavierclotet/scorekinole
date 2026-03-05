@@ -2007,8 +2007,8 @@
 												{/each}
 												<!-- Horizontal connectors between pairs -->
 												{#if roundIndex < goldBracket.rounds.length - 1}
-													{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
-														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
+													{#each Array(Math.floor(visibleMatches.length / 2)) as _, pairIndex}
+														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(visibleMatches.length / 2)}; --total-matches: {visibleMatches.length}"></div>
 													{/each}
 												{/if}
 											</div>
@@ -2606,8 +2606,8 @@
 												{/each}
 												<!-- Horizontal connectors between pairs -->
 												{#if roundIndex < rounds.length - 1}
-													{#each Array(Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)) as _, pairIndex}
-														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(round.matches.filter(m => !isByeMatch(m)).length / 2)}; --total-matches: {round.matches.filter(m => !isByeMatch(m)).length}"></div>
+													{#each Array(Math.floor(visibleMatches.length / 2)) as _, pairIndex}
+														<div class="pair-connector" style="--pair-index: {pairIndex}; --total-pairs: {Math.floor(visibleMatches.length / 2)}; --total-matches: {visibleMatches.length}"></div>
 													{/each}
 												{/if}
 											</div>

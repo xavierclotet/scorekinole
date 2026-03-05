@@ -519,3 +519,220 @@ describe('getAvailableYears', () => {
 		expect(getAvailableYears(new Map())).toEqual([]);
 	});
 });
+
+// ─────────────────────────────────────────────────
+// getAvailableCountries — year filter
+// ─────────────────────────────────────────────────
+describe('getAvailableCountries with year filter', () => {
+	const tMap = new Map<string, TournamentInfo>([
+		['t1', makeTournamentInfo({ id: 't1', country: 'ES', completedAt: new Date('2025-06-15').getTime() })],
+		['t2', makeTournamentInfo({ id: 't2', country: 'FR', completedAt: new Date('2024-03-10').getTime() })],
+		['t3', makeTournamentInfo({ id: 't3', country: 'DE', completedAt: new Date('2025-09-01').getTime() })],
+		['t4', makeTournamentInfo({ id: 't4', country: 'FR', completedAt: new Date('2025-01-01').getTime() })]
+	]);
+
+	it('returns all countries when no year is specified', () => {
+		expect(getAvailableCountries(tMap)).toEqual(['DE', 'ES', 'FR']);
+	});
+
+	it('filters countries by year', () => {
+		expect(getAvailableCountries(tMap, 2025)).toEqual(['DE', 'ES', 'FR']);
+		expect(getAvailableCountries(tMap, 2024)).toEqual(['FR']);
+	});
+
+	it('returns empty when no tournaments match the year', () => {
+		expect(getAvailableCountries(tMap, 2020)).toEqual([]);
+	});
+
+	it('handles completedAt = 0 gracefully with year filter', () => {
+		const withZero = new Map<string, TournamentInfo>([
+			['t1', makeTournamentInfo({ id: 't1', country: 'ES', completedAt: 0 })],
+			['t2', makeTournamentInfo({ id: 't2', country: 'FR', completedAt: new Date('2025-06-15').getTime() })]
+		]);
+		// completedAt=0 is falsy, so the year check is skipped and ES is included
+		expect(getAvailableCountries(withZero, 2025)).toEqual(['ES', 'FR']);
+	});
+});
+
+// ─────────────────────────────────────────────────
+// Large dataset tests
+// ─────────────────────────────────────────────────
+describe('calculateRankings — large dataset', () => {
+	it('handles 1000 users × 10 tournaments correctly', () => {
+		const tournamentCount = 20;
+		const userCount = 1000;
+
+		// Create tournaments
+		const tMap = new Map<string, TournamentInfo>();
+		for (let t = 0; t < tournamentCount; t++) {
+			tMap.set(`t${t}`, makeTournamentInfo({
+				id: `t${t}`,
+				country: t % 2 === 0 ? 'ES' : 'FR',
+				completedAt: new Date(`2025-${String(Math.floor(t / 2) + 1).padStart(2, '0')}-15`).getTime()
+			}));
+		}
+
+		// Create users — each participates in 10 random tournaments
+		const users: UserWithId[] = [];
+		for (let u = 0; u < userCount; u++) {
+			const tournaments: TournamentRecord[] = [];
+			for (let t = 0; t < 10; t++) {
+				const tournamentIdx = (u + t) % tournamentCount;
+				tournaments.push(makeRecord({
+					tournamentId: `t${tournamentIdx}`,
+					finalPosition: (u % 10) + 1, // positions 1-10
+					totalParticipants: 30,
+					rankingDelta: Math.max(0, 100 - (u % 10) * 20),
+					tournamentDate: new Date(`2025-${String(Math.floor(tournamentIdx / 2) + 1).padStart(2, '0')}-15`).getTime()
+				}));
+			}
+			users.push(makeUser({
+				odId: `user${u}`,
+				playerName: `Player ${String(u).padStart(4, '0')}`,
+				tournaments
+			}));
+		}
+
+		const filters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 3 };
+
+		const start = performance.now();
+		const ranked = calculateRankings(users, tMap, filters);
+		const elapsed = performance.now() - start;
+
+		// Should complete in reasonable time
+		expect(elapsed).toBeLessThan(2000);
+
+		// All 1000 users should appear (all have 2025 tournaments)
+		expect(ranked.length).toBe(userCount);
+
+		// Rankings should be sorted descending by totalPoints
+		for (let i = 1; i < ranked.length; i++) {
+			expect(ranked[i - 1].totalPoints).toBeGreaterThanOrEqual(ranked[i].totalPoints);
+		}
+
+		// First-place users (position 1, mock gives 100 pts) should be at top
+		// Their bestOfN=3 would be 3×100 = 300
+		expect(ranked[0].totalPoints).toBe(300);
+
+		// Last users (position 10+, mock gives 0 pts) should have 0
+		const lastPlayer = ranked[ranked.length - 1];
+		expect(lastPlayer.totalPoints).toBe(0);
+	});
+
+	it('handles country filter with large dataset', () => {
+		const tMap = new Map<string, TournamentInfo>();
+		for (let t = 0; t < 10; t++) {
+			tMap.set(`t${t}`, makeTournamentInfo({
+				id: `t${t}`,
+				country: t < 5 ? 'ES' : 'FR',
+				completedAt: new Date(`2025-${String(t + 1).padStart(2, '0')}-15`).getTime()
+			}));
+		}
+
+		const users: UserWithId[] = [];
+		for (let u = 0; u < 500; u++) {
+			const tournaments: TournamentRecord[] = [];
+			for (let t = 0; t < 5; t++) {
+				tournaments.push(makeRecord({
+					tournamentId: `t${(u + t) % 10}`,
+					finalPosition: (u % 5) + 1,
+					totalParticipants: 20,
+					tournamentDate: new Date(`2025-${String(((u + t) % 10) + 1).padStart(2, '0')}-15`).getTime()
+				}));
+			}
+			users.push(makeUser({
+				odId: `user${u}`,
+				playerName: `Player ${u}`,
+				tournaments
+			}));
+		}
+
+		const esFilters: RankingFilters = { year: 2025, filterType: 'country', countryValue: 'ES', bestOfN: 2 };
+		const esRanked = calculateRankings(users, tMap, esFilters);
+
+		// Some users may not have ES tournaments
+		expect(esRanked.length).toBeGreaterThan(0);
+		expect(esRanked.length).toBeLessThanOrEqual(500);
+
+		// All returned players should only have ES tournament details
+		for (const player of esRanked) {
+			for (const t of player.tournaments) {
+				expect(t.country).toBe('ES');
+			}
+		}
+	});
+});
+
+// ─────────────────────────────────────────────────
+// Edge cases
+// ─────────────────────────────────────────────────
+describe('calculateRankings — edge cases', () => {
+	const tournamentsMap = new Map<string, TournamentInfo>([
+		['t1', makeTournamentInfo({ id: 't1', country: 'ES', completedAt: new Date('2025-06-15').getTime() })],
+		['t2', makeTournamentInfo({ id: 't2', country: 'FR', completedAt: new Date('2025-03-10').getTime() })]
+	]);
+	const baseFilters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 2 };
+
+	it('user with all 0-point tournaments still appears in rankings', () => {
+		// Position 6 → mock: max(0, 100 - 5*20) = 0
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'ZeroPlayer',
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 6, tournamentDate: new Date('2025-06-15').getTime() }),
+					makeRecord({ tournamentId: 't2', finalPosition: 6, tournamentDate: new Date('2025-03-10').getTime() })
+				]
+			})
+		];
+		const ranked = calculateRankings(users, tournamentsMap, baseFilters);
+		expect(ranked).toHaveLength(1);
+		expect(ranked[0].totalPoints).toBe(0);
+		expect(ranked[0].tournamentsCount).toBe(2);
+	});
+
+	it('all users tied — falls to alphabetical name tiebreaker', () => {
+		const users = Array.from({ length: 5 }, (_, i) =>
+			makeUser({
+				odId: `u${i}`,
+				playerName: String.fromCharCode(69 - i), // E, D, C, B, A
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		);
+		const ranked = calculateRankings(users, tournamentsMap, baseFilters);
+		expect(ranked.map(r => r.playerName)).toEqual(['A', 'B', 'C', 'D', 'E']);
+	});
+
+	it('bestOfN larger than available tournaments uses all', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'Alice',
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		];
+		const bigBestOf: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 10 };
+		const ranked = calculateRankings(users, tournamentsMap, bigBestOf);
+		expect(ranked).toHaveLength(1);
+		expect(ranked[0].tournamentsCount).toBe(1);
+		expect(ranked[0].totalPoints).toBe(100);
+	});
+
+	it('otherTournaments does not include 0-point tournaments', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'Alice',
+				tournaments: [
+					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() }),
+					makeRecord({ tournamentId: 't2', finalPosition: 6, tournamentDate: new Date('2025-03-10').getTime() }) // 0 points
+				]
+			})
+		];
+		const filters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 1 };
+		const ranked = calculateRankings(users, tournamentsMap, filters);
+		expect(ranked[0].tournaments).toHaveLength(1);
+		expect(ranked[0].otherTournaments).toHaveLength(0); // 0-point tournament excluded
+	});
+});

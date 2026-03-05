@@ -9,7 +9,7 @@
 		Tooltip,
 	} from 'chart.js';
 	import { getChartColors, getBaseChartOptions } from '$lib/utils/chartTheme';
-	import { buildTwentiesPerRoundData } from '$lib/utils/chartData';
+	import { buildTwentiesPerRoundData, type TwentiesPerRoundData } from '$lib/utils/chartData';
 	import { theme } from '$lib/stores/theme';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { MatchHistory } from '$lib/types/history';
@@ -17,16 +17,17 @@
 	Chart.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip);
 
 	interface Props {
-		matches: MatchHistory[];
-		getUserTeam: (match: MatchHistory) => 1 | 2 | null;
+		matches?: MatchHistory[];
+		getUserTeam?: (match: MatchHistory) => 1 | 2 | null;
+		precomputedData?: TwentiesPerRoundData;
 	}
 
-	let { matches, getUserTeam }: Props = $props();
+	let { matches, getUserTeam, precomputedData }: Props = $props();
 
-	let chartKey = $derived(`${$theme}-${matches.length}`);
+	let chartKey = $derived(`${$theme}-${precomputedData?.roundLabels.length ?? matches?.length ?? 0}`);
 
 	function initChart(canvas: HTMLCanvasElement) {
-		const perRoundData = buildTwentiesPerRoundData(matches, getUserTeam);
+		const perRoundData = precomputedData ?? buildTwentiesPerRoundData(matches!, getUserTeam!);
 		const colors = getChartColors();
 		const base = getBaseChartOptions(colors);
 

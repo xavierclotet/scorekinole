@@ -12,7 +12,7 @@
 		Legend,
 	} from 'chart.js';
 	import { getChartColors, getBaseChartOptions } from '$lib/utils/chartTheme';
-	import { buildTwentiesAccuracyData } from '$lib/utils/chartData';
+	import { buildTwentiesAccuracyData, type TwentiesAccuracyChartData } from '$lib/utils/chartData';
 	import { theme } from '$lib/stores/theme';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { MatchHistory } from '$lib/types/history';
@@ -20,17 +20,18 @@
 	Chart.register(BarController, BarElement, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend);
 
 	interface Props {
-		matches: MatchHistory[];
-		getUserTeam: (match: MatchHistory) => 1 | 2 | null;
-		getOpponentName: (match: MatchHistory) => string;
+		matches?: MatchHistory[];
+		getUserTeam?: (match: MatchHistory) => 1 | 2 | null;
+		getOpponentName?: (match: MatchHistory) => string;
+		precomputedData?: TwentiesAccuracyChartData;
 	}
 
-	let { matches, getUserTeam, getOpponentName }: Props = $props();
+	let { matches, getUserTeam, getOpponentName, precomputedData }: Props = $props();
 
-	let chartKey = $derived(`${$theme}-${matches.length}`);
+	let chartKey = $derived(`${$theme}-${precomputedData?.singlesPoints.length ?? matches?.length ?? 0}`);
 
 	function initChart(canvas: HTMLCanvasElement) {
-		const data = buildTwentiesAccuracyData(matches, getUserTeam, getOpponentName);
+		const data = precomputedData ?? buildTwentiesAccuracyData(matches!, getUserTeam!, getOpponentName!);
 		const colors = getChartColors();
 		const base = getBaseChartOptions(colors);
 
@@ -61,14 +62,16 @@
 
 		// Add moving average line if enough data
 		if (allPoints.length > 2) {
-			// Recompute MA on merged timeline
+			// Recompute MA on merged timeline using running sum (O(n), no allocations)
 			const values = allPoints.map(p => p.percentage);
 			const window = Math.min(5, values.length);
 			const ma: number[] = [];
+			let runningSum = 0;
 			for (let i = 0; i < values.length; i++) {
-				const start = Math.max(0, i - window + 1);
-				const slice = values.slice(start, i + 1);
-				ma.push(Math.round((slice.reduce((s, v) => s + v, 0) / slice.length) * 10) / 10);
+				runningSum += values[i];
+				if (i >= window) runningSum -= values[i - window];
+				const count = Math.min(i + 1, window);
+				ma.push(Math.round((runningSum / count) * 10) / 10);
 			}
 
 			datasets.push({

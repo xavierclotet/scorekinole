@@ -9,6 +9,37 @@ export default defineConfig({
 		tailwindcss(),
 		sveltekit()
 	],
+
+	// Pre-bundle heavy dependencies so Vite doesn't re-process them on every page load
+	optimizeDeps: {
+		include: [
+			'firebase/app',
+			'firebase/auth',
+			'firebase/firestore',
+			'firebase/storage',
+			'firebase/messaging',
+			'firebase/analytics',
+			'chart.js',
+			'@lucide/svelte',
+		],
+	},
+
+	// Pre-transform frequently used routes on server start
+	server: {
+		warmup: {
+			clientFiles: [
+				'src/routes/+page.svelte',
+				'src/routes/game/+page.svelte',
+				'src/routes/my-stats/+page.svelte',
+				'src/lib/components/AppMenu.svelte',
+				'src/lib/firebase/auth.ts',
+				'src/lib/firebase/firestore.ts',
+				'src/lib/stores/gameSettings.ts',
+				'src/lib/paraglide/messages.js',
+			],
+		},
+	},
+
 	build: {
 		rollupOptions: {
 			output: {

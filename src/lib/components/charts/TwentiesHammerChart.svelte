@@ -1,16 +1,17 @@
 <script lang="ts">
-	import { buildTwentiesHammerData } from '$lib/utils/chartData';
+	import { buildTwentiesHammerData, type TwentiesHammerData } from '$lib/utils/chartData';
 	import * as m from '$lib/paraglide/messages.js';
 	import type { MatchHistory } from '$lib/types/history';
 
 	interface Props {
-		matches: MatchHistory[];
-		getUserTeam: (match: MatchHistory) => 1 | 2 | null;
+		matches?: MatchHistory[];
+		getUserTeam?: (match: MatchHistory) => 1 | 2 | null;
+		precomputedData?: TwentiesHammerData;
 	}
 
-	let { matches, getUserTeam }: Props = $props();
+	let { matches, getUserTeam, precomputedData }: Props = $props();
 
-	let data = $derived(buildTwentiesHammerData(matches, getUserTeam));
+	let data = $derived(precomputedData ?? buildTwentiesHammerData(matches!, getUserTeam!));
 
 	let diff = $derived(
 		Math.round((data.withHammer.avgTwenties - data.withoutHammer.avgTwenties) * 100) / 100,

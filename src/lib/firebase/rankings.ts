@@ -158,10 +158,14 @@ export async function getCompletedTournaments(): Promise<Map<string, TournamentI
 /**
  * Extract unique countries from completed tournaments
  */
-export function getAvailableCountries(tournamentsMap: Map<string, TournamentInfo>): string[] {
+export function getAvailableCountries(tournamentsMap: Map<string, TournamentInfo>, year?: number): string[] {
   const countries = new Set<string>();
   tournamentsMap.forEach(tournament => {
     if (tournament.country) {
+      if (year && tournament.completedAt) {
+        const tournamentYear = new Date(tournament.completedAt).getFullYear();
+        if (tournamentYear !== year) return;
+      }
       countries.add(tournament.country);
     }
   });
@@ -301,76 +305,82 @@ export function calculateRankings(
   for (const user of users) {
     if (!user.tournaments?.length) continue;
 
-    // 1. Filter user's tournaments by year and country, recalculate points with current system
-    const matchingTournaments = user.tournaments
-      .map(record => {
-        const tournament = tournamentsMap.get(record.tournamentId);
-        if (!tournament) return null;
+    // 1. Filter user's tournaments by year and country, score with current system
+    // Use lightweight intermediate objects to avoid spreading TournamentRecord for every entry
+    const scored: { record: TournamentRecord; points: number; info: TournamentInfo }[] = [];
+    let bestPosition = Infinity;
 
-        // Year filter using tournamentDate from record
-        const year = new Date(record.tournamentDate).getFullYear();
-        if (year !== filters.year) return null;
+    for (const record of user.tournaments) {
+      const info = tournamentsMap.get(record.tournamentId);
+      if (!info) continue;
 
-        // Country filter
-        if (filters.filterType === 'country' && filters.countryValue) {
-          if (tournament.country !== filters.countryValue) return null;
-        }
+      // Year filter
+      const year = new Date(record.tournamentDate).getFullYear();
+      if (year !== filters.year) continue;
 
-        // Recalculate points using current Series system (normalizes legacy tiers)
-        const recalculatedPoints = calculateRankingPoints(
-          record.finalPosition,
-          normalizeTier(tournament.tier),
-          record.totalParticipants,
-          tournament.gameType
-        );
+      // Country filter
+      if (filters.filterType === 'country' && filters.countryValue) {
+        if (info.country !== filters.countryValue) continue;
+      }
 
-        return { ...record, rankingDelta: recalculatedPoints, tier: tournament.tier, gameType: tournament.gameType, country: tournament.country, key: tournament.key };
-      })
-      .filter((r): r is NonNullable<typeof r> => r !== null);
+      // Recalculate points using current Series system (normalizes legacy tiers)
+      const points = calculateRankingPoints(
+        record.finalPosition,
+        normalizeTier(info.tier),
+        record.totalParticipants,
+        info.gameType
+      );
 
-    if (matchingTournaments.length === 0) continue;
+      scored.push({ record, points, info });
+      if (record.finalPosition < bestPosition) bestPosition = record.finalPosition;
+    }
+
+    if (scored.length === 0) continue;
 
     // 2. Sort by recalculated points descending
-    matchingTournaments.sort((a, b) => b.rankingDelta - a.rankingDelta);
+    scored.sort((a, b) => b.points - a.points);
 
     // 3. Take top N results (0 = all)
-    const topN = filters.bestOfN === 0
-      ? matchingTournaments
-      : matchingTournaments.slice(0, filters.bestOfN);
+    const topCount = filters.bestOfN === 0 ? scored.length : Math.min(filters.bestOfN, scored.length);
 
-    // 4. Sum points
-    const totalPoints = topN.reduce((sum, t) => sum + t.rankingDelta, 0);
+    // 4. Sum points and build detail objects only for included tournaments
+    let totalPoints = 0;
+    const tournamentsWithDetails: TournamentRecordWithDetails[] = [];
+    for (let i = 0; i < topCount; i++) {
+      const { record, points, info } = scored[i];
+      totalPoints += points;
+      tournamentsWithDetails.push({
+        ...record,
+        rankingDelta: points,
+        tier: info.tier ? normalizeTier(info.tier) : undefined,
+        country: info.country,
+        key: info.key
+      });
+    }
 
-    // 5. Add tournament details for modal display
-    const tournamentsWithDetails: TournamentRecordWithDetails[] = topN.map(t => ({
-      ...t,
-      tier: t.tier ? normalizeTier(t.tier) : undefined,
-      country: t.country
-    }));
-
-    // 5b. Other tournaments with points (not counted in top-N, empty when "all")
-    const otherTournaments: TournamentRecordWithDetails[] = filters.bestOfN === 0
-      ? []
-      : matchingTournaments.slice(filters.bestOfN)
-        .filter(t => t.rankingDelta > 0)
-        .map(t => ({
-          ...t,
-          tier: t.tier ? normalizeTier(t.tier) : undefined,
-          country: t.country
-        }));
-
-    // 6. Calculate best result (lowest finalPosition)
-    const bestResult = matchingTournaments.length > 0
-      ? Math.min(...matchingTournaments.map(t => t.finalPosition))
-      : null;
+    // 5. Other tournaments with points (not counted in top-N, empty when "all")
+    const otherTournaments: TournamentRecordWithDetails[] = [];
+    if (filters.bestOfN > 0) {
+      for (let i = topCount; i < scored.length; i++) {
+        const { record, points, info } = scored[i];
+        if (points <= 0) break; // Already sorted desc, no more positive values
+        otherTournaments.push({
+          ...record,
+          rankingDelta: points,
+          tier: info.tier ? normalizeTier(info.tier) : undefined,
+          country: info.country,
+          key: info.key
+        });
+      }
+    }
 
     result.push({
       odId: user.odId,
       playerName: user.playerName || 'Unknown',
       photoURL: user.photoURL || null,
       totalPoints,
-      tournamentsCount: topN.length,
-      bestResult,
+      tournamentsCount: topCount,
+      bestResult: bestPosition === Infinity ? null : bestPosition,
       tournaments: tournamentsWithDetails,
       otherTournaments
     });

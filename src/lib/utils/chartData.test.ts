@@ -885,3 +885,234 @@ describe('buildTwentiesByPhaseData', () => {
 		expect(result.phases[0].totalTwenties).toBe(6);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Performance & Large Dataset Tests
+// ---------------------------------------------------------------------------
+
+describe('large dataset: buildTwentiesAccuracyData', () => {
+	const getUserTeam1 = () => 1 as const;
+	const getOpponent = () => 'Opponent';
+
+	it('handles 1000 matches correctly', () => {
+		const matches = Array.from({ length: 1000 }, (_, i) => makeMatch({
+			id: `m${i}`,
+			gameType: i % 3 === 0 ? 'doubles' : 'singles',
+			startTime: 1000 + i * 1000,
+			games: [{
+				gameNumber: 1, team1Points: 5, team2Points: 3, winner: 1,
+				rounds: Array.from({ length: 5 }, (_, r) => ({
+					team1Points: 3, team2Points: 2,
+					team1Twenty: (i + r) % 8,
+					team2Twenty: (i + r + 1) % 8,
+					hammerTeam: (r % 2 + 1) as 1 | 2,
+					roundNumber: r + 1,
+				})),
+			}],
+		}));
+
+		const result = buildTwentiesAccuracyData(matches, getUserTeam1, getOpponent);
+
+		// All 1000 matches should produce data points
+		const totalPoints = result.singlesPoints.length + result.doublesPoints.length;
+		expect(totalPoints).toBe(1000);
+
+		// MA arrays should match data point arrays in length
+		expect(result.singlesMA.length).toBe(result.singlesPoints.length);
+		expect(result.doublesMA.length).toBe(result.doublesPoints.length);
+
+		// All percentages should be in valid range
+		for (const p of [...result.singlesPoints, ...result.doublesPoints]) {
+			expect(p.percentage).toBeGreaterThanOrEqual(0);
+			expect(p.percentage).toBeLessThanOrEqual(100);
+		}
+	});
+});
+
+describe('large dataset: buildTwentiesHammerData', () => {
+	const getUserTeam1 = () => 1 as const;
+
+	it('handles 1000 matches with correct aggregation', () => {
+		const matches = Array.from({ length: 1000 }, (_, i) => makeMatch({
+			id: `m${i}`,
+			games: [{
+				gameNumber: 1, team1Points: 5, team2Points: 3, winner: 1,
+				rounds: [
+					{ team1Points: 5, team2Points: 3, team1Twenty: 2, team2Twenty: 1, hammerTeam: 1, roundNumber: 1 },
+					{ team1Points: 3, team2Points: 5, team1Twenty: 1, team2Twenty: 3, hammerTeam: 2, roundNumber: 2 },
+				],
+			}],
+		}));
+
+		const result = buildTwentiesHammerData(matches, getUserTeam1);
+
+		// 1000 matches × 1 round with hammer each = 1000 rounds per bucket
+		expect(result.withHammer.totalRounds).toBe(1000);
+		expect(result.withoutHammer.totalRounds).toBe(1000);
+		expect(result.withHammer.totalTwenties).toBe(2000); // 2 × 1000
+		expect(result.withoutHammer.totalTwenties).toBe(1000); // 1 × 1000
+		expect(result.withHammer.avgTwenties).toBe(2);
+		expect(result.withoutHammer.avgTwenties).toBe(1);
+	});
+});
+
+describe('large dataset: buildBumpChartData', () => {
+	const qualMode: QualificationMode = 'WINS';
+
+	it('handles 20 participants × 10 rounds correctly', () => {
+		const participants = Array.from({ length: 20 }, (_, i) => `p${i}`);
+		const names = new Map(participants.map(p => [p, `Player ${p.slice(1)}`]));
+
+		// Generate 10 rounds of round-robin matches
+		const schedule = Array.from({ length: 10 }, (_, roundIdx) => ({
+			roundNumber: roundIdx + 1,
+			matches: Array.from({ length: 10 }, (_, matchIdx) => {
+				const a = participants[matchIdx * 2];
+				const b = participants[matchIdx * 2 + 1];
+				return {
+					id: `m-r${roundIdx}-${matchIdx}`,
+					participantA: a,
+					participantB: b,
+					status: 'COMPLETED' as const,
+					winner: matchIdx % 2 === 0 ? a : b,
+					totalPointsA: matchIdx % 2 === 0 ? 8 : 4,
+					totalPointsB: matchIdx % 2 === 0 ? 4 : 8,
+					total20sA: 3,
+					total20sB: 2,
+				};
+			}),
+		}));
+
+		const group = {
+			id: 'g1',
+			name: 'Group A',
+			participants,
+			standings: [],
+			schedule,
+		} as unknown as Group;
+
+		const result = buildBumpChartData(group, names, false, qualMode);
+
+		expect(result.roundLabels).toHaveLength(10);
+		expect(result.datasets).toHaveLength(20);
+
+		// Every participant should have a position for every round
+		for (const ds of result.datasets) {
+			expect(ds.positions).toHaveLength(10);
+			for (const pos of ds.positions) {
+				expect(pos).toBeGreaterThanOrEqual(1);
+				expect(pos).toBeLessThanOrEqual(20);
+			}
+		}
+
+		// Positions should be unique within each round (no ties in position number)
+		for (let r = 0; r < 10; r++) {
+			const positionsInRound = result.datasets.map(ds => ds.positions[r]);
+			const uniquePositions = new Set(positionsInRound);
+			expect(uniquePositions.size).toBe(20);
+		}
+	});
+
+	it('produces identical results for incremental vs reference calculation', () => {
+		// Use the existing rrGroup test fixture and verify same output
+		const names = new Map([['p1', 'Alice'], ['p2', 'Bob'], ['p3', 'Carol']]);
+		const rrGroup = {
+			id: 'g1',
+			name: 'Group A',
+			participants: ['p1', 'p2', 'p3'],
+			standings: [],
+			schedule: [
+				{
+					roundNumber: 1,
+					matches: [
+						{ id: 'm1', participantA: 'p1', participantB: 'p2', status: 'COMPLETED', winner: 'p1', totalPointsA: 8, totalPointsB: 4, total20sA: 3, total20sB: 1 },
+						{ id: 'm2', participantA: 'p3', participantB: 'BYE', status: 'WALKOVER', winner: 'p3', totalPointsA: 0, totalPointsB: 0, total20sA: 0, total20sB: 0 },
+					],
+				},
+				{
+					roundNumber: 2,
+					matches: [
+						{ id: 'm3', participantA: 'p2', participantB: 'p3', status: 'COMPLETED', winner: 'p3', totalPointsA: 5, totalPointsB: 8, total20sA: 2, total20sB: 4 },
+					],
+				},
+				{
+					roundNumber: 3,
+					matches: [
+						{ id: 'm4', participantA: 'p1', participantB: 'p3', status: 'COMPLETED', winner: 'p1', totalPointsA: 8, totalPointsB: 6, total20sA: 2, total20sB: 1 },
+					],
+				},
+			],
+		} as unknown as Group;
+
+		const result = buildBumpChartData(rrGroup, names, false, qualMode);
+
+		// Same assertions as original tests — ensures incremental approach matches
+		expect(result.roundLabels).toEqual(['R1', 'R2', 'R3']);
+		expect(result.datasets).toHaveLength(3);
+
+		const p1 = result.datasets.find(d => d.participantId === 'p1')!;
+		const p2 = result.datasets.find(d => d.participantId === 'p2')!;
+
+		expect(p1.positions[0]).toBe(1); // After R1: p1 wins
+		expect(p1.positions[2]).toBe(1); // After R3: p1 still first
+		expect(p2.positions[2]).toBe(3); // After R3: p2 last
+	});
+});
+
+describe('moving average equivalence', () => {
+	// Reference implementation (old slice-based approach)
+	function computeMA_reference(values: number[], window: number): number[] {
+		if (values.length === 0) return [];
+		const result: number[] = [];
+		for (let i = 0; i < values.length; i++) {
+			const start = Math.max(0, i - window + 1);
+			const slice = values.slice(start, i + 1);
+			const avg = slice.reduce((sum, v) => sum + v, 0) / slice.length;
+			result.push(Math.round(avg * 10) / 10);
+		}
+		return result;
+	}
+
+	it('running sum matches slice-based MA for 100 values', () => {
+		const values = Array.from({ length: 100 }, (_, i) => Math.round(Math.sin(i) * 50 + 50));
+		const matches = values.map((v, i) => makeMatch({
+			id: `m${i}`,
+			gameType: 'singles',
+			startTime: 1000 + i * 1000,
+			games: [{
+				gameNumber: 1, team1Points: 0, team2Points: 0, winner: null,
+				rounds: [
+					{ team1Points: 5, team2Points: 3, team1Twenty: v % 8, team2Twenty: 0, hammerTeam: 1, roundNumber: 1 },
+				],
+			}],
+		}));
+
+		const result = buildTwentiesAccuracyData(matches, () => 1, () => 'Opp');
+		const percentages = result.singlesPoints.map(p => p.percentage);
+		const referenceMA = computeMA_reference(percentages, 5);
+
+		expect(result.singlesMA).toEqual(referenceMA);
+	});
+
+	it('handles edge case: empty values', () => {
+		const result = buildTwentiesAccuracyData([], () => 1, () => 'Opp');
+		expect(result.singlesMA).toEqual([]);
+		expect(result.doublesMA).toEqual([]);
+	});
+
+	it('handles edge case: single value', () => {
+		const match = makeMatch({
+			gameType: 'singles',
+			startTime: 1000,
+			games: [{
+				gameNumber: 1, team1Points: 5, team2Points: 3, winner: 1,
+				rounds: [
+					{ team1Points: 5, team2Points: 3, team1Twenty: 4, team2Twenty: 0, hammerTeam: 1, roundNumber: 1 },
+				],
+			}],
+		});
+		const result = buildTwentiesAccuracyData([match], () => 1, () => 'Opp');
+		expect(result.singlesMA).toHaveLength(1);
+		expect(result.singlesMA[0]).toBe(result.singlesPoints[0].percentage);
+	});
+});

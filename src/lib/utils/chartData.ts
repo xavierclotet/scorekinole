@@ -132,11 +132,14 @@ export function buildTwentiesAccuracyData(
 function computeMovingAverage(values: number[], window: number): number[] {
 	if (values.length === 0) return [];
 	const result: number[] = [];
+	let runningSum = 0;
 	for (let i = 0; i < values.length; i++) {
-		const start = Math.max(0, i - window + 1);
-		const slice = values.slice(start, i + 1);
-		const avg = slice.reduce((sum, v) => sum + v, 0) / slice.length;
-		result.push(Math.round(avg * 10) / 10);
+		runningSum += values[i];
+		if (i >= window) {
+			runningSum -= values[i - window];
+		}
+		const count = Math.min(i + 1, window);
+		result.push(Math.round((runningSum / count) * 10) / 10);
 	}
 	return result;
 }
@@ -268,62 +271,10 @@ export function buildBumpChartData(
 	const roundLabels: string[] = [];
 	const participantPositions = new Map<string, (number | null)[]>();
 
-	// Initialize participant arrays
-	for (const pid of group.participants) {
-		participantPositions.set(pid, []);
-	}
-
-	// Replay standings round by round
-	for (let r = 0; r < completedRoundCount; r++) {
-		roundLabels.push(`R${r + 1}`);
-		const standings = calculateStandingsUpToRound(group, r + 1, isSwiss, qualificationMode);
-
-		for (const pid of group.participants) {
-			const standing = standings.find(s => s.participantId === pid);
-			const positions = participantPositions.get(pid)!;
-			positions.push(standing ? standing.position : null);
-		}
-	}
-
-	const datasets: BumpChartDataset[] = [];
-	for (const pid of group.participants) {
-		datasets.push({
-			participantId: pid,
-			participantName: participantNames.get(pid) ?? pid,
-			positions: participantPositions.get(pid) ?? [],
-		});
-	}
-
-	return { roundLabels, datasets };
-}
-
-/**
- * Calculate standings considering only matches up to a specific round.
- * This is a pure replay of the standings logic from tournamentMatches.ts,
- * but only processing matches from rounds 0..upToRound-1.
- */
-function calculateStandingsUpToRound(
-	group: Group,
-	upToRound: number,
-	isSwiss: boolean,
-	qualificationMode: QualificationMode,
-): GroupStanding[] {
-	// Get matches only up to the specified round
-	let matches: GroupMatch[] = [];
-
-	if (!isSwiss && group.schedule) {
-		for (let i = 0; i < Math.min(upToRound, group.schedule.length); i++) {
-			matches.push(...(group.schedule[i].matches ?? []));
-		}
-	} else if (isSwiss && group.pairings) {
-		for (let i = 0; i < Math.min(upToRound, group.pairings.length); i++) {
-			matches.push(...(group.pairings[i].matches ?? []));
-		}
-	}
-
-	// Initialize standings
+	// Initialize participant arrays and standings map
 	const standingsMap = new Map<string, GroupStanding>();
 	for (const pid of group.participants) {
+		participantPositions.set(pid, []);
 		standingsMap.set(pid, {
 			participantId: pid,
 			position: 0,
@@ -339,47 +290,8 @@ function calculateStandingsUpToRound(
 		});
 	}
 
-	// Process completed matches
-	for (const match of matches) {
-		if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') continue;
-		if (match.participantB === 'BYE') continue;
-
-		const standingA = standingsMap.get(match.participantA);
-		const standingB = standingsMap.get(match.participantB);
-		if (!standingA || !standingB) continue;
-
-		standingA.matchesPlayed++;
-		standingB.matchesPlayed++;
-
-		if (match.winner === match.participantA) {
-			standingA.matchesWon++;
-			standingB.matchesLost++;
-			standingA.points += 2;
-			if (isSwiss) standingA.swissPoints = (standingA.swissPoints || 0) + 2;
-		} else if (match.winner === match.participantB) {
-			standingB.matchesWon++;
-			standingA.matchesLost++;
-			standingB.points += 2;
-			if (isSwiss) standingB.swissPoints = (standingB.swissPoints || 0) + 2;
-		} else {
-			standingA.matchesTied++;
-			standingB.matchesTied++;
-			standingA.points += 1;
-			standingB.points += 1;
-			if (isSwiss) {
-				standingA.swissPoints = (standingA.swissPoints || 0) + 1;
-				standingB.swissPoints = (standingB.swissPoints || 0) + 1;
-			}
-		}
-
-		if (match.total20sA) standingA.total20s += match.total20sA;
-		if (match.total20sB) standingB.total20s += match.total20sB;
-		if (match.totalPointsA) standingA.totalPointsScored += match.totalPointsA;
-		if (match.totalPointsB) standingB.totalPointsScored += match.totalPointsB;
-	}
-
-	// Sort standings
-	const standings = Array.from(standingsMap.values()).sort((a, b) => {
+	// Sorting comparator for standings
+	const compareStandings = (a: GroupStanding, b: GroupStanding): number => {
 		if (qualificationMode === 'POINTS') {
 			if (b.totalPointsScored !== a.totalPointsScored) return b.totalPointsScored - a.totalPointsScored;
 			if (b.total20s !== a.total20s) return b.total20s - a.total20s;
@@ -393,14 +305,73 @@ function calculateStandingsUpToRound(
 			if (b.total20s !== a.total20s) return b.total20s - a.total20s;
 			return b.totalPointsScored - a.totalPointsScored;
 		}
-	});
+	};
 
-	// Assign positions
-	standings.forEach((standing, index) => {
-		standing.position = index + 1;
-	});
+	// Replay standings incrementally — process only each round's matches
+	for (let r = 0; r < completedRoundCount; r++) {
+		roundLabels.push(`R${r + 1}`);
 
-	return standings;
+		// Process only this round's matches (incremental update)
+		const roundMatches = rounds[r].matches ?? [];
+		for (const match of roundMatches) {
+			if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') continue;
+			if (match.participantB === 'BYE') continue;
+
+			const standingA = standingsMap.get(match.participantA);
+			const standingB = standingsMap.get(match.participantB);
+			if (!standingA || !standingB) continue;
+
+			standingA.matchesPlayed++;
+			standingB.matchesPlayed++;
+
+			if (match.winner === match.participantA) {
+				standingA.matchesWon++;
+				standingB.matchesLost++;
+				standingA.points += 2;
+				if (isSwiss) standingA.swissPoints = (standingA.swissPoints || 0) + 2;
+			} else if (match.winner === match.participantB) {
+				standingB.matchesWon++;
+				standingA.matchesLost++;
+				standingB.points += 2;
+				if (isSwiss) standingB.swissPoints = (standingB.swissPoints || 0) + 2;
+			} else {
+				standingA.matchesTied++;
+				standingB.matchesTied++;
+				standingA.points += 1;
+				standingB.points += 1;
+				if (isSwiss) {
+					standingA.swissPoints = (standingA.swissPoints || 0) + 1;
+					standingB.swissPoints = (standingB.swissPoints || 0) + 1;
+				}
+			}
+
+			if (match.total20sA) standingA.total20s += match.total20sA;
+			if (match.total20sB) standingB.total20s += match.total20sB;
+			if (match.totalPointsA) standingA.totalPointsScored += match.totalPointsA;
+			if (match.totalPointsB) standingB.totalPointsScored += match.totalPointsB;
+		}
+
+		// Sort and assign positions (O(P log P) per round)
+		const sorted = Array.from(standingsMap.values()).sort(compareStandings);
+		sorted.forEach((s, idx) => { s.position = idx + 1; });
+
+		// Record positions using O(1) Map lookup per participant
+		for (const pid of group.participants) {
+			const standing = standingsMap.get(pid);
+			participantPositions.get(pid)!.push(standing ? standing.position : null);
+		}
+	}
+
+	const datasets: BumpChartDataset[] = [];
+	for (const pid of group.participants) {
+		datasets.push({
+			participantId: pid,
+			participantName: participantNames.get(pid) ?? pid,
+			positions: participantPositions.get(pid) ?? [],
+		});
+	}
+
+	return { roundLabels, datasets };
 }
 
 // --- Twenties Grouped Bar Chart ---

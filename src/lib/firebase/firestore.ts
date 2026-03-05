@@ -309,79 +309,25 @@ export async function getMatchesFromCloud(): Promise<MatchHistory[]> {
 		const matchesRef = collection(db!, 'matches');
 		const matchesMap = new Map<string, MatchHistory>();
 
-		// Query 1: Matches where user played as team1 (only active)
-		try {
-			const q1 = query(
-				matchesRef,
-				where('players.team1.userId', '==', user.id),
-				where('status', '==', 'active')
-			);
-			const snapshot1 = await getDocs(q1);
-			snapshot1.forEach((docSnap) => {
-				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
-			});
-		} catch (err: any) {
-			console.warn('Query team1 failed:', err.message);
-		}
+		// Run all 5 queries in parallel for faster loading
+		const queries = [
+			query(matchesRef, where('players.team1.userId', '==', user.id), where('status', '==', 'active')),
+			query(matchesRef, where('players.team2.userId', '==', user.id), where('status', '==', 'active')),
+			query(matchesRef, where('players.team1.partner.userId', '==', user.id), where('status', '==', 'active')),
+			query(matchesRef, where('players.team2.partner.userId', '==', user.id), where('status', '==', 'active')),
+			query(matchesRef, where('savedBy.userId', '==', user.id), where('status', '==', 'active')),
+		];
 
-		// Query 2: Matches where user played as team2 (only active)
-		try {
-			const q2 = query(
-				matchesRef,
-				where('players.team2.userId', '==', user.id),
-				where('status', '==', 'active')
-			);
-			const snapshot2 = await getDocs(q2);
-			snapshot2.forEach((docSnap) => {
-				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
-			});
-		} catch (err: any) {
-			console.warn('Query team2 failed:', err.message);
-		}
+		const results = await Promise.allSettled(queries.map(q => getDocs(q)));
 
-		// Query 3: Matches where user played as partner on team1 (only active)
-		try {
-			const q3 = query(
-				matchesRef,
-				where('players.team1.partner.userId', '==', user.id),
-				where('status', '==', 'active')
-			);
-			const snapshot3 = await getDocs(q3);
-			snapshot3.forEach((docSnap) => {
-				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
-			});
-		} catch (err: any) {
-			console.warn('Query team1 partner failed:', err.message);
-		}
-
-		// Query 4: Matches where user played as partner on team2 (only active)
-		try {
-			const q4 = query(
-				matchesRef,
-				where('players.team2.partner.userId', '==', user.id),
-				where('status', '==', 'active')
-			);
-			const snapshot4 = await getDocs(q4);
-			snapshot4.forEach((docSnap) => {
-				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
-			});
-		} catch (err: any) {
-			console.warn('Query team2 partner failed:', err.message);
-		}
-
-		// Query 5: Fallback by savedBy.userId (for matches saved by this user)
-		try {
-			const q5 = query(
-				matchesRef,
-				where('savedBy.userId', '==', user.id),
-				where('status', '==', 'active')
-			);
-			const snapshot5 = await getDocs(q5);
-			snapshot5.forEach((docSnap) => {
-				matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
-			});
-		} catch (err: any) {
-			console.warn('Query savedBy failed:', err.message);
+		for (const result of results) {
+			if (result.status === 'fulfilled') {
+				result.value.forEach((docSnap) => {
+					matchesMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() } as MatchHistory);
+				});
+			} else {
+				console.warn('Match query failed:', result.reason?.message);
+			}
 		}
 
 		// Convert Map to Array and sort by startTime (descending)
@@ -652,20 +598,13 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 
 	try {
 		const tournamentsRef = collection(db!, 'tournaments');
-		const snapshot = await getDocs(tournamentsRef);
+		const completedQuery = query(tournamentsRef, where('status', '==', 'COMPLETED'));
+		const snapshot = await getDocs(completedQuery);
 
 		const tournamentMatches: MatchHistory[] = [];
 
-
-
 		snapshot.forEach((docSnap) => {
 			const data = docSnap.data();
-
-			// Only include completed tournaments
-			if (data.status !== 'COMPLETED') {
-
-				return;
-			}
 
 			// Convert timestamps
 			const tournament: Tournament = {

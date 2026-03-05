@@ -32,7 +32,9 @@
 	let bestOfN = $state(2);
 	let filterType = $state<'all' | 'country'>('all');
 	let selectedCountry = $state('');
-	let availableCountries = $state<string[]>([]);
+	let availableCountries = $derived(
+		tournamentsMap.size > 0 ? getAvailableCountries(tournamentsMap, selectedYear) : []
+	);
 
 	// Modal state
 	let selectedPlayer = $state<RankedPlayer | null>(null);
@@ -81,22 +83,20 @@
 			users = loadedUsers;
 			tournamentsMap = loadedTournaments;
 
-			// Extract available filters
+			// Extract available years
 			availableYears = getAvailableYears(tournamentsMap);
-			availableCountries = getAvailableCountries(tournamentsMap);
 
 			// Set default year to most recent if current year has no tournaments
 			if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
 				selectedYear = availableYears[0];
 			}
 
-			// Set default country if available
+			// Set default country if available (availableCountries is $derived)
 			if (availableCountries.length > 0 && !selectedCountry) {
 				selectedCountry = availableCountries[0];
 			}
 
-			// Calculate initial rankings
-			recalculateRankings();
+			// Rankings will be calculated by the $effect when isLoading becomes false
 		} catch (error) {
 			console.error('Error loading ranking data:', error);
 			// In case of error (or if dev server is stuck), stop loading
@@ -131,6 +131,13 @@
 			loadMore();
 		}
 	}
+
+	// Reset country selection when available countries change and current selection is invalid
+	$effect(() => {
+		if (selectedCountry && availableCountries.length > 0 && !availableCountries.includes(selectedCountry)) {
+			selectedCountry = availableCountries[0] || '';
+		}
+	});
 
 	// Reactive recalculation when filters change
 	$effect(() => {
