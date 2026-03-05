@@ -272,7 +272,7 @@ export function assignTablesToRounds(
       // 2. Lowest primaryScore = max(deltaA, deltaB) — cycle fairness
       // 3. Lowest secondaryScore = usageA + usageB — global balance
       // 4. Not recently used — recency tiebreak
-      let bestTable = 1;
+      let bestTable: number | null = null;
       let bestPrimary = Infinity;
       let bestSecondary = Infinity;
 
@@ -306,6 +306,11 @@ export function assignTablesToRounds(
             bestTable = table;
           }
         }
+      }
+
+      // If no table available, leave tableNumber undefined (will show TBD)
+      if (bestTable === null) {
+        continue;
       }
 
       // Assign table to match

@@ -670,7 +670,9 @@ export function getQualifiers(
  */
 export function hasTieForQualification(
   standings: GroupStanding[],
-  numQualifiers: number
+  numQualifiers: number,
+  isSwiss: boolean = false,
+  qualificationMode: QualificationMode = 'WINS'
 ): boolean {
   if (numQualifiers >= standings.length) {
     return false;
@@ -680,8 +682,10 @@ export function hasTieForQualification(
   const lastQualifier = sorted[numQualifiers - 1];
   const firstNonQualifier = sorted[numQualifiers];
 
-  // Check if they have same points (primary criterion)
-  return lastQualifier.points === firstNonQualifier.points;
+  // Compare using the correct primary value for the tournament type
+  const valueA = getPrimaryValue(lastQualifier, isSwiss, qualificationMode);
+  const valueB = getPrimaryValue(firstNonQualifier, isSwiss, qualificationMode);
+  return valueA === valueB;
 }
 
 /**
@@ -693,7 +697,9 @@ export function hasTieForQualification(
  */
 export function getParticipantsInTie(
   standings: GroupStanding[],
-  position: number
+  position: number,
+  isSwiss: boolean = false,
+  qualificationMode: QualificationMode = 'WINS'
 ): string[] {
   const sorted = [...standings].sort((a, b) => a.position - b.position);
 
@@ -702,10 +708,10 @@ export function getParticipantsInTie(
   }
 
   const targetStanding = sorted[position - 1];
-  const targetPoints = targetStanding.points;
+  const targetValue = getPrimaryValue(targetStanding, isSwiss, qualificationMode);
 
-  // Find all participants with same points
+  // Find all participants with same primary value
   return sorted
-    .filter(s => s.points === targetPoints)
+    .filter(s => getPrimaryValue(s, isSwiss, qualificationMode) === targetValue)
     .map(s => s.participantId);
 }
