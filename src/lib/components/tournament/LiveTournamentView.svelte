@@ -478,10 +478,15 @@
 		return null;
 	}
 
+	// Pre-build participant lookup map for O(1) access
+	let participantMap = $derived(
+		new Map(tournament.participants.map(p => [p.id, p]))
+	);
+
 	// Get participant object
 	function getParticipant(participantId: string): TournamentParticipant | null {
 		if (!participantId || participantId === 'BYE') return null;
-		return tournament.participants.find(p => p.id === participantId) || null;
+		return participantMap.get(participantId) || null;
 	}
 
 	// Get initials from a player name (e.g. "Juan García" → "JG", "María" → "M")

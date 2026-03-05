@@ -1116,3 +1116,144 @@ describe('moving average equivalence', () => {
 		expect(result.singlesMA[0]).toBe(result.singlesPoints[0].percentage);
 	});
 });
+
+// ─────────────────────────────────────────────────
+// Tournament public page — large dataset tests
+// ─────────────────────────────────────────────────
+
+describe('large dataset: buildTwentiesGroupedData', () => {
+	it('handles 20 participants × 10 rounds correctly', () => {
+		const participantCount = 20;
+		const roundCount = 10;
+		const participants = Array.from({ length: participantCount }, (_, i) => `p${i}`);
+		const names = new Map(participants.map(p => [p, `Player ${p}`]));
+
+		const schedule = Array.from({ length: roundCount }, (_, r) => ({
+			roundNumber: r + 1,
+			matches: participants.reduce<any[]>((acc, pid, idx) => {
+				if (idx % 2 === 0 && idx + 1 < participantCount) {
+					acc.push({
+						id: `m${r}_${idx}`,
+						participantA: participants[idx],
+						participantB: participants[idx + 1],
+						status: 'COMPLETED',
+						winner: participants[idx],
+						total20sA: (idx + r) % 5,
+						total20sB: (idx + r + 1) % 4,
+					});
+				}
+				return acc;
+			}, []),
+		}));
+
+		const group = {
+			id: 'g1', name: 'Large', participants, standings: [],
+			schedule,
+		} as unknown as Group;
+
+		const start = performance.now();
+		const result = buildTwentiesGroupedData(group, names, false);
+		const elapsed = performance.now() - start;
+
+		expect(elapsed).toBeLessThan(500);
+		expect(result.roundLabels).toHaveLength(roundCount);
+		expect(result.datasets).toHaveLength(participantCount);
+
+		// Verify total 20s for p0: sum of total20sA across all rounds where p0 is participantA
+		const p0Data = result.datasets.find(d => d.participantId === 'p0')!;
+		expect(p0Data.twentiesPerRound).toHaveLength(roundCount);
+		for (let r = 0; r < roundCount; r++) {
+			expect(p0Data.twentiesPerRound[r]).toBe((0 + r) % 5); // total20sA = (idx + r) % 5, idx=0
+		}
+	});
+
+	it('handles group with WALKOVER matches', () => {
+		const group = {
+			id: 'g1', name: 'WO', participants: ['p1', 'p2', 'p3'],
+			standings: [],
+			schedule: [
+				{
+					roundNumber: 1,
+					matches: [
+						{ id: 'm1', participantA: 'p1', participantB: 'p2', status: 'COMPLETED', winner: 'p1', total20sA: 3, total20sB: 1 },
+						{ id: 'm2', participantA: 'p3', participantB: 'BYE', status: 'WALKOVER', winner: 'p3', total20sA: 0, total20sB: 0 },
+					],
+				},
+			],
+		} as unknown as Group;
+
+		const names = new Map([['p1', 'A'], ['p2', 'B'], ['p3', 'C']]);
+		const result = buildTwentiesGroupedData(group, names, false);
+
+		expect(result.roundLabels).toHaveLength(1);
+		expect(result.datasets.find(d => d.participantId === 'p1')!.twentiesPerRound).toEqual([3]);
+		expect(result.datasets.find(d => d.participantId === 'p3')!.twentiesPerRound).toEqual([0]);
+	});
+});
+
+describe('buildBumpChartData — tournament edge cases', () => {
+	const qualMode = 'WINS' as any;
+
+	it('handles group where all matches are walkovers (no real games)', () => {
+		const group = {
+			id: 'g1', name: 'AllWO', participants: ['p1', 'p2'],
+			standings: [
+				{ participantId: 'p1', matchesWon: 1, matchesLost: 0, matchesPlayed: 1, totalPointsScored: 0, totalPointsConceded: 0, total20s: 0 },
+				{ participantId: 'p2', matchesWon: 0, matchesLost: 1, matchesPlayed: 1, totalPointsScored: 0, totalPointsConceded: 0, total20s: 0 },
+			],
+			schedule: [
+				{
+					roundNumber: 1,
+					matches: [
+						{ id: 'm1', participantA: 'p1', participantB: 'p2', status: 'WALKOVER', winner: 'p1', totalPointsA: 0, totalPointsB: 0, total20sA: 0, total20sB: 0 },
+					],
+				},
+				{
+					roundNumber: 2,
+					matches: [
+						{ id: 'm2', participantA: 'p2', participantB: 'p1', status: 'WALKOVER', winner: 'p1', totalPointsA: 0, totalPointsB: 0, total20sA: 0, total20sB: 0 },
+					],
+				},
+			],
+		} as unknown as Group;
+
+		const names = new Map([['p1', 'A'], ['p2', 'B']]);
+		const result = buildBumpChartData(group, names, false, qualMode);
+
+		expect(result.roundLabels).toHaveLength(2);
+		expect(result.datasets).toHaveLength(2);
+		// p1 should be #1 after both rounds (wins both walkovers)
+		const p1 = result.datasets.find(d => d.participantId === 'p1')!;
+		expect(p1.positions[0]).toBe(1);
+		expect(p1.positions[1]).toBe(1);
+	});
+
+	it('handles group with mix of PENDING and COMPLETED matches in same round', () => {
+		const group = {
+			id: 'g1', name: 'Mix', participants: ['p1', 'p2', 'p3', 'p4'],
+			standings: [
+				{ participantId: 'p1', matchesWon: 1, matchesLost: 0, matchesPlayed: 1, totalPointsScored: 8, totalPointsConceded: 4, total20s: 2 },
+				{ participantId: 'p2', matchesWon: 0, matchesLost: 1, matchesPlayed: 1, totalPointsScored: 4, totalPointsConceded: 8, total20s: 0 },
+				{ participantId: 'p3', matchesWon: 0, matchesLost: 0, matchesPlayed: 0, totalPointsScored: 0, totalPointsConceded: 0, total20s: 0 },
+				{ participantId: 'p4', matchesWon: 0, matchesLost: 0, matchesPlayed: 0, totalPointsScored: 0, totalPointsConceded: 0, total20s: 0 },
+			],
+			schedule: [
+				{
+					roundNumber: 1,
+					matches: [
+						{ id: 'm1', participantA: 'p1', participantB: 'p2', status: 'COMPLETED', winner: 'p1', totalPointsA: 8, totalPointsB: 4, total20sA: 2, total20sB: 0 },
+						{ id: 'm2', participantA: 'p3', participantB: 'p4', status: 'PENDING', winner: null, totalPointsA: 0, totalPointsB: 0, total20sA: 0, total20sB: 0 },
+					],
+				},
+			],
+		} as unknown as Group;
+
+		const names = new Map([['p1', 'A'], ['p2', 'B'], ['p3', 'C'], ['p4', 'D']]);
+		const result = buildBumpChartData(group, names, false, qualMode);
+
+		// buildBumpChartData requires at least 2 rounds total to show progression,
+		// so a single round (even with completed matches) returns empty
+		expect(result.roundLabels).toHaveLength(0);
+		expect(result.datasets).toHaveLength(0);
+	});
+});

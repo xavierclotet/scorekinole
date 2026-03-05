@@ -235,53 +235,57 @@
 		return calculateRankingPoints(position, tier, totalParticipants, tournament.gameType);
 	}
 
-	// Calculate total 20s for a participant across all tournament matches, split by phase
-	function getParticipantTotal20s(participantId: string): { group: number; bracket: number; total: number } {
-		if (!tournament) return { group: 0, bracket: 0, total: 0 };
-		let group = 0;
-		let bracket = 0;
+	// Pre-compute total 20s for ALL participants in one pass (avoids O(P × M) per-participant iteration)
+	let allParticipant20s = $derived.by(() => {
+		const map = new Map<string, { group: number; bracket: number }>();
+		if (!tournament) return map;
 
-		// Helper to sum 20s from a list of matches
-		function sumFromMatches(matches: Array<{ participantA?: string; participantB?: string; total20sA?: number; total20sB?: number; status?: string }>): number {
-			let sum = 0;
-			for (const match of matches) {
-				if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') continue;
-				if (match.participantA === participantId) sum += match.total20sA || 0;
-				if (match.participantB === participantId) sum += match.total20sB || 0;
-			}
-			return sum;
+		function ensure(id: string | undefined) {
+			if (!id) return;
+			if (!map.has(id)) map.set(id, { group: 0, bracket: 0 });
 		}
 
-		// Helper to sum 20s from bracket rounds + third place match + consolation
-		function sumFromBracket(b: { rounds?: Array<{ matches: Array<any> }>; thirdPlaceMatch?: any; consolationBrackets?: Array<{ rounds: Array<{ matches: Array<any> }> }> }): number {
-			let sum = 0;
-			if (b.rounds) {
-				for (const round of b.rounds) {
-					if (round.matches) sum += sumFromMatches(round.matches);
+		function accumulateMatches(matches: Array<{ participantA?: string; participantB?: string; total20sA?: number; total20sB?: number; status?: string }>, phase: 'group' | 'bracket') {
+			for (const match of matches) {
+				if (match.status !== 'COMPLETED' && match.status !== 'WALKOVER') continue;
+				if (match.participantA && (match.total20sA || 0) > 0) {
+					ensure(match.participantA);
+					map.get(match.participantA)![phase] += match.total20sA || 0;
+				}
+				if (match.participantB && (match.total20sB || 0) > 0) {
+					ensure(match.participantB);
+					map.get(match.participantB)![phase] += match.total20sB || 0;
 				}
 			}
-			if (b.thirdPlaceMatch) sum += sumFromMatches([b.thirdPlaceMatch]);
+		}
+
+		function accumulateBracket(b: { rounds?: Array<{ matches: Array<any> }>; thirdPlaceMatch?: any; consolationBrackets?: Array<{ rounds: Array<{ matches: Array<any> }> }> }) {
+			if (b.rounds) {
+				for (const round of b.rounds) {
+					if (round.matches) accumulateMatches(round.matches, 'bracket');
+				}
+			}
+			if (b.thirdPlaceMatch) accumulateMatches([b.thirdPlaceMatch], 'bracket');
 			if (b.consolationBrackets) {
 				for (const cb of b.consolationBrackets) {
 					for (const round of cb.rounds) {
-						if (round.matches) sum += sumFromMatches(round.matches);
+						if (round.matches) accumulateMatches(round.matches, 'bracket');
 					}
 				}
 			}
-			return sum;
 		}
 
-		// Group stage matches (stored in schedule for Round Robin, pairings for Swiss)
+		// Group stage
 		if (tournament.groupStage?.groups) {
 			for (const g of tournament.groupStage.groups) {
 				if (g.schedule) {
 					for (const round of g.schedule) {
-						if (round.matches) group += sumFromMatches(round.matches);
+						if (round.matches) accumulateMatches(round.matches, 'group');
 					}
 				}
 				if (g.pairings) {
 					for (const pairing of g.pairings) {
-						if (pairing.matches) group += sumFromMatches(pairing.matches);
+						if (pairing.matches) accumulateMatches(pairing.matches, 'group');
 					}
 				}
 			}
@@ -289,17 +293,29 @@
 
 		// Final stage
 		if (tournament.finalStage) {
-			if (tournament.finalStage.goldBracket) bracket += sumFromBracket(tournament.finalStage.goldBracket);
-			if (tournament.finalStage.silverBracket) bracket += sumFromBracket(tournament.finalStage.silverBracket);
+			if (tournament.finalStage.goldBracket) accumulateBracket(tournament.finalStage.goldBracket);
+			if (tournament.finalStage.silverBracket) accumulateBracket(tournament.finalStage.silverBracket);
 			if (tournament.finalStage.parallelBrackets) {
 				for (const pb of tournament.finalStage.parallelBrackets) {
-					if (pb.bracket) bracket += sumFromBracket(pb.bracket);
+					if (pb.bracket) accumulateBracket(pb.bracket);
 				}
 			}
 		}
 
-		return { group, bracket, total: group + bracket };
+		return map;
+	});
+
+	// Get total 20s for a participant (O(1) lookup from pre-computed map)
+	function getParticipantTotal20s(participantId: string): { group: number; bracket: number; total: number } {
+		const entry = allParticipant20s.get(participantId);
+		if (!entry) return { group: 0, bracket: 0, total: 0 };
+		return { group: entry.group, bracket: entry.bracket, total: entry.group + entry.bracket };
 	}
+
+	// Pre-build participant lookup map for O(1) access (avoids O(n) .find() per call)
+	let participantMap = $derived(
+		new Map((tournament?.participants ?? []).map(p => [p.id, p]))
+	);
 
 	// Check if both phases exist (with actual content)
 	let hasGroupStage = $derived(
@@ -566,7 +582,7 @@
 		// Check for unknown-BYE (from imported tournaments with BYE matches)
 		if (participantId.toUpperCase().includes('BYE')) return 'BYE';
 		if (!tournament) return m.common_unknown();
-		const participant = tournament.participants.find(p => p.id === participantId);
+		const participant = participantMap.get(participantId);
 		if (!participant) return m.common_unknown();
 
 		// For doubles: show teamName if exists, otherwise "Player1 / Player2"
@@ -579,7 +595,7 @@
 	/** For doubles with teamName, returns "Player1 / Player2" for tooltip; otherwise null */
 	function getParticipantTooltip(participantId: string | undefined): string | null {
 		if (!participantId || !tournament) return null;
-		const participant = tournament.participants.find(p => p.id === participantId);
+		const participant = participantMap.get(participantId);
 		if (!participant?.partner || !participant.teamName) return null;
 		return `${participant.name} / ${participant.partner.name}`;
 	}
@@ -587,7 +603,7 @@
 	// Get full participant object
 	function getParticipant(participantId: string | undefined) {
 		if (!participantId || isBye(participantId) || !tournament) return null;
-		return tournament.participants.find(p => p.id === participantId) || null;
+		return participantMap.get(participantId) || null;
 	}
 
 	// Get participant ranking snapshot (seeding points)
