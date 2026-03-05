@@ -24,7 +24,6 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import FullscreenToggle from '$lib/components/FullscreenToggle.svelte';
 	import { theme } from '$lib/stores/theme';
-	import { APP_VERSION } from '$lib/constants';
 	import { onReconnect, setSyncStatus } from '$lib/utils/networkStatus';
 	import { retryPendingFriendlyMatch } from '$lib/firebase/firestore';
 	import {
@@ -2391,10 +2390,10 @@
 
 	<div class="teams-container">
 		<div class="watermark">
+			<span class="watermark-powered">Powered by</span>
 			<span class="watermark-main">Scorekinole</span>
 			<span class="watermark-suffix">
 				<span class="watermark-arena">Arena</span>
-				<span class="watermark-version">v{APP_VERSION}</span>
 			</span>
 		</div>
 		<TeamCard
@@ -2671,6 +2670,18 @@
 		align-items: center;
 	}
 
+	.watermark-powered {
+		font-family: 'Lexend', sans-serif;
+		font-style: italic;
+		font-weight: 500;
+		font-size: 1.1rem;
+		color: white;
+		letter-spacing: 0.05em;
+		line-height: 1;
+		mix-blend-mode: soft-light;
+		opacity: 0.3;
+	}
+
 	.watermark-arena {
 		font-family: 'Lexend', sans-serif;
 		font-style: italic;
@@ -2682,19 +2693,6 @@
 		line-height: 1;
 		mix-blend-mode: soft-light;
 		opacity: 0.35;
-	}
-
-	.watermark-version {
-		font-family: 'Lexend', sans-serif;
-		font-style: italic;
-		font-weight: 500;
-		font-size: 0.45rem;
-		color: white;
-		letter-spacing: 0.05em;
-		line-height: 1;
-		margin-top: 0.2rem;
-		mix-blend-mode: soft-light;
-		opacity: 0.25;
 	}
 
 	.game-header {

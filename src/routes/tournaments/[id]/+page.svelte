@@ -14,6 +14,7 @@
 	import type { BracketConfig, PhaseConfig } from '$lib/types/tournament';
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
 	import LiveBadge from '$lib/components/LiveBadge.svelte';
+	import PoweredByBadge from '$lib/components/PoweredByBadge.svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import { isSuperAdmin } from '$lib/firebase/admin';
 	import { getYouTubeEmbedUrl } from '$lib/utils/youtube';
@@ -872,6 +873,12 @@
 				{#if isLive}
 					<div class="hero-live-badge">
 						<LiveBadge size="large" />
+					</div>
+				{/if}
+				{#if tournament && !tournament.isImported}
+					<div class="hero-powered">
+						<span class="hero-powered-label">Powered by</span>
+						<span class="hero-powered-brand">Scorekinole<span class="hero-powered-arena">Arena</span></span>
 					</div>
 				{/if}
 				<div class="hero-content">
@@ -2965,6 +2972,13 @@
 		{/if}
 	{/if}
 	{/if}
+
+	{#if tournament && !tournament.isImported}
+		<!-- Footer -->
+		<footer class="tournament-footer">
+			<PoweredByBadge size="sm" href="https://scorekinole.web.app" />
+		</footer>
+	{/if}
 </div>
 
 <!-- Video Modal -->
@@ -3751,6 +3765,55 @@
 		bottom: 1rem;
 		right: 1rem;
 		z-index: 10;
+	}
+
+	.hero-powered {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%) rotate(-18deg);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.1rem;
+		pointer-events: none;
+		user-select: none;
+		z-index: 2;
+		white-space: nowrap;
+	}
+
+	.hero-powered-label {
+		font-family: 'Lexend', sans-serif;
+		font-style: italic;
+		font-weight: 400;
+		font-size: 0.9rem;
+		color: white;
+		letter-spacing: 0.15em;
+		text-transform: uppercase;
+		mix-blend-mode: soft-light;
+		opacity: 0.35;
+	}
+
+	.hero-powered-brand {
+		font-family: 'Lexend', sans-serif;
+		font-weight: 700;
+		font-size: 2.2rem;
+		color: white;
+		letter-spacing: 0.04em;
+		display: flex;
+		align-items: baseline;
+		gap: 0.3rem;
+		mix-blend-mode: soft-light;
+		opacity: 0.35;
+	}
+
+	.hero-powered-arena {
+		font-style: italic;
+		font-weight: 800;
+		font-size: 1rem;
+		color: white;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
 	}
 
 	.hero-content {
@@ -7242,6 +7305,15 @@
 
 	.standing-row .pts.zero {
 		color: #64748b;
+		opacity: 0.6;
+	}
+
+	.tournament-footer {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1.5rem 1rem;
+		margin-top: 1rem;
 		opacity: 0.6;
 	}
 </style>

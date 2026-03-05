@@ -13,6 +13,7 @@
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserProfile } from '$lib/firebase/userProfile';
 	import SEO from '$lib/components/SEO.svelte';
+	import PoweredByBadge from '$lib/components/PoweredByBadge.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Play, BarChart3, Download, X } from '@lucide/svelte';
 	import { canInstall, triggerInstall, showIOSInstallBanner, dismissIOSInstallBanner } from '$lib/stores/pwaInstall';
@@ -427,6 +428,8 @@
 	<!-- Footer -->
 	<footer class="footer">
 		<span class="footer-copy">© 2026 Scorekinole by XaviC</span>
+		<span class="footer-dot">·</span>
+		<PoweredByBadge size="sm" />
 	</footer>
 </main>
 
@@ -817,9 +820,19 @@
 		color: rgba(255, 255, 255, 0.3);
 	}
 
+	.footer-dot {
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.2);
+	}
+
 	:global([data-theme='light']) .landing .footer-copy,
 	:global([data-theme='violet-light']) .landing .footer-copy {
 		color: rgba(0, 0, 0, 0.3);
+	}
+
+	:global([data-theme='light']) .landing .footer-dot,
+	:global([data-theme='violet-light']) .landing .footer-dot {
+		color: rgba(0, 0, 0, 0.2);
 	}
 
 	/* Tablet+ */
