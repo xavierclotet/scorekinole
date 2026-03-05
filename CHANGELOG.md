@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.86] - 2026-03-05
+- Optimize chart data precomputation in my-stats (pre-compute once, pass to components)
+- Optimize Vite dev server: pre-bundle Firebase/Chart.js/Lucide deps, add server warmup
+- Consolidate Firestore match queries for better performance
+- Add Chrome DevTools JSON config
+- Update tournament views and expand chartData test coverage
+- Add rankings test suite
+
 ## [2.4.85] - 2026-03-05
 - Replace intrusive WhatsNew auto-modal with non-blocking toast notification + badge dot on version number
 - Remove "Arena" branding from all components (AppMenu, PoweredByBadge, ScorekinoleLogo, StampBadge, etc.)
