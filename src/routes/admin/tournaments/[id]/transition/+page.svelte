@@ -777,7 +777,79 @@
     // Reset manual edit flag since we're using the automatic distribution
     userManuallyEdited = false;
   }
+
+  function formatBold(text: string): string {
+    return text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  }
 </script>
+
+{#snippet tiebreakerReminder()}
+  {#if tournament?.groupStage}
+    {@const isSwiss = tournament.groupStage.type === 'SWISS'}
+    {@const qualMode = tournament.groupStage.qualificationMode || 'WINS'}
+    {@const has20s = tournament.show20s !== false}
+    <div class="tiebreaker-reminder">
+      <div class="reminder-header">
+        <span class="reminder-icon">⚖️</span>
+        <span class="reminder-title">{m.rules_groupTiebreakReminder()}</span>
+      </div>
+      <ul class="reminder-rules">
+        <li>
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          {#if qualMode === 'WINS'}
+            {#if has20s}
+              {@html formatBold(m.rules_groupTiebreak2PlayersWins())}
+            {:else}
+              {@html formatBold(m.rules_groupTiebreak2PlayersWinsNo20s())}
+            {/if}
+          {:else}
+            {#if has20s}
+              {@html formatBold(m.rules_groupTiebreak2Players())}
+            {:else}
+              {@html formatBold(m.rules_groupTiebreak2PlayersNo20s())}
+            {/if}
+          {/if}
+        </li>
+        <li>
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          {#if isSwiss}
+            {#if qualMode === 'WINS'}
+              {#if has20s}
+                {@html formatBold(m.rules_groupTiebreakSwissMulti())}
+              {:else}
+                {@html formatBold(m.rules_groupTiebreakSwissMultiNo20s())}
+              {/if}
+            {:else}
+              {#if has20s}
+                {@html formatBold(m.rules_groupTiebreakSwissMultiPoints())}
+              {:else}
+                {@html formatBold(m.rules_groupTiebreakSwissMultiPointsNo20s())}
+              {/if}
+            {/if}
+          {:else}
+            {#if qualMode === 'WINS'}
+              {#if has20s}
+                {@html formatBold(m.rules_groupTiebreakRRMulti())}
+              {:else}
+                {@html formatBold(m.rules_groupTiebreakRRMultiNo20s())}
+              {/if}
+            {:else}
+              {#if has20s}
+                {@html formatBold(m.rules_groupTiebreakRRMultiPoints())}
+              {:else}
+                {@html formatBold(m.rules_groupTiebreakRRMultiPointsNo20s())}
+              {/if}
+            {/if}
+          {/if}
+        </li>
+        <li>
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          {@html formatBold(m.rules_groupTiebreakShootout())}
+        </li>
+      </ul>
+    </div>
+  {/if}
+{/snippet}
 
 <AdminGuard>
   <div class="transition-page" data-theme={$adminTheme}>
@@ -852,6 +924,8 @@
                 {/if}
               </button>
             </div>
+
+            {@render tiebreakerReminder()}
 
             <div class="groups-section">
               <div class="groups-grid">
@@ -1306,6 +1380,8 @@
               </div>
             </div>
           </div>
+
+          {@render tiebreakerReminder()}
 
           <!-- Qualifier selections per group -->
           <div class="groups-section">
@@ -1942,6 +2018,88 @@
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
+  }
+
+  .tiebreaker-reminder {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .reminder-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .reminder-icon {
+    font-size: 0.85rem;
+  }
+
+  .reminder-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .reminder-rules {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .reminder-rules li {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.55);
+    padding-left: 0.8rem;
+    position: relative;
+  }
+
+  .reminder-rules li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.45em;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .reminder-rules li :global(strong) {
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 600;
+  }
+
+  /* Light theme */
+  .transition-page:is([data-theme='light'], [data-theme='violet-light']) .tiebreaker-reminder {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .transition-page:is([data-theme='light'], [data-theme='violet-light']) .reminder-title {
+    color: rgba(0, 0, 0, 0.45);
+  }
+
+  .transition-page:is([data-theme='light'], [data-theme='violet-light']) .reminder-rules li {
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .transition-page:is([data-theme='light'], [data-theme='violet-light']) .reminder-rules li::before {
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  .transition-page:is([data-theme='light'], [data-theme='violet-light']) .reminder-rules li :global(strong) {
+    color: rgba(0, 0, 0, 0.75);
   }
 
   .groups-section {

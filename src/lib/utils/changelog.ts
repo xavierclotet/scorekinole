@@ -10,6 +10,8 @@ export interface ChangelogEntry {
  * Parses CHANGELOG.md and returns the most recent N versions
  */
 export function getRecentChanges(count = 5): ChangelogEntry[] {
+	if (!changelogRaw) return [];
+
 	const entries: ChangelogEntry[] = [];
 	const versionRegex = /^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})/;
 	const lines = changelogRaw.split('\n');

@@ -803,22 +803,6 @@
                 return matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
               })}
               {@const allMatchesComplete = allSwissRoundsComplete || allRoundRobinComplete}
-              {#if !allMatchesComplete}
-                <button
-                  class="action-btn autofill"
-                  onclick={isSwiss ? () => autoFillAllMatches() : () => { showAutoFillModal = true; }}
-                  disabled={isAutoFilling}
-                  title={isSwiss
-                    ? `${m.admin_autoFillMatchesTitle()} - ${m.tournament_round()} ${currentRound}`
-                    : m.admin_autoFillMatchesTitle()}
-                >
-                  {#if isAutoFilling}
-                    ⏳
-                  {:else}
-                    🎲
-                  {/if}
-                </button>
-              {/if}
               {#if allMatchesComplete}
                 <button
                   class="final-stage-btn"
@@ -926,6 +910,36 @@
     </div>
   </div>
 
+  <!-- Floating Autofill Button -->
+  {#if tournament?.groupStage && tournament.status !== 'COMPLETED'}
+    {@const isSwiss = tournament.groupStage.type === 'SWISS'}
+    {@const currentRound = tournament.groupStage.currentRound || 1}
+    {@const totalSwissRounds = tournament.groupStage.numSwissRounds || tournament.numSwissRounds || 0}
+    {@const allSwissRoundsComplete = isSwiss && currentRound >= totalSwissRounds && tournament.groupStage.groups.every(g => {
+      const currentPairing = g.pairings?.find(p => p.roundNumber === currentRound);
+      return currentPairing?.matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
+    })}
+    {@const allRoundRobinComplete = !isSwiss && tournament.groupStage.groups.every(g => {
+      const matches = g.schedule?.flatMap(r => r.matches) || [];
+      return matches.every(m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE');
+    })}
+    {@const allMatchesComplete = allSwissRoundsComplete || allRoundRobinComplete}
+    {#if !allMatchesComplete}
+      <button
+        class="floating-autofill"
+        onclick={() => { showAutoFillModal = true; }}
+        disabled={isAutoFilling}
+        title={m.admin_autoFillMatchesTitle()}
+      >
+        {#if isAutoFilling}
+          ⏳
+        {:else}
+          🎲
+        {/if}
+      </button>
+    {/if}
+  {/if}
+
   <!-- Complete Confirmation Modal -->
   {#if showCompleteConfirm && tournament}
     <div
@@ -966,13 +980,19 @@
     </div>
   {/if}
 
-  <!-- Autofill Options Modal (RR only) -->
+  <!-- Autofill Options Modal -->
   {#if showAutoFillModal && tournament?.groupStage}
+    {@const isSwissModal = tournament.groupStage.type === 'SWISS'}
     {@const groups = tournament.groupStage.groups}
-    {@const allPendingRounds = groups.flatMap(g => g.schedule || []).filter(r => r.matches.some(match => match.status === 'PENDING' && match.participantB !== 'BYE'))}
+    {@const swissCurrentRound = tournament.groupStage.currentRound || 1}
+    {@const swissPendingCount = isSwissModal ? groups.flatMap(g => {
+      const currentPairing = g.pairings?.find(p => p.roundNumber === swissCurrentRound);
+      return currentPairing?.matches || [];
+    }).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length : 0}
+    {@const allPendingRounds = !isSwissModal ? groups.flatMap(g => g.schedule || []).filter(r => r.matches.some(match => match.status === 'PENDING' && match.participantB !== 'BYE')) : []}
     {@const firstPendingRoundNumber = allPendingRounds.length > 0 ? Math.min(...allPendingRounds.map(r => r.roundNumber)) : 0}
     {@const currentRoundPendingCount = allPendingRounds.filter(r => r.roundNumber === firstPendingRoundNumber).flatMap(r => r.matches).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length}
-    {@const totalPendingCount = groups.flatMap(g => (g.schedule || []).flatMap(r => r.matches)).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length}
+    {@const totalPendingCount = !isSwissModal ? groups.flatMap(g => (g.schedule || []).flatMap(r => r.matches)).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length : 0}
     <div
       class="modal-backdrop"
       data-theme={$adminTheme}
@@ -992,24 +1012,35 @@
           </button>
         </div>
         <div class="modal-body autofill-options">
-          {#if firstPendingRoundNumber > 0}
+          {#if isSwissModal}
             <button
               class="autofill-option"
-              onclick={() => autoFillAllMatches(true)}
+              onclick={() => autoFillAllMatches()}
               disabled={isAutoFilling}
             >
               <div class="option-label">{m.admin_autoFillCurrentRound()}</div>
-              <div class="option-info">{m.admin_autoFillRoundInfo({ round: firstPendingRoundNumber, count: currentRoundPendingCount })}</div>
+              <div class="option-info">{m.admin_autoFillRoundInfo({ round: swissCurrentRound, count: swissPendingCount })}</div>
+            </button>
+          {:else}
+            {#if firstPendingRoundNumber > 0}
+              <button
+                class="autofill-option"
+                onclick={() => autoFillAllMatches(true)}
+                disabled={isAutoFilling}
+              >
+                <div class="option-label">{m.admin_autoFillCurrentRound()}</div>
+                <div class="option-info">{m.admin_autoFillRoundInfo({ round: firstPendingRoundNumber, count: currentRoundPendingCount })}</div>
+              </button>
+            {/if}
+            <button
+              class="autofill-option"
+              onclick={() => autoFillAllMatches(false)}
+              disabled={isAutoFilling}
+            >
+              <div class="option-label">{m.admin_autoFillAllRounds()}</div>
+              <div class="option-info">{m.admin_autoFillAllInfo({ count: totalPendingCount })}</div>
             </button>
           {/if}
-          <button
-            class="autofill-option"
-            onclick={() => autoFillAllMatches(false)}
-            disabled={isAutoFilling}
-          >
-            <div class="option-label">{m.admin_autoFillAllRounds()}</div>
-            <div class="option-info">{m.admin_autoFillAllInfo({ count: totalPendingCount })}</div>
-          </button>
         </div>
         <div class="confirm-actions">
           <button class="cancel-btn" onclick={() => { showAutoFillModal = false; }}>{m.common_cancel()}</button>
@@ -1373,18 +1404,33 @@
     color: var(--primary);
   }
 
-  .action-btn.autofill {
-    background: var(--primary);
-    color: white;
+  .floating-autofill {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 50;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(100, 100, 120, 0.5);
+    backdrop-filter: blur(8px);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   }
 
-  .action-btn.autofill:hover:not(:disabled) {
-    transform: translateY(-2px);
-    filter: brightness(1.1);
+  .floating-autofill:hover:not(:disabled) {
+    background: rgba(100, 100, 120, 0.7);
+    transform: scale(1.08);
   }
 
-  .action-btn.autofill:disabled {
-    opacity: 0.6;
+  .floating-autofill:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
   }
 
