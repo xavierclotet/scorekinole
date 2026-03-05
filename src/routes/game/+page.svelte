@@ -2392,9 +2392,6 @@
 		<div class="watermark">
 			<span class="watermark-powered">Powered by</span>
 			<span class="watermark-main">Scorekinole</span>
-			<span class="watermark-suffix">
-				<span class="watermark-arena">Arena</span>
-			</span>
 		</div>
 		<TeamCard
 			bind:this={teamCard1}
@@ -2680,19 +2677,6 @@
 		line-height: 1;
 		mix-blend-mode: soft-light;
 		opacity: 0.3;
-	}
-
-	.watermark-arena {
-		font-family: 'Lexend', sans-serif;
-		font-style: italic;
-		font-weight: 700;
-		font-size: 0.7rem;
-		color: white;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		line-height: 1;
-		mix-blend-mode: soft-light;
-		opacity: 0.35;
 	}
 
 	.game-header {
@@ -3092,10 +3076,6 @@
 
 		.watermark-main {
 			font-size: 1.3rem;
-		}
-
-		.watermark-arena {
-			font-size: 0.5rem;
 		}
 
 		.watermark-version {

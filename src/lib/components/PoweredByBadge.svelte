@@ -11,22 +11,12 @@
 {#if href}
 	<a class={['powered-badge', size, className]} {href} target="_blank" rel="noopener noreferrer">
 		<span class="powered-label">Powered by</span>
-		<span class="powered-brand">
-			Scorekinole
-			<span class="powered-suffix">
-				<span class="powered-arena">Arena</span>
-			</span>
-		</span>
+		<span class="powered-brand">Scorekinole©</span>
 	</a>
 {:else}
 	<div class={['powered-badge', size, className]}>
 		<span class="powered-label">Powered by</span>
-		<span class="powered-brand">
-			Scorekinole
-			<span class="powered-suffix">
-				<span class="powered-arena">Arena</span>
-			</span>
-		</span>
+		<span class="powered-brand">Scorekinole©</span>
 	</div>
 {/if}
 
@@ -70,24 +60,6 @@
 		line-height: 1;
 	}
 
-	.powered-suffix {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		margin-left: 0.15rem;
-	}
-
-	/* Arena — italic bold uppercase red rotated */
-	.powered-arena {
-		font-style: italic;
-		font-weight: 700;
-		color: #dc2626;
-		transform: rotate(-8deg);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		line-height: 1;
-	}
-
 	/* Size: sm */
 	.powered-badge.sm .powered-label {
 		font-size: 0.55rem;
@@ -95,10 +67,6 @@
 
 	.powered-badge.sm .powered-brand {
 		font-size: 0.7rem;
-	}
-
-	.powered-badge.sm .powered-arena {
-		font-size: 0.45rem;
 	}
 
 	/* Size: md (default) */
@@ -110,10 +78,6 @@
 		font-size: 0.85rem;
 	}
 
-	.powered-badge.md .powered-arena {
-		font-size: 0.55rem;
-	}
-
 	/* Size: lg */
 	.powered-badge.lg .powered-label {
 		font-size: 0.75rem;
@@ -121,10 +85,6 @@
 
 	.powered-badge.lg .powered-brand {
 		font-size: 1.1rem;
-	}
-
-	.powered-badge.lg .powered-arena {
-		font-size: 0.65rem;
 	}
 
 	/* Light theme */

@@ -1457,18 +1457,77 @@
 	@media (max-width: 640px) {
 		.scrollable-content { padding: 0 0.75rem; padding-bottom: max(4rem, env(safe-area-inset-bottom, 4rem)); }
 		.page-header { padding: 0.75rem 0.75rem; }
-		
+
+		.filters-section {
+			gap: 0.35rem;
+			padding: 0.5rem 0.75rem;
+			flex-wrap: nowrap;
+			overflow-x: auto;
+			-webkit-overflow-scrolling: touch;
+			scrollbar-width: none;
+		}
+
+		.filters-section::-webkit-scrollbar {
+			display: none;
+		}
+
+		.filter-select {
+			font-size: 0.75rem;
+			padding: 0.35rem 1.5rem 0.35rem 0.5rem;
+			border-radius: 6px;
+			background-position: right 0.35rem center;
+			flex-shrink: 0;
+			white-space: nowrap;
+		}
+
+		.filter-select.tournament-filter {
+			width: 100px;
+			min-width: 100px;
+			max-width: 100px;
+			flex-shrink: 1;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
 		.match-header { padding: 0.75rem; gap: 0.75rem; }
 		.score { font-size: 1.25rem; }
 		.match-meta { font-size: 0.7rem; }
 		.names { font-size: 0.9rem; }
-		
+
 		.match-result-box { min-width: 60px; padding-left: 0.5rem; }
-		
-		.donut-container { width: 100px; height: 100px; }
+
+		.charts-grid {
+			grid-template-columns: repeat(2, 1fr);
+			gap: 0.5rem;
+		}
+
+		.donut-chart-content {
+			flex-direction: column;
+			align-items: center;
+			gap: 0.5rem;
+		}
+
+		.donut-container {
+			width: 120px;
+			height: 120px;
+			margin: 0 auto;
+		}
+
+		.donut-legend {
+			flex-direction: row;
+			gap: 0.75rem;
+			justify-content: center;
+		}
+
+		.legend-item {
+			flex-direction: column;
+			align-items: center;
+			gap: 0.1rem;
+		}
+
 		.legend-value { font-size: 0.95rem; }
 		.legend-label { font-size: 0.6rem; }
-		.legend-percent { font-size: 0.6rem; }
+		.legend-percent { font-size: 0.75rem; margin-left: 0; }
 	}
 
 </style>

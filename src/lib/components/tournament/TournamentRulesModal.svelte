@@ -206,10 +206,7 @@
     <!-- Header with logo -->
     <div class="modal-header">
       <div class="logo">
-        <span class="logo-text">Scorekinole</span>
-        <span class="logo-suffix">
-          <span class="logo-arena">Arena</span>
-        </span>
+        <span class="logo-text">Scorekinole©</span>
       </div>
       <button class="close-btn" onclick={onclose} aria-label="Cerrar">×</button>
     </div>
@@ -554,26 +551,6 @@
     font-weight: 600;
     color: rgba(255, 255, 255, 0.9);
     letter-spacing: 0.01em;
-  }
-
-  .logo-suffix {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    margin-left: 0.15rem;
-    position: relative;
-    top: -0.12rem;
-  }
-
-  .logo-arena {
-    font-style: italic;
-    font-weight: 700;
-    font-size: 0.55rem;
-    color: #e85a5a;
-    transform: rotate(-8deg);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    line-height: 1;
   }
 
   .close-btn {

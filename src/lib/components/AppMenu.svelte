@@ -141,26 +141,15 @@
 					]}
 				>
 					Scorekinole
-					<span class="flex flex-col items-start ml-0.5">
-						<span
-							class={[
-								"italic font-bold text-[0.75rem] text-[#dc2626] -rotate-[8deg]",
-								"tracking-[0.08em] uppercase leading-none",
-								"max-sm:text-[0.65rem] max-[480px]:text-[0.6rem]"
-							]}
-						>
-							Arena
-						</span>
-						<span
-							class={[
-								"italic font-medium text-[0.6rem] -rotate-[8deg]",
-								"tracking-[0.05em] leading-none mt-0.5 ml-0.5",
-								"text-foreground/55",
-								"max-sm:text-[0.5rem] max-[480px]:text-[0.45rem]"
-							]}
-						>
-							v{APP_VERSION}
-						</span>
+					<span
+						class={[
+							"italic font-medium text-[0.6rem] ml-1",
+							"tracking-[0.05em] leading-none",
+							"text-foreground/55",
+							"max-sm:text-[0.5rem] max-[480px]:text-[0.45rem]"
+						]}
+					>
+						v{APP_VERSION}
 					</span>
 					<ChevronDown class="size-3.5 text-foreground/50 ml-1 shrink-0 transition-transform duration-150 menu-chevron" />
 				</button>

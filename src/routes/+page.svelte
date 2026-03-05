@@ -52,6 +52,8 @@
 	let showProfile = $state(false);
 	let showLogin = $state(false);
 	let showWhatsNew = $state(false);
+	let hasNewVersion = $state(false);
+	let showToast = $state(false);
 
 	onMount(() => {
 		if (!browser) return;
@@ -62,16 +64,28 @@
 			// Brand new user — set silently, don't show modal
 			localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
 		} else if (lastSeen !== APP_VERSION) {
-			// Existing user with a version change (or missing key but has settings)
-			showWhatsNew = true;
+			// Existing user with a version change — show toast + badge
+			hasNewVersion = true;
+			showToast = true;
+			setTimeout(() => { showToast = false; }, 5000);
 		}
 	});
 
-	function closeWhatsNew() {
-		showWhatsNew = false;
+	function openWhatsNew() {
+		showWhatsNew = true;
+		hasNewVersion = false;
+		showToast = false;
 		if (browser) {
 			localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
 		}
+	}
+
+	function closeWhatsNew() {
+		showWhatsNew = false;
+	}
+
+	function dismissToast() {
+		showToast = false;
 	}
 
 	function startScoring() {
@@ -196,8 +210,10 @@
 				<h1 class="hero-title">
 					<span class="title-main">Scorekinole</span>
 					<span class="title-suffix">
-						<span class="title-arena">Arena</span>
-						<button class="title-version" onclick={() => showWhatsNew = true}>v{APP_VERSION}</button>
+						<button class="title-version" onclick={openWhatsNew}>
+							v{APP_VERSION}
+							{#if hasNewVersion}<span class="version-dot"></span>{/if}
+						</button>
 					</span>
 				</h1>
 				<p class="hero-subtitle">{m.scoring_appTitle()}</p>
@@ -433,6 +449,18 @@
 	</footer>
 </main>
 
+{#if showToast}
+	<div class="version-toast" role="status">
+		<button class="toast-content" onclick={openWhatsNew}>
+			<span class="toast-version">v{APP_VERSION}</span>
+			<span class="toast-text">{m.update_seeWhatsNew()}</span>
+		</button>
+		<button class="toast-dismiss" onclick={dismissToast} aria-label="Dismiss">
+			<X size={14} />
+		</button>
+	</div>
+{/if}
+
 <ProfileModal isOpen={showProfile} user={$currentUser} isAdmin={$canAccessAdmin} onclose={() => showProfile = false} onupdate={handleProfileUpdate} />
 <LoginModal isOpen={showLogin} onclose={() => showLogin = false} />
 <WhatsNewModal isOpen={showWhatsNew} onclose={closeWhatsNew} />
@@ -553,18 +581,8 @@
 		top: -0.25rem;
 	}
 
-	.title-arena {
-		font-style: italic;
-		font-weight: 700;
-		font-size: 0.75rem;
-		color: #e85a5a;
-		transform: rotate(-8deg);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		line-height: 1;
-	}
-
 	.title-version {
+		position: relative;
 		font-style: italic;
 		font-weight: 500;
 		font-size: 0.5rem;
@@ -594,6 +612,89 @@
 	:global([data-theme='light']) .landing .title-version:hover,
 	:global([data-theme='violet-light']) .landing .title-version:hover {
 		color: var(--primary);
+	}
+
+	.version-dot {
+		position: absolute;
+		top: -3px;
+		right: -6px;
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: #ef4444;
+		animation: dot-pulse 2s ease-in-out infinite;
+	}
+
+	@keyframes dot-pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.4; }
+	}
+
+	/* Version toast */
+	.version-toast {
+		position: fixed;
+		bottom: 1.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+		z-index: 100;
+		animation: toast-slide-up 0.3s ease-out;
+	}
+
+	@keyframes toast-slide-up {
+		from { transform: translateX(-50%) translateY(100%); opacity: 0; }
+		to { transform: translateX(-50%) translateY(0); opacity: 1; }
+	}
+
+	.toast-content {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		font-family: inherit;
+		color: var(--foreground);
+	}
+
+	.toast-version {
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: var(--primary);
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
+		padding: 0.15rem 0.5rem;
+		border-radius: 6px;
+	}
+
+	.toast-text {
+		font-size: 0.8rem;
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	.toast-dismiss {
+		background: none;
+		border: none;
+		padding: 0.25rem;
+		cursor: pointer;
+		color: var(--muted-foreground);
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: color 0.15s;
+	}
+
+	.toast-dismiss:hover {
+		color: var(--foreground);
 	}
 
 	.hero-subtitle {
@@ -841,10 +942,6 @@
 			font-size: 3rem;
 		}
 
-		.title-arena {
-			font-size: 0.9rem;
-		}
-
 		.title-version {
 			font-size: 0.6rem;
 		}
@@ -874,10 +971,6 @@
 
 		.title-main {
 			font-size: 1.6rem;
-		}
-
-		.title-arena {
-			font-size: 0.6rem;
 		}
 
 		.title-version {

@@ -12,8 +12,7 @@
 		<div class="stamp-inner">
 			<span class="stamp-top-text">&#10038; Powered by &#10038;</span>
 			<div class="stamp-brand">
-				<span class="stamp-name">Scorekinole</span>
-				<span class="stamp-arena">Arena</span>
+				<span class="stamp-name">Scorekinole©</span>
 			</div>
 			<span class="stamp-bottom-text">&#10038; Official Platform &#10038;</span>
 		</div>
@@ -76,15 +75,6 @@
 		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
 	}
 
-	.stamp-arena {
-		font-family: 'Lexend', sans-serif;
-		font-style: italic;
-		font-weight: 800;
-		color: rgba(140, 30, 0, 0.9);
-		text-transform: uppercase;
-		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.15);
-	}
-
 	/* sm — 100px */
 	.stamp.sm .stamp-outer { width: 100px; height: 100px; padding: 3px; }
 	.stamp.sm .stamp-inner { padding: 0.3rem; }
@@ -92,7 +82,6 @@
 	.stamp.sm .stamp-bottom-text { font-size: 0.3rem; letter-spacing: 0.12em; }
 	.stamp.sm .stamp-brand { margin: 0.1rem 0; padding: 0.1rem 0; }
 	.stamp.sm .stamp-name { font-size: 0.65rem; letter-spacing: 0.02em; }
-	.stamp.sm .stamp-arena { font-size: 0.42rem; letter-spacing: 0.1em; }
 
 	/* md — 140px */
 	.stamp.md .stamp-outer { width: 140px; height: 140px; padding: 4px; }
@@ -101,7 +90,6 @@
 	.stamp.md .stamp-bottom-text { font-size: 0.4rem; letter-spacing: 0.14em; }
 	.stamp.md .stamp-brand { margin: 0.15rem 0; padding: 0.15rem 0; }
 	.stamp.md .stamp-name { font-size: 0.9rem; letter-spacing: 0.02em; }
-	.stamp.md .stamp-arena { font-size: 0.58rem; letter-spacing: 0.12em; }
 
 	/* lg — 180px */
 	.stamp.lg .stamp-outer { width: 180px; height: 180px; padding: 5px; }
@@ -110,7 +98,6 @@
 	.stamp.lg .stamp-bottom-text { font-size: 0.5rem; letter-spacing: 0.16em; }
 	.stamp.lg .stamp-brand { margin: 0.2rem 0; padding: 0.2rem 0; }
 	.stamp.lg .stamp-name { font-size: 1.15rem; letter-spacing: 0.02em; }
-	.stamp.lg .stamp-arena { font-size: 0.75rem; letter-spacing: 0.14em; }
 
 	/* xl — 240px */
 	.stamp.xl .stamp-outer { width: 240px; height: 240px; padding: 7px; }
@@ -119,6 +106,5 @@
 	.stamp.xl .stamp-bottom-text { font-size: 0.65rem; letter-spacing: 0.18em; }
 	.stamp.xl .stamp-brand { margin: 0.3rem 0; padding: 0.25rem 0; }
 	.stamp.xl .stamp-name { font-size: 1.5rem; letter-spacing: 0.02em; }
-	.stamp.xl .stamp-arena { font-size: 1rem; letter-spacing: 0.14em; }
 	.stamp.xl .stamp-brand { border-width: 2px; }
 </style>

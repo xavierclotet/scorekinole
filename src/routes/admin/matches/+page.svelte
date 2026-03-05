@@ -336,7 +336,6 @@
             <tr>
               <th class="players-col">{m.admin_players()}</th>
               <th class="result-col">{m.admin_result()}</th>
-              <th class="event-col hide-small">{m.scoring_eventTitle()}</th>
               <th class="type-col hide-mobile">{m.admin_type()}</th>
               <th class="mode-col hide-mobile">{m.admin_mode()}</th>
               <th class="date-col hide-mobile">{m.admin_date()}</th>
@@ -375,14 +374,6 @@
                       <span class="score-value" class:winner={match.winner === 2}>{match.team2Score}</span>
                     </div>
                   {/if}
-                </td>
-                <td class="event-cell hide-small">
-                  <div class="event-info">
-                    <span class="event-title">{match.eventTitle || '-'}</span>
-                    {#if match.matchPhase}
-                      <small class="event-phase">{match.matchPhase}</small>
-                    {/if}
-                  </div>
                 </td>
                 <td class="type-cell hide-mobile">
                   <span class="type-badge">
@@ -879,34 +870,6 @@
 
   .matches-container:is([data-theme='dark'], [data-theme='violet']) .score-value.winner {
     color: #34d399;
-  }
-
-  /* Event cell */
-  .event-cell {
-    max-width: 180px;
-  }
-
-  .event-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-
-  .event-title {
-    font-weight: 600;
-    font-size: 0.82rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .event-phase {
-    color: #888;
-    font-size: 0.7rem;
-  }
-
-  .matches-container:is([data-theme='dark'], [data-theme='violet']) .event-phase {
-    color: #6b7a94;
   }
 
   /* Type cell */

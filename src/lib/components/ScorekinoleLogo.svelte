@@ -15,10 +15,7 @@
 
 <button class="header-logo" onclick={handleClick}>
 	Scorekinole
-	<span class="header-logo-suffix">
-		<span class="header-logo-arena">Arena</span>
-		<span class="header-logo-version">v{APP_VERSION}</span>
-	</span>
+	<span class="header-logo-version">v{APP_VERSION}</span>
 </button>
 
 <style>
@@ -39,25 +36,8 @@
 		align-items: center;
 	}
 
-	.header-logo-suffix {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		margin-left: 0.2rem;
-	}
-
-	.header-logo-arena {
-		font-style: italic;
-		font-weight: 700;
-		font-size: 0.75rem;
-		color: #dc2626;
-		transform: rotate(-8deg);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		line-height: 1;
-	}
-
 	.header-logo-version {
+		margin-left: 0.3rem;
 		font-style: italic;
 		font-weight: 500;
 		font-size: 0.6rem;
@@ -74,11 +54,6 @@
 		background: rgba(255, 255, 255, 0.06);
 	}
 
-	.header-logo:hover .header-logo-arena {
-		color: #dc2626;
-		filter: brightness(1.15);
-	}
-
 	.header-logo:hover .header-logo-version {
 		color: rgba(255, 255, 255, 0.5);
 	}
@@ -93,10 +68,6 @@
 			font-size: 1rem;
 		}
 
-		.header-logo-arena {
-			font-size: 0.65rem;
-		}
-
 		.header-logo-version {
 			font-size: 0.5rem;
 		}
@@ -106,10 +77,6 @@
 		.header-logo {
 			font-size: 0.9rem;
 			padding: 0.2rem 0.4rem;
-		}
-
-		.header-logo-arena {
-			font-size: 0.6rem;
 		}
 
 		.header-logo-version {
