@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.83] - 2026-03-05
+- Add PoweredByBadge and StampBadge reusable components
+- Integrate PoweredByBadge in home footer, game watermark, and tournament footer
+- Add gold metallic wax seal stamp on tournament hero banner (non-imported only)
+- Replace version text with "Powered by" in game page watermark
+
 ## [2.4.82] - 2026-03-05
 - Fix 4 tournament algorithm bugs and 3 utility bugs
 - Add comprehensive test suite: 672 tests across 28 files (integration, lifecycle, import, concurrency, stores, utils)
