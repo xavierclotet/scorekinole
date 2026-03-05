@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.84] - 2026-03-05
+- Add confirmation modal for Swiss System autofill (was firing directly without confirmation)
+- Move autofill button to floating position away from countdown timer
+- Add tiebreaker criteria reminder above standings on transition page (adapts to SS/RR, WINS/POINTS, show20s)
+- Add no-20s tiebreaker chain translations (es, en, ca)
+- Fix WhatsNewModal HMR crash when CHANGELOG.md is modified
+
 ## [2.4.83] - 2026-03-05
 - Add PoweredByBadge and StampBadge reusable components
 - Integrate PoweredByBadge in home footer, game watermark, and tournament footer
