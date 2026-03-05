@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.85] - 2026-03-05
+- Replace intrusive WhatsNew auto-modal with non-blocking toast notification + badge dot on version number
+- Remove "Arena" branding from all components (AppMenu, PoweredByBadge, ScorekinoleLogo, StampBadge, etc.)
+- Update app title to "Professional Crokinole Tournament Manager"
+- Remove event title column from admin/matches table
+- Improve my-stats mobile: horizontal scroll filters, 2-column chart grid, centered Win/Loss donut
+
 ## [2.4.84] - 2026-03-05
 - Add confirmation modal for Swiss System autofill (was firing directly without confirmation)
 - Move autofill button to floating position away from countdown timer
