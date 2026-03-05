@@ -3,6 +3,29 @@
  */
 
 /**
+ * Normalize a hex color string to 6-character format.
+ * Expands shorthand (#abc → #aabbcc) and validates format.
+ * @returns Normalized 6-char hex string (without #), or null if invalid
+ */
+export function normalizeHex(color: string): string | null {
+	const hex = color.replace('#', '');
+
+	if (hex.length === 3) {
+		// Expand shorthand: #abc → aabbcc
+		const expanded = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+		if (!/^[0-9a-fA-F]{6}$/.test(expanded)) return null;
+		return expanded;
+	}
+
+	if (hex.length === 6) {
+		if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+		return hex;
+	}
+
+	return null;
+}
+
+/**
  * Check if a color is dark and needs a light background for readability
  * Returns true for very dark colors (almost black) that need a light background
  * @param color - Hex color string (with or without #)
@@ -14,7 +37,9 @@ export function isColorDark(color: string | undefined): boolean {
 		return false;
 	}
 
-	const hex = color.replace('#', '');
+	const hex = normalizeHex(color);
+	if (!hex) return false;
+
 	const r = parseInt(hex.substring(0, 2), 16);
 	const g = parseInt(hex.substring(2, 4), 16);
 	const b = parseInt(hex.substring(4, 6), 16);
@@ -40,7 +65,9 @@ export function getLuminance(color: string | undefined): number {
 		return 0.5;
 	}
 
-	const hex = color.replace('#', '');
+	const hex = normalizeHex(color);
+	if (!hex) return 0.5;
+
 	const r = parseInt(hex.substring(0, 2), 16);
 	const g = parseInt(hex.substring(2, 4), 16);
 	const b = parseInt(hex.substring(4, 6), 16);

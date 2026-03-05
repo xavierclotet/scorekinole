@@ -455,3 +455,153 @@ describe('getQualifiers', () => {
 		expect(getQualifiers(standings, 3)).toEqual(['p1', 'p2', 'p3']);
 	});
 });
+
+describe('sub-tie detection in mini-league', () => {
+	it('detects sub-tie when 2 of 3 players tie in mini-league', () => {
+		const participants = createParticipants(6);
+		// p1, p2, p3 all have 6 points, circular H2H
+		// Mini-league: all have 2 points (1W 1L each)
+		// BUT: p1 and p2 have same mini-league 20s, p3 has different
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 2 },
+					p3: { result: 'LOSS', twenties: 1 }
+				}
+			}),
+			createStanding('p2', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 1 },
+					p3: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p3', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 4 },
+					p2: { result: 'LOSS', twenties: 0 }
+				}
+			}),
+			createStanding('p4', { points: 4, matchesWon: 2, matchesPlayed: 5 }),
+			createStanding('p5', { points: 2, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p6', { points: 0, matchesWon: 0, matchesPlayed: 5 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		// Mini-league 20s: p3=4+0=4, p1=2+1=3, p2=1+2=3
+		// p1 and p2 have same mini-league 20s (sub-tie)
+		// p3 should be first of the three
+		const p3Pos = result.find(s => s.participantId === 'p3')!.position;
+		const p1Pos = result.find(s => s.participantId === 'p1')!.position;
+		const p2Pos = result.find(s => s.participantId === 'p2')!.position;
+		expect(p3Pos).toBeLessThan(p1Pos);
+		expect(p3Pos).toBeLessThan(p2Pos);
+		// p1 and p2 should have a sub-tie resolution via H2H between them
+		// p1 beat p2 → p1 should be above p2
+		expect(p1Pos).toBeLessThan(p2Pos);
+	});
+
+	it('resolves 3-player tie with all identical mini-league stats via global 20s', () => {
+		const participants = createParticipants(6);
+		// Equal ranking to prevent rankingSnapshot from resolving
+		participants.forEach(p => { p.rankingSnapshot = 10; });
+
+		// p1, p2, p3: circular H2H, same mini-league points, same mini-league 20s
+		// Differ only in global total 20s
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 15,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 2 },
+					p3: { result: 'LOSS', twenties: 2 }
+				}
+			}),
+			createStanding('p2', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 12,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 2 },
+					p3: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p3', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 2 },
+					p2: { result: 'LOSS', twenties: 2 }
+				}
+			}),
+			createStanding('p4', { points: 4, matchesWon: 2, matchesPlayed: 5 }),
+			createStanding('p5', { points: 2, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p6', { points: 0, matchesWon: 0, matchesPlayed: 5 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		// All mini-league stats identical → fallback to global 20s: p1(15) > p2(12) > p3(10)
+		const p1Pos = result.find(s => s.participantId === 'p1')!.position;
+		const p2Pos = result.find(s => s.participantId === 'p2')!.position;
+		const p3Pos = result.find(s => s.participantId === 'p3')!.position;
+		expect(p1Pos).toBeLessThan(p2Pos);
+		expect(p2Pos).toBeLessThan(p3Pos);
+	});
+
+	it('handles sub-tie where 2 of 4 players share mini-league rank', () => {
+		const participants = createParticipants(6);
+
+		// 4-way tie at 6 points
+		// p1: beats all → 6 mini-league pts (clear #1)
+		// p2: beats p3,p4 loses to p1 → 4 mini-league pts
+		// p3: beats p4, loses to p1,p2 → 2 mini-league pts (tied 20s with p4 scenario)
+		// p4: beats nobody loses to all → 0 mini-league pts (clear last)
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 12,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 2 },
+					p3: { result: 'WIN', twenties: 2 },
+					p4: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p2', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p3: { result: 'WIN', twenties: 2 },
+					p4: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p3', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 8,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p2: { result: 'LOSS', twenties: 0 },
+					p4: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p4', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 6,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p2: { result: 'LOSS', twenties: 0 },
+					p3: { result: 'LOSS', twenties: 0 }
+				}
+			}),
+			createStanding('p5', { points: 2, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p6', { points: 0, matchesWon: 0, matchesPlayed: 5 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		// Mini-league: p1 (6pts), p2 (4pts), p3 (2pts), p4 (0pts) → clear order
+		const p1Pos = result.find(s => s.participantId === 'p1')!.position;
+		const p2Pos = result.find(s => s.participantId === 'p2')!.position;
+		const p3Pos = result.find(s => s.participantId === 'p3')!.position;
+		const p4Pos = result.find(s => s.participantId === 'p4')!.position;
+		expect(p1Pos).toBeLessThan(p2Pos);
+		expect(p2Pos).toBeLessThan(p3Pos);
+		expect(p3Pos).toBeLessThan(p4Pos);
+	});
+});

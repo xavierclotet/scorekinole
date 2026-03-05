@@ -14,24 +14,28 @@ import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
  * Calculate number of matches for Round Robin group stage
  * Formula: N*(N-1)/2 matches per group
  */
-function calculateRoundRobinMatches(numParticipants: number, numGroups: number): number {
+export function calculateRoundRobinMatches(numParticipants: number, numGroups: number): number {
   if (numParticipants < 2 || numGroups < 1) return 0;
 
-  const participantsPerGroup = Math.ceil(numParticipants / numGroups);
-  // Round Robin formula: N*(N-1)/2 matches per group
-  const matchesPerGroup = (participantsPerGroup * (participantsPerGroup - 1)) / 2;
-  return Math.ceil(matchesPerGroup * numGroups);
+  // Calculate per-group sizes using snake draft distribution (same as roundRobin.ts splitIntoGroups)
+  // E.g., 7 players in 2 groups → groups of 4 and 3, not 4 and 4
+  let totalMatches = 0;
+  for (let g = 0; g < numGroups; g++) {
+    const groupSize = Math.floor(numParticipants / numGroups) + (g < numParticipants % numGroups ? 1 : 0);
+    totalMatches += (groupSize * (groupSize - 1)) / 2;
+  }
+  return totalMatches;
 }
 
 /**
  * Calculate number of matches for Swiss system
  * Formula: rounds × ceil(N/2) matches per round
  */
-function calculateSwissMatches(numParticipants: number, numRounds: number): number {
+export function calculateSwissMatches(numParticipants: number, numRounds: number): number {
   if (numParticipants < 2 || numRounds < 1) return 0;
 
-  // Each round has N/2 matches (with BYE if odd number of participants)
-  const matchesPerRound = Math.ceil(numParticipants / 2);
+  // Each round has floor(N/2) real matches (BYE is not a real match)
+  const matchesPerRound = Math.floor(numParticipants / 2);
   return numRounds * matchesPerRound;
 }
 
@@ -39,7 +43,7 @@ function calculateSwissMatches(numParticipants: number, numRounds: number): numb
  * Get suggested qualifiers for Swiss system
  * Uses power of 2 values, typically half of participants
  */
-function getSuggestedQualifiersForSwiss(totalParticipants: number): number {
+export function getSuggestedQualifiersForSwiss(totalParticipants: number): number {
   if (totalParticipants < 4) {
     return totalParticipants >= 2 ? 2 : 0;
   }
@@ -71,7 +75,7 @@ function getSuggestedQualifiersForSwiss(totalParticipants: number): number {
  * For multiple groups: typically 2 per group (top 2 advance)
  * For single group: use power of 2 (similar to Swiss, half participants)
  */
-function getSuggestedQualifiersForRoundRobin(totalParticipants: number, numGroups: number): number {
+export function getSuggestedQualifiersForRoundRobin(totalParticipants: number, numGroups: number): number {
   if (totalParticipants < 2) return 0;
 
   // Multiple groups: typical format is top 2 from each group
@@ -112,7 +116,7 @@ function getSuggestedQualifiersForRoundRobin(totalParticipants: number, numGroup
  * Calculate number of matches for single elimination bracket
  * Formula: N-1 matches (+1 for 3rd place match if 4+ participants)
  */
-function calculateBracketMatches(numParticipants: number, includeThirdPlace: boolean = true): number {
+export function calculateBracketMatches(numParticipants: number, includeThirdPlace: boolean = true): number {
   if (numParticipants < 2) return 0;
 
   // Single elimination: N-1 matches
@@ -129,7 +133,7 @@ function calculateBracketMatches(numParticipants: number, includeThirdPlace: boo
 /**
  * Get bracket round name based on number of participants in that round
  */
-function getBracketRoundName(participantsInRound: number): string {
+export function getBracketRoundName(participantsInRound: number): string {
   if (participantsInRound === 2) return 'final';
   if (participantsInRound === 4) return 'semifinals';
   if (participantsInRound === 8) return 'quarterfinals';

@@ -107,3 +107,50 @@ describe('getNaturalThreshold', () => {
 		expect(getNaturalThreshold(25, 'doubles')).toBe(25);
 	});
 });
+
+describe('large player counts (50-200)', () => {
+	it('monotonic decrease for 100 players across all tiers', () => {
+		const tiers: TournamentTier[] = ['SERIES_35', 'SERIES_25', 'SERIES_15'];
+		for (const tier of tiers) {
+			const points: number[] = [];
+			for (let pos = 1; pos <= 100; pos++) {
+				points.push(calculateRankingPoints(pos, tier, 100));
+			}
+			for (let i = 0; i < points.length - 1; i++) {
+				expect(points[i]).toBeGreaterThanOrEqual(points[i + 1]);
+			}
+		}
+	});
+
+	it('last place gets at least 1 point for 200 players', () => {
+		const tiers: TournamentTier[] = ['SERIES_35', 'SERIES_25', 'SERIES_15'];
+		for (const tier of tiers) {
+			expect(calculateRankingPoints(200, tier, 200)).toBeGreaterThanOrEqual(1);
+		}
+	});
+
+	it('winner gets full base points for large tournaments', () => {
+		// All counts well above threshold → winner gets full points
+		expect(calculateRankingPoints(1, 'SERIES_35', 100)).toBe(35);
+		expect(calculateRankingPoints(1, 'SERIES_25', 100)).toBe(25);
+		expect(calculateRankingPoints(1, 'SERIES_15', 100)).toBe(15);
+	});
+
+	it('point spread is reasonable for 50 players', () => {
+		const first = calculateRankingPoints(1, 'SERIES_35', 50);
+		const last = calculateRankingPoints(50, 'SERIES_35', 50);
+		// Winner should get much more than last place
+		expect(first).toBeGreaterThan(last * 5);
+		// But spread shouldn't be extreme
+		expect(first).toBeLessThanOrEqual(35);
+		expect(last).toBeGreaterThanOrEqual(1);
+	});
+
+	it('doubles large tournament still gives at least 1 point to last', () => {
+		const lastDoubles = calculateRankingPoints(100, 'SERIES_35', 100, 'doubles');
+		expect(lastDoubles).toBeGreaterThanOrEqual(1);
+		// And winner gets reasonable points
+		const firstDoubles = calculateRankingPoints(1, 'SERIES_35', 100, 'doubles');
+		expect(firstDoubles).toBeGreaterThan(10);
+	});
+});
