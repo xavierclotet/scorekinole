@@ -15,6 +15,7 @@
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
 	import LiveBadge from '$lib/components/LiveBadge.svelte';
 	import PoweredByBadge from '$lib/components/PoweredByBadge.svelte';
+	import StampBadge from '$lib/components/StampBadge.svelte';
 	import { currentUser } from '$lib/firebase/auth';
 	import { isSuperAdmin } from '$lib/firebase/admin';
 	import { getYouTubeEmbedUrl } from '$lib/utils/youtube';
@@ -876,9 +877,8 @@
 					</div>
 				{/if}
 				{#if tournament && !tournament.isImported}
-					<div class="hero-powered">
-						<span class="hero-powered-label">Powered by</span>
-						<span class="hero-powered-brand">Scorekinole<span class="hero-powered-arena">Arena</span></span>
+					<div class="hero-stamp">
+						<StampBadge size="lg" />
 					</div>
 				{/if}
 				<div class="hero-content">
@@ -3767,53 +3767,22 @@
 		z-index: 10;
 	}
 
-	.hero-powered {
+	.hero-stamp {
 		position: absolute;
 		top: 50%;
 		left: 50%;
-		transform: translate(-50%, -50%) rotate(-18deg);
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.1rem;
+		transform: translate(-50%, -50%) perspective(600px) rotateX(8deg) rotateZ(-12deg);
 		pointer-events: none;
 		user-select: none;
-		z-index: 2;
-		white-space: nowrap;
+		z-index: 3;
+		opacity: 0.6;
 	}
 
-	.hero-powered-label {
-		font-family: 'Lexend', sans-serif;
-		font-style: italic;
-		font-weight: 400;
-		font-size: 0.9rem;
-		color: white;
-		letter-spacing: 0.15em;
-		text-transform: uppercase;
-		mix-blend-mode: soft-light;
-		opacity: 0.35;
-	}
-
-	.hero-powered-brand {
-		font-family: 'Lexend', sans-serif;
-		font-weight: 700;
-		font-size: 2.2rem;
-		color: white;
-		letter-spacing: 0.04em;
-		display: flex;
-		align-items: baseline;
-		gap: 0.3rem;
-		mix-blend-mode: soft-light;
-		opacity: 0.35;
-	}
-
-	.hero-powered-arena {
-		font-style: italic;
-		font-weight: 800;
-		font-size: 1rem;
-		color: white;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
+	@media (max-width: 480px) {
+		.hero-stamp :global(.stamp-outer) {
+			width: 120px;
+			height: 120px;
+		}
 	}
 
 	.hero-content {
@@ -6680,7 +6649,7 @@
 	}
 
 	.video-modal-close:hover {
-		background: rgba(0, 0, 0, 0.7);
+		background: rgba(34, 197, 94, 0.85);
 	}
 
 	.video-modal-content {
@@ -6781,7 +6750,7 @@
 		.video-modal-close {
 			top: max(12px, env(safe-area-inset-top, 12px));
 			right: 12px;
-			background: rgba(0, 0, 0, 0.7);
+			background: rgba(34, 197, 94, 0.85);
 		}
 
 		.video-modal-info {
