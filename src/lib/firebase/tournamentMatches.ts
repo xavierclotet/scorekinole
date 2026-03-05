@@ -310,7 +310,7 @@ export async function updateMatchResult(
         groupStage: cleanedGroupStage,
         updatedAt: serverTimestamp()
       });
-    });
+    }, { maxAttempts: 10 });
 
     return true;
   } catch (error) {
@@ -542,7 +542,7 @@ export async function markNoShow(
         groupStage: cleanedGroupStage,
         updatedAt: serverTimestamp()
       });
-    });
+    }, { maxAttempts: 10 });
 
     return true;
   } catch (error) {
@@ -2079,7 +2079,7 @@ export async function startTournamentMatch(
       if (!matchFound) {
         throw new Error('Match not found');
       }
-    });
+    }, { maxAttempts: 10 });
 
     console.log('✅ Tournament match started:', matchId);
     return { success: true };
@@ -2374,7 +2374,7 @@ export async function abandonTournamentMatch(
       }
 
       return found;
-    });
+    }, { maxAttempts: 10 });
 
     if (matchFound) {
       console.log('✅ Tournament match abandoned:', matchId);
@@ -2632,7 +2632,7 @@ export async function updateTournamentMatchRounds(
       }
 
       return found;
-    });
+    }, { maxAttempts: 10 });
 
     return matchFound;
   } catch (error) {

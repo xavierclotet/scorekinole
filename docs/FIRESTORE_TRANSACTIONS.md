@@ -104,7 +104,30 @@ async function updateSomething(tournamentId: string, ...): Promise<boolean> {
 
 ## Scalability
 
-- Firestore transactions retry up to **5 times** by default
-- With 50+ concurrent matches, some transactions may need 2-3 retries, adding ~100-300ms latency
-- No result is ever lost; worst case is a temporary delay
-- For extreme concurrency, `maxAttempts` can be increased: `runTransaction(db, callback, { maxAttempts: 10 })`
+- Firestore default is `maxAttempts: 5`. Player-facing functions use `maxAttempts: 10` for safety margin with 30-50 concurrent players
+- Functions with `{ maxAttempts: 10 }`: `updateMatchResult`, `updateTournamentMatchRounds`, `startTournamentMatch`, `abandonTournamentMatch`, `markNoShow`
+- Real-world: with 10 tables and 10-13 min matches, actual simultaneous completions are 3-8 (network latency naturally staggers requests)
+- No result is ever lost; worst case is a ~200-500ms delay from retries
+
+## Concurrency Tests
+
+**File:** `src/lib/firebase/tournamentMatches.concurrency.test.ts`
+
+Tests validate that `runTransaction()` prevents data loss under concurrent writes. A mock Firestore (`__mocks__/mockFirestore.ts`) simulates optimistic concurrency control with version tracking and automatic retries on conflict.
+
+**⚠️ Run after modifying:** `tournamentMatches.ts`, `tiebreaker.ts`, `roundRobin.ts`
+
+```bash
+npm test -- --run src/lib/firebase/tournamentMatches.concurrency.test.ts
+```
+
+**13 tests covering:**
+- 10, 20, 28, 45, 50, 91 concurrent completions (all succeed, 0 data loss)
+- 50 mixed operations (25 completions + 25 round syncs)
+- Concurrent round syncs with distinct data per match
+- Idempotency guard (re-completing already completed match = no-op)
+- Bug reproduction (blind writes vs transactions)
+- Standings correctness under concurrency
+- Stale round sync after completion = no-op
+
+**Note:** The mock serializes retries via `setTimeout(0)` (JS single-thread), so each transaction needs at most 1 retry. Real Firebase with multiple network clients may need more retries due to concurrent retry conflicts — that's why production uses `maxAttempts: 10` instead of the default 5.
