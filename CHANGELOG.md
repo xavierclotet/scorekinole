@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.82] - 2026-03-05
+- Fix 4 tournament algorithm bugs and 3 utility bugs
+- Add comprehensive test suite: 672 tests across 28 files (integration, lifecycle, import, concurrency, stores, utils)
+- Add 6 webmcp.md agent documentation files for admin routes
+
 ## [2.4.81] - 2026-03-04
 - Firestore backup & restore admin tool with live data browser and selective document restore
 - Add cleanupExpiredInvites cloud function (weekly scheduled)
