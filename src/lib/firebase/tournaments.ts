@@ -33,48 +33,7 @@ import {
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
-
-/**
- * Recursively clean an object for Firestore compatibility.
- * - Removes undefined values
- * - Converts NaN/Infinity to null (Firestore rejects them)
- * - Converts Firestore Timestamp objects to millis (prevents re-serialization issues)
- */
-function cleanUndefined<T>(obj: T): T {
-  if (obj === null) {
-    return obj;
-  }
-
-  if (obj === undefined) {
-    return null as T;
-  }
-
-  // Firestore rejects NaN and Infinity
-  if (typeof obj === 'number' && !Number.isFinite(obj)) {
-    return null as T;
-  }
-
-  // Convert Firestore Timestamps to millis to avoid re-serialization issues
-  if (obj instanceof Timestamp) {
-    return obj.toMillis() as T;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(item => cleanUndefined(item)).filter(item => item !== undefined) as T;
-  }
-
-  if (typeof obj === 'object') {
-    const cleaned: any = {};
-    Object.entries(obj).forEach(([key, value]) => {
-      if (value !== undefined) {
-        cleaned[key] = cleanUndefined(value);
-      }
-    });
-    return cleaned as T;
-  }
-
-  return obj;
-}
+import { cleanUndefined } from './cleanUndefined';
 
 // ============================================================================
 // PERMISSION HELPERS

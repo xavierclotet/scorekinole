@@ -6,33 +6,8 @@
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from './config';
 import { getTournament, parseTournamentData } from './tournaments';
+import { cleanUndefined } from './cleanUndefined';
 import type { TournamentParticipant } from '$lib/types/tournament';
-
-/**
- * Recursively remove undefined values from an object
- * Firestore doesn't accept undefined values
- */
-function cleanUndefined<T>(obj: T): T {
-  if (obj === null || obj === undefined) {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(item => cleanUndefined(item)) as T;
-  }
-
-  if (typeof obj === 'object') {
-    const cleaned: any = {};
-    Object.entries(obj).forEach(([key, value]) => {
-      if (value !== undefined) {
-        cleaned[key] = cleanUndefined(value);
-      }
-    });
-    return cleaned as T;
-  }
-
-  return obj;
-}
 
 /**
  * Update qualified participants for a group

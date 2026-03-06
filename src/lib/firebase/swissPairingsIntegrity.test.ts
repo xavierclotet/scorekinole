@@ -405,6 +405,57 @@ describe('Swiss pairings concurrent safety', () => {
   });
 });
 
+describe('Swiss pairings Firestore safety', () => {
+  /** Recursively check that no value in the object is undefined */
+  function assertNoUndefined(obj: any, path = 'root'): void {
+    if (obj === undefined) throw new Error(`Found undefined at ${path}`);
+    if (obj && typeof obj === 'object') {
+      for (const [key, value] of Object.entries(obj)) {
+        assertNoUndefined(value, `${path}.${key}`);
+      }
+    }
+  }
+
+  it('round 2 generation produces no undefined values (Firestore-safe)', async () => {
+    // This test prevents the exact FirebaseError that was reported:
+    // "Function Transaction.update() called with invalid data. Unsupported field value: undefined"
+    const tournament = createSwissTournament({ numParticipants: 8, swissRounds: 3 });
+    seedTournament(tournament);
+
+    // Complete all round 1 matches with varied results (creates different point totals)
+    await completeAllMatches(tournament.id, tournament);
+
+    // Generate round 2 — this triggers tiebreaker with players at different point levels
+    const success = await generateSwissPairings(tournament.id, 2);
+    expect(success).toBe(true);
+
+    // Read the final state and check every value recursively
+    const after = readTournament(tournament.id);
+    assertNoUndefined(after.groupStage, 'groupStage');
+  });
+
+  it('round 2 standings have no undefined tiedWith/tieReason fields', async () => {
+    const tournament = createSwissTournament({ numParticipants: 6, swissRounds: 3 });
+    seedTournament(tournament);
+
+    await completeAllMatches(tournament.id, tournament);
+    await generateSwissPairings(tournament.id, 2);
+
+    const after = readTournament(tournament.id);
+    const standings = after.groupStage!.groups[0].standings!;
+
+    for (const standing of standings) {
+      // These fields should either not exist or have a defined value
+      if ('tiedWith' in standing) {
+        expect(standing.tiedWith).not.toBeUndefined();
+      }
+      if ('tieReason' in standing) {
+        expect(standing.tieReason).not.toBeUndefined();
+      }
+    }
+  });
+});
+
 describe('Swiss recalculateStandings data integrity', () => {
   it('recalculateStandings does NOT modify match results', async () => {
     const tournament = createSwissTournament({ numParticipants: 6 });

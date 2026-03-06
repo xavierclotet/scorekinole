@@ -12,32 +12,7 @@ import { getTournament, parseTournamentData } from './tournaments';
 import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
 import { resolveTiebreaker, updateHeadToHeadRecord, calculateMatchPoints } from '$lib/algorithms/tiebreaker';
 import { browser } from '$app/environment';
-
-/**
- * Recursively remove undefined values from an object
- * Firestore doesn't accept undefined values
- */
-function cleanUndefined<T>(obj: T): T {
-  if (obj === null || obj === undefined) {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(item => cleanUndefined(item)) as T;
-  }
-
-  if (typeof obj === 'object') {
-    const cleaned: any = {};
-    Object.entries(obj).forEach(([key, value]) => {
-      if (value !== undefined) {
-        cleaned[key] = cleanUndefined(value);
-      }
-    });
-    return cleaned as T;
-  }
-
-  return obj;
-}
+import { cleanUndefined } from './cleanUndefined';
 
 /**
  * Reassign a freed table to the best pending match without a table.

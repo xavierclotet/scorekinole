@@ -3,9 +3,10 @@
  * Single elimination bracket operations
  */
 
-import { doc, runTransaction, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from './config';
 import { getTournament, updateTournament, parseTournamentData } from './tournaments';
+import { cleanUndefined } from './cleanUndefined';
 import {
   generateBracket as generateBracketAlgorithm,
   advanceWinner as advanceWinnerAlgorithm,
@@ -20,42 +21,6 @@ import {
 import type { ConsolationSource } from '$lib/algorithms/bracket';
 import { calculateFinalPositionsForTournament } from './tournamentRanking';
 import type { Bracket, BracketMatch, BracketWithConfig, BracketConfig, PhaseConfig, Tournament } from '$lib/types/tournament';
-
-/**
- * Recursively clean an object for Firestore compatibility.
- * - Removes undefined values
- * - Converts NaN/Infinity to null (Firestore rejects them)
- * - Converts Firestore Timestamp objects to millis
- */
-function cleanUndefined<T>(obj: T): T {
-  if (obj === null || obj === undefined) {
-    return obj;
-  }
-
-  if (typeof obj === 'number' && !Number.isFinite(obj)) {
-    return null as T;
-  }
-
-  if (obj instanceof Timestamp) {
-    return obj.toMillis() as T;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(item => cleanUndefined(item)) as T;
-  }
-
-  if (typeof obj === 'object') {
-    const cleaned: any = {};
-    Object.entries(obj).forEach(([key, value]) => {
-      if (value !== undefined) {
-        cleaned[key] = cleanUndefined(value);
-      }
-    });
-    return cleaned as T;
-  }
-
-  return obj;
-}
 
 /**
  * Get all playable matches from a bracket (PENDING with both participants, no BYE)

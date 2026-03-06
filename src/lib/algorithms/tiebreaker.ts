@@ -78,8 +78,8 @@ function resolveTwoPlayerTie(
   const [a, b] = tiedGroup;
 
   const clearTie = () => {
-    a.tiedWith = undefined; a.tieReason = undefined;
-    b.tiedWith = undefined; b.tieReason = undefined;
+    delete a.tiedWith; delete a.tieReason;
+    delete b.tiedWith; delete b.tieReason;
   };
 
   for (const criterion of priority) {
@@ -233,16 +233,16 @@ function resolveRemainingTwoPlayerTies(
 
       if (h2h !== null && h2h !== 0) {
         // H2H resolves it
-        a.tiedWith = undefined; a.tieReason = undefined;
-        b.tiedWith = undefined; b.tieReason = undefined;
+        delete a.tiedWith; delete a.tieReason;
+        delete b.tiedWith; delete b.tieReason;
         result.push(h2h === 1 ? a : b, h2h === 1 ? b : a);
       } else {
         // Try Buchholz
         const buchA = a.buchholz ?? 0;
         const buchB = b.buchholz ?? 0;
         if (buchA !== buchB) {
-          a.tiedWith = undefined; a.tieReason = undefined;
-          b.tiedWith = undefined; b.tieReason = undefined;
+          delete a.tiedWith; delete a.tieReason;
+          delete b.tiedWith; delete b.tieReason;
           result.push(buchA > buchB ? a : b, buchA > buchB ? b : a);
         } else {
           // Still tied - mark as unresolved, use ranking snapshot for order
@@ -269,8 +269,8 @@ function resolveRemainingTwoPlayerTies(
       result.push(...tiedSubgroup);
     } else {
       // Single player - no tie
-      tiedSubgroup[0].tiedWith = undefined;
-      tiedSubgroup[0].tieReason = undefined;
+      delete tiedSubgroup[0].tiedWith;
+      delete tiedSubgroup[0].tieReason;
       result.push(...tiedSubgroup);
     }
 
@@ -441,8 +441,8 @@ function resolveMultiPlayerTie(
         const h2h = getHeadToHeadResult(a, b);
 
         if (h2h !== null && h2h !== 0) {
-          a.tiedWith = undefined; a.tieReason = undefined;
-          b.tiedWith = undefined; b.tieReason = undefined;
+          delete a.tiedWith; delete a.tieReason;
+          delete b.tiedWith; delete b.tieReason;
           result.push(h2h === 1 ? a : b, h2h === 1 ? b : a);
         } else {
           a.tiedWith = [b.participantId]; a.tieReason = 'unresolved';
@@ -456,8 +456,8 @@ function resolveMultiPlayerTie(
         }
         result.push(...tiedSubgroup);
       } else {
-        tiedSubgroup[0].tiedWith = undefined;
-        tiedSubgroup[0].tieReason = undefined;
+        delete tiedSubgroup[0].tiedWith;
+        delete tiedSubgroup[0].tieReason;
         result.push(...tiedSubgroup);
       }
 
@@ -505,8 +505,8 @@ function resolveTiedGroup(
 ): GroupStanding[] {
   if (tiedGroup.length === 1) {
     // No tie to resolve
-    tiedGroup[0].tiedWith = undefined;
-    tiedGroup[0].tieReason = undefined;
+    delete tiedGroup[0].tiedWith;
+    delete tiedGroup[0].tieReason;
     return tiedGroup;
   }
 

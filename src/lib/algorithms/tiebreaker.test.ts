@@ -1604,3 +1604,58 @@ describe('edge cases: POINTS mode primary value', () => {
 		expect(p3.position).toBe(3); // 20 total points < 30
 	});
 });
+
+describe('resolveTiebreaker Firestore safety', () => {
+	/** Recursively check that no value in the object is undefined */
+	function assertNoUndefined(obj: any, path = 'root'): void {
+		if (obj === undefined) throw new Error(`Found undefined at ${path}`);
+		if (obj && typeof obj === 'object') {
+			for (const [key, value] of Object.entries(obj)) {
+				assertNoUndefined(value, `${path}.${key}`);
+			}
+		}
+	}
+
+	it('never produces undefined values when players have different points (tiedGroup.length === 1)', () => {
+		const participants = createParticipants(4);
+		// All players have DIFFERENT points → each forms a group of 1 → triggers the delete branch
+		const standings: GroupStanding[] = [
+			createStanding('p1', { points: 6, matchesWon: 3, matchesPlayed: 3, totalPointsScored: 24 }),
+			createStanding('p2', { points: 4, matchesWon: 2, matchesPlayed: 3, totalPointsScored: 18 }),
+			createStanding('p3', { points: 2, matchesWon: 1, matchesPlayed: 3, totalPointsScored: 12 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3, totalPointsScored: 6 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, true, 'WINS');
+
+		// No field in any standing should be undefined (Firestore rejects undefined)
+		for (const standing of result) {
+			assertNoUndefined(standing, `standing[${standing.participantId}]`);
+		}
+
+		// tiedWith and tieReason should not exist as keys at all
+		for (const standing of result) {
+			expect('tiedWith' in standing).toBe(false);
+			expect('tieReason' in standing).toBe(false);
+		}
+	});
+
+	it('never produces undefined values in Swiss round 2 scenario (mixed points)', () => {
+		const participants = createParticipants(6);
+		// After round 1: some win (2pts), some lose (0pts) → groups of varying sizes
+		const standings: GroupStanding[] = [
+			createStanding('p1', { points: 2, matchesWon: 1, matchesPlayed: 1, swissPoints: 2, totalPointsScored: 8, total20s: 1 }),
+			createStanding('p2', { points: 2, matchesWon: 1, matchesPlayed: 1, swissPoints: 2, totalPointsScored: 6, total20s: 0 }),
+			createStanding('p3', { points: 2, matchesWon: 1, matchesPlayed: 1, swissPoints: 2, totalPointsScored: 7, total20s: 2 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 1, swissPoints: 0, totalPointsScored: 3, total20s: 0 }),
+			createStanding('p5', { points: 0, matchesWon: 0, matchesPlayed: 1, swissPoints: 0, totalPointsScored: 4, total20s: 0 }),
+			createStanding('p6', { points: 0, matchesWon: 0, matchesPlayed: 1, swissPoints: 0, totalPointsScored: 2, total20s: 0 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, true, 'WINS');
+
+		for (const standing of result) {
+			assertNoUndefined(standing, `standing[${standing.participantId}]`);
+		}
+	});
+});

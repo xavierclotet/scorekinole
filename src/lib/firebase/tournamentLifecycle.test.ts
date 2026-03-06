@@ -104,6 +104,7 @@ const { transitionTournament } = await import('$lib/utils/tournamentStateMachine
 const { updateMatchResult } = await import('./tournamentMatches');
 const { completeBracketMatchAndAdvance } = await import('./tournamentBracket');
 const { generateSwissPairings: generateSwissPairingsAlgorithm } = await import('$lib/algorithms/swiss');
+const { generateSwissPairings, recalculateStandings } = await import('./tournamentGroups');
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
@@ -1022,5 +1023,211 @@ describe('GROUP_ONLY finalize: multi-group position assignment', () => {
 
     // No finalStage should exist for GROUP_ONLY
     expect(t.finalStage).toBeUndefined();
+  });
+});
+
+// ─── FIRESTORE SAFETY: no undefined values in critical transitions ──────────
+
+/** Recursively assert no undefined values exist in an object */
+function assertNoUndefined(obj: any, path = 'root'): void {
+  if (obj === undefined) throw new Error(`Found undefined at ${path}`);
+  if (obj && typeof obj === 'object') {
+    for (const [key, value] of Object.entries(obj)) {
+      assertNoUndefined(value, `${path}.${key}`);
+    }
+  }
+}
+
+/** Simulate what Firestore would receive: run cleanUndefined and verify no undefined remains */
+function assertFirestoreSafe(obj: any, label: string): void {
+  // Import cleanUndefined behavior inline — strips undefined recursively
+  const cleaned = JSON.parse(JSON.stringify(obj, (_, v) => v === undefined ? '__UNDEFINED__' : v));
+  const check = (o: any, path: string) => {
+    if (o === '__UNDEFINED__') throw new Error(`Firestore would receive undefined at ${path}`);
+    if (o && typeof o === 'object') {
+      for (const [key, value] of Object.entries(o)) {
+        check(value, `${path}.${key}`);
+      }
+    }
+  };
+  check(cleaned, label);
+}
+
+describe('Firestore safety: no undefined values in critical transitions', () => {
+  it('Swiss groups → transition: standings have no undefined after varied results', async () => {
+    const tournament = createDraftSwissTournament(8, 'TWO_PHASE', { numSwissRounds: 3 });
+    seedTournament(tournament);
+
+    // DRAFT → GROUP_STAGE
+    expect(await transitionTournament(tournament.id, 'GROUP_STAGE')).toBe(true);
+
+    // Complete round 1 with alternating winners (creates different point totals)
+    let t = readTournament(tournament.id);
+    startPendingMatches(t);
+    mockStore.setDocument(`tournaments/${tournament.id}`, t as unknown as Record<string, unknown>);
+
+    t = readTournament(tournament.id);
+    const r1Matches = getGroupMatches(t);
+    for (let i = 0; i < r1Matches.length; i++) {
+      const match = r1Matches[i];
+      const aWins = i % 2 === 0;
+      await updateMatchResult(tournament.id, match.id, {
+        gamesWonA: aWins ? 2 : 0,
+        gamesWonB: aWins ? 0 : 2,
+        totalPointsA: aWins ? 8 : 3,
+        totalPointsB: aWins ? 3 : 8,
+        total20sA: aWins ? 2 : 0,
+        total20sB: aWins ? 0 : 1
+      });
+    }
+
+    // Generate round 2 via Firebase function (triggers tiebreaker with varied points)
+    const r2ok = await generateSwissPairings(tournament.id, 2);
+    expect(r2ok).toBe(true);
+
+    // Verify: no undefined values in the entire groupStage
+    t = readTournament(tournament.id);
+    assertNoUndefined(t.groupStage, 'groupStage');
+
+    // Specifically check standings fields
+    const standings = t.groupStage!.groups[0].standings!;
+    for (const s of standings) {
+      if ('tiedWith' in s) expect(s.tiedWith).not.toBeUndefined();
+      if ('tieReason' in s) expect(s.tieReason).not.toBeUndefined();
+    }
+  });
+
+  it('Swiss transition → bracket: bracket generation succeeds with tiebreaker standings', async () => {
+    const tournament = createDraftSwissTournament(8, 'TWO_PHASE', { numSwissRounds: 2 });
+    seedTournament(tournament);
+
+    // DRAFT → GROUP_STAGE
+    expect(await transitionTournament(tournament.id, 'GROUP_STAGE')).toBe(true);
+
+    // Complete round 1
+    let t = readTournament(tournament.id);
+    startPendingMatches(t);
+    mockStore.setDocument(`tournaments/${tournament.id}`, t as unknown as Record<string, unknown>);
+    t = readTournament(tournament.id);
+    for (const match of getGroupMatches(t)) {
+      await completeGroupMatch(tournament.id, match);
+    }
+
+    // Generate round 2
+    expect(await generateSwissPairings(tournament.id, 2)).toBe(true);
+
+    // Activate and complete round 2
+    t = readTournament(tournament.id);
+    startPendingMatches(t);
+    mockStore.setDocument(`tournaments/${tournament.id}`, t as unknown as Record<string, unknown>);
+    t = readTournament(tournament.id);
+    for (const match of getGroupMatches(t)) {
+      await completeGroupMatch(tournament.id, match);
+    }
+
+    // GROUP_STAGE → TRANSITION
+    expect(await transitionTournament(tournament.id, 'TRANSITION')).toBe(true);
+
+    // Mark top 4 as qualified
+    t = readTournament(tournament.id);
+    markQualifiers(t, 4);
+    mockStore.setDocument(`tournaments/${tournament.id}`, t as unknown as Record<string, unknown>);
+
+    // Verify groupStage is clean before bracket generation
+    t = readTournament(tournament.id);
+    assertNoUndefined(t.groupStage, 'groupStage');
+
+    // TRANSITION → FINAL_STAGE (generates bracket)
+    expect(await transitionTournament(tournament.id, 'FINAL_STAGE')).toBe(true);
+
+    t = readTournament(tournament.id);
+    expect(t.status).toBe('FINAL_STAGE');
+    expect(t.finalStage!.goldBracket).toBeDefined();
+
+    // Bracket matches have legitimately undefined fields (winner, etc.) for PENDING matches.
+    // What matters is that updateTournament's cleanUndefined strips them before Firestore.
+    // Verify the bracket was actually generated with matches.
+    const bracketRounds = t.finalStage!.goldBracket!.rounds;
+    expect(bracketRounds.length).toBeGreaterThanOrEqual(2);
+    expect(bracketRounds[0].matches.length).toBeGreaterThan(0);
+  });
+
+  it('bracket → COMPLETED: tournament correctly marks as completed with no pending matches', async () => {
+    const tournament = createDraftTournament(4, 'ONE_PHASE');
+    (tournament as any).groupStage = undefined;
+    seedTournament(tournament);
+
+    // DRAFT → FINAL_STAGE
+    expect(await transitionTournament(tournament.id, 'FINAL_STAGE')).toBe(true);
+
+    let t = readTournament(tournament.id);
+    expect(t.status).toBe('FINAL_STAGE');
+
+    // Complete all bracket matches round by round
+    let bracketMatches = getPendingBracketMatches(t);
+    while (bracketMatches.length > 0) {
+      for (const match of bracketMatches) {
+        await completeBracketMatch(tournament.id, match);
+      }
+      t = readTournament(tournament.id);
+      bracketMatches = getPendingBracketMatches(t);
+    }
+
+    // Verify COMPLETED
+    expect(t.status).toBe('COMPLETED');
+    expect(t.completedAt).toBeDefined();
+    expect(t.finalStage!.isComplete).toBe(true);
+    expect(t.finalStage!.winner).toBeDefined();
+
+    // Verify NO pending or in-progress matches remain in any bracket round
+    const bracket = t.finalStage!.goldBracket!;
+    for (const round of bracket.rounds) {
+      for (const match of round.matches) {
+        if (match.participantA && match.participantB
+            && match.participantA !== 'BYE' && match.participantB !== 'BYE') {
+          expect(match.status).not.toBe('PENDING');
+          expect(match.status).not.toBe('IN_PROGRESS');
+        }
+      }
+    }
+
+    // Verify all participants have final positions
+    const withPositions = t.participants.filter(p => p.finalPosition !== undefined);
+    expect(withPositions.length).toBe(4);
+    const positions = withPositions.map(p => p.finalPosition!).sort((a, b) => a - b);
+    expect(positions).toEqual([1, 2, 3, 4]);
+
+    // Verify no undefined in final state
+    assertNoUndefined(t.finalStage, 'finalStage');
+  });
+
+  it('recalculateStandings produces Firestore-safe data', async () => {
+    const tournament = createDraftSwissTournament(6, 'GROUP_ONLY', { numSwissRounds: 2 });
+    seedTournament(tournament);
+
+    expect(await transitionTournament(tournament.id, 'GROUP_STAGE')).toBe(true);
+
+    // Complete round 1 with varied results
+    let t = readTournament(tournament.id);
+    startPendingMatches(t);
+    mockStore.setDocument(`tournaments/${tournament.id}`, t as unknown as Record<string, unknown>);
+    t = readTournament(tournament.id);
+    const matches = getGroupMatches(t);
+    for (let i = 0; i < matches.length; i++) {
+      await updateMatchResult(tournament.id, matches[i].id, {
+        gamesWonA: i % 2 === 0 ? 2 : 0,
+        gamesWonB: i % 2 === 0 ? 0 : 2,
+        totalPointsA: i % 2 === 0 ? 8 : 3,
+        totalPointsB: i % 2 === 0 ? 3 : 8,
+        total20sA: 1, total20sB: 0
+      });
+    }
+
+    // Recalculate standings (triggers tiebreaker)
+    expect(await recalculateStandings(tournament.id)).toBe(true);
+
+    // Verify no undefined values
+    t = readTournament(tournament.id);
+    assertNoUndefined(t.groupStage, 'groupStage');
   });
 });

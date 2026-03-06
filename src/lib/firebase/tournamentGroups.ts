@@ -6,6 +6,7 @@
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from './config';
 import { getTournament, updateTournament, updateTournamentPublic, parseTournamentData } from './tournaments';
+import { cleanUndefined } from './cleanUndefined';
 import type { QualificationMode } from '$lib/types/tournament';
 
 /**
@@ -148,6 +149,12 @@ export async function generateSwissPairings(
 
       const group = tournament.groupStage.groups[0]; // Swiss has single group
       if (!group) throw new Error('No group found');
+
+      // Guard: don't generate a round that already exists
+      const existingRound = group.pairings?.find(p => p.roundNumber === roundNumber);
+      if (existingRound) {
+        throw new Error(`Round ${roundNumber} already exists`);
+      }
 
       // Recalculate standings in-memory from match results (avoids separate read/write)
       const standingsMap = new Map<string, GroupStanding>();
@@ -305,11 +312,11 @@ export async function generateSwissPairings(
 
       // Atomic write inside transaction
       transaction.update(tournamentRef, {
-        groupStage: {
+        groupStage: cleanUndefined({
           ...tournament.groupStage,
           groups: updatedGroups,
           currentRound: roundNumber
-        },
+        }),
         updatedAt: serverTimestamp()
       });
     }, { maxAttempts: 5 });
@@ -547,7 +554,7 @@ export async function recalculateStandings(
       }
 
       transaction.update(tournamentRef, {
-        groupStage: tournament.groupStage,
+        groupStage: cleanUndefined(tournament.groupStage),
         updatedAt: serverTimestamp()
       });
     });
@@ -668,10 +675,10 @@ export async function completeGroupStage(tournamentId: string): Promise<boolean>
 
       // Mark group stage as complete atomically
       transaction.update(tournamentRef, {
-        groupStage: {
+        groupStage: cleanUndefined({
           ...tournament.groupStage,
           isComplete: true
-        },
+        }),
         updatedAt: serverTimestamp()
       });
     });
