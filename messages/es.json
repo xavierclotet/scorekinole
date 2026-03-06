@@ -1175,6 +1175,8 @@
   "tournament_matchPlural": "partidos",
   "tournament_matchSingular": "partido",
   "tournament_inPlay": "jugando en tiempo real",
+  "tournament_countdownTimeout": "TIEMPO!",
+  "tournament_countdownPaused": "Pausado",
   "tournament_matchVideos": "Videos del torneo",
   "tournament_miniLeagueDescription": "Desempate calculado solo con partidos entre jugadores empatados",
   "tournament_miniLeagueTiebreaker": "Desempate Mini-Liga",

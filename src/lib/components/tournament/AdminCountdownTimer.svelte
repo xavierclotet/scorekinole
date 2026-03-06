@@ -1,8 +1,11 @@
 <script lang="ts">
   import { browser } from '$app/environment';
+  import { untrack } from 'svelte';
   import { vibratePattern } from '$lib/utils/vibration';
   import { Play, Pause, RotateCcw, GripVertical, Maximize, Minimize, X, Pencil } from '@lucide/svelte';
   import * as m from '$lib/paraglide/messages.js';
+  import { updateTournament } from '$lib/firebase/tournaments';
+  import type { TournamentTimer } from '$lib/types/tournament';
 
   interface Props {
     initialMinutes: number;
@@ -28,6 +31,24 @@
       stopTimer();
       timeRemaining = initialSeconds;
     }
+  });
+
+  // Firestore sync (write-only, no feedback loop)
+  function syncTimerToFirestore(timer: TournamentTimer | null) {
+    if (!tournamentId) return;
+    updateTournament(tournamentId, { countdownTimer: timer } as any);
+  }
+
+  // Sync when timer becomes visible (only on visibility transition)
+  let prevVisible = false;
+  $effect(() => {
+    const nowVisible = visible && initialized;
+    if (nowVisible && !prevVisible) {
+      untrack(() => {
+        syncTimerToFirestore({ status: 'stopped', remaining: timeRemaining, duration: initialSeconds });
+      });
+    }
+    prevVisible = nowVisible;
   });
 
   // Fullscreen state
@@ -86,6 +107,7 @@
     const secs = Math.max(0, Math.min(59, parseInt(editSeconds) || 0));
     timeRemaining = mins * 60 + secs;
     isEditing = false;
+    syncTimerToFirestore({ status: 'paused', remaining: timeRemaining, duration: initialSeconds });
   }
 
   function cancelEdit() {
@@ -168,10 +190,17 @@
   function startTimer() {
     if (timeRemaining <= 0) return;
     running = true;
+    syncTimerToFirestore({
+      status: 'running',
+      endsAt: Date.now() + timeRemaining * 1000,
+      remaining: timeRemaining,
+      duration: initialSeconds
+    });
     interval = setInterval(() => {
       if (timeRemaining <= 1) {
         timeRemaining = 0;
         stopTimer();
+        syncTimerToFirestore({ status: 'stopped', remaining: 0, duration: initialSeconds });
         triggerTimeoutAlert();
       } else {
         timeRemaining -= 1;
@@ -191,6 +220,7 @@
   function toggleTimer() {
     if (running) {
       stopTimer();
+      syncTimerToFirestore({ status: 'paused', remaining: timeRemaining, duration: initialSeconds });
     } else {
       startTimer();
     }
@@ -199,6 +229,7 @@
   function resetTimer() {
     stopTimer();
     timeRemaining = initialSeconds;
+    syncTimerToFirestore({ status: 'stopped', remaining: initialSeconds, duration: initialSeconds });
   }
 
   function toggleFullscreen() {
@@ -213,6 +244,7 @@
   function handleClose() {
     isFullscreen = false;
     document.body.style.overflow = '';
+    syncTimerToFirestore(null);
     onclose();
   }
 

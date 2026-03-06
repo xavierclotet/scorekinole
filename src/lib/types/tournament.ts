@@ -39,6 +39,17 @@ export type ParticipantStatus = 'ACTIVE' | 'WITHDRAWN' | 'DISQUALIFIED';
 export type ParticipantType = 'REGISTERED' | 'GUEST';
 
 /**
+ * Countdown timer state synced to Firestore for public display
+ * Uses absolute timestamps when running to avoid clock drift
+ */
+export interface TournamentTimer {
+  status: 'running' | 'paused' | 'stopped';
+  endsAt?: number;       // Absolute timestamp ms (only when running)
+  remaining: number;     // Seconds remaining (authoritative when paused/stopped)
+  duration: number;      // Original duration in seconds
+}
+
+/**
  * Main Tournament interface
  */
 export interface Tournament {
@@ -118,6 +129,9 @@ export interface Tournament {
 
   // Test flag
   isTest?: boolean;                    // true = hidden from public tournament list
+
+  // Countdown timer (synced from admin for public display)
+  countdownTimer?: TournamentTimer | null;
 }
 
 /**

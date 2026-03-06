@@ -150,6 +150,41 @@
 		tournament.participants.filter(p => p.status === 'ACTIVE' || !p.status).length
 	);
 
+	// Countdown timer (synced from admin)
+	let countdownTimer = $derived(tournament.countdownTimer);
+	let timerActive = $derived(!!countdownTimer && tournament.status === 'GROUP_STAGE');
+	let timerRemaining = $state(0);
+
+	$effect(() => {
+		if (!timerActive || !countdownTimer) {
+			timerRemaining = 0;
+			return;
+		}
+
+		if (countdownTimer.status === 'running' && countdownTimer.endsAt) {
+			// Compute remaining from absolute timestamp
+			const compute = () => Math.max(0, Math.ceil((countdownTimer!.endsAt! - Date.now()) / 1000));
+			timerRemaining = compute();
+			const iv = setInterval(() => {
+				timerRemaining = compute();
+			}, 200);
+			return () => clearInterval(iv);
+		} else {
+			timerRemaining = countdownTimer.remaining;
+		}
+	});
+
+	let timerDisplay = $derived.by(() => {
+		const mins = Math.floor(timerRemaining / 60);
+		const secs = timerRemaining % 60;
+		return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+	});
+
+	let timerIsWarning = $derived(timerRemaining < 60 && timerRemaining >= 30 && countdownTimer?.status === 'running');
+	let timerIsCritical = $derived(timerRemaining < 30 && timerRemaining > 0 && countdownTimer?.status === 'running');
+	let timerIsTimeout = $derived(timerRemaining === 0 && countdownTimer?.status === 'stopped');
+	let timerIsPaused = $derived(countdownTimer?.status === 'paused');
+
 	// Round progress calculation (for group stage: show "Ronda 1/5" = current round being played or last completed)
 	let roundProgress = $derived((() => {
 		if (groups.length === 0) return { current: 0, total: 0, percentage: 0, highestExisting: 0 };
@@ -713,6 +748,28 @@
 			{/if}
 		</div>
 		<div class="info-right">
+			{#if timerActive && countdownTimer}
+				<span class={[
+					'info-chip timer-chip',
+					countdownTimer.status === 'running' && 'timer-running',
+					timerIsWarning && 'timer-warning',
+					timerIsCritical && 'timer-critical',
+					timerIsTimeout && 'timer-timeout',
+					timerIsPaused && 'timer-paused'
+				]}>
+					{#if countdownTimer.status === 'running'}
+						<span class="timer-pulse-dot"></span>
+					{/if}
+					{#if timerIsTimeout}
+						<span class="timer-timeout-text">{m.tournament_countdownTimeout()}</span>
+					{:else}
+						<span class="timer-digits">{timerDisplay}</span>
+					{/if}
+					{#if timerIsPaused}
+						<span class="timer-paused-label">{m.tournament_countdownPaused()}</span>
+					{/if}
+				</span>
+			{/if}
 			{#if matchesInProgress > 0}
 				<span class="info-chip live-chip">
 					<span class="pulse-dot-mini"></span>
@@ -2335,6 +2392,86 @@
 		animation: pulse 1.5s ease-in-out infinite;
 	}
 
+	/* Countdown Timer Chip */
+	.timer-chip {
+		gap: 0.4rem;
+		font-family: 'Lexend', monospace;
+		font-variant-numeric: tabular-nums;
+		font-weight: 700;
+		background: rgba(102, 126, 234, 0.15);
+		color: #a5b4fc;
+		transition: all 0.3s ease;
+	}
+
+	.timer-chip.timer-running {
+		background: rgba(34, 197, 94, 0.15);
+		color: #4ade80;
+	}
+
+	.timer-chip.timer-warning {
+		background: rgba(255, 184, 108, 0.15);
+		color: #ffb86c;
+		animation: timerPulseWarn 3s ease-in-out infinite;
+	}
+
+	.timer-chip.timer-critical {
+		background: rgba(255, 107, 107, 0.15);
+		color: #ff6b6b;
+		animation: timerPulseCrit 1s ease-in-out infinite;
+	}
+
+	.timer-chip.timer-timeout {
+		background: rgba(255, 68, 68, 0.2);
+		color: #ff4444;
+	}
+
+	.timer-chip.timer-paused {
+		opacity: 0.7;
+	}
+
+	.timer-pulse-dot {
+		width: 6px;
+		height: 6px;
+		background: #4ade80;
+		border-radius: 50%;
+		animation: pulse 1.5s ease-in-out infinite;
+	}
+
+	.timer-chip.timer-warning .timer-pulse-dot { background: #ffb86c; }
+	.timer-chip.timer-critical .timer-pulse-dot { background: #ff6b6b; }
+
+	.timer-digits {
+		letter-spacing: 0.04em;
+	}
+
+	.timer-timeout-text {
+		letter-spacing: 0.06em;
+		animation: timerTimeoutBlink 1.2s ease-in-out infinite;
+	}
+
+	.timer-paused-label {
+		font-size: 0.65rem;
+		font-weight: 500;
+		opacity: 0.7;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	@keyframes timerPulseWarn {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.7; }
+	}
+
+	@keyframes timerPulseCrit {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.5; }
+	}
+
+	@keyframes timerTimeoutBlink {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.4; }
+	}
+
 	.progress-inline {
 		display: flex;
 		align-items: center;
@@ -3782,6 +3919,36 @@
 	:global([data-theme='violet-light']) .info-chip.phase {
 		background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.08) 100%);
 		color: #667eea;
+	}
+
+	:global([data-theme='light']) .timer-chip,
+	:global([data-theme='violet-light']) .timer-chip {
+		background: rgba(102, 126, 234, 0.1);
+		color: #667eea;
+	}
+
+	:global([data-theme='light']) .timer-chip.timer-running,
+	:global([data-theme='violet-light']) .timer-chip.timer-running {
+		background: rgba(34, 197, 94, 0.1);
+		color: #16a34a;
+	}
+
+	:global([data-theme='light']) .timer-chip.timer-warning,
+	:global([data-theme='violet-light']) .timer-chip.timer-warning {
+		background: rgba(245, 158, 11, 0.1);
+		color: #d97706;
+	}
+
+	:global([data-theme='light']) .timer-chip.timer-critical,
+	:global([data-theme='violet-light']) .timer-chip.timer-critical {
+		background: rgba(239, 68, 68, 0.1);
+		color: #dc2626;
+	}
+
+	:global([data-theme='light']) .timer-chip.timer-timeout,
+	:global([data-theme='violet-light']) .timer-chip.timer-timeout {
+		background: rgba(239, 68, 68, 0.15);
+		color: #dc2626;
 	}
 
 	:global([data-theme='light']) .progress-bar-mini,
