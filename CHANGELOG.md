@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.91] - 2026-03-06
+- Fix Firestore crash on Swiss round 2+ generation (undefined values in standings)
+- Replace all `= undefined` with `delete` in tiebreaker.ts (10 sites)
+- Add cleanUndefined to all transaction writes in tournamentGroups.ts
+- Consolidate cleanUndefined into single canonical module (DRY)
+- Add duplicate round guard in generateSwissPairings
+- Add 30 new tests (cleanUndefined edge cases, lifecycle Firestore safety, tiebreaker)
+
 ## [2.4.90] - 2026-03-06
 - Venue management: inline edit from VenueSelector for owner/SuperAdmin
 - Admin venues page: edit modal, tournament count column, remove delete action
