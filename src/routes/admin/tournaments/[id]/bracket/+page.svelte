@@ -162,7 +162,7 @@
     ?? false);
 
   // Consolation match handling
-  let selectedConsolationSource = $state<'QF' | 'R16' | null>(null);
+  let selectedConsolationSource = $state<'QF' | 'R16' | 'R32' | 'R64' | null>(null);
 
   // Helper function to get matchesToWin for a specific match based on its position
   // - bracketType: 'gold' | 'silver'
@@ -715,7 +715,7 @@
   // Handle consolation match click
   function handleConsolationMatchClick(
     match: BracketMatch,
-    source: 'QF' | 'R16',
+    source: 'QF' | 'R16' | 'R32' | 'R64',
     roundNumber: number
   ) {
     if (!match.participantA || !match.participantB) return;

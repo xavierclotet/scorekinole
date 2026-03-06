@@ -275,7 +275,7 @@
 
       // Pre-populate Step 1: Basic Info (increment edition, reset date to today)
       name = tournament.name || '';
-      edition = (tournament.edition || 0) + 1;  // Increment edition for the copy
+      edition = tournament.edition != null ? tournament.edition + 1 : undefined;  // Increment edition only if original had one
       address = tournament.address || '';
       city = tournament.city || '';
       country = tournament.country || 'España';
@@ -288,7 +288,7 @@
       description = '';  // Clear notes for new tournament
       externalLink = tournament.externalLink || '';
       posterUrl = tournament.posterUrl || '';
-      isTest = tournament.isTest ?? false;
+      isTest = true;
 
       // Pre-populate Step 2: Participants (if any)
       if (tournament.participants && tournament.participants.length > 0) {

@@ -248,6 +248,64 @@ describe('assignTablesWithVariety', () => {
 	});
 });
 
+describe('Swiss with doubles teams', () => {
+	function createTeams(count: number): TournamentParticipant[] {
+		return Array.from({ length: count }, (_, i) => ({
+			id: `team${i + 1}`,
+			name: `Team ${i + 1}`,
+			type: 'GUEST' as const,
+			rankingSnapshot: count - i,
+			status: 'ACTIVE' as const,
+			partner: { name: `Partner ${i + 1}`, type: 'GUEST' as const }
+		}));
+	}
+
+	it('25 teams: correct pairings with BYE (odd)', () => {
+		const teams = createTeams(25);
+		const matches = generateSwissPairings(teams, [], [], 1);
+
+		// 25 teams (odd) → 12 matches + 1 BYE = 13
+		expect(matches).toHaveLength(13);
+
+		const byeMatches = matches.filter(m => m.participantB === 'BYE');
+		expect(byeMatches).toHaveLength(1);
+		expect(byeMatches[0].status).toBe('WALKOVER');
+
+		// Every team appears exactly once
+		const seen = new Set<string>();
+		for (const match of matches) {
+			expect(seen.has(match.participantA)).toBe(false);
+			seen.add(match.participantA);
+			if (match.participantB !== 'BYE') {
+				expect(seen.has(match.participantB)).toBe(false);
+				seen.add(match.participantB);
+			}
+		}
+		expect(seen.size).toBe(25);
+	});
+
+	it('16 teams: perfect pairings without BYE (even)', () => {
+		const teams = createTeams(16);
+		const matches = generateSwissPairings(teams, [], [], 1);
+
+		// 16 teams (even) → 8 matches, no BYE
+		expect(matches).toHaveLength(8);
+
+		const byeMatches = matches.filter(m => m.participantB === 'BYE');
+		expect(byeMatches).toHaveLength(0);
+
+		// Every team appears exactly once
+		const seen = new Set<string>();
+		for (const match of matches) {
+			expect(seen.has(match.participantA)).toBe(false);
+			seen.add(match.participantA);
+			expect(seen.has(match.participantB)).toBe(false);
+			seen.add(match.participantB);
+		}
+		expect(seen.size).toBe(16);
+	});
+});
+
 describe('validateSwissSystem', () => {
 	it('rejects fewer than 4 participants', () => {
 		expect(validateSwissSystem(3, 3)).toBe(false);

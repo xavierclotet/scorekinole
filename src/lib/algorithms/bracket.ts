@@ -13,6 +13,28 @@ import type {
   ConsolationBracket
 } from '$lib/types/tournament';
 
+export type ConsolationSource = 'QF' | 'R16' | 'R32' | 'R64';
+
+/** Number of matches in the source round */
+function getSourcePositions(source: ConsolationSource): number {
+  switch (source) {
+    case 'QF':  return 4;
+    case 'R16': return 8;
+    case 'R32': return 16;
+    case 'R64': return 32;
+  }
+}
+
+/** Starting position for consolation rankings */
+function getSourceStartPosition(source: ConsolationSource): number {
+  switch (source) {
+    case 'QF':  return 5;   // positions 5-8
+    case 'R16': return 9;   // positions 9-16
+    case 'R32': return 17;  // positions 17-32
+    case 'R64': return 33;  // positions 33-64
+  }
+}
+
 /**
  * Special constant for BYE participant
  * When a participant faces a BYE, they automatically advance
@@ -463,24 +485,24 @@ export function getQualifiedParticipants(
  */
 export function generateConsolationBracket(
   losers: { participantId: string; seed?: number }[],
-  source: 'QF' | 'R16',
+  source: ConsolationSource,
   bracketType: 'gold' | 'silver' = 'gold'
 ): ConsolationBracket {
   const numLosers = losers.length;
-  const expectedLosers = source === 'QF' ? 4 : 8;
+  const expectedLosers = getSourcePositions(source);
 
   if (numLosers !== expectedLosers) {
     throw new Error(`Consolation bracket for ${source} expects ${expectedLosers} losers, got ${numLosers}`);
   }
 
   // Starting position for this consolation bracket
-  const startPosition = source === 'QF' ? 5 : 9;
+  const startPosition = getSourceStartPosition(source);
 
   // Sort losers by seed (best seeds first)
   const sortedLosers = [...losers].sort((a, b) => (a.seed || 999) - (b.seed || 999));
 
   // Calculate bracket size and rounds
-  const totalRounds = source === 'QF' ? 2 : 3; // QF: 4 players = 2 rounds, R16: 8 players = 3 rounds
+  const totalRounds = Math.log2(expectedLosers); // QF=2, R16=3, R32=4, R64=5
   const rounds: BracketRound[] = [];
 
   // Generate first round with proper seeding (1vs4, 2vs3 for 4 players)
@@ -627,7 +649,7 @@ export function createLoserPlaceholder(roundName: string, matchPosition: number)
  */
 export function generateConsolationBracketStructure(
   _bracketSize: number,
-  source: 'QF' | 'R16',
+  source: ConsolationSource,
   byePositions: number[] = [],
   bracketType: 'gold' | 'silver' = 'gold',
   positionOffset: number = 0
@@ -635,7 +657,7 @@ export function generateConsolationBracketStructure(
   const sourceRoundName = source;
 
   // Get all positions and filter out BYEs to find real losers
-  const totalPositions = source === 'QF' ? 4 : 8;
+  const totalPositions = getSourcePositions(source);
   const allPositions = Array.from({ length: totalPositions }, (_, i) => i);
   const realLoserPositions = allPositions.filter(pos => !byePositions.includes(pos));
   const numRealLosers = realLoserPositions.length;
@@ -648,7 +670,7 @@ export function generateConsolationBracketStructure(
       source,
       rounds: [],
       totalRounds: 0,
-      startPosition: (source === 'QF' ? 5 : 9) + positionOffset,
+      startPosition: getSourceStartPosition(source) + positionOffset,
       isComplete: true
     };
   }
@@ -656,7 +678,7 @@ export function generateConsolationBracketStructure(
   // Calculate rounds needed: log2 of next power of 2
   const bracketSize = nextPowerOfTwo(numRealLosers);
   const totalRounds = Math.log2(bracketSize);
-  const startPosition = (source === 'QF' ? 5 : 9) + positionOffset;
+  const startPosition = getSourceStartPosition(source) + positionOffset;
 
   const rounds: BracketRound[] = [];
 
@@ -1262,15 +1284,17 @@ export const MIN_PARTICIPANTS_FOR_CONSOLATION = 5;
 export function getAvailableConsolationSources(
   bracketSize: number,
   realParticipants?: number
-): { hasQF: boolean; hasR16: boolean } {
+): { hasQF: boolean; hasR16: boolean; hasR32: boolean; hasR64: boolean } {
   // If we know the real participant count and it's too small, no consolation needed
   if (realParticipants !== undefined && realParticipants <= MIN_PARTICIPANTS_FOR_CONSOLATION) {
-    return { hasQF: false, hasR16: false };
+    return { hasQF: false, hasR16: false, hasR32: false, hasR64: false };
   }
 
   const totalRounds = Math.log2(bracketSize);
   return {
-    hasQF: totalRounds >= 3,  // At least 8 players for QF
-    hasR16: totalRounds >= 4  // At least 16 players for R16
+    hasQF: totalRounds >= 3,   // At least 8 players for QF
+    hasR16: totalRounds >= 4,  // At least 16 players for R16
+    hasR32: totalRounds >= 5,  // At least 32 players for R32
+    hasR64: totalRounds >= 6   // At least 64 players for R64
   };
 }

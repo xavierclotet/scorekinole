@@ -272,6 +272,105 @@ describe('calculateRoundRobinRounds', () => {
 	});
 });
 
+describe('round robin with doubles teams', () => {
+	function createTeams(count: number): TournamentParticipant[] {
+		return Array.from({ length: count }, (_, i) => ({
+			id: `team${i + 1}`,
+			name: `Team ${i + 1}`,
+			type: 'GUEST' as const,
+			rankingSnapshot: count - i,
+			status: 'ACTIVE' as const,
+			partner: { name: `Partner ${i + 1}`, type: 'GUEST' as const }
+		}));
+	}
+
+	it('12 teams: complete round robin schedule', () => {
+		const ids = Array.from({ length: 12 }, (_, i) => `team${i + 1}`);
+		const rounds = generateRoundRobinSchedule(ids);
+
+		// 12 teams (even) → 11 rounds
+		expect(rounds).toHaveLength(11);
+
+		// Each round has 6 matches
+		for (const round of rounds) {
+			const realMatches = round.matches.filter(m => m.participantB !== 'BYE');
+			expect(realMatches).toHaveLength(6);
+		}
+
+		// Every pair plays exactly once: C(12,2) = 66
+		const pairs = new Set<string>();
+		for (const round of rounds) {
+			for (const match of round.matches) {
+				if (match.participantB === 'BYE') continue;
+				const pair = [match.participantA, match.participantB].sort().join('-');
+				expect(pairs.has(pair)).toBe(false);
+				pairs.add(pair);
+			}
+		}
+		expect(pairs.size).toBe(66);
+	});
+
+	it('20 teams: boundary limit, complete schedule with 19 rounds', () => {
+		const ids = Array.from({ length: 20 }, (_, i) => `team${i + 1}`);
+		const rounds = generateRoundRobinSchedule(ids);
+
+		// 20 teams (even) → 19 rounds
+		expect(rounds).toHaveLength(19);
+
+		// Each round has 10 matches
+		for (const round of rounds) {
+			const realMatches = round.matches.filter(m => m.participantB !== 'BYE');
+			expect(realMatches).toHaveLength(10);
+		}
+
+		// C(20,2) = 190 pairs
+		const pairs = new Set<string>();
+		for (const round of rounds) {
+			for (const match of round.matches) {
+				if (match.participantB === 'BYE') continue;
+				const pair = [match.participantA, match.participantB].sort().join('-');
+				expect(pairs.has(pair)).toBe(false);
+				pairs.add(pair);
+			}
+		}
+		expect(pairs.size).toBe(190);
+	});
+
+	it('25 teams in multiple groups: balanced split', () => {
+		const teams = createTeams(25);
+		const groups = splitIntoGroups(teams, 2);
+
+		expect(groups).toHaveLength(2);
+
+		// Groups should be balanced: 13 and 12
+		const sizes = groups.map(g => g.participants.length).sort();
+		expect(sizes).toEqual([12, 13]);
+		expect(sizes[0] + sizes[1]).toBe(25);
+
+		// Each group generates a valid schedule
+		for (const group of groups) {
+			const rounds = generateRoundRobinSchedule(group.participants);
+			const n = group.participants.length;
+			// Odd → n rounds, Even → n-1 rounds
+			const expectedRounds = n % 2 === 0 ? n - 1 : n;
+			expect(rounds).toHaveLength(expectedRounds);
+
+			// No team appears twice in same round
+			for (const round of rounds) {
+				const seen = new Set<string>();
+				for (const match of round.matches) {
+					expect(seen.has(match.participantA)).toBe(false);
+					seen.add(match.participantA);
+					if (match.participantB !== 'BYE') {
+						expect(seen.has(match.participantB)).toBe(false);
+						seen.add(match.participantB);
+					}
+				}
+			}
+		}
+	});
+});
+
 describe('validateRoundRobinGroupSize', () => {
 	it('validates group sizes correctly', () => {
 		expect(validateRoundRobinGroupSize(1)).toBe(false);

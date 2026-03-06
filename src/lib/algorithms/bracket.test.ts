@@ -7,6 +7,7 @@ import {
 	cascadeByeWins,
 	advanceConsolationWinner,
 	calculateConsolationPositions,
+	getAvailableConsolationSources,
 	nextPowerOfTwo,
 	isLoserPlaceholder,
 	isBye,
@@ -517,6 +518,68 @@ describe('generateBracket with various participant counts', () => {
 		expect(bracket.rounds[0].matches[0].status).toBe('PENDING');
 	});
 
+	it('64 participants: perfect 64-bracket with 0 BYEs', () => {
+		const participants = makeParticipants(64);
+		const bracket = generateBracket(participants);
+
+		expect(bracket.totalRounds).toBe(6); // log2(64)
+		expect(bracket.rounds[0].matches).toHaveLength(32);
+
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(0);
+
+		// All 64 participants should appear in R1
+		const allR1 = new Set<string>();
+		for (const match of bracket.rounds[0].matches) {
+			if (match.participantA && !isBye(match.participantA)) allR1.add(match.participantA);
+			if (match.participantB && !isBye(match.participantB)) allR1.add(match.participantB);
+		}
+		expect(allR1.size).toBe(64);
+	});
+
+	it('128 participants: perfect 128-bracket with 0 BYEs', () => {
+		const participants = makeParticipants(128);
+		const bracket = generateBracket(participants);
+
+		expect(bracket.totalRounds).toBe(7); // log2(128)
+		expect(bracket.rounds[0].matches).toHaveLength(64);
+
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(0);
+
+		// All 128 participants in R1
+		const allR1 = new Set<string>();
+		for (const match of bracket.rounds[0].matches) {
+			if (match.participantA && !isBye(match.participantA)) allR1.add(match.participantA);
+			if (match.participantB && !isBye(match.participantB)) allR1.add(match.participantB);
+		}
+		expect(allR1.size).toBe(128);
+	});
+
+	it('100 participants: 128-bracket with 28 BYEs', () => {
+		const participants = makeParticipants(100);
+		const bracket = generateBracket(participants);
+
+		expect(bracket.totalRounds).toBe(7); // log2(128)
+		expect(bracket.rounds[0].matches).toHaveLength(64);
+
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(28); // 128 - 100
+
+		// Top 28 seeds get BYEs
+		const byeWinnerSeeds = byeMatches.map(m => {
+			if (isBye(m.participantA)) return m.seedB;
+			return m.seedA;
+		}).sort((a, b) => a! - b!);
+		expect(byeWinnerSeeds).toEqual(Array.from({ length: 28 }, (_, i) => i + 1));
+	});
+
 	it('throws for less than 2 participants', () => {
 		expect(() => generateBracket(makeParticipants(1))).toThrow();
 		expect(() => generateBracket(makeParticipants(0))).toThrow();
@@ -546,6 +609,108 @@ describe('consolation bracket with minimal losers', () => {
 
 		expect(bracket.rounds).toHaveLength(0);
 		expect(bracket.isComplete).toBe(true);
+	});
+
+	it('40 participants: 64-bracket with 24 BYEs', () => {
+		const participants = Array.from({ length: 40 }, (_, i) => ({
+			id: `player-${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: 40 - i,
+			status: 'ACTIVE' as const
+		}));
+		const bracket = generateBracket(participants);
+
+		expect(bracket.totalRounds).toBe(6); // log2(64)
+		expect(bracket.rounds[0].matches).toHaveLength(32); // 64/2
+
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(24); // 64 - 40
+
+		// All BYE matches pre-completed
+		for (const match of byeMatches) {
+			expect(match.status).toBe('COMPLETED');
+			expect(isBye(match.winner!)).toBe(false);
+		}
+
+		// Top 24 seeds should get BYEs
+		const byeWinnerSeeds = byeMatches.map(m => {
+			if (isBye(m.participantA)) return m.seedB;
+			return m.seedA;
+		}).sort((a, b) => a! - b!);
+		expect(byeWinnerSeeds).toEqual(Array.from({ length: 24 }, (_, i) => i + 1));
+	});
+
+	it('50 participants: 64-bracket with 14 BYEs', () => {
+		const participants = Array.from({ length: 50 }, (_, i) => ({
+			id: `player-${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: 50 - i,
+			status: 'ACTIVE' as const
+		}));
+		const bracket = generateBracket(participants);
+
+		expect(bracket.totalRounds).toBe(6); // log2(64)
+		expect(bracket.rounds[0].matches).toHaveLength(32); // 64/2
+
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(14); // 64 - 50
+
+		// All BYE matches pre-completed
+		for (const match of byeMatches) {
+			expect(match.status).toBe('COMPLETED');
+			expect(isBye(match.winner!)).toBe(false);
+		}
+
+		// Top 14 seeds should get BYEs
+		const byeWinnerSeeds = byeMatches.map(m => {
+			if (isBye(m.participantA)) return m.seedB;
+			return m.seedA;
+		}).sort((a, b) => a! - b!);
+		expect(byeWinnerSeeds).toEqual(Array.from({ length: 14 }, (_, i) => i + 1));
+
+		// Non-BYE matches should be PENDING
+		const realMatches = bracket.rounds[0].matches.filter(
+			m => !isBye(m.participantA) && !isBye(m.participantB)
+		);
+		expect(realMatches).toHaveLength(18); // 32 - 14
+		for (const match of realMatches) {
+			expect(match.status).toBe('PENDING');
+		}
+	});
+
+	it('50 participants: all participants placed in bracket with correct seeding', () => {
+		const participants = Array.from({ length: 50 }, (_, i) => ({
+			id: `player-${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: 50 - i,
+			status: 'ACTIVE' as const
+		}));
+		const bracket = generateBracket(participants);
+
+		// Every participant should appear in R1
+		const allR1Participants = new Set<string>();
+		for (const match of bracket.rounds[0].matches) {
+			if (match.participantA && !isBye(match.participantA)) allR1Participants.add(match.participantA);
+			if (match.participantB && !isBye(match.participantB)) allR1Participants.add(match.participantB);
+		}
+		expect(allR1Participants.size).toBe(50);
+
+		// R2 should have BYE winners advanced
+		const r2 = bracket.rounds[1];
+		expect(r2.matches).toHaveLength(16); // 32/2
+		// 14 BYE winners should already be placed in R2
+		const r2Filled = r2.matches.filter(m => m.participantA || m.participantB);
+		expect(r2Filled.length).toBeGreaterThanOrEqual(14);
 	});
 
 	it('BYE cascading with 5 real losers in 8-slot consolation', () => {
@@ -585,5 +750,245 @@ describe('consolation bracket with minimal losers', () => {
 		for (let pos = 3; pos <= 7; pos++) {
 			expect(allParticipants.has(`loser-${pos}`)).toBe(true);
 		}
+	});
+});
+
+describe('generateBracket with doubles teams', () => {
+	function makeTeams(count: number): TournamentParticipant[] {
+		return Array.from({ length: count }, (_, i) => ({
+			id: `team-${i + 1}`,
+			name: `Team ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: count - i,
+			status: 'ACTIVE' as const,
+			partner: { name: `Partner ${i + 1}`, type: 'GUEST' as const }
+		}));
+	}
+
+	it('25 teams: 32-bracket with 7 BYEs', () => {
+		const teams = makeTeams(25);
+		const bracket = generateBracket(teams);
+
+		expect(bracket.totalRounds).toBe(5); // log2(32)
+		expect(bracket.rounds[0].matches).toHaveLength(16); // 32/2
+
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(7); // 32 - 25
+
+		for (const match of byeMatches) {
+			expect(match.status).toBe('COMPLETED');
+			expect(isBye(match.winner!)).toBe(false);
+		}
+
+		// Top 7 seeds get BYEs
+		const byeWinnerSeeds = byeMatches.map(m => {
+			if (isBye(m.participantA)) return m.seedB;
+			return m.seedA;
+		}).sort((a, b) => a! - b!);
+		expect(byeWinnerSeeds).toEqual([1, 2, 3, 4, 5, 6, 7]);
+	});
+
+	it('16 teams: perfect bracket with no BYEs', () => {
+		const teams = makeTeams(16);
+		const bracket = generateBracket(teams);
+
+		expect(bracket.totalRounds).toBe(4); // log2(16)
+		expect(bracket.rounds[0].matches).toHaveLength(8);
+
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(0);
+
+		// All matches should be PENDING
+		for (const match of bracket.rounds[0].matches) {
+			expect(match.status).toBe('PENDING');
+			expect(match.participantA).toBeDefined();
+			expect(match.participantB).toBeDefined();
+		}
+	});
+});
+
+describe('R32 consolation bracket', () => {
+	// R32 = round of 32 = 16 matches (in a 32+ bracket, this is 2nd round of 64-bracket)
+	it('generates valid R32 consolation with all 16 real losers (no BYEs)', () => {
+		const bracket = generateConsolationBracketStructure(64, 'R32', [], 'gold');
+
+		expect(bracket.source).toBe('R32');
+		expect(bracket.startPosition).toBe(17);
+		expect(bracket.numLosers).toBe(16); // R32 has 16 matches
+		expect(bracket.totalRounds).toBe(4); // log2(16)
+	});
+
+	it('generates R32 consolation with 6 BYEs (10 real losers)', () => {
+		const byePositions = Array.from({ length: 6 }, (_, i) => i);
+		const bracket = generateConsolationBracketStructure(64, 'R32', byePositions, 'gold');
+
+		expect(bracket.numLosers).toBe(10); // 16 - 6
+		expect(bracket.rounds.length).toBeGreaterThanOrEqual(1);
+
+		// Verify placeholders for positions 6-15
+		const firstRound = bracket.rounds[0];
+		const allPlaceholders: string[] = [];
+		for (const match of firstRound.matches) {
+			if (match.participantA && isLoserPlaceholder(match.participantA)) allPlaceholders.push(match.participantA);
+			if (match.participantB && isLoserPlaceholder(match.participantB)) allPlaceholders.push(match.participantB);
+		}
+		expect(allPlaceholders).toHaveLength(10);
+
+		// BYE positions 0-5 should NOT appear
+		for (let i = 0; i < 6; i++) {
+			expect(allPlaceholders.some(p => p === `LOSER:R32:${i}`)).toBe(false);
+		}
+	});
+
+	it('returns empty bracket when fewer than 2 real R32 losers', () => {
+		const byePositions = Array.from({ length: 15 }, (_, i) => i);
+		const bracket = generateConsolationBracketStructure(64, 'R32', byePositions, 'gold');
+
+		expect(bracket.rounds).toHaveLength(0);
+		expect(bracket.isComplete).toBe(true);
+	});
+});
+
+describe('R64 consolation bracket', () => {
+	// R64 = round of 64 = 32 matches (first round of a 64-bracket)
+	it('generates valid R64 consolation with all 32 real losers (no BYEs)', () => {
+		const bracket = generateConsolationBracketStructure(128, 'R64', [], 'gold');
+
+		expect(bracket.source).toBe('R64');
+		expect(bracket.startPosition).toBe(33);
+		expect(bracket.numLosers).toBe(32); // R64 has 32 matches
+		expect(bracket.totalRounds).toBe(5); // log2(32)
+	});
+
+	it('generates R64 consolation with 14 BYEs (18 real losers)', () => {
+		// Simulates 50-player bracket first round (R64): 32 matches, 14 BYEs
+		const byePositions = Array.from({ length: 14 }, (_, i) => i);
+		const bracket = generateConsolationBracketStructure(128, 'R64', byePositions, 'gold');
+
+		expect(bracket.source).toBe('R64');
+		expect(bracket.startPosition).toBe(33);
+		expect(bracket.numLosers).toBe(18); // 32 - 14
+		expect(bracket.rounds.length).toBeGreaterThanOrEqual(1);
+		expect(bracket.totalRounds).toBe(5); // 18 losers → next power of 2 = 32 → log2(32) = 5
+	});
+
+	it('returns empty bracket when fewer than 2 real R64 losers', () => {
+		const byePositions = Array.from({ length: 31 }, (_, i) => i);
+		const bracket = generateConsolationBracketStructure(128, 'R64', byePositions, 'gold');
+
+		expect(bracket.rounds).toHaveLength(0);
+		expect(bracket.isComplete).toBe(true);
+	});
+});
+
+describe('getAvailableConsolationSources', () => {
+	it('8-bracket: only QF', () => {
+		const result = getAvailableConsolationSources(8);
+		expect(result.hasQF).toBe(true);
+		expect(result.hasR16).toBe(false);
+		expect(result.hasR32).toBe(false);
+		expect(result.hasR64).toBe(false);
+	});
+
+	it('16-bracket: QF + R16', () => {
+		const result = getAvailableConsolationSources(16);
+		expect(result.hasQF).toBe(true);
+		expect(result.hasR16).toBe(true);
+		expect(result.hasR32).toBe(false);
+		expect(result.hasR64).toBe(false);
+	});
+
+	it('32-bracket: QF + R16 + R32', () => {
+		const result = getAvailableConsolationSources(32);
+		expect(result.hasQF).toBe(true);
+		expect(result.hasR16).toBe(true);
+		expect(result.hasR32).toBe(true);
+		expect(result.hasR64).toBe(false);
+	});
+
+	it('64-bracket: QF + R16 + R32 + R64', () => {
+		const result = getAvailableConsolationSources(64);
+		expect(result.hasQF).toBe(true);
+		expect(result.hasR16).toBe(true);
+		expect(result.hasR32).toBe(true);
+		expect(result.hasR64).toBe(true);
+	});
+
+	it('returns all false for too few participants', () => {
+		const result = getAvailableConsolationSources(16, 2);
+		expect(result.hasQF).toBe(false);
+		expect(result.hasR16).toBe(false);
+		expect(result.hasR32).toBe(false);
+		expect(result.hasR64).toBe(false);
+	});
+});
+
+describe('small tournament consolation regression', () => {
+	it('8 players: QF consolation still works correctly', () => {
+		const bracket = generateConsolationBracketStructure(8, 'QF', [], 'gold');
+
+		expect(bracket.source).toBe('QF');
+		expect(bracket.startPosition).toBe(5);
+		expect(bracket.numLosers).toBe(4);
+		expect(bracket.totalRounds).toBe(2);
+		expect(bracket.rounds[0].matches).toHaveLength(2);
+	});
+
+	it('16 players: R16 consolation still works correctly', () => {
+		const bracket = generateConsolationBracketStructure(16, 'R16', [], 'gold');
+
+		expect(bracket.source).toBe('R16');
+		expect(bracket.startPosition).toBe(9);
+		expect(bracket.numLosers).toBe(8);
+		expect(bracket.totalRounds).toBe(3);
+		expect(bracket.rounds[0].matches).toHaveLength(4);
+	});
+
+	it('10 players: R16 consolation with 6 BYEs still works', () => {
+		const byePositions = [0, 1, 2, 3, 4, 5];
+		const bracket = generateConsolationBracketStructure(16, 'R16', byePositions, 'gold');
+
+		expect(bracket.numLosers).toBe(2);
+		expect(bracket.totalRounds).toBe(1);
+		expect(bracket.rounds[0].matches).toHaveLength(1);
+	});
+
+	it('4 players: QF consolation with 0 BYEs gives 2 matches', () => {
+		const bracket = generateConsolationBracketStructure(8, 'QF', [], 'gold');
+
+		expect(bracket.numLosers).toBe(4);
+		// QF: 4 losers → 2 round bracket (semi + final)
+		expect(bracket.totalRounds).toBe(2);
+	});
+
+	it('full bracket + consolation flow for 8 players', () => {
+		const participants = Array.from({ length: 8 }, (_, i) => ({
+			id: `p${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: 8 - i,
+			status: 'ACTIVE' as const
+		}));
+		const bracket = generateBracket(participants);
+
+		expect(bracket.totalRounds).toBe(3); // log2(8)
+		expect(bracket.rounds[0].matches).toHaveLength(4);
+
+		// No BYEs for 8 players
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(0);
+
+		// QF consolation should work
+		const consolation = generateConsolationBracketStructure(8, 'QF', [], 'gold');
+		expect(consolation.numLosers).toBe(4);
+		expect(consolation.startPosition).toBe(5);
 	});
 });

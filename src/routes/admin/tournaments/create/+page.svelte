@@ -342,7 +342,7 @@
       descriptionLanguage = tournament.descriptionLanguage || 'es';
       externalLink = tournament.externalLink || '';
       posterUrl = tournament.posterUrl || '';
-      edition = tournament.edition || 1;
+      edition = tournament.edition;
       country = tournament.country || '';
       city = tournament.city || '';
       address = tournament.address || '';
@@ -599,7 +599,7 @@
       descriptionLanguage = tournament.descriptionLanguage || 'es';
       externalLink = tournament.externalLink || '';
       posterUrl = tournament.posterUrl || '';
-      edition = (tournament.edition || 1) + 1;  // Increment edition
+      edition = tournament.edition != null ? tournament.edition + 1 : undefined;  // Increment edition only if original had one
       country = tournament.country || '';
       city = tournament.city || '';
       address = tournament.address || '';

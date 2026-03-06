@@ -364,12 +364,14 @@ export interface BracketConfig {
  * Consolation bracket for eliminated players
  * QF losers compete for positions 5-8
  * R16 losers compete for positions 9-16
+ * R32 losers compete for positions 17-32
+ * R64 losers compete for positions 33-64
  */
 export interface ConsolationBracket {
-  source: 'QF' | 'R16';           // Which round's losers this bracket contains
+  source: 'QF' | 'R16' | 'R32' | 'R64';  // Which round's losers this bracket contains
   rounds: BracketRound[];         // Mini-bracket structure
   totalRounds: number;            // Number of rounds in this consolation bracket
-  startPosition: number;          // Starting position for rankings (5 for QF, 9 for R16)
+  startPosition: number;          // Starting position for rankings (5 for QF, 9 for R16, 17 for R32, 33 for R64)
   numLosers?: number;             // Actual number of losers (may be less due to BYEs)
   isComplete: boolean;
 }

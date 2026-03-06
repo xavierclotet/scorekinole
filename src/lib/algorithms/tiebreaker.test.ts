@@ -456,6 +456,59 @@ describe('getQualifiers', () => {
 	});
 });
 
+describe('large tournament (50 players)', () => {
+	it('assigns positions 1-50 without gaps for 50 players with distinct points', () => {
+		const participants = createParticipants(50);
+		const standings: GroupStanding[] = participants.map((p, i) =>
+			createStanding(p.id, {
+				points: (50 - i) * 2,
+				matchesWon: 50 - i,
+				matchesPlayed: 49,
+				total20s: (50 - i) * 3,
+				totalPointsScored: (50 - i) * 8
+			})
+		);
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		// Positions 1-50 with no gaps
+		const positions = result.map(s => s.position).sort((a, b) => a - b);
+		expect(positions).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+
+		// Best player should be position 1
+		expect(result.find(s => s.participantId === 'p1')!.position).toBe(1);
+		// Worst player should be position 50
+		expect(result.find(s => s.participantId === 'p50')!.position).toBe(50);
+	});
+
+	it('resolves ties among 50 players with shared points via secondary criteria', () => {
+		const participants = createParticipants(50);
+		// Create groups of tied players: top 10 have 20pts, next 10 have 16pts, etc.
+		const standings: GroupStanding[] = participants.map((p, i) => {
+			const tier = Math.floor(i / 10);
+			return createStanding(p.id, {
+				points: (4 - tier) * 4 + 4,
+				matchesWon: (4 - tier) * 2 + 2,
+				matchesPlayed: 49,
+				total20s: (50 - i) * 2, // unique 20s within each tier
+				totalPointsScored: (50 - i) * 5
+			});
+		});
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		// All 50 positions assigned
+		const positions = result.map(s => s.position).sort((a, b) => a - b);
+		expect(positions).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+
+		// Within each tier, player with more 20s should rank higher
+		// Check first tier (p1-p10, all 20pts): p1 has most 20s
+		const p1Pos = result.find(s => s.participantId === 'p1')!.position;
+		const p10Pos = result.find(s => s.participantId === 'p10')!.position;
+		expect(p1Pos).toBeLessThan(p10Pos);
+	});
+});
+
 describe('sub-tie detection in mini-league', () => {
 	it('detects sub-tie when 2 of 3 players tie in mini-league', () => {
 		const participants = createParticipants(6);
