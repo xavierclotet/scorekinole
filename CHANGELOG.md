@@ -2,6 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.87] - 2026-03-06
+- Sync admin countdown timer to public tournament page (real-time via Firestore)
+- Sort round matches by table number (M1, M2...) in admin and public views
+- Defer tournament backup restore, UI improvements
+- Add 28 bracket tests, fix consolation brackets, clean console.log leaks
+- Fix winner determination for matchesToWin > 1, transaction in recalculateStandings
+- Exclude disqualified from GROUP_ONLY positions, tiebreaker priority tests
+- Normalize tournamentDate types, server-side year filtering
+- Fix rotateHammer guard, edition nullish coalesce, consolation R32/R64 support
+
 ## [2.4.86] - 2026-03-05
 - Optimize chart data precomputation in my-stats (pre-compute once, pass to components)
 - Optimize Vite dev server: pre-bundle Firebase/Chart.js/Lucide deps, add server warmup
