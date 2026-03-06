@@ -366,7 +366,7 @@
 
   .participant.has-hammer {
     position: relative;
-    background: #fde2e2;
+    background: #dcfce7;
     border-radius: 4px;
     padding: 2px 6px;
   }
@@ -544,7 +544,7 @@
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.has-hammer {
-    background: rgba(239, 68, 68, 0.2);
+    background: rgba(16, 185, 129, 0.15);
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.disqualified .name {

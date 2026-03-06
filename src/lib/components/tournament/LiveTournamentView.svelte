@@ -3297,9 +3297,9 @@
 	}
 
 	.match-card.in-progress {
-		border-left: 3px solid #f59e0b;
-		background: rgba(245, 158, 11, 0.05);
-		box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
+		border-left: 3px solid #10b981;
+		background: rgba(16, 185, 129, 0.05);
+		box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
 	}
 
 	.match-card.bye-match {
@@ -3393,25 +3393,26 @@
 	/* Live Badge */
 	.live-badge {
 		position: absolute;
-		bottom: -0.5rem;
+		top: -0.55rem;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
-		padding: 0.2rem 0.5rem;
-		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+		padding: 0.15rem 0.5rem;
+		background: linear-gradient(135deg, #10b981 0%, #059669 100%);
 		border-radius: 4px;
-		font-size: 0.6rem;
+		font-size: 0.55rem;
 		font-weight: 700;
 		color: white;
-		letter-spacing: 0.05em;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+		letter-spacing: 0.06em;
+		box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
 		z-index: 10;
 	}
 
 	.live-badge.compact {
-		padding: 0.15rem 0.35rem;
+		padding: 0.1rem 0.3rem;
+		font-size: 0;
 	}
 
 	.live-pulse {
@@ -3448,7 +3449,7 @@
 
 	.match-player.has-hammer {
 		position: relative;
-		background: rgba(239, 68, 68, 0.15);
+		background: rgba(16, 185, 129, 0.12);
 	}
 
 	.match-player.has-hammer::after {
@@ -3571,8 +3572,8 @@
 	}
 
 	.player-score {
-		font-size: 0.9rem;
-		font-weight: 700;
+		font-size: 1.1rem;
+		font-weight: 800;
 		color: #e1e8ed;
 		min-width: 20px;
 		text-align: center;
@@ -4147,7 +4148,7 @@
 
 	:global([data-theme='light']) .match-card.in-progress,
 	:global([data-theme='violet-light']) .match-card.in-progress {
-		background: rgba(245, 158, 11, 0.05);
+		background: rgba(16, 185, 129, 0.05);
 	}
 
 	:global([data-theme='light']) .match-card.bye-match,

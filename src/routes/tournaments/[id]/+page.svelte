@@ -3751,8 +3751,8 @@
 
 	.hero-live-badge {
 		position: absolute;
-		bottom: 1rem;
-		right: 1rem;
+		top: 0.75rem;
+		right: 0.75rem;
 		z-index: 10;
 	}
 
