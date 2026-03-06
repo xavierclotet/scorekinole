@@ -106,8 +106,11 @@ service cloud.firestore {
       // Admins can create venues for themselves
       allow create: if isAdmin() && request.resource.data.ownerId == request.auth.uid;
 
-      // Admins can update/delete only their own venues
-      allow update, delete: if isAdmin() && resource.data.ownerId == request.auth.uid;
+      // Admins can update/delete their own venues, SuperAdmins can update/delete any venue
+      allow update, delete: if isAdmin() && (
+        resource.data.ownerId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true
+      );
     }
 
     // Settings collection - for global app configuration

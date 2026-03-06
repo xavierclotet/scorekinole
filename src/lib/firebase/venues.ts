@@ -9,6 +9,7 @@ import { db, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
 import { isAdmin } from './admin';
 import type { Venue, CreateVenueData } from '$lib/types/venue';
+import { isSuperAdmin } from './admin';
 import {
 	collection,
 	doc,
@@ -20,7 +21,8 @@ import {
 	query,
 	where,
 	orderBy,
-	serverTimestamp
+	serverTimestamp,
+	writeBatch
 } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
@@ -284,6 +286,113 @@ export async function getVenueById(venueId: string): Promise<Venue | null> {
 	} catch (error) {
 		console.error('❌ Error getting venue:', error);
 		return null;
+	}
+}
+
+/**
+ * Get tournaments that reference a specific venueId
+ * Used to check dependencies before deleting a venue
+ */
+export async function getVenueTournamentDependencies(venueId: string): Promise<{ id: string; name: string; status: string }[]> {
+	if (!browser || !isFirebaseEnabled()) {
+		return [];
+	}
+
+	try {
+		const tournamentsRef = collection(db!, 'tournaments');
+		const q = query(tournamentsRef, where('venueId', '==', venueId));
+		const snapshot = await getDocs(q);
+
+		const deps: { id: string; name: string; status: string }[] = [];
+		snapshot.forEach((docSnap) => {
+			const data = docSnap.data();
+			deps.push({ id: docSnap.id, name: data.name || 'Sin nombre', status: data.status || 'UNKNOWN' });
+		});
+
+		return deps;
+	} catch (error) {
+		console.error('❌ Error getting venue tournament dependencies:', error);
+		return [];
+	}
+}
+
+/**
+ * Delete a venue as SuperAdmin (no ownership check)
+ */
+export async function deleteVenueAsSuperAdmin(venueId: string): Promise<boolean> {
+	if (!browser || !isFirebaseEnabled()) {
+		return false;
+	}
+
+	const superAdmin = await isSuperAdmin();
+	if (!superAdmin) {
+		console.error('❌ Not a SuperAdmin');
+		return false;
+	}
+
+	try {
+		const venueRef = doc(db!, 'venues', venueId);
+		await deleteDoc(venueRef);
+		console.log('✅ Venue deleted by SuperAdmin:', venueId);
+		return true;
+	} catch (error) {
+		console.error('❌ Error deleting venue as SuperAdmin:', error);
+		return false;
+	}
+}
+
+/**
+ * Merge two venues: move all tournament references from source to target, then delete source.
+ * Uses writeBatch for atomicity.
+ */
+export async function mergeVenues(
+	sourceVenueId: string,
+	targetVenueId: string
+): Promise<{ success: boolean; updatedCount: number; error?: string }> {
+	if (!browser || !isFirebaseEnabled()) {
+		return { success: false, updatedCount: 0, error: 'Firebase not available' };
+	}
+
+	const superAdmin = await isSuperAdmin();
+	if (!superAdmin) {
+		return { success: false, updatedCount: 0, error: 'Not a SuperAdmin' };
+	}
+
+	try {
+		// Get target venue data for denormalized fields
+		const targetVenue = await getVenueById(targetVenueId);
+		if (!targetVenue) {
+			return { success: false, updatedCount: 0, error: 'Target venue not found' };
+		}
+
+		// Find all tournaments referencing source venue
+		const tournamentsRef = collection(db!, 'tournaments');
+		const q = query(tournamentsRef, where('venueId', '==', sourceVenueId));
+		const snapshot = await getDocs(q);
+
+		const batch = writeBatch(db!);
+		let count = 0;
+
+		snapshot.forEach((docSnap) => {
+			batch.update(docSnap.ref, {
+				venueId: targetVenueId,
+				address: targetVenue.address || '',
+				city: targetVenue.city,
+				country: targetVenue.country
+			});
+			count++;
+		});
+
+		// Delete source venue
+		const sourceRef = doc(db!, 'venues', sourceVenueId);
+		batch.delete(sourceRef);
+
+		await batch.commit();
+		console.log(`✅ Merged venue ${sourceVenueId} → ${targetVenueId}, ${count} tournaments updated`);
+		return { success: true, updatedCount: count };
+	} catch (error) {
+		console.error('❌ Error merging venues:', error);
+		return { success: false, updatedCount: 0, error: String(error) };
 	}
 }
 

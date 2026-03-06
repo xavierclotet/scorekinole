@@ -56,6 +56,7 @@
   let country = $state('España');
   let city = $state('');
   let address = $state('');
+  let venueId = $state<string | undefined>();
   let tournamentDate = $state(new Date().toISOString().split('T')[0]);  // Date input string (YYYY-MM-DD), defaults to today
   let tournamentTime = $state('');  // Start time string (HH:MM), optional
   let gameType = $state<'singles' | 'doubles'>('singles');
@@ -876,6 +877,7 @@
       country = data.country || '';
       city = data.city || '';
       address = data.address || '';
+      venueId = data.venueId || undefined;
       tournamentDate = data.tournamentDate || '';
       tournamentTime = data.tournamentTime || '';
       gameType = data.gameType || 'singles';
@@ -991,6 +993,7 @@
         country,
         city,
         address,
+        venueId,
         tournamentDate,
         tournamentTime,
         gameType,
@@ -1180,10 +1183,11 @@
     }
   }
 
-  function handleVenueSelect(venue: { address?: string; city: string; country: string }) {
+  function handleVenueSelect(venue: { address?: string; city: string; country: string; venueId?: string }) {
     address = venue.address || '';
     city = venue.city;
     country = venue.country;
+    venueId = venue.venueId;
     saveDraft();
   }
 
@@ -1397,6 +1401,7 @@
         country: country,
         city: city.trim(),
         address: address.trim() || undefined,
+        venueId: venueId || undefined,
         tournamentDate: tournamentDate ? new Date(tournamentDate).getTime() : undefined,
         tournamentTime: tournamentTime || undefined,
         gameType,

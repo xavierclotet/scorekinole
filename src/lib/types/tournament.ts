@@ -63,6 +63,7 @@ export interface Tournament {
   country: string;              // Country where tournament takes place
   city: string;                 // City where tournament takes place
   address?: string;             // Address/venue where tournament takes place
+  venueId?: string;             // Reference to venue document in /venues collection
   tournamentDate?: number;      // Timestamp of when tournament is scheduled
   tournamentTime?: string;      // Start time in HH:MM format (for display/edit recovery)
   status: TournamentStatus;

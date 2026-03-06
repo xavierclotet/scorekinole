@@ -13,7 +13,7 @@
 		country?: string;
 
 		// Callback when venue is selected or manual entry applied
-		onselect: (venue: { address?: string; city: string; country: string }) => void;
+		onselect: (venue: { address?: string; city: string; country: string; venueId?: string }) => void;
 
 		theme?: 'light' | 'dark' | 'violet' | 'violet-light';
 	}
@@ -120,7 +120,8 @@
 		props.onselect({
 			address: venue.address,
 			city: venue.city,
-			country: venue.country
+			country: venue.country,
+			venueId: venue.id
 		});
 		searchQuery = '';
 	}
@@ -129,6 +130,7 @@
 		if (!manualCity.trim()) return;
 
 		saving = true;
+		let newVenueId: string | undefined;
 
 		// If checkbox checked and name provided, create venue first
 		if (saveAsVenue && manualName.trim()) {
@@ -142,13 +144,15 @@
 			if (newVenue) {
 				// Add to local cache
 				allVenues = [...allVenues, newVenue];
+				newVenueId = newVenue.id;
 			}
 		}
 
 		props.onselect({
 			address: manualAddress.trim() || undefined,
 			city: manualCity.trim(),
-			country: manualCountry
+			country: manualCountry,
+			venueId: newVenueId
 		});
 
 		saving = false;

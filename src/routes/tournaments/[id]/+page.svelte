@@ -1526,7 +1526,7 @@
 										<span class="legend-item"><strong>PV</strong> Puntos por victoria (2/1/0)</span>
 									</div>
 									<!-- Charts filter + Bump Chart + 20s Chart (single group) -->
-									{#if completedRoundsCount > 2 && tournament}
+									{#if completedRoundsCount > 1 && tournament}
 										<div class="charts-filter-bar">
 											<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
 												<Popover.Trigger>
@@ -1761,7 +1761,7 @@
 								{/if}
 
 								<!-- Charts filter + Bump Chart + 20s Chart (multiple groups) -->
-								{#if completedRoundsCount > 2 && tournament}
+								{#if completedRoundsCount > 1 && tournament}
 									<div class="charts-filter-bar">
 										<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
 											<Popover.Trigger>

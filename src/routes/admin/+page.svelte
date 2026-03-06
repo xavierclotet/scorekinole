@@ -13,7 +13,8 @@
     Swords,
     Trophy,
     BarChart3,
-    HardDrive
+    HardDrive,
+    MapPin
   } from '@lucide/svelte';
 
   const allAdminSections = [
@@ -36,6 +37,12 @@
       Icon: Swords,
       path: '/admin/matches',
       superAdminOnly: true
+    },
+    {
+      title: m.admin_venueManagement,
+      description: m.admin_manageVenuesDesc,
+      Icon: MapPin,
+      path: '/admin/venues'
     },
     {
       title: m.analytics_title,

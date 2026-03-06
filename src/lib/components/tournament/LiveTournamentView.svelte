@@ -813,6 +813,9 @@
 				{@const isExpanded = expandedGroups.has(group.id)}
 				{@const rounds = getGroupRounds(group)}
 				{@const sortedStandings = getSortedStandings(group.standings || [])}
+				{@const completedRoundCount = rounds.filter(r =>
+					(r.matches ?? []).some(rm => rm.status === 'COMPLETED' || rm.status === 'WALKOVER')
+				).length}
 
 				<div class="group-card" class:expanded={isExpanded} class:complete={progress.percentage === 100}>
 					<!-- Group Header -->
@@ -892,6 +895,76 @@
 										</tbody>
 									</table>
 								</div>
+								<!-- Bump Chart -->
+								{#if completedRoundCount >= 2}
+									<div class="bump-chart-section">
+										<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
+											<span>📊 {m.tournament_roundEvolution()}</span>
+											<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<polyline points="18 15 12 9 6 15"></polyline>
+											</svg>
+										</button>
+										{#if !hiddenBumpCharts.has(group.id)}
+											<div class="bump-chart-wrapper">
+												<div class="bump-chart-actions">
+													<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
+														<Popover.Trigger>
+															{#snippet child({ props })}
+																<Button
+																	{...props}
+																	variant="outline"
+																	size="sm"
+																	class="h-6 justify-between text-xs bump-filter-btn"
+																>
+																	{@const count = getBumpHighlight(group.id).length}
+																	<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+																	<span class="truncate">{count > 0 ? m.tournament_nPlayersSelected({ n: count }) : m.tournament_filterPlayers()}</span>
+																</Button>
+															{/snippet}
+														</Popover.Trigger>
+														<Popover.Content class="w-52 p-0" align="end">
+															<Command.Root>
+																<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
+																<Command.List class="max-h-60">
+																	<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
+																	<Command.Group>
+																		<Command.Item
+																			value="__all__"
+																			onSelect={() => clearBumpHighlight(group.id)}
+																		>
+																			<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
+																			{m.admin_allPlayers()}
+																		</Command.Item>
+																		{#each (tournament.participants.filter(p => group.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
+																			<Command.Item
+																				value={participant.name ?? participant.id}
+																				onSelect={() => toggleBumpHighlight(group.id, participant.id)}
+																			>
+																				<Check class={['mr-2 size-3', (bumpChartHighlight.get(group.id)?.has(participant.id)) ? 'opacity-100' : 'opacity-0']} />
+																				{getParticipantName(participant.id)}
+																			</Command.Item>
+																		{/each}
+																	</Command.Group>
+																</Command.List>
+															</Command.Root>
+														</Popover.Content>
+													</Popover.Root>
+													<button class="chart-fullscreen-btn" onclick={() => openChartFullscreen(group.id)} title={m.common_fullscreen()}>
+														<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+													</button>
+												</div>
+												<BumpChart
+													{group}
+													participants={tournament.participants}
+													{isSwiss}
+													{qualificationMode}
+													isDoubles={tournament.gameType === 'doubles'}
+													highlightedParticipants={getBumpHighlight(group.id)}
+												/>
+											</div>
+										{/if}
+									</div>
+								{/if}
 							</div>
 
 							<!-- Matches by Round -->
@@ -969,79 +1042,6 @@
 							</div>
 						</div>
 
-						<!-- Bump Chart -->
-						{@const completedRoundCount = rounds.filter(r =>
-							(r.matches ?? []).some(rm => rm.status === 'COMPLETED' || rm.status === 'WALKOVER')
-						).length}
-						{#if completedRoundCount >= 2}
-							<div class="bump-chart-section">
-								<button class="bump-chart-toggle" onclick={() => toggleBumpChart(group.id)}>
-									<span>📊 {m.tournament_roundEvolution()}</span>
-									<svg class="bump-toggle-icon" class:collapsed={hiddenBumpCharts.has(group.id)} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<polyline points="18 15 12 9 6 15"></polyline>
-									</svg>
-								</button>
-								{#if !hiddenBumpCharts.has(group.id)}
-									<div class="bump-chart-wrapper">
-										<div class="bump-chart-actions">
-											<Popover.Root open={bumpFilterOpen.get(group.id) ?? false} onOpenChange={(o) => setBumpFilterOpen(group.id, o)}>
-												<Popover.Trigger>
-													{#snippet child({ props })}
-														<Button
-															{...props}
-															variant="outline"
-															size="sm"
-															class="h-6 justify-between text-xs bump-filter-btn"
-														>
-															{@const count = getBumpHighlight(group.id).length}
-															<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
-															<span class="truncate">{count > 0 ? m.tournament_nPlayersSelected({ n: count }) : m.tournament_filterPlayers()}</span>
-														</Button>
-													{/snippet}
-												</Popover.Trigger>
-												<Popover.Content class="w-52 p-0" align="end">
-													<Command.Root>
-														<Command.Input placeholder={m.common_search?.() ?? 'Buscar...'} class="h-8 text-xs" />
-														<Command.List class="max-h-60">
-															<Command.Empty>{m.common_noResults?.() ?? 'Sin resultados'}</Command.Empty>
-															<Command.Group>
-																<Command.Item
-																	value="__all__"
-																	onSelect={() => clearBumpHighlight(group.id)}
-																>
-																	<Check class={['mr-2 size-3', getBumpHighlight(group.id).length === 0 ? 'opacity-100' : 'opacity-0']} />
-																	{m.admin_allPlayers()}
-																</Command.Item>
-																{#each (tournament.participants.filter(p => group.participants.includes(p.id))).toSorted((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) as participant}
-																	<Command.Item
-																		value={participant.name ?? participant.id}
-																		onSelect={() => toggleBumpHighlight(group.id, participant.id)}
-																	>
-																		<Check class={['mr-2 size-3', (bumpChartHighlight.get(group.id)?.has(participant.id)) ? 'opacity-100' : 'opacity-0']} />
-																		{getParticipantName(participant.id)}
-																	</Command.Item>
-																{/each}
-															</Command.Group>
-														</Command.List>
-													</Command.Root>
-												</Popover.Content>
-											</Popover.Root>
-											<button class="chart-fullscreen-btn" onclick={() => openChartFullscreen(group.id)} title={m.common_fullscreen()}>
-												<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-											</button>
-										</div>
-										<BumpChart
-											{group}
-											participants={tournament.participants}
-											{isSwiss}
-											{qualificationMode}
-											isDoubles={tournament.gameType === 'doubles'}
-											highlightedParticipants={getBumpHighlight(group.id)}
-										/>
-									</div>
-								{/if}
-							</div>
-						{/if}
 					{/if}
 				</div>
 			{/each}
