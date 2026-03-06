@@ -3478,6 +3478,7 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		order: 2;
 	}
 
 
@@ -3494,6 +3495,7 @@
 		font-weight: 600;
 		color: #6b7a94;
 		margin-right: 0.25rem;
+		order: 0;
 	}
 
 	.player-avatars {
@@ -3503,9 +3505,9 @@
 		width: 22px;
 		height: 22px;
 		flex-shrink: 0;
-		margin-left: auto;
-		margin-right: 1rem;
-		padding-left: 0.35rem;
+		margin-left: 0.3rem;
+		margin-right: 0.15rem;
+		order: 1;
 	}
 
 	/* When doubles, expand width for overlapping pair */
@@ -3574,6 +3576,8 @@
 		color: #e1e8ed;
 		min-width: 20px;
 		text-align: center;
+		order: 3;
+		margin-left: auto;
 	}
 
 	.match-player.winner .player-score {

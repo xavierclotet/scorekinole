@@ -335,7 +335,7 @@
   }
 
   .participant.loser .name {
-    color: #f59e0b;
+    color: #dc2626;
     font-weight: 600;
   }
 
@@ -427,7 +427,7 @@
 
   .score-center .score.loser-a,
   .score-center .score.loser-b {
-    color: #f59e0b;
+    color: #dc2626;
   }
 
   .score-center .sep {
@@ -568,7 +568,7 @@
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.loser .name {
-    color: #fbbf24;
+    color: #f87171;
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .participant.tie .name {
@@ -590,7 +590,7 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.loser-a,
   :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .score.loser-b {
-    color: #fbbf24;
+    color: #f87171;
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .score-center .pending {
