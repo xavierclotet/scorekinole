@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.89] - 2026-03-06
+- Fix tiebreaker buildCompareKey numeric overflow (use string comparison)
+- Fix hasUnresolvedTies false positives (check tieReason === 'unresolved')
+- Wrap generateSwissPairings in single atomic transaction (prevent race condition)
+- Change qualified player background from blue to green in transition page
+- Redesign MatchCard two-row layout for live tournament view
+- Add 19 new tests (12 tiebreaker edge cases + 7 Swiss integrity tests)
+
 ## [2.4.88] - 2026-03-06
 - Move live-badge to top of bracket match cards (fix overlap with player names)
 - Unify green theme for LIVE indicator, in-progress cards, and hammer highlight
