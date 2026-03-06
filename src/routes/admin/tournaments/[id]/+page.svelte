@@ -122,18 +122,18 @@
   }
 
   // Helper to detect if tournament is "upcoming" (isImported + future date)
-  let isUpcoming = $derived(() => {
+  let isUpcoming = $derived.by(() => {
     if (!tournament?.isImported) return false;
     const now = Date.now();
-    return tournament.tournamentDate && tournament.tournamentDate > now;
+    return tournament.tournamentDate != null && tournament.tournamentDate > now;
   });
 
   // Check if tournament has any actual results
-  let hasResults = $derived(() => {
+  let hasResults = $derived.by(() => {
     if (!tournament) return false;
     // Check if any bracket match is completed
     const hasBracketResults = tournament.finalStage?.goldBracket?.rounds?.some(
-      r => r.matches?.some(m => m.status === 'COMPLETED')
+      r => r.matches?.some(match => match.status === 'COMPLETED')
     );
     // Check if any group has standings with data (matchesPlayed or points for imported)
     const hasGroupResults = tournament.groupStage?.groups?.some(
@@ -289,7 +289,7 @@
     // Initialize consolation toggle from current tournament state
     editConsolationEnabled = Boolean(
       tournament.finalStage?.consolationEnabled ??
-      (tournament.finalStage as Record<string, unknown>)?.['consolationEnabled '] ??
+      (tournament.finalStage as Record<string, unknown>)?.['consolationEnabled'] ??
       tournament.finalStage?.goldBracket?.config?.consolationEnabled ??
       false
     );
@@ -363,7 +363,7 @@
         },
         // Metadata fields
         description: editDescription.trim() || undefined,
-        edition: editEdition || undefined,
+        edition: editEdition ?? undefined,
         address: editAddress.trim() || undefined,
         city: editCity.trim() || undefined,
         country: editCountry.trim() || undefined,
@@ -378,6 +378,12 @@
           consolationEnabled: editConsolationEnabled,
           thirdPlaceMatchEnabled: editThirdPlaceMatchEnabled
         };
+      }
+
+      // Recalculate time estimate if time-affecting settings changed
+      if (editNumTables !== tournament.numTables || editConsolationEnabled !== consolationEnabled || editThirdPlaceMatchEnabled !== thirdPlaceMatchEnabled) {
+        const tempTournament = { ...tournament, ...updates } as Tournament;
+        updates.timeEstimate = calculateTournamentTimeEstimate(tempTournament);
       }
 
       const success = await updateTournament(tournamentId, updates);
@@ -447,7 +453,7 @@
           </div>
 
           <div class="header-actions">
-            {#if isUpcoming()}
+            {#if isUpcoming}
               <!-- Upcoming tournament: show "Complete Configuration" button -->
               <button class="action-btn primary upcoming" onclick={() => goto(`/admin/tournaments/import?edit=${tournamentId}`)}>
                 {m.tournament_completeConfiguration()}
@@ -569,7 +575,7 @@
         <!-- Tournament Dashboard Content -->
         <div class="dashboard-grid">
           <!-- Completed Tournament Results Section (at the top) - hide for upcoming/no results -->
-          {#if tournament.status === 'COMPLETED' && !isUpcoming() && hasResults()}
+          {#if tournament.status === 'COMPLETED' && !isUpcoming && hasResults}
             <section class="dashboard-card results-card">
               <h2>📋 {m.admin_tournamentResults()}</h2>
               <CompletedTournamentView {tournament} onupdated={loadTournament} />

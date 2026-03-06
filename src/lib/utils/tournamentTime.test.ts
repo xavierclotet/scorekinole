@@ -6,8 +6,12 @@ import {
 	getSuggestedQualifiersForRoundRobin,
 	calculateBracketMatches,
 	getBracketRoundName,
-	formatDuration
+	formatDuration,
+	calculateTimeBreakdown,
+	calculateRemainingTime,
+	calculateTournamentTimeEstimate
 } from './tournamentTime';
+import type { Tournament } from '$lib/types/tournament';
 
 // ============================================================================
 // calculateRoundRobinMatches
@@ -272,5 +276,483 @@ describe('formatDuration', () => {
 
 	it('rounds fractional minutes', () => {
 		expect(formatDuration(90.7)).toBe('1h 31m');
+	});
+});
+
+// ============================================================================
+// Helper: minimal tournament factory for calculateTimeBreakdown tests
+// ============================================================================
+
+function makeTournament(overrides: Partial<Tournament> = {}): Tournament {
+	return {
+		id: 'test-id',
+		key: 'abc123',
+		name: 'Test Tournament',
+		country: 'ES',
+		city: 'Barcelona',
+		status: 'DRAFT',
+		phaseType: 'ONE_PHASE',
+		gameType: 'singles',
+		show20s: true,
+		showHammer: true,
+		numTables: 4,
+		rankingConfig: { enabled: false, tier: 'SERIES_15' },
+		participants: [],
+		createdAt: Date.now(),
+		createdBy: { userId: 'u1', userName: 'Admin' },
+		updatedAt: Date.now(),
+		...overrides
+	} as Tournament;
+}
+
+function makeParticipants(count: number) {
+	return Array.from({ length: count }, (_, i) => ({
+		id: `p${i + 1}`,
+		type: 'GUEST' as const,
+		name: `Player ${i + 1}`,
+		status: 'ACTIVE' as const
+	}));
+}
+
+// ============================================================================
+// calculateTimeBreakdown — edge cases
+// ============================================================================
+
+describe('calculateTimeBreakdown', () => {
+	it('returns 0 totalMinutes for tournament with 0 participants', () => {
+		const t = makeTournament({ participants: [] });
+		const breakdown = calculateTimeBreakdown(t);
+		expect(breakdown.totalMinutes).toBe(0);
+		expect(breakdown.numParticipants).toBe(0);
+	});
+
+	it('returns 0 totalMinutes for tournament with 1 participant', () => {
+		const t = makeTournament({ participants: makeParticipants(1) });
+		const breakdown = calculateTimeBreakdown(t);
+		// 1 participant can't form a bracket
+		expect(breakdown.totalMinutes).toBe(0);
+	});
+
+	it('calculates ONE_PHASE bracket for 2 participants (minimum valid)', () => {
+		const t = makeTournament({
+			participants: makeParticipants(2),
+			phaseType: 'ONE_PHASE',
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: false
+			} as any
+		});
+		const breakdown = calculateTimeBreakdown(t);
+		expect(breakdown.finalStage).toBeDefined();
+		expect(breakdown.finalStage!.qualifiedCount).toBe(2);
+		expect(breakdown.finalStage!.totalMatches).toBe(1); // Just the final
+		expect(breakdown.totalMinutes).toBeGreaterThan(0);
+	});
+
+	it('calculates ONE_PHASE bracket for 50 participants', () => {
+		const t = makeTournament({
+			participants: makeParticipants(50),
+			phaseType: 'ONE_PHASE',
+			numTables: 8,
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: {
+					config: {
+						earlyRounds: { gameMode: 'rounds', roundsToPlay: 4, matchesToWin: 1 },
+						semifinal: { gameMode: 'points', pointsToWin: 7, matchesToWin: 1 },
+						final: { gameMode: 'points', pointsToWin: 9, matchesToWin: 1 }
+					}
+				}
+			} as any
+		});
+		const breakdown = calculateTimeBreakdown(t);
+		expect(breakdown.finalStage).toBeDefined();
+		expect(breakdown.finalStage!.qualifiedCount).toBe(50);
+		// 50 participants → 49 matches + 1 third place = 50
+		expect(breakdown.finalStage!.totalMatches).toBe(50);
+		expect(breakdown.finalStage!.bracketRounds.length).toBeGreaterThanOrEqual(4); // R64, R32, QF, SF, F
+		expect(breakdown.totalMinutes).toBeGreaterThan(0);
+	});
+
+	it('calculates GROUP_ONLY tournament (no final stage)', () => {
+		const t = makeTournament({
+			participants: makeParticipants(10),
+			phaseType: 'GROUP_ONLY',
+			groupStage: {
+				type: 'ROUND_ROBIN',
+				groups: [],
+				currentRound: 1,
+				totalRounds: 9,
+				isComplete: false,
+				gameMode: 'rounds',
+				roundsToPlay: 4,
+				matchesToWin: 1,
+				numGroups: 1,
+				qualificationMode: 'WINS'
+			} as any
+		});
+		const breakdown = calculateTimeBreakdown(t);
+		expect(breakdown.groupStage).toBeDefined();
+		expect(breakdown.finalStage).toBeUndefined();
+		expect(breakdown.transitionMinutes).toBe(0);
+		expect(breakdown.totalMinutes).toBe(breakdown.groupStage!.totalMinutes);
+	});
+
+	it('handles TWO_PHASE with SPLIT_DIVISIONS', () => {
+		const t = makeTournament({
+			participants: makeParticipants(16),
+			phaseType: 'TWO_PHASE',
+			numTables: 4,
+			groupStage: {
+				type: 'SWISS',
+				groups: [],
+				currentRound: 1,
+				totalRounds: 5,
+				isComplete: false,
+				gameMode: 'rounds',
+				roundsToPlay: 4,
+				matchesToWin: 1,
+				numSwissRounds: 5,
+				qualificationMode: 'WINS'
+			} as any,
+			finalStage: {
+				mode: 'SPLIT_DIVISIONS',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: { config: {} }
+			} as any
+		});
+		const breakdown = calculateTimeBreakdown(t);
+		expect(breakdown.groupStage).toBeDefined();
+		expect(breakdown.finalStage).toBeDefined();
+		// Split divisions: half go to gold
+		expect(breakdown.finalStage!.qualifiedCount).toBe(8);
+		expect(breakdown.transitionMinutes).toBeGreaterThan(0); // TWO_PHASE has transition
+		expect(breakdown.totalMinutes).toBe(
+			breakdown.groupStage!.totalMinutes + breakdown.transitionMinutes + breakdown.finalStage!.totalMinutes
+		);
+	});
+
+	it('handles doubles tournament (different base minutes)', () => {
+		const t = makeTournament({
+			participants: makeParticipants(8),
+			gameType: 'doubles',
+			phaseType: 'ONE_PHASE',
+			numTables: 2,
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: { config: {} }
+			} as any
+		});
+		const breakdownDoubles = calculateTimeBreakdown(t);
+		// Compare with singles
+		const tSingles = makeTournament({
+			participants: makeParticipants(8),
+			gameType: 'singles',
+			phaseType: 'ONE_PHASE',
+			numTables: 2,
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: { config: {} }
+			} as any
+		});
+		const breakdownSingles = calculateTimeBreakdown(tSingles);
+		// Doubles should take longer (13 min/4 rounds vs 10 min/4 rounds)
+		expect(breakdownDoubles.totalMinutes).toBeGreaterThan(breakdownSingles.totalMinutes);
+	});
+});
+
+// ============================================================================
+// calculateRemainingTime — edge cases
+// ============================================================================
+
+describe('calculateRemainingTime', () => {
+	it('returns 0% complete and 0 remaining when no timeEstimate', () => {
+		const t = makeTournament({ participants: makeParticipants(8) });
+		// No timeEstimate set
+		const result = calculateRemainingTime(t);
+		expect(result.remainingMinutes).toBe(0);
+		expect(result.percentComplete).toBe(0);
+	});
+
+	it('returns 0% for tournament with timeEstimate but no matches played', () => {
+		const t = makeTournament({
+			participants: makeParticipants(8),
+			phaseType: 'ONE_PHASE',
+			status: 'FINAL_STAGE',
+			timeEstimate: { totalMinutes: 120, calculatedAt: Date.now() },
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: {
+					rounds: [
+						{
+							roundNumber: 1,
+							name: 'quarterfinals',
+							matches: [
+								{ participantA: 'p1', participantB: 'p2', status: 'PENDING' },
+								{ participantA: 'p3', participantB: 'p4', status: 'PENDING' },
+								{ participantA: 'p5', participantB: 'p6', status: 'PENDING' },
+								{ participantA: 'p7', participantB: 'p8', status: 'PENDING' }
+							]
+						},
+						{
+							roundNumber: 2,
+							name: 'semifinals',
+							matches: [
+								{ participantA: null, participantB: null, status: 'PENDING' },
+								{ participantA: null, participantB: null, status: 'PENDING' }
+							]
+						},
+						{
+							roundNumber: 3,
+							name: 'final',
+							matches: [
+								{ participantA: null, participantB: null, status: 'PENDING' }
+							]
+						}
+					]
+				}
+			} as any
+		});
+		const result = calculateRemainingTime(t);
+		expect(result.percentComplete).toBe(0);
+		expect(result.remainingMinutes).toBeGreaterThan(0);
+	});
+
+	it('returns 100% when all bracket matches are completed', () => {
+		const t = makeTournament({
+			participants: makeParticipants(4),
+			phaseType: 'ONE_PHASE',
+			status: 'COMPLETED',
+			timeEstimate: { totalMinutes: 60, calculatedAt: Date.now() },
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: {
+					rounds: [
+						{
+							roundNumber: 1,
+							name: 'semifinals',
+							matches: [
+								{ participantA: 'p1', participantB: 'p2', status: 'COMPLETED', winner: 'p1' },
+								{ participantA: 'p3', participantB: 'p4', status: 'COMPLETED', winner: 'p3' }
+							]
+						},
+						{
+							roundNumber: 2,
+							name: 'final',
+							matches: [
+								{ participantA: 'p1', participantB: 'p3', status: 'COMPLETED', winner: 'p1' }
+							]
+						}
+					],
+					thirdPlaceMatch: { participantA: 'p2', participantB: 'p4', status: 'COMPLETED', winner: 'p2' }
+				}
+			} as any
+		});
+		const result = calculateRemainingTime(t);
+		expect(result.percentComplete).toBe(100);
+		expect(result.remainingMinutes).toBe(0);
+	});
+
+	it('handles group stage progress correctly', () => {
+		const t = makeTournament({
+			participants: makeParticipants(4),
+			phaseType: 'GROUP_ONLY',
+			status: 'GROUP_STAGE',
+			timeEstimate: { totalMinutes: 60, calculatedAt: Date.now() },
+			groupStage: {
+				type: 'ROUND_ROBIN',
+				groups: [{
+					id: 'g1',
+					name: 'Group A',
+					participants: ['p1', 'p2', 'p3', 'p4'],
+					schedule: [
+						{
+							roundNumber: 1,
+							matches: [
+								{ participantA: 'p1', participantB: 'p2', status: 'COMPLETED' },
+								{ participantA: 'p3', participantB: 'p4', status: 'COMPLETED' }
+							]
+						},
+						{
+							roundNumber: 2,
+							matches: [
+								{ participantA: 'p1', participantB: 'p3', status: 'PENDING' },
+								{ participantA: 'p2', participantB: 'p4', status: 'PENDING' }
+							]
+						},
+						{
+							roundNumber: 3,
+							matches: [
+								{ participantA: 'p1', participantB: 'p4', status: 'PENDING' },
+								{ participantA: 'p2', participantB: 'p3', status: 'PENDING' }
+							]
+						}
+					],
+					standings: []
+				}],
+				currentRound: 2,
+				totalRounds: 3,
+				isComplete: false,
+				gameMode: 'rounds',
+				roundsToPlay: 4,
+				matchesToWin: 1,
+				numGroups: 1,
+				qualificationMode: 'WINS'
+			} as any
+		});
+		const result = calculateRemainingTime(t);
+		// 2 of 6 matches completed → ~33%
+		expect(result.percentComplete).toBeGreaterThan(20);
+		expect(result.percentComplete).toBeLessThan(50);
+		expect(result.remainingMinutes).toBeGreaterThan(0);
+	});
+
+	it('handles BYE matches in group stage (not counted)', () => {
+		const t = makeTournament({
+			participants: makeParticipants(3),
+			phaseType: 'GROUP_ONLY',
+			status: 'GROUP_STAGE',
+			timeEstimate: { totalMinutes: 30, calculatedAt: Date.now() },
+			groupStage: {
+				type: 'ROUND_ROBIN',
+				groups: [{
+					id: 'g1',
+					name: 'Group A',
+					participants: ['p1', 'p2', 'p3'],
+					schedule: [
+						{
+							roundNumber: 1,
+							matches: [
+								{ participantA: 'p1', participantB: 'p2', status: 'COMPLETED' },
+								{ participantA: 'p3', participantB: 'BYE', status: 'WALKOVER' }
+							]
+						},
+						{
+							roundNumber: 2,
+							matches: [
+								{ participantA: 'p1', participantB: 'p3', status: 'COMPLETED' },
+								{ participantA: 'p2', participantB: 'BYE', status: 'WALKOVER' }
+							]
+						},
+						{
+							roundNumber: 3,
+							matches: [
+								{ participantA: 'p2', participantB: 'p3', status: 'COMPLETED' },
+								{ participantA: 'p1', participantB: 'BYE', status: 'WALKOVER' }
+							]
+						}
+					],
+					standings: []
+				}],
+				currentRound: 3,
+				totalRounds: 3,
+				isComplete: true,
+				gameMode: 'rounds',
+				roundsToPlay: 4,
+				matchesToWin: 1,
+				numGroups: 1,
+				qualificationMode: 'WINS'
+			} as any
+		});
+		const result = calculateRemainingTime(t);
+		// All real matches complete, BYEs skipped → 100%
+		expect(result.percentComplete).toBe(100);
+		expect(result.remainingMinutes).toBe(0);
+	});
+});
+
+// ============================================================================
+// calculateTournamentTimeEstimate — edge cases
+// ============================================================================
+
+describe('calculateTournamentTimeEstimate', () => {
+	it('returns totalMinutes >= 0 always', () => {
+		const t = makeTournament({ participants: [] });
+		const estimate = calculateTournamentTimeEstimate(t);
+		expect(estimate.totalMinutes).toBeGreaterThanOrEqual(0);
+		expect(estimate.calculatedAt).toBeGreaterThan(0);
+	});
+
+	it('includes groupStageMinutes for TWO_PHASE', () => {
+		const t = makeTournament({
+			participants: makeParticipants(8),
+			phaseType: 'TWO_PHASE',
+			groupStage: {
+				type: 'ROUND_ROBIN',
+				groups: [],
+				currentRound: 1,
+				totalRounds: 7,
+				isComplete: false,
+				gameMode: 'rounds',
+				roundsToPlay: 4,
+				matchesToWin: 1,
+				numGroups: 1,
+				qualificationMode: 'WINS'
+			} as any,
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: { config: {} }
+			} as any
+		});
+		const estimate = calculateTournamentTimeEstimate(t);
+		expect(estimate.groupStageMinutes).toBeDefined();
+		expect(estimate.groupStageMinutes!).toBeGreaterThan(0);
+		expect(estimate.finalStageMinutes).toBeDefined();
+		expect(estimate.finalStageMinutes!).toBeGreaterThan(0);
+		expect(estimate.totalMinutes).toBe(
+			estimate.groupStageMinutes! + estimate.finalStageMinutes! + 30 // 30 = breakBetweenPhases default
+		);
+	});
+
+	it('scales with number of tables (more tables → less time)', () => {
+		const base = {
+			participants: makeParticipants(16),
+			phaseType: 'ONE_PHASE' as const,
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: { config: {} }
+			} as any
+		};
+		const t2tables = makeTournament({ ...base, numTables: 2 });
+		const t8tables = makeTournament({ ...base, numTables: 8 });
+		const est2 = calculateTournamentTimeEstimate(t2tables);
+		const est8 = calculateTournamentTimeEstimate(t8tables);
+		expect(est2.totalMinutes).toBeGreaterThan(est8.totalMinutes);
+	});
+
+	it('50 player Swiss 5 rounds + bracket gives reasonable estimate', () => {
+		const t = makeTournament({
+			participants: makeParticipants(50),
+			phaseType: 'TWO_PHASE',
+			numTables: 10,
+			groupStage: {
+				type: 'SWISS',
+				groups: [],
+				currentRound: 1,
+				totalRounds: 5,
+				isComplete: false,
+				gameMode: 'rounds',
+				roundsToPlay: 4,
+				matchesToWin: 1,
+				numSwissRounds: 5,
+				qualificationMode: 'WINS'
+			} as any,
+			finalStage: {
+				mode: 'SINGLE_BRACKET',
+				thirdPlaceMatchEnabled: true,
+				goldBracket: { config: {} }
+			} as any
+		});
+		const estimate = calculateTournamentTimeEstimate(t);
+		// Should be a reasonable duration (2-6 hours for 50 players)
+		expect(estimate.totalMinutes).toBeGreaterThan(60);  // At least 1 hour
+		expect(estimate.totalMinutes).toBeLessThan(600);    // Less than 10 hours
 	});
 });
