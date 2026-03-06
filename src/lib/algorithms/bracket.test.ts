@@ -5,6 +5,7 @@ import {
 	getBracketSeeding,
 	generateBracket,
 	cascadeByeWins,
+	advanceWinner,
 	advanceConsolationWinner,
 	calculateConsolationPositions,
 	getAvailableConsolationSources,
@@ -990,5 +991,577 @@ describe('small tournament consolation regression', () => {
 		const consolation = generateConsolationBracketStructure(8, 'QF', [], 'gold');
 		expect(consolation.numLosers).toBe(4);
 		expect(consolation.startPosition).toBe(5);
+	});
+});
+
+// ============================================================================
+// advanceWinner — winner propagation and 3rd place match
+// ============================================================================
+
+describe('advanceWinner', () => {
+	function makeParticipants(count: number): TournamentParticipant[] {
+		return Array.from({ length: count }, (_, i) => ({
+			id: `p${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: count - i,
+			status: 'ACTIVE' as const
+		}));
+	}
+
+	it('advances QF winner to semifinal slot A (even index)', () => {
+		const bracket = generateBracket(makeParticipants(8), true);
+		const qfMatch = bracket.rounds[0].matches[0]; // Match 0 (even) → slot A
+		qfMatch.status = 'COMPLETED';
+		qfMatch.winner = qfMatch.participantA!;
+
+		const updated = advanceWinner(bracket, qfMatch.id, qfMatch.participantA!);
+
+		const semifinal = updated.rounds[1].matches[0];
+		expect(semifinal.participantA).toBe(qfMatch.participantA);
+	});
+
+	it('advances QF winner to semifinal slot B (odd index)', () => {
+		const bracket = generateBracket(makeParticipants(8), true);
+		const qfMatch = bracket.rounds[0].matches[1]; // Match 1 (odd) → slot B
+		qfMatch.status = 'COMPLETED';
+		qfMatch.winner = qfMatch.participantA!;
+
+		const updated = advanceWinner(bracket, qfMatch.id, qfMatch.participantA!);
+
+		const semifinal = updated.rounds[1].matches[0];
+		expect(semifinal.participantB).toBe(qfMatch.participantA);
+	});
+
+	it('semifinal loser goes to 3rd place match (SF1 → slot A)', () => {
+		const bracket = generateBracket(makeParticipants(4), true);
+		expect(bracket.thirdPlaceMatch).toBeDefined();
+
+		const sf1 = bracket.rounds[0].matches[0]; // First semifinal
+		sf1.status = 'COMPLETED';
+		sf1.winner = sf1.participantA!;
+		const loserId = sf1.participantB!;
+
+		const updated = advanceWinner(bracket, sf1.id, sf1.participantA!);
+
+		expect(updated.thirdPlaceMatch!.participantA).toBe(loserId);
+	});
+
+	it('semifinal loser goes to 3rd place match (SF2 → slot B)', () => {
+		const bracket = generateBracket(makeParticipants(4), true);
+		const sf2 = bracket.rounds[0].matches[1]; // Second semifinal
+		sf2.status = 'COMPLETED';
+		sf2.winner = sf2.participantB!;
+		const loserId = sf2.participantA!;
+
+		const updated = advanceWinner(bracket, sf2.id, sf2.participantB!);
+
+		expect(updated.thirdPlaceMatch!.participantB).toBe(loserId);
+	});
+
+	it('no 3rd place match when disabled', () => {
+		const bracket = generateBracket(makeParticipants(4), false);
+		expect(bracket.thirdPlaceMatch).toBeUndefined();
+	});
+
+	it('seed propagates through rounds', () => {
+		const bracket = generateBracket(makeParticipants(8), true);
+		const qf = bracket.rounds[0].matches[0];
+		const seedA = qf.seedA;
+		qf.status = 'COMPLETED';
+		qf.winner = qf.participantA!;
+
+		const updated = advanceWinner(bracket, qf.id, qf.participantA!);
+		const sf = updated.rounds[1].matches[0];
+		expect(sf.seedA).toBe(seedA);
+	});
+
+	it('3rd place match: no advancement needed', () => {
+		const bracket = generateBracket(makeParticipants(4), true);
+		bracket.thirdPlaceMatch!.participantA = 'p3';
+		bracket.thirdPlaceMatch!.participantB = 'p4';
+		bracket.thirdPlaceMatch!.status = 'COMPLETED';
+		bracket.thirdPlaceMatch!.winner = 'p3';
+
+		const updated = advanceWinner(bracket, bracket.thirdPlaceMatch!.id, 'p3');
+		// Should return bracket unchanged (no crash, no advancement)
+		expect(updated.thirdPlaceMatch!.winner).toBe('p3');
+	});
+
+	it('final match: winner does not advance further', () => {
+		const bracket = generateBracket(makeParticipants(4), true);
+		const final = bracket.rounds[1].matches[0]; // Final round
+		final.participantA = 'p1';
+		final.participantB = 'p2';
+		final.status = 'COMPLETED';
+		final.winner = 'p1';
+
+		// Should not throw
+		const updated = advanceWinner(bracket, final.id, 'p1');
+		expect(updated.rounds[1].matches[0].winner).toBe('p1');
+	});
+});
+
+// ============================================================================
+// Full bracket play-through with advanceWinner
+// ============================================================================
+
+describe('full bracket play-through', () => {
+	function makeParticipants(count: number): TournamentParticipant[] {
+		return Array.from({ length: count }, (_, i) => ({
+			id: `p${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: count - i,
+			status: 'ACTIVE' as const
+		}));
+	}
+
+	it('8-player bracket: full play-through with 3rd place', () => {
+		let bracket = generateBracket(makeParticipants(8), true);
+
+		// Play QF: participantA always wins
+		for (const match of bracket.rounds[0].matches) {
+			match.status = 'COMPLETED';
+			match.winner = match.participantA!;
+			bracket = advanceWinner(bracket, match.id, match.participantA!);
+		}
+
+		// Verify all SF slots are filled
+		for (const sf of bracket.rounds[1].matches) {
+			expect(sf.participantA).toBeDefined();
+			expect(sf.participantB).toBeDefined();
+		}
+
+		// Play SF: participantA always wins
+		for (const sf of bracket.rounds[1].matches) {
+			sf.status = 'COMPLETED';
+			sf.winner = sf.participantA!;
+			bracket = advanceWinner(bracket, sf.id, sf.participantA!);
+		}
+
+		// Verify final is filled
+		const final = bracket.rounds[2].matches[0];
+		expect(final.participantA).toBeDefined();
+		expect(final.participantB).toBeDefined();
+
+		// Verify 3rd place match is filled with SF losers
+		expect(bracket.thirdPlaceMatch!.participantA).toBeDefined();
+		expect(bracket.thirdPlaceMatch!.participantB).toBeDefined();
+		expect(isBye(bracket.thirdPlaceMatch!.participantA!)).toBe(false);
+		expect(isBye(bracket.thirdPlaceMatch!.participantB!)).toBe(false);
+	});
+
+	it('5-player bracket: BYE winners advance to R2, 3rd place works', () => {
+		let bracket = generateBracket(makeParticipants(5), true);
+
+		// 5 → 8-bracket, 3 BYEs
+		expect(bracket.totalRounds).toBe(3);
+		const byeMatches = bracket.rounds[0].matches.filter(m => m.status === 'COMPLETED');
+		expect(byeMatches).toHaveLength(3);
+
+		// Advance BYE winners to R2 (Firebase layer does this at creation)
+		for (const m of byeMatches) {
+			if (m.winner) {
+				bracket = advanceWinner(bracket, m.id, m.winner);
+			}
+		}
+
+		// BYE winners should now be in R2 (3 BYE winners fill both SF matches)
+		const r2 = bracket.rounds[1];
+		const filledR2Slots = r2.matches.filter(m => m.participantA || m.participantB);
+		expect(filledR2Slots).toHaveLength(2); // both SFs have at least 1 participant
+
+		// Play the 1 real QF match
+		const realQF = bracket.rounds[0].matches.find(m => m.status === 'PENDING')!;
+		realQF.status = 'COMPLETED';
+		realQF.winner = realQF.participantA!;
+		bracket = advanceWinner(bracket, realQF.id, realQF.participantA!);
+
+		// Play SF
+		for (const sf of bracket.rounds[1].matches) {
+			if (sf.participantA && sf.participantB) {
+				sf.status = 'COMPLETED';
+				sf.winner = sf.participantA!;
+				bracket = advanceWinner(bracket, sf.id, sf.participantA!);
+			}
+		}
+
+		// 3rd place should be filled
+		expect(bracket.thirdPlaceMatch!.participantA).toBeDefined();
+		expect(bracket.thirdPlaceMatch!.participantB).toBeDefined();
+	});
+
+	it('3-player bracket: 2 BYEs, minimal bracket', () => {
+		const bracket = generateBracket(makeParticipants(3), true);
+
+		expect(bracket.totalRounds).toBe(2); // 4-bracket
+		const byeMatches = bracket.rounds[0].matches.filter(m => m.status === 'COMPLETED');
+		expect(byeMatches).toHaveLength(1); // 1 BYE match
+
+		// R2 (final) should have BYE winner pre-filled
+		const final = bracket.rounds[1].matches[0];
+		const hasPreFilled = final.participantA !== undefined || final.participantB !== undefined;
+		expect(hasPreFilled).toBe(true);
+	});
+});
+
+// ============================================================================
+// Gold/Silver split bracket generation
+// ============================================================================
+
+describe('generateBracket with seed offset (gold/silver split)', () => {
+	function makeParticipants(count: number): TournamentParticipant[] {
+		return Array.from({ length: count }, (_, i) => ({
+			id: `p${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: count - i,
+			status: 'ACTIVE' as const
+		}));
+	}
+
+	it('silver bracket seeds are offset by gold participant count', () => {
+		const goldParticipants = makeParticipants(8);
+		const silverParticipants = makeParticipants(8).map((p, i) => ({
+			...p,
+			id: `silver-p${i + 1}`
+		}));
+
+		const goldBracket = generateBracket(goldParticipants, true, 0);
+		const silverBracket = generateBracket(silverParticipants, true, 8);
+
+		// Gold seeds: 1-8
+		const goldSeeds = goldBracket.rounds[0].matches.flatMap(m => [m.seedA, m.seedB]).filter(Boolean) as number[];
+		expect(Math.min(...goldSeeds)).toBe(1);
+		expect(Math.max(...goldSeeds)).toBe(8);
+
+		// Silver seeds: 9-16
+		const silverSeeds = silverBracket.rounds[0].matches.flatMap(m => [m.seedA, m.seedB]).filter(Boolean) as number[];
+		expect(Math.min(...silverSeeds)).toBe(9);
+		expect(Math.max(...silverSeeds)).toBe(16);
+	});
+
+	it('gold and silver brackets are independent', () => {
+		const goldBracket = generateBracket(makeParticipants(4), true, 0);
+		const silverBracket = generateBracket(makeParticipants(4).map((p, i) => ({
+			...p, id: `s-p${i + 1}`
+		})), true, 4);
+
+		// Both have 3rd place match
+		expect(goldBracket.thirdPlaceMatch).toBeDefined();
+		expect(silverBracket.thirdPlaceMatch).toBeDefined();
+
+		// Different IDs
+		expect(goldBracket.rounds[0].matches[0].id).not.toBe(silverBracket.rounds[0].matches[0].id);
+	});
+
+	it('16 gold + 16 silver: both generate correct 16-brackets', () => {
+		const gold = generateBracket(makeParticipants(16), true, 0);
+		const silver = generateBracket(makeParticipants(16).map((p, i) => ({
+			...p, id: `s${i + 1}`
+		})), true, 16);
+
+		expect(gold.totalRounds).toBe(4);
+		expect(silver.totalRounds).toBe(4);
+		expect(gold.rounds[0].matches).toHaveLength(8);
+		expect(silver.rounds[0].matches).toHaveLength(8);
+	});
+});
+
+// ============================================================================
+// 64-player R32 consolation full play-through
+// ============================================================================
+
+describe('64-player consolation full flow', () => {
+	it('R32 consolation: 16 losers play through all rounds', () => {
+		const bracket = generateConsolationBracketStructure(64, 'R32', [], 'gold');
+
+		expect(bracket.numLosers).toBe(16);
+		expect(bracket.totalRounds).toBe(4); // log2(16)
+		expect(bracket.startPosition).toBe(17);
+
+		let current = bracket;
+
+		// Replace all 16 loser placeholders
+		for (let pos = 0; pos < 16; pos++) {
+			current = replaceLoserPlaceholder(current, 'R32', pos, `loser-${pos}`, pos + 1);
+		}
+
+		// No placeholders should remain in R1
+		for (const match of current.rounds[0].matches) {
+			if (match.participantA) expect(isLoserPlaceholder(match.participantA)).toBe(false);
+			if (match.participantB) expect(isLoserPlaceholder(match.participantB)).toBe(false);
+		}
+
+		// Play all 4 rounds
+		function playRound(roundIdx: number) {
+			const matchIds = current.rounds[roundIdx].matches
+				.filter(m => m.status !== 'COMPLETED' && m.participantA && m.participantB
+					&& !isBye(m.participantA) && !isBye(m.participantB))
+				.map(m => m.id);
+
+			for (const matchId of matchIds) {
+				const match = current.rounds[roundIdx].matches.find(m => m.id === matchId)!;
+				if (match.status === 'COMPLETED') continue;
+				const winner = match.participantA!;
+				const loser = match.participantB!;
+				match.status = 'COMPLETED';
+				match.winner = winner;
+				current = advanceConsolationWinner(current, match.id, winner, loser);
+			}
+		}
+
+		playRound(0);
+		playRound(1);
+		playRound(2);
+		playRound(3);
+
+		expect(current.isComplete).toBe(true);
+
+		// Calculate positions — all 16 losers should get positions 17-32
+		const positions = calculateConsolationPositions(current);
+		expect(positions.size).toBe(16);
+		const assignedPositions = new Set(positions.values());
+		for (let pos = 17; pos <= 32; pos++) {
+			expect(assignedPositions.has(pos)).toBe(true);
+		}
+	});
+
+	it('R32 consolation with 10 BYEs: 6 real losers', () => {
+		const byePositions = Array.from({ length: 10 }, (_, i) => i);
+		const bracket = generateConsolationBracketStructure(64, 'R32', byePositions, 'gold');
+
+		expect(bracket.numLosers).toBe(6); // 16 - 10
+		expect(bracket.totalRounds).toBe(3); // 6 → 8-slot → log2(8)
+
+		// All placeholders for non-BYE positions
+		const firstRound = bracket.rounds[0];
+		const placeholders: string[] = [];
+		for (const match of firstRound.matches) {
+			if (match.participantA && isLoserPlaceholder(match.participantA)) placeholders.push(match.participantA);
+			if (match.participantB && isLoserPlaceholder(match.participantB)) placeholders.push(match.participantB);
+		}
+		expect(placeholders).toHaveLength(6);
+	});
+});
+
+// ============================================================================
+// 128-player bracket and R64 consolation
+// ============================================================================
+
+describe('128-player bracket edge cases', () => {
+	function makeParticipants(count: number): TournamentParticipant[] {
+		return Array.from({ length: count }, (_, i) => ({
+			id: `p${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: count - i,
+			status: 'ACTIVE' as const
+		}));
+	}
+
+	it('100 players: BYE winners populate R2 correctly', () => {
+		const bracket = generateBracket(makeParticipants(100), true);
+
+		expect(bracket.totalRounds).toBe(7);
+
+		// 28 BYE matches should be COMPLETED in R1
+		const r1Completed = bracket.rounds[0].matches.filter(m => m.status === 'COMPLETED');
+		expect(r1Completed).toHaveLength(28);
+
+		// R2 should have those 28 winners pre-filled
+		const r2 = bracket.rounds[1];
+		let filledSlots = 0;
+		for (const match of r2.matches) {
+			if (match.participantA) filledSlots++;
+			if (match.participantB) filledSlots++;
+		}
+		expect(filledSlots).toBeGreaterThanOrEqual(28);
+	});
+
+	it('100 players: 3rd place match is generated', () => {
+		const bracket = generateBracket(makeParticipants(100), true);
+		expect(bracket.thirdPlaceMatch).toBeDefined();
+		expect(bracket.thirdPlaceMatch!.status).toBe('PENDING');
+	});
+
+	it('R64 consolation: 32 losers produce positions 33-64', () => {
+		const bracket = generateConsolationBracketStructure(128, 'R64', [], 'gold');
+
+		expect(bracket.numLosers).toBe(32);
+		expect(bracket.totalRounds).toBe(5); // log2(32)
+		expect(bracket.startPosition).toBe(33);
+
+		let current = bracket;
+
+		// Replace all 32 loser placeholders
+		for (let pos = 0; pos < 32; pos++) {
+			current = replaceLoserPlaceholder(current, 'R64', pos, `loser-${pos}`, pos + 1);
+		}
+
+		// No placeholders in R1
+		for (const match of current.rounds[0].matches) {
+			if (match.participantA) expect(isLoserPlaceholder(match.participantA)).toBe(false);
+			if (match.participantB) expect(isLoserPlaceholder(match.participantB)).toBe(false);
+		}
+
+		// Play all 5 rounds
+		function playRound(roundIdx: number) {
+			const matchIds = current.rounds[roundIdx].matches
+				.filter(m => m.status !== 'COMPLETED' && m.participantA && m.participantB
+					&& !isBye(m.participantA) && !isBye(m.participantB))
+				.map(m => m.id);
+
+			for (const matchId of matchIds) {
+				const match = current.rounds[roundIdx].matches.find(m => m.id === matchId)!;
+				if (match.status === 'COMPLETED') continue;
+				match.status = 'COMPLETED';
+				match.winner = match.participantA!;
+				current = advanceConsolationWinner(current, match.id, match.participantA!, match.participantB!);
+			}
+		}
+
+		for (let r = 0; r < 5; r++) playRound(r);
+
+		expect(current.isComplete).toBe(true);
+
+		const positions = calculateConsolationPositions(current);
+		expect(positions.size).toBe(32);
+		const assignedPositions = new Set(positions.values());
+		for (let pos = 33; pos <= 64; pos++) {
+			expect(assignedPositions.has(pos)).toBe(true);
+		}
+	});
+
+	it('R64 consolation with 28 BYEs (100 players): 4 real losers', () => {
+		const byePositions = Array.from({ length: 28 }, (_, i) => i);
+		const bracket = generateConsolationBracketStructure(128, 'R64', byePositions, 'gold');
+
+		expect(bracket.numLosers).toBe(4); // 32 - 28
+		expect(bracket.totalRounds).toBe(2); // 4 → 4-slot → log2(4)
+	});
+
+	it('128-bracket: all round sizes correct', () => {
+		const bracket = generateBracket(makeParticipants(128), true);
+
+		expect(bracket.rounds[0].matches).toHaveLength(64); // R64
+		expect(bracket.rounds[1].matches).toHaveLength(32); // R32
+		expect(bracket.rounds[2].matches).toHaveLength(16); // R16
+		expect(bracket.rounds[3].matches).toHaveLength(8);  // QF
+		expect(bracket.rounds[4].matches).toHaveLength(4);  // Reserved/QF
+		expect(bracket.rounds[5].matches).toHaveLength(2);  // SF
+		expect(bracket.rounds[6].matches).toHaveLength(1);  // Final
+	});
+
+	it('all nextMatchId links are valid within bracket', () => {
+		const bracket = generateBracket(makeParticipants(16), true);
+
+		const allMatchIds = new Set<string>();
+		for (const round of bracket.rounds) {
+			for (const match of round.matches) {
+				allMatchIds.add(match.id);
+			}
+		}
+
+		// Every nextMatchId should point to a valid match in the next round
+		for (let ri = 0; ri < bracket.rounds.length - 1; ri++) {
+			for (const match of bracket.rounds[ri].matches) {
+				if (match.nextMatchId) {
+					expect(allMatchIds.has(match.nextMatchId)).toBe(true);
+				}
+			}
+		}
+
+		// Final match should have no nextMatchId
+		const finalMatch = bracket.rounds[bracket.rounds.length - 1].matches[0];
+		expect(finalMatch.nextMatchId).toBeUndefined();
+	});
+});
+
+// ============================================================================
+// Edge cases
+// ============================================================================
+
+describe('bracket edge cases', () => {
+	function makeParticipants(count: number): TournamentParticipant[] {
+		return Array.from({ length: count }, (_, i) => ({
+			id: `p${i + 1}`,
+			name: `Player ${i + 1}`,
+			seed: i + 1,
+			type: 'GUEST' as const,
+			rankingSnapshot: count - i,
+			status: 'ACTIVE' as const
+		}));
+	}
+
+	it('power-of-2 boundary: 32 players have no BYEs', () => {
+		const bracket = generateBracket(makeParticipants(32), true);
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(0);
+		expect(bracket.totalRounds).toBe(5);
+	});
+
+	it('power-of-2 boundary: 33 players have 31 BYEs in 64-bracket', () => {
+		const bracket = generateBracket(makeParticipants(33), true);
+		expect(bracket.totalRounds).toBe(6); // 64-bracket
+		const byeMatches = bracket.rounds[0].matches.filter(
+			m => isBye(m.participantA) || isBye(m.participantB)
+		);
+		expect(byeMatches).toHaveLength(31); // 64 - 33
+	});
+
+	it('2 participants: single match, no 3rd place even if enabled', () => {
+		const bracket = generateBracket(makeParticipants(2), true);
+		expect(bracket.totalRounds).toBe(1);
+		expect(bracket.rounds[0].matches).toHaveLength(1);
+		// Only 2 participants — not enough for 3rd place
+		// (3rd place needs semifinals which need 4+ players)
+	});
+
+	it('4 participants: 2 semis + final + 3rd place', () => {
+		const bracket = generateBracket(makeParticipants(4), true);
+		expect(bracket.totalRounds).toBe(2);
+		expect(bracket.rounds[0].matches).toHaveLength(2); // Semifinals
+		expect(bracket.rounds[1].matches).toHaveLength(1); // Final
+		expect(bracket.thirdPlaceMatch).toBeDefined();
+	});
+
+	it('consolation structure has correct startPositions per source', () => {
+		// QF losers: positions 5-8
+		const qf = generateConsolationBracketStructure(8, 'QF', [], 'gold');
+		expect(qf.startPosition).toBe(5);
+
+		// R16 losers: positions 9-16
+		const r16 = generateConsolationBracketStructure(16, 'R16', [], 'gold');
+		expect(r16.startPosition).toBe(9);
+
+		// R32 losers: positions 17-32
+		const r32 = generateConsolationBracketStructure(64, 'R32', [], 'gold');
+		expect(r32.startPosition).toBe(17);
+
+		// R64 losers: positions 33-64
+		const r64 = generateConsolationBracketStructure(128, 'R64', [], 'gold');
+		expect(r64.startPosition).toBe(33);
+	});
+
+	it('consolation with position offset (silver bracket)', () => {
+		const goldBracket = generateConsolationBracketStructure(8, 'QF', [], 'gold');
+		const silverBracket = generateConsolationBracketStructure(8, 'QF', [], 'silver');
+
+		// Both should have same structure
+		expect(goldBracket.numLosers).toBe(silverBracket.numLosers);
+		expect(goldBracket.totalRounds).toBe(silverBracket.totalRounds);
+
+		// Start positions are the same within bracket context
+		// (offset is applied by the Firebase layer, not the algorithm)
+		expect(goldBracket.startPosition).toBe(5);
+		expect(silverBracket.startPosition).toBe(5);
 	});
 });

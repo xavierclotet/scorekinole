@@ -749,7 +749,6 @@
     if (!selectedMatch || !tournamentId || !tournament) return;
 
     // Debug: Log match details before saving
-    console.log('🔍 handleSaveMatch - selectedMatch details:', {
       matchId: selectedMatch.id,
       participantA: selectedMatch.participantA,
       participantB: selectedMatch.participantB,
@@ -1034,14 +1033,11 @@
     if (!tournamentId || !bracket) return;
 
     isGeneratingConsolation = true;
-    console.log(`🔄 Attempting to generate consolation brackets for ${activeTab} bracket...`);
-    console.log(`📊 Bracket info: totalRounds=${bracket.totalRounds}, rounds=${bracket.rounds?.length}`);
 
     // Log round completion status
     bracket.rounds?.forEach((round, idx) => {
       const completedMatches = round.matches.filter(m => m.status === 'COMPLETED' || m.status === 'WALKOVER').length;
       const byeMatches = round.matches.filter(m => m.participantA === 'BYE' || m.participantB === 'BYE').length;
-      console.log(`  Round ${idx + 1} (${round.name}): ${completedMatches}/${round.matches.length} completed, ${byeMatches} BYEs`);
     });
 
     try {
@@ -1146,7 +1142,6 @@
     }
 
     isRepairing = true;
-    console.log(`🔧 Repairing ${broken.length} broken matches...`);
 
     let repairedCount = 0;
     try {
@@ -1157,7 +1152,6 @@
       }
 
       for (const item of broken) {
-        console.log(`  🔧 Repairing: ${item.match.id} -> ${item.nextMatchId} (winner: ${item.winnerId}, slot: ${item.slot})`);
 
         // First try the normal advance function
         const advanceFn = item.bracketType === 'silver' ? advanceSilverWinner : advanceWinner;
@@ -1186,10 +1180,8 @@
 
         if (currentValue === item.winnerId) {
           repairedCount++;
-          console.log(`    ✅ Verified: winner is now in slot ${item.slot}`);
         } else {
           // Direct repair as fallback
-          console.log(`    ⚠️ Advance function didn't work, trying direct repair...`);
 
           // Directly modify the bracket data
           for (const round of bracket.rounds) {
@@ -1212,9 +1204,6 @@
 
           if (directSuccess) {
             repairedCount++;
-            console.log(`    ✅ Direct repair successful`);
-          } else {
-            console.log(`    ❌ Direct repair also failed`);
           }
         }
       }
@@ -1251,15 +1240,6 @@
     let filledCount = 0;
     const currentTournamentId = tournamentId; // Store in local variable for TypeScript
 
-    console.log('🎲 AUTO-FILL START ========================================');
-    console.log('📋 Tournament mode:', tournament.finalStage.mode);
-    console.log('📋 Game type:', tournament.gameType);
-    console.log('📋 Consolation enabled:', tournament.finalStage.consolationEnabled);
-    console.log('📋 Gold bracket rounds:', tournament.finalStage.goldBracket?.rounds?.length);
-    console.log('📋 Silver bracket exists:', !!tournament.finalStage.silverBracket);
-    console.log('📋 Silver bracket rounds:', tournament.finalStage.silverBracket?.rounds?.length);
-    console.log('📋 Gold consolation brackets:', tournament.finalStage.goldBracket?.consolationBrackets?.length || 0);
-    console.log('📋 Silver consolation brackets:', tournament.finalStage.silverBracket?.consolationBrackets?.length || 0);
 
     try {
       // Track processed matches to prevent double-processing from stale cache reads
@@ -1409,7 +1389,6 @@
         }
 
         const winner = gamesA > gamesB ? match.participantA : match.participantB;
-        console.log(`🎲🔵 simulateMatch: matchId=${match.id}, pA=${match.participantA?.substring(0, 12)}, pB=${match.participantB?.substring(0, 12)}, gA=${gamesA}, gB=${gamesB}, winner=${winner?.substring(0, 12)}, bracketType=${bracketType}`);
 
         // Use single atomic transaction: update match + advance winner in one step
         const success = await completeBracketMatchAndAdvance(currentTournamentId, match.id, {
@@ -1449,7 +1428,6 @@
 
       // Process a bracket (gold or silver)
       async function processBracket(bracketType: 'gold' | 'silver'): Promise<number> {
-        console.log(`\n🏟️ Processing ${bracketType.toUpperCase()} bracket...`);
         let bracketFilledCount = 0;
         let hasMoreMatches = true;
 
@@ -1462,7 +1440,6 @@
           // Reload tournament from server to get current bracket state (skip cache)
           tournament = await getTournament(currentTournamentId, true);
           if (!tournament?.finalStage) {
-            console.log(`  ❌ No finalStage found`);
             break;
           }
 
@@ -1471,7 +1448,6 @@
             : tournament.finalStage.silverBracket;
 
           if (!currentBracket) {
-            console.log(`  ❌ No ${bracketType} bracket found`);
             break;
           }
 
@@ -1479,7 +1455,6 @@
 
           // Process rounds in order - matches within same round are independent
           for (const round of currentBracket.rounds) {
-            console.log(`  📍 Round ${round.roundNumber} (${round.name}):`);
 
             // Get phase-specific config for this round
             const phaseConfig = getPhaseConfig(
@@ -1500,10 +1475,6 @@
               const pA = match.participantA ? getParticipantName(match.participantA) : 'TBD';
               const pB = match.participantB ? getParticipantName(match.participantB) : 'TBD';
               const isEligible = match.status === 'PENDING' && match.participantA && match.participantB;
-              console.log(`    - Match ${match.id}: ${pA} vs ${pB} | Status: ${match.status} | Eligible: ${isEligible}`);
-              if (!isEligible && match.status === 'PENDING') {
-                console.log(`      ⚠️ Not eligible: participantA=${!!match.participantA}, participantB=${!!match.participantB}`);
-              }
             }
 
             for (const match of eligibleMatches) {
@@ -1511,7 +1482,6 @@
               if (success) {
                 hasMoreMatches = true;
                 bracketFilledCount++;
-                console.log(`    ✅ Simulated match ${match.id} successfully`);
               }
             }
           }
@@ -1605,13 +1575,11 @@
       // Detect and repair broken matches (completed but winner not advanced)
       tournament = await getTournament(currentTournamentId, true);
       const brokenAfterAutoFill = detectBrokenMatches();
-      console.log(`🔧🔵 detectBrokenMatches after autofill: found ${brokenAfterAutoFill.length} broken`, brokenAfterAutoFill.map(b => ({ matchId: b.match.id, winnerId: b.winnerId?.substring(0, 12), nextMatchId: b.nextMatchId, slot: b.slot })));
       if (brokenAfterAutoFill.length > 0) {
         console.warn(`⚠️ Found ${brokenAfterAutoFill.length} broken matches after auto-fill, repairing...`);
         for (const item of brokenAfterAutoFill) {
           const advanceFn = item.bracketType === 'silver' ? advanceSilverWinner : advanceWinner;
           const repaired = await advanceFn(currentTournamentId, item.match.id, item.winnerId);
-          console.log(`  🔧 Repair ${item.match.id} -> ${item.nextMatchId}: ${repaired ? 'OK' : 'FAILED'}`);
         }
         // Re-process brackets to fill newly eligible matches (Final, 3rd place)
         tournament = await getTournament(currentTournamentId, true);
@@ -1624,10 +1592,7 @@
       }
 
       // After all matches processed, check if tournament should be marked as complete
-      const completed = await completeFinalStage(currentTournamentId);
-      if (completed) {
-        console.log('🏆 Tournament marked as COMPLETED after autofill');
-      }
+      await completeFinalStage(currentTournamentId);
 
       toastMessage = m.admin_matchesFilledAuto({ n: String(filledCount) });
       toastType = 'success';

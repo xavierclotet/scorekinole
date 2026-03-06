@@ -75,7 +75,6 @@ function reassignFreedTable(
   // If only one match waiting, assign directly
   if (waitingMatches.length === 1) {
     waitingMatches[0].tableNumber = freedTable;
-    console.log(`🎯 Reassigned table ${freedTable} to match ${waitingMatches[0].id}`);
     return;
   }
 
@@ -140,7 +139,6 @@ function reassignFreedTable(
   }
 
   bestMatch.tableNumber = freedTable;
-  console.log(`🎯 Reassigned table ${freedTable} to match ${bestMatch.id} (primary: ${bestPrimary}, secondary: ${bestSecondary})`);
 }
 
 /**
@@ -914,11 +912,6 @@ export async function getPendingMatchesForUser(
   // Find participant ID(s) for this user
   const userParticipants = tournament.participants.filter(p => p.userId === userId || p.partner?.userId === userId);
   if (userParticipants.length === 0) {
-    console.log('getPendingMatchesForUser: User not found as participant', {
-      userId,
-      totalParticipants: tournament.participants.length,
-      participantUserIds: tournament.participants.map(p => ({ id: p.id, userId: p.userId, name: p.name }))
-    });
     return [];
   }
 
@@ -1231,13 +1224,6 @@ export async function getPendingMatchesForUser(
   }
 
   // Return in-progress matches first, then pending
-  console.log(`📊 getPendingMatchesForUser: Found ${inProgressMatches.length} in-progress + ${pendingMatches.length} pending for user ${userId}`, {
-    groupStageExists: !!tournament.groupStage,
-    groupStageComplete: tournament.groupStage?.isComplete,
-    finalStageExists: !!tournament.finalStage,
-    finalStageComplete: tournament.finalStage?.isComplete,
-    tournamentStatus: tournament.status
-  });
   return [...inProgressMatches, ...pendingMatches];
 }
 
@@ -1319,7 +1305,6 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
 
   // Check final stage bracket
   if (tournament.finalStage && !tournament.finalStage.isComplete) {
-    console.log('🔍 getAllPendingMatches - Checking final stage brackets');
 
     // Check if consolation is enabled
     const consolationEnabled = Boolean(
@@ -1330,15 +1315,12 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
     // Gold bracket
     const goldBracket = tournament.finalStage.goldBracket;
     if (goldBracket?.rounds) {
-      console.log('🥇 Gold bracket rounds:', goldBracket.rounds.length);
       for (const round of goldBracket.rounds) {
-        console.log(`  📍 Round ${round.roundNumber} (${round.name}): ${round.matches.length} matches`);
         for (const match of round.matches) {
           const statusOk = shouldIncludeMatch(match.status);
           const hasA = !!match.participantA;
           const hasB = !!match.participantB;
           const included = statusOk && hasA && hasB;
-          console.log(`    🎯 Match ${match.id}: status=${match.status}, table=${match.tableNumber}, A=${match.participantA || 'NONE'}, B=${match.participantB || 'NONE'} => ${included ? '✅ INCLUDED' : '❌ EXCLUDED'} (statusOk=${statusOk}, hasA=${hasA}, hasB=${hasB})`);
           if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
             const matchInfo: PendingMatchInfo = {
               match,
@@ -1388,24 +1370,20 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
 
       // Consolation brackets (Gold) - only if consolation is enabled
       if (consolationEnabled && goldBracket.consolationBrackets) {
-        console.log('🎯 Gold consolation brackets:', goldBracket.consolationBrackets.length);
         for (const consolation of goldBracket.consolationBrackets) {
           const { startPosition, totalRounds } = consolation;
           const numParticipants = Math.pow(2, totalRounds);
           const posEnd = startPosition + numParticipants - 1;
-          console.log(`  🏆 Gold Consolation (start=${startPosition}, rounds=${totalRounds})`);
 
           for (let roundIdx = 0; roundIdx < consolation.rounds.length; roundIdx++) {
             const round = consolation.rounds[roundIdx];
             const isFinalRound = roundIdx === totalRounds - 1;
-            console.log(`    📍 Round ${roundIdx + 1}: ${round.matches.length} matches`);
 
             for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
               const match = round.matches[matchIdx];
               const statusOk = shouldIncludeMatch(match.status);
               const readyToPlay = isMatchReadyToPlay(match.participantA, match.participantB);
               const included = statusOk && readyToPlay;
-              console.log(`      🎯 Match ${match.id}: status=${match.status}, A=${match.participantA || 'NONE'}, B=${match.participantB || 'NONE'} => ${included ? '✅ INCLUDED' : '❌ EXCLUDED'} (statusOk=${statusOk}, readyToPlay=${readyToPlay})`);
               // Use isMatchReadyToPlay to exclude matches with LOSER: placeholders
               if (statusOk && readyToPlay) {
                 // Calculate position label for this match
@@ -1456,15 +1434,12 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
 
     // Silver bracket
     if (tournament.finalStage.silverBracket?.rounds) {
-      console.log('🥈 Silver bracket rounds:', tournament.finalStage.silverBracket.rounds.length);
       for (const round of tournament.finalStage.silverBracket.rounds) {
-        console.log(`  📍 Round ${round.roundNumber} (${round.name}): ${round.matches.length} matches`);
         for (const match of round.matches) {
           const statusOk = shouldIncludeMatch(match.status);
           const hasA = !!match.participantA;
           const hasB = !!match.participantB;
           const included = statusOk && hasA && hasB;
-          console.log(`    🎯 Match ${match.id}: status=${match.status}, table=${match.tableNumber}, A=${match.participantA || 'NONE'}, B=${match.participantB || 'NONE'} => ${included ? '✅ INCLUDED' : '❌ EXCLUDED'} (statusOk=${statusOk}, hasA=${hasA}, hasB=${hasB})`);
           if (shouldIncludeMatch(match.status) && match.participantA && match.participantB) {
             const matchInfo: PendingMatchInfo = {
               match,
@@ -1514,24 +1489,20 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
 
       // Consolation brackets (Silver) - only if consolation is enabled
       if (consolationEnabled && tournament.finalStage.silverBracket.consolationBrackets) {
-        console.log('🎯 Silver consolation brackets:', tournament.finalStage.silverBracket.consolationBrackets.length);
         for (const consolation of tournament.finalStage.silverBracket.consolationBrackets) {
           const { startPosition, totalRounds } = consolation;
           const numParticipants = Math.pow(2, totalRounds);
           const posEnd = startPosition + numParticipants - 1;
-          console.log(`  🥈 Silver Consolation (start=${startPosition}, rounds=${totalRounds})`);
 
           for (let roundIdx = 0; roundIdx < consolation.rounds.length; roundIdx++) {
             const round = consolation.rounds[roundIdx];
             const isFinalRound = roundIdx === totalRounds - 1;
-            console.log(`    📍 Round ${roundIdx + 1}: ${round.matches.length} matches`);
 
             for (let matchIdx = 0; matchIdx < round.matches.length; matchIdx++) {
               const match = round.matches[matchIdx];
               const statusOk = shouldIncludeMatch(match.status);
               const readyToPlay = isMatchReadyToPlay(match.participantA, match.participantB);
               const included = statusOk && readyToPlay;
-              console.log(`      🎯 Match ${match.id}: status=${match.status}, A=${match.participantA || 'NONE'}, B=${match.participantB || 'NONE'} => ${included ? '✅ INCLUDED' : '❌ EXCLUDED'} (statusOk=${statusOk}, readyToPlay=${readyToPlay})`);
               // Use isMatchReadyToPlay to exclude matches with LOSER: placeholders
               if (statusOk && readyToPlay) {
                 // Calculate position label for this match
@@ -1582,13 +1553,6 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
   }
 
   // Return pending matches first, then in-progress matches (for emergency resume)
-  console.log('📊 getAllPendingMatches SUMMARY:', {
-    pendingCount: pendingMatches.length,
-    inProgressCount: inProgressMatches.length,
-    totalReturned: pendingMatches.length + inProgressMatches.length,
-    pendingTables: pendingMatches.map(m => m.tableNumber),
-    inProgressTables: inProgressMatches.map(m => m.tableNumber)
-  });
   return [...pendingMatches, ...inProgressMatches];
 }
 
@@ -1609,16 +1573,10 @@ export async function getUserActiveMatches(
   // Find participant ID(s) for this user
   const userParticipants = tournament.participants.filter(p => p.userId === userId || p.partner?.userId === userId);
   if (userParticipants.length === 0) {
-    console.log('getUserActiveMatches: User not found as participant in tournament', {
-      userId,
-      totalParticipants: tournament.participants.length,
-      participantUserIds: tournament.participants.map(p => ({ id: p.id, userId: p.userId, name: p.name }))
-    });
     return [];
   }
 
   const userParticipantIds = new Set(userParticipants.map(p => p.id));
-  console.log('getUserActiveMatches: User participant IDs:', [...userParticipantIds]);
 
   // Build photo map for all participants
   const photoMap = buildParticipantPhotoMap(tournament.participants);
@@ -1882,13 +1840,6 @@ export async function getUserActiveMatches(
     }
   }
 
-  console.log(`📊 getUserActiveMatches: Found ${matches.length} active matches for user ${userId}`, {
-    groupStageExists: !!tournament.groupStage,
-    groupStageComplete: tournament.groupStage?.isComplete,
-    finalStageExists: !!tournament.finalStage,
-    finalStageComplete: tournament.finalStage?.isComplete,
-    tournamentStatus: tournament.status
-  });
   return matches;
 }
 
@@ -1904,7 +1855,6 @@ export async function startTournamentMatch(
   forceResume: boolean = false,  // Allow resuming IN_PROGRESS matches (for emergency recovery)
   scoringBy?: { userId: string; userName: string }
 ): Promise<{ success: boolean; error?: string }> {
-  console.log(`🚀 startTournamentMatch called: matchId=${matchId}, phase=${phase}, forceResume=${forceResume}`);
 
   if (!browser || !isFirebaseEnabled() || !db) {
     return { success: false, error: 'Firebase disabled' };
@@ -2082,7 +2032,6 @@ export async function startTournamentMatch(
       }
     }, { maxAttempts: 10 });
 
-    console.log('✅ Tournament match started:', matchId);
     return { success: true };
   } catch (error: any) {
     console.error('❌ Error starting tournament match:', error);
@@ -2377,9 +2326,6 @@ export async function abandonTournamentMatch(
       return found;
     }, { maxAttempts: 10 });
 
-    if (matchFound) {
-      console.log('✅ Tournament match abandoned:', matchId);
-    }
     return matchFound;
   } catch (error) {
     console.error('❌ Error abandoning tournament match:', error);
@@ -2432,21 +2378,6 @@ export async function updateTournamentMatchRounds(
         (tournament.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled ']
       );
 
-      console.log('🔄 updateTournamentMatchRounds:', {
-        matchId,
-        phase,
-        groupId,
-        roundsCount: rounds.length,
-        total20sA,
-        total20sB,
-        totalPointsA,
-        totalPointsB,
-        currentGameData,
-        hasSilverBracket: !!tournament.finalStage?.silverBracket,
-        consolationEnabled,
-        hasGoldConsolation: !!tournament.finalStage?.goldBracket?.consolationBrackets?.length,
-        hasSilverConsolation: !!tournament.finalStage?.silverBracket?.consolationBrackets?.length
-      });
 
       if (phase === 'GROUP' && tournament.groupStage) {
         for (const group of tournament.groupStage.groups) {
@@ -2458,7 +2389,6 @@ export async function updateTournamentMatchRounds(
               if (matchIndex !== -1) {
                 // Don't overwrite rounds on already completed matches
                 if (round.matches[matchIndex].status === 'COMPLETED' || round.matches[matchIndex].status === 'WALKOVER') {
-                  console.log(`⏭️ Match ${matchId} already ${round.matches[matchIndex].status}, skipping round sync`);
                   found = true;
                   break;
                 }
@@ -2486,7 +2416,6 @@ export async function updateTournamentMatchRounds(
               if (matchIndex !== -1) {
                 // Don't overwrite rounds on already completed matches
                 if (pairing.matches[matchIndex].status === 'COMPLETED' || pairing.matches[matchIndex].status === 'WALKOVER') {
-                  console.log(`⏭️ Match ${matchId} already ${pairing.matches[matchIndex].status}, skipping round sync`);
                   found = true;
                   break;
                 }
@@ -2571,42 +2500,29 @@ export async function updateTournamentMatchRounds(
 
         // Check consolation brackets in gold bracket (only if consolationEnabled)
         if (!found && consolationEnabled && tournament.finalStage.goldBracket?.consolationBrackets) {
-          console.log('🔍 [GOLD CONSOLATION] Searching for matchId:', matchId);
-          console.log('🔍 [GOLD CONSOLATION] Number of brackets:', tournament.finalStage.goldBracket.consolationBrackets.length);
           for (const consolation of tournament.finalStage.goldBracket.consolationBrackets) {
-            console.log('🔍 [GOLD CONSOLATION] Bracket source:', consolation.source, '- rounds:', consolation.rounds.length);
             for (let ri = 0; ri < consolation.rounds.length; ri++) {
               const round = consolation.rounds[ri];
               const matchIds = round.matches.map((m: any) => m.id);
-              console.log(`🔍 [GOLD CONSOLATION] Round ${ri + 1} matches:`, matchIds);
               const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
               if (matchIndex !== -1) {
-                console.log('✅ [GOLD CONSOLATION] Found match! Updating rounds...');
                 updateMatchRounds(round.matches[matchIndex]);
                 found = true;
                 break;
               }
             }
             if (found) break;
-          }
-          if (!found) {
-            console.log('⚠️ [GOLD CONSOLATION] Match NOT found in any consolation bracket');
           }
         }
 
         // Check consolation brackets in silver bracket (only if consolationEnabled)
         if (!found && consolationEnabled && tournament.finalStage.silverBracket?.consolationBrackets) {
-          console.log('🔍 [SILVER CONSOLATION] Searching for matchId:', matchId);
-          console.log('🔍 [SILVER CONSOLATION] Number of brackets:', tournament.finalStage.silverBracket.consolationBrackets.length);
           for (const consolation of tournament.finalStage.silverBracket.consolationBrackets) {
-            console.log('🔍 [SILVER CONSOLATION] Bracket source:', consolation.source, '- rounds:', consolation.rounds.length);
             for (let ri = 0; ri < consolation.rounds.length; ri++) {
               const round = consolation.rounds[ri];
               const matchIds = round.matches.map((m: any) => m.id);
-              console.log(`🔍 [SILVER CONSOLATION] Round ${ri + 1} matches:`, matchIds);
               const matchIndex = round.matches.findIndex((m: any) => m.id === matchId);
               if (matchIndex !== -1) {
-                console.log('✅ [SILVER CONSOLATION] Found match! Updating rounds...');
                 updateMatchRounds(round.matches[matchIndex]);
                 found = true;
                 break;
@@ -2614,19 +2530,14 @@ export async function updateTournamentMatchRounds(
             }
             if (found) break;
           }
-          if (!found) {
-            console.log('⚠️ [SILVER CONSOLATION] Match NOT found in any consolation bracket');
-          }
         }
 
         if (found) {
-          console.log('✅ Match found in bracket, updating Firebase...');
           const cleanedFinalStage = cleanUndefined(tournament.finalStage);
           transaction.update(tournamentRef, {
             finalStage: cleanedFinalStage,
             updatedAt: serverTimestamp()
           });
-          console.log('✅ Firebase updated successfully');
         } else {
           console.warn('⚠️ Match NOT found in any bracket! matchId:', matchId);
         }
