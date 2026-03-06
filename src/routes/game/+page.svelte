@@ -610,6 +610,7 @@
 		gameSettings.update((s) => ({
 			...s,
 			eventTitle: '',
+			eventEdition: undefined,
 			matchPhase: '',
 			...(backup?.gameType ? { gameType: backup.gameType } : {})
 		}));
@@ -658,6 +659,8 @@
 				show20s: backup.show20s ?? s.show20s,
 				showHammer: backup.showHammer ?? s.showHammer,
 				gameType: backup.gameType ?? s.gameType,
+				allowTiesInRoundsMode: backup.allowTiesInRoundsMode ?? s.allowTiesInRoundsMode,
+				showScoreTable: backup.showScoreTable ?? s.showScoreTable,
 				timerMinutes: backup.timerMinutes ?? s.timerMinutes,
 				timerSeconds: backup.timerSeconds ?? s.timerSeconds,
 				showTimer: backup.showTimer ?? s.showTimer
@@ -1126,6 +1129,8 @@
 				show20s: $gameSettings.show20s,
 				showHammer: $gameSettings.showHammer,
 				gameType: $gameSettings.gameType,
+				allowTiesInRoundsMode: $gameSettings.allowTiesInRoundsMode,
+				showScoreTable: $gameSettings.showScoreTable,
 				// Timer settings
 				timerMinutes: $gameSettings.timerMinutes,
 				timerSeconds: $gameSettings.timerSeconds,

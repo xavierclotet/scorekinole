@@ -26,6 +26,9 @@ export default defineConfig({
 
 	// Pre-transform frequently used routes on server start
 	server: {
+		fs: {
+			allow: ['..'],
+		},
 		warmup: {
 			clientFiles: [
 				'src/routes/+page.svelte',

@@ -22,8 +22,8 @@ vi.mock('$lib/constants', () => ({
 		gameMode: 'rounds',
 		roundsToPlay: 4,
 		allowTiesInRoundsMode: true,
-		eventTitle: 'Event',
-		matchPhase: 'Fase'
+		eventTitle: '',
+		matchPhase: ''
 	}
 }));
 
@@ -65,8 +65,8 @@ beforeEach(() => {
 		gameMode: 'rounds',
 		roundsToPlay: 4,
 		allowTiesInRoundsMode: true,
-		eventTitle: 'Event',
-		matchPhase: 'Fase'
+		eventTitle: '',
+		matchPhase: ''
 	} as any);
 });
 
@@ -86,8 +86,8 @@ describe('gameSettings store', () => {
 		expect(settings.gameMode).toBe('rounds');
 		expect(settings.roundsToPlay).toBe(4);
 		expect(settings.allowTiesInRoundsMode).toBe(true);
-		expect(settings.eventTitle).toBe('Event');
-		expect(settings.matchPhase).toBe('Fase');
+		expect(settings.eventTitle).toBe('');
+		expect(settings.matchPhase).toBe('');
 	});
 
 	it('load() reads from localStorage and sets valid data', () => {

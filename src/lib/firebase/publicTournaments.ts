@@ -5,13 +5,14 @@
 
 import { db, isFirebaseEnabled } from './config';
 import type { Tournament, TournamentStatus, TournamentTier } from '$lib/types/tournament';
+import { normalizeTier } from '$lib/types/tournament';
 import {
 	collection,
-	getDocs,
 	getDoc,
 	doc,
 	query,
 	orderBy,
+	where,
 	Timestamp,
 	onSnapshot
 } from 'firebase/firestore';
@@ -48,120 +49,19 @@ export interface TournamentFilters {
 	timeFilter?: 'all' | 'past' | 'future';
 }
 
-/**
- * Get all public tournaments with client-side filtering
- * Returns tournaments sorted by tournamentDate ascending (upcoming first)
- */
-export async function getPublicTournaments(
-	filters: TournamentFilters = {}
-): Promise<TournamentListItem[]> {
-	if (!browser || !isFirebaseEnabled()) {
-		console.warn('Firebase disabled');
-		return [];
-	}
 
-	try {
-		const tournamentsRef = collection(db!, 'tournaments');
-		const q = query(tournamentsRef, orderBy('tournamentDate', 'asc'));
-		const snapshot = await getDocs(q);
-
-		const now = Date.now();
-		const tournaments: TournamentListItem[] = [];
-
-		snapshot.forEach((docSnap) => {
-			const data = docSnap.data() as Tournament;
-
-			// Extract tournamentDate
-			let tournamentDate: number | undefined;
-			if (data.tournamentDate) {
-				tournamentDate =
-					data.tournamentDate instanceof Timestamp
-						? data.tournamentDate.toMillis()
-						: data.tournamentDate;
-			}
-
-			// Apply filters
-			// Year filter
-			if (filters.year && tournamentDate) {
-				const tournamentYear = new Date(tournamentDate).getFullYear();
-				if (tournamentYear !== filters.year) return;
-			}
-
-			// Country filter
-			if (filters.country && data.country !== filters.country) return;
-
-			// Game type filter
-			if (filters.gameType && filters.gameType !== 'all' && data.gameType !== filters.gameType)
-				return;
-
-			// Time filter (past/future)
-			if (filters.timeFilter && filters.timeFilter !== 'all' && tournamentDate) {
-				if (filters.timeFilter === 'past' && tournamentDate > now) return;
-				if (filters.timeFilter === 'future' && tournamentDate <= now) return;
-			}
-
-			// Skip test tournaments from public view
-			if (data.isTest === true) return;
-
-			// Count active participants
-			const participantsCount = data.participants?.filter((p) => p.status === 'ACTIVE').length || 0;
-
-			tournaments.push({
-				id: docSnap.id,
-				key: data.key || '',
-				name: data.name,
-				edition: data.edition,
-				country: data.country,
-				city: data.city,
-				address: data.address,
-				tournamentDate,
-				status: data.status,
-				gameType: data.gameType,
-				participantsCount,
-				tier: data.rankingConfig?.enabled ? data.rankingConfig.tier : undefined,
-				createdAt:
-					data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
-				isImported: data.isImported,
-				posterUrl: data.posterUrl
-			});
-		});
-
-		// Sort: future tournaments first (by date asc), then past (by date desc)
-		tournaments.sort((a, b) => {
-			const aDate = a.tournamentDate || 0;
-			const bDate = b.tournamentDate || 0;
-			const aIsFuture = aDate > now;
-			const bIsFuture = bDate > now;
-
-			// Future tournaments come first
-			if (aIsFuture && !bIsFuture) return -1;
-			if (!aIsFuture && bIsFuture) return 1;
-
-			// Within same category, sort appropriately
-			if (aIsFuture && bIsFuture) {
-				// Future: ascending (closest first)
-				return aDate - bDate;
-			} else {
-				// Past: descending (most recent first)
-				return bDate - aDate;
-			}
-		});
-
-		console.log(`✅ Retrieved ${tournaments.length} public tournaments`);
-		return tournaments;
-	} catch (error) {
-		console.error('❌ Error getting public tournaments:', error);
-		return [];
-	}
-}
 
 /**
  * Subscribe to public tournaments in real-time
  * Returns an unsubscribe function
+ *
+ * @param yearFilter Optional year to filter server-side (reduces Firestore reads).
+ *                   tournamentDate is stored as epoch ms (normalized via migration).
  */
 export function subscribeToPublicTournaments(
 	onUpdate: (tournaments: TournamentListItem[]) => void,
-	onError?: (error: Error) => void
+	onError?: (error: Error) => void,
+	yearFilter?: number
 ): () => void {
 	if (!browser || !isFirebaseEnabled()) {
 		console.warn('Firebase disabled');
@@ -171,12 +71,22 @@ export function subscribeToPublicTournaments(
 
 	try {
 		const tournamentsRef = collection(db!, 'tournaments');
-		const q = query(tournamentsRef, orderBy('tournamentDate', 'asc'));
+		const constraints = [orderBy('tournamentDate', 'asc')];
+
+		if (yearFilter) {
+			const startOfYear = new Date(yearFilter, 0, 1).getTime();
+			const startOfNextYear = new Date(yearFilter + 1, 0, 1).getTime();
+			constraints.push(
+				where('tournamentDate', '>=', startOfYear),
+				where('tournamentDate', '<', startOfNextYear)
+			);
+		}
+
+		const q = query(tournamentsRef, ...constraints);
 
 		const unsubscribe = onSnapshot(
 			q,
 			(snapshot) => {
-				const now = Date.now();
 				const tournaments: TournamentListItem[] = [];
 
 				snapshot.forEach((docSnap) => {
@@ -194,9 +104,13 @@ export function subscribeToPublicTournaments(
 					// Skip test tournaments from public view
 					if (data.isTest === true) return;
 
-					// Count active participants
-					const participantsCount =
-						data.participants?.filter((p) => p.status === 'ACTIVE').length || 0;
+					// Count active participants without allocating a filtered array
+					let participantsCount = 0;
+					if (data.participants) {
+						for (const p of data.participants) {
+							if (p.status === 'ACTIVE') participantsCount++;
+						}
+					}
 
 					tournaments.push({
 						id: docSnap.id,
@@ -218,27 +132,7 @@ export function subscribeToPublicTournaments(
 					});
 				});
 
-				// Sort: future tournaments first (by date asc), then past (by date desc)
-				tournaments.sort((a, b) => {
-					const aDate = a.tournamentDate || 0;
-					const bDate = b.tournamentDate || 0;
-					const aIsFuture = aDate > now;
-					const bIsFuture = bDate > now;
-
-					// Future tournaments come first
-					if (aIsFuture && !bIsFuture) return -1;
-					if (!aIsFuture && bIsFuture) return 1;
-
-					// Within same category, sort appropriately
-					if (aIsFuture && bIsFuture) {
-						// Future: ascending (closest first)
-						return aDate - bDate;
-					} else {
-						// Past: descending (most recent first)
-						return bDate - aDate;
-					}
-				});
-
+				// No sort here — the page applies its own sort via sortTournaments()
 				console.log(`✅ Real-time update: ${tournaments.length} public tournaments`);
 				onUpdate(tournaments);
 			},
@@ -257,62 +151,95 @@ export function subscribeToPublicTournaments(
 }
 
 /**
- * Get available years from tournaments (for year filter dropdown)
+ * Sort tournaments: future first (ascending/closest first), then past (descending/most recent first)
+ * Pure function, testable without Firebase
  */
-export async function getAvailableTournamentYears(): Promise<number[]> {
-	if (!browser || !isFirebaseEnabled()) {
-		return [new Date().getFullYear()];
-	}
-
-	try {
-		const tournamentsRef = collection(db!, 'tournaments');
-		const snapshot = await getDocs(tournamentsRef);
-
-		const years = new Set<number>();
-		snapshot.forEach((docSnap) => {
-			const data = docSnap.data();
-			if (data.tournamentDate) {
-				const date =
-					data.tournamentDate instanceof Timestamp
-						? data.tournamentDate.toMillis()
-						: data.tournamentDate;
-				years.add(new Date(date).getFullYear());
-			}
+export function sortTournaments(
+	tournaments: TournamentListItem[],
+	timeFilter: 'all' | 'past' | 'future' = 'all',
+	now: number = Date.now()
+): TournamentListItem[] {
+	const sorted = [...tournaments];
+	if (timeFilter === 'future') {
+		sorted.sort((a, b) => (a.tournamentDate || 0) - (b.tournamentDate || 0));
+	} else if (timeFilter === 'past') {
+		sorted.sort((a, b) => (b.tournamentDate || 0) - (a.tournamentDate || 0));
+	} else {
+		sorted.sort((a, b) => {
+			const aDate = a.tournamentDate || 0;
+			const bDate = b.tournamentDate || 0;
+			const aIsFuture = aDate > now;
+			const bIsFuture = bDate > now;
+			if (aIsFuture && !bIsFuture) return -1;
+			if (!aIsFuture && bIsFuture) return 1;
+			if (aIsFuture) return aDate - bDate;
+			return bDate - aDate;
 		});
-
-		// Sort descending (newest first)
-		return Array.from(years).sort((a, b) => b - a);
-	} catch (error) {
-		console.error('❌ Error getting tournament years:', error);
-		return [new Date().getFullYear()];
 	}
+	return sorted;
 }
 
 /**
- * Get available countries from tournaments (for country filter dropdown)
+ * Filter tournaments based on filter criteria
+ * Pure function, testable without Firebase
  */
-export async function getAvailableTournamentCountries(): Promise<string[]> {
-	if (!browser || !isFirebaseEnabled()) {
-		return [];
+export function filterTournaments(
+	tournaments: TournamentListItem[],
+	filters: TournamentFilters & { tier?: string },
+	now: number = Date.now()
+): TournamentListItem[] {
+	return tournaments.filter(t => {
+		// Exclude cancelled
+		if (t.status === 'CANCELLED') return false;
+
+		// Year filter
+		if (filters.year && t.tournamentDate) {
+			if (new Date(t.tournamentDate).getFullYear() !== filters.year) return false;
+		}
+
+		// Country filter
+		if (filters.country && t.country !== filters.country) return false;
+
+		// Game type filter
+		if (filters.gameType && filters.gameType !== 'all' && t.gameType !== filters.gameType) return false;
+
+		// Tier filter (normalize legacy tier names)
+		if (filters.tier && filters.tier !== 'all' && (!t.tier || normalizeTier(t.tier) !== filters.tier)) return false;
+
+		// Time filter
+		if (filters.timeFilter && filters.timeFilter !== 'all' && t.tournamentDate) {
+			if (filters.timeFilter === 'past' && t.tournamentDate > now) return false;
+			if (filters.timeFilter === 'future' && t.tournamentDate <= now) return false;
+		}
+
+		return true;
+	});
+}
+
+/**
+ * Extract available years and countries from tournament data
+ * Pure function, testable without Firebase
+ */
+export function extractFilterOptions(tournaments: TournamentListItem[]): {
+	years: number[];
+	countries: string[];
+} {
+	const years = new Set<number>();
+	const countries = new Set<string>();
+
+	for (const t of tournaments) {
+		if (t.tournamentDate) {
+			years.add(new Date(t.tournamentDate).getFullYear());
+		}
+		if (t.country) {
+			countries.add(t.country);
+		}
 	}
 
-	try {
-		const tournamentsRef = collection(db!, 'tournaments');
-		const snapshot = await getDocs(tournamentsRef);
-
-		const countries = new Set<string>();
-		snapshot.forEach((docSnap) => {
-			const data = docSnap.data();
-			if (data.country) {
-				countries.add(data.country);
-			}
-		});
-
-		return Array.from(countries).sort();
-	} catch (error) {
-		console.error('❌ Error getting tournament countries:', error);
-		return [];
-	}
+	return {
+		years: Array.from(years).sort((a, b) => b - a),
+		countries: Array.from(countries).sort()
+	};
 }
 
 /**

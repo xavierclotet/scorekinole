@@ -28,19 +28,16 @@
 	};
 
 	// Check if tournament is "upcoming" (isImported + future date)
-	const isUpcoming = $derived(() => {
+	const isUpcoming = $derived.by(() => {
 		if (!tournament.isImported) return false;
 		const now = Date.now();
 		return tournament.tournamentDate && tournament.tournamentDate > now;
 	});
 
 	// Get display status (considering upcoming for imported tournaments)
-	const displayStatus = $derived(() => {
-		if (tournament.isImported && isUpcoming()) {
-			return 'UPCOMING';
-		}
-		return tournament.status;
-	});
+	const displayStatus = $derived(
+		tournament.isImported && isUpcoming ? 'UPCOMING' : tournament.status
+	);
 
 	// Use translated status labels
 	const getStatusLabel = (status: string): string => {
@@ -143,8 +140,8 @@
 	<div class="card-footer">
 		<div class="badges">
 			<span class="badge mode">{tournament.gameType === 'singles' ? '1v1' : '2v2'}</span>
-			<span class="badge status" style="--status-color: {statusColors[displayStatus()]}">
-				{getStatusLabel(displayStatus())}
+			<span class="badge status" style="--status-color: {statusColors[displayStatus]}">
+				{getStatusLabel(displayStatus)}
 			</span>
 			{#if tournament.tier}
 				<TierBadge tier={tournament.tier} />

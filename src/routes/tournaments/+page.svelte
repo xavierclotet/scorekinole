@@ -4,11 +4,11 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import {
 		subscribeToPublicTournaments,
-		getAvailableTournamentYears,
-		getAvailableTournamentCountries,
+		filterTournaments,
+		sortTournaments,
+		extractFilterOptions,
 		type TournamentListItem
 	} from '$lib/firebase/publicTournaments';
-	import { normalizeTier } from '$lib/types/tournament';
 	import TournamentCard from '$lib/components/TournamentCard.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -40,43 +40,16 @@
 	let visibleCount = $state(PAGE_SIZE);
 	let gridContainer: HTMLElement | null = $state(null);
 
-	// Filtered tournaments
+	// Filtered and sorted tournaments
 	let filteredTournaments = $derived.by(() => {
-		// Exclude cancelled tournaments from public list
-		let result = allTournaments.filter((t) => t.status !== 'CANCELLED');
-
-		if (selectedYear) {
-			result = result.filter((t) => {
-				if (!t.tournamentDate) return false;
-				return new Date(t.tournamentDate).getFullYear() === selectedYear;
-			});
-		}
-
-		if (selectedCountry) {
-			result = result.filter((t) => t.country === selectedCountry);
-		}
-
-		if (selectedMode !== 'all') {
-			result = result.filter((t) => t.gameType === selectedMode);
-		}
-
-		if (selectedTier !== 'all') {
-			result = result.filter((t) => t.tier && normalizeTier(t.tier) === selectedTier);
-		}
-
-		if (timeFilter !== 'all') {
-			const now = Date.now();
-			if (timeFilter === 'past') {
-				result = result.filter((t) => t.tournamentDate && t.tournamentDate < now);
-			} else {
-				result = result.filter((t) => !t.tournamentDate || t.tournamentDate >= now);
-			}
-		}
-
-		// Sort by date descending (newest first)
-		result.sort((a, b) => (b.tournamentDate || 0) - (a.tournamentDate || 0));
-
-		return result;
+		const filtered = filterTournaments(allTournaments, {
+			year: selectedYear,
+			country: selectedCountry || undefined,
+			gameType: selectedMode,
+			timeFilter,
+			tier: selectedTier
+		});
+		return sortTournaments(filtered, timeFilter);
 	});
 
 	let visibleTournaments = $derived(filteredTournaments.slice(0, visibleCount));
@@ -101,60 +74,64 @@
 	});
 
 	// Subscription cleanup
-	let unsubscribe: (() => void) | null = $state(null);
+	let unsubscribe: (() => void) | null = null;
+	let yearsPopulated = $state(false);
+	let subscribedYear: number | undefined = undefined;
 
-	onMount(async () => {
-		// Start subscription immediately - no separate filter loading needed
+	onMount(() => {
+		// Initial full load to extract available years
 		setupSubscription();
 
 		return () => {
-			// Cleanup subscription on unmount
 			if (unsubscribe) {
 				unsubscribe();
 			}
 		};
 	});
 
-	// Derive filters from actually loaded tournaments to avoid 2 extra full-collection fetches
-	function updateFiltersFromData(tournaments: TournamentListItem[]) {
-		const years = new Set<number>();
-		const countries = new Set<string>();
-		
-		tournaments.forEach(t => {
-			if (t.tournamentDate) {
-				years.add(new Date(t.tournamentDate).getFullYear());
-			}
-			if (t.country) {
-				countries.add(t.country);
-			}
-		});
+	// Re-subscribe with year filter when selectedYear changes
+	$effect(() => {
+		if (!yearsPopulated) return; // Wait for initial load
+		if (selectedYear === subscribedYear) return; // Already subscribed to this year
+		setupSubscription(selectedYear);
+	});
 
-		availableYears = Array.from(years).sort((a, b) => b - a);
-		availableCountries = Array.from(countries).sort();
-
-		// Set default year if available and not yet set
-		if (availableYears.length > 0 && selectedYear === undefined) {
-			const currentYear = new Date().getFullYear();
-			if (availableYears.includes(currentYear)) {
-				selectedYear = currentYear;
-			}
+	function setupSubscription(yearFilter?: number) {
+		if (unsubscribe) {
+			unsubscribe();
 		}
-	}
-
-	function setupSubscription() {
 		isLoading = true;
+		subscribedYear = yearFilter;
 
 		unsubscribe = subscribeToPublicTournaments(
 			(tournaments) => {
 				allTournaments = tournaments;
-				// Update filter options based on the data we just got
-				updateFiltersFromData(tournaments);
+
+				// Extract years/countries only from the initial full load
+				if (!yearsPopulated) {
+					const options = extractFilterOptions(tournaments);
+					availableYears = options.years;
+					availableCountries = options.countries;
+					yearsPopulated = true;
+
+					// Set default year
+					if (availableYears.length > 0 && selectedYear === undefined) {
+						const currentYear = new Date().getFullYear();
+						if (availableYears.includes(currentYear)) {
+							selectedYear = currentYear;
+							// Don't set isLoading=false — the $effect will re-subscribe with yearFilter
+							return;
+						}
+					}
+				}
+
 				isLoading = false;
 			},
 			(error) => {
 				console.error('Error in tournament subscription:', error);
 				isLoading = false;
-			}
+			},
+			yearFilter
 		);
 	}
 
@@ -171,10 +148,8 @@
 	}
 
 	async function handleRefresh() {
-		// Reset subscription to force refresh
-		if (unsubscribe) {
-			unsubscribe();
-		}
+		yearsPopulated = false;
+		subscribedYear = undefined;
 		setupSubscription();
 	}
 
