@@ -110,11 +110,7 @@
 
   // Get consolationEnabled from tournament's finalStage (set during creation)
   let consolationEnabled = $derived<boolean>(
-    Boolean(
-      tournament?.finalStage?.consolationEnabled ??
-      (tournament?.finalStage as unknown as Record<string, unknown>)?.['consolationEnabled '] ?? // Typo fallback
-      false
-    )
+    Boolean(tournament?.finalStage?.consolationEnabled ?? false)
   );
 
   // Get thirdPlaceMatchEnabled from tournament's finalStage (default to true)
@@ -216,13 +212,9 @@
     if (!tournamentId || isRecalculating) return;
     isRecalculating = true;
     try {
-      console.log('=== RECALCULATING STANDINGS ===');
-      console.log('Tournament ID:', tournamentId);
       await recalculateStandings(tournamentId);
       // Reload tournament to get updated standings
       tournament = await getTournament(tournamentId);
-      console.log('=== STANDINGS RECALCULATED ===');
-      console.log('Updated groups:', tournament?.groupStage?.groups);
       toastMessage = m.admin_standingsRecalculated();
       toastType = 'success';
       showToast = true;
@@ -424,7 +416,6 @@
         }
       };
 
-      console.log(`[Transition] Standings updated for group ${groupIndex}`);
     } catch (err) {
       console.error('Error saving standings:', err);
       toastMessage = 'Error saving standings';

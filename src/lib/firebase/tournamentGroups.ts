@@ -351,132 +351,143 @@ export async function recalculateStandings(
   tournamentId: string,
   groupId?: string
 ): Promise<boolean> {
-  const tournament = await getTournament(tournamentId);
-  if (!tournament || !tournament.groupStage) {
-    console.error('Tournament or group stage not found');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
   try {
-    const groupsToUpdate = groupId
-      ? tournament.groupStage.groups.filter(g => g.id === groupId)
-      : tournament.groupStage.groups;
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
 
-    for (const group of groupsToUpdate) {
-      // Initialize standings
-      const standingsMap = new Map<string, GroupStanding>();
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
 
-      group.participants.forEach(participantId => {
-        standingsMap.set(participantId, {
-          participantId,
-          position: 0,
-          matchesPlayed: 0,
-          matchesWon: 0,
-          matchesLost: 0,
-          matchesTied: 0,
-          points: 0,
-          total20s: 0,
-          totalPointsScored: 0,
-          qualifiedForFinal: false,
-          headToHeadRecord: {} // Initialize head-to-head record
-        });
-      });
-
-      // Get all matches
-      const matches: GroupMatch[] = [];
-      if (group.schedule) {
-        group.schedule.forEach(round => matches.push(...round.matches));
-      }
-      if (group.pairings) {
-        group.pairings.forEach(pairing => matches.push(...pairing.matches));
+      const tournament = parseTournamentData(snapshot.data());
+      if (!tournament.groupStage) {
+        throw new Error('Group stage not found');
       }
 
-      // Calculate statistics from completed matches
-      matches
-        .filter(m => m.status === 'COMPLETED' || m.status === 'WALKOVER')
-        .forEach(match => {
-          const standingA = standingsMap.get(match.participantA);
-          const standingB =
-            match.participantB !== 'BYE' ? standingsMap.get(match.participantB) : null;
+      const groupsToUpdate = groupId
+        ? tournament.groupStage.groups.filter(g => g.id === groupId)
+        : tournament.groupStage.groups;
 
-          if (!standingA) return;
+      for (const group of groupsToUpdate) {
+        // Initialize standings
+        const standingsMap = new Map<string, GroupStanding>();
 
-          // Update matches played
-          standingA.matchesPlayed++;
-          if (standingB) {
-            standingB.matchesPlayed++;
-          }
-
-          // Update 20s and points scored
-          standingA.total20s += match.total20sA || 0;
-          standingA.totalPointsScored += match.totalPointsA || 0;
-
-          if (standingB) {
-            standingB.total20s += match.total20sB || 0;
-            standingB.totalPointsScored += match.totalPointsB || 0;
-          }
-
-          // Update wins/losses/ties
-          if (match.winner === match.participantA) {
-            standingA.matchesWon++;
-            if (standingB) {
-              standingB.matchesLost++;
-            }
-          } else if (match.winner === match.participantB && standingB) {
-            standingA.matchesLost++;
-            standingB.matchesWon++;
-          } else if (!match.winner) {
-            // Tie
-            standingA.matchesTied++;
-            if (standingB) {
-              standingB.matchesTied++;
-            }
-          }
-
-          // Update head-to-head (including 20s for mini-league tiebreaker)
-          if (standingB && match.participantB !== 'BYE') {
-            const standings = Array.from(standingsMap.values());
-            const updatedStandings = updateHeadToHeadRecord(
-              standings,
-              match.participantA,
-              match.participantB,
-              match.winner || null,
-              match.total20sA || 0,
-              match.total20sB || 0
-            );
-            updatedStandings.forEach(s => standingsMap.set(s.participantId, s));
-          }
+        group.participants.forEach(participantId => {
+          standingsMap.set(participantId, {
+            participantId,
+            position: 0,
+            matchesPlayed: 0,
+            matchesWon: 0,
+            matchesLost: 0,
+            matchesTied: 0,
+            points: 0,
+            total20s: 0,
+            totalPointsScored: 0,
+            qualifiedForFinal: false,
+            headToHeadRecord: {}
+          });
         });
 
-      // Calculate points
-      standingsMap.forEach(standing => {
-        standing.points = calculateMatchPoints(standing.matchesWon, standing.matchesTied);
-      });
+        // Get all matches
+        const matches: GroupMatch[] = [];
+        if (group.schedule) {
+          group.schedule.forEach(round => matches.push(...round.matches));
+        }
+        if (group.pairings) {
+          group.pairings.forEach(pairing => matches.push(...pairing.matches));
+        }
 
-      // For Swiss: calculate swissPoints (2/1/0 - same as Round Robin)
-      const isSwiss = tournament.groupStage?.type === 'SWISS';
-      // Support qualificationMode (new) and legacy fields (rankingSystem, swissRankingSystem)
-      const qualificationMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS';
+        // Calculate statistics from completed matches
+        matches
+          .filter(m => m.status === 'COMPLETED' || m.status === 'WALKOVER')
+          .forEach(match => {
+            const standingA = standingsMap.get(match.participantA);
+            const standingB =
+              match.participantB !== 'BYE' ? standingsMap.get(match.participantB) : null;
 
-      if (isSwiss) {
+            if (!standingA) return;
+
+            // Update matches played
+            standingA.matchesPlayed++;
+            if (standingB) {
+              standingB.matchesPlayed++;
+            }
+
+            // Update 20s and points scored
+            standingA.total20s += match.total20sA || 0;
+            standingA.totalPointsScored += match.totalPointsA || 0;
+
+            if (standingB) {
+              standingB.total20s += match.total20sB || 0;
+              standingB.totalPointsScored += match.totalPointsB || 0;
+            }
+
+            // Update wins/losses/ties
+            if (match.winner === match.participantA) {
+              standingA.matchesWon++;
+              if (standingB) {
+                standingB.matchesLost++;
+              }
+            } else if (match.winner === match.participantB && standingB) {
+              standingA.matchesLost++;
+              standingB.matchesWon++;
+            } else if (!match.winner) {
+              standingA.matchesTied++;
+              if (standingB) {
+                standingB.matchesTied++;
+              }
+            }
+
+            // Update head-to-head (including 20s for mini-league tiebreaker)
+            if (standingB && match.participantB !== 'BYE') {
+              const standings = Array.from(standingsMap.values());
+              const updatedStandings = updateHeadToHeadRecord(
+                standings,
+                match.participantA,
+                match.participantB,
+                match.winner || null,
+                match.total20sA || 0,
+                match.total20sB || 0
+              );
+              updatedStandings.forEach(s => standingsMap.set(s.participantId, s));
+            }
+          });
+
+        // Calculate points
         standingsMap.forEach(standing => {
-          standing.swissPoints = standing.matchesWon * 2 + standing.matchesTied * 1;
+          standing.points = calculateMatchPoints(standing.matchesWon, standing.matchesTied);
         });
+
+        // For Swiss: calculate swissPoints (2/1/0 - same as Round Robin)
+        const isSwiss = tournament.groupStage?.type === 'SWISS';
+        const qualificationMode = tournament.groupStage?.qualificationMode || tournament.groupStage?.rankingSystem || tournament.groupStage?.swissRankingSystem || 'WINS';
+
+        if (isSwiss) {
+          standingsMap.forEach(standing => {
+            standing.swissPoints = standing.matchesWon * 2 + standing.matchesTied * 1;
+          });
+        }
+
+        // Apply tie-breaker and sort
+        const standings = Array.from(standingsMap.values());
+        const tiebreakerPriority = tournament.groupStage?.tiebreakerPriority;
+        const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode, tournament.show20s !== false, tiebreakerPriority);
+
+        // Update group standings
+        group.standings = sortedStandings;
       }
 
-      // Apply tie-breaker and sort
-      const standings = Array.from(standingsMap.values());
-      const tiebreakerPriority = tournament.groupStage?.tiebreakerPriority;
-      const sortedStandings = resolveTiebreaker(standings, tournament.participants, isSwiss, qualificationMode, tournament.show20s !== false, tiebreakerPriority);
-
-      // Update group standings
-      group.standings = sortedStandings;
-    }
-
-    // Update tournament (public - allows non-authenticated users with tournament key)
-    return await updateTournamentPublic(tournamentId, {
-      groupStage: tournament.groupStage
+      transaction.update(tournamentRef, {
+        groupStage: tournament.groupStage,
+        updatedAt: serverTimestamp()
+      });
     });
+
+    return true;
   } catch (error) {
     console.error('❌ Error recalculating standings:', error);
     return false;
