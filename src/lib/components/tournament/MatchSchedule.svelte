@@ -87,7 +87,7 @@
           return false;
         }
         return true;
-      })
+      }).sort((a, b) => (a.tableNumber ?? Infinity) - (b.tableNumber ?? Infinity))
     };
   }).filter(round => round.matches.length > 0));
 
