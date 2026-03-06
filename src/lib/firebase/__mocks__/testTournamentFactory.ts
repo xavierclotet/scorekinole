@@ -30,6 +30,8 @@ interface CreateTestTournamentOptions {
   swissRounds?: number;
   /** Custom tournament ID */
   tournamentId?: string;
+  /** Best-of-N: number of games to win a match (default 1) */
+  matchesToWin?: number;
 }
 
 /**
@@ -110,7 +112,8 @@ export function createTestTournament(options: CreateTestTournamentOptions): Tour
     qualificationMode,
     gameType = 'singles',
     show20s = true,
-    tournamentId = 'test-tournament-1'
+    tournamentId = 'test-tournament-1',
+    matchesToWin = 1
   } = options;
 
   const { participants, participantIds } = createParticipants(numParticipants, gameType);
@@ -142,7 +145,7 @@ export function createTestTournament(options: CreateTestTournamentOptions): Tour
     gameMode,
     pointsToWin: gameMode === 'points' ? 7 : undefined,
     roundsToPlay: gameMode === 'rounds' ? 4 : undefined,
-    matchesToWin: 1,
+    matchesToWin,
     qualificationMode
   };
 

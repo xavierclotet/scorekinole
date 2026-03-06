@@ -14,6 +14,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MockFirestore, MockDocumentReference } from './__mocks__/mockFirestore';
 import {
   createTestTournament,
+  createSwissTournament,
+  createMultiGroupTournament,
   getInProgressMatches,
   createMatchResult,
   findMatchInTournament
@@ -680,5 +682,354 @@ describe('Real-world scale: 30 and 50 concurrent completions', () => {
     }
 
     console.log(`  📊 50 mixed: ${mockStore.totalCommits} commits, ${mockStore.totalRetries} retries`);
+  });
+});
+
+// ============================================================================
+// Winner determination edge cases
+// ============================================================================
+
+describe('Winner determination edge cases', () => {
+  it('rounds mode + matchesToWin=1: winner by total points', async () => {
+    const tournament = createTestTournament({
+      numParticipants: 4,
+      gameMode: 'rounds',
+      matchesToWin: 1
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    const match = matches[0];
+
+    // A wins by total points: 8 vs 4
+    await updateMatchResult(
+      tournament.id,
+      match.id,
+      createMatchResult(1, 0, 8, 4, 1, 0)
+    );
+
+    const updated = readTournament(tournament.id);
+    const m = findMatchInTournament(updated, match.id);
+    expect(m!.status).toBe('COMPLETED');
+    expect(m!.winner).toBe(match.participantA);
+  });
+
+  it('rounds mode + matchesToWin=2 (best-of-3): winner by games won, NOT total points', async () => {
+    const tournament = createTestTournament({
+      numParticipants: 4,
+      gameMode: 'rounds',
+      matchesToWin: 2
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    const match = matches[0];
+
+    // B wins the series 2-1 even though A has more total points
+    // Game 1: A wins 15-0 → A leads 1-0, totalA=15, totalB=0
+    // Game 2: B wins 5-3 → tied 1-1, totalA=18, totalB=5
+    // Game 3: B wins 5-3 → B wins 2-1, totalA=21, totalB=10
+    await updateMatchResult(
+      tournament.id,
+      match.id,
+      createMatchResult(1, 2, 21, 10, 0, 0)
+    );
+
+    const updated = readTournament(tournament.id);
+    const m = findMatchInTournament(updated, match.id);
+    expect(m!.status).toBe('COMPLETED');
+    // B should win (2 games vs 1), NOT A (who has 21 total points vs 10)
+    expect(m!.winner).toBe(match.participantB);
+  });
+
+  it('points mode + matchesToWin=2: winner by games won', async () => {
+    const tournament = createTestTournament({
+      numParticipants: 4,
+      gameMode: 'points',
+      matchesToWin: 2
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    const match = matches[0];
+
+    // A wins the series 2-0
+    await updateMatchResult(
+      tournament.id,
+      match.id,
+      createMatchResult(2, 0, 14, 4, 2, 0)
+    );
+
+    const updated = readTournament(tournament.id);
+    const m = findMatchInTournament(updated, match.id);
+    expect(m!.winner).toBe(match.participantA);
+  });
+
+  it('rounds mode + matchesToWin=1: tie when total points equal', async () => {
+    const tournament = createTestTournament({
+      numParticipants: 4,
+      gameMode: 'rounds',
+      matchesToWin: 1
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    const match = matches[0];
+
+    // Tie: both have 6 total points
+    await updateMatchResult(
+      tournament.id,
+      match.id,
+      createMatchResult(0, 0, 6, 6, 1, 1)
+    );
+
+    const updated = readTournament(tournament.id);
+    const m = findMatchInTournament(updated, match.id);
+    expect(m!.status).toBe('COMPLETED');
+    expect(m!.winner).toBeUndefined(); // Tie, no winner
+  });
+
+  it('points mode: tie when games won are equal', async () => {
+    const tournament = createTestTournament({
+      numParticipants: 4,
+      gameMode: 'points',
+      matchesToWin: 1
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    const match = matches[0];
+
+    // Tie: both won 0 games (shouldn't happen in practice, but tests the code)
+    await updateMatchResult(
+      tournament.id,
+      match.id,
+      createMatchResult(0, 0, 0, 0, 0, 0)
+    );
+
+    const updated = readTournament(tournament.id);
+    const m = findMatchInTournament(updated, match.id);
+    expect(m!.winner).toBeUndefined();
+  });
+});
+
+// ============================================================================
+// Swiss tournament match completions
+// ============================================================================
+
+describe('Swiss tournament match completions', () => {
+  it('complete all Swiss round 1 matches — standings updated correctly', async () => {
+    const tournament = createSwissTournament({
+      numParticipants: 8,
+      gameMode: 'rounds'
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    // 8 players = 4 matches in Swiss round 1 (no BYE)
+    expect(matches.length).toBe(4);
+
+    // Complete all 4 matches: A always wins
+    const results = await Promise.all(
+      matches.map(match =>
+        updateMatchResult(
+          tournament.id,
+          match.id,
+          createMatchResult(1, 0, 8, 4, 1, 0)
+        )
+      )
+    );
+
+    expect(results.every(r => r === true)).toBe(true);
+
+    const updated = readTournament(tournament.id);
+    const standings = updated.groupStage!.groups[0].standings;
+
+    // All 8 players should have 1 match played
+    for (const s of standings) {
+      expect(s.matchesPlayed).toBe(1);
+    }
+
+    // 4 winners, 4 losers
+    const totalWins = standings.reduce((sum, s) => sum + s.matchesWon, 0);
+    expect(totalWins).toBe(4);
+
+    // Swiss points: winners get 2, losers get 0
+    for (const s of standings) {
+      if (s.matchesWon === 1) {
+        expect(s.swissPoints).toBe(2);
+      } else {
+        expect(s.swissPoints).toBe(0);
+      }
+    }
+  });
+
+  it('Swiss with odd participants — BYE match handled', async () => {
+    const tournament = createSwissTournament({
+      numParticipants: 7,
+      gameMode: 'rounds'
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    // 7 players: 3 real matches + 1 BYE (but BYE is auto-completed, not IN_PROGRESS)
+    expect(matches.length).toBe(3);
+
+    const results = await Promise.all(
+      matches.map(match =>
+        updateMatchResult(
+          tournament.id,
+          match.id,
+          createMatchResult(1, 0, 8, 4, 1, 0)
+        )
+      )
+    );
+
+    expect(results.every(r => r === true)).toBe(true);
+
+    const updated = readTournament(tournament.id);
+    const standings = updated.groupStage!.groups[0].standings;
+
+    // 3 match winners + BYE beneficiary = 4 with at least 1 win
+    // (BYE standings are handled at pairing generation, not match completion)
+    const totalMatchesPlayed = standings.reduce((sum, s) => sum + s.matchesPlayed, 0);
+    // 3 matches × 2 participants + BYE handled separately = at least 6
+    expect(totalMatchesPlayed).toBeGreaterThanOrEqual(6);
+  });
+
+  it('Swiss concurrent completions preserve standings', async () => {
+    const tournament = createSwissTournament({
+      numParticipants: 10,
+      gameMode: 'rounds'
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    // 10 players = 5 matches in Swiss round 1
+    expect(matches.length).toBe(5);
+
+    // All 5 complete concurrently
+    const results = await Promise.all(
+      matches.map((match, i) =>
+        updateMatchResult(
+          tournament.id,
+          match.id,
+          createMatchResult(
+            i % 2 === 0 ? 1 : 0,
+            i % 2 === 0 ? 0 : 1,
+            i % 2 === 0 ? 8 : 4,
+            i % 2 === 0 ? 4 : 8,
+            1, 0
+          )
+        )
+      )
+    );
+
+    expect(results.every(r => r === true)).toBe(true);
+
+    const updated = readTournament(tournament.id);
+    const standings = updated.groupStage!.groups[0].standings;
+
+    // All 10 players should have 1 match played
+    for (const s of standings) {
+      expect(s.matchesPlayed).toBe(1);
+    }
+
+    const totalWins = standings.reduce((sum, s) => sum + s.matchesWon, 0);
+    expect(totalWins).toBe(5);
+
+    expect(mockStore.totalRetries).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================================
+// Multi-group tournament edge cases
+// ============================================================================
+
+describe('Multi-group tournament completions', () => {
+  it('2 groups: completions in both groups maintain separate standings', async () => {
+    const tournament = createMultiGroupTournament(8, 2);
+    seedTournament(tournament);
+
+    // Complete one match per group
+    const matchesGroup0 = getInProgressMatches(tournament, 0);
+    const matchesGroup1 = getInProgressMatches(tournament, 1);
+
+    expect(matchesGroup0.length).toBeGreaterThan(0);
+    expect(matchesGroup1.length).toBeGreaterThan(0);
+
+    const results = await Promise.all([
+      updateMatchResult(
+        tournament.id,
+        matchesGroup0[0].id,
+        createMatchResult(2, 0, 8, 2, 1, 0)
+      ),
+      updateMatchResult(
+        tournament.id,
+        matchesGroup1[0].id,
+        createMatchResult(0, 2, 2, 8, 0, 1)
+      )
+    ]);
+
+    expect(results.every(r => r === true)).toBe(true);
+
+    const updated = readTournament(tournament.id);
+
+    // Group 0: match completed
+    const m0 = findMatchInTournament(updated, matchesGroup0[0].id);
+    expect(m0!.status).toBe('COMPLETED');
+    expect(m0!.winner).toBe(matchesGroup0[0].participantA);
+
+    // Group 1: match completed
+    const m1 = findMatchInTournament(updated, matchesGroup1[0].id);
+    expect(m1!.status).toBe('COMPLETED');
+    expect(m1!.winner).toBe(matchesGroup1[0].participantB);
+
+    // Verify standings are separate
+    const standings0 = updated.groupStage!.groups[0].standings;
+    const standings1 = updated.groupStage!.groups[1].standings;
+
+    const played0 = standings0.reduce((sum, s) => sum + s.matchesPlayed, 0);
+    const played1 = standings1.reduce((sum, s) => sum + s.matchesPlayed, 0);
+    expect(played0).toBe(2); // 1 match = 2 matchesPlayed entries
+    expect(played1).toBe(2);
+  });
+});
+
+// ============================================================================
+// Standings with ties
+// ============================================================================
+
+describe('Standings with tied matches', () => {
+  it('tied match increments matchesTied for both players', async () => {
+    const tournament = createTestTournament({
+      numParticipants: 4,
+      gameMode: 'rounds'
+    });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    const match = matches[0];
+
+    // Tie: same total points
+    await updateMatchResult(
+      tournament.id,
+      match.id,
+      createMatchResult(0, 0, 6, 6, 1, 1)
+    );
+
+    const updated = readTournament(tournament.id);
+    const standings = updated.groupStage!.groups[0].standings;
+
+    const standingA = standings.find(s => s.participantId === match.participantA);
+    const standingB = standings.find(s => s.participantId === match.participantB);
+
+    expect(standingA!.matchesTied).toBe(1);
+    expect(standingB!.matchesTied).toBe(1);
+    expect(standingA!.matchesWon).toBe(0);
+    expect(standingB!.matchesWon).toBe(0);
+    // Tie points: 1 each (calculateMatchPoints: win=2, tie=1)
+    expect(standingA!.points).toBe(1);
+    expect(standingB!.points).toBe(1);
   });
 });

@@ -246,19 +246,21 @@ export async function updateMatchResult(
 
       // Prevent overwriting already completed matches (idempotency guard)
       if (match.status === 'COMPLETED' || match.status === 'WALKOVER') {
-        console.log(`⏭️ Match ${matchId} already ${match.status}, skipping update`);
         return;
       }
 
       // Determine winner based on game mode (handle ties)
       let winner: string | undefined;
 
-      // Get gameMode from groupStage
+      // Get gameMode and matchesToWin from groupStage
       const gameMode = tournament.groupStage?.gameMode || 'rounds';
+      const matchesToWin = tournament.groupStage?.matchesToWin || 1;
 
-      // In rounds mode, compare total points; in points mode, compare games won
-      const compareValueA = gameMode === 'rounds' ? (result.totalPointsA || 0) : result.gamesWonA;
-      const compareValueB = gameMode === 'rounds' ? (result.totalPointsB || 0) : result.gamesWonB;
+      // When matchesToWin > 1 (best-of-N series), always compare gamesWon.
+      // When matchesToWin === 1: rounds mode compares totalPoints, points mode compares gamesWon.
+      const useGamesWon = matchesToWin > 1 || gameMode === 'points';
+      const compareValueA = useGamesWon ? result.gamesWonA : (result.totalPointsA || 0);
+      const compareValueB = useGamesWon ? result.gamesWonB : (result.totalPointsB || 0);
 
       if (compareValueA > compareValueB) {
         winner = match.participantA;
@@ -289,7 +291,6 @@ export async function updateMatchResult(
       }
       if (result.rounds !== undefined) {
         match.rounds = result.rounds;
-        console.log('💾 Saved rounds to match:', match.rounds);
       }
       if (result.videoUrl !== undefined) {
         match.videoUrl = result.videoUrl;

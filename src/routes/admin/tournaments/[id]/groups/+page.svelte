@@ -282,21 +282,23 @@
 
     setSyncStatus('syncing');
 
-    // Determine winner based on game mode
+    // Determine winner based on game mode (handles ties and matchesToWin > 1)
     const gameMode = tournament?.groupStage?.gameMode || 'rounds';
-    let winner: string;
+    const matchesToWin = tournament?.groupStage?.matchesToWin || 1;
+    let winner: string | undefined;
 
-    if (gameMode === 'rounds') {
-      // In rounds mode, compare total points
-      winner = (result.totalPointsA || 0) > (result.totalPointsB || 0)
-        ? selectedMatch.participantA
-        : selectedMatch.participantB;
-    } else {
-      // In points mode, compare games won
-      winner = result.gamesWonA > result.gamesWonB
-        ? selectedMatch.participantA
-        : selectedMatch.participantB;
+    // When matchesToWin > 1 (best-of-N series), always compare gamesWon.
+    // When matchesToWin === 1: rounds mode compares totalPoints, points mode compares gamesWon.
+    const useGamesWon = matchesToWin > 1 || gameMode === 'points';
+    const compareA = useGamesWon ? result.gamesWonA : (result.totalPointsA || 0);
+    const compareB = useGamesWon ? result.gamesWonB : (result.totalPointsB || 0);
+
+    if (compareA > compareB) {
+      winner = selectedMatch.participantA;
+    } else if (compareB > compareA) {
+      winner = selectedMatch.participantB;
     }
+    // If tied, winner remains undefined
 
     const success = await completeMatch(
       tournamentId,
@@ -305,7 +307,7 @@
       activeGroupId || undefined,
       {
         rounds: result.rounds || [],
-        winner,
+        winner: winner ?? null,
         gamesWonA: result.gamesWonA,
         gamesWonB: result.gamesWonB,
         totalPointsA: result.totalPointsA || 0,
