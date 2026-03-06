@@ -347,6 +347,7 @@
       country = tournament.country || '';
       city = tournament.city || '';
       address = tournament.address || '';
+      venueId = tournament.venueId || undefined;
       tournamentDate = tournament.tournamentDate ? new Date(tournament.tournamentDate).toISOString().split('T')[0] : '';
       tournamentTime = tournament.tournamentTime || '';
       gameType = tournament.gameType;

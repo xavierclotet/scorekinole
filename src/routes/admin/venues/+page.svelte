@@ -6,7 +6,7 @@
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
-  import { isSuperAdminUser } from '$lib/stores/admin';
+  import { isSuperAdminUser, adminCheckLoading } from '$lib/stores/admin';
   import { currentUser } from '$lib/firebase/auth';
   import {
     getAllVenues,
@@ -18,13 +18,6 @@
   } from '$lib/firebase/venues';
   import type { Venue } from '$lib/types/venue';
   import { getVenueLocationDisplay } from '$lib/types/venue';
-  import {
-    ChevronLeft,
-    Trash2,
-    Merge,
-    Search,
-    X
-  } from '@lucide/svelte';
 
   let venues = $state<Venue[]>([]);
   let isLoading = $state(true);
@@ -70,8 +63,11 @@
     return venues.filter((v) => v.id !== venueToMerge!.id);
   });
 
-  onMount(() => {
-    loadVenues();
+  // Wait for admin state to be ready before loading venues
+  $effect(() => {
+    if (!$adminCheckLoading) {
+      loadVenues();
+    }
   });
 
   async function loadVenues() {
@@ -146,8 +142,6 @@
     }
   }
 
-  // Preview is loaded when merge modal opens (inside openMergeModal)
-
   async function confirmMerge() {
     if (!venueToMerge || !mergeTargetId) return;
     isMerging = true;
@@ -174,515 +168,516 @@
 </script>
 
 <AdminGuard>
-  <div class="admin-layout" data-theme={$adminTheme}>
-    <header class="admin-navbar">
-      <nav class="admin-navbar-inner">
-        <button
-          onclick={() => goto('/admin')}
-          class="admin-back-btn"
-          aria-label={m.admin_backToHome()}
-        >
-          <span class="admin-back-icon">
-            <ChevronLeft size={16} />
-          </span>
-          <span class="admin-back-label">{m.admin_backToHome()}</span>
-        </button>
-        <div class="admin-navbar-actions">
+  <div class="venues-container" data-theme={$adminTheme}>
+    <header class="page-header">
+      <div class="header-row">
+        <button class="back-btn" onclick={() => goto('/admin')}>←</button>
+        <div class="header-main">
+          <div class="title-section">
+            <h1>{m.admin_venueManagement()}</h1>
+            {#if !isLoading}
+              <span class="count-badge">{filteredVenues.length}</span>
+            {/if}
+          </div>
+        </div>
+        <div class="header-actions">
           <ThemeToggle />
         </div>
-      </nav>
+      </div>
     </header>
 
-    <main class="admin-content">
-      <section class="admin-header">
-        <h1 class="admin-title">
-          {m.admin_venueManagement()}
-          {#if !isLoading}
-            <span class="count-badge">{filteredVenues.length}</span>
-          {/if}
-        </h1>
-      </section>
-
-      <!-- Search -->
-      <div class="search-bar">
-        <Search size={16} />
+    <div class="controls-section">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
         <input
           type="text"
           bind:value={searchQuery}
           placeholder={m.admin_venueSearch()}
           class="search-input"
         />
-        {#if searchQuery}
-          <button class="search-clear" onclick={() => (searchQuery = '')}>
-            <X size={14} />
-          </button>
-        {/if}
       </div>
+    </div>
 
-      {#if isLoading}
-        <div class="loading-container">
-          <LoadingSpinner />
-        </div>
-      {:else if filteredVenues.length === 0}
-        <div class="empty-state">
-          <p>{searchQuery ? m.venue_noResults() : m.admin_venueNoVenues()}</p>
-        </div>
-      {:else}
-        <div class="venues-table-wrapper">
-          <table class="venues-table">
-            <thead>
-              <tr>
-                <th class="col-name">{m.venue_name()}</th>
-                <th class="col-location">{m.wizard_city()}</th>
-                <th class="col-owner">{m.admin_venueOwner()}</th>
-                <th class="col-actions"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each filteredVenues as venue (venue.id)}
-                <tr>
-                  <td class="col-name">
-                    <span class="venue-name">{venue.name}</span>
+    {#if isLoading}
+      <LoadingSpinner />
+    {:else if filteredVenues.length === 0}
+      <div class="empty-state">
+        <div class="empty-icon">📍</div>
+        <h3>{searchQuery ? m.venue_noResults() : m.admin_venueNoVenues()}</h3>
+      </div>
+    {:else}
+      <div class="table-container">
+        <table class="venues-table">
+          <thead>
+            <tr>
+              <th class="name-col">{m.venue_name()}</th>
+              <th class="location-col">{m.wizard_city()}</th>
+              <th class="owner-col hide-small">{m.admin_venueOwner()}</th>
+              <th class="actions-col"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filteredVenues as venue (venue.id)}
+              <tr class="venue-row">
+                <td class="name-cell">
+                  <div class="venue-info">
+                    <strong class="venue-name">{venue.name}</strong>
                     {#if venue.address}
-                      <span class="venue-address">{venue.address}</span>
+                      <small class="venue-address">{venue.address}</small>
                     {/if}
-                  </td>
-                  <td class="col-location">
-                    {venue.city}, {venue.country}
-                  </td>
-                  <td class="col-owner">
-                    <span class="owner-name">{venue.ownerName || '—'}</span>
-                  </td>
-                  <td class="col-actions">
-                    <div class="action-buttons">
-                      {#if $isSuperAdminUser}
-                        <button
-                          class="action-btn merge-btn"
-                          title={m.admin_venueMergeTitle()}
-                          onclick={() => openMergeModal(venue)}
-                        >
-                          <Merge size={15} />
-                        </button>
-                      {/if}
-                      <button
-                        class="action-btn delete-btn"
-                        title={m.admin_venueDeleteTitle()}
-                        onclick={() => openDeleteModal(venue)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {/if}
-    </main>
-
-    <!-- Toast -->
-    {#if showToast}
-      <div class="toast" class:toast-error={toastType === 'error'}>
-        {toastMessage}
-      </div>
-    {/if}
-
-    <!-- Delete Modal -->
-    {#if venueToDelete}
-      <div class="modal-overlay" onclick={closeDeleteModal} role="presentation">
-        <div class="modal" role="dialog" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && closeDeleteModal()}>
-          <h3 class="modal-title">{m.admin_venueDeleteTitle()}</h3>
-
-          <div class="modal-venue-info">
-            <strong>{venueToDelete.name}</strong>
-            <span>{getVenueLocationDisplay(venueToDelete)}</span>
-          </div>
-
-          {#if deleteDepLoading}
-            <div class="modal-loading"><LoadingSpinner /></div>
-          {:else if deleteDeps.length > 0}
-            <div class="modal-warning">
-              <p>{m.admin_venueDeleteBlocked()}</p>
-              <ul class="dep-list">
-                {#each deleteDeps as dep (dep.id)}
-                  <li>
-                    <span class="dep-name">{dep.name}</span>
-                    <span class="dep-status">{dep.status}</span>
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {:else}
-            <p class="modal-confirm-text">{m.admin_venueDeleteConfirm()}</p>
-          {/if}
-
-          <div class="modal-actions">
-            <button class="modal-btn cancel" onclick={closeDeleteModal}>
-              {m.common_cancel()}
-            </button>
-            {#if deleteDeps.length === 0 && !deleteDepLoading}
-              <button
-                class="modal-btn danger"
-                onclick={confirmDelete}
-                disabled={isDeleting}
-              >
-                {isDeleting ? '...' : m.common_delete()}
-              </button>
-            {/if}
-          </div>
-        </div>
-      </div>
-    {/if}
-
-    <!-- Merge Modal -->
-    {#if venueToMerge}
-      <div class="modal-overlay" onclick={closeMergeModal} role="presentation">
-        <div class="modal" role="dialog" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && closeMergeModal()}>
-          <h3 class="modal-title">{m.admin_venueMergeTitle()}</h3>
-
-          <div class="merge-section">
-            <span class="merge-label">{m.admin_venueMergeSource()}</span>
-            <div class="modal-venue-info">
-              <strong>{venueToMerge.name}</strong>
-              <span>{getVenueLocationDisplay(venueToMerge)}</span>
-            </div>
-          </div>
-
-          <div class="merge-section">
-            <label class="merge-label" for="merge-target-select">{m.admin_venueMergeTarget()}</label>
-            <select id="merge-target-select" class="merge-select" bind:value={mergeTargetId}>
-              <option value="">—</option>
-              {#each mergeTargetOptions as v (v.id)}
-                <option value={v.id}>{v.name} — {v.city}, {v.country}</option>
-              {/each}
-            </select>
-          </div>
-
-          {#if mergePreviewCount !== null && !mergePreviewLoading}
-            <p class="merge-preview">
-              {m.admin_venueMergePreview({ count: String(mergePreviewCount) })}
-            </p>
-          {/if}
-
-          <div class="modal-actions">
-            <button class="modal-btn cancel" onclick={closeMergeModal}>
-              {m.common_cancel()}
-            </button>
-            <button
-              class="modal-btn primary"
-              onclick={confirmMerge}
-              disabled={!mergeTargetId || isMerging}
-            >
-              {isMerging ? '...' : m.admin_venueMergeConfirm()}
-            </button>
-          </div>
-        </div>
+                  </div>
+                </td>
+                <td class="location-cell">
+                  {venue.city}, {venue.country}
+                </td>
+                <td class="owner-cell hide-small">
+                  {venue.ownerName || '—'}
+                </td>
+                <td class="actions-cell">
+                  {#if $isSuperAdminUser}
+                    <button
+                      class="action-btn merge-btn"
+                      title={m.admin_venueMergeTitle()}
+                      onclick={(e) => { e.stopPropagation(); openMergeModal(venue); }}
+                    >
+                      🔗
+                    </button>
+                  {/if}
+                  <button
+                    class="action-btn delete-btn"
+                    title={m.admin_venueDeleteTitle()}
+                    onclick={(e) => { e.stopPropagation(); openDeleteModal(venue); }}
+                  >
+                    🗑️
+                  </button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       </div>
     {/if}
   </div>
+
+  <!-- Toast -->
+  {#if showToast}
+    <div class="toast-notification" class:toast-error={toastType === 'error'} data-theme={$adminTheme}>
+      {toastMessage}
+    </div>
+  {/if}
+
+  <!-- Delete Modal -->
+  {#if venueToDelete}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="delete-overlay" data-theme={$adminTheme} onclick={closeDeleteModal} onkeydown={(e) => e.key === 'Escape' && closeDeleteModal()} role="presentation">
+      <div class="delete-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+        <h3>{m.admin_venueDeleteTitle()}</h3>
+
+        <div class="venue-preview">
+          <strong>{venueToDelete.name}</strong>
+          <span>{getVenueLocationDisplay(venueToDelete)}</span>
+        </div>
+
+        {#if deleteDepLoading}
+          <div class="deps-loading">
+            <span class="loading-spinner-small"></span>
+          </div>
+        {:else if deleteDeps.length > 0}
+          <div class="deps-warning">
+            <p>{m.admin_venueDeleteBlocked()}</p>
+            <ul class="deps-list">
+              {#each deleteDeps as dep (dep.id)}
+                <li>
+                  <span class="dep-name">{dep.name}</span>
+                  <span class="dep-status">{dep.status}</span>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {:else}
+          <p class="confirm-text">{m.admin_venueDeleteConfirm()}</p>
+        {/if}
+
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick={closeDeleteModal}>{m.common_cancel()}</button>
+          {#if deleteDeps.length === 0 && !deleteDepLoading}
+            <button class="btn-danger" onclick={confirmDelete} disabled={isDeleting}>
+              {isDeleting ? '...' : m.common_delete()}
+            </button>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Merge Modal -->
+  {#if venueToMerge}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="delete-overlay" data-theme={$adminTheme} onclick={closeMergeModal} onkeydown={(e) => e.key === 'Escape' && closeMergeModal()} role="presentation">
+      <div class="delete-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+        <h3>{m.admin_venueMergeTitle()}</h3>
+
+        <div class="merge-section">
+          <span class="merge-label">{m.admin_venueMergeSource()}</span>
+          <div class="venue-preview">
+            <strong>{venueToMerge.name}</strong>
+            <span>{getVenueLocationDisplay(venueToMerge)}</span>
+          </div>
+        </div>
+
+        <div class="merge-section">
+          <label class="merge-label" for="merge-target-select">{m.admin_venueMergeTarget()}</label>
+          <select id="merge-target-select" class="merge-select" bind:value={mergeTargetId}>
+            <option value="">—</option>
+            {#each mergeTargetOptions as v (v.id)}
+              <option value={v.id}>{v.name} — {v.city}, {v.country}</option>
+            {/each}
+          </select>
+        </div>
+
+        {#if mergePreviewCount !== null && !mergePreviewLoading}
+          <p class="merge-preview">
+            {m.admin_venueMergePreview({ count: String(mergePreviewCount) })}
+          </p>
+        {/if}
+
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick={closeMergeModal}>{m.common_cancel()}</button>
+          <button class="btn-primary" onclick={confirmMerge} disabled={!mergeTargetId || isMerging}>
+            {isMerging ? '...' : m.admin_venueMergeConfirm()}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </AdminGuard>
 
 <style>
-  .admin-layout {
-    height: 100vh;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--background);
-    color: var(--foreground);
-    font-family: system-ui, -apple-system, sans-serif;
+  /* ── Container ── */
+  .venues-container {
+    padding: 1.5rem 2rem;
+    min-height: 100vh;
+    background: #fafafa;
+    transition: background-color 0.3s;
   }
 
-  /* ── Navbar ── */
-  .admin-navbar {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    width: 100%;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-    background: color-mix(in srgb, var(--background) 85%, transparent);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-  }
-
-  .admin-navbar-inner {
-    width: 100%;
-    padding: 0 16px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .admin-back-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted-foreground);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    transition: color 0.2s;
-  }
-
-  .admin-back-btn:hover {
-    color: var(--primary);
-  }
-
-  .admin-back-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--background);
-    transition: all 0.2s;
-  }
-
-  .admin-back-btn:hover .admin-back-icon {
-    border-color: color-mix(in srgb, var(--primary) 50%, transparent);
-    background: color-mix(in srgb, var(--primary) 8%, transparent);
-  }
-
-  .admin-back-label {
-    display: none;
-  }
-
-  .admin-navbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* ── Content ── */
-  .admin-content {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 24px 16px 32px;
-    gap: 16px;
-    overflow-y: auto;
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) {
+    background: #0f1419;
   }
 
   /* ── Header ── */
-  .admin-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  .page-header {
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.75rem 1.5rem;
+    margin: -1.5rem -2rem 1.5rem -2rem;
+    transition: background-color 0.3s, border-color 0.3s;
   }
 
-  .admin-title {
-    font-size: 22px;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: var(--foreground);
-    margin: 0;
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .page-header {
+    background: #1a2332;
+    border-color: #2d3748;
+  }
+
+  .header-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 1rem;
+  }
+
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    color: #555;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .back-btn {
+    background: #1e293b;
+    border-color: #374151;
+    color: #94a3b8;
+  }
+
+  .back-btn:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .back-btn:hover {
+    background: #334155;
+    border-color: #4b5563;
+  }
+
+  .header-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .title-section h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    transition: color 0.3s;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .title-section h1 {
+    color: #f1f5f9;
   }
 
   .count-badge {
-    font-size: 12px;
+    background: #e0f2fe;
+    color: #0369a1;
+    font-size: 0.75rem;
     font-weight: 600;
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-    color: var(--primary);
-    padding: 2px 8px;
+    padding: 0.15rem 0.55rem;
     border-radius: 10px;
-    line-height: 1.4;
+    transition: all 0.3s;
   }
 
-  /* ── Search ── */
-  .search-bar {
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .count-badge {
+    background: #1e3a5f;
+    color: #7dd3fc;
+  }
+
+  .header-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--card);
-    color: var(--muted-foreground);
-    transition: border-color 0.2s;
+    gap: 0.5rem;
   }
 
-  .search-bar:focus-within {
-    border-color: var(--primary);
+  /* ── Controls ── */
+  .controls-section {
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .search-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.2s;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .search-box {
+    background: #1e293b;
+    border-color: #374151;
+  }
+
+  .search-box:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .search-icon {
+    font-size: 0.85rem;
+    opacity: 0.5;
   }
 
   .search-input {
     flex: 1;
     border: none;
     background: transparent;
-    font-size: 14px;
-    color: var(--foreground);
+    font-size: 0.85rem;
+    color: #1e293b;
     outline: none;
   }
 
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .search-input {
+    color: #e2e8f0;
+  }
+
   .search-input::placeholder {
-    color: var(--muted-foreground);
+    color: #94a3b8;
   }
 
-  .search-clear {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border: none;
-    background: color-mix(in srgb, var(--muted-foreground) 15%, transparent);
-    border-radius: 50%;
-    color: var(--muted-foreground);
-    cursor: pointer;
-    padding: 0;
-  }
-
-  /* ── Loading / Empty ── */
-  .loading-container {
-    display: flex;
-    justify-content: center;
-    padding: 48px 0;
-  }
-
+  /* ── Empty state ── */
   .empty-state {
     text-align: center;
-    padding: 48px 16px;
-    color: var(--muted-foreground);
-    font-size: 14px;
+    padding: 3rem 1rem;
+    color: #94a3b8;
+  }
+
+  .empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .empty-state h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #64748b;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .empty-state h3 {
+    color: #94a3b8;
   }
 
   /* ── Table ── */
-  .venues-table-wrapper {
-    border: 1px solid var(--border);
-    border-radius: 12px;
+  .table-container {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
     overflow: hidden;
+    transition: all 0.3s;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .table-container {
+    background: #1a2332;
+    border-color: #2d3748;
   }
 
   .venues-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 0.85rem;
   }
 
   .venues-table thead {
-    background: color-mix(in srgb, var(--muted-foreground) 6%, transparent);
+    background: #f8fafc;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .venues-table thead {
+    background: #1e293b;
   }
 
   .venues-table th {
     text-align: left;
-    padding: 10px 14px;
-    font-size: 11px;
+    padding: 0.65rem 1rem;
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--muted-foreground);
-    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .venues-table th {
+    color: #64748b;
+    border-color: #2d3748;
   }
 
   .venues-table td {
-    padding: 10px 14px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
+    color: #475569;
   }
 
-  .venues-table tr:last-child td {
-    border-bottom: none;
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .venues-table td {
+    border-color: #1e293b;
+    color: #cbd5e1;
   }
 
-  .venues-table tr:hover td {
-    background: color-mix(in srgb, var(--primary) 3%, transparent);
+  .venue-row {
+    transition: background 0.15s;
+    cursor: default;
   }
 
-  .col-name {
-    min-width: 140px;
+  .venue-row:hover {
+    background: #f8fafc;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .venue-row:hover {
+    background: #1e293b;
+  }
+
+  .venue-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
 
   .venue-name {
-    display: block;
-    font-weight: 600;
-    color: var(--foreground);
+    color: #1e293b;
+    font-size: 0.85rem;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .venue-name {
+    color: #f1f5f9;
   }
 
   .venue-address {
-    display: block;
-    font-size: 11px;
-    color: var(--muted-foreground);
-    margin-top: 1px;
+    color: #94a3b8;
+    font-size: 0.75rem;
   }
 
-  .col-location {
-    color: var(--muted-foreground);
-    white-space: nowrap;
+  .name-col {
+    min-width: 140px;
   }
 
-  .col-owner {
-    color: var(--muted-foreground);
-  }
-
-  .owner-name {
-    font-size: 12px;
-  }
-
-  .col-actions {
+  .actions-col {
     width: 80px;
     text-align: right;
   }
 
-  .action-buttons {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
+  .actions-cell {
+    text-align: right;
+    white-space: nowrap;
   }
 
   .action-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--background);
-    color: var(--muted-foreground);
+    padding: 0.3rem 0.45rem;
+    border: none;
+    background: transparent;
     cursor: pointer;
+    border-radius: 6px;
+    font-size: 0.85rem;
     transition: all 0.15s;
-    padding: 0;
+    opacity: 0.6;
   }
 
   .action-btn:hover {
-    border-color: color-mix(in srgb, var(--primary) 50%, transparent);
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 6%, transparent);
+    opacity: 1;
+    background: #f1f5f9;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .action-btn:hover {
+    background: #334155;
   }
 
   .delete-btn:hover {
-    border-color: color-mix(in srgb, var(--destructive) 50%, transparent);
-    color: var(--destructive);
-    background: color-mix(in srgb, var(--destructive) 6%, transparent);
+    background: #fef2f2;
+  }
+
+  .venues-container:is([data-theme='dark'], [data-theme='violet']) .delete-btn:hover {
+    background: #3b1c1c;
   }
 
   /* ── Toast ── */
-  .toast {
+  .toast-notification {
     position: fixed;
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--primary);
-    color: var(--primary-foreground);
-    padding: 10px 20px;
-    border-radius: 10px;
-    font-size: 13px;
+    background: #10b981;
+    color: white;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
     font-weight: 500;
     z-index: 1000;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
@@ -690,8 +685,7 @@
   }
 
   .toast-error {
-    background: var(--destructive);
-    color: var(--destructive-foreground);
+    background: #ef4444;
   }
 
   @keyframes toast-in {
@@ -699,8 +693,8 @@
     to { opacity: 1; transform: translateX(-50%) translateY(0); }
   }
 
-  /* ── Modal ── */
-  .modal-overlay {
+  /* ── Modal overlay ── */
+  .delete-overlay {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
@@ -708,66 +702,102 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 16px;
+    padding: 1rem;
   }
 
-  .modal {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
+  .delete-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
     width: 100%;
     max-width: 440px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 1rem;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   }
 
-  .modal-title {
-    font-size: 17px;
-    font-weight: 700;
-    margin: 0;
-    color: var(--foreground);
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .delete-modal {
+    background: #1a2332;
+    border: 1px solid #2d3748;
   }
 
-  .modal-venue-info {
+  .delete-modal h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .delete-modal h3 {
+    color: #f1f5f9;
+  }
+
+  .venue-preview {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 10px 12px;
-    background: color-mix(in srgb, var(--muted-foreground) 6%, transparent);
+    padding: 0.65rem 0.75rem;
+    background: #f8fafc;
     border-radius: 8px;
-    font-size: 13px;
-    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    color: #64748b;
   }
 
-  .modal-venue-info strong {
-    color: var(--foreground);
-    font-size: 14px;
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .venue-preview {
+    background: #0f172a;
+    color: #94a3b8;
   }
 
-  .modal-loading {
+  .venue-preview strong {
+    color: #1e293b;
+    font-size: 0.9rem;
+  }
+
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .venue-preview strong {
+    color: #f1f5f9;
+  }
+
+  .deps-loading {
     display: flex;
     justify-content: center;
-    padding: 12px;
+    padding: 0.75rem;
   }
 
-  .modal-warning {
-    padding: 12px;
-    background: color-mix(in srgb, var(--destructive) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
+  .loading-spinner-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .deps-warning {
+    padding: 0.75rem;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
     border-radius: 8px;
-    font-size: 13px;
-    color: var(--destructive);
+    font-size: 0.85rem;
+    color: #dc2626;
   }
 
-  .modal-warning p {
-    margin: 0 0 8px;
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .deps-warning {
+    background: #3b1c1c;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+  }
+
+  .deps-warning p {
+    margin: 0 0 0.5rem;
     font-weight: 600;
   }
 
-  .dep-list {
+  .deps-list {
     margin: 0;
     padding: 0;
     list-style: none;
@@ -776,12 +806,12 @@
     gap: 4px;
   }
 
-  .dep-list li {
+  .deps-list li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 4px 0;
-    font-size: 12px;
+    padding: 3px 0;
+    font-size: 0.8rem;
   }
 
   .dep-name {
@@ -789,64 +819,81 @@
   }
 
   .dep-status {
-    font-size: 10px;
+    font-size: 0.65rem;
     text-transform: uppercase;
     opacity: 0.7;
   }
 
-  .modal-confirm-text {
-    font-size: 14px;
-    color: var(--muted-foreground);
+  .confirm-text {
+    font-size: 0.9rem;
+    color: #64748b;
     margin: 0;
+  }
+
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .confirm-text {
+    color: #94a3b8;
   }
 
   .modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    margin-top: 4px;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
   }
 
-  .modal-btn {
-    padding: 8px 16px;
+  .btn-cancel,
+  .btn-danger,
+  .btn-primary {
+    padding: 0.5rem 1rem;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
-    border: 1px solid var(--border);
+    border: 1px solid #e5e7eb;
     transition: all 0.15s;
   }
 
-  .modal-btn.cancel {
-    background: var(--background);
-    color: var(--muted-foreground);
+  .btn-cancel {
+    background: white;
+    color: #64748b;
   }
 
-  .modal-btn.cancel:hover {
-    background: color-mix(in srgb, var(--muted-foreground) 8%, transparent);
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .btn-cancel {
+    background: #1e293b;
+    border-color: #374151;
+    color: #94a3b8;
   }
 
-  .modal-btn.danger {
-    background: var(--destructive);
-    color: var(--destructive-foreground);
-    border-color: var(--destructive);
+  .btn-cancel:hover {
+    background: #f1f5f9;
   }
 
-  .modal-btn.danger:hover:not(:disabled) {
-    opacity: 0.9;
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .btn-cancel:hover {
+    background: #334155;
   }
 
-  .modal-btn.primary {
-    background: var(--primary);
-    color: var(--primary-foreground);
-    border-color: var(--primary);
+  .btn-danger {
+    background: #ef4444;
+    color: white;
+    border-color: #ef4444;
   }
 
-  .modal-btn.primary:hover:not(:disabled) {
-    opacity: 0.9;
+  .btn-danger:hover:not(:disabled) {
+    background: #dc2626;
   }
 
-  .modal-btn:disabled {
+  .btn-primary {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .btn-danger:disabled,
+  .btn-primary:disabled {
     opacity: 0.4;
     cursor: not-allowed;
   }
@@ -855,69 +902,70 @@
   .merge-section {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 0.4rem;
   }
 
   .merge-label {
-    font-size: 11px;
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--muted-foreground);
+    letter-spacing: 0.04em;
+    color: #94a3b8;
   }
 
   .merge-select {
     width: 100%;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #e5e7eb;
     border-radius: 8px;
-    background: var(--background);
-    color: var(--foreground);
-    font-size: 13px;
+    background: white;
+    color: #1e293b;
+    font-size: 0.85rem;
+  }
+
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-select {
+    background: #0f172a;
+    border-color: #374151;
+    color: #e2e8f0;
   }
 
   .merge-select:focus {
     outline: none;
-    border-color: var(--primary);
+    border-color: #3b82f6;
   }
 
   .merge-preview {
-    font-size: 13px;
-    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    color: #64748b;
     margin: 0;
-    padding: 8px 12px;
-    background: color-mix(in srgb, var(--primary) 6%, transparent);
-    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    background: #eff6ff;
+    border-radius: 6px;
+  }
+
+  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-preview {
+    background: #1e3a5f;
+    color: #93c5fd;
   }
 
   /* ── Responsive ── */
-  @media (min-width: 540px) {
-    .admin-navbar-inner {
-      padding: 0 24px;
+  @media (max-width: 640px) {
+    .venues-container {
+      padding: 1rem;
     }
 
-    .admin-back-label {
-      display: inline;
+    .page-header {
+      margin: -1rem -1rem 1rem -1rem;
+      padding: 0.65rem 1rem;
     }
 
-    .admin-content {
-      padding: 32px 24px 48px;
-    }
-
-    .admin-title {
-      font-size: 26px;
-    }
-  }
-
-  /* ── Mobile table adjustments ── */
-  @media (max-width: 600px) {
-    .col-owner {
+    .hide-small {
       display: none;
     }
 
     .venues-table th,
     .venues-table td {
-      padding: 8px 10px;
+      padding: 0.5rem 0.65rem;
     }
   }
 </style>

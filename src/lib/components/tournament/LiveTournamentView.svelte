@@ -112,6 +112,33 @@
 	let silverBracket = $derived(tournament.finalStage?.silverBracket);
 	let parallelBrackets = $derived(tournament.finalStage?.parallelBrackets || []);
 
+	// Participant counts for position badges
+	let goldParticipantCount = $derived.by(() => {
+		if (!goldBracket?.rounds?.[0]) return 0;
+		const ids = new Set<string>();
+		goldBracket.rounds[0].matches.forEach((m: any) => {
+			if (m.participantA && !isBye(m.participantA)) ids.add(m.participantA);
+			if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
+		});
+		return ids.size;
+	});
+
+	let silverParticipantCount = $derived.by(() => {
+		if (!silverBracket?.rounds?.[0]) return 0;
+		const ids = new Set<string>();
+		silverBracket.rounds[0].matches.forEach((m: any) => {
+			if (m.participantA && !isBye(m.participantA)) ids.add(m.participantA);
+			if (m.participantB && !isBye(m.participantB)) ids.add(m.participantB);
+		});
+		return ids.size;
+	});
+
+	function silverRoundPositionLabel(matchCount: number): string {
+		const start = goldParticipantCount + 1;
+		const end = goldParticipantCount + Math.min(matchCount * 2, silverParticipantCount);
+		return `(${start}º-${end}º)`;
+	}
+
 	// Seed map: participantId → seed (fixed from group stage, looked up from R1)
 	let seedMap = $derived(buildSeedMap(
 		goldBracket,
@@ -1445,7 +1472,7 @@
 									{@const scoringLabel = getScoringLabelForRound(silverBracket.config, round.name)}
 									<div class="bracket-column" class:has-next={roundIndex < silverBracket.rounds.length - 1} style="--round-index: {roundIndex}">
 										<div class="round-header" class:final-round={isFinalRound}>
-											<span class="round-name">{translateRoundName(round.name)}</span>
+											<span class="round-name">{translateRoundName(round.name)} <span class="position-range-badge">{silverRoundPositionLabel(round.matches.length)}</span></span>
 											{#if scoringLabel}
 												<span class="scoring-sep">·</span>
 												<span class="scoring-label">{scoringLabel}</span>
@@ -1575,7 +1602,7 @@
 									{@const tpmClickable = tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 									<div class="bracket-column third-place-column">
 										<div class="round-header third-place-header">
-											<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'}</span>
+											<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'} <span class="position-range-badge">({goldParticipantCount + 3}º-{goldParticipantCount + 4}º)</span></span>
 											{#if tpmScoringLabel}
 												<span class="scoring-sep">·</span>
 												<span class="scoring-label">{tpmScoringLabel}</span>
@@ -3255,6 +3282,15 @@
 		letter-spacing: 0.02em;
 	}
 
+	.position-range-badge {
+		font-size: 0.7rem;
+		font-weight: 700;
+		color: inherit;
+		opacity: 0.7;
+		letter-spacing: 0;
+		text-transform: none;
+	}
+
 	.round-matches {
 		display: flex;
 		flex-direction: column;
@@ -3511,8 +3547,8 @@
 		order: 1;
 	}
 
-	/* When doubles, expand width for overlapping pair */
-	.player-avatars:has(.player-avatar + .player-avatar) {
+	/* When doubles, expand width for overlapping pair (any 2-child combo: img+img, img+placeholder, placeholder+placeholder) */
+	.player-avatars:has(:nth-child(2)) {
 		width: 36px;
 	}
 
