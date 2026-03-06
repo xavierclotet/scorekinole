@@ -192,33 +192,6 @@
 		return hasBracketResults || hasGroupResults;
 	})());
 
-	// Debug logging for visibility conditions
-	$effect(() => {
-		if (tournament) {
-			console.log('🔍 Tournament Debug:', {
-				name: tournament.name,
-				status: tournament.status,
-				isImported: tournament.isImported,
-				tournamentDate: tournament.tournamentDate,
-				now: Date.now(),
-				isFuture: tournament.tournamentDate ? tournament.tournamentDate > Date.now() : false,
-				isUpcoming,
-				isCompleted,
-				hasResults,
-				hasGroupStage,
-				hasFinalStage,
-				hasBothPhases,
-				goldBracketRoundsLength: tournament.finalStage?.goldBracket?.rounds?.length ?? 0,
-				groupsLength: tournament.groupStage?.groups?.length ?? 0,
-				groupsHaveStandings: tournament.groupStage?.groups?.some(g => g.standings?.length > 0) ?? false,
-				shouldShowUpcomingNotice: isUpcoming || (!isCompleted && !hasResults),
-				shouldShowPhaseTabs: hasBothPhases && hasResults,
-				shouldShowGroupStage: hasGroupStage && hasResults,
-				shouldShowFinalStage: hasFinalStage && hasResults
-			});
-		}
-	});
-
 	// Final standings - uses finalPosition if available
 	// Exclude disqualified participants (they don't have positions in final classification)
 	let finalStandings = $derived(

@@ -40,7 +40,7 @@ export async function requestNotificationPermission(): Promise<string | null> {
 	// Ask for permission
 	const permission = await Notification.requestPermission();
 	if (permission !== 'granted') {
-		console.log('ℹ️ Notification permission denied');
+		// Notification permission denied
 		return null;
 	}
 
@@ -58,7 +58,7 @@ export async function requestNotificationPermission(): Promise<string | null> {
 
 		if (token) {
 			await saveFCMToken(user.id, token);
-			console.log('✅ FCM token registered');
+			// FCM token registered
 		}
 		return token;
 	} catch (error) {
@@ -111,7 +111,7 @@ export async function deleteAllFCMTokens(): Promise<void> {
 		const deletes = snapshot.docs.map(d => deleteDoc(d.ref));
 		await Promise.all(deletes);
 
-		console.log('✅ FCM tokens deleted');
+		// FCM tokens deleted
 	} catch (error) {
 		console.error('❌ Error deleting FCM tokens:', error);
 	}

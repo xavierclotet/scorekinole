@@ -36,7 +36,7 @@ if (browser && isFirebaseEnabled()) {
     db = getFirestore(app);
     storage = getStorage(app);
     analytics = getAnalytics(app);
-    console.log('✅ Firebase initialized successfully');
+    // Firebase initialized (errors are logged below)
   } catch (error) {
     console.error('❌ Firebase initialization error:', error);
   }

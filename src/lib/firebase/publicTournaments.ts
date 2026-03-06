@@ -133,7 +133,7 @@ export function subscribeToPublicTournaments(
 				});
 
 				// No sort here — the page applies its own sort via sortTournaments()
-				console.log(`✅ Real-time update: ${tournaments.length} public tournaments`);
+				// Real-time update received
 				onUpdate(tournaments);
 			},
 			(error) => {

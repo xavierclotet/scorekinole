@@ -1043,7 +1043,6 @@ export async function getTournamentByKey(key: string): Promise<Tournament | null
 
     const tournament = parseTournamentData(data);
 
-    console.log('✅ Tournament found by key:', tournament.name);
     return tournament;
   } catch (error) {
     console.error('❌ Error getting tournament by key:', error);

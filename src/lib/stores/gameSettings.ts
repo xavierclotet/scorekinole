@@ -52,7 +52,7 @@ function createGameSettings() {
 
                         // If version changed, save immediately to update localStorage
                         if (parsed.appVersion !== APP_VERSION) {
-                            console.log(`📦 Updating version in localStorage: ${parsed.appVersion} → ${APP_VERSION}`);
+                            // Version updated in localStorage
                             localStorage.setItem('crokinoleGame', JSON.stringify(updatedSettings));
                         }
                     } else {

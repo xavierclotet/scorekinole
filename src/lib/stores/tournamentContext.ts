@@ -114,7 +114,6 @@ export function loadTournamentContext(): TournamentMatchContext | null {
     if (stored) {
       const context = JSON.parse(stored) as TournamentMatchContext;
       gameTournamentContext.set(context);
-      console.log('✅ Tournament context loaded from localStorage');
       return context;
     }
   } catch (error) {
@@ -132,10 +131,8 @@ export function saveTournamentContext(context: TournamentMatchContext | null): v
   try {
     if (context) {
       localStorage.setItem(TOURNAMENT_CONTEXT_KEY, JSON.stringify(context));
-      console.log('✅ Tournament context saved to localStorage');
     } else {
       localStorage.removeItem(TOURNAMENT_CONTEXT_KEY);
-      console.log('✅ Tournament context cleared from localStorage');
     }
   } catch (error) {
     console.error('❌ Error saving tournament context:', error);
@@ -163,12 +160,10 @@ export function clearTournamentContext(): void {
  */
 export function updateTournamentContext(updates: Partial<TournamentMatchContext>): void {
   const current = get(gameTournamentContext);
-  console.log('🔄 updateTournamentContext llamado:', { hasContext: !!current, updates });
   if (current) {
     const updated = { ...current, ...updates };
     gameTournamentContext.set(updated);
     saveTournamentContext(updated);
-    console.log('💾 Contexto actualizado y guardado:', { existingRounds: updated.existingRounds?.length });
   }
 }
 

@@ -220,7 +220,7 @@ export async function signOut(): Promise<void> {
     await firebaseSignOut(auth!);
     currentUser.set(null);
     emailVerificationPending.set(false);
-    console.log('✅ User signed out');
+    // User signed out
   } catch (error) {
     console.error('❌ Sign out error:', error);
     throw error;
@@ -237,7 +237,7 @@ export function initAuthListener(): void {
   }
 
   if (!isFirebaseEnabled()) {
-    console.log('Firebase disabled - using local auth only');
+    // Firebase disabled - using local auth only
     authInitialized.set(true);
     return;
   }
@@ -247,7 +247,7 @@ export function initAuthListener(): void {
       // Check if this is an email/password user with unverified email
       const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
       if (isPasswordProvider && !user.emailVerified) {
-        console.log('ℹ️ Email not verified — blocking full access');
+        // Email not verified — blocking full access
         emailVerificationPending.set(true);
 
         const appUser: User = {
@@ -281,10 +281,10 @@ export function initAuthListener(): void {
         const userDocSnap = await getDoc(userDocRef);
 
         if (!userDocSnap.exists()) {
-          console.log('ℹ️ User authenticated but no profile in Firestore - needs setup');
+          // User authenticated but no profile in Firestore - needs setup
           needsProfileSetup.set(true);
         } else {
-          console.log('✅ User has profile in Firestore');
+          // User has profile in Firestore
           needsProfileSetup.set(false);
 
           // Use Firestore profile data (custom photo, player name, language)
@@ -299,7 +299,7 @@ export function initAuthListener(): void {
 
             // Apply user's language preference if set
             if (profile.language && ['es', 'ca', 'en'].includes(profile.language)) {
-              console.log('🌐 Applying user language preference:', profile.language);
+              // Apply language preference silently
               setLocale(profile.language, { reload: false });
             }
           }

@@ -86,10 +86,8 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 
     if (profileSnap.exists()) {
       const profile = profileSnap.data() as UserProfile;
-      console.log('✅ User profile loaded:', profile.playerName);
       return profile;
     } else {
-      console.log('ℹ️ No profile found for user');
       return null;
     }
   } catch (error) {
