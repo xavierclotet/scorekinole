@@ -153,7 +153,7 @@
   }
 
   // Check if there are unresolved ties in this group
-  let hasUnresolvedTies = $derived(standings.some((s: any) => s.tiedWith && s.tiedWith.length > 0));
+  let hasUnresolvedTies = $derived(standings.some((s: any) => s.tiedWith && s.tiedWith.length > 0 && s.tieReason === 'unresolved'));
 
   // Track previous tie status to only emit when it changes (not reactive - just for comparison)
   let previousTieStatus: boolean | null = null;
@@ -818,7 +818,15 @@
   }
 
   tbody tr.selected {
-    background: #eff6ff;
+    background: #ecfdf5;
+  }
+
+  tbody tr:hover {
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  tbody tr.selected:hover {
+    background: #d1fae5;
   }
 
   /* Halfway line - marks the middle of participants */
@@ -1365,7 +1373,11 @@
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.selected {
-    background: rgba(102, 126, 234, 0.2);
+    background: rgba(16, 185, 129, 0.12);
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.selected:hover {
+    background: rgba(16, 185, 129, 0.2);
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) tbody tr.halfway-row {

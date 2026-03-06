@@ -211,16 +211,16 @@ function calculateBuchholz(
 function resolveRemainingTwoPlayerTies(
   sorted: GroupStanding[],
   participantMap: Map<string, TournamentParticipant>,
-  compareValue: (s: GroupStanding) => number
+  compareKey: (s: GroupStanding) => string
 ): GroupStanding[] {
   const result: GroupStanding[] = [];
   let i = 0;
 
   while (i < sorted.length) {
-    // Find all players with same compare value starting at i
-    const currentValue = compareValue(sorted[i]);
+    // Find all players with same compare key starting at i
+    const currentKey = compareKey(sorted[i]);
     let j = i + 1;
-    while (j < sorted.length && compareValue(sorted[j]) === currentValue) {
+    while (j < sorted.length && compareKey(sorted[j]) === currentKey) {
       j++;
     }
 
@@ -484,7 +484,7 @@ function resolveMultiPlayerTie(
   } else {
     // Non mini-league path: resolve remaining 2-player ties with H2H
     sorted = resolveRemainingTwoPlayerTies(sorted, participantMap, s => {
-      return Number(buildCompareKey(s, priority, tiedIds, qualificationMode, isSwiss, show20s).replace(/-/g, ''));
+      return buildCompareKey(s, priority, tiedIds, qualificationMode, isSwiss, show20s);
     });
   }
 

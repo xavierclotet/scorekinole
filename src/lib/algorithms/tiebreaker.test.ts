@@ -1149,3 +1149,458 @@ describe('partial resolution in multi-player ties', () => {
 		expect(p4.tiedWith).toContain('p3');
 	});
 });
+
+describe('edge cases: complete ties (all criteria identical)', () => {
+	it('marks 2 players as unresolved when tied on everything (RR WINS)', () => {
+		const participants = createParticipants(4);
+		// p1 and p2: same points, tied H2H, same 20s, same totalPoints, same Buchholz
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p2: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p3', {
+				points: 0, matchesWon: 0, matchesPlayed: 3,
+				total20s: 0, totalPointsScored: 6,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p2: { result: 'LOSS', twenties: 0 },
+				}
+			}),
+			createStanding('p4', { points: 2, matchesWon: 1, matchesPlayed: 3, total20s: 3, totalPointsScored: 12 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+
+		// Both should be marked as unresolved
+		expect(p1.tieReason).toBe('unresolved');
+		expect(p2.tieReason).toBe('unresolved');
+		expect(p1.tiedWith).toContain('p2');
+		expect(p2.tiedWith).toContain('p1');
+
+		// Both should be in positions 1-2 (above p4 and p3)
+		expect(p1.position).toBeLessThanOrEqual(2);
+		expect(p2.position).toBeLessThanOrEqual(2);
+	});
+
+	it('marks 2 players as unresolved when tied on everything (Swiss WINS)', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p2: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p2', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p3', {
+				points: 0, swissPoints: 0, matchesWon: 0, matchesPlayed: 3,
+				total20s: 0, totalPointsScored: 6,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p2: { result: 'LOSS', twenties: 0 },
+				}
+			}),
+			createStanding('p4', { points: 2, swissPoints: 2, matchesWon: 1, matchesPlayed: 3 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, true, 'WINS');
+
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+
+		expect(p1.tieReason).toBe('unresolved');
+		expect(p2.tieReason).toBe('unresolved');
+		expect(p1.tiedWith).toContain('p2');
+		expect(p2.tiedWith).toContain('p1');
+	});
+
+	it('marks 2 players as unresolved when tied on everything (POINTS mode)', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 30,
+				headToHeadRecord: {
+					p2: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 30,
+				headToHeadRecord: {
+					p1: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p3', {
+				points: 0, matchesWon: 0, matchesPlayed: 3,
+				total20s: 0, totalPointsScored: 10,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p2: { result: 'LOSS', twenties: 0 },
+				}
+			}),
+			createStanding('p4', { points: 2, matchesWon: 1, matchesPlayed: 3, totalPointsScored: 20 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'POINTS');
+
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+
+		expect(p1.tieReason).toBe('unresolved');
+		expect(p2.tieReason).toBe('unresolved');
+	});
+
+	it('uses rankingSnapshot as fallback order for fully tied players', () => {
+		// p1 has rankingSnapshot 40, p2 has 30 (from createParticipants)
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p2: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p3', { points: 0, matchesWon: 0, matchesPlayed: 3 }),
+			createStanding('p4', { points: 2, matchesWon: 1, matchesPlayed: 3 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+
+		// p1 has higher rankingSnapshot (40 vs 30), so should display first
+		expect(p1.position).toBeLessThan(p2.position);
+		// But still marked as unresolved
+		expect(p1.tieReason).toBe('unresolved');
+	});
+
+	it('marks 3 players as unresolved when all tied on everything (RR WINS)', () => {
+		const participants = createParticipants(6);
+		// Circular tie: A beats B, B beats C, C beats A — all same 20s and points
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 6, matchesWon: 3, matchesPlayed: 5,
+				total20s: 10, totalPointsScored: 30,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 2 },
+					p3: { result: 'LOSS', twenties: 2 },
+					p4: { result: 'WIN', twenties: 2 },
+				}
+			}),
+			createStanding('p2', {
+				points: 6, matchesWon: 3, matchesPlayed: 5,
+				total20s: 10, totalPointsScored: 30,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 2 },
+					p3: { result: 'WIN', twenties: 2 },
+					p4: { result: 'WIN', twenties: 2 },
+				}
+			}),
+			createStanding('p3', {
+				points: 6, matchesWon: 3, matchesPlayed: 5,
+				total20s: 10, totalPointsScored: 30,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 2 },
+					p2: { result: 'LOSS', twenties: 2 },
+					p4: { result: 'WIN', twenties: 2 },
+				}
+			}),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 5 }),
+			createStanding('p5', { points: 4, matchesWon: 2, matchesPlayed: 5 }),
+			createStanding('p6', { points: 2, matchesWon: 1, matchesPlayed: 5 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+		const p3 = result.find(s => s.participantId === 'p3')!;
+
+		// All 3 have identical mini-league (each has 2 pts = 1W 1L), same 20s, same totalPoints
+		// Should be marked unresolved
+		expect(p1.tieReason).toBe('unresolved');
+		expect(p2.tieReason).toBe('unresolved');
+		expect(p3.tieReason).toBe('unresolved');
+		// Each should reference the other two
+		expect(p1.tiedWith).toContain('p2');
+		expect(p1.tiedWith).toContain('p3');
+	});
+
+	it('handles 2 players with no H2H record (did not play each other in Swiss)', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p3: { result: 'WIN', twenties: 3 },
+				}
+			}),
+			createStanding('p2', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p4: { result: 'WIN', twenties: 3 },
+				}
+			}),
+			createStanding('p3', {
+				points: 0, swissPoints: 0, matchesWon: 0, matchesPlayed: 3,
+				total20s: 0, totalPointsScored: 6,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+				}
+			}),
+			createStanding('p4', {
+				points: 0, swissPoints: 0, matchesWon: 0, matchesPlayed: 3,
+				total20s: 0, totalPointsScored: 6,
+				headToHeadRecord: {
+					p2: { result: 'LOSS', twenties: 0 },
+				}
+			})
+		];
+
+		const result = resolveTiebreaker(standings, participants, true, 'WINS');
+
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+
+		// Same 20s, same totalPoints; Buchholz: p1 faced p3 (0pts), p2 faced p4 (0pts) — same
+		// No H2H between p1 and p2 → unresolved
+		expect(p1.tieReason).toBe('unresolved');
+		expect(p2.tieReason).toBe('unresolved');
+	});
+});
+
+describe('edge cases: hasTieForQualification with resolved ties', () => {
+	it('returns true even when tie was resolved by tiebreakers (same primaryValue)', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3, position: 1, total20s: 10,
+				headToHeadRecord: { p2: { result: 'WIN', twenties: 5 } }
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3, position: 2, total20s: 5,
+				headToHeadRecord: { p1: { result: 'LOSS', twenties: 2 } }
+			}),
+			createStanding('p3', { points: 2, matchesWon: 1, matchesPlayed: 3, position: 3 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3, position: 4 })
+		];
+
+		// Qualify top 1: p1 and p2 share primaryValue(4), so hasTieForQualification is true
+		// even though tiebreaker resolved p1 > p2
+		const hasTie = hasTieForQualification(standings, 1, false, 'WINS');
+		expect(hasTie).toBe(true);
+	});
+
+	it('returns false when qualification line is between different primaryValues', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', { points: 6, matchesWon: 3, matchesPlayed: 3, position: 1 }),
+			createStanding('p2', { points: 4, matchesWon: 2, matchesPlayed: 3, position: 2 }),
+			createStanding('p3', { points: 2, matchesWon: 1, matchesPlayed: 3, position: 3 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3, position: 4 })
+		];
+
+		// Top 2: p2(4 pts) vs p3(2 pts) — no tie
+		expect(hasTieForQualification(standings, 2, false, 'WINS')).toBe(false);
+	});
+});
+
+describe('edge cases: Buchholz with BYE opponents', () => {
+	it('BYE opponent contributes 0 to Buchholz', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p2: { result: 'TIE', twenties: 2 },
+					BYE: { result: 'WIN', twenties: 0 },
+				}
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'TIE', twenties: 2 },
+					p3: { result: 'WIN', twenties: 2 },
+				}
+			}),
+			createStanding('p3', {
+				points: 2, matchesWon: 1, matchesPlayed: 3,
+				headToHeadRecord: {
+					p2: { result: 'LOSS', twenties: 0 },
+				}
+			}),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+
+		// p1 Buchholz: p2(4pts) + BYE(not found, 0) = 4
+		// p2 Buchholz: p1(4pts) + p3(2pts) = 6
+		// p2 has higher Buchholz → ranked above p1
+		expect(p2.position).toBeLessThan(p1.position);
+		// Buchholz resolved it, so no unresolved tie
+		expect(p1.tieReason).toBeUndefined();
+		expect(p2.tieReason).toBeUndefined();
+	});
+});
+
+describe('edge cases: show20s=false with complete tie', () => {
+	it('skips 20s and reaches unresolved faster (2-player RR WINS)', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: {
+					p2: { result: 'TIE', twenties: 5 },
+					p3: { result: 'WIN', twenties: 3 },
+				}
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 3, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'TIE', twenties: 1 },
+					p3: { result: 'WIN', twenties: 1 },
+				}
+			}),
+			createStanding('p3', { points: 0, matchesWon: 0, matchesPlayed: 3 }),
+			createStanding('p4', { points: 2, matchesWon: 1, matchesPlayed: 3 })
+		];
+
+		// With show20s=true, p1 wins (10 vs 3 total 20s)
+		const resultWith20s = resolveTiebreaker(standings, participants, false, 'WINS', true);
+		const p1With = resultWith20s.find(s => s.participantId === 'p1')!;
+		expect(p1With.position).toBe(1);
+		expect(p1With.tieReason).toBeUndefined();
+
+		// With show20s=false, 20s is skipped → same totalPoints → same Buchholz → unresolved
+		const resultNo20s = resolveTiebreaker(standings, participants, false, 'WINS', false);
+		const p1No = resultNo20s.find(s => s.participantId === 'p1')!;
+		const p2No = resultNo20s.find(s => s.participantId === 'p2')!;
+		expect(p1No.tieReason).toBe('unresolved');
+		expect(p2No.tieReason).toBe('unresolved');
+	});
+});
+
+describe('edge cases: large number tied players with identical stats', () => {
+	it('handles 5 players all tied on everything in Swiss', () => {
+		const participants = createParticipants(10);
+		// 5 players all with identical stats. All face the SAME opponent (p6) so Buchholz is identical.
+		const tiedStandings = Array.from({ length: 5 }, (_, i) =>
+			createStanding(`p${i + 1}`, {
+				points: 6, swissPoints: 6, matchesWon: 3, matchesPlayed: 5,
+				total20s: 8, totalPointsScored: 24,
+				headToHeadRecord: {
+					p6: { result: 'WIN', twenties: 2 },
+				}
+			})
+		);
+		const otherStandings = [
+			createStanding('p6', {
+				points: 0, swissPoints: 0, matchesWon: 0, matchesPlayed: 5,
+				total20s: 0, totalPointsScored: 0,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p2: { result: 'LOSS', twenties: 0 },
+					p3: { result: 'LOSS', twenties: 0 },
+					p4: { result: 'LOSS', twenties: 0 },
+					p5: { result: 'LOSS', twenties: 0 },
+				}
+			}),
+			createStanding('p7', { points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 5 }),
+			createStanding('p8', { points: 3, swissPoints: 3, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p9', { points: 2, swissPoints: 2, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p10', { points: 1, swissPoints: 1, matchesWon: 0, matchesPlayed: 5 }),
+		];
+
+		const result = resolveTiebreaker([...tiedStandings, ...otherStandings], participants, true, 'WINS');
+
+		// All 5 tied players: same swissPoints, same 20s, same totalPoints, same Buchholz (all faced p6 with 0 pts)
+		// No H2H between them → unresolved
+		for (let i = 1; i <= 5; i++) {
+			const p = result.find(s => s.participantId === `p${i}`)!;
+			expect(p.tieReason).toBe('unresolved');
+			expect(p.tiedWith!.length).toBe(4);
+			expect(p.position).toBeLessThanOrEqual(5);
+		}
+	});
+});
+
+describe('edge cases: POINTS mode primary value', () => {
+	it('groups by totalPointsScored, not victory points, in POINTS mode', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 30,
+				headToHeadRecord: { p2: { result: 'WIN', twenties: 3 } }
+			}),
+			createStanding('p2', {
+				points: 2, matchesWon: 1, matchesPlayed: 3,
+				total20s: 8, totalPointsScored: 30,
+				headToHeadRecord: { p1: { result: 'LOSS', twenties: 2 } }
+			}),
+			createStanding('p3', { points: 6, matchesWon: 3, matchesPlayed: 3, totalPointsScored: 20 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3, totalPointsScored: 10 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'POINTS');
+
+		// In POINTS mode, primary is totalPointsScored, NOT victory points
+		// p1 and p2 both have 30 → tied, resolved by H2H (p1 beat p2)
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+		const p3 = result.find(s => s.participantId === 'p3')!;
+
+		expect(p1.position).toBe(1);
+		expect(p2.position).toBe(2);
+		expect(p3.position).toBe(3); // 20 total points < 30
+	});
+});
