@@ -291,7 +291,8 @@
 
 				<!-- Rounds list -->
 				<div class="rounds-list">
-					{#each displayGames[selectedGameIndex]?.rounds ?? [] as round, index}
+					{#each [...(displayGames[selectedGameIndex]?.rounds ?? [])].reverse() as round, i}
+						{@const index = (displayGames[selectedGameIndex]?.rounds?.length ?? 0) - 1 - i}
 						{@const isCurrentGame = !displayGames[selectedGameIndex]?.isCompleted}
 						{@const roundWinner = round.team1Points > round.team2Points ? 1 : round.team2Points > round.team1Points ? 2 : 0}
 						<button

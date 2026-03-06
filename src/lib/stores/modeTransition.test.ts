@@ -247,7 +247,7 @@ function simulateEnterTournament(context: TournamentMatchContext) {
 /**
  * Simulates exitTournamentMode() from +page.svelte (lines 595-620)
  */
-function simulateExitTournamentMode() {
+function simulateExitTournamentMode(restoreImmediately = true) {
 	clearTournamentContext();
 
 	const backupStr = localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
@@ -261,8 +261,9 @@ function simulateExitTournamentMode() {
 		...(backup?.gameType ? { gameType: backup.gameType } : {})
 	}));
 
-	// restorePreTournamentData (lines 627-677)
-	simulateRestorePreTournamentData();
+	if (restoreImmediately) {
+		simulateRestorePreTournamentData();
+	}
 }
 
 /**
@@ -320,6 +321,8 @@ function simulateHandleResetMatch() {
 	if (getTournamentContext()) {
 		simulateExitTournamentMode();
 	}
+	// Restore deferred pre-tournament data if pending (from completed tournament match)
+	simulateRestorePreTournamentData();
 	gameSettings.update(s => ({ ...s, lastTournamentResult: null }));
 	resetTeams();
 	resetMatchState();
@@ -767,7 +770,7 @@ describe('Multiple tournament cycles', () => {
 });
 
 describe('Match completion then New Match', () => {
-	it('restores friendly state after tournament completion + New Match', () => {
+	it('keeps tournament names after completion, restores friendly on New Match', () => {
 		setupFriendlyState();
 		simulateEnterTournament(makeTournamentContext());
 
@@ -787,15 +790,17 @@ describe('Match completion then New Match', () => {
 				matchesToWin: 1
 			}
 		}));
-		// 2. exitTournamentMode (this restores backup + deletes it)
-		simulateExitTournamentMode();
+		// 2. exitTournamentMode(false) — don't restore yet, keep tournament names for RoundsPanel
+		simulateExitTournamentMode(false);
 
-		// After completion, tournament context is gone but match state is not reset
+		// After completion: context gone, but team names still show tournament participants
 		expect(getTournamentContext()).toBeNull();
-		expect(get(team1).name).toBe('Eagles'); // restored
-		expect(get(gameSettings).gameMode).toBe('points'); // restored
+		expect(get(team1).name).toBe('Carlos'); // tournament name preserved
+		expect(get(team2).name).toBe('Diana');  // tournament name preserved
+		// Backup still exists (not consumed yet)
+		expect(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)).not.toBeNull();
 
-		// User clicks "New Match"
+		// User clicks "New Match" — NOW restore friendly state
 		simulateHandleResetMatch();
 
 		// Everything should be clean friendly state
@@ -804,6 +809,50 @@ describe('Match completion then New Match', () => {
 		expect(get(gameSettings).gameType).toBe('doubles');
 		expect(get(gameSettings).lastTournamentResult).toBeNull();
 		expect(get(team1).points).toBe(0);
+		// Backup consumed
+		expect(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)).toBeNull();
+	});
+
+	it('tournament names persist in RoundsPanel after match completion until New Match', () => {
+		setupFriendlyState();
+		simulateEnterTournament(makeTournamentContext());
+
+		// Play some rounds
+		vi.spyOn(Date, 'now').mockReturnValue(1000000);
+		completeRound(2, 0, 0, 0, 1);
+
+		// Complete match — deferred restore
+		gameSettings.update(s => ({
+			...s,
+			lastTournamentResult: {
+				winnerName: 'Carlos',
+				scoreA: 1,
+				scoreB: 0,
+				isTie: false,
+				team1Name: 'Carlos',
+				team2Name: 'Diana',
+				pointsA: 10,
+				pointsB: 5,
+				matchesToWin: 1
+			}
+		}));
+		simulateExitTournamentMode(false);
+
+		// Team names should still be tournament names (for RoundsPanel display)
+		expect(get(team1).name).toBe('Carlos');
+		expect(get(team2).name).toBe('Diana');
+		// gameType should already be restored to friendly (doubles) via backup
+		expect(get(gameSettings).gameType).toBe('doubles');
+		// But settings NOT fully restored yet
+		expect(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)).not.toBeNull();
+
+		// New Match restores everything
+		simulateHandleResetMatch();
+		expect(get(team1).name).toBe('Eagles');
+		expect(get(team2).name).toBe('Hawks');
+		expect(get(gameSettings).gameMode).toBe('points');
+		expect(get(gameSettings).timerMinutes).toBe(5);
+		expect(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)).toBeNull();
 	});
 });
 

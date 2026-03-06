@@ -54,6 +54,7 @@
   let selectedRoundNumber = $state<number>(1);
   let selectedIsThirdPlace = $state<boolean>(false);
   let isAutoFilling = $state(false);
+  let showAutoFillModal = $state(false);
   let isSavingMatch = $state(false);
   let unsubscribe: (() => void) | null = null;
   let showTimeBreakdown = $state(false);
@@ -1701,16 +1702,7 @@
                 <span class="repair-badge">{brokenMatchesCount}</span>
               </button>
             {/if}
-            {#if tournament.status !== 'COMPLETED'}
-              <button
-                class="action-btn autofill"
-                onclick={autoFillAllMatches}
-                disabled={isAutoFilling}
-                title={m.admin_autoFillMatchesTitle() || 'Auto-fill matches with random results'}
-              >
-                {isAutoFilling ? `⏳` : `🎲`}
-              </button>
-            {/if}
+            <!-- Autofill moved to floating button -->
             <a href="/tournaments/{tournament?.key || tournamentId}" class="public-link" title="Ver página pública">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -2642,6 +2634,61 @@
   </div>
 {/if}
 
+<!-- Floating Autofill Button -->
+{#if tournament && tournament.status !== 'COMPLETED'}
+  <button
+    class="floating-autofill"
+    onclick={() => { showAutoFillModal = true; }}
+    disabled={isAutoFilling}
+    title={m.admin_autoFillMatchesTitle()}
+  >
+    {isAutoFilling ? '⏳' : '🎲'}
+  </button>
+{/if}
+
+<!-- Autofill Confirmation Modal -->
+{#if showAutoFillModal && tournament}
+  {@const allPendingCount = [
+    ...goldRounds.flatMap(r => r.matches),
+    ...(goldThirdPlaceMatch ? [goldThirdPlaceMatch] : []),
+    ...silverRounds.flatMap(r => r.matches),
+    ...(silverThirdPlaceMatch ? [silverThirdPlaceMatch] : []),
+    ...goldConsolationBrackets.flatMap(b => b.rounds.flatMap(r => r.matches)),
+    ...silverConsolationBrackets.flatMap(b => b.rounds.flatMap(r => r.matches))
+  ].filter(m => m.status === 'PENDING' && m.participantA && m.participantB).length}
+  <div
+    class="modal-backdrop"
+    data-theme={$adminTheme}
+    onclick={() => { showAutoFillModal = false; }}
+    onkeydown={(e) => e.key === 'Escape' && (showAutoFillModal = false)}
+    role="presentation"
+  >
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="confirm-modal autofill-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+      <div class="modal-header">
+        <div class="header-icon">
+          <span style="font-size: 14px;">🎲</span>
+        </div>
+        <h2>{m.admin_autoFillModalTitle()}</h2>
+        <button class="close-btn" onclick={() => { showAutoFillModal = false; }} aria-label="Close">×</button>
+      </div>
+      <div class="modal-body autofill-options">
+        <button
+          class="autofill-option"
+          onclick={() => { showAutoFillModal = false; autoFillAllMatches(); }}
+          disabled={isAutoFilling || allPendingCount === 0}
+        >
+          <div class="option-label">{m.admin_autoFillAllRounds()}</div>
+          <div class="option-info">{m.admin_autoFillAllInfo({ count: allPendingCount })}</div>
+        </button>
+      </div>
+      <div class="confirm-actions">
+        <button class="cancel-btn" onclick={() => { showAutoFillModal = false; }}>{m.common_cancel()}</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <Toast bind:visible={showToast} message={toastMessage} type={toastType} />
 
 <!-- Loading Overlay -->
@@ -2818,20 +2865,94 @@
     white-space: nowrap;
   }
 
-  .action-btn.autofill {
-    background: var(--primary);
-    color: white;
+  .floating-autofill {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 50;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(100, 100, 120, 0.5);
+    backdrop-filter: blur(8px);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   }
 
-  .action-btn.autofill:hover:not(:disabled) {
-    transform: translateY(-2px);
-    filter: brightness(1.1);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 40%, transparent);
+  .floating-autofill:hover:not(:disabled) {
+    background: rgba(100, 100, 120, 0.7);
+    transform: scale(1.08);
   }
 
-  .action-btn.autofill:disabled {
-    opacity: 0.6;
+  .floating-autofill:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .autofill-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .autofill-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    padding: 0.7rem 0.85rem;
+    background: #f8f9fa;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+    text-align: left;
+  }
+
+  .autofill-option:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
+  }
+
+  .autofill-option:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .autofill-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .option-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  .option-info {
+    font-size: 0.75rem;
+    color: #64748b;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .autofill-option {
+    background: #1e2d3d;
+    border-color: #2d3748;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .autofill-option:hover:not(:disabled) {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .option-label {
+    color: #e1e8ed;
   }
 
   .action-btn.repair {
@@ -4634,6 +4755,54 @@
     gap: 0.6rem;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid #e5e7eb;
+  }
+
+  .confirm-modal .header-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    border-radius: 6px;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .confirm-modal h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    flex: 1;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal h2 {
+    color: #e1e8ed;
+  }
+
+  .confirm-modal .close-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 1.2rem;
+  }
+
+  .confirm-modal .close-btn:hover {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  .modal-backdrop:is([data-theme='dark'], [data-theme='violet']) .confirm-modal .close-btn:hover {
+    background: #2d3748;
+    color: #e1e8ed;
   }
 
   .modal-header.danger {

@@ -592,7 +592,7 @@
 	 * Exit tournament mode - clears context only
 	 * Restores pre-tournament friendly backup automatically.
 	 */
-	function exitTournamentMode() {
+	function exitTournamentMode(restoreImmediately = true) {
 		clearTournamentContext();
 		// Clear event title/phase since we're no longer in tournament mode.
 		// Also restore gameType from backup immediately to avoid showing partner buttons
@@ -614,10 +614,10 @@
 			matchPhase: '',
 			...(backup?.gameType ? { gameType: backup.gameType } : {})
 		}));
-		
-		// Immediately restore pre-tournament data instead of marking it
-		// to require a new match click from the user.
-		restorePreTournamentData();
+
+		if (restoreImmediately) {
+			restorePreTournamentData();
+		}
 	}
 
 	/**
@@ -1646,7 +1646,7 @@
 			}));
 		}
 
-		exitTournamentMode();
+		exitTournamentMode(false);  // Don't restore yet — keep tournament names for RoundsPanel
 		isInExtraRounds = false;
 	}
 
@@ -1665,6 +1665,9 @@
 		if ($gameTournamentContext) {
 			exitTournamentMode();
 		}
+
+		// Restore deferred pre-tournament data if pending (from completed tournament match)
+		restorePreTournamentData();
 
 		// Ensure winner splash never leaks into the next match
 		clearWinnerSplash();

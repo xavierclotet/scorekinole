@@ -130,13 +130,18 @@
   role={isClickable ? 'button' : undefined}
   tabindex={isClickable ? 0 : undefined}
 >
+  {#if match.status === 'IN_PROGRESS'}
+    {@const currentRound = (match.rounds?.length ?? 0) + 1}
+    <div class="round-indicator">R{currentRound}</div>
+  {/if}
+
   <!-- Compact single-row layout -->
   <div class="match-row">
     {#if !isBye}
       {#if match.tableNumber}
         <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
-      {:else if match.status === 'PENDING'}
-        <span class="table-num tbd">TBD</span>
+      {:else}
+        <span class="table-num tbd">{match.status === 'PENDING' ? 'TBD' : '—'}</span>
       {/if}
     {/if}
 
@@ -242,6 +247,19 @@
   .match-card.in-progress {
     border-left: 3px solid #f59e0b;
     background: #fffbeb;
+  }
+
+  .round-indicator {
+    text-align: center;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #92400e;
+    background: rgba(245, 158, 11, 0.15);
+    border-radius: 3px;
+    padding: 0.05rem 0.4rem;
+    margin: -0.1rem auto 0.25rem;
+    width: fit-content;
+    letter-spacing: 0.03em;
   }
 
   .match-card.walkover {
@@ -514,6 +532,11 @@
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.in-progress {
     background: rgba(245, 158, 11, 0.1);
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .round-indicator {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.15);
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.walkover {
