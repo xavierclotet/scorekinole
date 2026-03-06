@@ -1519,5 +1519,20 @@
   "admin_countdownDoubles": "Countdown · Doubles · {minutes} min",
   "admin_timePerMatch": "Time per match",
   "tournament_countdownTimeout": "TIME!",
-  "tournament_countdownPaused": "Slow"
+  "tournament_countdownPaused": "Slow",
+  "admin_venueManagement": "Venue Management",
+  "admin_manageVenuesDesc": "Manage tournament venues",
+  "admin_venueSearch": "Search by name, city...",
+  "admin_venueDeleteTitle": "Remove venue",
+  "admin_venueDeleteConfirm": "Delete this venue permanently?",
+  "admin_venueDeleteBlocked": "It cannot be removed: there are linked tournaments",
+  "admin_venueDeleteSuccess": "Venue successfully removed",
+  "admin_venueMergeTitle": "Merge venues",
+  "admin_venueMergeSource": "Venue origin (will be removed)",
+  "admin_venueMergeTarget": "Destination Venue",
+  "admin_venueMergePreview": "{count} tournament(s) will be reassigned",
+  "admin_venueMergeConfirm": "Merge venues",
+  "admin_venueMergeSuccess": "Venues successfully merged ( {count} tournaments updated)",
+  "admin_venueNoVenues": "There are no venues listed",
+  "admin_venueOwner": "Owner"
 }

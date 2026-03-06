@@ -543,6 +543,7 @@
   let address = $state('');
   let city = $state('');
   let country = $state('España');
+  let venueId = $state<string | undefined>();
   let tournamentDate = $state(new Date().toISOString().split('T')[0]);
   let tournamentTime = $state('');
   let gameType = $state<'singles' | 'doubles'>('singles');
@@ -631,10 +632,11 @@
   }
 
   // Handler for VenueSelector
-  function handleVenueSelect(venue: { address?: string; city: string; country: string }) {
+  function handleVenueSelect(venue: { address?: string; city: string; country: string; venueId?: string }) {
     address = venue.address || '';
     city = venue.city;
     country = venue.country;
+    venueId = venue.venueId;
   }
 
   // Derived: userIds to exclude from pair member search
@@ -1804,6 +1806,9 @@
       if (address && address.trim()) {
         input.address = address.trim();
       }
+      if (venueId) {
+        input.venueId = venueId;
+      }
       if (description && description.trim()) {
         input.description = description.trim();
       }
@@ -1869,6 +1874,9 @@
       }
       if (address && address.trim()) {
         updates.address = address.trim();
+      }
+      if (venueId) {
+        updates.venueId = venueId;
       }
       if (description && description.trim()) {
         updates.description = description.trim();
@@ -2164,6 +2172,7 @@
                 address={address}
                 city={city}
                 country={country}
+                {venueId}
                 onselect={handleVenueSelect}
                 theme={$adminTheme}
               />

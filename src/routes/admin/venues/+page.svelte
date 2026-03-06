@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import AdminGuard from '$lib/components/AdminGuard.svelte';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+  import CountrySelect from '$lib/components/CountrySelect.svelte';
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
@@ -11,8 +11,7 @@
   import {
     getAllVenues,
     getMyVenues,
-    deleteVenue,
-    deleteVenueAsSuperAdmin,
+    updateVenue,
     getVenueTournamentDependencies,
     mergeVenues
   } from '$lib/firebase/venues';
@@ -23,11 +22,17 @@
   let isLoading = $state(true);
   let searchQuery = $state('');
 
-  // Delete modal state
-  let venueToDelete = $state<Venue | null>(null);
-  let deleteDepLoading = $state(false);
-  let deleteDeps = $state<{ id: string; name: string; status: string }[]>([]);
-  let isDeleting = $state(false);
+  // Tournament counts per venue
+  let venueTournamentCounts = $state<Map<string, number>>(new Map());
+  let countsLoading = $state(false);
+
+  // Edit modal state
+  let venueToEdit = $state<Venue | null>(null);
+  let editName = $state('');
+  let editAddress = $state('');
+  let editCity = $state('');
+  let editCountry = $state('');
+  let isSavingEdit = $state(false);
 
   // Merge modal state
   let venueToMerge = $state<Venue | null>(null);
@@ -63,6 +68,12 @@
     return venues.filter((v) => v.id !== venueToMerge!.id);
   });
 
+  // Can edit this venue? Owner or SuperAdmin
+  function canEdit(venue: Venue): boolean {
+    if ($isSuperAdminUser) return true;
+    return venue.ownerId === $currentUser?.id;
+  }
+
   // Wait for admin state to be ready before loading venues
   $effect(() => {
     if (!$adminCheckLoading) {
@@ -74,6 +85,8 @@
     isLoading = true;
     try {
       venues = $isSuperAdminUser ? await getAllVenues() : await getMyVenues();
+      // Load tournament counts in background
+      loadTournamentCounts();
     } catch (error) {
       console.error('Error loading venues:', error);
     } finally {
@@ -81,40 +94,64 @@
     }
   }
 
-  // Delete flow
-  async function openDeleteModal(venue: Venue) {
-    venueToDelete = venue;
-    deleteDeps = [];
-    deleteDepLoading = true;
+  async function loadTournamentCounts() {
+    countsLoading = true;
+    const counts = new Map<string, number>();
     try {
-      deleteDeps = await getVenueTournamentDependencies(venue.id);
+      // Load all counts in parallel
+      const results = await Promise.all(
+        venues.map(async (v) => {
+          const deps = await getVenueTournamentDependencies(v.id);
+          return { id: v.id, count: deps.length };
+        })
+      );
+      results.forEach((r) => counts.set(r.id, r.count));
+      venueTournamentCounts = counts;
+    } catch (error) {
+      console.error('Error loading tournament counts:', error);
     } finally {
-      deleteDepLoading = false;
+      countsLoading = false;
     }
   }
 
-  function closeDeleteModal() {
-    venueToDelete = null;
-    deleteDeps = [];
+  // Edit flow
+  function openEditModal(venue: Venue) {
+    venueToEdit = venue;
+    editName = venue.name;
+    editAddress = venue.address || '';
+    editCity = venue.city;
+    editCountry = venue.country;
   }
 
-  async function confirmDelete() {
-    if (!venueToDelete || deleteDeps.length > 0) return;
-    isDeleting = true;
+  function closeEditModal() {
+    venueToEdit = null;
+  }
+
+  async function saveEdit() {
+    if (!venueToEdit || !editName.trim() || !editCity.trim()) return;
+    isSavingEdit = true;
     try {
-      const success = $isSuperAdminUser && venueToDelete.ownerId !== $currentUser?.id
-        ? await deleteVenueAsSuperAdmin(venueToDelete.id)
-        : await deleteVenue(venueToDelete.id);
+      const success = await updateVenue(venueToEdit.id, {
+        name: editName.trim(),
+        address: editAddress.trim() || undefined,
+        city: editCity.trim(),
+        country: editCountry
+      });
 
       if (success) {
-        venues = venues.filter((v) => v.id !== venueToDelete!.id);
-        toast(m.admin_venueDeleteSuccess(), 'success');
+        // Update local cache
+        venues = venues.map((v) =>
+          v.id === venueToEdit!.id
+            ? { ...v, name: editName.trim(), address: editAddress.trim() || undefined, city: editCity.trim(), country: editCountry }
+            : v
+        );
+        toast(m.admin_configurationUpdated(), 'success');
+        closeEditModal();
       } else {
-        toast('Error al eliminar', 'error');
+        toast('Error al guardar', 'error');
       }
     } finally {
-      isDeleting = false;
-      closeDeleteModal();
+      isSavingEdit = false;
     }
   }
 
@@ -212,13 +249,14 @@
             <tr>
               <th class="name-col">{m.venue_name()}</th>
               <th class="location-col">{m.wizard_city()}</th>
+              <th class="tournaments-col">🏆</th>
               <th class="owner-col hide-small">{m.admin_venueOwner()}</th>
               <th class="actions-col"></th>
             </tr>
           </thead>
           <tbody>
             {#each filteredVenues as venue (venue.id)}
-              <tr class="venue-row">
+              <tr class="venue-row" onclick={() => canEdit(venue) && openEditModal(venue)}>
                 <td class="name-cell">
                   <div class="venue-info">
                     <strong class="venue-name">{venue.name}</strong>
@@ -230,10 +268,25 @@
                 <td class="location-cell">
                   {venue.city}, {venue.country}
                 </td>
+                <td class="tournaments-cell">
+                  {#if countsLoading}
+                    <span class="count-loading">·</span>
+                  {:else}
+                    {venueTournamentCounts.get(venue.id) ?? 0}
+                  {/if}
+                </td>
                 <td class="owner-cell hide-small">
                   {venue.ownerName || '—'}
                 </td>
                 <td class="actions-cell">
+                  {#if canEdit(venue)}
+                    <button
+                      class="action-btn edit-btn"
+                      onclick={(e) => { e.stopPropagation(); openEditModal(venue); }}
+                    >
+                      ✏️
+                    </button>
+                  {/if}
                   {#if $isSuperAdminUser}
                     <button
                       class="action-btn merge-btn"
@@ -243,13 +296,6 @@
                       🔗
                     </button>
                   {/if}
-                  <button
-                    class="action-btn delete-btn"
-                    title={m.admin_venueDeleteTitle()}
-                    onclick={(e) => { e.stopPropagation(); openDeleteModal(venue); }}
-                  >
-                    🗑️
-                  </button>
                 </td>
               </tr>
             {/each}
@@ -266,45 +312,39 @@
     </div>
   {/if}
 
-  <!-- Delete Modal -->
-  {#if venueToDelete}
+  <!-- Edit Modal -->
+  {#if venueToEdit}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="delete-overlay" data-theme={$adminTheme} onclick={closeDeleteModal} onkeydown={(e) => e.key === 'Escape' && closeDeleteModal()} role="presentation">
-      <div class="delete-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-        <h3>{m.admin_venueDeleteTitle()}</h3>
+    <div class="modal-overlay" data-theme={$adminTheme} onclick={closeEditModal} onkeydown={(e) => e.key === 'Escape' && closeEditModal()} role="presentation">
+      <div class="modal-box" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+        <h3>{m.common_edit()}</h3>
 
-        <div class="venue-preview">
-          <strong>{venueToDelete.name}</strong>
-          <span>{getVenueLocationDisplay(venueToDelete)}</span>
+        <div class="edit-form">
+          <div class="edit-field">
+            <label for="edit-name">{m.venue_name()}</label>
+            <input id="edit-name" type="text" bind:value={editName} class="edit-input" maxlength="100" />
+          </div>
+          <div class="edit-field">
+            <label for="edit-address">{m.wizard_address()}</label>
+            <input id="edit-address" type="text" bind:value={editAddress} class="edit-input" maxlength="200" />
+          </div>
+          <div class="edit-row">
+            <div class="edit-field">
+              <label for="edit-city">{m.wizard_city()}</label>
+              <input id="edit-city" type="text" bind:value={editCity} class="edit-input" maxlength="100" />
+            </div>
+            <div class="edit-field">
+              <label for="edit-country">{m.wizard_country()}</label>
+              <CountrySelect id="edit-country" bind:value={editCountry} />
+            </div>
+          </div>
         </div>
 
-        {#if deleteDepLoading}
-          <div class="deps-loading">
-            <span class="loading-spinner-small"></span>
-          </div>
-        {:else if deleteDeps.length > 0}
-          <div class="deps-warning">
-            <p>{m.admin_venueDeleteBlocked()}</p>
-            <ul class="deps-list">
-              {#each deleteDeps as dep (dep.id)}
-                <li>
-                  <span class="dep-name">{dep.name}</span>
-                  <span class="dep-status">{dep.status}</span>
-                </li>
-              {/each}
-            </ul>
-          </div>
-        {:else}
-          <p class="confirm-text">{m.admin_venueDeleteConfirm()}</p>
-        {/if}
-
         <div class="modal-actions">
-          <button class="btn-cancel" onclick={closeDeleteModal}>{m.common_cancel()}</button>
-          {#if deleteDeps.length === 0 && !deleteDepLoading}
-            <button class="btn-danger" onclick={confirmDelete} disabled={isDeleting}>
-              {isDeleting ? '...' : m.common_delete()}
-            </button>
-          {/if}
+          <button class="btn-cancel" onclick={closeEditModal}>{m.common_cancel()}</button>
+          <button class="btn-primary" onclick={saveEdit} disabled={isSavingEdit || !editName.trim() || !editCity.trim()}>
+            {isSavingEdit ? '...' : m.common_save()}
+          </button>
         </div>
       </div>
     </div>
@@ -313,8 +353,8 @@
   <!-- Merge Modal -->
   {#if venueToMerge}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="delete-overlay" data-theme={$adminTheme} onclick={closeMergeModal} onkeydown={(e) => e.key === 'Escape' && closeMergeModal()} role="presentation">
-      <div class="delete-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+    <div class="modal-overlay" data-theme={$adminTheme} onclick={closeMergeModal} onkeydown={(e) => e.key === 'Escape' && closeMergeModal()} role="presentation">
+      <div class="modal-box" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
         <h3>{m.admin_venueMergeTitle()}</h3>
 
         <div class="merge-section">
@@ -594,7 +634,7 @@
 
   .venue-row {
     transition: background 0.15s;
-    cursor: default;
+    cursor: pointer;
   }
 
   .venue-row:hover {
@@ -629,6 +669,20 @@
     min-width: 140px;
   }
 
+  .tournaments-col {
+    width: 50px;
+    text-align: center;
+  }
+
+  .tournaments-cell {
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .count-loading {
+    opacity: 0.4;
+  }
+
   .actions-col {
     width: 80px;
     text-align: right;
@@ -659,14 +713,6 @@
     background: #334155;
   }
 
-  .delete-btn:hover {
-    background: #fef2f2;
-  }
-
-  .venues-container:is([data-theme='dark'], [data-theme='violet']) .delete-btn:hover {
-    background: #3b1c1c;
-  }
-
   /* ── Toast ── */
   .toast-notification {
     position: fixed;
@@ -694,7 +740,7 @@
   }
 
   /* ── Modal overlay ── */
-  .delete-overlay {
+  .modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
@@ -705,7 +751,7 @@
     padding: 1rem;
   }
 
-  .delete-modal {
+  .modal-box {
     background: white;
     border-radius: 12px;
     padding: 1.5rem;
@@ -717,22 +763,71 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   }
 
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .delete-modal {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .modal-box {
     background: #1a2332;
     border: 1px solid #2d3748;
   }
 
-  .delete-modal h3 {
+  .modal-box h3 {
     margin: 0;
     font-size: 1.1rem;
     font-weight: 700;
     color: #1e293b;
   }
 
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .delete-modal h3 {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .modal-box h3 {
     color: #f1f5f9;
   }
 
+  /* ── Edit form ── */
+  .edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .edit-field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+  }
+
+  .edit-input {
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    color: #1e293b;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .edit-input {
+    background: #0f172a;
+    border-color: #374151;
+    color: #e2e8f0;
+  }
+
+  .edit-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+  }
+
+  .edit-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  /* ── Venue preview ── */
   .venue-preview {
     display: flex;
     flex-direction: column;
@@ -744,7 +839,7 @@
     color: #64748b;
   }
 
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .venue-preview {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .venue-preview {
     background: #0f172a;
     color: #94a3b8;
   }
@@ -754,86 +849,11 @@
     font-size: 0.9rem;
   }
 
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .venue-preview strong {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .venue-preview strong {
     color: #f1f5f9;
   }
 
-  .deps-loading {
-    display: flex;
-    justify-content: center;
-    padding: 0.75rem;
-  }
-
-  .loading-spinner-small {
-    width: 20px;
-    height: 20px;
-    border: 2px solid #e5e7eb;
-    border-top-color: #3b82f6;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .deps-warning {
-    padding: 0.75rem;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    color: #dc2626;
-  }
-
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .deps-warning {
-    background: #3b1c1c;
-    border-color: #7f1d1d;
-    color: #fca5a5;
-  }
-
-  .deps-warning p {
-    margin: 0 0 0.5rem;
-    font-weight: 600;
-  }
-
-  .deps-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .deps-list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 3px 0;
-    font-size: 0.8rem;
-  }
-
-  .dep-name {
-    font-weight: 500;
-  }
-
-  .dep-status {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    opacity: 0.7;
-  }
-
-  .confirm-text {
-    font-size: 0.9rem;
-    color: #64748b;
-    margin: 0;
-  }
-
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .confirm-text {
-    color: #94a3b8;
-  }
-
+  /* ── Modal actions ── */
   .modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -842,7 +862,6 @@
   }
 
   .btn-cancel,
-  .btn-danger,
   .btn-primary {
     padding: 0.5rem 1rem;
     border-radius: 8px;
@@ -858,7 +877,7 @@
     color: #64748b;
   }
 
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .btn-cancel {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .btn-cancel {
     background: #1e293b;
     border-color: #374151;
     color: #94a3b8;
@@ -868,18 +887,8 @@
     background: #f1f5f9;
   }
 
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .btn-cancel:hover {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .btn-cancel:hover {
     background: #334155;
-  }
-
-  .btn-danger {
-    background: #ef4444;
-    color: white;
-    border-color: #ef4444;
-  }
-
-  .btn-danger:hover:not(:disabled) {
-    background: #dc2626;
   }
 
   .btn-primary {
@@ -892,7 +901,6 @@
     background: #2563eb;
   }
 
-  .btn-danger:disabled,
   .btn-primary:disabled {
     opacity: 0.4;
     cursor: not-allowed;
@@ -923,7 +931,7 @@
     font-size: 0.85rem;
   }
 
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-select {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-select {
     background: #0f172a;
     border-color: #374151;
     color: #e2e8f0;
@@ -943,7 +951,7 @@
     border-radius: 6px;
   }
 
-  .delete-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-preview {
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-preview {
     background: #1e3a5f;
     color: #93c5fd;
   }
@@ -966,6 +974,10 @@
     .venues-table th,
     .venues-table td {
       padding: 0.5rem 0.65rem;
+    }
+
+    .edit-row {
+      grid-template-columns: 1fr;
     }
   }
 </style>

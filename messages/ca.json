@@ -1519,5 +1519,20 @@
   "admin_countdownDoubles": "Compte enrere · Dobles · {minutes} min",
   "admin_timePerMatch": "Temps per partit",
   "tournament_countdownTimeout": "TEMPS!",
-  "tournament_countdownPaused": "Pausat"
+  "tournament_countdownPaused": "Pausat",
+  "admin_venueManagement": "Gestió de Venues",
+  "admin_manageVenuesDesc": "Gestionar locals de tornejos",
+  "admin_venueSearch": "Buscar per nom, ciutat...",
+  "admin_venueDeleteTitle": "Eliminar venue",
+  "admin_venueDeleteConfirm": "Eliminar aquest venue permanentment?",
+  "admin_venueDeleteBlocked": "No es pot eliminar: hi ha tornejos vinculats",
+  "admin_venueDeleteSuccess": "Venue eliminat correctament",
+  "admin_venueMergeTitle": "Fusionar venues",
+  "admin_venueMergeSource": "Venue origen (s'eliminarà)",
+  "admin_venueMergeTarget": "Venue destí",
+  "admin_venueMergePreview": "{count} torneig(s) seran reassignats",
+  "admin_venueMergeConfirm": "Fusionar venues",
+  "admin_venueMergeSuccess": "Venus fusionats correctament ( {count} tornejos actualitzats)",
+  "admin_venueNoVenues": "No hi ha venues registrats",
+  "admin_venueOwner": "Propietari"
 }

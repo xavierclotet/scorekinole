@@ -58,6 +58,7 @@
   let editAddress = $state('');
   let editCity = $state('');
   let editCountry = $state('');
+  let editVenueId = $state<string | undefined>();
   let editExternalLink = $state('');
   let editPosterUrl = $state('');
 
@@ -304,6 +305,7 @@
     editAddress = tournament.address || '';
     editCity = tournament.city || '';
     editCountry = tournament.country || '';
+    editVenueId = tournament.venueId || undefined;
     editExternalLink = tournament.externalLink || '';
     editPosterUrl = tournament.posterUrl || '';
 
@@ -314,10 +316,11 @@
     showQuickEdit = false;
   }
 
-  function handleVenueSelect(venue: { address?: string; city: string; country: string }) {
+  function handleVenueSelect(venue: { address?: string; city: string; country: string; venueId?: string }) {
     editAddress = venue.address || '';
     editCity = venue.city;
     editCountry = venue.country;
+    editVenueId = venue.venueId;
   }
 
   function openTimeBreakdown() {
@@ -367,6 +370,7 @@
         address: editAddress.trim() || undefined,
         city: editCity.trim() || undefined,
         country: editCountry.trim() || undefined,
+        venueId: editVenueId || undefined,
         externalLink: editExternalLink.trim() || undefined,
         posterUrl: editPosterUrl.trim() || undefined
       };
@@ -993,7 +997,7 @@
             </div>
 
             <div class="qe-venue">
-              <VenueSelector address={editAddress} city={editCity} country={editCountry} onselect={handleVenueSelect} theme={$adminTheme} />
+              <VenueSelector address={editAddress} city={editCity} country={editCountry} venueId={editVenueId} onselect={handleVenueSelect} theme={$adminTheme} />
             </div>
 
             <div class="qe-field">
@@ -1057,7 +1061,7 @@
                 <div class="qe-field">
                   <span class="qe-label">{m.admin_location()}</span>
                   <div class="qe-venue-inline">
-                    <VenueSelector address={editAddress} city={editCity} country={editCountry} onselect={handleVenueSelect} theme={$adminTheme} />
+                    <VenueSelector address={editAddress} city={editCity} country={editCountry} venueId={editVenueId} onselect={handleVenueSelect} theme={$adminTheme} />
                   </div>
                 </div>
               </div>

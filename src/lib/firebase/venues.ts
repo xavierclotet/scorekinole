@@ -209,9 +209,10 @@ export async function updateVenue(
 			return false;
 		}
 
-		// Verify ownership
+		// Verify ownership (SuperAdmins can edit any venue)
 		const venueData = venueSnap.data();
-		if (venueData.ownerId !== user.id) {
+		const superAdmin = await isSuperAdmin();
+		if (venueData.ownerId !== user.id && !superAdmin) {
 			console.error('❌ Not authorized to update this venue');
 			return false;
 		}

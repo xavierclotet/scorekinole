@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createVenue, getAllVenues } from '$lib/firebase/venues';
+	import { createVenue, getAllVenues, updateVenue } from '$lib/firebase/venues';
 	import type { Venue } from '$lib/types/venue';
 	import { getVenueLocationDisplay } from '$lib/types/venue';
+	import { currentUser } from '$lib/firebase/auth';
+	import { isSuperAdminUser } from '$lib/stores/admin';
 	import CountrySelect from '$lib/components/CountrySelect.svelte';
 	import * as m from '$lib/paraglide/messages.js';
 
@@ -11,6 +13,7 @@
 		address?: string;
 		city?: string;
 		country?: string;
+		venueId?: string;
 
 		// Callback when venue is selected or manual entry applied
 		onselect: (venue: { address?: string; city: string; country: string; venueId?: string }) => void;
@@ -25,6 +28,7 @@
 	let currentAddress = $derived(props.address ?? '');
 	let currentCity = $derived(props.city ?? '');
 	let currentCountry = $derived(props.country ?? 'España');
+	let currentVenueId = $derived(props.venueId);
 	let theme = $derived(props.theme ?? 'light');
 
 	// Search state
@@ -47,12 +51,16 @@
 			.slice(0, 8);
 	});
 
-	// Find matching venue name for current location
-	// First try exact match (city + country + address), then fallback to city + country only
-	let matchingVenueName = $derived.by(() => {
+	// Find matching venue for current location (by venueId or by field match)
+	let matchingVenue = $derived.by(() => {
 		if (!currentCity) return null;
 
-		// Try exact match first
+		// If we have a venueId, find by ID
+		if (currentVenueId) {
+			return allVenues.find((v) => v.id === currentVenueId) || null;
+		}
+
+		// Try exact match (city + country + address)
 		let match = allVenues.find(
 			(v) =>
 				v.city === currentCity &&
@@ -60,15 +68,31 @@
 				(v.address || '') === (currentAddress || '')
 		);
 
-		// If no exact match, try matching just city + country (for venues without address)
+		// Fallback to city + country only
 		if (!match) {
 			match = allVenues.find(
 				(v) => v.city === currentCity && v.country === currentCountry
 			);
 		}
 
-		return match?.name || null;
+		return match || null;
 	});
+
+	let matchingVenueName = $derived(matchingVenue?.name || null);
+
+	// Can the current user edit this venue?
+	let canEditVenue = $derived.by(() => {
+		if (!matchingVenue) return false;
+		if ($isSuperAdminUser) return true;
+		return matchingVenue.ownerId === $currentUser?.id;
+	});
+
+	// Venue edit state
+	let editingVenue = $state(false);
+	let editVenueName = $state('');
+	let editVenueAddress = $state('');
+	let editVenueCity = $state('');
+	let savingVenueEdit = $state(false);
 
 	// Manual input state
 	let manualName = $state('');
@@ -168,6 +192,53 @@
 			manualCountry = currentCountry;
 		}
 	}
+
+	// Venue edit functions
+	function startEditVenue() {
+		if (!matchingVenue) return;
+		editVenueName = matchingVenue.name;
+		editVenueAddress = matchingVenue.address || '';
+		editVenueCity = matchingVenue.city;
+		editingVenue = true;
+	}
+
+	function cancelEditVenue() {
+		editingVenue = false;
+	}
+
+	async function saveEditVenue() {
+		if (!matchingVenue || !editVenueCity.trim()) return;
+
+		savingVenueEdit = true;
+		try {
+			const updates: Partial<Venue> = {
+				name: editVenueName.trim(),
+				address: editVenueAddress.trim() || undefined,
+				city: editVenueCity.trim()
+			};
+
+			const success = await updateVenue(matchingVenue.id, updates);
+
+			if (success) {
+				// Update local cache
+				allVenues = allVenues.map((v) =>
+					v.id === matchingVenue!.id ? { ...v, ...updates } : v
+				);
+
+				// Propagate updated fields to parent
+				props.onselect({
+					address: updates.address,
+					city: updates.city!,
+					country: matchingVenue.country,
+					venueId: matchingVenue.id
+				});
+
+				editingVenue = false;
+			}
+		} finally {
+			savingVenueEdit = false;
+		}
+	}
 </script>
 
 <div class="venue-selector" data-theme={theme}>
@@ -175,19 +246,53 @@
 		<!-- Location already selected: show summary -->
 		<div class="selected-location">
 			<span class="field-label">{m.wizard_location()}</span>
-			<div class="location-chip">
-				<span class="location-icon">📍</span>
-				<span class="location-text">
-					{#if matchingVenueName}
-						<strong>{matchingVenueName}</strong> · {currentCity}, {currentCountry}
-					{:else}
-						{#if currentAddress}{currentAddress}, {/if}{currentCity}, {currentCountry}
+
+			{#if editingVenue && matchingVenue}
+				<!-- Inline edit form -->
+				<div class="venue-edit-form">
+					<div class="edit-row">
+						<div class="edit-field">
+							<label for="edit-venue-name">{m.venue_name()}</label>
+							<input id="edit-venue-name" type="text" bind:value={editVenueName} class="input-field" maxlength="100" />
+						</div>
+						<div class="edit-field">
+							<label for="edit-venue-address">{m.wizard_address()}</label>
+							<input id="edit-venue-address" type="text" bind:value={editVenueAddress} class="input-field" maxlength="200" />
+						</div>
+					</div>
+					<div class="edit-row">
+						<div class="edit-field">
+							<label for="edit-venue-city">{m.wizard_city()}</label>
+							<input id="edit-venue-city" type="text" bind:value={editVenueCity} class="input-field" maxlength="100" />
+						</div>
+					</div>
+					<div class="edit-actions">
+						<button type="button" class="edit-cancel-btn" onclick={cancelEditVenue}>{m.common_cancel()}</button>
+						<button type="button" class="apply-btn" onclick={saveEditVenue} disabled={savingVenueEdit || !editVenueCity.trim()}>
+							{savingVenueEdit ? '...' : m.common_save()}
+						</button>
+					</div>
+				</div>
+			{:else}
+				<div class="location-chip">
+					<span class="location-icon">📍</span>
+					<span class="location-text">
+						{#if matchingVenueName}
+							<strong>{matchingVenueName}</strong> · {currentCity}, {currentCountry}
+						{:else}
+							{#if currentAddress}{currentAddress}, {/if}{currentCity}, {currentCountry}
+						{/if}
+					</span>
+					{#if canEditVenue}
+						<button type="button" class="edit-btn" onclick={startEditVenue} title={m.common_edit()}>
+							✏️
+						</button>
 					{/if}
-				</span>
-				<button type="button" class="clear-btn" onclick={() => props.onselect({ address: '', city: '', country: 'España' })}>
-					✕
-				</button>
-			</div>
+					<button type="button" class="clear-btn" onclick={() => props.onselect({ address: '', city: '', country: 'España' })}>
+						✕
+					</button>
+				</div>
+			{/if}
 		</div>
 	{:else}
 		<!-- No location: show search and manual entry -->
@@ -345,6 +450,20 @@
 		color: var(--txt);
 	}
 
+	.edit-btn {
+		padding: 0.15rem 0.3rem;
+		background: transparent;
+		border: none;
+		font-size: 0.8rem;
+		cursor: pointer;
+		border-radius: 3px;
+		opacity: 0.6;
+		transition: opacity 0.15s;
+	}
+	.edit-btn:hover {
+		opacity: 1;
+	}
+
 	.clear-btn {
 		padding: 0.15rem 0.4rem;
 		background: transparent;
@@ -356,6 +475,58 @@
 	}
 	.clear-btn:hover {
 		background: var(--border);
+		color: var(--txt);
+	}
+
+	/* Venue edit form (inline) */
+	.venue-edit-form {
+		padding: 0.75rem;
+		background: var(--bg-hover);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+
+	.edit-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.6rem;
+	}
+
+	.edit-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.edit-field label {
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--txt-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+	}
+
+	.edit-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.5rem;
+		margin-top: 0.15rem;
+	}
+
+	.edit-cancel-btn {
+		padding: 0.4rem 0.75rem;
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: 5px;
+		font-size: 0.8rem;
+		color: var(--txt-muted);
+		cursor: pointer;
+	}
+	.edit-cancel-btn:hover {
+		background: var(--bg-hover);
 		color: var(--txt);
 	}
 
@@ -566,7 +737,8 @@
 	}
 
 	@media (max-width: 500px) {
-		.form-row {
+		.form-row,
+		.edit-row {
 			grid-template-columns: 1fr;
 		}
 		.name-field,
