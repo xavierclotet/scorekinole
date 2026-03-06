@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.90] - 2026-03-06
+- Venue management: inline edit from VenueSelector for owner/SuperAdmin
+- Admin venues page: edit modal, tournament count column, remove delete action
+- Save venueId in tournament edit and import flows
+- Fix position-range-badge in silver bracket, doubles avatar width
+- Bump chart moved below standings in live tournament view
+
 ## [2.4.89] - 2026-03-06
 - Fix tiebreaker buildCompareKey numeric overflow (use string comparison)
 - Fix hasUnresolvedTies false positives (check tieReason === 'unresolved')
