@@ -1514,5 +1514,10 @@
   "admin_exportLevel3Desc": "Points and 20s for each individual round",
   "admin_exportCopy": "Copy",
   "admin_exportCopied": "Copied",
-  "admin_exportDownload": "Discharge"
+  "admin_exportDownload": "Discharge",
+  "admin_countdownSingles": "Countdown · Individual · {minutes} min",
+  "admin_countdownDoubles": "Countdown · Doubles · {minutes} min",
+  "admin_timePerMatch": "Time per match",
+  "tournament_countdownTimeout": "TIME!",
+  "tournament_countdownPaused": "Slow"
 }

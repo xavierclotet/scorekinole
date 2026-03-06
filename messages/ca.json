@@ -1514,5 +1514,10 @@
   "admin_exportLevel3Desc": "Punts i 20s de cada ronda individual",
   "admin_exportCopy": "Copiar",
   "admin_exportCopied": "Copiat",
-  "admin_exportDownload": "Descarregar"
+  "admin_exportDownload": "Descarregar",
+  "admin_countdownSingles": "Compte enrere · Individuals · {minutes} min",
+  "admin_countdownDoubles": "Compte enrere · Dobles · {minutes} min",
+  "admin_timePerMatch": "Temps per partit",
+  "tournament_countdownTimeout": "TEMPS!",
+  "tournament_countdownPaused": "Pausat"
 }
