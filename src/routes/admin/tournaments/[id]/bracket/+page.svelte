@@ -748,15 +748,6 @@
   }) {
     if (!selectedMatch || !tournamentId || !tournament) return;
 
-    // Debug: Log match details before saving
-      matchId: selectedMatch.id,
-      participantA: selectedMatch.participantA,
-      participantB: selectedMatch.participantB,
-      status: selectedMatch.status,
-      gamesWonA: result.gamesWonA,
-      gamesWonB: result.gamesWonB,
-      isConsolation: !!selectedConsolationSource
-    });
 
     // Safety: if editing a completed match, block if winner would change
     if (selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'WALKOVER') {
@@ -1033,12 +1024,6 @@
     if (!tournamentId || !bracket) return;
 
     isGeneratingConsolation = true;
-
-    // Log round completion status
-    bracket.rounds?.forEach((round, idx) => {
-      const completedMatches = round.matches.filter(m => m.status === 'COMPLETED' || m.status === 'WALKOVER').length;
-      const byeMatches = round.matches.filter(m => m.participantA === 'BYE' || m.participantB === 'BYE').length;
-    });
 
     try {
       const success = await forceRegenerateConsolationBrackets(tournamentId, activeTab);
@@ -1470,12 +1455,6 @@
               m => m.status === 'PENDING' && m.participantA && m.participantB
             );
 
-            // Log all matches in this round
-            for (const match of round.matches) {
-              const pA = match.participantA ? getParticipantName(match.participantA) : 'TBD';
-              const pB = match.participantB ? getParticipantName(match.participantB) : 'TBD';
-              const isEligible = match.status === 'PENDING' && match.participantA && match.participantB;
-            }
 
             for (const match of eligibleMatches) {
               const success = await simulateMatch(match, bracketType, phaseConfig);
