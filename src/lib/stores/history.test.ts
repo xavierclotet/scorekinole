@@ -212,6 +212,74 @@ describe('updateCurrentMatchRound', () => {
 	});
 });
 
+describe('addGameToCurrentMatch edge cases', () => {
+	it('clears rounds when adding a game', () => {
+		startCurrentMatch();
+		addRoundToCurrentMatch(makeRound({ roundNumber: 1, team1Points: 20 }));
+		addRoundToCurrentMatch(makeRound({ roundNumber: 2, team2Points: 15 }));
+		addRoundToCurrentMatch(makeRound({ roundNumber: 3, team1Points: 10 }));
+		expect(get(currentMatch)!.rounds).toHaveLength(3);
+
+		addGameToCurrentMatch(makeGame({ gameNumber: 1 }));
+
+		expect(get(currentMatch)!.rounds).toEqual([]);
+		expect(get(currentMatch)!.games).toHaveLength(1);
+	});
+});
+
+describe('multi-game buildCompletedMatch', () => {
+	it('preserves all games from a multi-game match', () => {
+		startCurrentMatch();
+
+		// Game 1 with rounds
+		addRoundToCurrentMatch(makeRound({ roundNumber: 1, team1Points: 20 }));
+		addRoundToCurrentMatch(makeRound({ roundNumber: 2, team2Points: 15 }));
+		addGameToCurrentMatch(makeGame({ gameNumber: 1, team1Points: 20, team2Points: 15 }));
+
+		// Game 2 with rounds
+		addRoundToCurrentMatch(makeRound({ roundNumber: 1, team1Points: 10 }));
+		addGameToCurrentMatch(makeGame({ gameNumber: 2, team1Points: 25, team2Points: 20 }));
+
+		expect(get(currentMatch)!.games).toHaveLength(2);
+
+		vi.spyOn(Date, 'now').mockReturnValue(1500000);
+		const result = buildCompletedMatch(makeMatchData());
+
+		expect(result.games).toHaveLength(1); // games from matchData, not currentMatch
+		expect(get(currentMatch)).toBeNull();
+	});
+});
+
+describe('updateCurrentMatchRound edge cases', () => {
+	it('is a no-op for negative index', () => {
+		startCurrentMatch();
+		addRoundToCurrentMatch(makeRound({ roundNumber: 1, team1Points: 20 }));
+
+		updateCurrentMatchRound(-1, { team1Points: 99 });
+
+		const match = get(currentMatch)!;
+		expect(match.rounds).toHaveLength(1);
+		expect(match.rounds[0].team1Points).toBe(20);
+	});
+});
+
+describe('buildCompletedMatch edge cases', () => {
+	it('works with empty games array', () => {
+		startCurrentMatch();
+		vi.spyOn(Date, 'now').mockReturnValue(1500000);
+
+		const result = buildCompletedMatch({
+			...makeMatchData(),
+			games: []
+		});
+
+		expect(result.games).toEqual([]);
+		expect(result.id).toBeTruthy();
+		expect(result.startTime).toBe(1000000);
+		expect(result.endTime).toBe(1500000);
+	});
+});
+
 describe('buildCompletedMatch', () => {
 	it('generates id, uses startTime from currentMatch, sets endTime and duration', () => {
 		// Start match at t=1000000

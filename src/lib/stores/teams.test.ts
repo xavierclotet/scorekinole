@@ -226,6 +226,18 @@ describe('resetTeams', () => {
 		expect(t1.partner).toEqual(partner);
 	});
 
+	it('should preserve hasHammer on both teams after reset', () => {
+		team1.set({ ...defaultTeam1, hasHammer: true, points: 50 });
+		team2.set({ ...defaultTeam2, hasHammer: false, points: 30 });
+
+		resetTeams();
+
+		expect(get(team1).hasHammer).toBe(true);
+		expect(get(team2).hasHammer).toBe(false);
+		expect(get(team1).points).toBe(0);
+		expect(get(team2).points).toBe(0);
+	});
+
 	it('should reset roundsPlayed and lastRoundPoints via matchState mocks', () => {
 		resetTeams();
 		expect(roundsPlayed.set).toHaveBeenCalledWith(0);
@@ -254,6 +266,12 @@ describe('addPoints', () => {
 		addPoints(1, 10);
 		addPoints(1, 5);
 		expect(get(team1).points).toBe(15);
+	});
+
+	it('should result in exactly 0 when subtracting exact amount', () => {
+		team1.set({ ...defaultTeam1, points: 5 });
+		addPoints(1, -5);
+		expect(get(team1).points).toBe(0);
 	});
 
 	it('should clamp at 0 when subtracting below zero', () => {
@@ -292,6 +310,50 @@ describe('switchSides', () => {
 		expect(t2.color).toBe('#AAA');
 		expect(t2.points).toBe(10);
 		expect(t2.userId).toBe('u1');
+	});
+
+	it('should swap all scoring fields correctly', () => {
+		team1.set({
+			...defaultTeam1,
+			name: 'A',
+			color: '#AAA',
+			points: 10,
+			rounds: 3,
+			twenty: 2,
+			hasWon: true,
+			matches: 5,
+			hasHammer: true
+		});
+		team2.set({
+			...defaultTeam2,
+			name: 'B',
+			color: '#BBB',
+			points: 20,
+			rounds: 1,
+			twenty: 0,
+			hasWon: false,
+			matches: 2,
+			hasHammer: false
+		});
+
+		switchSides();
+
+		const t1 = get(team1);
+		const t2 = get(team2);
+
+		expect(t1.points).toBe(20);
+		expect(t1.rounds).toBe(1);
+		expect(t1.twenty).toBe(0);
+		expect(t1.hasWon).toBe(false);
+		expect(t1.matches).toBe(2);
+		expect(t1.hasHammer).toBe(false);
+
+		expect(t2.points).toBe(10);
+		expect(t2.rounds).toBe(3);
+		expect(t2.twenty).toBe(2);
+		expect(t2.hasWon).toBe(true);
+		expect(t2.matches).toBe(5);
+		expect(t2.hasHammer).toBe(true);
 	});
 
 	it('should preserve all fields during swap including partner', () => {

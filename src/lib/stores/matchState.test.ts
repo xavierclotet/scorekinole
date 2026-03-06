@@ -325,6 +325,120 @@ describe('matchState', () => {
 		});
 	});
 
+	describe('completeRound edge cases', () => {
+		it('handles a tie round (0, 0) correctly', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			completeRound(0, 0, 0, 0, 1);
+
+			expect(get(roundsPlayed)).toBe(1);
+			expect(get(lastRoundPoints)).toEqual({ team1: 0, team2: 0 });
+
+			const rounds = get(currentGameRounds);
+			expect(rounds).toHaveLength(1);
+			expect(rounds[0].team1Points).toBe(0);
+			expect(rounds[0].team2Points).toBe(0);
+		});
+
+		it('handles hammerTeam=null without errors', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			completeRound(2, 0, 0, 0, null);
+
+			const rounds = get(currentGameRounds);
+			expect(rounds[0].hammerTeam).toBeNull();
+		});
+	});
+
+	describe('dual-store consistency', () => {
+		it('keeps currentGameRounds in sync after completeRound', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			completeRound(2, 0, 1, 0, 1);
+			completeRound(0, 2, 0, 1, 2);
+
+			const standalone = get(currentGameRounds);
+			const fromState = get(matchState).currentGameRounds;
+			expect(standalone).toEqual(fromState);
+		});
+
+		it('keeps currentGameRounds in sync after addRound', () => {
+			const round = makeRound({ roundNumber: 1 });
+			addRound(round);
+
+			const standalone = get(currentGameRounds);
+			const fromState = get(matchState).currentGameRounds;
+			expect(standalone).toEqual(fromState);
+		});
+
+		it('keeps currentMatchGames in sync after addGame', () => {
+			const game = makeGame({ gameNumber: 1 });
+			addGame(game);
+
+			const standalone = get(currentMatchGames);
+			const fromState = get(matchState).currentMatchGames;
+			expect(standalone).toEqual(fromState);
+		});
+	});
+
+	describe('resetGameOnly preserves fields', () => {
+		it('preserves matchStartedBy and matchStartTime', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			startMatch('user-999', 1);
+			completeRound(2, 0, 0, 0, 1);
+
+			resetGameOnly();
+
+			expect(get(matchStartedBy)).toBe('user-999');
+			expect(get(matchStartTime)).toBe(1000000);
+		});
+
+		it('resets round numbering so next round is roundNumber=1', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			completeRound(2, 0, 0, 0, 1);
+			completeRound(0, 2, 0, 0, 2);
+			expect(get(roundsPlayed)).toBe(2);
+
+			resetGameOnly();
+
+			completeRound(4, 0, 0, 0, 1);
+
+			const rounds = get(currentGameRounds);
+			expect(rounds).toHaveLength(1);
+			expect(rounds[0].roundNumber).toBe(1);
+		});
+	});
+
+	describe('multi-game flow', () => {
+		it('completes full multi-game cycle correctly', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			// Game 1: play 2 rounds
+			completeRound(2, 0, 1, 0, 1);
+			completeRound(0, 2, 0, 1, 2);
+			expect(get(lastRoundPoints)).toEqual({ team1: 2, team2: 2 });
+
+			// End game 1
+			addGame(makeGame({ gameNumber: 1 }));
+			resetGameOnly();
+
+			// lastRoundPoints should be reset
+			expect(get(lastRoundPoints)).toEqual({ team1: 0, team2: 0 });
+			expect(get(roundsPlayed)).toBe(0);
+			expect(get(currentGameRounds)).toEqual([]);
+
+			// Game 2: play 1 round
+			completeRound(4, 0, 0, 0, 1);
+			expect(get(lastRoundPoints)).toEqual({ team1: 4, team2: 0 });
+			expect(get(roundsPlayed)).toBe(1);
+
+			// Games from game 1 are still there
+			expect(get(currentMatchGames)).toHaveLength(1);
+		});
+	});
+
 	describe('saveMatchState', () => {
 		it('writes matchState to localStorage', () => {
 			vi.spyOn(Date, 'now').mockReturnValue(1000000);

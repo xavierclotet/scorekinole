@@ -422,6 +422,9 @@
 		const t1 = get(team1);
 		const t2 = get(team2);
 
+		// Guard: don't rotate if both have same state (e.g. both false when hammer disabled)
+		if (t1.hasHammer === t2.hasHammer) return;
+
 		// Swap hammer: team with hammer loses it, team without gains it
 		updateTeam(1, { hasHammer: !t1.hasHammer });
 		updateTeam(2, { hasHammer: !t2.hasHammer });
