@@ -2,6 +2,12 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.88] - 2026-03-06
+- Move live-badge to top of bracket match cards (fix overlap with player names)
+- Unify green theme for LIVE indicator, in-progress cards, and hammer highlight
+- Change loser color from orange to red in bracket view
+- Move avatars to left of player name, increase score font size
+
 ## [2.4.87] - 2026-03-06
 - Sync admin countdown timer to public tournament page (real-time via Firestore)
 - Sort round matches by table number (M1, M2...) in admin and public views
