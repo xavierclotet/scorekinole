@@ -467,7 +467,7 @@
 		if (!tournament?.groupStage?.groups) return true;
 		// Check if any standing has non-zero matchesWon or matchesLost
 		for (const group of tournament.groupStage.groups) {
-			for (const standing of group.standings) {
+			for (const standing of group.standings ?? []) {
 				if (standing.matchesWon > 0 || standing.matchesLost > 0) {
 					return true;
 				}
@@ -757,6 +757,60 @@
 		fullscreenChart = { ...fullscreenChart, type: fullscreenChart.type === 'bump' ? 'twenties' : 'bump' };
 	}
 }} />
+
+{#snippet groupMatchRow(match: any)}
+	{#if isBye(match.participantB)}
+		<div class="match-result-row bye-row">
+			<div class="match-main-row">
+				<span class="match-player match-player-a winner">
+					<span class="match-player-name">{getParticipantName(match.participantA)}</span>
+					{@render participantAvatar(match.participantA, 'sm')}
+				</span>
+				<span class="match-score bye-label">BYE</span>
+				<span class="match-player match-player-b bye-slot">
+					<span class="match-player-name">BYE</span>
+				</span>
+			</div>
+		</div>
+	{:else}
+		<button
+			class={['match-result-row', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+			onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
+			disabled={!match.rounds?.length}
+		>
+			<div class="match-main-row">
+				<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:loser={match.winner && match.participantA && match.winner !== match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
+					<span class="match-player-name">{getParticipantName(match.participantA)}</span>
+					{@render participantAvatar(match.participantA, 'sm')}
+				</span>
+				<span class="match-score">
+					{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+						<span class="score-result">{match.totalPointsA ?? match.gamesWonA ?? 0} - {match.totalPointsB ?? match.gamesWonB ?? 0}</span>
+					{:else}
+						vs
+					{/if}
+				</span>
+				<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:loser={match.winner && match.participantB && match.winner !== match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
+					{@render participantAvatar(match.participantB, 'sm')}
+					<span class="match-player-name">{getParticipantName(match.participantB)}</span>
+				</span>
+			</div>
+			{#if match.tableNumber != null || match.duration}
+				<div class="match-meta-row">
+					{#if match.tableNumber != null}
+						<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
+					{/if}
+					{#if match.duration}
+						{@const totalSec = Math.round(match.duration / 1000)}
+						{@const min = Math.floor(totalSec / 60)}
+						{@const sec = totalSec % 60}
+						<span class="match-meta-duration"><Timer size={11} />{min}:{sec.toString().padStart(2, '0')}</span>
+					{/if}
+				</div>
+			{/if}
+		</button>
+	{/if}
+{/snippet}
 
 {#snippet vsDivider(durationMs?: number)}
 	<div class="vs-divider">
@@ -1428,7 +1482,7 @@
 												</tr>
 											</thead>
 											<tbody>
-												{#each group.standings.toSorted((a, b) => a.position - b.position) as standing}
+												{#each (group.standings ?? []).toSorted((a, b) => a.position - b.position) as standing}
 													<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 														<td class="pos-col">{standing.position}</td>
 														<td class="name-col">
@@ -1627,47 +1681,11 @@
 												)
 											})).filter(r => r.matches.length > 0)
 											: groupRounds as round}
-											<div class="round-section [&:not(:last-child)]:mb-3">
-												<h4 class="round-title">{m.tournament_round()} {round.roundNumber}</h4>
-												<div class="matches-list flex flex-col gap-1.5">
-													{#each round.matches as match}
-														{#if match.participantB === 'BYE'}
-															<div class="match-result-row bye-row max-w-full">
-																<span class="match-player match-player-a winner">
-																	<span class="match-player-name">{getParticipantName(match.participantA)}</span>
-																	{@render participantAvatar(match.participantA, 'sm')}
-																</span>
-																<span class="match-score bye-label">BYE</span>
-																<span class="match-player match-player-b bye-slot">
-																	<span class="match-player-name">BYE</span>
-																</span>
-															</div>
-														{:else}
-															<button
-																class={['match-result-row max-w-full', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
-																onclick={() => { if (match.rounds?.length) { selectedMatch = match as unknown as BracketMatch; showMatchDetail = true; } }}
-																disabled={!match.rounds?.length}
-															>
-																{#if match.tableNumber != null}
-																	<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
-																{/if}
-																<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:loser={match.winner && match.winner !== match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
-																	<span class="match-player-name">{getParticipantName(match.participantA)}</span>
-																	{@render participantAvatar(match.participantA, 'sm')}
-																</span>
-																<span class="match-score">
-																	{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-																		{match.totalPointsA ?? match.gamesWonA ?? 0} - {match.totalPointsB ?? match.gamesWonB ?? 0}
-																	{:else}
-																		vs
-																	{/if}
-																</span>
-																<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:loser={match.winner && match.winner !== match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
-																	{@render participantAvatar(match.participantB, 'sm')}
-																	<span class="match-player-name">{getParticipantName(match.participantB)}</span>
-																</span>
-															</button>
-														{/if}
+											<div class="round-section">
+												<div class="round-divider"><span class="round-label">{m.tournament_round()} {round.roundNumber}</span></div>
+												<div class="matches-list">
+													{#each round.matches.toSorted((a, b) => (a.tableNumber ?? 999) - (b.tableNumber ?? 999)) as match}
+														{@render groupMatchRow(match)}
 													{/each}
 												</div>
 											</div>
@@ -1696,7 +1714,7 @@
 											</tr>
 										</thead>
 										<tbody>
-											{#each group.standings.toSorted((a, b) => a.position - b.position) as standing}
+											{#each (group.standings ?? []).toSorted((a, b) => a.position - b.position) as standing}
 												<tr class:qualified={goldQualifiedIds.has(standing.participantId)}>
 													<td class="pos-col">{standing.position}</td>
 													<td class="name-col">
@@ -1858,46 +1876,10 @@
 										<div class="group-matches-section">
 											{#each groupRounds as round}
 												<div class="round-section">
-													<h4 class="round-title">{m.tournament_round()} {round.roundNumber}</h4>
+													<div class="round-divider"><span class="round-label">{m.tournament_round()} {round.roundNumber}</span></div>
 													<div class="matches-list">
-														{#each round.matches as match}
-															{#if match.participantB === 'BYE'}
-																<div class="match-result-row bye-row">
-																	<span class="match-player match-player-a winner">
-																		<span class="match-player-name">{getParticipantName(match.participantA)}</span>
-																		{@render participantAvatar(match.participantA, 'sm')}
-																	</span>
-																	<span class="match-score bye-label">BYE</span>
-																	<span class="match-player match-player-b bye-slot">
-																		<span class="match-player-name">BYE</span>
-																	</span>
-																</div>
-															{:else}
-																<button
-																	class={['match-result-row', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
-																	onclick={() => { if (match.rounds?.length) { selectedMatch = match as unknown as BracketMatch; showMatchDetail = true; } }}
-																	disabled={!match.rounds?.length}
-																>
-																	{#if match.tableNumber}
-																		<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
-																	{/if}
-																	<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:loser={match.winner && match.winner !== match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
-																		<span class="match-player-name">{getParticipantName(match.participantA)}</span>
-																		{@render participantAvatar(match.participantA, 'sm')}
-																	</span>
-																	<span class="match-score">
-																		{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-																			{match.totalPointsA ?? match.gamesWonA ?? 0} - {match.totalPointsB ?? match.gamesWonB ?? 0}
-																		{:else}
-																			vs
-																		{/if}
-																	</span>
-																	<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:loser={match.winner && match.winner !== match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
-																		{@render participantAvatar(match.participantB, 'sm')}
-																		<span class="match-player-name">{getParticipantName(match.participantB)}</span>
-																	</span>
-																</button>
-															{/if}
+														{#each round.matches.toSorted((a, b) => (a.tableNumber ?? 999) - (b.tableNumber ?? 999)) as match}
+															{@render groupMatchRow(match)}
 														{/each}
 													</div>
 												</div>
@@ -4745,10 +4727,14 @@
 		background: transparent;
 	}
 
-	/* Qualified to gold bracket - subtle left border */
-	.standings-table tr.qualified td:first-child {
-		border-left: 2px solid #10b981;
-		padding-left: calc(0.35rem - 2px);
+	/* Qualified to gold bracket - green background */
+	.standings-table tbody tr.qualified td {
+		background: rgba(16, 185, 129, 0.15);
+	}
+
+	.standings-table tbody tr.qualified .name-text {
+		color: #10b981;
+		font-weight: 600;
 	}
 
 	.standings-table .pos-col { width: 24px; text-align: center; }
@@ -5105,17 +5091,28 @@
 		margin-bottom: 0;
 	}
 
-	.round-title {
-		font-size: 0.75rem;
+	.round-divider {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0 0 0.4rem 0;
+	}
+
+	.round-divider::before,
+	.round-divider::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: rgba(255, 255, 255, 0.08);
+	}
+
+	.round-label {
+		font-size: 0.65rem;
 		font-weight: 600;
-		color: #8b9bb3;
+		color: #6b7a94;
 		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		margin: 0 0 0.5rem 0;
-		padding: 0.4rem 0.6rem;
-		background: rgba(255, 255, 255, 0.03);
-		border-radius: 4px;
-		border-left: 2px solid hsl(var(--primary));
+		letter-spacing: 0.05em;
+		white-space: nowrap;
 	}
 
 	.matches-list {
@@ -5126,20 +5123,48 @@
 
 	.match-result-row {
 		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.4rem 0.5rem;
-		background: rgba(0, 0, 0, 0.2);
-		border-radius: 4px;
+		flex-direction: column;
+		gap: 0;
+		padding: 0.5rem 0.6rem;
+		background: rgba(0, 0, 0, 0.15);
+		border-radius: 8px;
 		font-size: 0.8rem;
-		/* Two columns with flex-wrap - each item takes ~50% minus gap */
 		flex: 1 1 calc(50% - 0.2rem);
 		min-width: 200px;
 		max-width: 100%;
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		transition: background 0.15s ease;
+	}
+
+	.match-main-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.match-meta-row {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		padding-top: 0.35rem;
+		margin-top: 0.35rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+		font-size: 0.7rem;
+		color: #8b9bb3;
+	}
+
+	.match-meta-duration {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		font-variant-numeric: tabular-nums;
+		color: #8b9bb3;
 	}
 
 	.match-result-row.completed {
-		background: rgba(0, 0, 0, 0.3);
+		background: rgba(0, 0, 0, 0.25);
+		border-color: rgba(255, 255, 255, 0.08);
 	}
 
 	.match-result-row.bye-row {
@@ -5164,8 +5189,8 @@
 		font-size: 0.65rem;
 		font-weight: 600;
 		color: var(--primary);
-		background: color-mix(in srgb, var(--primary) 15%, transparent);
-		padding: 0.15rem 0.35rem;
+		background: color-mix(in srgb, var(--primary) 12%, transparent);
+		padding: 0.1rem 0.3rem;
 		border-radius: 3px;
 		flex-shrink: 0;
 	}
@@ -5238,6 +5263,7 @@
 		font-weight: 600;
 		color: #e1e8ed;
 	}
+
 
 	/* Division Tabs (Gold/Silver) */
 	.division-tabs {
@@ -6260,6 +6286,14 @@
 		background: color-mix(in srgb, var(--primary) 22%, transparent);
 	}
 
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-table tbody tr.qualified td {
+		background: rgba(5, 150, 105, 0.1);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-table tbody tr.qualified .name-text {
+		color: #059669;
+	}
+
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .standings-legend {
 		color: #718096;
 	}
@@ -6329,17 +6363,23 @@
 		border-top-color: #e2e8f0;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .round-title {
-		color: #64748b;
-		background: rgba(0, 0, 0, 0.03);
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .round-divider::before,
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .round-divider::after {
+		background: rgba(0, 0, 0, 0.1);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .round-label {
+		color: #94a3b8;
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row {
-		background: rgba(0, 0, 0, 0.02);
+		background: rgba(0, 0, 0, 0.025);
+		border-color: rgba(0, 0, 0, 0.08);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.completed {
 		background: rgba(0, 0, 0, 0.04);
+		border-color: rgba(0, 0, 0, 0.1);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.bye-row {
@@ -6371,6 +6411,15 @@
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-score {
 		color: #1a202c;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-meta-row {
+		border-top-color: rgba(0, 0, 0, 0.06);
+		color: #64748b;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-meta-duration {
+		color: #64748b;
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .phase-nav {

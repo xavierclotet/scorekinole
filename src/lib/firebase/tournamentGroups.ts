@@ -301,10 +301,14 @@ export async function updateGroupMatch(
       for (const round of group.schedule) {
         const matchIndex = round.matches.findIndex(m => m.id === matchId);
         if (matchIndex !== -1) {
+          const existing = round.matches[matchIndex];
+          const completedAt = result.status === 'COMPLETED' ? Date.now() : undefined;
           round.matches[matchIndex] = {
-            ...round.matches[matchIndex],
+            ...existing,
             ...result,
-            completedAt: result.status === 'COMPLETED' ? Date.now() : undefined
+            completedAt,
+            duration: (result.status === 'COMPLETED' && completedAt && existing.startedAt)
+              ? completedAt - existing.startedAt : undefined
           };
           matchUpdated = true;
           break;
@@ -314,10 +318,14 @@ export async function updateGroupMatch(
       for (const pairing of group.pairings) {
         const matchIndex = pairing.matches.findIndex(m => m.id === matchId);
         if (matchIndex !== -1) {
+          const existing = pairing.matches[matchIndex];
+          const completedAt = result.status === 'COMPLETED' ? Date.now() : undefined;
           pairing.matches[matchIndex] = {
-            ...pairing.matches[matchIndex],
+            ...existing,
             ...result,
-            completedAt: result.status === 'COMPLETED' ? Date.now() : undefined
+            completedAt,
+            duration: (result.status === 'COMPLETED' && completedAt && existing.startedAt)
+              ? completedAt - existing.startedAt : undefined
           };
           matchUpdated = true;
           break;

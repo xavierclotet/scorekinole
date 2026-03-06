@@ -1294,14 +1294,8 @@ export function subscribeTournament(
     (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const tournament: Tournament = {
-          ...data,
-          id: docSnap.id,
-          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
-          startedAt: data.startedAt instanceof Timestamp ? data.startedAt.toMillis() : data.startedAt,
-          completedAt: data.completedAt instanceof Timestamp ? data.completedAt.toMillis() : data.completedAt,
-          updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt
-        } as Tournament;
+        const tournament = parseTournamentData(data);
+        tournament.id = docSnap.id;
         callback(tournament);
       } else {
         callback(null);
@@ -1309,7 +1303,7 @@ export function subscribeTournament(
     },
     (error) => {
       console.error('❌ Error in tournament subscription:', error);
-      callback(null);
+      // Don't overwrite valid data on transient network errors
     }
   );
 

@@ -4,6 +4,7 @@
   import type { WinProbability } from '$lib/algorithms/probability';
   import { probabilityColor } from '$lib/algorithms/probability';
   import * as m from '$lib/paraglide/messages.js';
+  import { Timer } from '@lucide/svelte';
 
   interface Props {
     match: GroupMatch;
@@ -130,86 +131,98 @@
   role={isClickable ? 'button' : undefined}
   tabindex={isClickable ? 0 : undefined}
 >
-  {#if match.status === 'IN_PROGRESS'}
-    {@const currentRound = (match.rounds?.length ?? 0) + 1}
-    <div class="round-indicator">R{currentRound}</div>
-  {/if}
-
-  <!-- Compact single-row layout -->
+  <!-- Main row: players + score -->
   <div class="match-row">
-    {#if !isBye}
-      {#if match.tableNumber}
-        <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
-      {:else}
-        <span class="table-num tbd">{match.status === 'PENDING' ? 'TBD' : '—'}</span>
-      {/if}
-    {/if}
-
     <div class="participant left" class:winner={match.winner === match.participantA} class:loser={isMatchDecided && match.winner !== match.participantA} class:tie={isTie} class:disqualified={isDisqualifiedA} class:has-hammer={hammerHolder === match.participantA}>
       <span class="name">{getParticipantName(match.participantA)}</span>
       {#if isDisqualifiedA}
         <span class="dsq-badge">DSQ</span>
-      {:else if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
-        <span class="t20">🎯{match.total20sA ?? 0}</span>
       {/if}
     </div>
 
     <div class="score-center">
-      {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-        {#if showTotalPoints}
-          <!-- Show total points for rounds mode OR when Pg1 (single game to win) -->
-          <span class="score" class:winner-a={match.winner === match.participantA} class:loser-a={isMatchDecided && match.winner !== match.participantA}>{match.totalPointsA || 0}</span>
+      <div class="score-line">
+        {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+          {#if showTotalPoints}
+            <span class="score" class:winner-a={match.winner === match.participantA} class:loser-a={isMatchDecided && match.winner !== match.participantA}>{match.totalPointsA || 0}</span>
+            <span class="sep">-</span>
+            <span class="score" class:winner-b={match.winner === match.participantB} class:loser-b={isMatchDecided && match.winner !== match.participantB && !isBye}>{isBye ? '-' : (match.totalPointsB || 0)}</span>
+          {:else}
+            <span class="score" class:winner-a={match.winner === match.participantA} class:loser-a={isMatchDecided && match.winner !== match.participantA}>{match.gamesWonA || 0}</span>
+            <span class="sep">-</span>
+            <span class="score" class:winner-b={match.winner === match.participantB} class:loser-b={isMatchDecided && match.winner !== match.participantB && !isBye}>{isBye ? '-' : (match.gamesWonB || 0)}</span>
+          {/if}
+        {:else if match.status === 'IN_PROGRESS'}
+          <span class="score live" class:score-changed={scoreChangedA}>{currentScoreA}</span>
           <span class="sep">-</span>
-          <span class="score" class:winner-b={match.winner === match.participantB} class:loser-b={isMatchDecided && match.winner !== match.participantB && !isBye}>{isBye ? '-' : (match.totalPointsB || 0)}</span>
+          <span class="score live" class:score-changed={scoreChangedB}>{isBye ? '-' : currentScoreB}</span>
         {:else}
-          <!-- Show games won for points mode with Pg2+ -->
-          <span class="score" class:winner-a={match.winner === match.participantA} class:loser-a={isMatchDecided && match.winner !== match.participantA}>{match.gamesWonA || 0}</span>
-          <span class="sep">-</span>
-          <span class="score" class:winner-b={match.winner === match.participantB} class:loser-b={isMatchDecided && match.winner !== match.participantB && !isBye}>{isBye ? '-' : (match.gamesWonB || 0)}</span>
+          <span class="pending">vs</span>
         {/if}
-      {:else if match.status === 'IN_PROGRESS'}
-        <!-- Always show totalPoints for live matches (running score: 2-0, 3-1, etc.) -->
-        <span class="score live" class:score-changed={scoreChangedA}>{currentScoreA}</span>
-        <span class="sep">-</span>
-        <span class="score live" class:score-changed={scoreChangedB}>{isBye ? '-' : currentScoreB}</span>
-        {#if winProbability && winProbability.confidence !== 'none' && winProbability.confidence !== 'low'}
-          {@const pctA = Math.round(winProbability.probabilityA * 100)}
-          {@const pctB = Math.round(winProbability.probabilityB * 100)}
-          <div class="probability-indicator live-prob">
-            <span class="prob-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
-            <div class="prob-bar">
-              <div class="prob-fill-a" style="width: {pctA}%"></div>
-            </div>
-            <span class="prob-value" style="color: {probabilityColor(pctB)}">{pctB}</span>
+      </div>
+      {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
+        <div class="t20-line">
+          <span class="t20">{match.total20sA ?? 0}</span>
+          <span class="t20-sep">·</span>
+          <span class="t20">{match.total20sB ?? 0}</span>
+        </div>
+      {/if}
+      {#if match.status === 'IN_PROGRESS' && winProbability && winProbability.confidence !== 'none' && winProbability.confidence !== 'low'}
+        {@const pctA = Math.round(winProbability.probabilityA * 100)}
+        {@const pctB = Math.round(winProbability.probabilityB * 100)}
+        <div class="probability-indicator live-prob">
+          <span class="prob-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
+          <div class="prob-bar">
+            <div class="prob-fill-a" style="width: {pctA}%"></div>
           </div>
-        {/if}
-      {:else}
-        <span class="pending">vs</span>
-        {#if winProbability && winProbability.confidence !== 'none' && winProbability.confidence !== 'low'}
-          {@const pctA = Math.round(winProbability.probabilityA * 100)}
-          {@const pctB = Math.round(winProbability.probabilityB * 100)}
-          <div class="probability-indicator">
-            <span class="prob-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
-            <div class="prob-bar">
-              <div class="prob-fill-a" style="width: {pctA}%"></div>
-            </div>
-            <span class="prob-value" style="color: {probabilityColor(pctB)}">{pctB}</span>
+          <span class="prob-value" style="color: {probabilityColor(pctB)}">{pctB}</span>
+        </div>
+      {/if}
+      {#if match.status === 'PENDING' && winProbability && winProbability.confidence !== 'none' && winProbability.confidence !== 'low'}
+        {@const pctA = Math.round(winProbability.probabilityA * 100)}
+        {@const pctB = Math.round(winProbability.probabilityB * 100)}
+        <div class="probability-indicator">
+          <span class="prob-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
+          <div class="prob-bar">
+            <div class="prob-fill-a" style="width: {pctA}%"></div>
           </div>
-        {/if}
+          <span class="prob-value" style="color: {probabilityColor(pctB)}">{pctB}</span>
+        </div>
       {/if}
     </div>
 
     <div class="participant right" class:winner={match.winner === match.participantB} class:loser={isMatchDecided && match.winner !== match.participantB && !isBye} class:tie={isTie} class:bye-participant={isBye} class:disqualified={isDisqualifiedB} class:has-hammer={hammerHolder === match.participantB}>
       {#if isDisqualifiedB}
         <span class="dsq-badge">DSQ</span>
-      {:else if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
-        <span class="t20">🎯{match.total20sB ?? 0}</span>
       {/if}
       <span class="name">{getParticipantName(match.participantB)}</span>
     </div>
-
-    <span class="status-dot" style="background: {statusInfo.color}" title={statusInfo.text}></span>
   </div>
+
+  <!-- Meta row: table, round/duration, 20s, status -->
+  {#if !isBye}
+    <div class="match-meta">
+      <div class="meta-left">
+        {#if match.tableNumber}
+          <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
+        {:else}
+          <span class="table-num tbd">{match.status === 'PENDING' ? 'TBD' : '—'}</span>
+        {/if}
+        {#if match.status === 'IN_PROGRESS'}
+          {@const currentRound = (match.rounds?.length ?? 0) + 1}
+          <span class="round-indicator">R{currentRound}</span>
+        {:else if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.duration}
+          {@const totalSec = Math.round(match.duration / 1000)}
+          {@const min = Math.floor(totalSec / 60)}
+          {@const sec = totalSec % 60}
+          <span class="duration-indicator"><Timer size={11} />{min}:{sec.toString().padStart(2, '0')}</span>
+        {/if}
+      </div>
+      <div class="meta-right">
+        <span class="status-dot" style="background: {statusInfo.color}" title={statusInfo.text}></span>
+      </div>
+    </div>
+  {/if}
 
   {#if match.noShowParticipant}
     <div class="no-show-warning">
@@ -222,7 +235,7 @@
   .match-card {
     background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 0.5rem 0.6rem;
     transition: all 0.15s;
   }
@@ -249,19 +262,6 @@
     background: #fffbeb;
   }
 
-  .round-indicator {
-    text-align: center;
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: #92400e;
-    background: rgba(245, 158, 11, 0.15);
-    border-radius: 3px;
-    padding: 0.05rem 0.4rem;
-    margin: -0.1rem auto 0.25rem;
-    width: fit-content;
-    letter-spacing: 0.03em;
-  }
-
   .match-card.walkover {
     border-left: 3px solid #dc2626;
     background: #fef2f2;
@@ -278,21 +278,43 @@
     background: #f3f4f6;
   }
 
-  /* Single row layout */
+  /* Main row: players + score */
   .match-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
 
+  /* Meta row: table, round/duration, 20s, status */
+  .match-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.35rem;
+    margin-top: 0.35rem;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  .meta-left {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .meta-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
   .table-num {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-weight: 700;
     color: white;
     background: var(--primary);
-    padding: 0.15rem 0.35rem;
+    padding: 0.1rem 0.3rem;
     border-radius: 3px;
-    min-width: 1.6rem;
+    min-width: 1.4rem;
     text-align: center;
   }
 
@@ -302,11 +324,45 @@
     font-style: italic;
   }
 
+  .round-indicator {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #92400e;
+    background: rgba(245, 158, 11, 0.2);
+    border-radius: 3px;
+    padding: 0.1rem 0.35rem;
+    letter-spacing: 0.03em;
+  }
+
+  .duration-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .t20 {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #9ca3af;
+    font-variant-numeric: tabular-nums;
+    min-width: 0.7rem;
+    text-align: center;
+  }
+
+  .t20-sep {
+    font-size: 0.5rem;
+    color: #d1d5db;
+  }
+
   .participant {
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    gap: 0.4rem;
     min-width: 0;
   }
 
@@ -358,12 +414,6 @@
     padding: 0.15rem 0.3rem;
   }
 
-  .participant .t20 {
-    font-size: 0.65rem;
-    color: #f59e0b;
-    flex-shrink: 0;
-  }
-
   .participant.has-hammer {
     position: relative;
     background: #dcfce7;
@@ -402,18 +452,32 @@
 
   .score-center {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 0.2rem;
-    padding: 0.15rem 0.4rem;
+    gap: 0;
+    padding: 0.2rem 0.5rem;
     background: #f3f4f6;
-    border-radius: 4px;
-    min-width: 3rem;
+    border-radius: 6px;
+    min-width: 3.2rem;
+  }
+
+  .score-line {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
     justify-content: center;
   }
 
+  .t20-line {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    justify-content: center;
+    margin-top: 1px;
+  }
+
   .score-center .score {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 800;
     color: #374151;
     min-width: 0.8rem;
@@ -614,6 +678,18 @@
     color: #fbbf24;
   }
 
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .match-meta {
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .t20-sep {
+    color: #4a5568;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .duration-indicator {
+    color: #8b9bb3;
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     .match-card {
@@ -625,26 +701,26 @@
     }
 
     .table-num {
-      font-size: 0.6rem;
+      font-size: 0.55rem;
       padding: 0.1rem 0.25rem;
-      min-width: 1.4rem;
+      min-width: 1.2rem;
     }
 
     .participant .name {
       font-size: 0.75rem;
     }
 
-    .participant .t20 {
+    .t20 {
       font-size: 0.6rem;
     }
 
     .score-center {
-      padding: 0.1rem 0.3rem;
+      padding: 0.15rem 0.35rem;
       min-width: 2.5rem;
     }
 
     .score-center .score {
-      font-size: 0.8rem;
+      font-size: 0.85rem;
     }
 
     .status-dot {
