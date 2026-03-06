@@ -119,10 +119,6 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
  * @returns Updated participants array with finalPosition set
  */
 export function calculateFinalPositionsForTournament(tournament: any): any[] {
-  console.log('🏅 calculateFinalPositionsForTournament called');
-  console.log('🏅 Tournament:', { id: tournament.id, status: tournament.status, phaseType: tournament.phaseType });
-  console.log('🏅 Has finalStage:', !!tournament.finalStage, 'isComplete:', tournament.finalStage?.isComplete);
-
   // Ensure all participants have status field (legacy data migration)
   const updatedParticipants = tournament.participants.map((p: any) => ({
     ...p,
@@ -138,11 +134,10 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
   const isActiveParticipant = (p: any) => p && p.status !== 'DISQUALIFIED';
 
   if (tournament.phaseType === 'TWO_PHASE' || tournament.phaseType === 'GROUP_ONLY') {
-    console.log(`🏅 ${tournament.phaseType}: assigning initial positions from group standings`);
     tournament.groupStage?.groups.forEach((group: any) => {
       group.standings.forEach((standing: any) => {
         const participant = updatedParticipants.find(p => p.id === standing.participantId);
-        if (participant && !participant.finalPosition) {
+        if (participant && !participant.finalPosition && isActiveParticipant(participant)) {
           participant.finalPosition = standing.position;
         }
       });
@@ -150,23 +145,13 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
   }
 
   if (tournament.finalStage && (tournament.finalStage.isComplete || tournament.status === 'FINAL_STAGE' || tournament.status === 'COMPLETED')) {
-    console.log('🏅 Processing finalStage bracket positions');
     const isSplitDivisions = tournament.finalStage.mode === 'SPLIT_DIVISIONS';
-    console.log('🏅 isSplitDivisions:', isSplitDivisions);
 
     // Diagnostic: Silver bracket state
     if (isSplitDivisions && tournament.finalStage.silverBracket) {
       const sb = tournament.finalStage.silverBracket;
       const sfr = sb.rounds?.[sb.rounds.length - 1];
       const sfm = sfr?.matches?.[0];
-      console.log('🏅 SILVER BRACKET:', {
-        rounds: sb.rounds?.length,
-        finalMatch: { pA: sfm?.participantA, pB: sfm?.participantB, winner: sfm?.winner, status: sfm?.status },
-        consolation: sb.consolationBrackets?.map((c: any) => ({
-          source: c.source, isComplete: c.isComplete, startPos: c.startPosition,
-          allDone: c.rounds?.every((r: any) => r.matches.every((m: any) => m.status === 'COMPLETED' || m.status === 'WALKOVER'))
-        }))
-      });
     }
 
     const clearBracketParticipantPositions = (bracket: any) => {
@@ -203,11 +188,8 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     }
 
     const assignBracketPositions = (bracket: any, startPosition: number): number => {
-      console.log('🏅 assignBracketPositions called, startPosition:', startPosition);
-      console.log('🏅 Bracket rounds:', bracket?.rounds?.length, 'thirdPlaceMatch:', !!bracket?.thirdPlaceMatch);
 
       if (!bracket || !bracket.rounds || bracket.rounds.length === 0) {
-        console.log('🏅 No bracket or rounds, returning 0');
         return 0;
       }
 
@@ -217,7 +199,6 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       // Process final match (1st and 2nd place)
       const finalRound = bracket.rounds[bracket.rounds.length - 1];
       const finalMatch = finalRound?.matches[0];
-      console.log('🏅 Final match:', { winner: finalMatch?.winner, participantA: finalMatch?.participantA, participantB: finalMatch?.participantB });
 
       if (finalMatch?.winner && finalMatch.participantA && finalMatch.participantB) {
         // Validate winner is actually one of the two participants
@@ -233,26 +214,17 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
         if (winner && isActiveParticipant(winner)) {
           winner.finalPosition = currentPosition++;
           positionsAssigned++;
-          console.log(`🏅 1st place: ${getDisplayName(winner)} -> position ${winner.finalPosition}`);
-        } else if (winner) {
-          console.log(`🏅 1st place ${getDisplayName(winner)} is DISQUALIFIED, skipping`);
         }
         const loser = updatedParticipants.find(p => p.id === loserId);
         if (loser && isActiveParticipant(loser)) {
           loser.finalPosition = currentPosition++;
           positionsAssigned++;
-          console.log(`🏅 2nd place: ${getDisplayName(loser)} -> position ${loser.finalPosition}`);
-        } else if (loser) {
-          console.log(`🏅 2nd place ${getDisplayName(loser)} is DISQUALIFIED, skipping`);
         }
-      } else {
-        console.log('🏅 Final match not complete or missing participants');
       }
 
       // Process 3rd place match
       const thirdPlaceMatch = bracket.thirdPlaceMatch;
       let thirdPlaceProcessed = false;
-      console.log('🏅 Third place match:', { winner: thirdPlaceMatch?.winner, participantA: thirdPlaceMatch?.participantA, participantB: thirdPlaceMatch?.participantB });
 
       if (thirdPlaceMatch?.winner && thirdPlaceMatch.participantA && thirdPlaceMatch.participantB) {
         // Validate winner is actually one of the two participants
@@ -268,42 +240,29 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
         if (thirdPlace && !thirdPlace.finalPosition && isActiveParticipant(thirdPlace)) {
           thirdPlace.finalPosition = currentPosition++;
           positionsAssigned++;
-          console.log(`🏅 3rd place: ${getDisplayName(thirdPlace)} -> position ${thirdPlace.finalPosition}`);
         } else if (thirdPlace?.finalPosition) {
-          console.log(`🏅 3rd place: ${getDisplayName(thirdPlace)} already has position ${thirdPlace.finalPosition}, skipping (advancing currentPosition)`);
           currentPosition++;
           positionsAssigned++;
-        } else if (thirdPlace) {
-          console.log(`🏅 3rd place ${getDisplayName(thirdPlace)} is DISQUALIFIED, skipping`);
         }
         const fourthPlace = updatedParticipants.find(p => p.id === fourthPlaceId);
         if (fourthPlace && !fourthPlace.finalPosition && isActiveParticipant(fourthPlace)) {
           fourthPlace.finalPosition = currentPosition++;
           positionsAssigned++;
-          console.log(`🏅 4th place: ${getDisplayName(fourthPlace)} -> position ${fourthPlace.finalPosition}`);
         } else if (fourthPlace?.finalPosition) {
-          console.log(`🏅 4th place: ${getDisplayName(fourthPlace)} already has position ${fourthPlace.finalPosition}, skipping (advancing currentPosition)`);
           currentPosition++;
           positionsAssigned++;
-        } else if (fourthPlace) {
-          console.log(`🏅 4th place ${getDisplayName(fourthPlace)} is DISQUALIFIED, skipping`);
         }
         thirdPlaceProcessed = true;
-      } else {
-        console.log('🏅 Third place match not complete or missing participants');
       }
 
       // Process remaining rounds (for larger brackets with more than 4 participants)
-      console.log('🏅 Processing remaining rounds, thirdPlaceProcessed:', thirdPlaceProcessed);
       for (let i = bracket.rounds.length - 2; i >= 0; i--) {
         const round = bracket.rounds[i];
         // Only skip semifinal round if third place match was successfully processed
         if (i === bracket.rounds.length - 2 && thirdPlaceProcessed) {
-          console.log(`🏅 Skipping round ${i} (semifinal) because 3rd place match was processed`);
           continue;
         }
 
-        console.log(`🏅 Processing round ${i} with ${round.matches.length} matches`);
         const roundLosers: string[] = [];
         round.matches.forEach((match: any) => {
           if (match.winner && match.participantA && match.participantB) {
@@ -317,14 +276,10 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
           if (loser && !loser.finalPosition && isActiveParticipant(loser)) {
             loser.finalPosition = currentPosition++;
             positionsAssigned++;
-            console.log(`🏅 Round ${i} loser: ${getDisplayName(loser)} -> position ${loser.finalPosition}`);
-          } else if (loser && !loser.finalPosition) {
-            console.log(`🏅 Round ${i} loser ${getDisplayName(loser)} is DISQUALIFIED, skipping`);
           }
         });
       }
 
-      console.log('🏅 Total positions assigned:', positionsAssigned);
       return positionsAssigned;
     };
 
@@ -336,21 +291,14 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       const silverStartPosition = goldPositionsAssigned + 1;
       assignBracketPositions(tournament.finalStage.silverBracket, silverStartPosition);
 
-      // Diagnostic: Silver positions after main bracket assignment
-      const silverPositioned = updatedParticipants
-        .filter((p: any) => p.finalPosition && p.finalPosition >= silverStartPosition)
-        .sort((a: any, b: any) => a.finalPosition - b.finalPosition);
-      console.log('🏅 Silver after assignBracketPositions:', silverPositioned.slice(0, 6).map((p: any) => `${getDisplayName(p)}=${p.finalPosition}`));
     }
 
     // Process consolation brackets for positions 5-8 and 9-16
     const processConsolationBrackets = (bracket: any, positionOffset: number = 0) => {
       if (!bracket?.consolationBrackets || bracket.consolationBrackets.length === 0) {
-        console.log('🏅 No consolation brackets to process');
         return;
       }
 
-      console.log(`🏅 Processing ${bracket.consolationBrackets.length} consolation bracket(s)`);
 
       for (const consolation of bracket.consolationBrackets as ConsolationBracket[]) {
         if (!consolation.isComplete) {
@@ -360,15 +308,12 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
           );
           if (allMatchesDone) {
             consolation.isComplete = true;
-            console.log(`🏅 Auto-fixed isComplete for consolation ${consolation.source}`);
           } else {
-            console.log(`🏅 Consolation bracket ${consolation.source} not complete, skipping`);
             continue;
           }
         }
 
         const positions = calculateConsolationPositions(consolation);
-        console.log(`🏅 Consolation ${consolation.source} (startPos=${consolation.startPosition}, offset=${positionOffset}) positions:`, Array.from(positions.entries()));
 
         positions.forEach((position, participantId) => {
           const participant = updatedParticipants.find(p => p.id === participantId);
@@ -377,14 +322,9 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
             // Guard: don't overwrite positions from final/3rd-place matches
             // Only overwrite positions that are within this consolation's range or higher
             const thresholdPosition = consolation.startPosition + positionOffset;
-            if (participant.finalPosition && participant.finalPosition < thresholdPosition) {
-              console.log(`🏅 Consolation: skipping ${getDisplayName(participant)} (has position ${participant.finalPosition}, below threshold ${thresholdPosition})`);
-            } else {
+            if (!participant.finalPosition || participant.finalPosition >= thresholdPosition) {
               participant.finalPosition = adjustedPosition;
-              console.log(`🏅 Consolation position: ${getDisplayName(participant)} -> ${adjustedPosition}`);
             }
-          } else if (participant) {
-            console.log(`🏅 Consolation ${getDisplayName(participant)} is DISQUALIFIED, skipping`);
           }
         });
       }
@@ -401,12 +341,6 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       const silverFirstSeed = silverBkt?.rounds?.[0]?.matches?.[0]?.seedA || silverBkt?.rounds?.[0]?.matches?.[0]?.seedB || 0;
       const silverConsoOffset = silverFirstSeed > 1 ? 0 : goldPositionsAssigned;
       processConsolationBrackets(silverBkt, silverConsoOffset);
-
-      // Diagnostic: Final Silver positions after consolation
-      const silverFinal = updatedParticipants
-        .filter((p: any) => p.finalPosition && p.finalPosition >= goldPositionsAssigned + 1)
-        .sort((a: any, b: any) => a.finalPosition - b.finalPosition);
-      console.log('🏅 Silver FINAL positions:', silverFinal.map((p: any) => `${getDisplayName(p)}=${p.finalPosition}`));
     }
   }
 
@@ -414,7 +348,6 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
   // Participants who didn't qualify for the bracket do NOT get ranking points
   // Clear finalPosition for non-bracket participants (they were set from group standings earlier)
   if (tournament.phaseType === 'TWO_PHASE' && tournament.groupStage && tournament.finalStage) {
-    console.log('🏅 TWO_PHASE cleanup: clearing non-bracket participants');
 
     // Collect all participant IDs that are in the bracket (excluding BYE)
     const bracketParticipantIds = new Set<string>();
@@ -457,7 +390,6 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
       collectBracketParticipants(tournament.finalStage.silverBracket);
     }
 
-    console.log('🏅 Bracket participant IDs:', Array.from(bracketParticipantIds));
 
     // Clear finalPosition for participants NOT in the bracket
     // They should not receive ranking points
@@ -465,17 +397,14 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     updatedParticipants.forEach(p => {
       if (!bracketParticipantIds.has(p.id)) {
         if (p.finalPosition !== undefined) {
-          console.log(`🏅 Clearing finalPosition for non-bracket participant: ${getDisplayName(p)} (was ${p.finalPosition})`);
           clearedCount++;
         }
         p.finalPosition = undefined;
       }
     });
-    console.log(`🏅 Cleared ${clearedCount} non-bracket participants`);
 
     // Log final positions after cleanup
     const positionedParticipants = updatedParticipants.filter(p => p.finalPosition !== undefined);
-    console.log('🏅 Participants with finalPosition after cleanup:', positionedParticipants.map(p => ({ name: getDisplayName(p), pos: p.finalPosition })));
   }
 
   // For ONE_PHASE tournaments, only bracket participants get finalPosition
@@ -553,18 +482,14 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     // Check for duplicates
     const duplicates = Array.from(positionMap.entries()).filter(([_, players]) => players.length > 1);
     if (duplicates.length > 0) {
-      console.warn('⚠️ POSITION DUPLICATES DETECTED:');
       duplicates.forEach(([pos, players]) => {
-        console.warn(`  Position ${pos}: ${players.map((p: any) => getDisplayName(p)).join(', ')}`);
       });
 
       // Fix: re-assign positions sequentially to eliminate gaps and duplicates
-      console.warn('🔧 Fixing positions by sequential re-assignment...');
       positioned.sort((a: any, b: any) => a.finalPosition - b.finalPosition);
       positioned.forEach((p: any, idx: number) => {
         const newPos = idx + 1;
         if (p.finalPosition !== newPos) {
-          console.warn(`  ${getDisplayName(p)}: ${p.finalPosition} → ${newPos}`);
           p.finalPosition = newPos;
         }
       });
@@ -573,13 +498,11 @@ export function calculateFinalPositionsForTournament(tournament: any): any[] {
     // Check for gaps (positions should be 1 to N)
     const maxPos = Math.max(...positioned.map((p: any) => p.finalPosition));
     if (maxPos > positioned.length) {
-      console.warn(`⚠️ POSITION GAP: max position ${maxPos} but only ${positioned.length} positioned participants`);
       // Fix: compact positions
       positioned.sort((a: any, b: any) => a.finalPosition - b.finalPosition);
       positioned.forEach((p: any, idx: number) => {
         const newPos = idx + 1;
         if (p.finalPosition !== newPos) {
-          console.warn(`  Gap fix: ${getDisplayName(p)}: ${p.finalPosition} → ${newPos}`);
           p.finalPosition = newPos;
         }
       });
@@ -636,7 +559,6 @@ export async function applyRankingUpdates(
   tournamentId: string,
   preloadedTournament?: any
 ): Promise<boolean> {
-  console.log('🏅 applyRankingUpdates called for tournament:', tournamentId);
 
   if (!browser || !isFirebaseEnabled()) {
     console.warn('Firebase disabled');
@@ -655,11 +577,9 @@ export async function applyRankingUpdates(
   }
 
   const rankingEnabled = tournament.rankingConfig?.enabled ?? false;
-  console.log('🏅 Tournament rankingConfig:', tournament.rankingConfig, 'enabled:', rankingEnabled);
 
   // If ranking is disabled, skip all processing
   if (!rankingEnabled) {
-    console.log('🏅 Ranking disabled - skipping participant ranking updates');
     return true;
   }
 
@@ -675,7 +595,6 @@ export async function applyRankingUpdates(
     const totalParticipants = tournament.participants.filter((p: any) => p.status === 'ACTIVE' || !p.status).length;
     const activeParticipants = tournament.participants.filter((p: any) => (p.status === 'ACTIVE' || !p.status) && p.finalPosition);
 
-    console.log('🏅 Active participants with finalPosition:', activeParticipants.length, 'total ACTIVE:', totalParticipants, 'tier:', tier);
 
     const isDoubles = tournament.gameType === 'doubles';
 
@@ -699,24 +618,20 @@ export async function applyRankingUpdates(
       // DOUBLES: Process both members of the pair (all participants with userId)
       // Both REGISTERED and GUEST participants with userId get entries in /users
       if (isDoubles && participant.partner) {
-        console.log(`🏅 Processing doubles: ${participant.name} / ${participant.partner.name}`);
 
         // Member 1: Process if has userId (REGISTERED or persistent GUEST)
         if (participant.userId) {
           await addTournamentRecord(participant.userId, tournamentRecord, rankingAfter);
-          console.log(`🏅 Added record for member 1: ${participant.name} (+${pointsEarned} points)`);
         }
 
         // Member 2: Process if has userId (REGISTERED or persistent GUEST)
         if (participant.partner.userId) {
           await addTournamentRecord(participant.partner.userId, tournamentRecord, rankingAfter);
-          console.log(`🏅 Added record for member 2: ${participant.partner.name} (+${pointsEarned} points)`);
         }
       } else {
         // SINGLES: Process if has userId (REGISTERED or persistent GUEST)
         if (participant.userId) {
           await addTournamentRecord(participant.userId, tournamentRecord, rankingAfter);
-          console.log(`🏅 Added record for: ${participant.name} (+${pointsEarned} points)`);
         }
       }
     }

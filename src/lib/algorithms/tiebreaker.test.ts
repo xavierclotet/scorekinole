@@ -658,3 +658,494 @@ describe('sub-tie detection in mini-league', () => {
 		expect(p3Pos).toBeLessThan(p4Pos);
 	});
 });
+
+// ============================================================================
+// Custom tiebreakerPriority — all criterion orders
+// ============================================================================
+
+describe('custom tiebreakerPriority (2-player)', () => {
+	it('buchholz-first priority resolves tie by Buchholz before H2H', () => {
+		const participants = createParticipants(4);
+		// p1 beat p3 (2pts) → buchholz includes p3's 2pts
+		// p2 beat p4 (0pts) → buchholz includes p4's 0pts
+		// p1 also beat p2 in H2H (but buchholz resolves first)
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p2: { result: 'LOSS', twenties: 0 }, // p1 LOST to p2 in H2H
+					p3: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 2 }, // p2 WON H2H
+					p4: { result: 'WIN', twenties: 1 }
+				}
+			}),
+			createStanding('p3', { points: 2, matchesWon: 1, matchesPlayed: 3 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3 })
+		];
+
+		// Default priority ['h2h', ...]: p2 wins (beat p1 in H2H)
+		const defaultResult = resolveTiebreaker(standings, participants, false, 'WINS');
+		expect(defaultResult.find(s => s.participantId === 'p2')!.position)
+			.toBeLessThan(defaultResult.find(s => s.participantId === 'p1')!.position);
+
+		// Buchholz-first ['buchholz', 'h2h', 'total20s', 'totalPoints']:
+		// p1 buchholz = p3's 2pts = 2, p2 buchholz = p4's 0pts = 0 → p1 wins by buchholz
+		const buchFirst = resolveTiebreaker(standings, participants, false, 'WINS', true,
+			['buchholz', 'h2h', 'total20s', 'totalPoints']);
+		expect(buchFirst.find(s => s.participantId === 'p1')!.position)
+			.toBeLessThan(buchFirst.find(s => s.participantId === 'p2')!.position);
+	});
+
+	it('total20s-first priority resolves before H2H', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: { p2: { result: 'WIN', twenties: 3 } }
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 15, totalPointsScored: 20,
+				headToHeadRecord: { p1: { result: 'LOSS', twenties: 1 } }
+			}),
+			createStanding('p3', { points: 2, matchesWon: 1, matchesPlayed: 3 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3 })
+		];
+
+		// Default ['h2h', ...]: p1 wins (beat p2 in H2H)
+		const defaultResult = resolveTiebreaker(standings, participants, false, 'WINS');
+		expect(defaultResult.find(s => s.participantId === 'p1')!.position)
+			.toBeLessThan(defaultResult.find(s => s.participantId === 'p2')!.position);
+
+		// 20s-first ['total20s', 'h2h', 'totalPoints', 'buchholz']: p2 wins (15 > 10 20s)
+		const twentiesFirst = resolveTiebreaker(standings, participants, false, 'WINS', true,
+			['total20s', 'h2h', 'totalPoints', 'buchholz']);
+		expect(twentiesFirst.find(s => s.participantId === 'p2')!.position)
+			.toBeLessThan(twentiesFirst.find(s => s.participantId === 'p1')!.position);
+	});
+
+	it('totalPoints-first priority resolves before H2H and 20s (WINS mode)', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 10, totalPointsScored: 25,
+				headToHeadRecord: { p2: { result: 'LOSS', twenties: 0 } }
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 15, totalPointsScored: 18,
+				headToHeadRecord: { p1: { result: 'WIN', twenties: 3 } }
+			}),
+			createStanding('p3', { points: 2, matchesWon: 1, matchesPlayed: 3 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3 })
+		];
+
+		// totalPoints-first: p1 wins (25 > 18 total points)
+		const tpFirst = resolveTiebreaker(standings, participants, false, 'WINS', true,
+			['totalPoints', 'h2h', 'total20s', 'buchholz']);
+		expect(tpFirst.find(s => s.participantId === 'p1')!.position)
+			.toBeLessThan(tpFirst.find(s => s.participantId === 'p2')!.position);
+	});
+
+	it('totalPoints criterion is skipped in POINTS mode (already primary)', () => {
+		const participants = createParticipants(4);
+		// In POINTS mode, primary = totalPointsScored. Same totalPointsScored = same group
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, totalPointsScored: 30, total20s: 5,
+				headToHeadRecord: { p2: { result: 'WIN', twenties: 2 } }
+			}),
+			createStanding('p2', {
+				points: 4, totalPointsScored: 30, total20s: 8,
+				headToHeadRecord: { p1: { result: 'LOSS', twenties: 1 } }
+			}),
+			createStanding('p3', { points: 2, totalPointsScored: 20 }),
+			createStanding('p4', { points: 0, totalPointsScored: 10 })
+		];
+
+		// Priority ['totalPoints', 'total20s', ...]: totalPoints is SKIPPED in POINTS mode
+		// Falls through to total20s: p2 (8) > p1 (5)
+		const result = resolveTiebreaker(standings, participants, false, 'POINTS', true,
+			['totalPoints', 'total20s', 'h2h', 'buchholz']);
+		expect(result.find(s => s.participantId === 'p2')!.position)
+			.toBeLessThan(result.find(s => s.participantId === 'p1')!.position);
+	});
+});
+
+describe('custom tiebreakerPriority (3+ player)', () => {
+	it('buchholz-first with 3 players in Swiss mode', () => {
+		const participants = createParticipants(6);
+		// 3-way tie at 4 swissPoints. Give each different buchholz values.
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 4,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p3: { result: 'WIN', twenties: 1 },
+					p5: { result: 'WIN', twenties: 1 }
+				}
+			}),
+			createStanding('p2', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 4,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p4: { result: 'WIN', twenties: 1 },
+					p6: { result: 'WIN', twenties: 1 }
+				}
+			}),
+			createStanding('p3', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 4,
+				total20s: 5, totalPointsScored: 20,
+				headToHeadRecord: {
+					p5: { result: 'WIN', twenties: 1 },
+					p6: { result: 'WIN', twenties: 1 }
+				}
+			}),
+			createStanding('p4', { points: 2, swissPoints: 2, matchesWon: 1, matchesPlayed: 4 }),
+			createStanding('p5', { points: 2, swissPoints: 2, matchesWon: 1, matchesPlayed: 4 }),
+			createStanding('p6', { points: 0, swissPoints: 0, matchesWon: 0, matchesPlayed: 4 })
+		];
+
+		// Swiss: p1 opponents p3(4)+p5(2)=6, p2 opponents p4(2)+p6(0)=2, p3 opponents p5(2)+p6(0)=2
+		// With buchholz-first: p1 (6) > p2 (2) = p3 (2)
+		const result = resolveTiebreaker(standings, participants, true, 'WINS', true,
+			['buchholz', 'total20s', 'totalPoints', 'h2h']);
+
+		const p1Pos = result.find(s => s.participantId === 'p1')!.position;
+		const p2Pos = result.find(s => s.participantId === 'p2')!.position;
+		const p3Pos = result.find(s => s.participantId === 'p3')!.position;
+		expect(p1Pos).toBeLessThan(p2Pos);
+		expect(p1Pos).toBeLessThan(p3Pos);
+	});
+
+	it('RR+WINS: custom priority with h2h last (mini-league deferred)', () => {
+		const participants = createParticipants(6);
+		// 3-way tie with different total20s and totalPointsScored
+		// When h2h is last, mini-league is checked last
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 8, totalPointsScored: 25,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 2 },
+					p3: { result: 'LOSS', twenties: 1 }
+				}
+			}),
+			createStanding('p2', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 12, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p3: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p3', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10, totalPointsScored: 22,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 4 },
+					p2: { result: 'LOSS', twenties: 1 }
+				}
+			}),
+			createStanding('p4', { points: 4, matchesWon: 2, matchesPlayed: 5 }),
+			createStanding('p5', { points: 2, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p6', { points: 0, matchesWon: 0, matchesPlayed: 5 })
+		];
+
+		// Priority ['total20s', 'totalPoints', 'buchholz', 'h2h']:
+		// total20s first: p2(12) > p3(10) > p1(8)
+		const result = resolveTiebreaker(standings, participants, false, 'WINS', true,
+			['total20s', 'totalPoints', 'buchholz', 'h2h']);
+
+		const p1Pos = result.find(s => s.participantId === 'p1')!.position;
+		const p2Pos = result.find(s => s.participantId === 'p2')!.position;
+		const p3Pos = result.find(s => s.participantId === 'p3')!.position;
+		expect(p2Pos).toBeLessThan(p3Pos);
+		expect(p3Pos).toBeLessThan(p1Pos);
+	});
+});
+
+// ============================================================================
+// show20s=false edge cases
+// ============================================================================
+
+describe('show20s=false', () => {
+	it('2-player tie: skips total20s criterion, falls to totalPoints', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 1, totalPointsScored: 30,
+				headToHeadRecord: { p2: { result: 'TIE', twenties: 0 } }
+			}),
+			createStanding('p2', {
+				points: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: { p1: { result: 'TIE', twenties: 0 } }
+			}),
+			createStanding('p3', { points: 2, matchesWon: 1, matchesPlayed: 3 }),
+			createStanding('p4', { points: 0, matchesWon: 0, matchesPlayed: 3 })
+		];
+
+		// With show20s=true: H2H tied, p2 wins by 20s (10 > 1)
+		const with20s = resolveTiebreaker(standings, participants, false, 'WINS', true);
+		expect(with20s.find(s => s.participantId === 'p2')!.position)
+			.toBeLessThan(with20s.find(s => s.participantId === 'p1')!.position);
+
+		// With show20s=false: H2H tied, 20s SKIPPED, p1 wins by totalPoints (30 > 20)
+		const no20s = resolveTiebreaker(standings, participants, false, 'WINS', false);
+		expect(no20s.find(s => s.participantId === 'p1')!.position)
+			.toBeLessThan(no20s.find(s => s.participantId === 'p2')!.position);
+	});
+
+	it('3-player tie RR+WINS with show20s=false: mini-league 20s skipped', () => {
+		const participants = createParticipants(6);
+		// Circular tie: all 2 mini-league points. Mini-league 20s differ but show20s=false
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10, totalPointsScored: 25,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 3 },
+					p3: { result: 'LOSS', twenties: 0 }
+				}
+			}),
+			createStanding('p2', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10, totalPointsScored: 22,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p3: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p3', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 4 },
+					p2: { result: 'LOSS', twenties: 1 }
+				}
+			}),
+			createStanding('p4', { points: 4, matchesWon: 2, matchesPlayed: 5 }),
+			createStanding('p5', { points: 2, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p6', { points: 0, matchesWon: 0, matchesPlayed: 5 })
+		];
+
+		// show20s=false: mini-league points are equal (2 each), mini-league 20s skipped
+		// Falls to totalPoints (WINS mode): p1(25) > p2(22) > p3(20)
+		const result = resolveTiebreaker(standings, participants, false, 'WINS', false);
+
+		const p1Pos = result.find(s => s.participantId === 'p1')!.position;
+		const p2Pos = result.find(s => s.participantId === 'p2')!.position;
+		const p3Pos = result.find(s => s.participantId === 'p3')!.position;
+		expect(p1Pos).toBeLessThan(p2Pos);
+		expect(p2Pos).toBeLessThan(p3Pos);
+	});
+
+	it('Swiss with show20s=false: skips 20s, uses totalPoints then buchholz', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 1, totalPointsScored: 30,
+				headToHeadRecord: { p3: { result: 'WIN', twenties: 0 } }
+			}),
+			createStanding('p2', {
+				points: 4, swissPoints: 4, matchesWon: 2, matchesPlayed: 3,
+				total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: { p4: { result: 'WIN', twenties: 0 } }
+			}),
+			createStanding('p3', { points: 2, swissPoints: 2, matchesWon: 1, matchesPlayed: 3 }),
+			createStanding('p4', { points: 0, swissPoints: 0, matchesWon: 0, matchesPlayed: 3 })
+		];
+
+		// Swiss + show20s=false: 20s skipped. totalPoints: p1(30) > p2(20)
+		const result = resolveTiebreaker(standings, participants, true, 'WINS', false);
+		expect(result.find(s => s.participantId === 'p1')!.position)
+			.toBeLessThan(result.find(s => s.participantId === 'p2')!.position);
+	});
+});
+
+// ============================================================================
+// POINTS mode tiebreakers (3+ players)
+// ============================================================================
+
+describe('POINTS mode tiebreakers', () => {
+	it('3-player tie in POINTS mode resolves by total20s then H2H', () => {
+		const participants = createParticipants(6);
+		// All tied at 30 totalPointsScored (primary in POINTS mode)
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, totalPointsScored: 30, total20s: 8,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 2 },
+					p3: { result: 'LOSS', twenties: 1 }
+				}
+			}),
+			createStanding('p2', {
+				points: 4, totalPointsScored: 30, total20s: 12,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p3: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p3', {
+				points: 4, totalPointsScored: 30, total20s: 5,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 3 },
+					p2: { result: 'LOSS', twenties: 1 }
+				}
+			}),
+			createStanding('p4', { points: 2, totalPointsScored: 20 }),
+			createStanding('p5', { points: 1, totalPointsScored: 15 }),
+			createStanding('p6', { points: 0, totalPointsScored: 10 })
+		];
+
+		// POINTS mode 3+: sort by total20s → p2(12) > p1(8) > p3(5)
+		const result = resolveTiebreaker(standings, participants, false, 'POINTS');
+		const p1Pos = result.find(s => s.participantId === 'p1')!.position;
+		const p2Pos = result.find(s => s.participantId === 'p2')!.position;
+		const p3Pos = result.find(s => s.participantId === 'p3')!.position;
+		expect(p2Pos).toBeLessThan(p1Pos);
+		expect(p1Pos).toBeLessThan(p3Pos);
+	});
+
+	it('POINTS mode: 2-player tie resolved by total20s, not totalPoints', () => {
+		const participants = createParticipants(4);
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 4, totalPointsScored: 30, total20s: 5,
+				headToHeadRecord: { p2: { result: 'TIE', twenties: 1 } }
+			}),
+			createStanding('p2', {
+				points: 4, totalPointsScored: 30, total20s: 8,
+				headToHeadRecord: { p1: { result: 'TIE', twenties: 2 } }
+			}),
+			createStanding('p3', { points: 2, totalPointsScored: 20 }),
+			createStanding('p4', { points: 0, totalPointsScored: 10 })
+		];
+
+		// H2H tied → total20s: p2(8) > p1(5)
+		const result = resolveTiebreaker(standings, participants, false, 'POINTS');
+		expect(result.find(s => s.participantId === 'p2')!.position)
+			.toBeLessThan(result.find(s => s.participantId === 'p1')!.position);
+	});
+});
+
+// ============================================================================
+// Partial resolution in multi-player ties
+// ============================================================================
+
+describe('partial resolution in multi-player ties', () => {
+	it('3-player tie: 2 resolve via different 20s, 1 remains unresolved', () => {
+		const participants = createParticipants(6);
+		participants.forEach(p => { p.rankingSnapshot = 10; }); // Same ranking → won't break tie
+
+		// p1, p2, p3 all have 6 points. All circular in H2H.
+		// All same mini-league points (2 each), same mini-league 20s.
+		// p1 and p2 have same global 20s, p3 has different → p3 resolves, p1/p2 remain tied
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 2 },
+					p3: { result: 'LOSS', twenties: 2 }
+				}
+			}),
+			createStanding('p2', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 2 },
+					p3: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p3', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 15, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 2 },
+					p2: { result: 'LOSS', twenties: 2 }
+				}
+			}),
+			createStanding('p4', { points: 4, matchesWon: 2, matchesPlayed: 5 }),
+			createStanding('p5', { points: 2, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p6', { points: 0, matchesWon: 0, matchesPlayed: 5 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		// p3 has most 20s (15) → resolves first to position 1
+		const p3 = result.find(s => s.participantId === 'p3')!;
+		expect(p3.position).toBe(1);
+
+		// p1 and p2 have same 20s (10) → sub-tie
+		// p1 beat p2 in H2H → p1 above p2 (resolved via H2H in sub-tie pass)
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+		expect(p1.position).toBeLessThan(p2.position);
+	});
+
+	it('4-player tie: 2 resolve clearly, 2 remain as unresolved sub-tie', () => {
+		const participants = createParticipants(6);
+		participants.forEach(p => { p.rankingSnapshot = 10; });
+
+		// 4-way tie at 6 points, circular H2H with equal mini-league
+		// Different total 20s: p1(20) > p2(15) > p3(10) = p4(10)
+		// p3 and p4 have no H2H record → unresolved
+		const standings: GroupStanding[] = [
+			createStanding('p1', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 20, totalPointsScored: 30,
+				headToHeadRecord: {
+					p2: { result: 'WIN', twenties: 2 },
+					p3: { result: 'WIN', twenties: 2 },
+					p4: { result: 'LOSS', twenties: 1 }
+				}
+			}),
+			createStanding('p2', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 15, totalPointsScored: 25,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p3: { result: 'LOSS', twenties: 1 },
+					p4: { result: 'WIN', twenties: 2 }
+				}
+			}),
+			createStanding('p3', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'LOSS', twenties: 0 },
+					p2: { result: 'WIN', twenties: 2 }
+					// No record vs p4
+				}
+			}),
+			createStanding('p4', {
+				points: 6, matchesWon: 3, matchesPlayed: 5, total20s: 10, totalPointsScored: 20,
+				headToHeadRecord: {
+					p1: { result: 'WIN', twenties: 2 },
+					p2: { result: 'LOSS', twenties: 0 }
+					// No record vs p3
+				}
+			}),
+			createStanding('p5', { points: 2, matchesWon: 1, matchesPlayed: 5 }),
+			createStanding('p6', { points: 0, matchesWon: 0, matchesPlayed: 5 })
+		];
+
+		const result = resolveTiebreaker(standings, participants, false, 'WINS');
+
+		// p1 has most global 20s (20) → position 1
+		const p1 = result.find(s => s.participantId === 'p1')!;
+		const p2 = result.find(s => s.participantId === 'p2')!;
+		expect(p1.position).toBe(1);
+		// p2 has 15 20s → position 2
+		expect(p2.position).toBe(2);
+
+		// p3 and p4 have same 20s (10), same totalPoints (20), no H2H → unresolved
+		const p3 = result.find(s => s.participantId === 'p3')!;
+		const p4 = result.find(s => s.participantId === 'p4')!;
+		expect(p3.tieReason).toBe('unresolved');
+		expect(p4.tieReason).toBe('unresolved');
+		expect(p3.tiedWith).toContain('p4');
+		expect(p4.tiedWith).toContain('p3');
+	});
+});
