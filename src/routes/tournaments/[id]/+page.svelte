@@ -25,7 +25,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Button } from '$lib/components/ui/button';
-	import { Check, ChevronsUpDown, Share2, Users } from '@lucide/svelte';
+	import { Check, ChevronsUpDown, Share2, Users, Timer } from '@lucide/svelte';
 	import { PRODUCTION_URL } from '$lib/constants';
 	import BumpChart from '$lib/components/charts/BumpChart.svelte';
 	import TwentiesBarChart from '$lib/components/charts/TwentiesBarChart.svelte';
@@ -757,6 +757,17 @@
 		fullscreenChart = { ...fullscreenChart, type: fullscreenChart.type === 'bump' ? 'twenties' : 'bump' };
 	}
 }} />
+
+{#snippet vsDivider(durationMs?: number)}
+	<div class="vs-divider">
+		{#if durationMs}
+			{@const totalSec = Math.round(durationMs / 1000)}
+			{@const min = Math.floor(totalSec / 60)}
+			{@const sec = totalSec % 60}
+			<span class="match-duration"><Timer size={10} />{min}:{sec.toString().padStart(2, '0')}</span>
+		{/if}
+	</div>
+{/snippet}
 
 <!-- Snippet for participant avatar (handles both singles and doubles) -->
 {#snippet participantAvatar(participantId: string | undefined, size: 'sm' | 'md' | 'lg' = 'md')}
@@ -1640,7 +1651,7 @@
 																{#if match.tableNumber != null}
 																	<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
 																{/if}
-																<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
+																<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:loser={match.winner && match.winner !== match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 																	<span class="match-player-name">{getParticipantName(match.participantA)}</span>
 																	{@render participantAvatar(match.participantA, 'sm')}
 																</span>
@@ -1651,7 +1662,7 @@
 																		vs
 																	{/if}
 																</span>
-																<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
+																<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:loser={match.winner && match.winner !== match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 																	{@render participantAvatar(match.participantB, 'sm')}
 																	<span class="match-player-name">{getParticipantName(match.participantB)}</span>
 																</span>
@@ -1870,7 +1881,7 @@
 																	{#if match.tableNumber}
 																		<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
 																	{/if}
-																	<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
+																	<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:loser={match.winner && match.winner !== match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 																		<span class="match-player-name">{getParticipantName(match.participantA)}</span>
 																		{@render participantAvatar(match.participantA, 'sm')}
 																	</span>
@@ -1881,7 +1892,7 @@
 																			vs
 																		{/if}
 																	</span>
-																	<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
+																	<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:loser={match.winner && match.winner !== match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
 																		{@render participantAvatar(match.participantB, 'sm')}
 																		<span class="match-player-name">{getParticipantName(match.participantB)}</span>
 																	</span>
@@ -1963,7 +1974,7 @@
 																	{/if}
 																{/if}
 															</div>
-															<div class="vs-divider"></div>
+															{@render vsDivider(match.duration)}
 															<div
 																class="match-participant"
 																class:winner={winnerIsB}
@@ -2034,7 +2045,7 @@
 															{/if}
 														{/if}
 													</div>
-													<div class="vs-divider"></div>
+													{@render vsDivider(thirdMatch.duration)}
 													<div
 														class="match-participant"
 														class:winner={thirdMatch.winner === thirdMatch.participantB}
@@ -2112,7 +2123,7 @@
 																			{/if}
 																		{/if}
 																	</div>
-																	<div class="vs-divider"></div>
+																	{@render vsDivider(match.duration)}
 																	<div
 																		class="match-participant"
 																		class:winner={match.winner === match.participantB}
@@ -2173,7 +2184,7 @@
 																			{/if}
 																		{/if}
 																	</div>
-																	<div class="vs-divider"></div>
+																	{@render vsDivider(match.duration)}
 																	<div
 																		class="match-participant"
 																		class:winner={match.winner === match.participantB}
@@ -2235,7 +2246,7 @@
 																{#if getSeed(isByeA ? match.participantB : match.participantA)}<span class="seed">#{getSeed(isByeA ? match.participantB : match.participantA)}</span>{/if}
 																<span class="participant-name">{getParticipantName(isByeA ? match.participantB : match.participantA)}</span>
 															</div>
-															<div class="vs-divider"></div>
+															{@render vsDivider(match.duration)}
 															<div class="match-participant bye-slot">
 																<span class="participant-name">BYE</span>
 															</div>
@@ -2263,7 +2274,7 @@
 																	{/if}
 																{/if}
 															</div>
-															<div class="vs-divider"></div>
+															{@render vsDivider(match.duration)}
 															<div
 																class="match-participant"
 																class:winner={winnerIsB}
@@ -2334,7 +2345,7 @@
 															{/if}
 														{/if}
 													</div>
-													<div class="vs-divider"></div>
+													{@render vsDivider(thirdMatch.duration)}
 													<div
 														class="match-participant"
 														class:winner={thirdMatch.winner === thirdMatch.participantB}
@@ -2413,7 +2424,7 @@
 																			{/if}
 																		{/if}
 																	</div>
-																	<div class="vs-divider"></div>
+																	{@render vsDivider(match.duration)}
 																	<div
 																		class="match-participant"
 																		class:winner={match.winner === match.participantB}
@@ -2474,7 +2485,7 @@
 																			{/if}
 																		{/if}
 																	</div>
-																	<div class="vs-divider"></div>
+																	{@render vsDivider(match.duration)}
 																	<div
 																		class="match-participant"
 																		class:winner={match.winner === match.participantB}
@@ -2562,7 +2573,7 @@
 																	{/if}
 																{/if}
 															</div>
-															<div class="vs-divider"></div>
+															{@render vsDivider(match.duration)}
 															<div
 																class="match-participant"
 																class:winner={winnerIsB}
@@ -2629,7 +2640,7 @@
 															<span class="score">{thirdPlaceMatch.totalPointsA || thirdPlaceMatch.gamesWonA || 0}</span>
 														{/if}
 													</div>
-													<div class="vs-divider"></div>
+													{@render vsDivider(thirdPlaceMatch.duration)}
 													<div
 														class="match-participant"
 														class:winner={thirdPlaceMatch.winner === thirdPlaceMatch.participantB}
@@ -2686,7 +2697,7 @@
 															{#if getSeed(isByeA ? match.participantB : match.participantA)}<span class="seed">#{getSeed(isByeA ? match.participantB : match.participantA)}</span>{/if}
 															<span class="participant-name">{getParticipantName(isByeA ? match.participantB : match.participantA)}</span>
 														</div>
-														<div class="vs-divider"></div>
+														{@render vsDivider(match.duration)}
 														<div class="match-participant bye-slot">
 															<span class="participant-name">BYE</span>
 														</div>
@@ -2714,7 +2725,7 @@
 																{/if}
 															{/if}
 														</div>
-														<div class="vs-divider"></div>
+														{@render vsDivider(match.duration)}
 														<div
 															class="match-participant"
 															class:winner={winnerIsB}
@@ -2785,7 +2796,7 @@
 														{/if}
 													{/if}
 												</div>
-												<div class="vs-divider"></div>
+												{@render vsDivider(thirdMatch.duration)}
 												<div
 													class="match-participant"
 													class:winner={thirdMatch.winner === thirdMatch.participantB}
@@ -2863,7 +2874,7 @@
 																		{/if}
 																	{/if}
 																</div>
-																<div class="vs-divider"></div>
+																{@render vsDivider(match.duration)}
 																<div
 																	class="match-participant"
 																	class:winner={match.winner === match.participantB}
@@ -2924,7 +2935,7 @@
 																		{/if}
 																	{/if}
 																</div>
-																<div class="vs-divider"></div>
+																{@render vsDivider(match.duration)}
 																<div
 																	class="match-participant"
 																	class:winner={match.winner === match.participantB}
@@ -5191,6 +5202,10 @@
 		font-weight: 600;
 	}
 
+	.match-player.loser {
+		color: #f87171;
+	}
+
 	.match-player.has-hammer {
 		position: relative;
 		background: color-mix(in srgb, var(--color-twenties, #f59e0b) 12%, transparent);
@@ -5964,6 +5979,34 @@
 	.vs-divider {
 		height: 1px;
 		background: #2d3748;
+		display: flex;
+		align-items: center;
+		gap: 0;
+	}
+
+	.vs-divider:has(.match-duration) {
+		height: auto;
+		background: transparent;
+		gap: 0.4rem;
+		padding: 0 0.5rem;
+	}
+
+	.vs-divider:has(.match-duration)::before,
+	.vs-divider:has(.match-duration)::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: #2d3748;
+	}
+
+	.match-duration {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		font-size: 0.65rem;
+		color: #6b7a94;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 
 	/* Actions */
@@ -6322,6 +6365,10 @@
 		color: #059669;
 	}
 
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player.loser {
+		color: #dc2626;
+	}
+
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-score {
 		color: #1a202c;
 	}
@@ -6525,6 +6572,15 @@
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .vs-divider {
 		background: #e2e8f0;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .vs-divider:has(.match-duration)::before,
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .vs-divider:has(.match-duration)::after {
+		background: #e2e8f0;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-duration {
+		color: #94a3b8;
 	}
 
 	/* Light theme connector lines - same gradient, works on both themes */

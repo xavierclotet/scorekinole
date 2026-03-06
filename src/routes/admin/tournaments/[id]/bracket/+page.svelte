@@ -3343,14 +3343,14 @@
   }
 
   .match-participant.loser {
-    background: #fffbeb;
-    color: #b45309;
-    box-shadow: 0 0 0 1px #f59e0b;
+    background: #fef2f2;
+    color: #dc2626;
+    box-shadow: 0 0 0 1px #f87171;
   }
 
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .match-participant.loser {
-    background: rgba(245, 158, 11, 0.2);
-    color: #fbbf24;
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
   }
 
   /* Líder en partidas ganadas (durante IN_PROGRESS) */
@@ -4627,7 +4627,7 @@
   }
 
   .match-participant.loser {
-    color: #f59e0b;
+    color: #f87171;
     font-weight: 500;
   }
 
@@ -4640,7 +4640,7 @@
   }
 
   .consolation-section:is([data-theme='dark'], [data-theme='violet']) .match-participant.loser {
-    color: #fbbf24;
+    color: #f87171;
   }
 
   @media (max-width: 640px) {
