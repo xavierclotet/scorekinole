@@ -124,141 +124,198 @@ export async function generateSwissPairings(
   tournamentId: string,
   roundNumber: number
 ): Promise<boolean> {
-  let tournament = await getTournament(tournamentId);
-  if (!tournament) {
-    console.error('Tournament not found');
-    return false;
-  }
-
-  const groupStageType = tournament.groupStage?.type || 'ROUND_ROBIN';
-  if (groupStageType !== 'SWISS') {
-    console.error('Tournament is not configured for Swiss');
-    return false;
-  }
-
-  if (!tournament.groupStage) {
-    console.error('Group stage not initialized');
+  if (!db) {
+    console.error('Firestore not initialized');
     return false;
   }
 
   try {
-    // Recalculate standings from match results before generating pairings
-    // This ensures we use fresh data (same as the classification table shows)
-    const groupId = tournament.groupStage.groups[0]?.id;
-    if (groupId) {
-      await recalculateStandings(tournamentId, groupId);
-      // Re-fetch tournament with updated standings
-      const refreshed = await getTournament(tournamentId);
-      if (refreshed?.groupStage) {
-        tournament = refreshed;
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      // Read tournament inside transaction (atomic — prevents race conditions)
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const tournament = parseTournamentData(snapshot.data());
+
+      if (tournament.groupStage?.type !== 'SWISS') {
+        throw new Error('Tournament is not configured for Swiss');
       }
-    }
+      if (!tournament.groupStage) {
+        throw new Error('Group stage not initialized');
+      }
 
-    // Get current standings (now fresh from recalculation)
-    const group = tournament.groupStage!.groups[0]; // Swiss has single group
-    const standings = group?.standings || [];
+      const group = tournament.groupStage.groups[0]; // Swiss has single group
+      if (!group) throw new Error('No group found');
 
-    // Get previous pairings
-    const previousPairings = group?.pairings || [];
-
-    // Filter out disqualified and withdrawn participants
-    const activeParticipants = tournament.participants.filter(
-      p => p.status !== 'DISQUALIFIED' && p.status !== 'WITHDRAWN'
-    );
-    const activeParticipantIds = new Set(activeParticipants.map(p => p.id));
-
-    // Also filter standings to only include active participants
-    const activeStandings = standings.filter(s => activeParticipantIds.has(s.participantId));
-    // Generate new pairings (only with active participants)
-    const matches = generateSwissPairingsAlgorithm(
-      activeParticipants,
-      activeStandings,
-      previousPairings,
-      roundNumber
-    );
-
-    // Assign tables with variety
-    const tableHistory = new Map<string, number[]>();
-
-    // Build table history from previous pairings
-    previousPairings.forEach(pairing => {
-      pairing.matches.forEach(match => {
-        if (match.tableNumber) {
-          if (!tableHistory.has(match.participantA)) {
-            tableHistory.set(match.participantA, []);
-          }
-          if (match.participantB !== 'BYE' && !tableHistory.has(match.participantB)) {
-            tableHistory.set(match.participantB, []);
-          }
-          tableHistory.get(match.participantA)!.push(match.tableNumber);
-          if (match.participantB !== 'BYE') {
-            tableHistory.get(match.participantB)!.push(match.tableNumber);
-          }
-        }
+      // Recalculate standings in-memory from match results (avoids separate read/write)
+      const standingsMap = new Map<string, GroupStanding>();
+      group.participants.forEach(participantId => {
+        standingsMap.set(participantId, {
+          participantId,
+          position: 0,
+          matchesPlayed: 0,
+          matchesWon: 0,
+          matchesLost: 0,
+          matchesTied: 0,
+          points: 0,
+          swissPoints: 0,
+          total20s: 0,
+          totalPointsScored: 0,
+          qualifiedForFinal: false,
+          headToHeadRecord: {}
+        });
       });
-    });
 
-    const matchesWithTables = assignTablesWithVariety(matches, tournament.numTables, tableHistory);
-
-    // Add new pairing
-    const newPairings = [
-      ...previousPairings,
-      {
-        roundNumber,
-        matches: matchesWithTables
+      const allMatches: GroupMatch[] = [];
+      if (group.pairings) {
+        group.pairings.forEach(pairing => allMatches.push(...pairing.matches));
       }
-    ];
 
-    // Update group with new pairings
-    const updatedGroups = tournament.groupStage.groups.map(g => {
-      if (g.id === group.id) {
-        return {
-          ...g,
-          pairings: newPairings
-        };
-      }
-      return g;
-    });
+      allMatches
+        .filter(m => m.status === 'COMPLETED' || m.status === 'WALKOVER')
+        .forEach(match => {
+          const standingA = standingsMap.get(match.participantA);
+          const standingB = match.participantB !== 'BYE' ? standingsMap.get(match.participantB) : null;
+          if (!standingA) return;
 
-    // Update BYE player standings inline (avoid separate recalculateStandings call
-    // which re-reads from Firestore and can overwrite with stale data)
-    const byeMatch = matchesWithTables.find(m => m.participantB === 'BYE');
-    const updatedGroup = updatedGroups.find(g => g.id === group.id);
-    if (byeMatch && updatedGroup?.standings) {
-      const byeStanding = updatedGroup.standings.find(s => s.participantId === byeMatch.participantA);
-      if (byeStanding) {
-        byeStanding.matchesPlayed++;
-        byeStanding.matchesWon++;
-        byeStanding.points += 2;
-        byeStanding.totalPointsScored += (byeMatch.totalPointsA || 8);
-        byeStanding.total20s += (byeMatch.total20sA || 0);
-        if (byeStanding.swissPoints !== undefined) {
-          byeStanding.swissPoints += 2;
-        }
-      }
-    }
+          standingA.matchesPlayed++;
+          if (standingB) standingB.matchesPlayed++;
 
-    // Recalculate positions after BYE update so standings display correctly between rounds
-    if (updatedGroup?.standings) {
+          standingA.total20s += match.total20sA || 0;
+          standingA.totalPointsScored += match.totalPointsA || 0;
+          if (standingB) {
+            standingB.total20s += match.total20sB || 0;
+            standingB.totalPointsScored += match.totalPointsB || 0;
+          }
+
+          if (match.winner === match.participantA) {
+            standingA.matchesWon++;
+            if (standingB) standingB.matchesLost++;
+          } else if (match.winner === match.participantB && standingB) {
+            standingA.matchesLost++;
+            standingB.matchesWon++;
+          } else if (!match.winner) {
+            standingA.matchesTied++;
+            if (standingB) standingB.matchesTied++;
+          }
+
+          if (standingB && match.participantB !== 'BYE') {
+            const allStandings = Array.from(standingsMap.values());
+            const updated = updateHeadToHeadRecord(
+              allStandings,
+              match.participantA,
+              match.participantB,
+              match.winner || null,
+              match.total20sA || 0,
+              match.total20sB || 0
+            );
+            updated.forEach(s => standingsMap.set(s.participantId, s));
+          }
+        });
+
+      standingsMap.forEach(standing => {
+        standing.points = calculateMatchPoints(standing.matchesWon, standing.matchesTied);
+        standing.swissPoints = standing.matchesWon * 2 + standing.matchesTied * 1;
+      });
+
       const qualificationMode = tournament.groupStage.qualificationMode || tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
       const show20s = tournament.show20s !== false;
-      updatedGroup.standings = resolveTiebreaker(
-        updatedGroup.standings,
+      const standings = resolveTiebreaker(
+        Array.from(standingsMap.values()),
         tournament.participants,
-        true, // isSwiss
+        true,
         qualificationMode,
         show20s,
         tournament.groupStage.tiebreakerPriority
       );
-    }
 
-    return await updateTournament(tournamentId, {
-      groupStage: {
-        ...tournament.groupStage,
-        groups: updatedGroups,
-        currentRound: roundNumber
+      // Get previous pairings
+      const previousPairings = group.pairings || [];
+
+      // Filter out disqualified and withdrawn participants
+      const activeParticipants = tournament.participants.filter(
+        p => p.status !== 'DISQUALIFIED' && p.status !== 'WITHDRAWN'
+      );
+      const activeParticipantIds = new Set(activeParticipants.map(p => p.id));
+      const activeStandings = standings.filter(s => activeParticipantIds.has(s.participantId));
+
+      // Generate new pairings (only with active participants)
+      const matches = generateSwissPairingsAlgorithm(
+        activeParticipants,
+        activeStandings,
+        previousPairings,
+        roundNumber
+      );
+
+      // Assign tables with variety
+      const tableHistory = new Map<string, number[]>();
+      previousPairings.forEach(pairing => {
+        pairing.matches.forEach(match => {
+          if (match.tableNumber) {
+            if (!tableHistory.has(match.participantA)) tableHistory.set(match.participantA, []);
+            if (match.participantB !== 'BYE' && !tableHistory.has(match.participantB)) tableHistory.set(match.participantB, []);
+            tableHistory.get(match.participantA)!.push(match.tableNumber);
+            if (match.participantB !== 'BYE') tableHistory.get(match.participantB)!.push(match.tableNumber);
+          }
+        });
+      });
+
+      const matchesWithTables = assignTablesWithVariety(matches, tournament.numTables, tableHistory);
+
+      // Add new pairing
+      const newPairings = [
+        ...previousPairings,
+        { roundNumber, matches: matchesWithTables }
+      ];
+
+      // Update group with new pairings and fresh standings
+      const updatedGroups = tournament.groupStage.groups.map(g => {
+        if (g.id === group.id) {
+          return { ...g, pairings: newPairings, standings };
+        }
+        return g;
+      });
+
+      // Update BYE player standings inline
+      const byeMatch = matchesWithTables.find(m => m.participantB === 'BYE');
+      const updatedGroup = updatedGroups.find(g => g.id === group.id);
+      if (byeMatch && updatedGroup?.standings) {
+        const byeStanding = updatedGroup.standings.find(s => s.participantId === byeMatch.participantA);
+        if (byeStanding) {
+          byeStanding.matchesPlayed++;
+          byeStanding.matchesWon++;
+          byeStanding.points += 2;
+          byeStanding.totalPointsScored += (byeMatch.totalPointsA || 8);
+          byeStanding.total20s += (byeMatch.total20sA || 0);
+          if (byeStanding.swissPoints !== undefined) byeStanding.swissPoints += 2;
+        }
+
+        // Recalculate positions after BYE update
+        updatedGroup.standings = resolveTiebreaker(
+          updatedGroup.standings,
+          tournament.participants,
+          true,
+          qualificationMode,
+          show20s,
+          tournament.groupStage.tiebreakerPriority
+        );
       }
-    });
+
+      // Atomic write inside transaction
+      transaction.update(tournamentRef, {
+        groupStage: {
+          ...tournament.groupStage,
+          groups: updatedGroups,
+          currentRound: roundNumber
+        },
+        updatedAt: serverTimestamp()
+      });
+    }, { maxAttempts: 5 });
+
+    console.log('✅ Swiss pairings generated for round', roundNumber);
+    return true;
   } catch (error) {
     console.error('❌ Error generating Swiss pairings:', error);
     return false;
