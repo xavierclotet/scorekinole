@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.92] - 2026-03-07
+- Fix critical race condition in Swiss rounds config (dot-notation update prevents match data loss)
+- Add double-click guards on tournament exit, pause, next game, and play match buttons
+- Fix data loss on tournament pause (flush pending sync before exit)
+- Fix doubles partner side detection in autoStartMatch and modal
+- Allow early Swiss finalization when current round is complete
+- Add integer/NaN validation for Swiss rounds input
+- Add 88 new tests (Swiss config, match detection, store edge cases)
+
 ## [2.4.91] - 2026-03-06
 - Fix Firestore crash on Swiss round 2+ generation (undefined values in standings)
 - Replace all `= undefined` with `delete` in tiebreaker.ts (10 sites)
