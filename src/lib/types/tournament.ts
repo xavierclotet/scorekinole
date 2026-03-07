@@ -274,6 +274,7 @@ export interface GroupMatch {
   participantA: string;        // Participant ID
   participantB: string;        // Participant ID or 'BYE'
   tableNumber?: number;        // Table assignment (undefined = TBD, waiting for table)
+  playedOnTable?: number;      // Table where match was played (preserved after completion)
   status: MatchStatus;
 
   // Results

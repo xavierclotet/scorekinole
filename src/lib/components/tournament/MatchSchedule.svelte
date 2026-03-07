@@ -75,7 +75,7 @@
       ...round,
       matches: matches.filter(match => {
         // Filter by table
-        if (filterTable !== null && match.tableNumber !== filterTable) {
+        if (filterTable !== null && (match.tableNumber ?? match.playedOnTable) !== filterTable) {
           return false;
         }
         // Filter by status
@@ -87,7 +87,7 @@
           return false;
         }
         return true;
-      }).sort((a, b) => (a.tableNumber ?? Infinity) - (b.tableNumber ?? Infinity))
+      }).sort((a, b) => (a.tableNumber ?? a.playedOnTable ?? Infinity) - (b.tableNumber ?? b.playedOnTable ?? Infinity))
     };
   }).filter(round => round.matches.length > 0));
 

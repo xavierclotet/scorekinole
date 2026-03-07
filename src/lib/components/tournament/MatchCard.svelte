@@ -203,8 +203,8 @@
   {#if !isBye}
     <div class="match-meta">
       <div class="meta-left">
-        {#if match.tableNumber}
-          <span class="table-num">{m.tournament_tableShort()}{match.tableNumber}</span>
+        {#if match.tableNumber || match.playedOnTable}
+          <span class="table-num">{m.tournament_tableShort()}{match.tableNumber || match.playedOnTable}</span>
         {:else}
           <span class="table-num tbd">{match.status === 'PENDING' ? 'TBD' : '—'}</span>
         {/if}

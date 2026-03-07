@@ -795,10 +795,10 @@
 					<span class="match-player-name">{getParticipantName(match.participantB)}</span>
 				</span>
 			</div>
-			{#if match.tableNumber != null || match.duration}
+			{#if match.tableNumber != null || match.playedOnTable != null || match.duration}
 				<div class="match-meta-row">
-					{#if match.tableNumber != null}
-						<span class="match-table">{m.tournament_tableShort()}{match.tableNumber}</span>
+					{#if match.tableNumber != null || match.playedOnTable != null}
+						<span class="match-table">{m.tournament_tableShort()}{match.tableNumber ?? match.playedOnTable}</span>
 					{/if}
 					{#if match.duration}
 						{@const totalSec = Math.round(match.duration / 1000)}
@@ -1684,7 +1684,7 @@
 											<div class="round-section">
 												<div class="round-divider"><span class="round-label">{m.tournament_round()} {round.roundNumber}</span></div>
 												<div class="matches-list">
-													{#each round.matches.toSorted((a, b) => (a.tableNumber ?? 999) - (b.tableNumber ?? 999)) as match}
+													{#each round.matches.toSorted((a, b) => (a.tableNumber ?? a.playedOnTable ?? 999) - (b.tableNumber ?? b.playedOnTable ?? 999)) as match}
 														{@render groupMatchRow(match)}
 													{/each}
 												</div>
@@ -1878,7 +1878,7 @@
 												<div class="round-section">
 													<div class="round-divider"><span class="round-label">{m.tournament_round()} {round.roundNumber}</span></div>
 													<div class="matches-list">
-														{#each round.matches.toSorted((a, b) => (a.tableNumber ?? 999) - (b.tableNumber ?? 999)) as match}
+														{#each round.matches.toSorted((a, b) => (a.tableNumber ?? a.playedOnTable ?? 999) - (b.tableNumber ?? b.playedOnTable ?? 999)) as match}
 															{@render groupMatchRow(match)}
 														{/each}
 													</div>

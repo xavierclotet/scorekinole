@@ -64,9 +64,10 @@ function reassignFreedTable(
   for (const g of tournament.groupStage?.groups || []) {
     for (const r of [...(g.schedule || []), ...(g.pairings || [])]) {
       for (const m of r.matches) {
-        if (m.tableNumber && m.participantB !== 'BYE') {
-          record(m.participantA, m.tableNumber);
-          record(m.participantB, m.tableNumber);
+        const tableNum = m.tableNumber || m.playedOnTable;
+        if (tableNum && m.participantB !== 'BYE') {
+          record(m.participantA, tableNum);
+          record(m.participantB, tableNum);
         }
       }
     }
@@ -271,8 +272,11 @@ export async function updateMatchResult(
       }
 
       // Reassign the freed table to a pending match without a table
-      if (match.tableNumber) {
-        reassignFreedTable(tournament, match.tableNumber, groupIndex, roundIndex);
+      const freedTableNum = match.tableNumber;
+      if (freedTableNum) {
+        match.playedOnTable = freedTableNum;
+        delete match.tableNumber;
+        reassignFreedTable(tournament, freedTableNum, groupIndex, roundIndex);
       }
 
       // Calculate standings inline (atomic with match update)
@@ -497,6 +501,12 @@ export async function markNoShow(
       match.walkedOverAt = Date.now();
       match.completedAt = Date.now();
       match.duration = match.startedAt ? match.completedAt - match.startedAt : 0;
+
+      // Preserve played table and clear active table assignment
+      if (match.tableNumber) {
+        match.playedOnTable = match.tableNumber;
+        delete match.tableNumber;
+      }
 
       // Set games won
       if (winner === match.participantA) {

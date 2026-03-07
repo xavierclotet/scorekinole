@@ -1019,7 +1019,7 @@
 								</div>
 								<div class="rounds-container">
 									{#each rounds as round (round.roundNumber)}
-										{@const filteredMatches = (scheduleFilter[group.id] ? round.matches.filter((mt: GroupMatch) => mt.participantA === scheduleFilter[group.id] || mt.participantB === scheduleFilter[group.id]) : [...round.matches]).sort((a: GroupMatch, b: GroupMatch) => (a.tableNumber ?? Infinity) - (b.tableNumber ?? Infinity))}
+										{@const filteredMatches = (scheduleFilter[group.id] ? round.matches.filter((mt: GroupMatch) => mt.participantA === scheduleFilter[group.id] || mt.participantB === scheduleFilter[group.id]) : [...round.matches]).sort((a: GroupMatch, b: GroupMatch) => (a.tableNumber ?? a.playedOnTable ?? Infinity) - (b.tableNumber ?? b.playedOnTable ?? Infinity))}
 										{@const roundProgress = getRoundProgress(round.matches)}
 										{@const isRoundExpanded = expandedRounds[group.id]?.has(round.roundNumber)}
 										{#if filteredMatches.length > 0}

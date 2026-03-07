@@ -122,9 +122,10 @@ function buildTableHistory(tournament: Tournament): Map<string, number[]> {
   for (const group of tournament.groupStage?.groups || []) {
     for (const round of [...(group.schedule || []), ...(group.pairings || [])]) {
       for (const match of round.matches) {
-        if (match.tableNumber && match.participantB !== 'BYE') {
-          record(match.participantA, match.tableNumber);
-          record(match.participantB, match.tableNumber);
+        const table = match.tableNumber || match.playedOnTable;
+        if (table && match.participantB !== 'BYE') {
+          record(match.participantA, table);
+          record(match.participantB, table);
         }
       }
     }

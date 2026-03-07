@@ -623,8 +623,8 @@
                             class="match-row"
                             onclick={() => handleMatchClick(match, false)}
                           >
-                            {#if match.tableNumber}
-                              <span class="table-badge">{m.tournament_tableShort()}{match.tableNumber}</span>
+                            {#if match.tableNumber || match.playedOnTable}
+                              <span class="table-badge">{m.tournament_tableShort()}{match.tableNumber || match.playedOnTable}</span>
                             {/if}
                             <span class="participant" class:winner={match.winner === match.participantA}>
                               {getParticipantName(match.participantA)}

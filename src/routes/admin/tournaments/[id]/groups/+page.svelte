@@ -460,7 +460,7 @@
         }
 
         const pendingMatches = matches.filter(
-          m => m.status === 'PENDING' && m.participantB !== 'BYE'
+          m => m.status === 'PENDING' && m.participantB !== 'BYE' && m.tableNumber
         );
 
         for (const match of pendingMatches) {
@@ -1016,11 +1016,11 @@
     {@const swissPendingCount = isSwissModal ? groups.flatMap(g => {
       const currentPairing = g.pairings?.find(p => p.roundNumber === swissCurrentRound);
       return currentPairing?.matches || [];
-    }).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length : 0}
-    {@const allPendingRounds = !isSwissModal ? groups.flatMap(g => g.schedule || []).filter(r => r.matches.some(match => match.status === 'PENDING' && match.participantB !== 'BYE')) : []}
+    }).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE' && match.tableNumber).length : 0}
+    {@const allPendingRounds = !isSwissModal ? groups.flatMap(g => g.schedule || []).filter(r => r.matches.some(match => match.status === 'PENDING' && match.participantB !== 'BYE' && match.tableNumber)) : []}
     {@const firstPendingRoundNumber = allPendingRounds.length > 0 ? Math.min(...allPendingRounds.map(r => r.roundNumber)) : 0}
-    {@const currentRoundPendingCount = allPendingRounds.filter(r => r.roundNumber === firstPendingRoundNumber).flatMap(r => r.matches).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length}
-    {@const totalPendingCount = !isSwissModal ? groups.flatMap(g => (g.schedule || []).flatMap(r => r.matches)).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE').length : 0}
+    {@const currentRoundPendingCount = allPendingRounds.filter(r => r.roundNumber === firstPendingRoundNumber).flatMap(r => r.matches).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE' && match.tableNumber).length}
+    {@const totalPendingCount = !isSwissModal ? groups.flatMap(g => (g.schedule || []).flatMap(r => r.matches)).filter(match => match.status === 'PENDING' && match.participantB !== 'BYE' && match.tableNumber).length : 0}
     <div
       class="modal-backdrop"
       data-theme={$adminTheme}
