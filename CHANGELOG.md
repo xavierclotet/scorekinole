@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.93] - 2026-03-07
+- Fix tableNumber not cleared on group match completion (caused duplicate table assignments)
+- Fix autofill filling TBD matches without assigned tables in limited-table tournaments
+- Add playedOnTable to GroupMatch for table history after completion
+- Update UI components to display played table for completed group matches
+- Add 32 tests for table reassignment, odd players + limited tables, and autofill edge cases
+
 ## [2.4.92] - 2026-03-07
 - Fix critical race condition in Swiss rounds config (dot-notation update prevents match data loss)
 - Add double-click guards on tournament exit, pause, next game, and play match buttons
