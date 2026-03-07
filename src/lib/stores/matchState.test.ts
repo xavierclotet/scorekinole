@@ -510,4 +510,89 @@ describe('matchState', () => {
 			expect(get(currentGameRounds)).toEqual([]);
 		});
 	});
+
+	describe('double-call idempotency (double-click guards)', () => {
+		it('resetMatchState called twice is idempotent', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			startMatch('user-1', 1);
+			completeRound(2, 0, 1, 0, 1);
+			addGame(makeGame());
+
+			resetMatchState();
+			resetMatchState();
+
+			expect(get(roundsPlayed)).toBe(0);
+			expect(get(matchStartedBy)).toBeNull();
+			expect(get(currentMatchGames)).toEqual([]);
+			expect(get(currentGameRounds)).toEqual([]);
+			expect(get(currentMatchRounds)).toEqual([]);
+			expect(get(lastRoundPoints)).toEqual({ team1: 0, team2: 0 });
+		});
+
+		it('resetGameOnly called twice is idempotent', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			addGame(makeGame({ gameNumber: 1 }));
+			completeRound(2, 0, 0, 0, 1);
+
+			resetGameOnly();
+			resetGameOnly();
+
+			expect(get(roundsPlayed)).toBe(0);
+			expect(get(currentGameRounds)).toEqual([]);
+			expect(get(currentMatchRounds)).toEqual([]);
+			// Games from before are still preserved
+			expect(get(currentMatchGames)).toHaveLength(1);
+		});
+
+		it('resetGameOnly twice does not corrupt next round numbering', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			addGame(makeGame({ gameNumber: 1 }));
+			completeRound(2, 0, 0, 0, 1);
+			completeRound(0, 2, 0, 0, 2);
+
+			resetGameOnly();
+			resetGameOnly();
+
+			// New round after double-reset should start at roundNumber 1
+			completeRound(4, 0, 0, 0, 1);
+			const rounds = get(currentGameRounds);
+			expect(rounds).toHaveLength(1);
+			expect(rounds[0].roundNumber).toBe(1);
+		});
+
+		it('resetMatchState after multi-game progress clears everything', () => {
+			vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+			// Game 1
+			startMatch('user-1', 1);
+			completeRound(2, 0, 1, 0, 1);
+			completeRound(0, 2, 0, 1, 2);
+			addGame(makeGame({ gameNumber: 1 }));
+			resetGameOnly();
+
+			// Game 2
+			completeRound(4, 0, 0, 0, 1);
+			addGame(makeGame({ gameNumber: 2, winner: 1, team1Points: 4, team2Points: 0 }));
+			resetGameOnly();
+
+			// Game 3 in progress
+			completeRound(2, 0, 0, 0, 1);
+
+			expect(get(currentMatchGames)).toHaveLength(2);
+			expect(get(currentGameRounds)).toHaveLength(1);
+			expect(get(roundsPlayed)).toBe(1);
+
+			resetMatchState();
+
+			expect(get(currentMatchGames)).toEqual([]);
+			expect(get(currentGameRounds)).toEqual([]);
+			expect(get(currentMatchRounds)).toEqual([]);
+			expect(get(roundsPlayed)).toBe(0);
+			expect(get(matchStartedBy)).toBeNull();
+			expect(get(matchStartTime)).toBeNull();
+		});
+	});
 });

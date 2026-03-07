@@ -330,6 +330,55 @@ export async function generateSwissPairings(
 }
 
 /**
+ * Safely update the number of Swiss rounds without overwriting match data.
+ * Uses Firestore dot notation to only update the specific fields,
+ * avoiding the race condition of spreading the entire groupStage.
+ */
+export async function updateSwissRoundsConfig(
+  tournamentId: string,
+  numRounds: number
+): Promise<boolean> {
+  if (!db) {
+    console.error('Firestore not initialized');
+    return false;
+  }
+
+  try {
+    const tournamentRef = doc(db, 'tournaments', tournamentId);
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(tournamentRef);
+      if (!snapshot.exists()) throw new Error('Tournament not found');
+
+      const data = snapshot.data();
+      if (data.groupStage?.type !== 'SWISS') {
+        throw new Error('Tournament is not Swiss type');
+      }
+
+      const currentRound = data.groupStage?.currentRound || 1;
+      if (numRounds < currentRound) {
+        throw new Error(`Cannot set Swiss rounds to ${numRounds}, current round is ${currentRound}`);
+      }
+
+      // Dot notation: only updates these specific nested fields
+      // without touching groups, standings, matches, etc.
+      transaction.update(tournamentRef, {
+        numSwissRounds: numRounds,
+        'groupStage.numSwissRounds': numRounds,
+        'groupStage.totalRounds': numRounds,
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    console.log('✅ Swiss rounds config updated to', numRounds);
+    return true;
+  } catch (error) {
+    console.error('❌ Error updating Swiss rounds config:', error);
+    return false;
+  }
+}
+
+/**
  * Update group match result
  *
  * @param tournamentId Tournament ID

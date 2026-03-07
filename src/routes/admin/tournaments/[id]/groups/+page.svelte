@@ -21,7 +21,7 @@
   import { transitionTournament } from '$lib/utils/tournamentStateMachine';
   import { completeMatch, markNoShow } from '$lib/firebase/tournamentSync';
   import { updateMatchResult } from '$lib/firebase/tournamentMatches'; // For autoFill (SuperAdmin only)
-  import { generateSwissPairings } from '$lib/firebase/tournamentGroups';
+  import { generateSwissPairings, updateSwissRoundsConfig } from '$lib/firebase/tournamentGroups';
   import { disqualifyParticipant } from '$lib/firebase/tournamentParticipants';
   import type { Tournament, GroupMatch } from '$lib/types/tournament';
   import { useProbabilities } from '$lib/utils/useProbabilities.svelte';
@@ -64,12 +64,29 @@
   let isSwissTournament = $derived(tournament?.groupStage?.type === 'SWISS');
   let currentSwissRound = $derived(tournament?.groupStage?.currentRound || 1);
   let totalSwissRoundsValue = $derived(tournament?.groupStage?.numSwissRounds || tournament?.numSwissRounds || 0);
-  let canSaveSwissRounds = $derived(editedSwissRounds > currentSwissRound && editedSwissRounds !== totalSwissRoundsValue);
+  let isCurrentSwissRoundComplete = $derived((() => {
+    if (!tournament?.groupStage || tournament.groupStage.type !== 'SWISS') return false;
+    return tournament.groupStage.groups.every(g => {
+      const currentPairing = g.pairings?.find(p => p.roundNumber === currentSwissRound);
+      if (!currentPairing) return false;
+      return currentPairing.matches.every(m =>
+        m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE'
+      );
+    });
+  })());
+  let canSaveSwissRounds = $derived(
+    Number.isFinite(editedSwissRounds) &&
+    editedSwissRounds === Math.floor(editedSwissRounds) &&
+    editedSwissRounds >= 1 &&
+    editedSwissRounds !== totalSwissRoundsValue &&
+    (editedSwissRounds > currentSwissRound ||
+      (editedSwissRounds === currentSwissRound && isCurrentSwissRoundComplete))
+  );
   let timeRemaining = $derived(tournament ? calculateRemainingTime(tournament) : null);
 
-  // Initialize editedSwissRounds when tournament loads
+  // Sync editedSwissRounds when tournament loads or value changes externally
   $effect(() => {
-    if (totalSwissRoundsValue > 0 && editedSwissRounds === 0) {
+    if (totalSwissRoundsValue > 0) {
       editedSwissRounds = totalSwissRoundsValue;
     }
   });
@@ -111,8 +128,18 @@
   }
 
   async function saveSwissRounds() {
+    if (isSavingSwissRounds) return;
     if (!tournament || !tournamentId || !tournament.groupStage) return;
-    if (editedSwissRounds <= currentSwissRound) {
+
+    const rounds = Math.floor(editedSwissRounds);
+    if (!Number.isFinite(rounds) || rounds < 1) {
+      toastMessage = m.admin_swissRoundsMinError({ n: currentSwissRound });
+      toastType = 'error';
+      showToast = true;
+      return;
+    }
+
+    if (rounds < currentSwissRound || (rounds === currentSwissRound && !isCurrentSwissRoundComplete)) {
       toastMessage = m.admin_swissRoundsMinError({ n: currentSwissRound });
       toastType = 'error';
       showToast = true;
@@ -121,16 +148,14 @@
 
     isSavingSwissRounds = true;
     try {
-      await updateTournament(tournamentId, {
-        numSwissRounds: editedSwissRounds,
-        groupStage: {
-          ...tournament.groupStage,
-          numSwissRounds: editedSwissRounds,
-          totalRounds: editedSwissRounds
-        }
-      });
-      toastMessage = m.admin_swissRoundsUpdated({ n: editedSwissRounds });
-      toastType = 'success';
+      const success = await updateSwissRoundsConfig(tournamentId, rounds);
+      if (success) {
+        toastMessage = m.admin_swissRoundsUpdated({ n: rounds });
+        toastType = 'success';
+      } else {
+        toastMessage = m.admin_errorSavingChanges();
+        toastType = 'error';
+      }
       showToast = true;
     } catch (err) {
       console.error('Error saving Swiss rounds:', err);
@@ -883,8 +908,9 @@
                       id="swissRoundsInput"
                       type="number"
                       bind:value={editedSwissRounds}
-                      min={currentSwissRound + 1}
+                      min={isCurrentSwissRoundComplete ? currentSwissRound : currentSwissRound + 1}
                       max={20}
+                      step="1"
                     />
                     <span class="current-round-hint">
                       ({m.tournament_round()} {currentSwissRound}/{totalSwissRoundsValue})

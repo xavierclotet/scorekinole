@@ -950,7 +950,7 @@ describe('Doubles and edge cases', () => {
     // Verify participants have partner info
     for (const p of tournament.participants) {
       expect(p.partner).toBeDefined();
-      expect(p.partnerId).toBeDefined();
+      expect(p.partner!.name).toBeDefined();
     }
 
     expect(tournament.gameType).toBe('doubles');

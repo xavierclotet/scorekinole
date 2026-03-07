@@ -55,8 +55,10 @@ function createParticipants(
       rankingSnapshot: 1000 - i * 10
     };
     if (gameType === 'doubles') {
-      participant.partner = `Partner ${i + 1}`;
-      participant.partnerId = `partner-${i + 1}`;
+      participant.partner = {
+        type: 'GUEST',
+        name: `Partner ${i + 1}`
+      };
     }
     participants.push(participant);
   }

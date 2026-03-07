@@ -8,6 +8,7 @@
 		tournamentName?: string;
 		tournamentEdition?: number;
 		isDoubles?: boolean;
+		isLoading?: boolean;
 		onplay?: () => void;
 		oncancel?: () => void;
 	}
@@ -18,6 +19,7 @@
 		tournamentName,
 		tournamentEdition,
 		isDoubles = false,
+		isLoading = false,
 		onplay,
 		oncancel
 	}: Props = $props();
@@ -198,7 +200,7 @@
 				<button class="btn-cancel" onclick={handleCancel}>
 					{m.tournament_matchPreviewCancel()}
 				</button>
-				<button class="btn-play" disabled={!hasTable} onclick={handlePlay}>
+				<button class="btn-play" disabled={!hasTable || isLoading} onclick={handlePlay}>
 					{isResuming ? m.tournament_resumeMatch() : m.tournament_startMatch()}
 				</button>
 			</div>

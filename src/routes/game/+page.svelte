@@ -230,6 +230,9 @@
 
 	// Bracket tiebreaker state - when in bracket mode and tied, we play extra rounds
 	let isInExtraRounds = $state(false);
+	let isExitingTournament = $state(false);
+	let isProcessingNextGame = $state(false);
+	let isStartingMatch = $state(false);
 	let isBracketMatch = $derived($gameTournamentContext?.phase === 'FINAL');
 
 	// Whether a winner is required (no ties allowed):
@@ -1232,6 +1235,8 @@
 	 * auto-start the match without showing the modal
 	 */
 	async function handleJoinTournament() {
+		if (isCheckingTournament) return;
+
 		// Wait for dropdown menu to close before opening modals
 		await tick();
 		const savedKey = $gameSettings.tournamentKey;
@@ -1316,6 +1321,7 @@
 	}
 
 	async function handleMatchPreviewPlay() {
+		if (isStartingMatch) return;
 		showMatchPreview = false;
 		if (matchPreviewTournament && matchPreviewInfo) {
 			await autoStartMatch(matchPreviewTournament, matchPreviewInfo);
@@ -1334,105 +1340,115 @@
 	 * Auto-start a tournament match without showing the modal
 	 */
 	async function autoStartMatch(tournament: any, matchInfo: PendingMatchInfo) {
-		console.log('🎮 autoStartMatch called:', { matchId: matchInfo.match.id, status: matchInfo.match.status });
-		const isResuming = matchInfo.match.status === 'IN_PROGRESS';
+		if (isStartingMatch) return;
+		isStartingMatch = true;
 
-		// Start or resume match in Firebase
-		console.log('🔄 Starting match in Firebase...', { isResuming });
-		const user = get(currentUser);
-		const result = await startTournamentMatch(
-			tournament.id,
-			matchInfo.match.id,
-			matchInfo.phase,
-			matchInfo.groupId,
-			isResuming,
-			user ? { userId: user.id, userName: user.name } : undefined
-		);
+		try {
+			console.log('🎮 autoStartMatch called:', { matchId: matchInfo.match.id, status: matchInfo.match.status });
+			const isResuming = matchInfo.match.status === 'IN_PROGRESS';
 
-		console.log('📡 startTournamentMatch result:', result);
-
-		if (!result.success) {
-			console.log('❌ Failed to start match, showing modal');
-			showTournamentModal = true;
-			return;
-		}
-
-		// Get existing rounds if resuming
-		let existingRounds: any[] = [];
-		let gamesWonA = 0;
-		let gamesWonB = 0;
-
-		if (isResuming) {
-			const resumeResult = await resumeTournamentMatch(
+			// Start or resume match in Firebase
+			console.log('🔄 Starting match in Firebase...', { isResuming });
+			const user = get(currentUser);
+			const result = await startTournamentMatch(
 				tournament.id,
 				matchInfo.match.id,
 				matchInfo.phase,
-				matchInfo.groupId
+				matchInfo.groupId,
+				isResuming,
+				user ? { userId: user.id, userName: user.name } : undefined
 			);
-			if (resumeResult.success && resumeResult.match) {
-				existingRounds = resumeResult.match.rounds || [];
-				gamesWonA = resumeResult.match.gamesWonA || 0;
-				gamesWonB = resumeResult.match.gamesWonB || 0;
+
+			console.log('📡 startTournamentMatch result:', result);
+
+			if (!result.success) {
+				console.log('❌ Failed to start match, showing modal');
+				showTournamentModal = true;
+				return;
 			}
+
+			// Get existing rounds if resuming
+			let existingRounds: any[] = [];
+			let gamesWonA = 0;
+			let gamesWonB = 0;
+
+			if (isResuming) {
+				const resumeResult = await resumeTournamentMatch(
+					tournament.id,
+					matchInfo.match.id,
+					matchInfo.phase,
+					matchInfo.groupId
+				);
+				if (resumeResult.success && resumeResult.match) {
+					existingRounds = resumeResult.match.rounds || [];
+					gamesWonA = resumeResult.match.gamesWonA || 0;
+					gamesWonB = resumeResult.match.gamesWonB || 0;
+				}
+			}
+
+			// Detect user side (check both primary userId and partner.userId for doubles)
+			const userParticipant = tournament.participants.find((p: any) => p.userId === $currentUser?.id || p.partner?.userId === $currentUser?.id);
+			const side: 'A' | 'B' = userParticipant?.id === matchInfo.match.participantA ? 'A' : 'B';
+
+			// Calculate current game number
+			const maxGameNumber = existingRounds.length > 0
+				? Math.max(...existingRounds.map((r: any) => r.gameNumber || 1))
+				: 1;
+
+			// Determine bracket type
+			const bracketType: 'gold' | 'silver' | undefined =
+				matchInfo.isSilverBracket ? 'silver' :
+				matchInfo.phase === 'FINAL' ? 'gold' : undefined;
+
+			// Get group stage info if applicable
+			const groupStageType = tournament.groupStage?.type;
+			const totalRounds = tournament.groupStage?.totalRounds;
+
+			// Build tournament context
+			const context: TournamentMatchContext = {
+				tournamentId: tournament.id,
+				tournamentKey: tournament.key,
+				tournamentName: tournament.name,
+				tournamentEdition: tournament.edition,
+				matchId: matchInfo.match.id,
+				phase: matchInfo.phase,
+				roundNumber: matchInfo.roundNumber,
+				totalRounds,
+				groupId: matchInfo.groupId,
+				groupName: matchInfo.groupName,
+				groupStageType,
+				bracketRoundName: matchInfo.bracketRoundName,
+				bracketType,
+				isConsolation: matchInfo.isConsolation || false,
+				participantAId: matchInfo.match.participantA || '',
+				participantBId: 'participantB' in matchInfo.match ? matchInfo.match.participantB || '' : '',
+				participantAName: matchInfo.participantAName,
+				participantBName: matchInfo.participantBName,
+				participantAPhotoURL: matchInfo.participantAPhotoURL,
+				participantBPhotoURL: matchInfo.participantBPhotoURL,
+				participantAPartnerPhotoURL: matchInfo.participantAPartnerPhotoURL,
+				participantBPartnerPhotoURL: matchInfo.participantBPartnerPhotoURL,
+				currentUserId: $currentUser?.id,
+				currentUserParticipantId: userParticipant?.id,
+				currentUserSide: side,
+				gameConfig: matchInfo.gameConfig,
+				matchStartedAt: Date.now(),
+				existingRounds: existingRounds.length > 0 ? existingRounds : undefined,
+				currentGameData: (gamesWonA > 0 || gamesWonB > 0 || existingRounds.length > 0) ? {
+					gamesWonA,
+					gamesWonB,
+					currentGameNumber: maxGameNumber
+				} : undefined
+			};
+
+			setTournamentContext(context);
+			handleTournamentMatchStarted(context);
+		} catch (error) {
+			console.error('Error starting tournament match:', error);
+			showTournamentModal = true;
+		} finally {
+			isStartingMatch = false;
 		}
-
-		// Detect user side
-		const userParticipant = tournament.participants.find((p: any) => p.userId === $currentUser?.id);
-		const side: 'A' | 'B' = userParticipant?.id === matchInfo.match.participantA ? 'A' : 'B';
-
-		// Calculate current game number
-		const maxGameNumber = existingRounds.length > 0
-			? Math.max(...existingRounds.map((r: any) => r.gameNumber || 1))
-			: 1;
-
-		// Determine bracket type
-		const bracketType: 'gold' | 'silver' | undefined =
-			matchInfo.isSilverBracket ? 'silver' :
-			matchInfo.phase === 'FINAL' ? 'gold' : undefined;
-
-		// Get group stage info if applicable
-		const groupStageType = tournament.groupStage?.type;
-		const totalRounds = tournament.groupStage?.totalRounds;
-
-		// Build tournament context
-		const context: TournamentMatchContext = {
-			tournamentId: tournament.id,
-			tournamentKey: tournament.key,
-			tournamentName: tournament.name,
-			tournamentEdition: tournament.edition,
-			matchId: matchInfo.match.id,
-			phase: matchInfo.phase,
-			roundNumber: matchInfo.roundNumber,
-			totalRounds,
-			groupId: matchInfo.groupId,
-			groupName: matchInfo.groupName,
-			groupStageType,
-			bracketRoundName: matchInfo.bracketRoundName,
-			bracketType,
-			isConsolation: matchInfo.isConsolation || false,
-			participantAId: matchInfo.match.participantA || '',
-			participantBId: 'participantB' in matchInfo.match ? matchInfo.match.participantB || '' : '',
-			participantAName: matchInfo.participantAName,
-			participantBName: matchInfo.participantBName,
-			participantAPhotoURL: matchInfo.participantAPhotoURL,
-			participantBPhotoURL: matchInfo.participantBPhotoURL,
-			participantAPartnerPhotoURL: matchInfo.participantAPartnerPhotoURL,
-			participantBPartnerPhotoURL: matchInfo.participantBPartnerPhotoURL,
-			currentUserId: $currentUser?.id,
-			currentUserParticipantId: userParticipant?.id,
-			currentUserSide: side,
-			gameConfig: matchInfo.gameConfig,
-			matchStartedAt: Date.now(),
-			existingRounds: existingRounds.length > 0 ? existingRounds : undefined,
-			currentGameData: (gamesWonA > 0 || gamesWonB > 0 || existingRounds.length > 0) ? {
-				gamesWonA,
-				gamesWonB,
-				currentGameNumber: maxGameNumber
-			} : undefined
-		};
-
-		setTournamentContext(context);
-		handleTournamentMatchStarted(context);
 	}
 
 	/**
@@ -1445,50 +1461,71 @@
 	/**
 	 * Pause the tournament match (keep progress, can resume later)
 	 */
-	function pauseTournamentMatch() {
-		// Don't call abandonTournamentMatch - the match stays IN_PROGRESS in Firebase
-		// The rounds are already synced, so another user (or this user) can resume later
+	async function pauseTournamentMatch() {
+		if (isExitingTournament) return;
+		isExitingTournament = true;
 
-		// Clear local context only
-		exitTournamentMode();
-		showTournamentExitConfirm = false;
+		try {
+			// Flush any pending round data to Firebase before exiting
+			if (inTournamentMode) {
+				const data = saveTournamentProgressToLocalStorage();
+				if (data && data.allRounds) {
+					await syncTournamentRounds(data.allRounds, data.gamesWonA, data.gamesWonB, data.currentHammer);
+				}
+			}
 
-		// Reset local game state
-		resetTeams();
-		resetMatchState();
-		isInExtraRounds = false;
+			// Clear local context only — match stays IN_PROGRESS in Firebase
+			exitTournamentMode();
+			showTournamentExitConfirm = false;
 
-		console.log('⏸️ Tournament match paused - progress preserved in Firebase');
+			// Reset local game state
+			resetTeams();
+			resetMatchState();
+			isInExtraRounds = false;
+
+			console.log('⏸️ Tournament match paused - progress preserved in Firebase');
+		} catch (error) {
+			console.error('Error pausing tournament match:', error);
+			isExitingTournament = false;
+		}
 	}
 
 	/**
 	 * Confirm abandoning the tournament match (resets to PENDING, loses progress)
 	 */
 	async function confirmTournamentExit() {
-		const context = $gameTournamentContext;
-		if (context) {
-			try {
-				// Abandon the match in Firebase (set back to PENDING, clears progress)
-				await abandonTournamentMatchSync(
-					context.tournamentId,
-					context.matchId,
-					context.phase,
-					context.groupId
-				);
-				console.log('🗑️ Tournament match abandoned - progress cleared');
-			} catch (error) {
-				console.error('Error abandoning match:', error);
+		if (isExitingTournament) return;
+		isExitingTournament = true;
+
+		try {
+			const context = $gameTournamentContext;
+			if (context) {
+				try {
+					// Abandon the match in Firebase (set back to PENDING, clears progress)
+					await abandonTournamentMatchSync(
+						context.tournamentId,
+						context.matchId,
+						context.phase,
+						context.groupId
+					);
+					console.log('🗑️ Tournament match abandoned - progress cleared');
+				} catch (error) {
+					console.error('Error abandoning match:', error);
+				}
 			}
+
+			// Clear local context
+			exitTournamentMode();
+			showTournamentExitConfirm = false;
+
+			// Reset game state
+			resetTeams();
+			resetMatchState();
+			isInExtraRounds = false;
+		} catch (error) {
+			console.error('Error exiting tournament:', error);
+			isExitingTournament = false;
 		}
-
-		// Clear local context
-		exitTournamentMode();
-		showTournamentExitConfirm = false;
-
-		// Reset game state
-		resetTeams();
-		resetMatchState();
-		isInExtraRounds = false;
 	}
 
 	/**
@@ -2224,52 +2261,59 @@
 	}
 
 	async function handleNextGame() {
-		// En modo torneo, guardamos a localStorage ANTES del reset
-		// Esto es importante porque resetForNextGame() limpia currentGameRounds
-		if (inTournamentMode) {
-			const preResetData = saveTournamentProgressToLocalStorage();
-			if (preResetData && preResetData.allRounds) {
-				console.log('📦 Pre-reset tournament data:', {
-					rounds: preResetData.allRounds.length,
-					gamesWonA: preResetData.gamesWonA,
-					gamesWonB: preResetData.gamesWonB
-				});
+		if (isProcessingNextGame) return;
+		isProcessingNextGame = true;
 
-				// Siempre sincronizar a Firebase (modo real-time único)
-				await syncTournamentRounds(preResetData.allRounds, preResetData.gamesWonA, preResetData.gamesWonB, preResetData.currentHammer);
-				console.log('📤 Synced completed game to Firebase');
-			}
-		}
+		try {
+			// En modo torneo, guardamos a localStorage ANTES del reset
+			// Esto es importante porque resetForNextGame() limpia currentGameRounds
+			if (inTournamentMode) {
+				const preResetData = saveTournamentProgressToLocalStorage();
+				if (preResetData && preResetData.allRounds) {
+					console.log('📦 Pre-reset tournament data:', {
+						rounds: preResetData.allRounds.length,
+						gamesWonA: preResetData.gamesWonA,
+						gamesWonB: preResetData.gamesWonB
+					});
 
-		// Call resetForNextGame on one of the TeamCard components
-		if (teamCard1) {
-			teamCard1.resetForNextGame();
-		}
-
-		// Reset timer to default value for the new game
-		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
-		resetTimer(totalSeconds);
-		// Auto-start timer for next game
-		if ($gameSettings.showTimer) {
-			startTimer();
-		}
-
-		// Actualizar el contexto local con el nuevo número de juego
-		if (inTournamentMode) {
-			const current = get(currentMatch);
-			const completedGamesCount = current?.games?.length || 0;
-			const matchGames = get(currentMatchGames);
-			const isUserSideA = $gameTournamentContext?.currentUserSide === 'A';
-			const t1GamesWon = matchGames.filter(game => game.winner === 1).length;
-			const t2GamesWon = matchGames.filter(game => game.winner === 2).length;
-
-			updateTournamentContext({
-				currentGameData: {
-					gamesWonA: isUserSideA ? t1GamesWon : t2GamesWon,
-					gamesWonB: isUserSideA ? t2GamesWon : t1GamesWon,
-					currentGameNumber: completedGamesCount + 1
+					// Siempre sincronizar a Firebase (modo real-time único)
+					await syncTournamentRounds(preResetData.allRounds, preResetData.gamesWonA, preResetData.gamesWonB, preResetData.currentHammer);
+					console.log('📤 Synced completed game to Firebase');
 				}
-			});
+			}
+
+			// Call resetForNextGame on one of the TeamCard components
+			if (teamCard1) {
+				teamCard1.resetForNextGame();
+			}
+
+			// Reset timer to default value for the new game
+			const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
+			resetTimer(totalSeconds);
+			// Auto-start timer for next game
+			if ($gameSettings.showTimer) {
+				startTimer();
+			}
+
+			// Actualizar el contexto local con el nuevo número de juego
+			if (inTournamentMode) {
+				const current = get(currentMatch);
+				const completedGamesCount = current?.games?.length || 0;
+				const matchGames = get(currentMatchGames);
+				const isUserSideA = $gameTournamentContext?.currentUserSide === 'A';
+				const t1GamesWon = matchGames.filter(game => game.winner === 1).length;
+				const t2GamesWon = matchGames.filter(game => game.winner === 2).length;
+
+				updateTournamentContext({
+					currentGameData: {
+						gamesWonA: isUserSideA ? t1GamesWon : t2GamesWon,
+						gamesWonB: isUserSideA ? t2GamesWon : t1GamesWon,
+						currentGameNumber: completedGamesCount + 1
+					}
+				});
+			}
+		} finally {
+			isProcessingNextGame = false;
 		}
 	}
 </script>
@@ -2459,7 +2503,7 @@
 	<!-- Next Game Button -->
 	{#if showNextGameButton}
 		<div class="next-game-container">
-			<button class="next-game-button" onclick={handleNextGame}>
+			<button class="next-game-button" onclick={handleNextGame} disabled={isProcessingNextGame}>
 				{m.scoring_nextGame()}
 			</button>
 		</div>
@@ -2505,7 +2549,7 @@
 					<div class="exit-actions">
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class="exit-action pause" onclick={pauseTournamentMatch}>
+						<div class={["exit-action pause", isExitingTournament && "disabled"]} onclick={pauseTournamentMatch}>
 							<div class="action-icon">
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
 							</div>
@@ -2516,7 +2560,7 @@
 						</div>
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class="exit-action abandon" onclick={confirmTournamentExit}>
+						<div class={["exit-action abandon", isExitingTournament && "disabled"]} onclick={confirmTournamentExit}>
 							<div class="action-icon">
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
 							</div>
@@ -2535,7 +2579,7 @@
 						{m.common_cancel()}
 					</button>
 					{#if !hasProgress}
-						<button class="exit-btn confirm" onclick={confirmTournamentExit}>
+						<button class="exit-btn confirm" onclick={confirmTournamentExit} disabled={isExitingTournament}>
 							{m.scoring_exit() || 'Salir'}
 						</button>
 					{/if}
@@ -2600,6 +2644,7 @@
 	tournamentName={matchPreviewTournament?.name}
 	tournamentEdition={matchPreviewTournament?.edition}
 	isDoubles={matchPreviewTournament?.gameType === 'doubles'}
+	isLoading={isStartingMatch}
 	onplay={handleMatchPreviewPlay}
 	oncancel={handleMatchPreviewCancel}
 />
@@ -3315,6 +3360,11 @@
 
 	.exit-action.abandon .action-label {
 		color: #ec8c8c;
+	}
+
+	.exit-action.disabled {
+		opacity: 0.5;
+		pointer-events: none;
 	}
 
 	.exit-footer {

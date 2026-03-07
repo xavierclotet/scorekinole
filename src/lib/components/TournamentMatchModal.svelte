@@ -506,9 +506,9 @@
 			}
 		}
 
-		// For logged-in users, auto-detect their side
+		// For logged-in users, auto-detect their side (check both primary and partner userId for doubles)
 		if (isLoggedIn && $currentUser && tournament) {
-			const userParticipant = tournament.participants.find(p => p.userId === $currentUser?.id);
+			const userParticipant = tournament.participants.find(p => p.userId === $currentUser?.id || p.partner?.userId === $currentUser?.id);
 			if (userParticipant) {
 				if (selectedMatch.match.participantA === userParticipant.id) {
 					selectedSide = 'A';

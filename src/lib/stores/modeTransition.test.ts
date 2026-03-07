@@ -72,11 +72,13 @@ import { team1, team2, resetTeams, updateTeam } from './teams';
 import { gameSettings } from './gameSettings';
 import {
 	resetMatchState,
+	resetGameOnly,
 	matchStartedBy,
 	matchStartTime,
 	roundsPlayed,
 	lastRoundPoints,
 	currentMatchGames,
+	currentMatchRounds,
 	currentGameRounds,
 	completeRound,
 	addGame,
@@ -1007,6 +1009,99 @@ describe('Edge cases', () => {
 		expect(after.eventTitle).toBe('');
 		expect(after.eventEdition).toBeUndefined();
 		expect(after.matchPhase).toBe('');
+	});
+
+	it('double pause does not corrupt state', () => {
+		setupFriendlyState();
+		simulateEnterTournament(makeTournamentContext());
+		vi.spyOn(Date, 'now').mockReturnValue(1000000);
+		completeRound(2, 0, 0, 0, 1);
+
+		// Simulate double-click on pause
+		simulatePauseTournamentMatch();
+		simulatePauseTournamentMatch();
+
+		// State should be clean friendly — not corrupted by second call
+		expect(get(team1).name).toBe('Eagles');
+		expect(get(team2).name).toBe('Hawks');
+		expect(get(gameSettings).gameMode).toBe('points');
+		expect(get(roundsPlayed)).toBe(0);
+		expect(getTournamentContext()).toBeNull();
+	});
+
+	it('double exit (abandon) does not corrupt state', () => {
+		setupFriendlyState();
+		simulateEnterTournament(makeTournamentContext());
+		vi.spyOn(Date, 'now').mockReturnValue(1000000);
+		completeRound(2, 0, 0, 0, 1);
+
+		// Simulate double-click on abandon — both calls run exit + reset
+		simulateExitTournamentMode();
+		resetTeams();
+		resetMatchState();
+
+		// Second call (context already null, backup already consumed)
+		simulateExitTournamentMode();
+		resetTeams();
+		resetMatchState();
+
+		expect(get(team1).name).toBe('Eagles');
+		expect(get(team2).name).toBe('Hawks');
+		expect(get(roundsPlayed)).toBe(0);
+		expect(getTournamentContext()).toBeNull();
+	});
+
+	it('pause after multi-game progress restores friendly state', () => {
+		setupFriendlyState();
+		simulateEnterTournament(makeTournamentContext());
+		vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+		// Play game 1: two rounds
+		completeRound(2, 0, 0, 0, 1);
+		completeRound(0, 2, 0, 0, 2);
+		addGame({ gameNumber: 1, winner: 1, team1Points: 4, team2Points: 2, team1Rounds: 1, team2Rounds: 1, team1Twenty: 0, team2Twenty: 0, timestamp: 1000000 });
+		resetGameOnly();
+
+		// Game 2 in progress: one round
+		completeRound(4, 0, 0, 0, 1);
+
+		expect(get(currentMatchGames)).toHaveLength(1);
+		expect(get(roundsPlayed)).toBe(1);
+
+		simulatePauseTournamentMatch();
+
+		// All match state should be reset
+		expect(get(roundsPlayed)).toBe(0);
+		expect(get(currentMatchGames)).toEqual([]);
+		expect(get(currentGameRounds)).toEqual([]);
+
+		// Friendly state restored
+		expect(get(team1).name).toBe('Eagles');
+		expect(get(gameSettings).gameMode).toBe('points');
+		expect(get(gameSettings).gameType).toBe('doubles');
+	});
+
+	it('exit mid-round clears all in-progress data', () => {
+		setupFriendlyState();
+		simulateEnterTournament(makeTournamentContext());
+		vi.spyOn(Date, 'now').mockReturnValue(1000000);
+
+		// Play just one round (mid-game, no complete game)
+		completeRound(2, 0, 1, 0, 1);
+		expect(get(roundsPlayed)).toBe(1);
+		expect(get(currentGameRounds)).toHaveLength(1);
+
+		simulateExitTournamentMode();
+		resetTeams();
+		resetMatchState();
+
+		// Everything must be fully clean
+		expect(get(roundsPlayed)).toBe(0);
+		expect(get(currentGameRounds)).toEqual([]);
+		expect(get(currentMatchRounds)).toEqual([]);
+		expect(get(currentMatchGames)).toEqual([]);
+		expect(getTournamentContext()).toBeNull();
+		expect(get(team1).name).toBe('Eagles');
 	});
 
 	it('bracket stage tournament hides timer', () => {
