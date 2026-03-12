@@ -236,6 +236,67 @@ export function calculateSuggestedQualifiers(
 }
 
 /**
+ * Calculate the default number of qualifiers per group for the transition page.
+ * Ensures a minimum of 8 total qualifiers advance to the final stage (if enough participants exist).
+ *
+ * @param totalParticipants Total participants in the tournament
+ * @param numGroups Number of groups
+ * @param mode Tournament final stage mode: 'SPLIT_DIVISIONS' or 'SINGLE_BRACKET'
+ * @param minQualifiers Minimum total qualifiers to advance (default: 8)
+ * @returns Number of qualifiers per group
+ */
+export function calculateDefaultTopNPerGroup(
+  totalParticipants: number,
+  numGroups: number,
+  mode: 'SPLIT_DIVISIONS' | 'SINGLE_BRACKET',
+  minQualifiers: number = 8
+): number {
+  const participantsPerGroup = Math.ceil(totalParticipants / numGroups);
+
+  // SINGLE_BRACKET with single group: all participants advance
+  if (mode === 'SINGLE_BRACKET' && numGroups === 1) {
+    return totalParticipants;
+  }
+
+  const halfPerGroup = Math.ceil(participantsPerGroup / 2);
+  const minPerGroup = Math.min(Math.ceil(minQualifiers / numGroups), participantsPerGroup);
+
+  if (mode === 'SPLIT_DIVISIONS') {
+    // Cap at 8 per group when there are more than 16 participants per group (max bracket size)
+    return participantsPerGroup > 16 ? 8 : Math.max(halfPerGroup, minPerGroup);
+  }
+
+  // SINGLE_BRACKET with multiple groups
+  return Math.max(halfPerGroup, minPerGroup);
+}
+
+/**
+ * Calculate default qualifier count for a single group's standings.
+ * Used when no qualifiers have been saved yet.
+ *
+ * @param standingsCount Number of participants in this group's standings
+ * @param mode Tournament final stage mode
+ * @param minQualifiers Minimum qualifiers (default: 8)
+ * @returns Number of qualifiers to pre-select
+ */
+export function calculateDefaultQualifierCount(
+  standingsCount: number,
+  mode: 'SPLIT_DIVISIONS' | 'SINGLE_BRACKET' | 'ALL',
+  minQualifiers: number = 8
+): number {
+  if (mode === 'ALL') {
+    return standingsCount;
+  }
+
+  if (mode === 'SPLIT_DIVISIONS') {
+    return standingsCount > 16 ? 8 : Math.max(Math.ceil(standingsCount / 2), Math.min(minQualifiers, standingsCount));
+  }
+
+  // SINGLE_BRACKET uses topNPerGroup from the component
+  return standingsCount;
+}
+
+/**
  * Validate that number of qualifiers is valid for bracket
  * Now supports any number >= 2 (uses BYEs for non-power-of-2 counts)
  *

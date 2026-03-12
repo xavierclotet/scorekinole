@@ -17,7 +17,9 @@
     updateQualifiers,
     isValidBracketSize,
     getBracketRoundNames,
-    calculateSuggestedQualifiers
+    calculateSuggestedQualifiers,
+    calculateDefaultTopNPerGroup,
+    calculateDefaultQualifierCount
   } from '$lib/firebase/tournamentTransition';
   import { recalculateStandings } from '$lib/firebase/tournamentGroups';
   import { generateBracket, generateSplitBrackets } from '$lib/firebase/tournamentBracket';
@@ -159,22 +161,12 @@
   let topNInitialized = $state(false);
   $effect(() => {
     if (!topNInitialized && tournament && suggestedQualifiers.perGroup > 0) {
-      const isSingleBracketSingleGroup = tournament.finalStage?.mode !== 'SPLIT_DIVISIONS' && numGroups === 1;
-      const isSplitDiv = tournament.finalStage?.mode === 'SPLIT_DIVISIONS';
-
-      if (isSingleBracketSingleGroup) {
-        // SINGLE_BRACKET with single group: all participants
-        topNPerGroup = tournament.participants?.length || suggestedQualifiers.perGroup;
-      } else if (isSplitDiv) {
-        // SPLIT_DIVISIONS: top half per group (they go to Gold bracket)
-        // Cap at 8 per group when there are more than 16 participants per group (max bracket size)
-        const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
-        topNPerGroup = participantsPerGroup > 16 ? 8 : Math.ceil(participantsPerGroup / 2);
-      } else {
-        // SINGLE_BRACKET with multiple groups: half participants per group
-        const participantsPerGroup = Math.ceil((tournament.participants?.length || 0) / numGroups);
-        topNPerGroup = Math.ceil(participantsPerGroup / 2);
-      }
+      const mode = tournament.finalStage?.mode === 'SPLIT_DIVISIONS' ? 'SPLIT_DIVISIONS' : 'SINGLE_BRACKET';
+      topNPerGroup = calculateDefaultTopNPerGroup(
+        tournament.participants?.length || 0,
+        numGroups,
+        mode
+      );
       topNInitialized = true;
     }
   });
@@ -296,9 +288,8 @@
               defaultSelection = sortedStandings.map((s: any) => s.participantId);
             } else if (isSplitDiv) {
               // SPLIT_DIVISIONS: select top half (they go to Gold bracket)
-              // Cap at 8 per group when there are more than 16 participants per group (max bracket size)
-              const halfCount = standings.length > 16 ? 8 : Math.ceil(standings.length / 2);
-              defaultSelection = sortedStandings.slice(0, halfCount).map((s: any) => s.participantId);
+              const selectCount = calculateDefaultQualifierCount(standings.length, 'SPLIT_DIVISIONS');
+              defaultSelection = sortedStandings.slice(0, selectCount).map((s: any) => s.participantId);
             } else {
               // Multiple groups: use topNPerGroup
               defaultSelection = sortedStandings.slice(0, topNPerGroup).map((s: any) => s.participantId);
