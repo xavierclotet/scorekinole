@@ -282,12 +282,55 @@ export async function updateMatchResult(
       // Calculate standings inline (atomic with match update)
       calculateStandings(tournament, groupIndex);
 
-      // Single atomic write: match result + standings
-      const cleanedGroupStage = cleanUndefined(tournament.groupStage);
-      transaction.update(tournamentRef, {
-        groupStage: cleanedGroupStage,
+      // Check if all matches in the current round are now complete (for auto-reset timer)
+      let shouldResetTimer = false;
+      if (group.schedule) {
+        // Round Robin: check the round this match belongs to
+        const round = group.schedule[roundIndex];
+        if (round) {
+          const allRoundComplete = round.matches.every(
+            m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE'
+          );
+          if (allRoundComplete) {
+            // For multi-group RR, check if ALL groups have this round complete
+            const allGroupsRoundComplete = tournament.groupStage.groups.every(g => {
+              if (!g.schedule) return true;
+              const sameRound = g.schedule.find(r => r.roundNumber === round.roundNumber);
+              if (!sameRound) return true;
+              return sameRound.matches.every(
+                m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE'
+              );
+            });
+            shouldResetTimer = allGroupsRoundComplete;
+          }
+        }
+      } else if (group.pairings) {
+        // Swiss: check the current round pairing
+        const pairing = group.pairings[roundIndex];
+        if (pairing) {
+          const allPairingComplete = pairing.matches.every(
+            m => m.status === 'COMPLETED' || m.status === 'WALKOVER' || m.participantB === 'BYE'
+          );
+          if (allPairingComplete) {
+            shouldResetTimer = true;
+          }
+        }
+      }
+
+      // Auto-reset countdown timer when round completes
+      const updateData: Record<string, any> = {
+        groupStage: cleanUndefined(tournament.groupStage),
         updatedAt: serverTimestamp()
-      });
+      };
+
+      if (shouldResetTimer && tournament.countdownTimer) {
+        const duration = tournament.countdownTimer.duration || 600;
+        updateData.countdownTimer = { status: 'stopped', remaining: duration, duration };
+        console.log(`⏱️ Auto-reset timer: all matches in round complete`);
+      }
+
+      // Single atomic write: match result + standings + optional timer reset
+      transaction.update(tournamentRef, updateData);
     }, { maxAttempts: 10 });
 
     return true;

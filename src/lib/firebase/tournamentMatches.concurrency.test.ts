@@ -1033,3 +1033,326 @@ describe('Standings with tied matches', () => {
     expect(standingB!.points).toBe(1);
   });
 });
+
+// ============================================================================
+// Timer auto-reset when round completes
+// ============================================================================
+
+describe('Timer auto-reset on round completion', () => {
+  it('RR: timer resets when all matches in a round are completed', async () => {
+    const tournament = createTestTournament({ numParticipants: 4 });
+    // Add a running countdown timer
+    (tournament as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 300000,
+      remaining: 300,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    // 4 players = 3 rounds × 2 matches = 6 total
+    // Round 1 has 2 matches. Complete only round 1 matches.
+    const round1Matches = tournament.groupStage!.groups[0].schedule![0].matches
+      .filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+    expect(round1Matches.length).toBe(2);
+
+    // Complete first match — timer should NOT reset yet
+    await updateMatchResult(
+      tournament.id,
+      round1Matches[0].id,
+      createMatchResult(2, 0, 8, 2, 1, 0)
+    );
+
+    let updated = readTournament(tournament.id);
+    expect(updated.countdownTimer?.status).toBe('running'); // Not yet reset
+
+    // Complete second (last) match of round 1 — timer SHOULD reset
+    await updateMatchResult(
+      tournament.id,
+      round1Matches[1].id,
+      createMatchResult(1, 2, 4, 8, 0, 1)
+    );
+
+    updated = readTournament(tournament.id);
+    expect(updated.countdownTimer).toBeDefined();
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(600); // Reset to full duration
+    expect(updated.countdownTimer!.duration).toBe(600);
+  });
+
+  it('RR: timer does NOT reset when only some matches in round complete', async () => {
+    const tournament = createTestTournament({ numParticipants: 6 });
+    (tournament as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 200000,
+      remaining: 200,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    // 6 players = 5 rounds × 3 matches. Round 1 has 3 matches.
+    const round1Matches = tournament.groupStage!.groups[0].schedule![0].matches
+      .filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+    expect(round1Matches.length).toBe(3);
+
+    // Complete only 2 of 3 matches
+    await updateMatchResult(tournament.id, round1Matches[0].id, createMatchResult(2, 0, 8, 2, 1, 0));
+    await updateMatchResult(tournament.id, round1Matches[1].id, createMatchResult(1, 2, 4, 8, 0, 1));
+
+    const updated = readTournament(tournament.id);
+    // Timer still running — round not fully complete
+    expect(updated.countdownTimer!.status).toBe('running');
+  });
+
+  it('RR: timer not affected when no timer exists', async () => {
+    const tournament = createTestTournament({ numParticipants: 4 });
+    // No countdownTimer field
+    seedTournament(tournament);
+
+    const round1Matches = tournament.groupStage!.groups[0].schedule![0].matches
+      .filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+
+    // Complete all round 1 matches
+    for (const match of round1Matches) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(2, 0, 8, 2, 1, 0));
+    }
+
+    const updated = readTournament(tournament.id);
+    expect(updated.countdownTimer).toBeUndefined();
+  });
+
+  it('RR: timer resets with already-stopped timer (preserves duration)', async () => {
+    const tournament = createTestTournament({ numParticipants: 4 });
+    // Timer already stopped (at 0, timeout state)
+    (tournament as any).countdownTimer = {
+      status: 'stopped',
+      remaining: 0,
+      duration: 480
+    };
+    seedTournament(tournament);
+
+    const round1Matches = tournament.groupStage!.groups[0].schedule![0].matches
+      .filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+
+    for (const match of round1Matches) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(2, 0, 8, 2, 1, 0));
+    }
+
+    const updated = readTournament(tournament.id);
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(480); // Reset to original duration
+    expect(updated.countdownTimer!.duration).toBe(480);
+  });
+
+  it('Swiss: timer resets when all matches in current round complete', async () => {
+    const tournament = createSwissTournament({ numParticipants: 8 });
+    (tournament as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 100000,
+      remaining: 100,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    expect(matches.length).toBe(4); // 8 players = 4 Swiss matches
+
+    // Complete all 4 matches
+    for (const match of matches) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(1, 0, 8, 4, 1, 0));
+    }
+
+    const updated = readTournament(tournament.id);
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(600);
+  });
+
+  it('RR concurrent: all round matches complete simultaneously → timer resets exactly once', async () => {
+    const tournament = createTestTournament({ numParticipants: 6 });
+    (tournament as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 500000,
+      remaining: 500,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    // Round 1 has 3 matches
+    const round1Matches = tournament.groupStage!.groups[0].schedule![0].matches
+      .filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+    expect(round1Matches.length).toBe(3);
+
+    // Complete all 3 concurrently
+    const results = await Promise.all(
+      round1Matches.map((match, i) =>
+        updateMatchResult(tournament.id, match.id, createMatchResult(i % 2 === 0 ? 2 : 0, i % 2 === 0 ? 0 : 2, 8, 2, 1, 0))
+      )
+    );
+
+    expect(results.every(r => r === true)).toBe(true);
+
+    const updated = readTournament(tournament.id);
+    // Timer should be reset (the last concurrent completion triggers it)
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(600);
+  });
+
+  it('Multi-group RR: timer resets only when ALL groups have round complete', async () => {
+    const tournament = createMultiGroupTournament(8, 2);
+    (tournament as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 300000,
+      remaining: 300,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    // Group A round 1 matches
+    const group0Schedule = tournament.groupStage!.groups[0].schedule!;
+    const group1Schedule = tournament.groupStage!.groups[1].schedule!;
+    const g0r1 = group0Schedule[0].matches.filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+    const g1r1 = group1Schedule[0].matches.filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+
+    expect(g0r1.length).toBeGreaterThan(0);
+    expect(g1r1.length).toBeGreaterThan(0);
+
+    // Complete all Group A round 1 matches
+    for (const match of g0r1) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(2, 0, 8, 2, 1, 0));
+    }
+
+    let updated = readTournament(tournament.id);
+    // Timer should NOT reset — Group B round 1 still has matches
+    expect(updated.countdownTimer!.status).toBe('running');
+
+    // Complete all Group B round 1 matches
+    for (const match of g1r1) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(2, 0, 8, 2, 1, 0));
+    }
+
+    updated = readTournament(tournament.id);
+    // NOW timer resets — both groups have round 1 complete
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(600);
+  });
+
+  it('RR: completing round 2 matches after round 1 was already done also resets timer', async () => {
+    const tournament = createTestTournament({ numParticipants: 4 });
+    (tournament as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 300000,
+      remaining: 300,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    const schedule = tournament.groupStage!.groups[0].schedule!;
+    expect(schedule.length).toBe(3); // 4 players = 3 rounds
+
+    // Complete all round 1 matches
+    const r1Matches = schedule[0].matches.filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+    for (const match of r1Matches) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(2, 0, 8, 2, 1, 0));
+    }
+
+    let updated = readTournament(tournament.id);
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(600);
+
+    // Admin restarts timer for round 2
+    const store = readTournament(tournament.id);
+    (store as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 600000,
+      remaining: 600,
+      duration: 600
+    };
+    seedTournament(store);
+
+    // Complete round 2 matches
+    const updatedT = readTournament(tournament.id);
+    const r2Matches = updatedT.groupStage!.groups[0].schedule![1].matches
+      .filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+
+    for (const match of r2Matches) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(1, 2, 4, 8, 0, 1));
+    }
+
+    updated = readTournament(tournament.id);
+    // Timer should reset again
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(600);
+  });
+
+  it('RR with BYE: round complete check ignores BYE matches', async () => {
+    // 5 players = odd → BYE matches in each round
+    const tournament = createTestTournament({ numParticipants: 5 });
+    (tournament as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 300000,
+      remaining: 300,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    // Round 1: 2 real matches + 1 BYE match
+    const round1 = tournament.groupStage!.groups[0].schedule![0];
+    const realMatches = round1.matches.filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+    const byeMatches = round1.matches.filter(m => m.participantB === 'BYE');
+    expect(realMatches.length).toBe(2);
+    expect(byeMatches.length).toBe(1);
+
+    // Complete both real matches (BYE is already handled)
+    for (const match of realMatches) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(2, 0, 8, 2, 1, 0));
+    }
+
+    const updated = readTournament(tournament.id);
+    // Timer should reset — BYE matches don't block round completion
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(600);
+  });
+
+  it('Swiss: timer not reset when only partial round complete', async () => {
+    const tournament = createSwissTournament({ numParticipants: 10 });
+    (tournament as any).countdownTimer = {
+      status: 'running',
+      endsAt: Date.now() + 400000,
+      remaining: 400,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament);
+    expect(matches.length).toBe(5); // 10 players = 5 matches
+
+    // Complete only 3 of 5
+    for (let i = 0; i < 3; i++) {
+      await updateMatchResult(tournament.id, matches[i].id, createMatchResult(1, 0, 8, 4, 1, 0));
+    }
+
+    const updated = readTournament(tournament.id);
+    expect(updated.countdownTimer!.status).toBe('running');
+  });
+
+  it('Paused timer also gets reset on round completion', async () => {
+    const tournament = createTestTournament({ numParticipants: 4 });
+    (tournament as any).countdownTimer = {
+      status: 'paused',
+      remaining: 120,
+      duration: 600
+    };
+    seedTournament(tournament);
+
+    const round1Matches = tournament.groupStage!.groups[0].schedule![0].matches
+      .filter(m => m.participantB !== 'BYE' && m.status === 'IN_PROGRESS');
+
+    for (const match of round1Matches) {
+      await updateMatchResult(tournament.id, match.id, createMatchResult(2, 0, 8, 2, 1, 0));
+    }
+
+    const updated = readTournament(tournament.id);
+    expect(updated.countdownTimer!.status).toBe('stopped');
+    expect(updated.countdownTimer!.remaining).toBe(600); // Full reset
+  });
+});

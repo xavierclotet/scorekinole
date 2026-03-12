@@ -9,6 +9,9 @@
 	import { startCurrentMatch, currentMatch, updateCurrentMatchRound } from '$lib/stores/history';
 	import TeamCard from '$lib/components/TeamCard.svelte';
 	import Timer from '$lib/components/Timer.svelte';
+	import TournamentSyncedTimer from '$lib/components/TournamentSyncedTimer.svelte';
+	import TimeoutRoundModal from '$lib/components/TimeoutRoundModal.svelte';
+	import type { TournamentTimer } from '$lib/types/tournament';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import RoundsPanel from '$lib/components/RoundsPanel.svelte';
 	import ColorPickerModal from '$lib/components/ColorPickerModal.svelte';
@@ -191,6 +194,10 @@
 
 	// Track if tournament match completion has been sent
 	let tournamentMatchCompletedSent = $state(false);
+
+	// Synced countdown timer from tournament admin
+	let tournamentCountdownTimer = $state<TournamentTimer | null>(null);
+	let showTimeoutModal = $state(false);
 
 	// Track if we just exited tournament mode (to prevent auto-restoration)
 	// This flag prevents restoring friendly match data until user explicitly clicks "New Match"
@@ -447,7 +454,7 @@
 			// Skip if any modal is open or if typing in an input
 			const hasModalOpen = showSettings || showQRScanner || showColorPicker || showHammerDialog ||
 				showNewMatchConfirm || showTournamentModal || showTournamentExitConfirm ||
-				showMatchCompletedExternally || $isInviteModalOpen || showMatchPreview;
+				showMatchCompletedExternally || showTimeoutModal || $isInviteModalOpen || showMatchPreview;
 
 			if (hasModalOpen) return;
 			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -587,6 +594,9 @@
 						unsubscribeMatchStatus = null;
 					}
 				}
+			},
+			(timer) => {
+				tournamentCountdownTimer = timer;
 			}
 		);
 	}
@@ -597,6 +607,8 @@
 	 */
 	function exitTournamentMode(restoreImmediately = true) {
 		clearTournamentContext();
+		tournamentCountdownTimer = null;
+		showTimeoutModal = false;
 		// Clear event title/phase since we're no longer in tournament mode.
 		// Also restore gameType from backup immediately to avoid showing partner buttons
 		// incorrectly when the tournament was doubles but the friendly mode was singles.
@@ -692,6 +704,204 @@
 		// Reset to normal game mode
 		resetTeams();
 		resetMatchState();
+	}
+
+	/**
+	 * Handle countdown timer timeout — show modal to annotate last round
+	 */
+	function handleTimerTimeout() {
+		if (!tournamentMatchCompletedSent && !showTimeoutModal) {
+			showTimeoutModal = true;
+		}
+	}
+
+	/**
+	 * Handle timeout modal accept — finalize the last round then force-complete the match
+	 * Same logic as admin "Fin por tiempo": save round, determine winner from accumulated points
+	 */
+	async function handleTimeoutAccept(data: { team1Points: number; team2Points: number; team1Twenty: number; team2Twenty: number }) {
+		showTimeoutModal = false;
+
+		const context = $gameTournamentContext;
+		if (!context || tournamentMatchCompletedSent) return;
+
+		// Update 20s in team stores
+		team1.update(t => ({ ...t, twenty: data.team1Twenty }));
+		team2.update(t => ({ ...t, twenty: data.team2Twenty }));
+
+		// Determine winning team for this round: 0 = tie, 1 = team1, 2 = team2
+		let winningTeam: 0 | 1 | 2 = 0;
+		if (data.team1Points > data.team2Points) winningTeam = 1;
+		else if (data.team2Points > data.team1Points) winningTeam = 2;
+
+		// Finalize round through TeamCard (same flow as normal round completion)
+		if (teamCard1) {
+			teamCard1.finalizeRound(winningTeam, data.team1Points, data.team2Points);
+		}
+
+		// Wait for stores to update, then force-complete the match
+		await tick();
+
+		// IMPORTANT: Check again after tick() — if the timeout round happened to complete
+		// the match naturally (e.g., it was the last round of 4), the normal completion flow
+		// already fired during tick() via handleTournamentMatchCompleteFromEvent().
+		// Without this check, we'd double-send the completion to Firebase.
+		if (tournamentMatchCompletedSent) return;
+
+		// Mark as completed to prevent duplicate sends
+		tournamentMatchCompletedSent = true;
+
+		// Gather all rounds including the one we just added
+		const savedData = saveTournamentProgressToLocalStorage();
+		const contextRounds = savedData?.allRounds || context.existingRounds || [];
+		const isUserSideA = context.currentUserSide === 'A';
+
+		// Calculate totals from ALL rounds (same as handleTournamentMatchComplete)
+		let totalPointsA = 0;
+		let totalPointsB = 0;
+		let total20sA = 0;
+		let total20sB = 0;
+
+		const gamePointsMap = new Map<number, { pointsA: number; pointsB: number }>();
+		contextRounds.forEach((round: any) => {
+			const gameNum = round.gameNumber || 1;
+			if (!gamePointsMap.has(gameNum)) {
+				gamePointsMap.set(gameNum, { pointsA: 0, pointsB: 0 });
+			}
+			const game = gamePointsMap.get(gameNum)!;
+			game.pointsA += round.pointsA || 0;
+			game.pointsB += round.pointsB || 0;
+			total20sA += round.twentiesA || 0;
+			total20sB += round.twentiesB || 0;
+		});
+
+		gamePointsMap.forEach(game => {
+			totalPointsA += game.pointsA;
+			totalPointsB += game.pointsB;
+		});
+
+		// Force-determine winner like admin "Fin por tiempo":
+		// - For matchesToWin > 1 or points mode: use games won
+		// - For rounds mode (matchesToWin=1): use total Crokinole points
+		const gameMode = context.gameConfig?.gameMode || $gameSettings.gameMode;
+		const matchesToWin = context.gameConfig?.matchesToWin ?? 1;
+		const useGamesWon = matchesToWin > 1 || gameMode === 'points';
+
+		let gamesWonA = savedData?.gamesWonA ?? 0;
+		let gamesWonB = savedData?.gamesWonB ?? 0;
+
+		// For timeout in an incomplete game: force-assign game winner based on current points
+		// (the game didn't finish naturally, but whoever has more points wins)
+		if (!useGamesWon) {
+			// Rounds mode, single game: determine from total points in the current game
+			// Look at the current (possibly incomplete) game
+			const currentGameNumber = context.currentGameData?.currentGameNumber || 1;
+			const currentGamePoints = gamePointsMap.get(currentGameNumber);
+			if (currentGamePoints) {
+				const isCurrentGameAlreadyCounted = gamesWonA + gamesWonB >= currentGameNumber;
+				if (!isCurrentGameAlreadyCounted) {
+					if (currentGamePoints.pointsA > currentGamePoints.pointsB) {
+						gamesWonA++;
+					} else if (currentGamePoints.pointsB > currentGamePoints.pointsA) {
+						gamesWonB++;
+					}
+					// If tied: both stay — match is a tie
+				}
+			}
+		} else {
+			// Points mode or best-of-N: same logic for current incomplete game
+			const currentGameNumber = context.currentGameData?.currentGameNumber || 1;
+			const currentGamePoints = gamePointsMap.get(currentGameNumber);
+			if (currentGamePoints) {
+				const isCurrentGameAlreadyCounted = gamesWonA + gamesWonB >= currentGameNumber;
+				if (!isCurrentGameAlreadyCounted) {
+					if (currentGamePoints.pointsA > currentGamePoints.pointsB) {
+						gamesWonA++;
+					} else if (currentGamePoints.pointsB > currentGamePoints.pointsA) {
+						gamesWonB++;
+					}
+				}
+			}
+		}
+
+		// Determine match winner
+		const winner = gamesWonA > gamesWonB
+			? context.participantAId
+			: gamesWonB > gamesWonA
+				? context.participantBId
+				: null;
+
+		const allRounds = contextRounds.map((r: any) => ({
+			gameNumber: r.gameNumber || 1,
+			roundInGame: r.roundInGame || 1,
+			pointsA: r.pointsA,
+			pointsB: r.pointsB,
+			twentiesA: r.twentiesA || 0,
+			twentiesB: r.twentiesB || 0,
+			hammer: r.hammer ?? null
+		}));
+
+		console.log('⏰ Timeout match complete:', { winner, gamesWonA, gamesWonB, totalPointsA, totalPointsB, rounds: allRounds.length });
+
+		const completionData = {
+			winner,
+			gamesWonA,
+			gamesWonB,
+			totalPointsA,
+			totalPointsB,
+			total20sA,
+			total20sB,
+			rounds: allRounds
+		};
+
+		// Backup for offline retry
+		savePendingTournamentCompletion({
+			tournamentId: context.tournamentId,
+			matchId: context.matchId,
+			phase: context.phase,
+			groupId: context.groupId,
+			data: completionData
+		});
+
+		try {
+			const success = await completeTournamentMatchSync(
+				context.tournamentId,
+				context.matchId,
+				context.phase,
+				context.groupId,
+				completionData
+			);
+
+			if (success) {
+				removePendingTournamentCompletion();
+				console.log('✅ Timeout match results saved successfully');
+			} else {
+				tournamentMatchCompletedSent = false;
+				console.error('❌ Failed to save timeout match results - saved for retry');
+			}
+		} catch (error) {
+			tournamentMatchCompletedSent = false;
+			console.error('Error completing timeout match - saved for retry:', error);
+		}
+
+		// Save result for display in RoundsPanel
+		gameSettings.update(s => ({
+			...s,
+			lastTournamentResult: {
+				winnerName: winner === context.participantAId ? context.participantAName : (winner === context.participantBId ? context.participantBName : null),
+				scoreA: gamesWonA,
+				scoreB: gamesWonB,
+				isTie: winner === null,
+				team1Name: context.participantAName,
+				team2Name: context.participantBName,
+				pointsA: isUserSideA ? totalPointsA : totalPointsB,
+				pointsB: isUserSideA ? totalPointsB : totalPointsA,
+				matchesToWin: matchesToWin
+			}
+		}));
+
+		exitTournamentMode(false);
+		isInExtraRounds = false;
 	}
 
 	/**
@@ -814,8 +1024,10 @@
 		}
 		lastAppliedContextId = contextId;
 
-		// Reset completion flag when starting/resuming a tournament match
+		// Reset completion flag and timeout state when starting/resuming a tournament match
 		tournamentMatchCompletedSent = false;
+		showTimeoutModal = false;
+		tournamentCountdownTimer = null;
 		isInExtraRounds = false;
 
 		// Clear any leftover winner splash from a previous match
@@ -835,10 +1047,8 @@
 			eventEdition: context.tournamentEdition,
 			matchPhase: context.bracketRoundName || (context.phase === 'GROUP' ? 'Fase de Grupos' : 'Bracket'),
 			lastTournamentResult: null,
-			// Tournament timer: group stage uses tournament time, final stage hides timer
-			...(config.timeLimitMinutes != null
-				? { showTimer: true, timerMinutes: config.timeLimitMinutes, timerSeconds: 0 }
-				: { showTimer: false })
+			// Tournament timer: always disabled locally — synced timer from admin replaces it
+			showTimer: false
 		}));
 
 		// PRIMERO: Reset match state (esto limpia todo)
@@ -1161,10 +1371,6 @@
 				showHammerDialog = true;
 			}, 100);
 		} else {
-			// No hammer dialog — start timer immediately
-			if ($gameSettings.showTimer) {
-				startTimer();
-			}
 			if (!hasExistingProgress) {
 				// Sync initial state with default hammer
 				setTimeout(() => {
@@ -1865,11 +2071,6 @@
 	function handleHammerSelected() {
 		showHammerDialog = false;
 
-		// Start timer after hammer selection in tournament mode
-		if (inTournamentMode && $gameSettings.showTimer) {
-			startTimer();
-		}
-
 		// Sync initial hammer to Firebase immediately so tournament page shows it
 		if (inTournamentMode && !tournamentMatchCompletedSent) {
 			const savedData = saveTournamentProgressToLocalStorage();
@@ -2362,8 +2563,12 @@
 				</div>
 			</div>
 
-			{#if $gameSettings.showTimer}
-				<Timer size="small" />
+			{#if tournamentCountdownTimer}
+				<TournamentSyncedTimer
+					countdownTimer={tournamentCountdownTimer}
+					size="small"
+					ontimeout={handleTimerTimeout}
+				/>
 			{/if}
 
 			<div class="header-right">
@@ -2588,6 +2793,19 @@
 		</div>
 	{/if}
 
+
+	<!-- Timeout Round Modal (countdown timer reached 0) -->
+	{#if showTimeoutModal}
+		<TimeoutRoundModal
+			team1Name={$team1.name}
+			team2Name={$team2.name}
+			team1Color={$team1.color}
+			team2Color={$team2.color}
+			gameType={$gameSettings.gameType}
+			show20s={$gameTournamentContext?.gameConfig?.show20s ?? $gameSettings.show20s}
+			onaccept={handleTimeoutAccept}
+		/>
+	{/if}
 
 	<!-- Match Completed Externally Modal (admin force-finished) -->
 	{#if showMatchCompletedExternally}

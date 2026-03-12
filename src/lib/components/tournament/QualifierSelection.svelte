@@ -539,9 +539,7 @@
           <th class="wins-col">{m.tournament_matchesWon()}</th>
           <th class="losses-col">{m.tournament_matchesLost()}</th>
           <th class="ties-col">{m.tournament_matchesTied()}</th>
-          {#if qualificationMode === 'WINS'}
-            <th class="points-col primary-col" title={m.tournament_pointsStandard()}>{m.tournament_pointsShort()}</th>
-          {/if}
+          <th class="points-col" class:primary-col={qualificationMode === 'WINS'} title={m.tournament_pointsStandard()}>{m.tournament_pointsShort()}</th>
           <th class="scored-col" class:primary-col={qualificationMode === 'POINTS'} title={m.tournament_totalCrokinolePoints()}>PT</th>
           <th class="twenties-col">{m.tournament_twentiesShort()}</th>
           {#if isSwiss}
@@ -629,15 +627,14 @@
             <td class="wins-col">{standing.matchesWon}</td>
             <td class="losses-col">{standing.matchesLost}</td>
             <td class="ties-col">{standing.matchesTied}</td>
-            {#if qualificationMode === 'WINS'}
-              <td
-                class="points-col primary-col clickable-pts"
-                onclick={(e: MouseEvent) => openPlayerMatches(standing.participantId, e)}
-                title={m.tournament_viewMatches()}
-              >
-                <strong>{isSwiss ? swissPoints : standing.points}</strong>
-              </td>
-            {/if}
+            <td
+              class="points-col clickable-pts"
+              class:primary-col={qualificationMode === 'WINS'}
+              onclick={(e: MouseEvent) => openPlayerMatches(standing.participantId, e)}
+              title={m.tournament_viewMatches()}
+            >
+              {#if qualificationMode === 'WINS'}<strong>{isSwiss ? swissPoints : standing.points}</strong>{:else}{isSwiss ? swissPoints : standing.points}{/if}
+            </td>
             <td class="scored-col" class:primary-col={qualificationMode === 'POINTS'}>
               {#if qualificationMode === 'POINTS'}<strong>{standing.totalPointsScored}</strong>{:else}{standing.totalPointsScored}{/if}
             </td>

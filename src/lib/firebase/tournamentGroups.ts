@@ -310,15 +310,24 @@ export async function generateSwissPairings(
         );
       }
 
-      // Atomic write inside transaction
-      transaction.update(tournamentRef, {
+      // Auto-reset countdown timer when generating next round
+      const updateData: Record<string, any> = {
         groupStage: cleanUndefined({
           ...tournament.groupStage,
           groups: updatedGroups,
           currentRound: roundNumber
         }),
         updatedAt: serverTimestamp()
-      });
+      };
+
+      if (tournament.countdownTimer) {
+        const duration = tournament.countdownTimer.duration || 600;
+        updateData.countdownTimer = { status: 'stopped', remaining: duration, duration };
+        console.log(`⏱️ Auto-reset timer: Swiss round ${roundNumber} generated`);
+      }
+
+      // Atomic write inside transaction
+      transaction.update(tournamentRef, updateData);
     }, { maxAttempts: 5 });
 
     console.log('✅ Swiss pairings generated for round', roundNumber);

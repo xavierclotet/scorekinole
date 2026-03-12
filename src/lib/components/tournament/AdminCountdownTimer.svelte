@@ -13,9 +13,10 @@
     gameType: 'singles' | 'doubles';
     visible: boolean;
     onclose: () => void;
+    externalTimer?: TournamentTimer | null;
   }
 
-  let { initialMinutes, tournamentId, gameType, visible, onclose }: Props = $props();
+  let { initialMinutes, tournamentId, gameType, visible, onclose, externalTimer }: Props = $props();
 
   // Timer state
   let initialSeconds = $derived(initialMinutes * 60);
@@ -30,6 +31,21 @@
       prevInitialSeconds = initialSeconds;
       stopTimer();
       timeRemaining = initialSeconds;
+    }
+  });
+
+  // React to external timer resets (e.g., auto-reset when round completes)
+  let lastExternalJson = $state('');
+  $effect(() => {
+    if (!externalTimer) return;
+    const json = JSON.stringify(externalTimer);
+    if (json === lastExternalJson) return;
+    lastExternalJson = json;
+
+    // Only react to resets: when server says stopped with full duration and we're at 0 or different
+    if (externalTimer.status === 'stopped' && externalTimer.remaining > 0 && externalTimer.remaining !== timeRemaining) {
+      stopTimer();
+      timeRemaining = externalTimer.remaining;
     }
   });
 

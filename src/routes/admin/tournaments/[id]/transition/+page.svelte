@@ -901,6 +901,16 @@
               <div>
                 <h2>{m.admin_selectQualifiersPerGroup()}</h2>
                 <p class="help-text">{m.admin_totalQualifiersCount()}: <strong>{totalQualifiers}</strong></p>
+                {#if tournament.groupStage}
+                  <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                  <p class="classification-mode">
+                    {#if (tournament.groupStage.qualificationMode || 'WINS') === 'POINTS'}
+                      {@html formatBold(m.rules_groupClassificationByPoints())}
+                    {:else}
+                      {@html formatBold(m.rules_groupClassificationByWins())}
+                    {/if}
+                  </p>
+                {/if}
               </div>
               <button
                 class="recalculate-btn"
@@ -1377,7 +1387,19 @@
           <!-- Qualifier selections per group -->
           <div class="groups-section">
             <div class="groups-header">
-              <h2>{m.admin_selectQualifiersPerGroup()}</h2>
+              <div>
+                <h2>{m.admin_selectQualifiersPerGroup()}</h2>
+                {#if tournament.groupStage}
+                  <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                  <p class="classification-mode">
+                    {#if (tournament.groupStage.qualificationMode || 'WINS') === 'POINTS'}
+                      {@html formatBold(m.rules_groupClassificationByPoints())}
+                    {:else}
+                      {@html formatBold(m.rules_groupClassificationByWins())}
+                    {/if}
+                  </p>
+                {/if}
+              </div>
               <button
                 class="recalculate-btn"
                 onclick={handleRecalculateStandings}
@@ -2436,6 +2458,17 @@
     margin: 0.15rem 0 0 0;
     color: #6b7280;
     font-size: 0.75rem;
+  }
+
+  .classification-mode {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.7rem;
+    color: #6b7280;
+    line-height: 1.3;
+  }
+
+  .transition-page:is([data-theme='dark'], [data-theme='violet']) .classification-mode {
+    color: rgba(255, 255, 255, 0.5);
   }
 
   .dual-config-section {

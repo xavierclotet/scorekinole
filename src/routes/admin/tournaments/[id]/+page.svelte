@@ -735,6 +735,17 @@
                 </div>
 
                 <div class="config-item">
+                  <span class="config-label">{m.wizard_classification()}:</span>
+                  <span class="config-value">
+                    {#if (tournament.groupStage.qualificationMode || 'WINS') === 'POINTS'}
+                      {m.wizard_classificationPointsHint()}
+                    {:else}
+                      {m.wizard_classificationWinsHint()}
+                    {/if}
+                  </span>
+                </div>
+
+                <div class="config-item">
                   <span class="config-label">{m.admin_timePerMatch()}:</span>
                   <span class="config-value">
                     {tournament.gameType === 'doubles'

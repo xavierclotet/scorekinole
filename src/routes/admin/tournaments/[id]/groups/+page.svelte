@@ -1171,6 +1171,7 @@
     gameType={tournament.gameType}
     visible={showCountdownTimer}
     onclose={() => { showCountdownTimer = false; }}
+    externalTimer={tournament.countdownTimer}
   />
 {/if}
 

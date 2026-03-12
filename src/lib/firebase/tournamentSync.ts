@@ -19,6 +19,7 @@ import {
 } from './tournamentMatches';
 import { completeBracketMatchAndAdvance } from './tournamentBracket';
 import { getTournament, subscribeTournament } from './tournaments';
+import type { TournamentTimer } from '$lib/types/tournament';
 
 /**
  * Round data structure for sync
@@ -388,16 +389,28 @@ export function subscribeToMatchStatus(
   matchId: string,
   phase: 'GROUP' | 'FINAL',
   groupId: string | undefined,
-  callback: (status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'WALKOVER', winner?: string | null, matchParticipants?: { participantA: string | null; participantB: string | null }) => void
+  callback: (status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'WALKOVER', winner?: string | null, matchParticipants?: { participantA: string | null; participantB: string | null }) => void,
+  onCountdownTimer?: (timer: TournamentTimer | null) => void
 ): () => void {
   if (!browser || !isFirebaseEnabled()) {
     return () => {};
   }
 
   let lastStatus: string | null = null;
+  let lastCountdownTimerJson: string | null = null;
 
   const unsubscribe = subscribeTournament(tournamentId, (tournament: any) => {
     if (!tournament) return;
+
+    // Emit countdown timer changes
+    if (onCountdownTimer) {
+      const timer: TournamentTimer | null = tournament.countdownTimer || null;
+      const timerJson = timer ? JSON.stringify(timer) : null;
+      if (timerJson !== lastCountdownTimerJson) {
+        lastCountdownTimerJson = timerJson;
+        onCountdownTimer(timer);
+      }
+    }
 
     let match: any = null;
 
