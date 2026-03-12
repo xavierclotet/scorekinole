@@ -703,6 +703,58 @@
 		selectedMatch = null;
 	}
 
+	// Round detail popover (floating, for bracket match cards)
+	let roundDetailMatch = $state<any>(null);
+	let roundDetailPos = $state({ x: 0, y: 0, width: 0, above: false });
+
+	function hasRoundDetail(match: any): boolean {
+		return (match.rounds?.length ?? 0) > 0 &&
+			(match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS');
+	}
+
+	function showRoundDetail(match: any, event: MouseEvent) {
+		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		const x = rect.left + rect.width / 2;
+		const spaceBelow = window.innerHeight - rect.bottom;
+		const above = spaceBelow < 200;
+		const y = above ? rect.top - 8 : rect.bottom + 8;
+		roundDetailPos = { x, y, width: rect.width, above };
+		roundDetailMatch = match;
+	}
+
+	function hideRoundDetail() {
+		roundDetailMatch = null;
+	}
+
+	function onBracketCardClick(match: any, event: MouseEvent) {
+		if (hasRoundDetail(match)) {
+			showRoundDetail(match, event);
+		} else if (match.status === 'COMPLETED' || match.status === 'WALKOVER') {
+			handleMatchClick(match, true);
+		}
+	}
+
+	function getShortName(participantId: string): string {
+		const fullName = getParticipantName(participantId);
+		return fullName;
+	}
+
+	function getRoundGameGroups(match: any) {
+		if (!match.rounds?.length) return [];
+		const map = new Map<number, any[]>();
+		for (const r of match.rounds) {
+			const gn = r.gameNumber || 1;
+			if (!map.has(gn)) map.set(gn, []);
+			map.get(gn)!.push(r);
+		}
+		return Array.from(map.entries())
+			.sort(([a], [b]) => a - b)
+			.map(([gameNum, rounds]) => ({
+				gameNumber: gameNum,
+				rounds: rounds.sort((a: any, b: any) => a.roundInGame - b.roundInGame)
+			}));
+	}
+
 	// Convert match to GroupMatch format for dialog
 	let dialogMatch = $derived(selectedMatch ? {
 		...selectedMatch,
@@ -1056,7 +1108,7 @@
 															gameMode={gameMode as 'points' | 'rounds'}
 															{isDoubles}
 															{matchesToWin}
-															onMatchClick={(match.status === 'COMPLETED' || match.status === 'WALKOVER') ? () => handleMatchClick(match, false) : undefined}
+															enablePopover
 															winProbability={probabilities && match.participantA && match.participantB ? getMatchProbability(probabilities, match.participantA, match.participantB) : null}
 														/>
 													{/each}
@@ -1144,9 +1196,9 @@
 												class:in-progress={match.status === 'IN_PROGRESS'}
 												class:pending={match.status === 'PENDING'}
 												class:bye-match={isByeMatchFlag}
-												class:clickable={isClickable}
-												onclick={() => isClickable && handleMatchClick(match, true)}
-												onkeydown={(e) => e.key === 'Enter' && isClickable && handleMatchClick(match, true)}
+												class:clickable={isClickable || hasRoundDetail(match)}
+												onclick={(e) => onBracketCardClick(match, e)}
+												onkeydown={(e) => e.key === 'Enter' && onBracketCardClick(match, e)}
 												role={isClickable ? 'button' : undefined}
 												tabindex={isClickable ? 0 : undefined}
 											>
@@ -1264,9 +1316,9 @@
 											class:completed={tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 											class:in-progress={tpm.status === 'IN_PROGRESS'}
 											class:pending={tpm.status === 'PENDING'}
-											class:clickable={tpmClickable}
-											onclick={() => tpmClickable && handleMatchClick(tpm, true)}
-											onkeydown={(e) => e.key === 'Enter' && tpmClickable && handleMatchClick(tpm, true)}
+											class:clickable={tpmClickable || hasRoundDetail(tpm)}
+											onclick={(e) => onBracketCardClick(tpm, e)}
+											onkeydown={(e) => e.key === 'Enter' && onBracketCardClick(tpm, e)}
 											role={tpmClickable ? 'button' : undefined}
 											tabindex={tpmClickable ? 0 : undefined}
 										>
@@ -1496,9 +1548,9 @@
 													class:in-progress={match.status === 'IN_PROGRESS'}
 													class:pending={match.status === 'PENDING'}
 													class:bye-match={isByeMatchFlag}
-													class:clickable={isClickable}
-													onclick={() => isClickable && handleMatchClick(match, true)}
-													onkeydown={(e) => e.key === 'Enter' && isClickable && handleMatchClick(match, true)}
+													class:clickable={isClickable || hasRoundDetail(match)}
+													onclick={(e) => onBracketCardClick(match, e)}
+													onkeydown={(e) => e.key === 'Enter' && onBracketCardClick(match, e)}
 													role={isClickable ? 'button' : undefined}
 													tabindex={isClickable ? 0 : undefined}
 												>
@@ -1616,9 +1668,9 @@
 												class:completed={tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 												class:in-progress={tpm.status === 'IN_PROGRESS'}
 												class:pending={tpm.status === 'PENDING'}
-												class:clickable={tpmClickable}
-												onclick={() => tpmClickable && handleMatchClick(tpm, true)}
-												onkeydown={(e) => e.key === 'Enter' && tpmClickable && handleMatchClick(tpm, true)}
+												class:clickable={tpmClickable || hasRoundDetail(tpm)}
+												onclick={(e) => onBracketCardClick(tpm, e)}
+												onkeydown={(e) => e.key === 'Enter' && onBracketCardClick(tpm, e)}
 												role={tpmClickable ? 'button' : undefined}
 												tabindex={tpmClickable ? 0 : undefined}
 											>
@@ -1797,9 +1849,9 @@
 													class:in-progress={match.status === 'IN_PROGRESS'}
 													class:pending={match.status === 'PENDING'}
 													class:bye-match={isByeMatchFlag}
-													class:clickable={isClickable}
-													onclick={() => isClickable && handleMatchClick(match, true)}
-													onkeydown={(e) => e.key === 'Enter' && isClickable && handleMatchClick(match, true)}
+													class:clickable={isClickable || hasRoundDetail(match)}
+													onclick={(e) => onBracketCardClick(match, e)}
+													onkeydown={(e) => e.key === 'Enter' && onBracketCardClick(match, e)}
 													role={isClickable ? 'button' : undefined}
 													tabindex={isClickable ? 0 : undefined}
 												>
@@ -1936,9 +1988,9 @@
 												class:in-progress={match.status === 'IN_PROGRESS'}
 												class:pending={match.status === 'PENDING'}
 												class:bye-match={isByeMatchFlag}
-												class:clickable={isClickable}
-												onclick={() => isClickable && handleMatchClick(match, true)}
-												onkeydown={(e) => e.key === 'Enter' && isClickable && handleMatchClick(match, true)}
+												class:clickable={isClickable || hasRoundDetail(match)}
+												onclick={(e) => onBracketCardClick(match, e)}
+												onkeydown={(e) => e.key === 'Enter' && onBracketCardClick(match, e)}
 												role={isClickable ? 'button' : undefined}
 												tabindex={isClickable ? 0 : undefined}
 											>
@@ -2055,9 +2107,9 @@
 											class:completed={tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 											class:in-progress={tpm.status === 'IN_PROGRESS'}
 											class:pending={tpm.status === 'PENDING'}
-											class:clickable={tpmClickable}
-											onclick={() => tpmClickable && handleMatchClick(tpm, true)}
-											onkeydown={(e) => e.key === 'Enter' && tpmClickable && handleMatchClick(tpm, true)}
+											class:clickable={tpmClickable || hasRoundDetail(tpm)}
+											onclick={(e) => onBracketCardClick(tpm, e)}
+											onkeydown={(e) => e.key === 'Enter' && onBracketCardClick(tpm, e)}
 											role={tpmClickable ? 'button' : undefined}
 											tabindex={tpmClickable ? 0 : undefined}
 										>
@@ -2280,6 +2332,60 @@
 	/>
 {/if}
 
+<!-- Round Detail Floating Popover -->
+{#if roundDetailMatch}
+	{@const gameGroups = getRoundGameGroups(roundDetailMatch)}
+	{@const hasAny20s = roundDetailMatch.rounds?.some((r: any) => (r.twentiesA || 0) > 0 || (r.twentiesB || 0) > 0) ?? false}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="round-detail-backdrop" onclick={hideRoundDetail} onkeydown={(e) => e.key === 'Escape' && hideRoundDetail()}></div>
+	<div
+		class="round-detail-popover"
+		class:above={roundDetailPos.above}
+		style="left: {roundDetailPos.x}px; top: {roundDetailPos.y}px; min-width: {roundDetailPos.width}px;"
+	>
+		<div class="round-details">
+			{#each gameGroups as game (game.gameNumber)}
+				{@const gameTotalA = game.rounds.reduce((s: number, r: any) => s + (r.pointsA || 0), 0)}
+				{@const gameTotalB = game.rounds.reduce((s: number, r: any) => s + (r.pointsB || 0), 0)}
+				{@const game20sA = game.rounds.reduce((s: number, r: any) => s + (r.twentiesA || 0), 0)}
+				{@const game20sB = game.rounds.reduce((s: number, r: any) => s + (r.twentiesB || 0), 0)}
+				{@const gameWinnerA = gameTotalA > gameTotalB}
+				{@const gameWinnerB = gameTotalB > gameTotalA}
+				{#if gameGroups.length > 1}
+					<div class="game-label">P{game.gameNumber}</div>
+				{/if}
+				<table class="rounds-table">
+					<thead>
+						<tr>
+							<th class="name-col"></th>
+							{#each game.rounds as _, ri (ri)}
+								<th class="round-col">R{ri + 1}</th>
+							{/each}
+							<th class="total-col">T</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr class={[gameWinnerA && "winner-row", gameWinnerB && "loser-row"]}>
+							<td class="name-col">{getShortName(roundDetailMatch.participantA)}</td>
+							{#each game.rounds as round, ri (ri)}
+								<td class={["round-col", (round.pointsA || 0) > (round.pointsB || 0) && "round-win"]}>{round.pointsA ?? '-'}{#if hasAny20s}<span class="t20-inline"> / {round.twentiesA || 0}</span>{/if}</td>
+							{/each}
+							<td class="total-col">{gameTotalA}{#if hasAny20s}<span class="t20-inline"> / {game20sA}</span>{/if}</td>
+						</tr>
+						<tr class={[gameWinnerB && "winner-row", gameWinnerA && "loser-row"]}>
+							<td class="name-col">{getShortName(roundDetailMatch.participantB)}</td>
+							{#each game.rounds as round, ri (ri)}
+								<td class={["round-col", (round.pointsB || 0) > (round.pointsA || 0) && "round-win"]}>{round.pointsB ?? '-'}{#if hasAny20s}<span class="t20-inline"> / {round.twentiesB || 0}</span>{/if}</td>
+							{/each}
+							<td class="total-col">{gameTotalB}{#if hasAny20s}<span class="t20-inline"> / {game20sB}</span>{/if}</td>
+						</tr>
+					</tbody>
+				</table>
+			{/each}
+		</div>
+	</div>
+{/if}
+
 <!-- Fullscreen Chart Overlay -->
 {#if fullscreenChart && tournament}
 	{@const fsGroup = tournament.groupStage?.groups?.find(g => g.id === fullscreenChart.groupId)}
@@ -2352,6 +2458,169 @@
 {/if}
 
 <style>
+	/* Round detail floating popover */
+	.round-detail-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 9998;
+		background: rgba(0, 0, 0, 0.1);
+	}
+
+	.round-detail-popover {
+		position: fixed;
+		z-index: 9999;
+		background: white;
+		border: 1px solid #e5e7eb;
+		border-radius: 8px;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+		animation: rd-pop-in 0.15s ease-out;
+		max-width: 90vw;
+		transform: translateX(-50%);
+	}
+
+	.round-detail-popover.above {
+		transform: translateX(-50%) translateY(-100%);
+	}
+
+	@keyframes rd-pop-in {
+		from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+		to { opacity: 1; transform: translateX(-50%) translateY(0); }
+	}
+
+	.round-detail-popover .round-details {
+		padding: 0.6rem 0.7rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		overflow-x: auto;
+	}
+
+	.round-detail-popover .game-label {
+		font-size: 0.6rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #6b7280;
+		padding: 0.15rem 0;
+		border-bottom: 1px solid #e5e7eb;
+		margin-top: 0.25rem;
+	}
+
+	.round-detail-popover .game-label:first-child {
+		margin-top: 0;
+	}
+
+	.round-detail-popover .rounds-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.round-detail-popover .rounds-table th {
+		font-size: 0.55rem;
+		font-weight: 600;
+		color: #9ca3af;
+		padding: 0.15rem 0.4rem;
+		text-align: center;
+	}
+
+	.round-detail-popover .rounds-table td {
+		font-size: 0.7rem;
+		padding: 0.2rem 0.4rem;
+		text-align: center;
+		color: #374151;
+	}
+
+	.round-detail-popover .rounds-table .name-col {
+		text-align: left;
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 6rem;
+		padding-right: 0.6rem;
+	}
+
+	.round-detail-popover .rounds-table .round-col {
+		width: 3.2rem;
+		white-space: nowrap;
+		text-align: center;
+	}
+
+	.round-detail-popover .rounds-table .total-col {
+		width: 3.2rem;
+		white-space: nowrap;
+	}
+
+	.round-detail-popover .rounds-table .total-col {
+		font-weight: 700;
+		border-left: 1.5px solid #e5e7eb;
+	}
+
+	.round-detail-popover .rounds-table .t20-inline {
+		font-size: 0.55rem;
+		color: #d97706;
+		font-weight: 600;
+	}
+
+	.round-detail-popover .rounds-table .winner-row td {
+		color: #059669;
+		font-weight: 600;
+	}
+
+	.round-detail-popover .rounds-table .loser-row td {
+		color: #9ca3af;
+	}
+
+	.round-detail-popover .rounds-table .round-win {
+		background: rgba(16, 185, 129, 0.08);
+		font-weight: 700;
+	}
+
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-backdrop {
+		background: rgba(0, 0, 0, 0.3);
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover {
+		background: #1a2332;
+		border-color: #2d3748;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover .game-label {
+		color: #9ca3af;
+		border-bottom-color: #374151;
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover .rounds-table th {
+		color: #6b7280;
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover .rounds-table td {
+		color: #e1e8ed;
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover .rounds-table .total-col {
+		border-left-color: #374151;
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover .rounds-table .winner-row td {
+		color: #10b981;
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover .rounds-table .loser-row td {
+		color: #6b7280;
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover .rounds-table .round-win {
+		background: rgba(16, 185, 129, 0.12);
+	}
+
+	:global(:is([data-theme='dark'], [data-theme='violet'])) .round-detail-popover .rounds-table .t20-inline {
+		color: #fbbf24;
+	}
+
 	.live-view {
 		display: flex;
 		flex-direction: column;

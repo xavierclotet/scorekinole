@@ -2113,7 +2113,7 @@
                     {#if match.status === 'IN_PROGRESS' && tournament.show20s}
                       {@const currentGame20sA = currentGameRounds.reduce((sum, r) => sum + (r.twentiesA || 0), 0)}
                       {@const currentGame20sB = currentGameRounds.reduce((sum, r) => sum + (r.twentiesB || 0), 0)}
-                      <div class="twenties-badge">🎯 {currentGame20sA}-{currentGame20sB}</div>
+                      <div class="twenties-badge">{currentGame20sA}-{currentGame20sB}</div>
                     {/if}
 
                   </div>
@@ -2241,7 +2241,7 @@
                   {#if thirdPlaceMatch.status === 'IN_PROGRESS' && tournament.show20s}
                     {@const thirdCurrentGame20sA = thirdCurrentGameRounds.reduce((sum, r) => sum + (r.twentiesA || 0), 0)}
                     {@const thirdCurrentGame20sB = thirdCurrentGameRounds.reduce((sum, r) => sum + (r.twentiesB || 0), 0)}
-                    <div class="twenties-badge">🎯 {thirdCurrentGame20sA}-{thirdCurrentGame20sB}</div>
+                    <div class="twenties-badge">{thirdCurrentGame20sA}-{thirdCurrentGame20sB}</div>
                   {/if}
                 </div>
               </div>
@@ -3606,13 +3606,14 @@
 
   .twenties-badge {
     position: absolute;
-    bottom: -10px;
-    right: 10px;
-    padding: 0.25rem 0.5rem;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.1rem 0.35rem;
     background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
     color: white;
-    border-radius: 4px;
-    font-size: 0.7rem;
+    border-radius: 3px;
+    font-size: 0.55rem;
     font-weight: 700;
     letter-spacing: 0.03em;
   }
