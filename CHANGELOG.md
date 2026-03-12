@@ -2,6 +2,18 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.94] - 2026-03-12
+- Sync admin countdown timer to /game page (read-only) for tournament matches
+- Add timeout modal for forced last-round annotation when timer reaches 0
+- Auto-reset countdown timer on round completion (RR and Swiss)
+- Fix admin timer not reacting to external Firestore resets
+- Show PTV column always in QualifierSelection, rename Pts→PTV/TVP
+- Show classification mode (victory points vs total points) in tournament detail and transition pages
+- Fix default qualifier selection: minimum 8 qualifiers for final stage
+- Extract calculateDefaultTopNPerGroup/calculateDefaultQualifierCount as testable functions
+- Add 102 new tests (51 transition, 53 sync timer, 12 concurrency)
+- Add TODO doc for configurable qualifier count in wizard
+
 ## [2.4.93] - 2026-03-07
 - Fix tableNumber not cleared on group match completion (caused duplicate table assignments)
 - Fix autofill filling TBD matches without assigned tables in limited-table tournaments
