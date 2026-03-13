@@ -1543,5 +1543,6 @@
   "admin_venueMergeConfirm": "Merge venues",
   "admin_venueMergeSuccess": "Venues successfully merged ( {count} tournaments updated)",
   "admin_venueNoVenues": "There are no venues listed",
-  "admin_venueOwner": "Owner"
+  "admin_venueOwner": "Owner",
+  "join_inviteCancelled": "The invitation was cancelled by the host"
 }

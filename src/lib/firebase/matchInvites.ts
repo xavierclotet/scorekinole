@@ -109,8 +109,8 @@ export async function createInvite(data: CreateInviteData): Promise<MatchInvite 
 	}
 
 	try {
-		// Cancel any existing pending invites from this user
-		await cancelPendingInvitesForUser(user.id);
+		// Cancel any existing pending invites from this user for the same invite type
+		await cancelPendingInvitesForUser(user.id, data.inviteType || 'opponent');
 
 		// Generate unique invite code
 		let inviteCode = generateInviteCode();
@@ -440,21 +440,30 @@ export async function deleteInvite(inviteId: string): Promise<boolean> {
 }
 
 /**
- * Cancel all pending invites for a user (internal use)
- * Called when creating a new invite to ensure only one active invite per user
+ * Cancel pending invites for a user, optionally filtered by invite type (internal use)
+ * When inviteType is provided, only cancels invites of that type (for doubles coexistence).
+ * Called when creating a new invite to ensure only one active invite per type per user.
  */
-async function cancelPendingInvitesForUser(userId: string): Promise<void> {
+async function cancelPendingInvitesForUser(
+	userId: string,
+	inviteType?: 'opponent' | 'my_partner' | 'opponent_partner'
+): Promise<void> {
 	if (!browser || !isFirebaseEnabled() || !db) {
 		return;
 	}
 
 	try {
 		const invitesRef = collection(db, 'matchInvites');
-		const q = query(
-			invitesRef,
+		const constraints = [
 			where('hostUserId', '==', userId),
 			where('status', '==', 'pending')
-		);
+		];
+
+		if (inviteType) {
+			constraints.push(where('inviteType', '==', inviteType));
+		}
+
+		const q = query(invitesRef, ...constraints);
 		const snapshot = await getDocs(q);
 
 		const cancelPromises = snapshot.docs.map((docSnap) =>

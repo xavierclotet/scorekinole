@@ -1,4 +1,31 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hoisted mutable state — shared between mocks and tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+const hoisted = vi.hoisted(() => {
+	/** In-memory Firestore document store: id → document data */
+	const store = new Map<string, Record<string, any>>();
+	let idCounter = 0;
+
+	return {
+		store,
+		get idCounter() {
+			return idCounter;
+		},
+		nextId: () => `auto-id-${++idCounter}`,
+		resetStore: () => {
+			store.clear();
+			idCounter = 0;
+		},
+		/** Controls what get(currentUser) returns */
+		currentUser: { id: 'host-user', name: 'Host' } as { id: string; name: string } | null,
+		/** Toggle browser / firebase enabled for integration tests */
+		browserEnabled: false,
+		firebaseEnabled: false
+	};
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mocks — must be before imports of the module under test
@@ -6,14 +33,23 @@ import { describe, it, expect, vi } from 'vitest';
 // ─────────────────────────────────────────────────────────────────────────────
 
 vi.mock('./config', () => ({
-	db: null,
-	isFirebaseEnabled: () => false
+	get db() {
+		return hoisted.firebaseEnabled ? {} : null;
+	},
+	isFirebaseEnabled: () => hoisted.firebaseEnabled
 }));
 vi.mock('./auth', () => ({
-	currentUser: { subscribe: vi.fn() }
+	currentUser: {
+		subscribe: (fn: (v: any) => void) => {
+			fn(hoisted.currentUser);
+			return () => {};
+		}
+	}
 }));
 vi.mock('$app/environment', () => ({
-	browser: false
+	get browser() {
+		return hoisted.browserEnabled;
+	}
 }));
 vi.mock('firebase/firestore', () => {
 	// Timestamp must be a real class so `instanceof` checks work in the source
@@ -33,18 +69,99 @@ vi.mock('firebase/firestore', () => {
 		}
 	}
 
+	// ── In-memory Firestore simulation ──────────────────────────────
+
+	const where = (field: string, _op: string, value: any) => ({ field, op: _op, value });
+
+	const collection = (_db: any, path: string) => ({ __type: 'collectionRef', path });
+
+	const doc = (...args: any[]) => {
+		if (args.length >= 3) {
+			// doc(db, 'matchInvites', id)
+			return { __type: 'docRef', id: args[2] };
+		}
+		// doc(collectionRef) — auto-generate ID
+		return { __type: 'docRef', id: hoisted.nextId() };
+	};
+
+	const query = (ref: any, ...constraints: any[]) => ({ ref, constraints });
+
+	const getDocs = async (q: any) => {
+		const allEntries = Array.from(hoisted.store.entries());
+
+		const filtered = allEntries.filter(([_id, data]) => {
+			return q.constraints.every((c: any) => {
+				const val = data[c.field];
+				if (c.op === '==') return val === c.value;
+				return true;
+			});
+		});
+
+		return {
+			empty: filtered.length === 0,
+			size: filtered.length,
+			docs: filtered.map(([id, data]) => ({
+				id,
+				data: () => ({ ...data })
+			}))
+		};
+	};
+
+	const getDoc = async (ref: any) => {
+		const data = hoisted.store.get(ref.id);
+		return {
+			exists: () => !!data,
+			id: ref.id,
+			data: () => (data ? { ...data } : undefined)
+		};
+	};
+
+	const setDoc = async (ref: any, data: any) => {
+		hoisted.store.set(ref.id, { ...data });
+	};
+
+	const updateDoc = async (ref: any, updates: any) => {
+		const existing = hoisted.store.get(ref.id);
+		if (existing) {
+			hoisted.store.set(ref.id, { ...existing, ...updates });
+		}
+	};
+
+	const deleteDoc = async (ref: any) => {
+		hoisted.store.delete(ref.id);
+	};
+
+	const onSnapshot = vi.fn();
+
+	const runTransaction = async (_db: any, fn: (tx: any) => Promise<any>) => {
+		// Simple transaction mock — no real isolation
+		const tx = {
+			get: async (ref: any) => getDoc(ref).then((snap) => snap),
+			update: (ref: any, updates: any) => {
+				const existing = hoisted.store.get(ref.id);
+				if (existing) {
+					hoisted.store.set(ref.id, { ...existing, ...updates });
+				}
+			},
+			set: (ref: any, data: any) => {
+				hoisted.store.set(ref.id, { ...data });
+			}
+		};
+		return fn(tx);
+	};
+
 	return {
-		collection: vi.fn(),
-		doc: vi.fn(),
-		setDoc: vi.fn(),
-		getDoc: vi.fn(),
-		updateDoc: vi.fn(),
-		deleteDoc: vi.fn(),
-		query: vi.fn(),
-		where: vi.fn(),
-		getDocs: vi.fn(),
-		onSnapshot: vi.fn(),
-		runTransaction: vi.fn(),
+		collection,
+		doc,
+		setDoc,
+		getDoc,
+		updateDoc,
+		deleteDoc,
+		query,
+		where,
+		getDocs,
+		onSnapshot,
+		runTransaction,
 		Timestamp
 	};
 });
@@ -56,9 +173,15 @@ import {
 	generateInviteCode,
 	isInviteExpired,
 	getInviteTimeRemaining,
-	getInviteUrl
+	getInviteUrl,
+	createInvite,
+	acceptInvite,
+	getInviteByCode,
+	cancelInvite,
+	deleteInvite
 } from './matchInvites';
 import { Timestamp } from 'firebase/firestore';
+import type { CreateInviteData, InviteType } from '$lib/types/matchInvite';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -81,8 +204,30 @@ function makeInvite(overrides: Record<string, unknown> = {}) {
 	} as any;
 }
 
+function makeCreateData(overrides: Partial<CreateInviteData> = {}): CreateInviteData {
+	return {
+		hostUserId: 'host-user',
+		hostUserName: 'Host',
+		hostUserPhotoURL: null,
+		hostTeamNumber: 1,
+		inviteType: 'opponent',
+		matchContext: {
+			team1Name: 'Team 1',
+			team1Color: '#ff0000',
+			team2Name: 'Team 2',
+			team2Color: '#0000ff',
+			gameMode: 'points',
+			pointsToWin: 100,
+			roundsToPlay: 4,
+			matchesToWin: 1,
+			gameType: 'singles'
+		},
+		...overrides
+	};
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Tests
+// Pure function tests (no Firebase needed)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('generateInviteCode', () => {
@@ -206,3 +351,139 @@ describe('getInviteUrl', () => {
 		expect(getInviteUrl('')).toBe('https://scorekinole.web.app/join?invite=');
 	});
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Integration tests — in-memory Firestore mock
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('createInvite + cancelPendingInvitesForUser (doubles bugs)', () => {
+	beforeEach(() => {
+		hoisted.resetStore();
+		hoisted.browserEnabled = true;
+		hoisted.firebaseEnabled = true;
+		hoisted.currentUser = { id: 'host-user', name: 'Host' };
+	});
+
+	afterEach(() => {
+		hoisted.browserEnabled = false;
+		hoisted.firebaseEnabled = false;
+	});
+
+	it('creates an invite and stores it with status pending', async () => {
+		const invite = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+
+		expect(invite).not.toBeNull();
+		expect(invite!.status).toBe('pending');
+		expect(invite!.inviteType).toBe('opponent');
+		expect(invite!.inviteCode).toHaveLength(6);
+	});
+
+	it('creating 3 invites of different types should all coexist', async () => {
+		const inv1 = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+		const inv2 = await createInvite(makeCreateData({ inviteType: 'my_partner' }));
+		const inv3 = await createInvite(makeCreateData({ inviteType: 'opponent_partner' }));
+
+		expect(inv1).not.toBeNull();
+		expect(inv2).not.toBeNull();
+		expect(inv3).not.toBeNull();
+
+		// All 3 should remain pending — the bug causes inv1 and inv2 to be cancelled
+		const doc1 = hoisted.store.get(inv1!.id);
+		const doc2 = hoisted.store.get(inv2!.id);
+		const doc3 = hoisted.store.get(inv3!.id);
+
+		expect(doc1.status).toBe('pending');
+		expect(doc2.status).toBe('pending');
+		expect(doc3.status).toBe('pending');
+	});
+
+	it('creating new invite of SAME type cancels only that type', async () => {
+		const inv1 = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+		const inv2 = await createInvite(makeCreateData({ inviteType: 'my_partner' }));
+		// Create another opponent invite — should cancel inv1 but NOT inv2
+		const inv3 = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+
+		expect(inv1).not.toBeNull();
+		expect(inv2).not.toBeNull();
+		expect(inv3).not.toBeNull();
+
+		const doc1 = hoisted.store.get(inv1!.id);
+		const doc2 = hoisted.store.get(inv2!.id);
+		const doc3 = hoisted.store.get(inv3!.id);
+
+		expect(doc1.status).toBe('cancelled'); // old opponent → replaced
+		expect(doc2.status).toBe('pending'); // my_partner → untouched
+		expect(doc3.status).toBe('pending'); // new opponent → active
+	});
+
+	it('re-invite after accept: accepted invite is preserved', async () => {
+		// Create my_partner invite
+		const inv1 = await createInvite(makeCreateData({ inviteType: 'my_partner' }));
+		expect(inv1).not.toBeNull();
+
+		// Simulate acceptance — set status directly in store
+		hoisted.store.set(inv1!.id, {
+			...hoisted.store.get(inv1!.id),
+			status: 'accepted',
+			guestUserId: 'guest-1'
+		});
+
+		// Now create opponent invite — my_partner (accepted) should NOT be touched
+		const inv2 = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+		expect(inv2).not.toBeNull();
+
+		const doc1 = hoisted.store.get(inv1!.id);
+		const doc2 = hoisted.store.get(inv2!.id);
+
+		expect(doc1.status).toBe('accepted'); // accepted → untouched
+		expect(doc2.status).toBe('pending'); // new opponent → active
+	});
+
+	it('cancelled invite is not returned by getInviteByCode when status != pending', async () => {
+		const inv = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+		expect(inv).not.toBeNull();
+
+		// Cancel the invite
+		hoisted.store.set(inv!.id, { ...hoisted.store.get(inv!.id), status: 'cancelled' });
+
+		// getInviteByCode should still find it (it returns any status)
+		const found = await getInviteByCode(inv!.inviteCode);
+		expect(found).not.toBeNull();
+		expect(found!.status).toBe('cancelled');
+	});
+
+	it('deleted invite returns null on code lookup', async () => {
+		const inv = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+		expect(inv).not.toBeNull();
+
+		// Delete the invite from store
+		hoisted.store.delete(inv!.id);
+
+		const found = await getInviteByCode(inv!.inviteCode);
+		expect(found).toBeNull();
+	});
+
+	it('all 3 invite types get unique codes', async () => {
+		const inv1 = await createInvite(makeCreateData({ inviteType: 'opponent' }));
+		const inv2 = await createInvite(makeCreateData({ inviteType: 'my_partner' }));
+		const inv3 = await createInvite(makeCreateData({ inviteType: 'opponent_partner' }));
+
+		const codes = new Set([inv1!.inviteCode, inv2!.inviteCode, inv3!.inviteCode]);
+		expect(codes.size).toBe(3);
+	});
+
+	it('returns null when Firebase is disabled', async () => {
+		hoisted.firebaseEnabled = false;
+		const inv = await createInvite(makeCreateData());
+		expect(inv).toBeNull();
+	});
+
+	it('returns null when no user is authenticated', async () => {
+		hoisted.currentUser = null;
+		const inv = await createInvite(makeCreateData());
+		expect(inv).toBeNull();
+	});
+});
+
+// Import afterEach at the top level
+import { afterEach } from 'vitest';

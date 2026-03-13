@@ -19,7 +19,7 @@
 	let isAccepting = $state(false);
 	let isSigningIn = $state(false);
 	let invite = $state<MatchInvite | null>(null);
-	let error = $state<'not_found' | 'expired' | 'already_used' | 'own_invite' | 'already_accepted' | null>(null);
+	let error = $state<'not_found' | 'expired' | 'already_used' | 'own_invite' | 'already_accepted' | 'cancelled' | null>(null);
 	let success = $state(false);
 
 	// Get invite code from URL
@@ -73,6 +73,12 @@
 			} else {
 				error = 'already_used';
 			}
+			isLoading = false;
+			return;
+		}
+
+		if (loadedInvite.status === 'cancelled') {
+			error = 'cancelled';
 			isLoading = false;
 			return;
 		}
@@ -150,6 +156,8 @@
 				return m.join_cannotJoinOwnInvite();
 			case 'already_accepted':
 				return m.join_alreadyAccepted();
+			case 'cancelled':
+				return m.join_inviteCancelled();
 			default:
 				return m.common_error();
 		}

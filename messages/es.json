@@ -845,6 +845,7 @@
   "join_cannotJoinOwnInvite": "No puedes unirte a tu propia invitación",
   "join_doubles": "Dobles",
   "join_invitedBy": "Invitado por",
+  "join_inviteCancelled": "La invitación fue cancelada por el anfitrión",
   "join_inviteExpired": "La invitación ha expirado",
   "join_inviteNotFound": "Invitación no encontrada",
   "join_matchConfig": "Configuración del partido",
