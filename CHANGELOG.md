@@ -2,6 +2,10 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.95] - 2026-03-13
+- Fix cancelPendingInvitesForUser to filter by inviteType for doubles coexistence
+- Add 9 new invite cancellation tests
+
 ## [2.4.94] - 2026-03-12
 - Sync admin countdown timer to /game page (read-only) for tournament matches
 - Add timeout modal for forced last-round annotation when timer reaches 0
