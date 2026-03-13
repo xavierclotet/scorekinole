@@ -2,6 +2,13 @@
   import type { Tournament } from '$lib/types/tournament';
   import { getParticipantDisplayName } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
+  import {
+    canMoveUp as _canMoveUp,
+    canMoveDown as _canMoveDown,
+    moveUp as _moveUp,
+    moveDown as _moveDown,
+    confirmOrder as _confirmOrder
+  } from '$lib/algorithms/tieManualReorder';
 
   interface Props {
     tournament: Tournament;
@@ -211,6 +218,13 @@
     // Find the tie group this participant belongs to
     for (const [_, ids] of standingsByPrimaryValue) {
       if (ids.includes(participantId) && ids.length >= 2) {
+        // Only highlight if there's an unresolved tie in this group
+        const hasUnresolved = ids.some(id => {
+          const s = standings.find((st: any) => st.participantId === id);
+          return s?.tieReason === 'unresolved';
+        });
+        if (!hasUnresolved) continue;
+
         // Get positions of all players in this tie group
         const positions = ids.map(id => {
           const idx = standings.findIndex((s: any) => s.participantId === id);
@@ -267,118 +281,32 @@
   // Move a participant up (swap with the one above)
   function moveUp(participantId: string, event: MouseEvent) {
     event.stopPropagation();
-    const idx = standings.findIndex((s: any) => s.participantId === participantId);
-    if (idx <= 0) return; // Can't move up if already first
-
-    const current = standings[idx];
-    const above = standings[idx - 1];
-
-    // Only allow if they are tied with each other
-    if (!current.tiedWith?.includes(above.participantId)) return;
-
-    // Swap positions
-    const tempPos = current.position;
-    current.position = above.position;
-    above.position = tempPos;
-
-    // Clear the tie between these two (they've been manually ordered)
-    current.tiedWith = current.tiedWith?.filter((id: string) => id !== above.participantId);
-    above.tiedWith = above.tiedWith?.filter((id: string) => id !== current.participantId);
-
-    // If no more ties, clear tieReason
-    if (!current.tiedWith || current.tiedWith.length === 0) {
-      current.tiedWith = undefined;
-      current.tieReason = undefined;
-    }
-    if (!above.tiedWith || above.tiedWith.length === 0) {
-      above.tiedWith = undefined;
-      above.tieReason = undefined;
-    }
-
-    // Emit the change (standings will auto-resort via $derived when group.standings updates)
-    onstandingsChanged?.({ groupIndex, standings: [...standings] });
+    const result = _moveUp(standings, participantId);
+    if (result) onstandingsChanged?.({ groupIndex, standings: result });
   }
 
   // Move a participant down (swap with the one below)
   function moveDown(participantId: string, event: MouseEvent) {
     event.stopPropagation();
-    const idx = standings.findIndex((s: any) => s.participantId === participantId);
-    if (idx < 0 || idx >= standings.length - 1) return; // Can't move down if already last
-
-    const current = standings[idx];
-    const below = standings[idx + 1];
-
-    // Only allow if they are tied with each other
-    if (!current.tiedWith?.includes(below.participantId)) return;
-
-    // Swap positions
-    const tempPos = current.position;
-    current.position = below.position;
-    below.position = tempPos;
-
-    // Clear the tie between these two (they've been manually ordered)
-    current.tiedWith = current.tiedWith?.filter((id: string) => id !== below.participantId);
-    below.tiedWith = below.tiedWith?.filter((id: string) => id !== current.participantId);
-
-    // If no more ties, clear tieReason
-    if (!current.tiedWith || current.tiedWith.length === 0) {
-      current.tiedWith = undefined;
-      current.tieReason = undefined;
-    }
-    if (!below.tiedWith || below.tiedWith.length === 0) {
-      below.tiedWith = undefined;
-      below.tieReason = undefined;
-    }
-
-    // Emit the change (standings will auto-resort via $derived when group.standings updates)
-    onstandingsChanged?.({ groupIndex, standings: [...standings] });
+    const result = _moveDown(standings, participantId);
+    if (result) onstandingsChanged?.({ groupIndex, standings: result });
   }
 
   // Check if participant can move up (has a tie with the one above)
   function canMoveUp(participantId: string): boolean {
-    const idx = standings.findIndex((s: any) => s.participantId === participantId);
-    if (idx <= 0) return false;
-    const current = standings[idx];
-    const above = standings[idx - 1];
-    return current.tiedWith?.includes(above.participantId) ?? false;
+    return _canMoveUp(standings, participantId);
   }
 
   // Check if participant can move down (has a tie with the one below)
   function canMoveDown(participantId: string): boolean {
-    const idx = standings.findIndex((s: any) => s.participantId === participantId);
-    if (idx < 0 || idx >= standings.length - 1) return false;
-    const current = standings[idx];
-    const below = standings[idx + 1];
-    return current.tiedWith?.includes(below.participantId) ?? false;
+    return _canMoveDown(standings, participantId);
   }
 
   // Confirm current order for a participant (clear their tie without moving)
   function confirmOrder(participantId: string, event: MouseEvent) {
     event.stopPropagation();
-    const standing = standings.find((s: any) => s.participantId === participantId);
-    if (!standing || !standing.tiedWith) return;
-
-    // Clear ties for this participant and all they were tied with
-    const tiedWithIds = [...standing.tiedWith];
-
-    // Clear this participant's tie
-    standing.tiedWith = undefined;
-    standing.tieReason = undefined;
-
-    // Also clear the tie reference from other participants
-    for (const otherId of tiedWithIds) {
-      const other = standings.find((s: any) => s.participantId === otherId);
-      if (other && other.tiedWith) {
-        other.tiedWith = other.tiedWith.filter((id: string) => id !== participantId);
-        if (other.tiedWith.length === 0) {
-          other.tiedWith = undefined;
-          other.tieReason = undefined;
-        }
-      }
-    }
-
-    // Emit the change to parent (parent updates source data, $derived recalculates)
-    onstandingsChanged?.({ groupIndex, standings: [...standings] });
+    const result = _confirmOrder(standings, participantId);
+    onstandingsChanged?.({ groupIndex, standings: result });
   }
 
   function openPlayerMatches(participantId: string, event: MouseEvent) {
@@ -551,7 +479,7 @@
         {#each standings as standing, idx}
           {@const isSelected = selectedParticipants.has(standing.participantId)}
           {@const swissPoints = standing.swissPoints ?? (standing.matchesWon * 2 + standing.matchesTied)}
-          {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
+          {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0 && standing.tieReason === 'unresolved'}
           {@const tiedNames = getTiedWithNames(standing.tiedWith)}
           {@const inMultiTie = isPartOfMultiTie(standing.participantId)}
           {@const atCutoffTie = isAtCutoffTie(standing.participantId)}

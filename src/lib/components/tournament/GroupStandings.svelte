@@ -125,6 +125,13 @@
     // Find the tie group this participant belongs to
     for (const [_, ids] of standingsByPrimaryValue) {
       if (ids.includes(participantId) && ids.length >= 2) {
+        // Only highlight if there's an unresolved tie in this group
+        const hasUnresolved = ids.some(id => {
+          const s = sortedStandings.find(st => st.participantId === id);
+          return s?.tieReason === 'unresolved';
+        });
+        if (!hasUnresolved) continue;
+
         // Get positions of all players in this tie group
         const positions = ids.map(id => {
           const idx = sortedStandings.findIndex(s => s.participantId === id);
@@ -270,7 +277,7 @@
     </thead>
     <tbody>
       {#each sortedStandings as standing, i (standing.participantId)}
-        {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0}
+        {@const hasTie = standing.tiedWith && standing.tiedWith.length > 0 && standing.tieReason === 'unresolved'}
         {@const tiedNames = getTiedWithNames(standing.tiedWith)}
         {@const atCutoffTie = isAtCutoffTie(standing.participantId)}
         {@const showTieStyles = effectiveQualificationMode === 'WINS' && !isSwiss}

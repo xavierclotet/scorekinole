@@ -1507,7 +1507,7 @@
   "wizard_bulkErrorsFound": "Hay errores en la lista de participantes",
   "wizard_bulkAnalyze": "Analizar",
   "wizard_analyzeRequired": "Pulsa \"Analizar\" para validar la lista",
-  "wizard_registered": "registrados",
+  "wizard_registered": "registrado",
   "wizard_registeredUsers": "Usuarios registrados",
   "wizard_formatGuide": "Guía de formato",
   "wizard_basicFormat": "Formato básico",
