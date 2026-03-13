@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.96] - 2026-03-13
+- Show orange tie highlight only for unresolved ties (admin must decide), not for resolved tiebreakers
+- Extract manual reorder logic (moveUp/moveDown/confirmOrder) to testable tieManualReorder module
+- Add 63 new tiebreaker tests: priority cascade (Swiss/RR × WINS/POINTS) and manual reorder workflows
+
 ## [2.4.95] - 2026-03-13
 - Fix cancelPendingInvitesForUser to filter by inviteType for doubles coexistence
 - Add 9 new invite cancellation tests
