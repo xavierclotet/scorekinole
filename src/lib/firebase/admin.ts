@@ -113,13 +113,22 @@ export async function fetchAllUsers(): Promise<AdminUserInfo[]> {
 
   try {
     const usersRef = collection(db!, 'users');
-    const q = query(usersRef, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
+    // Don't use orderBy('createdAt') — Firestore excludes documents
+    // that don't have the ordered field. Users created by addTournamentRecord
+    // may lack createdAt.
+    const snapshot = await getDocs(usersRef);
 
     const users: AdminUserInfo[] = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data() as UserProfile;
       users.push({ userId: docSnap.id, ...data });
+    });
+
+    // Sort client-side (createdAt desc, users without createdAt at the end)
+    users.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis?.() ?? a.createdAt ?? 0;
+      const bTime = b.createdAt?.toMillis?.() ?? b.createdAt ?? 0;
+      return bTime - aTime;
     });
 
     console.log(`✅ Fetched all ${users.length} users for search`);
@@ -580,14 +589,21 @@ export async function adminDeleteMatch(matchId: string): Promise<boolean> {
 }
 
 /**
- * Merge a GUEST user into a registered user
- * Copies tournaments and ranking from GUEST to registered user
- * Marks GUEST with mergedTo field (does not delete)
+ * Merge two user profiles (universal — works for any combination of guest/registered).
+ *
+ * Steps:
+ * 1. Validate both users exist, aren't the same, source not already merged
+ * 2. Merge tournaments[] (deduplicate by tournamentId, keep target's version on conflict)
+ * 3. Update tournament documents: replace source userId in participant.userId / partner.userId
+ * 4. Mark source as mergedTo, target gets mergedFrom
+ *
+ * @param sourceUserId User to merge FROM (will be marked as merged)
+ * @param targetUserId User to merge INTO (will receive tournaments)
  */
-export async function mergeGuestToRegistered(
-  guestUserId: string,
-  registeredUserId: string
-): Promise<{ success: boolean; error?: string }> {
+export async function mergeUsers(
+  sourceUserId: string,
+  targetUserId: string
+): Promise<{ success: boolean; error?: string; tournamentsUpdated?: number }> {
   if (!browser || !isFirebaseEnabled()) {
     return { success: false, error: 'Firebase disabled' };
   }
@@ -597,125 +613,112 @@ export async function mergeGuestToRegistered(
     return { success: false, error: 'No user authenticated' };
   }
 
-  // Check admin permission
   const adminStatus = await isAdmin();
   if (!adminStatus) {
     return { success: false, error: 'Unauthorized: User is not admin' };
   }
 
-  try {
-    // Get both user profiles
-    const guestRef = doc(db!, 'users', guestUserId);
-    const registeredRef = doc(db!, 'users', registeredUserId);
+  if (sourceUserId === targetUserId) {
+    return { success: false, error: 'Cannot merge a user with themselves (same userId)' };
+  }
 
-    const [guestSnap, registeredSnap] = await Promise.all([
-      getDoc(guestRef),
-      getDoc(registeredRef)
+  try {
+    // 1. Read both profiles
+    const sourceRef = doc(db!, 'users', sourceUserId);
+    const targetRef = doc(db!, 'users', targetUserId);
+
+    const [sourceSnap, targetSnap] = await Promise.all([
+      getDoc(sourceRef),
+      getDoc(targetRef)
     ]);
 
-    if (!guestSnap.exists()) {
-      return { success: false, error: 'GUEST user not found' };
+    if (!sourceSnap.exists()) {
+      return { success: false, error: 'Source user not found' };
     }
-    if (!registeredSnap.exists()) {
-      return { success: false, error: 'Registered user not found' };
-    }
-
-    const guestData = guestSnap.data() as UserProfile;
-    const registeredData = registeredSnap.data() as UserProfile;
-
-    // Validate GUEST is actually a guest
-    if (guestData.authProvider === 'google') {
-      return { success: false, error: 'Source user is not a GUEST (has Google auth)' };
+    if (!targetSnap.exists()) {
+      return { success: false, error: 'Target user not found' };
     }
 
-    // Validate registered user has Google auth
-    if (registeredData.authProvider !== 'google') {
-      return { success: false, error: 'Target user is not registered (no Google auth)' };
+    const sourceData = sourceSnap.data() as UserProfile;
+    const targetData = targetSnap.data() as UserProfile;
+
+    if (sourceData.mergedTo) {
+      return { success: false, error: 'Source user was already merged' };
     }
 
-    // Check if GUEST was already merged
-    if (guestData.mergedTo) {
-      return { success: false, error: 'GUEST user was already merged' };
+    // 2. Merge tournaments (deduplicate by tournamentId — target wins on conflict)
+    const sourceTournaments = sourceData.tournaments || [];
+    const targetTournaments = targetData.tournaments || [];
+    const targetTournamentIds = new Set(targetTournaments.map(t => t.tournamentId));
+    const newTournaments = sourceTournaments.filter(t => !targetTournamentIds.has(t.tournamentId));
+    const mergedTournaments = [...targetTournaments, ...newTournaments];
+
+    // 3. Update tournament documents where source userId appears
+    let tournamentsUpdated = 0;
+    const tournamentIdsToCheck = new Set(sourceTournaments.map(t => t.tournamentId));
+
+    for (const tournamentId of tournamentIdsToCheck) {
+      const tournamentRef = doc(db!, 'tournaments', tournamentId);
+      const tournamentSnap = await getDoc(tournamentRef);
+      if (!tournamentSnap.exists()) continue;
+
+      const tournamentData = tournamentSnap.data();
+      const participants = tournamentData!.participants || [];
+      let changed = false;
+
+      const updatedParticipants = participants.map((p: any) => {
+        const updated = { ...p };
+
+        // Replace source userId in main participant
+        if (updated.userId === sourceUserId) {
+          updated.userId = targetUserId;
+          if (targetData.photoURL) updated.photoURL = targetData.photoURL;
+          if (targetData.authProvider) updated.type = 'REGISTERED';
+          changed = true;
+        }
+
+        // Replace source userId in partner
+        if (updated.partner?.userId === sourceUserId) {
+          updated.partner = {
+            ...updated.partner,
+            userId: targetUserId
+          };
+          if (targetData.photoURL) updated.partner.photoURL = targetData.photoURL;
+          if (targetData.authProvider) updated.partner.type = 'REGISTERED';
+          changed = true;
+        }
+
+        return updated;
+      });
+
+      if (changed) {
+        await setDoc(tournamentRef, { participants: updatedParticipants }, { merge: true });
+        tournamentsUpdated++;
+      }
     }
 
-    // Check if registered user already has tournaments (ranking is calculated from tournaments)
-    const registeredTournaments = registeredData.tournaments || [];
-    if (registeredTournaments.length > 0) {
-      return { success: false, error: 'Target user already has tournaments' };
-    }
-
-    // Copy tournaments from GUEST (target is empty, no deduplication needed)
-    const guestTournaments = guestData.tournaments || [];
-
-    // Merge mergedFrom arrays
-    const existingMergedFrom = registeredData.mergedFrom || [];
-    const newMergedFrom = [...existingMergedFrom, guestUserId];
-
-    // Update registered user (ranking is calculated from tournaments, not stored)
-    await setDoc(registeredRef, {
-      tournaments: guestTournaments,
-      mergedFrom: newMergedFrom,
+    // 4. Update target user profile
+    const existingMergedFrom = targetData.mergedFrom || [];
+    await setDoc(targetRef, {
+      tournaments: mergedTournaments,
+      mergedFrom: [...existingMergedFrom, sourceUserId],
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    // Mark GUEST as merged
-    await setDoc(guestRef, {
-      mergedTo: registeredUserId,
+    // 5. Mark source as merged
+    await setDoc(sourceRef, {
+      mergedTo: targetUserId,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Merged GUEST ${guestUserId} into registered user ${registeredUserId}`);
-    console.log(`   - Tournaments: ${guestTournaments.length}`);
+    console.log(`✅ Merged user ${sourceUserId} into ${targetUserId}`);
+    console.log(`   - Tournaments merged: ${newTournaments.length} new + ${targetTournaments.length} existing`);
+    console.log(`   - Tournament docs updated: ${tournamentsUpdated}`);
 
-    return { success: true };
+    return { success: true, tournamentsUpdated };
   } catch (error) {
     console.error('❌ Error merging users:', error);
     return { success: false, error: 'Error during merge operation' };
-  }
-}
-
-/**
- * Get registered users for merge target selection
- * Returns users with Google auth (not GUESTs)
- */
-export async function getRegisteredUsers(): Promise<AdminUserInfo[]> {
-  if (!browser || !isFirebaseEnabled()) {
-    return [];
-  }
-
-  const user = get(currentUser);
-  if (!user) {
-    return [];
-  }
-
-  // Check admin permission
-  const adminStatus = await isAdmin();
-  if (!adminStatus) {
-    return [];
-  }
-
-  try {
-    const usersRef = collection(db!, 'users');
-    const q = query(usersRef, where('authProvider', '==', 'google'), orderBy('playerName'));
-    const snapshot = await getDocs(q);
-
-    const users: AdminUserInfo[] = [];
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data() as UserProfile;
-      // Skip merged users (defensive - registered users shouldn't have mergedTo)
-      if (data.mergedTo) return;
-      // Skip users that already have tournaments (can't be migration targets)
-      if (data.tournaments && data.tournaments.length > 0) return;
-      users.push({
-        userId: docSnap.id,
-        ...data
-      });
-    });
-
-    return users;
-  } catch (error) {
-    console.error('❌ Error getting registered users:', error);
-    return [];
   }
 }
 

@@ -293,111 +293,113 @@ describe('calculateRankings', () => {
 		expect(ranked[0].otherTournaments).toHaveLength(0);
 	});
 
-	it('tiebreaker: more tournaments wins when points are equal', () => {
-		const users = [
-			makeUser({
-				odId: 'u1', playerName: 'One-tourney',
-				tournaments: [
-					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
-				]
-			}),
-			makeUser({
-				odId: 'u2', playerName: 'Two-tourneys',
-				tournaments: [
-					makeRecord({ tournamentId: 't1', finalPosition: 2, tournamentDate: new Date('2025-06-15').getTime() }),
-					makeRecord({ tournamentId: 't2', finalPosition: 2, tournamentDate: new Date('2025-03-10').getTime() })
-				]
-			})
-		];
-		// u1: pos 1 → 100 (1 tournament). u2: pos 2 → 80 × 2 = 160 (2 tournaments).
-		// u2 has more points → wins regardless. Let's equalize with bestOfN=1.
-		const filters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 1 };
-		// u1: top1=100. u2: top1=80. u1 still ahead by points.
-		// To test the tournamentsCount tiebreaker, we need equal points.
-		const equalUsers = [
-			makeUser({
-				odId: 'u1', playerName: 'Fewer',
-				tournaments: [
-					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
-				]
-			}),
-			makeUser({
-				odId: 'u2', playerName: 'More',
-				tournaments: [
-					makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() }),
-					makeRecord({ tournamentId: 't2', finalPosition: 1, tournamentDate: new Date('2025-03-10').getTime() })
-				]
-			})
-		];
-		const eqFilters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 1 };
-		// Both have top1 = 100. tournamentsCount tiebreaker: u2 has 1 (bestOfN=1), u1 has 1. Equal!
-		// Actually bestOfN=1 means both have tournamentsCount=1. Let's use bestOfN=2.
-		const eq2Filters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 2 };
-		// u1: top2 = 100 (only 1). u2: top2 = 100+100 = 200.
-		// Points differ. Need exact same points AND different tournament counts.
-		// Use bestOfN=0 with same sum.
+	it('tiebreaker: better singles position wins when points are equal', () => {
+		// Both get 100 points total, but u1 has best singles pos 1, u2 has best singles pos 2
 		const u1 = makeUser({
-			odId: 'u1', playerName: 'Fewer',
-			tournaments: [
-				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
-			]
-		});
-		const u2 = makeUser({
-			odId: 'u2', playerName: 'More',
+			odId: 'u1', playerName: 'HasFirst',
 			tournaments: [
 				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() }),
 				makeRecord({ tournamentId: 't2', finalPosition: 6, tournamentDate: new Date('2025-03-10').getTime() })
 			]
 		});
-		// bestOfN=0: u1 = 100. u2 = 100 + 0 (pos 6 → max(0, 100-100)=0) = 100.
-		// Same points, u2 has 2 tournaments (even though one scored 0... wait, does it get filtered?)
-		// Looking at the code: matchingTournaments includes all that pass year/country filter.
-		// tournamentsCount = topN.length = matchingTournaments.length (when bestOfN=0).
-		// But pos 6 → 0 points. matchingTournaments still includes it. tournamentsCount=2 vs 1.
-		const allFilters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 0 };
-		const ranked = calculateRankings([u1, u2], tournamentsMap, allFilters);
-		expect(ranked[0].totalPoints).toBe(ranked[1].totalPoints);
-		expect(ranked[0].playerName).toBe('More'); // More tournaments → wins tiebreak
-		expect(ranked[0].tournamentsCount).toBeGreaterThan(ranked[1].tournamentsCount);
-	});
-
-	it('tiebreaker: better bestResult wins when points and tournamentsCount are equal', () => {
-		const u1 = makeUser({
-			odId: 'u1', playerName: 'WorseResult',
-			tournaments: [
-				makeRecord({ tournamentId: 't1', finalPosition: 2, tournamentDate: new Date('2025-06-15').getTime() })
-			]
-		});
 		const u2 = makeUser({
-			odId: 'u2', playerName: 'BetterResult',
-			tournaments: [
-				makeRecord({ tournamentId: 't2', finalPosition: 2, tournamentDate: new Date('2025-03-10').getTime() })
-			]
-		});
-		// Both: 1 tournament, pos 2 → 80 points. Same tournamentsCount. Same bestResult (2).
-		// Falls to name tiebreaker. Let's create a scenario with different bestResult.
-		const u3 = makeUser({
-			odId: 'u3', playerName: 'HasFirst',
-			tournaments: [
-				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() }),
-				makeRecord({ tournamentId: 't2', finalPosition: 6, tournamentDate: new Date('2025-03-10').getTime() })
-			]
-		});
-		const u4 = makeUser({
-			odId: 'u4', playerName: 'HasSecond',
+			odId: 'u2', playerName: 'HasSecond',
 			tournaments: [
 				makeRecord({ tournamentId: 't1', finalPosition: 2, tournamentDate: new Date('2025-06-15').getTime() }),
 				makeRecord({ tournamentId: 't2', finalPosition: 5, tournamentDate: new Date('2025-03-10').getTime() })
 			]
 		});
-		// bestOfN=1: u3 top1=100, u4 top1=80. Not equal.
-		// bestOfN=0: u3 = 100+0=100, u4 = 80+0=100 (pos5 → max(0,100-80)=20). u4=100.
-		// Hmm, let me just check: pos5 → 100-(5-1)*20 = 100-80=20. So u4=80+20=100, u3=100+0=100. Equal!
-		// tournamentsCount: both 2. bestResult: u3=1, u4=2. u3 wins (lower is better).
-		const ranked = calculateRankings([u4, u3], tournamentsMap, { year: 2025, filterType: 'all', bestOfN: 0 });
+		// bestOfN=0: u1 = 100+0=100, u2 = 80+20=100. Equal points.
+		// bestSinglesResult: u1=1, u2=2. u1 wins.
+		const ranked = calculateRankings([u2, u1], tournamentsMap, { year: 2025, filterType: 'all', bestOfN: 0 });
 		expect(ranked[0].totalPoints).toBe(ranked[1].totalPoints);
 		expect(ranked[0].playerName).toBe('HasFirst');
-		expect(ranked[0].bestResult).toBe(1);
+		expect(ranked[0].bestSinglesResult).toBe(1);
+	});
+
+	it('tiebreaker: doubles position breaks tie when singles positions are equal', () => {
+		const doublesMap = new Map<string, TournamentInfo>([
+			['t1', makeTournamentInfo({ id: 't1', gameType: 'singles' })],
+			['t2', makeTournamentInfo({ id: 't2', gameType: 'singles', completedAt: new Date('2025-03-10').getTime() })],
+			['td1', makeTournamentInfo({ id: 'td1', gameType: 'doubles' })],
+			['td2', makeTournamentInfo({ id: 'td2', gameType: 'doubles', completedAt: new Date('2025-03-10').getTime() })]
+		]);
+		const u1 = makeUser({
+			odId: 'u1', playerName: 'BetterDoubles',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() }),
+				makeRecord({ tournamentId: 'td1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+			]
+		});
+		const u2 = makeUser({
+			odId: 'u2', playerName: 'WorseDoubles',
+			tournaments: [
+				makeRecord({ tournamentId: 't2', finalPosition: 1, tournamentDate: new Date('2025-03-10').getTime() }),
+				makeRecord({ tournamentId: 'td2', finalPosition: 1, tournamentDate: new Date('2025-03-10').getTime() })
+			]
+		});
+		// Mock: pos 1 → 100 pts. Both: 100+100=200 points. bestSingles: both 1.
+		// bestDoubles: u1=1, u2=1. Equal → falls to name. Let's make doubles differ:
+		const u3 = makeUser({
+			odId: 'u3', playerName: 'BetterDoubles',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 2, tournamentDate: new Date('2025-06-15').getTime() }),
+				makeRecord({ tournamentId: 'td1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+			]
+		});
+		const u4 = makeUser({
+			odId: 'u4', playerName: 'WorseDoubles',
+			tournaments: [
+				makeRecord({ tournamentId: 't2', finalPosition: 2, tournamentDate: new Date('2025-03-10').getTime() }),
+				makeRecord({ tournamentId: 'td2', finalPosition: 3, tournamentDate: new Date('2025-03-10').getTime() })
+			]
+		});
+		// u3: 80+100=180, u4: 80+60=140. Not equal. Need same total.
+		// Use bestOfN=1: u3 top1=100 (doubles), u4 top1=80 (singles). Not equal.
+		// Simpler: same singles pos, one doubles pos differs, use bestOfN=1 so only 1 counts.
+		const u5 = makeUser({
+			odId: 'u5', playerName: 'BetterDoubles',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() }),
+				makeRecord({ tournamentId: 'td1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+			]
+		});
+		const u6 = makeUser({
+			odId: 'u6', playerName: 'WorseDoubles',
+			tournaments: [
+				makeRecord({ tournamentId: 't2', finalPosition: 1, tournamentDate: new Date('2025-03-10').getTime() }),
+				makeRecord({ tournamentId: 'td2', finalPosition: 3, tournamentDate: new Date('2025-03-10').getTime() })
+			]
+		});
+		// bestOfN=1: both top1=100. bestSingles: both 1. bestDoubles: u5=1, u6=3. u5 wins.
+		const ranked = calculateRankings([u6, u5], doublesMap, { year: 2025, filterType: 'all', bestOfN: 1 });
+		expect(ranked[0].totalPoints).toBe(ranked[1].totalPoints);
+		expect(ranked[0].bestSinglesResult).toBe(ranked[1].bestSinglesResult);
+		expect(ranked[0].playerName).toBe('BetterDoubles');
+		expect(ranked[0].bestDoublesResult).toBe(1);
+		expect(ranked[1].bestDoublesResult).toBe(3);
+	});
+
+	it('tiebreaker: player with only doubles loses to player with singles result', () => {
+		const mixedMap = new Map<string, TournamentInfo>([
+			['t1', makeTournamentInfo({ id: 't1', gameType: 'singles' })],
+			['td1', makeTournamentInfo({ id: 'td1', gameType: 'doubles' })]
+		]);
+		const u1 = makeUser({
+			odId: 'u1', playerName: 'SinglesPlayer',
+			tournaments: [
+				makeRecord({ tournamentId: 't1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+			]
+		});
+		const u2 = makeUser({
+			odId: 'u2', playerName: 'DoublesPlayer',
+			tournaments: [
+				makeRecord({ tournamentId: 'td1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+			]
+		});
+		// Both 100 points. u1 has bestSingles=1, u2 has bestSingles=null (Infinity). u1 wins.
+		const ranked = calculateRankings([u2, u1], mixedMap, baseFilters);
+		expect(ranked[0].playerName).toBe('SinglesPlayer');
 	});
 
 	it('tiebreaker: alphabetical name when all else is equal', () => {
@@ -413,7 +415,7 @@ describe('calculateRankings', () => {
 				makeRecord({ tournamentId: 't2', finalPosition: 1, tournamentDate: new Date('2025-03-10').getTime() })
 			]
 		});
-		// Same points (100), same tournamentsCount (1), same bestResult (1). Name tiebreaker.
+		// Same points (100), same bestSinglesResult (1), no doubles. Name tiebreaker.
 		const ranked = calculateRankings([u1, u2], tournamentsMap, baseFilters);
 		expect(ranked[0].playerName).toBe('Anna');
 		expect(ranked[1].playerName).toBe('Zara');
@@ -734,5 +736,127 @@ describe('calculateRankings — edge cases', () => {
 		const ranked = calculateRankings(users, tournamentsMap, filters);
 		expect(ranked[0].tournaments).toHaveLength(1);
 		expect(ranked[0].otherTournaments).toHaveLength(0); // 0-point tournament excluded
+	});
+});
+
+// ─────────────────────────────────────────────────
+// calculateRankings — doubles tournaments
+// ─────────────────────────────────────────────────
+describe('calculateRankings — doubles tournaments', () => {
+	const baseFilters: RankingFilters = { year: 2025, filterType: 'all', bestOfN: 2 };
+
+	// Doubles tournament info
+	const doublesMap = new Map<string, TournamentInfo>([
+		['d1', makeTournamentInfo({ id: 'd1', gameType: 'doubles', country: 'ES', completedAt: new Date('2025-06-15').getTime() })],
+		['d2', makeTournamentInfo({ id: 'd2', gameType: 'doubles', country: 'FR', completedAt: new Date('2025-09-01').getTime() })],
+		['s1', makeTournamentInfo({ id: 's1', gameType: 'singles', country: 'ES', completedAt: new Date('2025-03-10').getTime() })]
+	]);
+
+	it('doubles tournament records appear in ranking when user has them', () => {
+		// Both members of a doubles pair should have records in their /users profile
+		// (assuming applyRankingUpdates worked correctly)
+		const users = [
+			makeUser({
+				odId: 'player-A', playerName: 'Player A',
+				tournaments: [
+					makeRecord({ tournamentId: 'd1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			}),
+			makeUser({
+				odId: 'partner-A', playerName: 'Partner A',
+				tournaments: [
+					makeRecord({ tournamentId: 'd1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		];
+
+		const ranked = calculateRankings(users, doublesMap, baseFilters);
+
+		// Both should appear in rankings
+		expect(ranked).toHaveLength(2);
+
+		// Both should have same points (same position in same tournament)
+		expect(ranked[0].totalPoints).toBe(ranked[1].totalPoints);
+	});
+
+	it('doubles and singles tournaments are both counted in ranking', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'Versatile Player',
+				tournaments: [
+					makeRecord({ tournamentId: 's1', finalPosition: 1, tournamentDate: new Date('2025-03-10').getTime() }),
+					makeRecord({ tournamentId: 'd1', finalPosition: 2, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		];
+
+		const ranked = calculateRankings(users, doublesMap, baseFilters);
+
+		expect(ranked).toHaveLength(1);
+		expect(ranked[0].tournamentsCount).toBe(2);
+		// Both singles and doubles results contribute to ranking
+		expect(ranked[0].totalPoints).toBeGreaterThan(0);
+	});
+
+	it('partner who only participated as partner (no own tournaments) should appear if record exists', () => {
+		// This is the critical test: a player who ONLY played as a partner
+		// They should appear in rankings IF their /users profile has the tournament record
+		const users = [
+			makeUser({
+				odId: 'pure-partner', playerName: 'Pure Partner',
+				tournaments: [
+					makeRecord({ tournamentId: 'd1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			})
+		];
+
+		const ranked = calculateRankings(users, doublesMap, baseFilters);
+
+		expect(ranked).toHaveLength(1);
+		expect(ranked[0].playerName).toBe('Pure Partner');
+		expect(ranked[0].totalPoints).toBeGreaterThan(0);
+	});
+
+	it('partner WITHOUT tournament record in profile does NOT appear in ranking (the reported bug)', () => {
+		// If applyRankingUpdates/Cloud Function failed to add the record for partner,
+		// the partner won't appear in rankings at all
+		const users = [
+			makeUser({
+				odId: 'main-player', playerName: 'Main Player',
+				tournaments: [
+					makeRecord({ tournamentId: 'd1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() })
+				]
+			}),
+			makeUser({
+				odId: 'forgotten-partner', playerName: 'Forgotten Partner',
+				tournaments: [] // BUG: record never added because partner had no userId at tournament time
+			})
+		];
+
+		const ranked = calculateRankings(users, doublesMap, baseFilters);
+
+		// Only main player appears — partner is invisible in rankings
+		expect(ranked).toHaveLength(1);
+		expect(ranked[0].playerName).toBe('Main Player');
+		// The partner is completely absent from rankings because they have no tournament records
+	});
+
+	it('multiple doubles tournaments are aggregated correctly per user', () => {
+		const users = [
+			makeUser({
+				odId: 'u1', playerName: 'Doubles Specialist',
+				tournaments: [
+					makeRecord({ tournamentId: 'd1', finalPosition: 1, tournamentDate: new Date('2025-06-15').getTime() }),
+					makeRecord({ tournamentId: 'd2', finalPosition: 3, tournamentDate: new Date('2025-09-01').getTime() })
+				]
+			})
+		];
+
+		const ranked = calculateRankings(users, doublesMap, { ...baseFilters, bestOfN: 0 });
+
+		expect(ranked).toHaveLength(1);
+		expect(ranked[0].tournamentsCount).toBe(2);
+		// Points from both doubles tournaments are summed
+		expect(ranked[0].totalPoints).toBeGreaterThan(0);
 	});
 });

@@ -57,6 +57,8 @@ export interface RankedPlayer {
   totalPoints: number;
   tournamentsCount: number;
   bestResult: number | null;
+  bestSinglesResult: number | null;
+  bestDoublesResult: number | null;
   tournaments: TournamentRecordWithDetails[];
   otherTournaments: TournamentRecordWithDetails[];
 }
@@ -309,6 +311,8 @@ export function calculateRankings(
     // Use lightweight intermediate objects to avoid spreading TournamentRecord for every entry
     const scored: { record: TournamentRecord; points: number; info: TournamentInfo }[] = [];
     let bestPosition = Infinity;
+    let bestSingles = Infinity;
+    let bestDoubles = Infinity;
 
     for (const record of user.tournaments) {
       const info = tournamentsMap.get(record.tournamentId);
@@ -333,6 +337,8 @@ export function calculateRankings(
 
       scored.push({ record, points, info });
       if (record.finalPosition < bestPosition) bestPosition = record.finalPosition;
+      if (info.gameType === 'singles' && record.finalPosition < bestSingles) bestSingles = record.finalPosition;
+      if (info.gameType === 'doubles' && record.finalPosition < bestDoubles) bestDoubles = record.finalPosition;
     }
 
     if (scored.length === 0) continue;
@@ -381,16 +387,19 @@ export function calculateRankings(
       totalPoints,
       tournamentsCount: topCount,
       bestResult: bestPosition === Infinity ? null : bestPosition,
+      bestSinglesResult: bestSingles === Infinity ? null : bestSingles,
+      bestDoublesResult: bestDoubles === Infinity ? null : bestDoubles,
       tournaments: tournamentsWithDetails,
       otherTournaments
     });
   }
 
-  // 7. Sort by total points descending, then tiebreakers
+  // 7. Sort by total points descending, then tiebreakers:
+  // best singles position (lower wins), best doubles position (lower wins), name
   result.sort((a, b) =>
     b.totalPoints - a.totalPoints
-    || b.tournamentsCount - a.tournamentsCount
-    || (a.bestResult ?? Infinity) - (b.bestResult ?? Infinity)
+    || (a.bestSinglesResult ?? Infinity) - (b.bestSinglesResult ?? Infinity)
+    || (a.bestDoublesResult ?? Infinity) - (b.bestDoublesResult ?? Infinity)
     || a.playerName.localeCompare(b.playerName)
   );
 

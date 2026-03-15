@@ -7,7 +7,7 @@
   import * as m from '$lib/paraglide/messages.js';
   import { goto } from '$app/navigation';
   import { adminTheme } from '$lib/stores/theme';
-  import { getUsersPaginated, fetchAllUsers, deleteUser, getUsersTournamentCounts, mergeGuestToRegistered, getRegisteredUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
+  import { getUsersPaginated, fetchAllUsers, deleteUser, getUsersTournamentCounts, mergeUsers, removeUserFromTournamentCollaborators, type AdminUserInfo } from '$lib/firebase/admin';
   import { getUserTournamentDependencies, type UserTournamentDependencies } from '$lib/firebase/tournaments';
   import { getVenuesByOwner } from '$lib/firebase/venues';
   import type { Venue } from '$lib/types/venue';
@@ -45,10 +45,10 @@
 
   // Migration state
   let userToMigrate: AdminUserInfo | null = $state(null);
-  let registeredUsersList: AdminUserInfo[] = $state([]);
   let selectedTargetUserId: string = $state('');
   let isMigrating = $state(false);
   let migrationError: string | null = $state(null);
+  let mergeSearchQuery = $state('');
   let searchQuery = $state('');
   let filterRole: 'all' | 'admin' = $state('all');
   let filterType: 'all' | 'registered' | 'guest' | 'merged' = $state('all');
@@ -71,6 +71,21 @@
   function normalizeText(text: string): string {
     return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
+
+  let mergeTargetCandidates = $derived.by(() => {
+    if (!allUsersCache || !userToMigrate) return [];
+    const q = normalizeText(mergeSearchQuery);
+    if (!q) return [];
+    return allUsersCache.filter(u => {
+      if (u.userId === userToMigrate!.userId) return false;
+      if (u.mergedTo) return false;
+      return (
+        normalizeText(u.playerName ?? '').includes(q) ||
+        normalizeText(u.email ?? '').includes(q) ||
+        u.userId.includes(mergeSearchQuery.trim())
+      );
+    }).slice(0, 10);
+  });
 
   let filteredUsers = $derived((isSearching && allUsersCache ? allUsersCache : users).filter((user) => {
     if (filterRole === 'admin' && !user.isAdmin) return false;
@@ -277,8 +292,11 @@
     userToMigrate = user;
     selectedTargetUserId = '';
     migrationError = null;
-    // Load registered users for the dropdown
-    registeredUsersList = await getRegisteredUsers();
+    mergeSearchQuery = '';
+    // Ensure allUsersCache is loaded for the target search
+    if (!allUsersCache) {
+      allUsersCache = await fetchAllUsers();
+    }
   }
 
   function cancelMigrate() {
@@ -293,7 +311,7 @@
     isMigrating = true;
     migrationError = null;
 
-    const result = await mergeGuestToRegistered(userToMigrate.userId, selectedTargetUserId);
+    const result = await mergeUsers(userToMigrate.userId, selectedTargetUserId);
 
     if (result.success) {
       // Update local state - mark user as merged
@@ -308,15 +326,13 @@
       // Reload to get fresh data
       await loadInitialUsers();
     } else {
-      migrationError = result.error || m.admin_migrationError();
+      migrationError = result.error || m.admin_mergeError();
     }
 
     isMigrating = false;
   }
 
-  function isGuestUser(user: AdminUserInfo): boolean {
-    return !user.authProvider && !user.mergedTo;
-  }
+
 </script>
 
 <SuperAdminGuard>
@@ -426,6 +442,16 @@
                     {:else}
                       <span class="role-badge guest">Guest</span>
                     {/if}
+                    {#if user.mergedTo}
+                      {@const targetName = users.find(u => u.userId === user.mergedTo)?.playerName ?? allUsersCache?.find(u => u.userId === user.mergedTo)?.playerName ?? user.mergedTo}
+                      <span class="role-badge merged-to" title={user.mergedTo}>→ {targetName}</span>
+                    {/if}
+                    {#if user.mergedFrom?.length}
+                      {#each user.mergedFrom as sourceId}
+                        {@const sourceName = users.find(u => u.userId === sourceId)?.playerName ?? allUsersCache?.find(u => u.userId === sourceId)?.playerName ?? sourceId}
+                        <span class="role-badge merged-from" title={sourceId}>← {sourceName}</span>
+                      {/each}
+                    {/if}
                   </div>
                 </td>
                 <td class="tournaments-cell hide-small">
@@ -451,11 +477,11 @@
                   {formatDate(user.createdAt)}
                 </td>
                 <td class="actions-cell">
-                  {#if isGuestUser(user)}
+                  {#if !user.mergedTo}
                     <button
                       class="action-btn migrate-btn"
                       onclick={(e) => { e.stopPropagation(); showMigrateModal(user); }}
-                      title={m.admin_migrateUser()}
+                      title={m.admin_mergeUsers()}
                     >
                       🔗
                     </button>
@@ -642,14 +668,18 @@
     <div class="migrate-overlay" data-theme={$adminTheme} onclick={cancelMigrate} onkeydown={(e) => e.key === 'Escape' && cancelMigrate()} role="presentation">
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_interactive_supports_focus -->
       <div class="migrate-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
-        <h3>{m.admin_migrateUserTitle()}</h3>
+        <h3>{m.admin_mergeUsersTitle()}</h3>
 
         <div class="migrate-source">
           <span class="migrate-label">{m.admin_sourceUser()}</span>
           <div class="user-preview">
-            <div class="preview-avatar-placeholder">
-              {userToMigrate.playerName?.charAt(0).toUpperCase() || '?'}
-            </div>
+            {#if userToMigrate.photoURL}
+              <img src={userToMigrate.photoURL} alt="" class="preview-avatar" referrerpolicy="no-referrer" />
+            {:else}
+              <div class="preview-avatar-placeholder">
+                {userToMigrate.playerName?.charAt(0).toUpperCase() || '?'}
+              </div>
+            {/if}
             <div class="user-preview-info">
               <strong>{userToMigrate.playerName}</strong>
               <small>{m.admin_tournamentsToMigrate({ n: String(userToMigrate.tournaments?.length ?? 0) })}</small>
@@ -662,14 +692,69 @@
 
         <div class="migrate-target">
           <span class="migrate-label">{m.admin_selectTargetUser()}</span>
-          <select bind:value={selectedTargetUserId} class="target-select">
-            <option value="">{m.admin_selectUser()}</option>
-            {#each registeredUsersList as regUser (regUser.userId)}
-              <option value={regUser.userId}>
-                {regUser.playerName} ({regUser.email})
-              </option>
-            {/each}
-          </select>
+          <input
+            type="text"
+            class="merge-search-input"
+            placeholder={m.admin_mergeSearchTarget()}
+            bind:value={mergeSearchQuery}
+          />
+
+          {#if mergeSearchQuery.trim().length > 0 && !selectedTargetUserId}
+            <div class="merge-results">
+              {#each mergeTargetCandidates as candidate (candidate.userId)}
+                <button
+                  class="merge-result-item"
+                  onclick={() => { selectedTargetUserId = candidate.userId; mergeSearchQuery = ''; }}
+                >
+                  {#if candidate.photoURL}
+                    <img src={candidate.photoURL} alt="" class="result-avatar" referrerpolicy="no-referrer" />
+                  {:else}
+                    <div class="result-avatar-placeholder">
+                      {candidate.playerName?.charAt(0).toUpperCase() || '?'}
+                    </div>
+                  {/if}
+                  <div class="result-info">
+                    <strong>{candidate.playerName}</strong>
+                    <small>{candidate.email || candidate.userId}</small>
+                    <small>{m.admin_mergeTargetTournaments({ n: String(candidate.tournaments?.length ?? 0) })}</small>
+                  </div>
+                  {#if candidate.authProvider}
+                    <span class="result-badge registered">REG</span>
+                  {:else}
+                    <span class="result-badge guest">GUEST</span>
+                  {/if}
+                </button>
+              {:else}
+                <div class="merge-no-results">{m.common_noResults()}</div>
+              {/each}
+            </div>
+          {/if}
+
+          {#if selectedTargetUserId}
+            {@const selected = allUsersCache?.find(u => u.userId === selectedTargetUserId)}
+            {#if selected}
+              <div class="merge-selected-user">
+                {#if selected.photoURL}
+                  <img src={selected.photoURL} alt="" class="result-avatar" referrerpolicy="no-referrer" />
+                {:else}
+                  <div class="result-avatar-placeholder">
+                    {selected.playerName?.charAt(0).toUpperCase() || '?'}
+                  </div>
+                {/if}
+                <div class="result-info">
+                  <strong>{selected.playerName}</strong>
+                  <small>{selected.email || selected.userId}</small>
+                  <small>{m.admin_mergeTargetTournaments({ n: String(selected.tournaments?.length ?? 0) })}</small>
+                </div>
+                {#if selected.authProvider}
+                  <span class="result-badge registered">REG</span>
+                {:else}
+                  <span class="result-badge guest">GUEST</span>
+                {/if}
+                <button class="merge-clear-btn" onclick={() => { selectedTargetUserId = ''; }}>✕</button>
+              </div>
+            {/if}
+          {/if}
         </div>
 
         {#if migrationError}
@@ -685,7 +770,7 @@
             onclick={confirmMigrate}
             disabled={isMigrating || !selectedTargetUserId}
           >
-            {isMigrating ? m.admin_migrating() : m.admin_confirmMigration()}
+            {isMigrating ? m.admin_migrating() : m.admin_mergeConfirm()}
           </button>
         </div>
       </div>
@@ -835,6 +920,7 @@
     border-radius: 6px;
     font-size: 0.85rem;
     background: white;
+    color: #1a1a1a;
     transition: all 0.2s;
   }
 
@@ -1102,6 +1188,30 @@
   .users-container:is([data-theme='dark'], [data-theme='violet']) .role-badge.guest {
     background: #374151;
     color: #9ca3af;
+  }
+
+  .role-badge.merged-to {
+    background: color-mix(in srgb, #ef4444 12%, transparent);
+    color: #dc2626;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .users-container:is([data-theme='dark'], [data-theme='violet']) .role-badge.merged-to {
+    background: color-mix(in srgb, #ef4444 20%, transparent);
+    color: #f87171;
+  }
+
+  .role-badge.merged-from {
+    background: color-mix(in srgb, #3b82f6 12%, transparent);
+    color: #2563eb;
+  }
+
+  .users-container:is([data-theme='dark'], [data-theme='violet']) .role-badge.merged-from {
+    background: color-mix(in srgb, #3b82f6 20%, transparent);
+    color: #60a5fa;
   }
 
   .role-badges-stack {
@@ -1706,26 +1816,172 @@
     margin: 0.5rem 0;
   }
 
-  .target-select {
+  .merge-search-input {
     width: 100%;
     padding: 0.6rem 0.75rem;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 0.9rem;
     background: white;
-    cursor: pointer;
+    color: var(--foreground, #111);
   }
 
-  .migrate-overlay:is([data-theme='dark'], [data-theme='violet']) .target-select {
+  .migrate-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-search-input {
     background: #0f1419;
     border-color: #2d3748;
     color: #e1e8ed;
   }
 
-  .target-select:focus {
+  .merge-search-input:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+  }
+
+  .merge-results {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin-top: 8px;
+  }
+
+  .migrate-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-results {
+    border-color: #2d3748;
+  }
+
+  .merge-result-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    color: var(--foreground, #111);
+    font-size: 0.85rem;
+  }
+
+  .migrate-overlay:is([data-theme='dark'], [data-theme='violet']) .merge-result-item {
+    border-bottom-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .merge-result-item:last-child {
+    border-bottom: none;
+  }
+
+  .merge-result-item:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .merge-result-item.selected {
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+
+  .result-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .result-avatar-placeholder {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .result-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .result-info strong {
+    font-size: 13px;
+  }
+
+  .result-info small {
+    font-size: 11px;
+    opacity: 0.7;
+  }
+
+  .result-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .result-badge.registered {
+    background: color-mix(in srgb, #22c55e 15%, transparent);
+    color: #16a34a;
+  }
+
+  .result-badge.guest {
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+    color: #d97706;
+  }
+
+  .merge-no-results {
+    padding: 16px;
+    text-align: center;
+    font-size: 13px;
+    opacity: 0.6;
+  }
+
+  .merge-selected-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 2px solid var(--primary);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    font-size: 0.85rem;
+  }
+
+  .merge-clear-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: #999;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .merge-clear-btn:hover {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    color: #dc2626;
+  }
+
+  .preview-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
   }
 
   .migration-error {
