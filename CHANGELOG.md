@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.97] - 2026-03-15
+- Universal user merge (any user type combination), with search-based UI modal and merge audit trail
+- Ranking tiebreaker redesign: points → best singles position → best doubles position → name
+- Improve table assignment fairness in Swiss and Round Robin with maxUsage and globalUsage tiebreakers
+- Sortable 20s and pts columns in public tournament final standings
+- Add 66 new tests (merge: 38, table fairness: 18, rankings: 4, standings: 6)
+
 ## [2.4.96] - 2026-03-13
 - Show orange tie highlight only for unresolved ties (admin must decide), not for resolved tiebreakers
 - Extract manual reorder logic (moveUp/moveDown/confirmOrder) to testable tieManualReorder module
