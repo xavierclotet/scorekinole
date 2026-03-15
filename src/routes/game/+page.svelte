@@ -734,6 +734,13 @@
 		if (data.team1Points > data.team2Points) winningTeam = 1;
 		else if (data.team2Points > data.team1Points) winningTeam = 2;
 
+		// Update team.points to reflect the timeout round result visually.
+		// In normal flow, user taps update team.points before finalizeRound;
+		// in timeout flow, we must update manually from lastRoundPoints baseline.
+		const baseline = get(lastRoundPoints);
+		team1.update(t => ({ ...t, points: baseline.team1 + data.team1Points }));
+		team2.update(t => ({ ...t, points: baseline.team2 + data.team2Points }));
+
 		// Finalize round through TeamCard (same flow as normal round completion)
 		if (teamCard1) {
 			teamCard1.finalizeRound(winningTeam, data.team1Points, data.team2Points);

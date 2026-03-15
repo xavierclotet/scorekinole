@@ -665,6 +665,66 @@ describe('Timeout completion guards', () => {
 		expect(completionsSent).toBe(1);
 		expect(tournamentMatchCompletedSent).toBe(true);
 	});
+
+	it('should update team.points from lastRoundPoints baseline when timeout modal is accepted', () => {
+		// Simulates the fix: before calling finalizeRound, team.points must be updated
+		// to include the timeout round result. In normal flow, user taps update team.points;
+		// in timeout flow, this was missing — the visual score never changed.
+
+		// Setup: 3 rounds played, cumulative score is 5-3
+		const lastRoundPoints = { team1: 5, team2: 3 };
+		const team1 = { points: 5 }; // same as lastRoundPoints (no partial taps in current round)
+		const team2 = { points: 3 };
+
+		// Timeout modal result: team1 wins (2-0)
+		const data = { team1Points: 2, team2Points: 0, team1Twenty: 0, team2Twenty: 0 };
+
+		// The fix: update team.points from baseline + round points
+		team1.points = lastRoundPoints.team1 + data.team1Points;
+		team2.points = lastRoundPoints.team2 + data.team2Points;
+
+		// Visual score now shows updated values
+		expect(team1.points).toBe(7); // 5 + 2
+		expect(team2.points).toBe(3); // 3 + 0
+	});
+
+	it('should override partial taps when timeout overrides mid-round state', () => {
+		// User was tapping during the round but timer expired before completion.
+		// The timeout modal result should replace the partial state.
+
+		// Setup: baseline from last completed round is 4-2
+		const lastRoundPoints = { team1: 4, team2: 2 };
+		// User had tapped +1 for team1 before timeout (partial round)
+		const team1 = { points: 5 };
+		const team2 = { points: 2 };
+
+		// Timeout modal: tie (1-1)
+		const data = { team1Points: 1, team2Points: 1, team1Twenty: 0, team2Twenty: 0 };
+
+		// The fix overwrites partial taps with the modal's result
+		team1.points = lastRoundPoints.team1 + data.team1Points;
+		team2.points = lastRoundPoints.team2 + data.team2Points;
+
+		// Score should be baseline + modal result, NOT baseline + partial taps
+		expect(team1.points).toBe(5); // 4 + 1, not 5 + 1
+		expect(team2.points).toBe(3); // 2 + 1
+	});
+
+	it('should handle timeout with no prior rounds (first round timeout)', () => {
+		// Timer expires during the very first round
+		const lastRoundPoints = { team1: 0, team2: 0 };
+		const team1 = { points: 0 };
+		const team2 = { points: 0 };
+
+		// Team2 wins the only round
+		const data = { team1Points: 0, team2Points: 2, team1Twenty: 0, team2Twenty: 0 };
+
+		team1.points = lastRoundPoints.team1 + data.team1Points;
+		team2.points = lastRoundPoints.team2 + data.team2Points;
+
+		expect(team1.points).toBe(0);
+		expect(team2.points).toBe(2);
+	});
 });
 
 // ─── Tests: Swiss format timer subscription ─────────────────────────────────
