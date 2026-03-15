@@ -380,3 +380,194 @@ describe('validateRoundRobinGroupSize', () => {
 		expect(validateRoundRobinGroupSize(25, 30)).toBe(true);
 	});
 });
+
+describe('assignTablesToRounds — table distribution fairness', () => {
+	/** Build per-player table usage map from assigned rounds */
+	function getPlayerTableUsage(rounds: ReturnType<typeof generateRoundRobinSchedule>): Map<string, Map<number, number>> {
+		const usage = new Map<string, Map<number, number>>();
+		for (const round of rounds) {
+			for (const match of round.matches) {
+				if (match.participantB === 'BYE' || match.tableNumber === undefined) continue;
+				for (const player of [match.participantA, match.participantB]) {
+					if (!usage.has(player)) usage.set(player, new Map());
+					const pMap = usage.get(player)!;
+					pMap.set(match.tableNumber, (pMap.get(match.tableNumber) || 0) + 1);
+				}
+			}
+		}
+		return usage;
+	}
+
+	it('no player plays the same table more than ceil(matches/tables)+1 times (10 players, 10 tables)', () => {
+		const ids = Array.from({ length: 10 }, (_, i) => `p${i + 1}`);
+		const rounds = generateRoundRobinSchedule(ids);
+		const assigned = assignTablesToRounds(rounds, 10);
+		const usage = getPlayerTableUsage(assigned);
+
+		for (const [player, tableMap] of usage) {
+			const totalMatches = Array.from(tableMap.values()).reduce((a, b) => a + b, 0);
+			const maxAllowed = Math.ceil(totalMatches / 10) + 1;
+			for (const [table, count] of tableMap) {
+				expect(count, `${player} played table ${table} ${count} times (max allowed: ${maxAllowed})`)
+					.toBeLessThanOrEqual(maxAllowed);
+			}
+		}
+	});
+
+	it('tables are spread across available range (8 players, 10 tables)', () => {
+		const ids = Array.from({ length: 8 }, (_, i) => `p${i + 1}`);
+		const rounds = generateRoundRobinSchedule(ids);
+		const assigned = assignTablesToRounds(rounds, 10);
+		const usage = getPlayerTableUsage(assigned);
+
+		for (const [player, tableMap] of usage) {
+			const tablesUsed = tableMap.size;
+			const totalMatches = Array.from(tableMap.values()).reduce((a, b) => a + b, 0);
+			// Each player plays 7 matches with 10 tables — should use at least 5 different tables
+			const minExpected = Math.min(totalMatches, 5);
+			expect(tablesUsed, `${player} only used ${tablesUsed} different tables`)
+				.toBeGreaterThanOrEqual(minExpected);
+		}
+	});
+
+	it('player table usage standard deviation is low (10 players, 10 tables)', () => {
+		const ids = Array.from({ length: 10 }, (_, i) => `p${i + 1}`);
+		const rounds = generateRoundRobinSchedule(ids);
+		const assigned = assignTablesToRounds(rounds, 10);
+		const usage = getPlayerTableUsage(assigned);
+
+		for (const [player, tableMap] of usage) {
+			const totalMatches = Array.from(tableMap.values()).reduce((a, b) => a + b, 0);
+			if (totalMatches < 3) continue;
+
+			// Calculate std dev across all 10 tables (including 0s for unused)
+			const counts: number[] = [];
+			for (let t = 1; t <= 10; t++) {
+				counts.push(tableMap.get(t) || 0);
+			}
+			const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+			const variance = counts.reduce((sum, v) => sum + (v - mean) ** 2, 0) / counts.length;
+			const stdDev = Math.sqrt(variance);
+
+			expect(stdDev, `${player} has high std dev: ${stdDev.toFixed(2)} (usage: ${JSON.stringify(counts)})`)
+				.toBeLessThan(1.0);
+		}
+	});
+
+	it('global table usage is balanced (10 players, 10 tables)', () => {
+		const ids = Array.from({ length: 10 }, (_, i) => `p${i + 1}`);
+		const rounds = generateRoundRobinSchedule(ids);
+		const assigned = assignTablesToRounds(rounds, 10);
+
+		// Count how many times each table is used across all rounds
+		const globalUsage = new Map<number, number>();
+		for (const round of assigned) {
+			for (const match of round.matches) {
+				if (match.tableNumber !== undefined) {
+					globalUsage.set(match.tableNumber, (globalUsage.get(match.tableNumber) || 0) + 1);
+				}
+			}
+		}
+
+		const usageCounts = Array.from(globalUsage.values());
+		if (usageCounts.length > 1) {
+			const max = Math.max(...usageCounts);
+			const min = Math.min(...usageCounts);
+			expect(max - min, `Global table usage imbalanced: max=${max}, min=${min}`).toBeLessThanOrEqual(3);
+		}
+	});
+
+	it('20 players, 10 tables: no player repeats any table more than 3 times', () => {
+		const ids = Array.from({ length: 20 }, (_, i) => `p${i + 1}`);
+		const rounds = generateRoundRobinSchedule(ids);
+		const assigned = assignTablesToRounds(rounds, 10);
+		const usage = getPlayerTableUsage(assigned);
+
+		for (const [player, tableMap] of usage) {
+			for (const [table, count] of tableMap) {
+				// With 19 matches and 10 tables, greedy can't always achieve ceil(19/10)=2
+				// but 3 is a reasonable upper bound (vs 4+ without the algorithm)
+				expect(count, `${player} played at table ${table} ${count} times`)
+					.toBeLessThanOrEqual(3);
+			}
+		}
+
+		// Additionally verify all players use at least 7 different tables (out of 10)
+		for (const [player, tableMap] of usage) {
+			expect(tableMap.size, `${player} only used ${tableMap.size} tables`)
+				.toBeGreaterThanOrEqual(7);
+		}
+	});
+
+	it('cross-group table assignment: tables do not collide across groups in same round', () => {
+		// 2 groups of 8 players, 10 tables
+		const ids1 = Array.from({ length: 8 }, (_, i) => `g1p${i + 1}`);
+		const ids2 = Array.from({ length: 8 }, (_, i) => `g2p${i + 1}`);
+
+		const schedule1 = generateRoundRobinSchedule(ids1);
+		const schedule2 = generateRoundRobinSchedule(ids2);
+
+		const groups = [
+			{ id: 'g1', name: 'GROUP_A', participants: ids1, standings: [], schedule: schedule1 },
+			{ id: 'g2', name: 'GROUP_B', participants: ids2, standings: [], schedule: schedule2 }
+		];
+
+		assignTablesGlobally(groups, 10);
+
+		// Check no collision per round
+		const maxRounds = Math.max(schedule1.length, schedule2.length);
+		for (let r = 0; r < maxRounds; r++) {
+			const tablesInRound = new Set<number>();
+			for (const group of groups) {
+				if (!group.schedule || r >= group.schedule.length) continue;
+				for (const match of group.schedule[r].matches) {
+					if (match.participantB === 'BYE' || match.tableNumber === undefined) continue;
+					expect(tablesInRound.has(match.tableNumber), `Table ${match.tableNumber} duplicated in round ${r + 1} across groups`).toBe(false);
+					tablesInRound.add(match.tableNumber);
+				}
+			}
+		}
+
+		// Also check distribution: each group should use diverse tables
+		for (const group of groups) {
+			const groupTables = new Set<number>();
+			for (const round of group.schedule!) {
+				for (const match of round.matches) {
+					if (match.tableNumber !== undefined) groupTables.add(match.tableNumber);
+				}
+			}
+			expect(groupTables.size, `Group ${group.name} only used ${groupTables.size} different tables`)
+				.toBeGreaterThanOrEqual(4);
+		}
+	});
+
+	it('cross-group with tight table constraint: 2 groups of 6, only 8 tables', () => {
+		const ids1 = Array.from({ length: 6 }, (_, i) => `g1p${i + 1}`);
+		const ids2 = Array.from({ length: 6 }, (_, i) => `g2p${i + 1}`);
+
+		const schedule1 = generateRoundRobinSchedule(ids1);
+		const schedule2 = generateRoundRobinSchedule(ids2);
+
+		const groups = [
+			{ id: 'g1', name: 'GROUP_A', participants: ids1, standings: [], schedule: schedule1 },
+			{ id: 'g2', name: 'GROUP_B', participants: ids2, standings: [], schedule: schedule2 }
+		];
+
+		assignTablesGlobally(groups, 8);
+
+		// 6 players = 3 matches per round × 2 groups = 6 matches per round, 8 tables → all should fit
+		for (let r = 0; r < schedule1.length; r++) {
+			const tablesInRound = new Set<number>();
+			for (const group of groups) {
+				if (!group.schedule || r >= group.schedule.length) continue;
+				for (const match of group.schedule[r].matches) {
+					if (match.participantB === 'BYE' || match.tableNumber === undefined) continue;
+					expect(tablesInRound.has(match.tableNumber)).toBe(false);
+					tablesInRound.add(match.tableNumber);
+				}
+			}
+			// All 6 matches should have tables
+			expect(tablesInRound.size).toBe(6);
+		}
+	});
+});

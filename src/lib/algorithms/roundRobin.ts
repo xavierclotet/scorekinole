@@ -267,14 +267,27 @@ export function assignTablesToRounds(
       if (minA === Infinity) minA = 0;
       if (minB === Infinity) minB = 0;
 
+      // Track global table usage across ALL matches (for diversity tiebreak)
+      // Build once: count how many times each table has been assigned so far
+      const globalTableUsage = new Map<number, number>();
+      for (const hist of tableHistory.values()) {
+        for (const t of hist) {
+          globalTableUsage.set(t, (globalTableUsage.get(t) || 0) + 1);
+        }
+      }
+
       // Find the best available table using Fair Table Rotation:
       // 1. Is NOT already used in this round (CRITICAL - includes other groups)
       // 2. Lowest primaryScore = max(deltaA, deltaB) — cycle fairness
-      // 3. Lowest secondaryScore = usageA + usageB — global balance
-      // 4. Not recently used — recency tiebreak
+      // 3. Lowest maxUsage = max(uA, uB) — prefer tables neither player has visited much
+      // 4. Lowest secondaryScore = uA + uB — combined balance
+      // 5. Lowest globalUsage — spread load across all tables in the tournament
+      // 6. Not recently used — recency tiebreak
       let bestTable: number | null = null;
       let bestPrimary = Infinity;
+      let bestMaxUsage = Infinity;
       let bestSecondary = Infinity;
+      let bestGlobal = Infinity;
 
       for (let table = 1; table <= totalTables; table++) {
         // CRITICAL: Skip if table already used in this round (by this or other groups)
@@ -288,15 +301,23 @@ export function assignTablesToRounds(
         const deltaA = uA - minA;
         const deltaB = uB - minB;
         const primaryScore = Math.max(deltaA, deltaB);
+        const maxUsage = Math.max(uA, uB);
         const secondaryScore = uA + uB;
+        const globalUsage = globalTableUsage.get(table) || 0;
 
+        // Compare tuple: (primaryScore, maxUsage, secondaryScore, globalUsage) — all ascending
         if (primaryScore < bestPrimary
-            || (primaryScore === bestPrimary && secondaryScore < bestSecondary)) {
+            || (primaryScore === bestPrimary && maxUsage < bestMaxUsage)
+            || (primaryScore === bestPrimary && maxUsage === bestMaxUsage && secondaryScore < bestSecondary)
+            || (primaryScore === bestPrimary && maxUsage === bestMaxUsage && secondaryScore === bestSecondary && globalUsage < bestGlobal)) {
           bestPrimary = primaryScore;
+          bestMaxUsage = maxUsage;
           bestSecondary = secondaryScore;
+          bestGlobal = globalUsage;
           bestTable = table;
-        } else if (primaryScore === bestPrimary && secondaryScore === bestSecondary) {
-          // Tie-breaker: prefer tables not recently used
+        } else if (primaryScore === bestPrimary && maxUsage === bestMaxUsage
+                   && secondaryScore === bestSecondary && globalUsage === bestGlobal) {
+          // Final tie-breaker: prefer tables not recently used by either player
           const recentA = usedByA.length > 0 && usedByA[usedByA.length - 1] === table;
           const recentB = usedByB.length > 0 && usedByB[usedByB.length - 1] === table;
           const currentRecentA = usedByA.length > 0 && usedByA[usedByA.length - 1] === bestTable;

@@ -200,6 +200,30 @@
 			.toSorted((a, b) => (a.finalPosition || 99) - (b.finalPosition || 99)) || []
 	);
 
+	// Standings sort state: null = default (by position), '20s' or 'pts' = sorted by that column
+	let standingsSortBy: 'position' | '20s' | 'pts' = $state('position');
+
+	function toggleStandingsSort(col: '20s' | 'pts') {
+		standingsSortBy = standingsSortBy === col ? 'position' : col;
+	}
+
+	let sortedStandings = $derived.by(() => {
+		if (standingsSortBy === 'position') return finalStandings;
+		return [...finalStandings].sort((a, b) => {
+			if (standingsSortBy === '20s') {
+				const a20s = getParticipantTotal20s(a.id).total;
+				const b20s = getParticipantTotal20s(b.id).total;
+				return b20s - a20s;
+			}
+			if (standingsSortBy === 'pts') {
+				const aPts = getRankingPoints(a.finalPosition || 0);
+				const bPts = getRankingPoints(b.finalPosition || 0);
+				return bPts - aPts;
+			}
+			return 0;
+		});
+	});
+
 	// Get ranking points earned based on final position and tier
 	function getRankingPoints(position: number): number {
 		if (!tournament?.rankingConfig?.enabled) return 0;
@@ -1156,16 +1180,30 @@
 				<!-- Final Standings (for completed tournaments) -->
 				{#if isCompleted && !tournament.isImported && finalStandings.length > 0}
 					<!-- LIVE tournaments: show all participants with ranking points -->
-					{@const halfIndex = Math.ceil(finalStandings.length / 2)}
-					{@const leftColumn = finalStandings.slice(0, halfIndex)}
-					{@const rightColumn = finalStandings.slice(halfIndex)}
+					{@const isSorted = standingsSortBy !== 'position'}
+					{@const displayList = sortedStandings}
+					{@const halfIndex = Math.ceil(displayList.length / 2)}
 					<div class="podium-section full-standings">
 						<div class="podium-header">
 							<span class="podium-title">{m.tournament_finalStandings()}</span>
 						</div>
-						<div class="standings-grid">
+						<div class="standings-grid" class:single-column={isSorted}>
 							<div class="standings-column">
-								{#each leftColumn as participant}
+								<div class="standing-row standings-header">
+									<button class="sort-header-btn" class:active={!isSorted} onclick={() => { standingsSortBy = 'position'; }}>#</button>
+									<div class="participant-cell"><span class="name">{m.common_name()}</span></div>
+									{#if tournament.show20s}
+										<button class="sort-header-btn twenties" class:active={standingsSortBy === '20s'} onclick={() => toggleStandingsSort('20s')}>
+											20s {standingsSortBy === '20s' ? '▼' : ''}
+										</button>
+									{/if}
+									{#if tournament.rankingConfig?.enabled}
+										<button class="sort-header-btn pts" class:active={standingsSortBy === 'pts'} onclick={() => toggleStandingsSort('pts')}>
+											{m.ranking_pointsShort()} {standingsSortBy === 'pts' ? '▼' : ''}
+										</button>
+									{/if}
+								</div>
+								{#each (isSorted ? displayList : displayList.slice(0, halfIndex)) as participant}
 									{@const rankingPts = getRankingPoints(participant.finalPosition || 0)}
 									{@const isMedal = participant.finalPosition && participant.finalPosition <= 3}
 									{@const t20s = tournament.show20s ? getParticipantTotal20s(participant.id) : { group: 0, bracket: 0, total: 0 }}
@@ -1202,44 +1240,60 @@
 									</div>
 								{/each}
 							</div>
-							<div class="standings-column">
-								{#each rightColumn as participant}
-									{@const rankingPts = getRankingPoints(participant.finalPosition || 0)}
-									{@const isMedal = participant.finalPosition && participant.finalPosition <= 3}
-									{@const t20s = tournament.show20s ? getParticipantTotal20s(participant.id) : { group: 0, bracket: 0, total: 0 }}
-									<div class="standing-row" class:top-4={participant.finalPosition && participant.finalPosition <= 4}>
-										<span class="pos" class:medal={isMedal}>
-											{#if participant.finalPosition === 1}
-												🥇
-											{:else if participant.finalPosition === 2}
-												🥈
-											{:else if participant.finalPosition === 3}
-												🥉
-											{:else}
-												{participant.finalPosition}º
-											{/if}
-										</span>
-										<div class="participant-cell">
-											{@render participantAvatar(participant.id, 'sm')}
-											<span class="name">{getParticipantName(participant.id)}</span>
-										</div>
+							{#if !isSorted}
+								<div class="standings-column">
+									<div class="standing-row standings-header">
+										<button class="sort-header-btn" class:active={!isSorted} onclick={() => { standingsSortBy = 'position'; }}>#</button>
+										<div class="participant-cell"><span class="name">{m.common_name()}</span></div>
 										{#if tournament.show20s}
-											<span class="twenties" title={m.tournament_totalTwentiesLabel()}>
-												{#if hasBothPhases}
-													{t20s.total} <span class="twenties-breakdown">({t20s.group}+{t20s.bracket})</span>
-												{:else}
-													{t20s.total}
-												{/if}
-											</span>
+											<button class="sort-header-btn twenties" class:active={standingsSortBy === '20s'} onclick={() => toggleStandingsSort('20s')}>
+												20s
+											</button>
 										{/if}
 										{#if tournament.rankingConfig?.enabled}
-											<span class="pts" class:zero={rankingPts === 0}>
-												{rankingPts > 0 ? `+${rankingPts}` : '0'}
-											</span>
+											<button class="sort-header-btn pts" class:active={standingsSortBy === 'pts'} onclick={() => toggleStandingsSort('pts')}>
+												{m.ranking_pointsShort()}
+											</button>
 										{/if}
 									</div>
-								{/each}
-							</div>
+									{#each displayList.slice(halfIndex) as participant}
+										{@const rankingPts = getRankingPoints(participant.finalPosition || 0)}
+										{@const isMedal = participant.finalPosition && participant.finalPosition <= 3}
+										{@const t20s = tournament.show20s ? getParticipantTotal20s(participant.id) : { group: 0, bracket: 0, total: 0 }}
+										<div class="standing-row" class:top-4={participant.finalPosition && participant.finalPosition <= 4}>
+											<span class="pos" class:medal={isMedal}>
+												{#if participant.finalPosition === 1}
+													🥇
+												{:else if participant.finalPosition === 2}
+													🥈
+												{:else if participant.finalPosition === 3}
+													🥉
+												{:else}
+													{participant.finalPosition}º
+												{/if}
+											</span>
+											<div class="participant-cell">
+												{@render participantAvatar(participant.id, 'sm')}
+												<span class="name">{getParticipantName(participant.id)}</span>
+											</div>
+											{#if tournament.show20s}
+												<span class="twenties" title={m.tournament_totalTwentiesLabel()}>
+													{#if hasBothPhases}
+														{t20s.total} <span class="twenties-breakdown">({t20s.group}+{t20s.bracket})</span>
+													{:else}
+														{t20s.total}
+													{/if}
+												</span>
+											{/if}
+											{#if tournament.rankingConfig?.enabled}
+												<span class="pts" class:zero={rankingPts === 0}>
+													{rankingPts > 0 ? `+${rankingPts}` : '0'}
+												</span>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							{/if}
 						</div>
 					</div>
 				{:else if isCompleted && tournament.isImported && isParallelBrackets && parallelBrackets.length > 0}
@@ -4068,12 +4122,70 @@
 		.standings-grid {
 			grid-template-columns: 1fr;
 		}
+
+		.standings-column:last-child .standings-header {
+			display: none;
+		}
 	}
 
 	.standings-column {
 		display: flex;
 		flex-direction: column;
 		gap: 0.15rem;
+	}
+
+	.standings-header {
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		margin-bottom: 0.15rem;
+		padding-bottom: 0.3rem;
+	}
+
+	.standings-grid.single-column {
+		grid-template-columns: 1fr;
+	}
+
+	.standings-header .name {
+		font-size: 0.65rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: #8b9bb3;
+	}
+
+	.sort-header-btn {
+		background: none;
+		border: none;
+		cursor: pointer;
+		font-size: 0.65rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: #8b9bb3;
+		padding: 2px 0;
+		border-radius: 3px;
+		transition: all 0.15s;
+		white-space: nowrap;
+		min-width: 1.5rem;
+		text-align: center;
+	}
+
+	.sort-header-btn:hover {
+		color: #e1e8ed;
+		background: rgba(255, 255, 255, 0.08);
+	}
+
+	.sort-header-btn.active {
+		color: var(--primary);
+	}
+
+	.sort-header-btn.twenties {
+		min-width: 1.5rem;
+		text-align: center;
+	}
+
+	.sort-header-btn.pts {
+		min-width: 2rem;
+		text-align: center;
 	}
 
 	.standing-row {
@@ -4122,7 +4234,7 @@
 		color: #f59e0b;
 		font-size: 0.7rem;
 		min-width: 1.5rem;
-		text-align: right;
+		text-align: center;
 		white-space: nowrap;
 	}
 
@@ -4137,7 +4249,7 @@
 		color: #10b981;
 		font-size: 0.7rem;
 		min-width: 2rem;
-		text-align: right;
+		text-align: center;
 	}
 
 	.standing-row .pts.zero {

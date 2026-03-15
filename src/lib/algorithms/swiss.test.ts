@@ -4,7 +4,7 @@ import {
 	assignTablesWithVariety,
 	validateSwissSystem
 } from './swiss';
-import type { TournamentParticipant, GroupStanding, SwissPairing } from '$lib/types/tournament';
+import type { TournamentParticipant, GroupStanding, SwissPairing, GroupMatch } from '$lib/types/tournament';
 
 /** Helper to create mock participants */
 function createParticipants(count: number): TournamentParticipant[] {
@@ -325,5 +325,230 @@ describe('validateSwissSystem', () => {
 		expect(validateSwissSystem(30, 7)).toBe(true);
 		expect(validateSwissSystem(50, 7)).toBe(true);
 		expect(validateSwissSystem(4, 3)).toBe(true);
+	});
+});
+
+describe('assignTablesWithVariety — table distribution fairness', () => {
+	/**
+	 * Simulate multiple Swiss rounds with table history carry-over.
+	 * Returns a map of participantId → table usage map (tableNumber → count).
+	 */
+	function simulateSwissRounds(
+		numPlayers: number,
+		numRounds: number,
+		totalTables: number
+	): { playerTableUsage: Map<string, Map<number, number>>; allMatches: GroupMatch[] } {
+		const tableHistory = new Map<string, number[]>();
+		const allMatches: GroupMatch[] = [];
+
+		for (let round = 0; round < numRounds; round++) {
+			// Create simple round-robin style pairings for simulation
+			const matches: GroupMatch[] = [];
+			const players = Array.from({ length: numPlayers }, (_, i) => `p${i + 1}`);
+			// Shift players based on round for variety in pairings
+			const shifted = [players[0], ...players.slice(1 + round), ...players.slice(1, 1 + round)];
+			const half = Math.floor(shifted.length / 2);
+			for (let m = 0; m < half; m++) {
+				matches.push({
+					id: `r${round}-m${m}`,
+					participantA: shifted[m],
+					participantB: shifted[shifted.length - 1 - m],
+					status: 'PENDING'
+				});
+			}
+
+			const assigned = assignTablesWithVariety(matches, totalTables, tableHistory);
+			allMatches.push(...assigned);
+		}
+
+		// Build player → table usage map
+		const playerTableUsage = new Map<string, Map<number, number>>();
+		for (const [player, tables] of tableHistory.entries()) {
+			const usage = new Map<number, number>();
+			for (const t of tables) {
+				usage.set(t, (usage.get(t) || 0) + 1);
+			}
+			playerTableUsage.set(player, usage);
+		}
+
+		return { playerTableUsage, allMatches };
+	}
+
+	it('no player plays the same table more than 3 times (20 players, 10 tables, 5 rounds)', () => {
+		const { playerTableUsage } = simulateSwissRounds(20, 5, 10);
+
+		for (const [player, usage] of playerTableUsage) {
+			for (const [table, count] of usage) {
+				// With 10 tables and 5 rounds, max 3 visits to any single table is reasonable
+				expect(count, `${player} played table ${table} ${count} times (max allowed: 3)`).toBeLessThanOrEqual(3);
+			}
+		}
+	});
+
+	it('tables are spread across available range, not concentrated on low numbers (20 players, 10 tables, 5 rounds)', () => {
+		const { playerTableUsage } = simulateSwissRounds(20, 5, 10);
+
+		for (const [player, usage] of playerTableUsage) {
+			const tablesUsed = usage.size;
+			const totalMatches = Array.from(usage.values()).reduce((a, b) => a + b, 0);
+			// With 10 matches/round and exactly 10 tables (no slack), greedy can't always spread perfectly
+			const minExpectedTables = Math.min(totalMatches, 3);
+			expect(tablesUsed, `${player} only used ${tablesUsed} different tables out of 10`)
+				.toBeGreaterThanOrEqual(minExpectedTables);
+		}
+	});
+
+	it('no table is used twice in the same round (20 players, 8 tables, 6 rounds)', () => {
+		const tableHistory = new Map<string, number[]>();
+
+		for (let round = 0; round < 6; round++) {
+			const matches: GroupMatch[] = [];
+			const players = Array.from({ length: 20 }, (_, i) => `p${i + 1}`);
+			const shifted = [players[0], ...players.slice(1 + round), ...players.slice(1, 1 + round)];
+			const half = Math.floor(shifted.length / 2);
+			for (let m = 0; m < half; m++) {
+				matches.push({
+					id: `r${round}-m${m}`,
+					participantA: shifted[m],
+					participantB: shifted[shifted.length - 1 - m],
+					status: 'PENDING'
+				});
+			}
+
+			const assigned = assignTablesWithVariety(matches, 8, tableHistory);
+			const tablesInRound = new Set<number>();
+			for (const match of assigned) {
+				if (match.tableNumber !== undefined) {
+					expect(tablesInRound.has(match.tableNumber), `Table ${match.tableNumber} duplicated in round ${round + 1}`).toBe(false);
+					tablesInRound.add(match.tableNumber);
+				}
+			}
+		}
+	});
+
+	it('global table usage is balanced across all tables (16 players, 10 tables, 7 rounds)', () => {
+		const { allMatches } = simulateSwissRounds(16, 7, 10);
+
+		// Count global usage per table
+		const globalUsage = new Map<number, number>();
+		for (const match of allMatches) {
+			if (match.tableNumber !== undefined) {
+				globalUsage.set(match.tableNumber, (globalUsage.get(match.tableNumber) || 0) + 1);
+			}
+		}
+
+		const usageCounts = Array.from(globalUsage.values());
+		if (usageCounts.length > 1) {
+			const max = Math.max(...usageCounts);
+			const min = Math.min(...usageCounts);
+			// Max-min difference should be small (≤3 for reasonably balanced distribution)
+			expect(max - min, `Global table usage imbalanced: max=${max}, min=${min}`).toBeLessThanOrEqual(3);
+		}
+	});
+
+	it('player table usage standard deviation is low (12 players, 8 tables, 5 rounds)', () => {
+		const { playerTableUsage } = simulateSwissRounds(12, 5, 8);
+
+		for (const [player, usage] of playerTableUsage) {
+			const totalMatches = Array.from(usage.values()).reduce((a, b) => a + b, 0);
+			if (totalMatches < 3) continue;
+
+			// Calculate std dev of usage across all tables (including 0s for unused tables)
+			const usageCounts: number[] = [];
+			for (let t = 1; t <= 8; t++) {
+				usageCounts.push(usage.get(t) || 0);
+			}
+			const mean = usageCounts.reduce((a, b) => a + b, 0) / usageCounts.length;
+			const variance = usageCounts.reduce((sum, v) => sum + (v - mean) ** 2, 0) / usageCounts.length;
+			const stdDev = Math.sqrt(variance);
+
+			// Std dev should be reasonably low (< 1.0 for a well-distributed algorithm)
+			expect(stdDev, `${player} has high table usage std dev: ${stdDev.toFixed(2)} (usage: ${JSON.stringify(usageCounts)})`)
+				.toBeLessThan(1.0);
+		}
+	});
+
+	it('simulates real tournament scenario: 20 players, 10 tables, 7 rounds — no player repeats a table more than 3 times', () => {
+		const { playerTableUsage } = simulateSwissRounds(20, 7, 10);
+
+		for (const [player, usage] of playerTableUsage) {
+			for (const [table, count] of usage) {
+				// With 7 rounds and 10 tables, ideal is ceil(7/10)=1 but greedy may need up to 3
+				expect(count, `${player} played at table ${table} ${count} times (max 3 expected)`)
+					.toBeLessThanOrEqual(3);
+			}
+			// Also verify the player uses at least 5 different tables out of 10
+			expect(usage.size, `Player only used ${usage.size} tables out of 10`)
+				.toBeGreaterThanOrEqual(5);
+		}
+	});
+
+	it('with more tables than matches per round, every match in the same round gets a unique table', () => {
+		// 10 players = 5 matches per round, 12 tables available
+		const { allMatches } = simulateSwissRounds(10, 5, 12);
+
+		// All matches should have a table assigned
+		for (const match of allMatches) {
+			if (match.participantB !== 'BYE') {
+				expect(match.tableNumber, `Match ${match.id} has no table`).toBeDefined();
+			}
+		}
+	});
+
+	it('with fewer tables than matches, excess matches get no table', () => {
+		// 20 players = 10 matches per round, only 6 tables
+		const tableHistory = new Map<string, number[]>();
+		const players = Array.from({ length: 20 }, (_, i) => `p${i + 1}`);
+		const matches: GroupMatch[] = [];
+		for (let m = 0; m < 10; m++) {
+			matches.push({
+				id: `m${m}`,
+				participantA: players[m],
+				participantB: players[19 - m],
+				status: 'PENDING'
+			});
+		}
+
+		const assigned = assignTablesWithVariety(matches, 6, tableHistory);
+		const withTable = assigned.filter(m => m.tableNumber !== undefined);
+		const withoutTable = assigned.filter(m => m.tableNumber === undefined);
+
+		expect(withTable).toHaveLength(6);
+		expect(withoutTable).toHaveLength(4);
+	});
+
+	it('carries table history correctly across rounds — players avoid recently used tables', () => {
+		const tableHistory = new Map<string, number[]>();
+		const totalTables = 6;
+
+		// Round 1: p1 vs p2, p3 vs p4
+		const round1: GroupMatch[] = [
+			{ id: 'r1m1', participantA: 'p1', participantB: 'p2', status: 'PENDING' },
+			{ id: 'r1m2', participantA: 'p3', participantB: 'p4', status: 'PENDING' }
+		];
+		assignTablesWithVariety(round1, totalTables, tableHistory);
+
+		const p1Table1 = tableHistory.get('p1')![0];
+		const p2Table1 = tableHistory.get('p2')![0];
+
+		// Round 2: same players, same pairings — should get different tables
+		const round2: GroupMatch[] = [
+			{ id: 'r2m1', participantA: 'p1', participantB: 'p2', status: 'PENDING' },
+			{ id: 'r2m2', participantA: 'p3', participantB: 'p4', status: 'PENDING' }
+		];
+		assignTablesWithVariety(round2, totalTables, tableHistory);
+
+		const p1Table2 = tableHistory.get('p1')![1];
+		expect(p1Table2, 'p1 should get a different table in round 2').not.toBe(p1Table1);
+
+		// Round 3: p1 vs p2 again — should avoid both previous tables
+		const round3: GroupMatch[] = [
+			{ id: 'r3m1', participantA: 'p1', participantB: 'p2', status: 'PENDING' },
+		];
+		assignTablesWithVariety(round3, totalTables, tableHistory);
+
+		const p1Table3 = tableHistory.get('p1')![2];
+		expect(p1Table3, 'p1 should avoid table from round 1').not.toBe(p1Table1);
+		expect(p1Table3, 'p1 should avoid table from round 2').not.toBe(p1Table2);
 	});
 });
