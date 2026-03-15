@@ -145,7 +145,8 @@ export async function updateMatchResult(
       twentiesA: number;
       twentiesB: number;
     }>;
-  }
+  },
+  allowOverwrite = false
 ): Promise<boolean> {
   if (!db) {
     console.error('Firestore not initialized');
@@ -219,7 +220,8 @@ export async function updateMatchResult(
         : group.pairings![roundIndex].matches[matchIndex];
 
       // Prevent overwriting already completed matches (idempotency guard)
-      if (match.status === 'COMPLETED' || match.status === 'WALKOVER') {
+      // allowOverwrite=true for admin edits of completed matches
+      if (!allowOverwrite && (match.status === 'COMPLETED' || match.status === 'WALKOVER')) {
         return;
       }
 
@@ -2609,7 +2611,8 @@ export async function completeTournamentMatch(
       twentiesB: number;
       hammer?: string | null;
     }>;
-  }
+  },
+  allowOverwrite = false
 ): Promise<boolean> {
   if (!browser || !isFirebaseEnabled()) {
     return false;
@@ -2628,7 +2631,7 @@ export async function completeTournamentMatch(
         rounds: result.rounds,
         videoUrl: result.videoUrl,
         videoId: result.videoId
-      });
+      }, allowOverwrite);
       return success;
     } else {
       // For bracket matches, use single atomic transaction for phase detection + update + advance

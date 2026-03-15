@@ -325,6 +325,7 @@
     }
     // If tied, winner remains undefined
 
+    const isOverwrite = selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'WALKOVER';
     const success = await completeMatch(
       tournamentId,
       selectedMatch.id,
@@ -339,7 +340,8 @@
         totalPointsB: result.totalPointsB || 0,
         total20sA: result.total20sA || 0,
         total20sB: result.total20sB || 0
-      }
+      },
+      isOverwrite
     );
 
     if (success) {

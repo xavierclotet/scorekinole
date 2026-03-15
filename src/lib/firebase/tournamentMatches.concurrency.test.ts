@@ -1356,3 +1356,132 @@ describe('Timer auto-reset on round completion', () => {
     expect(updated.countdownTimer!.remaining).toBe(600); // Full reset
   });
 });
+
+// ─── Admin overwrite of completed matches ─────────────────────────────────────
+
+describe('updateMatchResult — admin overwrite of completed matches', () => {
+  it('rejects overwriting a completed match without allowOverwrite', async () => {
+    const tournament = createTestTournament({ numParticipants: 10 });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament, 0);
+    const match = matches[0];
+
+    // Complete the match first
+    const firstResult = createMatchResult(2, 0, 8, 2, 1, 0);
+    await updateMatchResult(tournament.id, match.id, firstResult);
+
+    // Verify it's completed
+    const afterFirst = readTournament(tournament.id);
+    const completedMatch = findMatchInTournament(afterFirst, match.id)!;
+    expect(completedMatch.status).toBe('COMPLETED');
+    expect(completedMatch.gamesWonA).toBe(2);
+
+    // Try to overwrite without allowOverwrite — should silently fail (idempotency guard)
+    const secondResult = createMatchResult(0, 2, 2, 8, 0, 1);
+    await updateMatchResult(tournament.id, match.id, secondResult);
+
+    // Match should still have original result
+    const afterSecond = readTournament(tournament.id);
+    const unchangedMatch = findMatchInTournament(afterSecond, match.id)!;
+    expect(unchangedMatch.gamesWonA).toBe(2);
+    expect(unchangedMatch.gamesWonB).toBe(0);
+  });
+
+  it('allows overwriting a completed match with allowOverwrite=true (admin edit)', async () => {
+    const tournament = createTestTournament({ numParticipants: 10 });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament, 0);
+    const match = matches[0];
+
+    // Complete the match first
+    const firstResult = createMatchResult(2, 0, 8, 2, 1, 0);
+    await updateMatchResult(tournament.id, match.id, firstResult);
+
+    // Verify it's completed with original values
+    const afterFirst = readTournament(tournament.id);
+    const completedMatch = findMatchInTournament(afterFirst, match.id)!;
+    expect(completedMatch.status).toBe('COMPLETED');
+    expect(completedMatch.gamesWonA).toBe(2);
+    expect(completedMatch.gamesWonB).toBe(0);
+
+    // Overwrite with allowOverwrite=true — should succeed (admin fixing a mistake)
+    const correctedResult = createMatchResult(0, 2, 2, 8, 0, 1);
+    const success = await updateMatchResult(tournament.id, match.id, correctedResult, true);
+    expect(success).toBe(true);
+
+    // Match should now have corrected result
+    const afterOverwrite = readTournament(tournament.id);
+    const correctedMatch = findMatchInTournament(afterOverwrite, match.id)!;
+    expect(correctedMatch.status).toBe('COMPLETED');
+    expect(correctedMatch.gamesWonA).toBe(0);
+    expect(correctedMatch.gamesWonB).toBe(2);
+    expect(correctedMatch.totalPointsA).toBe(2);
+    expect(correctedMatch.totalPointsB).toBe(8);
+  });
+
+  it('recalculates standings after admin overwrite', async () => {
+    const tournament = createTestTournament({ numParticipants: 6 });
+    seedTournament(tournament);
+
+    const matches = getInProgressMatches(tournament, 0);
+    const match = matches[0];
+    const playerA = match.participantA;
+    const playerB = match.participantB;
+
+    // Complete: A wins 2-0
+    await updateMatchResult(tournament.id, match.id, createMatchResult(2, 0, 8, 2, 1, 0));
+
+    const after1 = readTournament(tournament.id);
+    const standings1 = after1.groupStage!.groups[0].standings;
+    const standingA1 = standings1.find(s => s.participantId === playerA);
+    const standingB1 = standings1.find(s => s.participantId === playerB);
+    expect(standingA1!.matchesWon).toBe(1);
+    expect(standingB1!.matchesLost).toBe(1);
+
+    // Admin overwrites: B wins 2-0 instead
+    await updateMatchResult(tournament.id, match.id, createMatchResult(0, 2, 2, 8, 0, 1), true);
+
+    const after2 = readTournament(tournament.id);
+    const standings2 = after2.groupStage!.groups[0].standings;
+    const standingA2 = standings2.find(s => s.participantId === playerA);
+    const standingB2 = standings2.find(s => s.participantId === playerB);
+    // Standings should reflect the corrected result
+    expect(standingA2!.matchesWon).toBe(0);
+    expect(standingB2!.matchesWon).toBe(1);
+  });
+
+  it('allows overwriting a walkover match with allowOverwrite=true', async () => {
+    const tournament = createTestTournament({ numParticipants: 10 });
+    seedTournament(tournament);
+
+    // Find a non-BYE match to test walkover overwrite
+    const matches = getInProgressMatches(tournament, 0);
+    const match = matches[0];
+
+    // First, manually set the match as WALKOVER in the store
+    const t = readTournament(tournament.id);
+    const m = findMatchInTournament(t, match.id)!;
+    m.status = 'WALKOVER';
+    m.winner = m.participantA;
+    m.gamesWonA = 2;
+    m.gamesWonB = 0;
+    seedTournament(t);
+
+    // Try to overwrite without allowOverwrite — should be blocked
+    await updateMatchResult(tournament.id, match.id, createMatchResult(1, 1, 5, 5, 0, 0));
+    const afterBlock = readTournament(tournament.id);
+    expect(findMatchInTournament(afterBlock, match.id)!.status).toBe('WALKOVER');
+
+    // Overwrite with allowOverwrite=true — should succeed
+    const success = await updateMatchResult(tournament.id, match.id, createMatchResult(1, 1, 5, 5, 0, 0), true);
+    expect(success).toBe(true);
+
+    const afterOverwrite = readTournament(tournament.id);
+    const fixed = findMatchInTournament(afterOverwrite, match.id)!;
+    expect(fixed.status).toBe('COMPLETED');
+    expect(fixed.gamesWonA).toBe(1);
+    expect(fixed.gamesWonB).toBe(1);
+  });
+});

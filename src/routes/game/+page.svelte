@@ -118,7 +118,8 @@
 	let canAssignPartnerToTeam2 = $derived(!inTournamentMode && !!$currentUser && $gameSettings.gameType === 'doubles');
 
 	// Assign-yourself hint: show when logged in, friendly mode, user not assigned to either team
-	let assignHintDismissed = $state(false);
+	// Persisted in localStorage so it only shows once
+	let assignHintDismissed = $state(typeof localStorage !== 'undefined' && localStorage.getItem('assignHintDismissed') === '1');
 	let shouldShowAssignHint = $derived(
 		!assignHintDismissed &&
 		!inTournamentMode &&
@@ -130,10 +131,11 @@
 
 	function dismissAssignHint() {
 		assignHintDismissed = true;
+		localStorage.setItem('assignHintDismissed', '1');
 	}
 
 	// Invite-opponent hint: show after user assigned themselves, opponent slot is empty
-	let inviteHintDismissed = $state(false);
+	let inviteHintDismissed = $state(typeof localStorage !== 'undefined' && localStorage.getItem('inviteHintDismissed') === '1');
 	let shouldShowInviteHint = $derived(
 		!inviteHintDismissed &&
 		!inTournamentMode &&
@@ -145,6 +147,7 @@
 
 	function dismissInviteHint() {
 		inviteHintDismissed = true;
+		localStorage.setItem('inviteHintDismissed', '1');
 	}
 
 	// Friendly match header info

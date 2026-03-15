@@ -131,7 +131,8 @@ export async function completeMatch(
   matchId: string,
   phase: 'GROUP' | 'FINAL',
   groupId: string | undefined,
-  data: MatchCompleteData
+  data: MatchCompleteData,
+  allowOverwrite = false
 ): Promise<boolean> {
   if (!browser || !isFirebaseEnabled()) {
     console.log('⏭️ completeMatch skipped: Firebase disabled');
@@ -164,7 +165,8 @@ export async function completeMatch(
         rounds: data.rounds,
         videoUrl: data.videoUrl,
         videoId: data.videoId
-      }
+      },
+      allowOverwrite
     );
 
     if (success) {
