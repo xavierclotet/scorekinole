@@ -1,5 +1,5 @@
 ---
-route: "/rankings"
+route: "/ranking"
 title: "Player Rankings & Leaderboard"
 description: "Ranking global de jugadores basado en resultados de torneos completados, con filtros por año, país y best-of-N."
 ---

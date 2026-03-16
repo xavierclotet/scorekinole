@@ -93,7 +93,7 @@
 	}
 
 	function goToRankings() {
-		goto('/rankings');
+		goto('/ranking');
 	}
 
 	function goToAdmin() {

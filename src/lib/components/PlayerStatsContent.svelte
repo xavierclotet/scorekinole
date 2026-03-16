@@ -1,0 +1,1307 @@
+<script lang="ts">
+	import * as m from '$lib/paraglide/messages.js';
+	import type { MatchHistory } from '$lib/types/history';
+	import type { TournamentRecord } from '$lib/types/tournament';
+	import { PAGE_SIZE } from '$lib/constants';
+	import { ChevronRight, Trophy, Users, User } from '@lucide/svelte';
+	import { SvelteSet } from 'svelte/reactivity';
+	import WinLossDonut from '$lib/components/charts/WinLossDonut.svelte';
+	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
+	import TwentiesAccuracyDonut from '$lib/components/charts/TwentiesAccuracyDonut.svelte';
+	import TwentiesHammerChart from '$lib/components/charts/TwentiesHammerChart.svelte';
+	import TwentiesPerRoundTrend from '$lib/components/charts/TwentiesPerRoundTrend.svelte';
+	import TwentiesAccuracyLine from '$lib/components/charts/TwentiesAccuracyLine.svelte';
+	import TwentiesByPhase from '$lib/components/charts/TwentiesByPhase.svelte';
+	import TournamentPositionsChart from '$lib/components/charts/TournamentPositionsChart.svelte';
+	import {
+		buildTwentiesHammerData,
+		buildTwentiesPerRoundData,
+		buildTwentiesAccuracyData,
+		buildTwentiesByPhaseData,
+	} from '$lib/utils/chartData';
+
+	interface Props {
+		matches: MatchHistory[];
+		userId: string;
+		tournamentRecords: TournamentRecord[];
+		show20s: boolean;
+		showFriendlyFilter?: boolean;
+		showPerfectBadge?: boolean;
+	}
+
+	let {
+		matches,
+		userId,
+		tournamentRecords,
+		show20s,
+		showFriendlyFilter = true,
+		showPerfectBadge = true,
+	}: Props = $props();
+
+	// Filter state
+	let filterType: 'all' | 'friendly' | 'tournament' = $state('all');
+	let filterMode: 'all' | 'singles' | 'doubles' = $state('all');
+	let filterResult: 'all' | 'won' | 'lost' | 'tied' = $state('all');
+	let filterOpponent = $state('');
+	let filterTournament = $state('');
+	let filterYear = $state(new Date().getFullYear().toString());
+
+	// Expanded matches for detail view
+	let expandedMatches = new SvelteSet<string>();
+
+	// Determine if match is tournament or friendly
+	function isTournamentMatch(match: MatchHistory): boolean {
+		return match.id.startsWith('tournament_');
+	}
+
+	// Pre-computed map of match ID → user team
+	let userTeamMap = $derived((() => {
+		const map = new Map<string, 1 | 2 | null>();
+		for (const match of matches) {
+			let team: 1 | 2 | null = null;
+			if (match.players?.team1?.userId === userId) team = 1;
+			else if (match.players?.team2?.userId === userId) team = 2;
+			else if (match.players?.team1?.partner?.userId === userId) team = 1;
+			else if (match.players?.team2?.partner?.userId === userId) team = 2;
+			map.set(match.id, team);
+		}
+		return map;
+	})());
+
+	function getUserTeam(match: MatchHistory): 1 | 2 | null {
+		return userTeamMap.get(match.id) ?? null;
+	}
+
+	function getTeamDisplayName(match: MatchHistory, teamNumber: 1 | 2): string {
+		const teamName = teamNumber === 1 ? match.team1Name : match.team2Name;
+		if (isTournamentMatch(match)) {
+			return teamName || 'Unknown';
+		}
+		const isDoubles = match.gameType === 'doubles';
+		const partner = teamNumber === 1
+			? match.players?.team1?.partner
+			: match.players?.team2?.partner;
+		if (isDoubles && partner?.name) {
+			return `${teamName} & ${partner.name}`;
+		}
+		return teamName || 'Unknown';
+	}
+
+	function getOpponentName(match: MatchHistory): string {
+		const userTeam = getUserTeam(match);
+		if (userTeam === 1) return getTeamDisplayName(match, 2);
+		if (userTeam === 2) return getTeamDisplayName(match, 1);
+		return `${getTeamDisplayName(match, 1)} vs ${getTeamDisplayName(match, 2)}`;
+	}
+
+	function getMyPartnerName(match: MatchHistory): string | null {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) return null;
+		const partner = userTeam === 1
+			? match.players?.team1?.partner
+			: match.players?.team2?.partner;
+		return partner?.name || null;
+	}
+
+	let uniqueOpponents = $derived((() => {
+		const opponents = new SvelteSet<string>();
+		for (const match of matches) {
+			const userTeam = getUserTeam(match);
+			if (userTeam === 1) opponents.add(getTeamDisplayName(match, 2));
+			if (userTeam === 2) opponents.add(getTeamDisplayName(match, 1));
+		}
+		return Array.from(opponents).sort();
+	})());
+
+	let uniqueTournaments = $derived((() => {
+		const tournaments = new SvelteSet<string>();
+		for (const match of matches) {
+			if (isTournamentMatch(match) && match.eventTitle) {
+				tournaments.add(match.eventTitle);
+			}
+		}
+		return Array.from(tournaments).sort();
+	})());
+
+	let uniqueYears = $derived((() => {
+		const years = new SvelteSet<number>();
+		for (const match of matches) {
+			years.add(new Date(match.startTime).getFullYear());
+		}
+		return Array.from(years).sort((a, b) => b - a);
+	})());
+
+	let filteredMatches = $derived((() => {
+		return matches.filter((match) => {
+			if (filterType === 'tournament' && !isTournamentMatch(match)) return false;
+			if (filterType === 'friendly' && isTournamentMatch(match)) return false;
+			if (filterMode === 'singles' && match.gameType !== 'singles') return false;
+			if (filterMode === 'doubles' && match.gameType !== 'doubles') return false;
+			if (filterResult !== 'all') {
+				const userTeam = getUserTeam(match);
+				if (filterResult === 'won' && match.winner !== userTeam) return false;
+				if (filterResult === 'lost' && (match.winner === userTeam || match.winner === null)) return false;
+				if (filterResult === 'tied' && match.winner !== null) return false;
+			}
+			if (filterOpponent) {
+				const opponent = getOpponentName(match);
+				if (!opponent.toLowerCase().includes(filterOpponent.toLowerCase())) return false;
+			}
+			if (filterTournament) {
+				if (!isTournamentMatch(match) || match.eventTitle !== filterTournament) return false;
+			}
+			if (filterYear) {
+				const matchYear = new Date(match.startTime).getFullYear().toString();
+				if (matchYear !== filterYear) return false;
+			}
+			return true;
+		});
+	})());
+
+	// Infinite scroll
+	let visibleCount = $state(PAGE_SIZE);
+	let sentinelEl: HTMLDivElement | undefined = $state();
+	let scrollableEl: HTMLDivElement | undefined = $state();
+
+	$effect(() => {
+		filterType; filterMode; filterResult; filterOpponent; filterTournament; filterYear;
+		visibleCount = PAGE_SIZE;
+	});
+
+	$effect(() => {
+		if (!sentinelEl) return;
+		const observer = new IntersectionObserver((entries) => {
+			if (entries[0].isIntersecting && visibleCount < filteredMatches.length) {
+				visibleCount += PAGE_SIZE;
+			}
+		}, { root: scrollableEl, rootMargin: '200px' });
+		observer.observe(sentinelEl);
+		return () => observer.disconnect();
+	});
+
+	let visibleMatches = $derived(filteredMatches.slice(0, visibleCount));
+
+	// Calculate statistics
+	let stats = $derived((() => {
+		let total = 0;
+		let wins = 0;
+		let ties = 0;
+		let losses = 0;
+		let singlesTwenties = 0;
+		let singlesRounds = 0;
+		let doublesTwenties = 0;
+		let doublesRounds = 0;
+		let perfectRounds = 0;
+
+		for (const match of filteredMatches) {
+			const userTeam = getUserTeam(match);
+			if (!userTeam) continue;
+			total++;
+			if (match.winner === userTeam) wins++;
+			else if (match.winner === null) ties++;
+			else losses++;
+
+			const isDoubles = match.gameType === 'doubles';
+			const maxPerRound = isDoubles ? 12 : 8;
+			const hasDetailedRounds = (match.games ?? []).some(g => (g.rounds ?? []).length > 0);
+
+			if (hasDetailedRounds) {
+				for (const game of match.games ?? []) {
+					for (const round of game.rounds ?? []) {
+						const roundTwenties = userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+						if (roundTwenties === maxPerRound) perfectRounds++;
+						if (isDoubles) {
+							doublesTwenties += roundTwenties;
+							doublesRounds++;
+						} else {
+							singlesTwenties += roundTwenties;
+							singlesRounds++;
+						}
+					}
+				}
+			} else {
+				const total20s = userTeam === 1 ? (match.total20sTeam1 ?? 0) : (match.total20sTeam2 ?? 0);
+				if (total20s > 0) {
+					const totalPointsInMatch = (match.games ?? []).reduce(
+						(sum, g) => sum + g.team1Points + g.team2Points, 0
+					);
+					const estimatedRounds = Math.max(1, Math.ceil(totalPointsInMatch / 2));
+					if (isDoubles) {
+						doublesTwenties += total20s;
+						doublesRounds += estimatedRounds;
+					} else {
+						singlesTwenties += total20s;
+						singlesRounds += estimatedRounds;
+					}
+				}
+			}
+		}
+
+		const singlesMaxPossible = singlesRounds * 8;
+		const doublesMaxPossible = doublesRounds * 12;
+		const singlesPercentage = singlesMaxPossible > 0
+			? ((singlesTwenties / singlesMaxPossible) * 100).toFixed(1)
+			: null;
+		const doublesPercentage = doublesMaxPossible > 0
+			? ((doublesTwenties / doublesMaxPossible) * 100).toFixed(1)
+			: null;
+		const totalTwenties = singlesTwenties + doublesTwenties;
+		const totalMaxPossible = singlesMaxPossible + doublesMaxPossible;
+		const combinedPercentage = totalMaxPossible > 0
+			? ((totalTwenties / totalMaxPossible) * 100).toFixed(1)
+			: '0';
+
+		return {
+			total, wins, ties, losses,
+			winRate: total > 0 ? ((wins / total) * 100).toFixed(0) : '0',
+			tieRate: total > 0 ? ((ties / total) * 100).toFixed(0) : '0',
+			lossRate: total > 0 ? ((losses / total) * 100).toFixed(0) : '0',
+			singlesTwenties, singlesRounds, singlesPercentage,
+			doublesTwenties, doublesRounds, doublesPercentage,
+			totalTwenties, combinedPercentage,
+			perfectRounds
+		};
+	})());
+
+	let hammerData = $derived(buildTwentiesHammerData(filteredMatches, getUserTeam));
+	let hasHammerData = $derived(hammerData.withHammer.totalRounds > 0 || hammerData.withoutHammer.totalRounds > 0);
+	let perRoundData = $derived(buildTwentiesPerRoundData(filteredMatches, getUserTeam));
+	let hasPerRoundData = $derived(perRoundData.roundLabels.length > 0);
+	let accuracyLineData = $derived(buildTwentiesAccuracyData(filteredMatches, getUserTeam, getOpponentName));
+	let hasAccuracyLineData = $derived(accuracyLineData.singlesPoints.length > 0 || accuracyLineData.doublesPoints.length > 0);
+	let filteredTournamentRecords = $derived((() => {
+		if (!filterYear) return tournamentRecords;
+		const y = parseInt(filterYear);
+		return tournamentRecords.filter(r => new Date(r.tournamentDate).getFullYear() === y);
+	})());
+	let phaseData = $derived(buildTwentiesByPhaseData(filteredMatches, getUserTeam));
+	let hasPhaseData = $derived(phaseData.phases.length > 0);
+
+	function formatDate(timestamp: number): string {
+		const date = new Date(timestamp);
+		return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' })
+			+ ' ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+	}
+
+	function toggleExpand(matchId: string) {
+		if (expandedMatches.has(matchId)) {
+			expandedMatches.delete(matchId);
+		} else {
+			expandedMatches.add(matchId);
+		}
+	}
+
+	function getResultInfo(match: MatchHistory): { won: boolean; tied: boolean; score: string } {
+		const userTeam = getUserTeam(match);
+		const won = match.winner === userTeam;
+		const tied = match.winner === null;
+		if (match.matchesToWin === 1 && match.games?.length === 1) {
+			const game = match.games[0];
+			const userPoints = userTeam === 1 ? game.team1Points : game.team2Points;
+			const oppPoints = userTeam === 1 ? game.team2Points : game.team1Points;
+			return { won, tied, score: `${userPoints}-${oppPoints}` };
+		}
+		const team1Games = match.games?.filter((g) => g.winner === 1).length ?? 0;
+		const team2Games = match.games?.filter((g) => g.winner === 2).length ?? 0;
+		if (!userTeam) {
+			return { won: false, tied: false, score: `${team1Games}-${team2Games}` };
+		}
+		const userGames = userTeam === 1 ? team1Games : team2Games;
+		const oppGames = userTeam === 1 ? team2Games : team1Games;
+		return { won, tied, score: `${userGames}-${oppGames}` };
+	}
+
+	function getMatchTwenties(match: MatchHistory): { count: number; percentage: string | null } {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) return { count: 0, percentage: null };
+		let totalTwenties = 0;
+		let totalRounds = 0;
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				totalTwenties += userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				totalRounds++;
+			}
+		}
+		if (totalRounds === 0) {
+			const count = userTeam === 1 ? (match.total20sTeam1 ?? 0) : (match.total20sTeam2 ?? 0);
+			return { count, percentage: null };
+		}
+		const maxPerRound = match.gameType === 'doubles' ? 12 : 8;
+		const maxPossible = totalRounds * maxPerRound;
+		const percentage = maxPossible > 0 ? ((totalTwenties / maxPossible) * 100).toFixed(0) : null;
+		return { count: totalTwenties, percentage };
+	}
+
+	function getMatchPerfectRounds(match: MatchHistory): number {
+		const userTeam = getUserTeam(match);
+		if (!userTeam) return 0;
+		const maxPerRound = match.gameType === 'doubles' ? 12 : 8;
+		let count = 0;
+		for (const game of match.games ?? []) {
+			for (const round of game.rounds ?? []) {
+				const roundTwenties = userTeam === 1 ? round.team1Twenty : round.team2Twenty;
+				if (roundTwenties === maxPerRound) count++;
+			}
+		}
+		return count;
+	}
+</script>
+
+{#if matches.length > 0}
+	<!-- Filters -->
+	<div class="filters-section">
+		{#if uniqueYears.length > 0}
+			<select class="filter-select" bind:value={filterYear}>
+				<option value="">{m.stats_allYears()}</option>
+				{#each uniqueYears as year (year)}
+					<option value={year.toString()}>{year}</option>
+				{/each}
+			</select>
+		{/if}
+
+		{#if showFriendlyFilter}
+			<select class="filter-select" bind:value={filterType}>
+				<option value="all">{m.stats_allTypes()}</option>
+				<option value="friendly">{m.stats_friendlyOnly()}</option>
+				<option value="tournament">{m.stats_tournamentOnly()}</option>
+			</select>
+		{/if}
+
+		<select class="filter-select" bind:value={filterMode}>
+			<option value="all">{m.stats_allModes()}</option>
+			<option value="singles">{m.scoring_singles()}</option>
+			<option value="doubles">{m.scoring_doubles()}</option>
+		</select>
+
+		<select class="filter-select" bind:value={filterResult}>
+			<option value="all">{m.stats_allResults()}</option>
+			<option value="won">{m.stats_wins()}</option>
+			<option value="lost">{m.stats_losses()}</option>
+			<option value="tied">{m.stats_ties()}</option>
+		</select>
+
+		{#if uniqueOpponents.length > 0}
+			<select class="filter-select opponent-filter" bind:value={filterOpponent}>
+				<option value="">{m.stats_anyOpponent()}</option>
+				{#each uniqueOpponents as opponent (opponent)}
+					<option value={opponent}>{opponent}</option>
+				{/each}
+			</select>
+		{/if}
+
+		{#if uniqueTournaments.length > 0}
+			<select class="filter-select tournament-filter" bind:value={filterTournament}>
+				<option value="">🏆 {m.stats_allEvents()}</option>
+				{#each uniqueTournaments as tournament (tournament)}
+					<option value={tournament}>{tournament}</option>
+				{/each}
+			</select>
+		{/if}
+	</div>
+{/if}
+
+<div class="scrollable-content" bind:this={scrollableEl}>
+	{#if matches.length === 0}
+		<div class="empty-state">
+			<div class="empty-icon">
+				<Trophy class="size-10" />
+			</div>
+			<h3>{m.stats_noMatchesYet()}</h3>
+		</div>
+	{:else}
+		<!-- Charts Grid -->
+		<div class="charts-grid">
+			<ChartWrapper title={m.stats_winLossChart()} hasData={stats.total > 0}>
+				<div class="donut-chart-content">
+					<div class="donut-container">
+						<WinLossDonut wins={stats.wins} losses={stats.losses} ties={stats.ties} total={stats.total} compact />
+					</div>
+					<div class="donut-legend">
+						<div class="legend-item">
+							<span class="legend-value win">{stats.wins}</span>
+							<span class="legend-label">{m.stats_wins()}</span>
+							<span class="legend-percent">{stats.winRate}%</span>
+						</div>
+						<div class="legend-item">
+							<span class="legend-value loss">{stats.losses}</span>
+							<span class="legend-label">{m.stats_losses()}</span>
+							<span class="legend-percent">{stats.lossRate}%</span>
+						</div>
+						{#if stats.ties > 0}
+							<div class="legend-item">
+								<span class="legend-value tie">{stats.ties}</span>
+								<span class="legend-label">{m.stats_ties()}</span>
+								<span class="legend-percent">{stats.tieRate}%</span>
+							</div>
+						{/if}
+					</div>
+				</div>
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesAccuracy()} hasData={stats.singlesPercentage !== null || stats.doublesPercentage !== null}>
+				<div class="twenties-accuracy-content">
+					<div class="twenties-accuracy-chart">
+						<TwentiesAccuracyDonut
+							singlesPercentage={stats.singlesPercentage ? parseFloat(stats.singlesPercentage) : null}
+							doublesPercentage={stats.doublesPercentage ? parseFloat(stats.doublesPercentage) : null}
+							combinedPercentage={stats.combinedPercentage}
+							singlesTwenties={stats.singlesTwenties}
+							doublesTwenties={stats.doublesTwenties}
+						/>
+					</div>
+					<div class="twenties-legend">
+						{#if stats.singlesPercentage !== null}
+							<div class="twenties-legend-item">
+								<span class="twenties-legend-label singles">{m.scoring_singles()}</span>
+								<span class="twenties-legend-text">{stats.singlesPercentage}%</span>
+								<span class="twenties-legend-count">({stats.singlesTwenties})</span>
+							</div>
+						{/if}
+						{#if stats.doublesPercentage !== null}
+							<div class="twenties-legend-item">
+								<span class="twenties-legend-label doubles">{m.scoring_doubles()}</span>
+								<span class="twenties-legend-text">{stats.doublesPercentage}%</span>
+								<span class="twenties-legend-count">({stats.doublesTwenties})</span>
+							</div>
+						{/if}
+					</div>
+				</div>
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesHammer()} hasData={hasHammerData} autoHeight>
+				<TwentiesHammerChart precomputedData={hammerData} />
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesPerRound()} hasData={hasPerRoundData}>
+				<TwentiesPerRoundTrend precomputedData={perRoundData} />
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesByPhase()} hasData={hasPhaseData}>
+				<TwentiesByPhase precomputedData={phaseData} />
+			</ChartWrapper>
+
+			<ChartWrapper title={m.stats_twentiesChart()} hasData={hasAccuracyLineData}>
+				<TwentiesAccuracyLine precomputedData={accuracyLineData} />
+			</ChartWrapper>
+
+			{#if filterType !== 'friendly'}
+				<ChartWrapper title={m.stats_positionsChart()} hasData={filteredTournamentRecords.length > 0} autoHeight>
+					<TournamentPositionsChart records={filteredTournamentRecords} year={filterYear} />
+				</ChartWrapper>
+			{/if}
+		</div>
+
+		<!-- Perfect Rounds Achievement -->
+		{#if showPerfectBadge && stats.perfectRounds > 0}
+			<div class="perfect-rounds-badge">
+				<span class="perfect-icon">💎</span>
+				<div class="perfect-info">
+					<span class="perfect-count">{stats.perfectRounds}</span>
+					<span class="perfect-label">{stats.perfectRounds === 1 ? m.stats_perfectRound() : m.stats_perfectRounds()}</span>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Match List -->
+		{#if filteredMatches.length === 0}
+			<div class="empty-state small">
+				<p>{m.stats_noMatchesFiltered()}</p>
+			</div>
+		{:else}
+			<div class="match-list">
+				{#each visibleMatches as match (match.id)}
+					{@const result = getResultInfo(match)}
+					{@const isExpanded = expandedMatches.has(match.id)}
+					{@const twenties = getMatchTwenties(match)}
+					{@const perfectCount = getMatchPerfectRounds(match)}
+					{@const hasRoundDetail = (match.games ?? []).some(g => (g.rounds ?? []).length > 0)}
+						<div class="match-item" class:expanded={isExpanded} class:won={result.won} class:lost={!result.won && !result.tied} class:tied={result.tied}>
+							<div class="status-strip" class:won={result.won} class:lost={!result.won && !result.tied} class:tied={result.tied}></div>
+
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="match-header"
+								class:non-expandable={!hasRoundDetail}
+								onclick={() => hasRoundDetail && toggleExpand(match.id)}
+								onkeydown={(e) => e.key === 'Enter' && hasRoundDetail && toggleExpand(match.id)}
+								role="button"
+								tabindex="0"
+							>
+								<div class="match-main-content">
+									<div class="match-meta">
+										<span class="date">
+											{formatDate(match.startTime)}
+										</span>
+										{#if isTournamentMatch(match) && match.eventTitle}
+											<span class="separator">•</span>
+											<span class="tournament-name">{match.eventEdition ? `${match.eventEdition} ${match.eventTitle}` : match.eventTitle}</span>
+											{#if match.matchPhase}
+												<span class="separator">•</span>
+												<span class="phase-text">{match.matchPhase}</span>
+											{/if}
+										{:else}
+											<span class="separator">•</span>
+											<span class="phase-text">{m.stats_friendly()}</span>
+										{/if}
+									</div>
+
+									<div class="match-players">
+										<div class="opponent-info">
+											{#if match.gameType === 'doubles'}
+												<div class="mode-badge" title={m.scoring_doubles()}>
+													<Users class="size-3.5" />
+												</div>
+											{:else}
+												<div class="mode-badge" title={m.scoring_singles()}>
+													<User class="size-3.5" />
+												</div>
+											{/if}
+
+											<div class="names">
+												{#if match.gameType === 'doubles' && !isTournamentMatch(match) && getMyPartnerName(match)}
+													<span class="partner-name">{m.stats_withPartner({ partner: getMyPartnerName(match) ?? '' })}</span>
+													<span class="vs-text">vs</span>
+												{:else}
+													<span class="vs-text">vs</span>
+												{/if}
+												<span class="opponent-name">{getOpponentName(match)}</span>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div class="match-result-box">
+									<div class="score-container" class:won={result.won} class:lost={!result.won && !result.tied} class:tied={result.tied}>
+										<span class="score">{result.score}</span>
+										<span class="result-label">
+											{#if result.won}{m.common_wonShort()}{:else if result.tied}{m.common_tiedShort()}{:else}{m.common_lostShort()}{/if}
+										</span>
+									</div>
+
+									{#if perfectCount > 0}
+									<span class="perfect-diamonds" title={perfectCount === 1 ? m.stats_perfectRound() : m.stats_perfectRounds()}>{'💎'.repeat(perfectCount)}</span>
+								{/if}
+								{#if twenties.count > 0}
+										<div class="twenties-badge" title={m.stats_twentiesAccuracy()}>
+											<span>{twenties.count}</span>
+											{#if twenties.percentage}
+												<span class="twenties-pct">{twenties.percentage}%</span>
+											{/if}
+										</div>
+									{/if}
+								</div>
+
+								{#if hasRoundDetail}
+									<div class="expand-arrow" class:rotated={isExpanded}>
+										<ChevronRight class="size-5" />
+									</div>
+								{/if}
+							</div>
+
+							{#if isExpanded && hasRoundDetail}
+								<div class="match-detail">
+									{#if match.games && match.games.length > 0}
+										<div class="games-section">
+											{#each match.games as game, gameIndex (gameIndex)}
+												<div class="game-table" style="--rounds: {(game.rounds || []).length}">
+													<div class="game-row header">
+														<span class="team-name">{m.history_game()} {gameIndex + 1}</span>
+														{#each game.rounds || [] as _, idx (idx)}
+															<span class="round-col">R{idx + 1}</span>
+														{/each}
+														<span class="total-col">{m.history_total()}</span>
+													</div>
+
+													<div class="game-row" class:winner-row={game.winner === 1}>
+														<span class="team-name">{getTeamDisplayName(match, 1)}</span>
+														{#each game.rounds || [] as round, rIdx (rIdx)}
+															<span class="round-col" class:has-hammer={round.hammerTeam === 1}>
+																<span class="round-score">
+																	{round.team1Points}
+																</span>
+																<div class="round-meta">
+																	{#if match.show20s ?? show20s}
+																		<span class="twenty">{round.team1Twenty}</span>
+																	{/if}
+																</div>
+															</span>
+														{/each}
+														<span class="total-col total-score" class:winner={game.winner === 1}>
+															{game.team1Points}
+															{#if match.show20s ?? show20s}
+																{@const total20s = (game.rounds || []).reduce((sum, r) => sum + r.team1Twenty, 0)}
+																{#if total20s > 0}
+																	<span class="twenty-total">{total20s}</span>
+																{/if}
+															{/if}
+														</span>
+													</div>
+
+													<div class="game-row" class:winner-row={game.winner === 2}>
+														<span class="team-name">{getTeamDisplayName(match, 2)}</span>
+														{#each game.rounds || [] as round, rIdx2 (rIdx2)}
+															<span class="round-col" class:has-hammer={round.hammerTeam === 2}>
+																<span class="round-score">
+																	{round.team2Points}
+																</span>
+																<div class="round-meta">
+																	{#if match.show20s ?? show20s}
+																		<span class="twenty">{round.team2Twenty}</span>
+																	{/if}
+																</div>
+															</span>
+														{/each}
+														<span class="total-col total-score" class:winner={game.winner === 2}>
+															{game.team2Points}
+															{#if match.show20s ?? show20s}
+																{@const total20s = (game.rounds || []).reduce((sum, r) => sum + r.team2Twenty, 0)}
+																{#if total20s > 0}
+																	<span class="twenty-total">{total20s}</span>
+																{/if}
+															{/if}
+														</span>
+													</div>
+												</div>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							{/if}
+						</div>
+				{/each}
+				<div class="match-count">{visibleMatches.length} / {filteredMatches.length}</div>
+				{#if visibleCount < filteredMatches.length}
+					<div bind:this={sentinelEl} class="scroll-sentinel">
+						<div class="spinner small"></div>
+					</div>
+				{/if}
+			</div>
+		{/if}
+	{/if}
+</div>
+
+<style>
+	/* Charts Grid */
+	.charts-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+		gap: 0.75rem;
+		margin: 1rem 0 1.5rem;
+	}
+
+	/* Perfect Rounds Achievement */
+	.perfect-rounds-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.4rem 1rem;
+		margin: 0 1rem 1rem;
+		background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, transparent), color-mix(in srgb, var(--primary) 6%, transparent));
+		border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+		border-radius: 99px;
+	}
+
+	.perfect-icon {
+		font-size: 1rem;
+		line-height: 1;
+	}
+
+	.perfect-info {
+		display: flex;
+		align-items: baseline;
+		gap: 0.3rem;
+	}
+
+	.perfect-count {
+		font-size: 0.95rem;
+		font-weight: 800;
+		color: var(--primary);
+	}
+
+	.perfect-label {
+		font-size: 0.8rem;
+		font-weight: 500;
+		color: var(--muted-foreground);
+	}
+
+	.donut-chart-content {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		height: 100%;
+	}
+
+	.donut-container {
+		flex-shrink: 0;
+		width: 130px;
+		height: 130px;
+	}
+
+	.donut-container :global(canvas) {
+		width: 100% !important;
+		height: 100% !important;
+	}
+
+	.donut-legend {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	.legend-item {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.legend-value {
+		font-size: 1.1rem;
+		font-weight: 800;
+		line-height: 1;
+	}
+
+	.legend-value.win { color: var(--color-win); }
+	.legend-value.loss { color: var(--color-loss); }
+	.legend-value.tie { color: var(--color-tie); }
+
+	.legend-label {
+		font-size: 0.7rem;
+		color: var(--muted-foreground);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		font-weight: 500;
+	}
+
+	.legend-percent {
+		font-size: 1.1rem;
+		color: var(--muted-foreground);
+		margin-left: auto;
+		font-weight: 800;
+	}
+
+	.twenties-accuracy-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		height: 100%;
+	}
+
+	.twenties-accuracy-chart {
+		flex: 1;
+		width: 100%;
+		min-height: 0;
+	}
+
+	.twenties-accuracy-chart :global(canvas) {
+		width: 100% !important;
+		height: 100% !important;
+	}
+
+	.twenties-legend {
+		display: flex;
+		gap: 0.75rem;
+		justify-content: center;
+		padding-top: 0.4rem;
+	}
+
+	.twenties-legend-item {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.twenties-legend-label {
+		font-size: 0.65rem;
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.twenties-legend-label.singles { color: var(--color-singles); }
+	.twenties-legend-label.doubles { color: var(--color-doubles); }
+
+	.twenties-legend-text {
+		font-size: 0.75rem;
+		color: var(--primary);
+		font-weight: 700;
+	}
+
+	.twenties-legend-count {
+		font-size: 0.65rem;
+		color: var(--secondary-foreground);
+		font-weight: 500;
+	}
+
+	/* Filters */
+	.filters-section {
+		display: flex;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		flex-wrap: wrap;
+		flex-shrink: 0;
+		border-bottom: 1px solid var(--border);
+		background: var(--background);
+	}
+
+	.filter-select {
+		width: auto;
+		padding: 0.5rem 2rem 0.5rem 0.75rem;
+		background-color: var(--card);
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 0.5rem center;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		color: var(--foreground);
+		font-size: 0.85rem;
+		cursor: pointer;
+		appearance: none;
+		-webkit-appearance: none;
+		transition: all 0.2s;
+	}
+
+	.filter-select:focus, .filter-select:hover {
+		border-color: var(--primary);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
+		outline: none;
+	}
+
+	/* Scrollable content area */
+	.scrollable-content {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		padding: 0 1rem;
+		padding-bottom: max(5rem, env(safe-area-inset-bottom, 5rem));
+	}
+
+	/* Empty states */
+	.empty-state {
+		text-align: center;
+		padding: 4rem 2rem;
+	}
+
+	.empty-state.small {
+		padding: 2rem 1rem;
+	}
+
+	.empty-icon {
+		width: 80px;
+		height: 80px;
+		margin: 0 auto 1.5rem;
+		padding: 1.25rem;
+		border-radius: 50%;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		color: var(--primary);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.empty-state h3 {
+		color: var(--foreground);
+		font-size: 1.1rem;
+		margin: 0;
+	}
+
+	.scroll-sentinel { display: flex; justify-content: center; padding: 1rem; }
+	.spinner { width: 40px; height: 40px; margin: 0 auto 1rem; border: 3px solid var(--border); border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+	.spinner.small { width: 24px; height: 24px; }
+	.match-count { text-align: center; font-size: 0.75rem; color: var(--muted-foreground); padding: 0.5rem 0 1.5rem; }
+
+	@keyframes spin {
+		0% { transform: rotate(0deg); }
+		100% { transform: rotate(360deg); }
+	}
+
+	/* Match List */
+	.match-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		max-width: 800px;
+		margin: 0 auto;
+	}
+
+	.match-item {
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		overflow: hidden;
+		transition: all 0.2s ease;
+		display: flex;
+		flex-direction: column;
+		position: relative;
+		box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+	}
+
+	.match-item:hover {
+		box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+		border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+	}
+
+	.status-strip {
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 5px;
+		background: var(--muted);
+		z-index: 1;
+	}
+	.status-strip.won { background: var(--color-win); }
+	.status-strip.lost { background: var(--color-loss); }
+	.status-strip.tied { background: var(--muted-foreground); }
+
+	.match-header {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 0.85rem 1rem 0.85rem 1.25rem;
+		width: 100%;
+		cursor: pointer;
+		min-width: 0;
+		position: relative;
+	}
+
+	.match-header.non-expandable { cursor: default; }
+
+	.match-main-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		min-width: 0;
+	}
+
+	.match-meta {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		font-size: 0.75rem;
+		color: var(--muted-foreground);
+		line-height: 1.2;
+	}
+
+	.separator { opacity: 0.4; }
+	.tournament-name { font-weight: 500; color: var(--foreground); }
+	.phase-text { text-transform: lowercase; letter-spacing: 0.03em; }
+	.phase-text::first-letter { text-transform: uppercase; }
+
+	.match-players {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.opponent-info {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		min-width: 0;
+	}
+
+	.mode-badge {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--muted-foreground);
+		background: var(--secondary);
+		width: 26px;
+		height: 26px;
+		border-radius: 6px;
+		flex-shrink: 0;
+	}
+
+	.names {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		font-size: 0.95rem;
+	}
+
+	.vs-text {
+		color: var(--muted-foreground);
+		font-size: 0.8rem;
+		font-style: italic;
+		opacity: 0.7;
+	}
+
+	.opponent-name {
+		font-weight: 700;
+		color: var(--foreground);
+	}
+
+	.partner-name {
+		color: var(--foreground);
+		font-weight: 500;
+	}
+
+	.match-result-box {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		justify-content: center;
+		gap: 0.25rem;
+		padding-left: 0.75rem;
+		border-left: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+		min-width: 70px;
+	}
+
+	.score-container {
+		display: flex;
+		align-items: baseline;
+		gap: 0.25rem;
+		line-height: 1;
+	}
+
+	.score {
+		font-size: 1.4rem;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.02em;
+	}
+
+	.result-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		opacity: 0.8;
+	}
+
+	.score-container.won { color: var(--color-win); }
+	.score-container.lost { color: var(--color-loss); }
+	.score-container.tied { color: var(--muted-foreground); }
+
+	.perfect-diamonds {
+		font-size: 0.85rem;
+		line-height: 1;
+		letter-spacing: -2px;
+	}
+
+	.twenties-badge {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		background: color-mix(in srgb, var(--color-twenties) 10%, transparent);
+		color: var(--color-twenties);
+		padding: 0.15rem 0.5rem;
+		border-radius: 99px;
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+
+	.twenties-pct { opacity: 0.8; font-size: 0.65rem; margin-left: 0.1rem; }
+
+	.expand-arrow {
+		color: var(--muted-foreground);
+		transition: transform 0.2s;
+		opacity: 0.5;
+		margin-left: 0.25rem;
+	}
+	.match-header:hover .expand-arrow { opacity: 1; }
+	.expand-arrow.rotated { transform: rotate(90deg); }
+
+	.match-detail {
+		background: var(--muted);
+		border-top: 1px solid var(--border);
+		font-size: 0.85rem;
+	}
+
+	.games-section { padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+	.game-table {
+		background: var(--card);
+		border-radius: 8px;
+		border: 1px solid var(--border);
+		overflow: hidden;
+		display: grid;
+		grid-template-columns: 1fr repeat(var(--rounds), minmax(38px, auto)) minmax(45px, auto);
+	}
+	.game-row {
+		display: grid;
+		grid-template-columns: subgrid;
+		grid-column: 1 / -1;
+		padding: 0.5rem 0.75rem;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.game-row.header { background: var(--secondary); font-size: 0.7rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; }
+
+	.game-row .team-name {
+		min-width: 0;
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-size: 0.8rem;
+		color: var(--foreground);
+	}
+
+	.game-row .round-col {
+		text-align: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0px;
+		color: var(--muted-foreground);
+	}
+
+	.round-score {
+		font-weight: 600;
+		font-size: 0.9rem;
+		line-height: 1;
+		color: var(--foreground);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.round-meta {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 2px;
+		height: 12px;
+		margin-top: 1px;
+	}
+
+	.game-row .round-col.has-hammer {
+		position: relative;
+		background: color-mix(in srgb, var(--primary) 15%, transparent);
+		border-radius: 6px;
+	}
+
+	.game-row .round-col.has-hammer::after {
+		content: '🔨';
+		position: absolute;
+		top: 50%;
+		right: -2px;
+		transform: translateY(-50%);
+		font-size: 0.55rem;
+		opacity: 0.35;
+		pointer-events: none;
+		line-height: 1;
+	}
+
+	.game-row .round-col.has-hammer .round-score,
+	.game-row .round-col.has-hammer .round-meta {
+		position: relative;
+		z-index: 1;
+	}
+
+	.twenty {
+		font-size: 0.65rem;
+		color: #d97706;
+		font-weight: 600;
+		display: flex;
+		align-items: center;
+		line-height: 1;
+	}
+
+	.twenty-total {
+		font-size: 0.6rem;
+		color: #d97706;
+		font-weight: 600;
+		margin-top: 2px;
+	}
+
+	.game-row .total-col {
+		text-align: center;
+		font-weight: 700;
+		font-size: 0.9rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.game-row .total-col.winner {
+		color: var(--color-win);
+	}
+
+	.game-row.winner-row {
+		background: color-mix(in srgb, var(--color-win) 5%, transparent);
+	}
+
+	.game-row.winner-row .team-name {
+		color: var(--color-win);
+	}
+
+	/* Responsive */
+	@media (max-width: 640px) {
+		.scrollable-content { padding: 0 0.75rem; padding-bottom: max(4rem, env(safe-area-inset-bottom, 4rem)); }
+
+		.filters-section {
+			gap: 0.35rem;
+			padding: 0.5rem 0.75rem;
+			flex-wrap: nowrap;
+			overflow-x: auto;
+			-webkit-overflow-scrolling: touch;
+			scrollbar-width: none;
+		}
+
+		.filters-section::-webkit-scrollbar {
+			display: none;
+		}
+
+		.filter-select {
+			font-size: 0.75rem;
+			padding: 0.35rem 1.5rem 0.35rem 0.5rem;
+			border-radius: 6px;
+			background-position: right 0.35rem center;
+			flex-shrink: 0;
+			white-space: nowrap;
+		}
+
+		.filter-select.tournament-filter {
+			width: 100px;
+			min-width: 100px;
+			max-width: 100px;
+			flex-shrink: 1;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.match-header { padding: 0.75rem; gap: 0.75rem; }
+		.score { font-size: 1.25rem; }
+		.match-meta { font-size: 0.7rem; }
+		.names { font-size: 0.9rem; }
+
+		.match-result-box { min-width: 60px; padding-left: 0.5rem; }
+
+		.charts-grid {
+			grid-template-columns: repeat(2, 1fr);
+			gap: 0.5rem;
+		}
+
+		.donut-chart-content {
+			flex-direction: column;
+			align-items: center;
+			gap: 0.5rem;
+		}
+
+		.donut-container {
+			width: 120px;
+			height: 120px;
+			margin: 0 auto;
+		}
+
+		.donut-legend {
+			flex-direction: row;
+			gap: 0.75rem;
+			justify-content: center;
+		}
+
+		.legend-item {
+			flex-direction: column;
+			align-items: center;
+			gap: 0.1rem;
+		}
+
+		.legend-value { font-size: 0.95rem; }
+		.legend-label { font-size: 0.6rem; }
+		.legend-percent { font-size: 0.75rem; margin-left: 0; }
+	}
+</style>

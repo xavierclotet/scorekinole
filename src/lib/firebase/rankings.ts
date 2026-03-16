@@ -32,6 +32,8 @@ export interface UserWithId extends UserProfile {
 export interface TournamentInfo {
   id: string;
   key?: string;
+  shortName?: string;
+  edition?: number;
   tier?: TournamentTier;
   gameType: 'singles' | 'doubles';
   country: string;
@@ -52,6 +54,7 @@ export interface TournamentRecordWithDetails extends TournamentRecord {
  */
 export interface RankedPlayer {
   odId: string;
+  key?: string;
   playerName: string;
   photoURL: string | null;
   totalPoints: number;
@@ -142,6 +145,8 @@ export async function getCompletedTournaments(): Promise<Map<string, TournamentI
       tournamentsMap.set(docSnap.id, {
         id: docSnap.id,
         key: data.key,
+        shortName: data.shortName,
+        edition: data.edition,
         tier: data.rankingConfig?.tier,
         gameType: data.gameType || 'singles',
         country: data.country || '',
@@ -382,6 +387,7 @@ export function calculateRankings(
 
     result.push({
       odId: user.odId,
+      key: user.key,
       playerName: user.playerName || 'Unknown',
       photoURL: user.photoURL || null,
       totalPoints,

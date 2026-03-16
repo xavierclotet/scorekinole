@@ -6,7 +6,7 @@ export const GET: RequestHandler = async () => {
 	const pages = [
 		{ url: '/', priority: '1.0', changefreq: 'weekly' },
 		{ url: '/tournaments', priority: '0.9', changefreq: 'daily' },
-		{ url: '/rankings', priority: '0.8', changefreq: 'daily' }
+		{ url: '/ranking', priority: '0.8', changefreq: 'daily' }
 	];
 
 	const sitemap = `<?xml version="1.0" encoding="UTF-8"?>

@@ -27,7 +27,7 @@ Si necesitas interactuar con la página (tests o scraping):
 | :--- | :--- | :--- |
 | **Empezar a jugar** | `[data-webmcp="btn-new-game"]` | Navega a `/game` |
 | **Iniciar sesión** | `[data-webmcp="btn-login-modal"]` o componente interno de `<ProfileDropdown>` | Abre `<LoginModal>` |
-| **Navegar a Rankings** | `[data-webmcp="link-rankings"]` | Navega a `/rankings` |
+| **Navegar a Rankings** | `[data-webmcp="link-rankings"]` | Navega a `/ranking` |
 | **Navegar a Mis Estadísticas**| `[data-webmcp="link-stats"]` | Navega a `/my-stats` (requiere login) |
 
 ## 🛠️ Notas de Implementación (Svelte)

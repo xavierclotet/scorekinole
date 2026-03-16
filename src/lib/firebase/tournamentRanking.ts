@@ -39,14 +39,17 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
   try {
     const currentYear = new Date().getFullYear();
 
-    // 1. Fetch all participant profiles to get their tournament records
+    // 1. Fetch all participant AND partner profiles to get their tournament records
+    const allUserIds = new Set<string>();
+    for (const p of tournament.participants) {
+      if (p.userId) allUserIds.add(p.userId);
+      if (p.partner?.userId) allUserIds.add(p.partner.userId);
+    }
     const profileEntries = await Promise.all(
-      tournament.participants
-        .filter(p => p.userId)
-        .map(async (p) => {
-          const profile = await getUserProfileById(p.userId!);
-          return [p.userId!, profile] as const;
-        })
+      Array.from(allUserIds).map(async (uid) => {
+        const profile = await getUserProfileById(uid);
+        return [uid, profile] as const;
+      })
     );
     const profileMap = new Map(profileEntries.filter(([, p]) => p !== null));
 
@@ -80,7 +83,7 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
       }
     }
 
-    // 4. Recalculate ranking for each participant using current algorithm
+    // 4. Recalculate ranking for each participant (and partner) using current algorithm
     const updatedParticipants = tournament.participants.map((participant) => {
       let rankingPoints = 0;
 
@@ -91,9 +94,21 @@ export async function syncParticipantRankings(tournamentId: string): Promise<boo
         }
       }
 
+      // Also calculate partner ranking for doubles
+      let updatedPartner = participant.partner;
+      if (participant.partner?.userId) {
+        let partnerRanking = 0;
+        const partnerProfile = profileMap.get(participant.partner.userId);
+        if (partnerProfile?.tournaments) {
+          partnerRanking = recalculateUserRanking(partnerProfile.tournaments, tournamentsMap, currentYear, 2);
+        }
+        updatedPartner = { ...participant.partner, rankingSnapshot: partnerRanking };
+      }
+
       return {
         ...participant,
-        rankingSnapshot: rankingPoints
+        rankingSnapshot: rankingPoints,
+        ...(updatedPartner ? { partner: updatedPartner } : {})
       };
     });
 
@@ -615,8 +630,7 @@ export async function applyRankingUpdates(
         rankingDelta: pointsEarned
       };
 
-      // DOUBLES: Process both members of the pair (all participants with userId)
-      // Both REGISTERED and GUEST participants with userId get entries in /users
+      // DOUBLES: Process both members of the pair with their OWN ranking values
       if (isDoubles && participant.partner) {
 
         // Member 1: Process if has userId (REGISTERED or persistent GUEST)
@@ -624,9 +638,16 @@ export async function applyRankingUpdates(
           await addTournamentRecord(participant.userId, tournamentRecord, rankingAfter);
         }
 
-        // Member 2: Process if has userId (REGISTERED or persistent GUEST)
+        // Member 2: Build separate record with partner's own ranking
         if (participant.partner.userId) {
-          await addTournamentRecord(participant.partner.userId, tournamentRecord, rankingAfter);
+          const partnerRankingBefore = participant.partner.rankingSnapshot || 0;
+          const partnerRankingAfter = partnerRankingBefore + pointsEarned;
+          const partnerRecord = {
+            ...tournamentRecord,
+            rankingBefore: partnerRankingBefore,
+            rankingAfter: partnerRankingAfter,
+          };
+          await addTournamentRecord(participant.partner.userId, partnerRecord, partnerRankingAfter);
         }
       } else {
         // SINGLES: Process if has userId (REGISTERED or persistent GUEST)

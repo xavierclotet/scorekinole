@@ -2,7 +2,7 @@
 User-agent: *
 Allow: /
 Allow: /tournaments
-Allow: /rankings
+Allow: /ranking
 Disallow: /admin
 Disallow: /api
 

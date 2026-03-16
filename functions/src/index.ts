@@ -76,6 +76,7 @@ interface TournamentParticipant {
     type: "REGISTERED" | "GUEST";
     userId?: string;
     name: string;                  // Player 2's REAL name (always)
+    rankingSnapshot?: number;      // Partner's ranking at tournament start
   };
 }
 
@@ -385,7 +386,7 @@ async function processParticipant(
     return result;
   }
 
-  // DOUBLES: Process both members using their REAL names (all participants with userId)
+  // DOUBLES: Process both members using their REAL names with their OWN ranking values
   // Both REGISTERED and GUEST participants with userId get entries in /users
   if (tournament.gameType === "doubles" && participant.partner) {
     logger.info(`Processing doubles participant: ${participant.name} / ${participant.partner.name}` +
@@ -396,9 +397,16 @@ async function processParticipant(
       await addTournamentRecord(participant.userId, tournamentRecord);
     }
 
-    // Member 2: Process if has userId (REGISTERED or persistent GUEST)
+    // Member 2: Build separate record with partner's own ranking
     if (participant.partner.userId) {
-      await addTournamentRecord(participant.partner.userId, tournamentRecord);
+      const partnerRankingBefore = participant.partner.rankingSnapshot || 0;
+      const partnerRankingAfter = partnerRankingBefore + pointsEarned;
+      const partnerRecord: TournamentRecord = {
+        ...tournamentRecord,
+        rankingBefore: partnerRankingBefore,
+        rankingAfter: partnerRankingAfter,
+      };
+      await addTournamentRecord(participant.partner.userId, partnerRecord);
     }
 
     return result;

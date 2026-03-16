@@ -1,6 +1,6 @@
 import { db, auth as firebaseAuth, isFirebaseEnabled } from './config';
 import { currentUser } from './auth';
-import { doc, getDoc, setDoc, getDocs, query, where, collection, addDoc, arrayUnion, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, query, where, collection, addDoc, arrayUnion, serverTimestamp, runTransaction, limit } from 'firebase/firestore';
 import { get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { TournamentRecord } from '$lib/types/tournament';
@@ -10,6 +10,7 @@ import { getDeviceInfo, type DeviceInfo } from '$lib/utils/deviceInfo';
 
 export interface UserProfile {
   playerName: string;
+  key?: string;                  // 6-character alphanumeric identifier (like tournament keys)
   email: string | null;
   photoURL: string | null;
   country?: string;                // User's country code (ISO 3166-1 alpha-2)
@@ -34,6 +35,65 @@ export interface UserProfile {
   deviceInfo?: DeviceInfo;               // Full device info
   updatedAt?: any;
   createdAt?: any;
+}
+
+/**
+ * Generate a 6-character alphanumeric key for user profiles
+ * Uses the same character set as tournament keys (excludes confusing chars: I, L, O, 1, 0)
+ */
+function generateUserKey(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let key = '';
+  for (let i = 0; i < 6; i++) {
+    key += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return key;
+}
+
+/**
+ * Check if a user key already exists in the users collection
+ */
+async function isUserKeyUnique(key: string): Promise<boolean> {
+  if (!db) return false;
+  const usersRef = collection(db, 'users');
+  const q = query(usersRef, where('key', '==', key), limit(1));
+  const snapshot = await getDocs(q);
+  return snapshot.empty;
+}
+
+/**
+ * Generate a unique user key with retry logic
+ */
+async function generateUniqueUserKey(): Promise<string> {
+  let key = generateUserKey();
+  let attempts = 0;
+  while (!(await isUserKeyUnique(key)) && attempts < 10) {
+    key = generateUserKey();
+    attempts++;
+  }
+  return key;
+}
+
+/**
+ * Get user profile by short key (6-character alphanumeric)
+ */
+export async function getUserProfileByKey(key: string): Promise<(UserProfile & { odId: string }) | null> {
+  if (!browser || !isFirebaseEnabled()) return null;
+  if (!key || key.length !== 6) return null;
+
+  try {
+    const usersRef = collection(db!, 'users');
+    const q = query(usersRef, where('key', '==', key.toUpperCase()), limit(1));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) return null;
+
+    const docSnap = snapshot.docs[0];
+    return { ...(docSnap.data() as UserProfile), odId: docSnap.id };
+  } catch (error) {
+    console.error('❌ Error getting user profile by key:', error);
+    return null;
+  }
 }
 
 /**
@@ -144,6 +204,11 @@ export async function saveUserProfile(
     // Add optional fields
     if (options?.country !== undefined) {
       profile.country = options.country || undefined; // Remove if empty string
+    }
+
+    // Generate key for new users or existing users without one
+    if (isNewUser || !existingDoc.data()?.key) {
+      profile.key = await generateUniqueUserKey();
     }
 
     // For NEW users only: capture device info for fraud detection
@@ -330,9 +395,11 @@ export async function createGuestUserProfile(playerName: string): Promise<string
   }
 
   const usersRef = collection(db!, 'users');
+  const key = await generateUniqueUserKey();
   const guestDoc = await addDoc(usersRef, {
     playerName: playerName.trim(),
     playerNameLower: playerName.trim().toLowerCase(),
+    key,
     email: null,
     photoURL: null,
     authProvider: null,

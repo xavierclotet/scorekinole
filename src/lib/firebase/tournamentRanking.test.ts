@@ -205,7 +205,7 @@ describe('syncParticipantRankings — doubles partner bugs', () => {
 		mockUpdatedParticipants = null;
 	});
 
-	it('BUG: should fetch profiles for BOTH main and partner userIds, but only fetches main', async () => {
+	it('should fetch profiles for BOTH main and partner userIds', async () => {
 		mockTournamentData = createDoublesTournament();
 
 		await syncParticipantRankings('doubles-tournament-1');
@@ -220,7 +220,7 @@ describe('syncParticipantRankings — doubles partner bugs', () => {
 		}
 	});
 
-	it('BUG: partner rankingSnapshot should reflect partner profile ranking, not 0', async () => {
+	it('partner rankingSnapshot should reflect partner profile ranking', async () => {
 		mockTournamentData = createDoublesTournament();
 
 		await syncParticipantRankings('doubles-tournament-1');
@@ -243,7 +243,7 @@ describe('syncParticipantRankings — doubles partner bugs', () => {
 		// These rankings are completely lost/ignored
 	});
 
-	it('BUG: only main participant userIds are in the profile map', async () => {
+	it('all participant and partner userIds are in the profile map', async () => {
 		mockTournamentData = createDoublesTournament();
 
 		await syncParticipantRankings('doubles-tournament-1');
@@ -268,7 +268,7 @@ describe('syncParticipantRankings — doubles partner bugs', () => {
 		}
 	});
 
-	it('BUG: with guest partner having userId, partner ranking is still ignored', async () => {
+	it('guest partner with userId gets their profile fetched', async () => {
 		const tournament = createDoublesTournament({
 			participants: [
 				{
@@ -338,9 +338,7 @@ describe('applyRankingUpdates — doubles partner bugs', () => {
 		expect(partnerRecord, 'Partner should get tournament record').toBeDefined();
 	});
 
-	it('BUG: partner rankingBefore should use partner own ranking, not main participant ranking', async () => {
-		// Main participant has rankingSnapshot: 50 (from previous tournaments)
-		// Partner should have their own ranking (e.g., 30) but there's no field for it
+	it('partner rankingBefore uses partner own ranking, not main participant ranking', async () => {
 		const tournament = createDoublesTournament({
 			status: 'COMPLETED',
 			participants: [
@@ -354,8 +352,8 @@ describe('applyRankingUpdates — doubles partner bugs', () => {
 					partner: {
 						type: 'REGISTERED',
 						userId: 'partner-user-1',
-						name: 'Partner Player 1'
-						// No rankingSnapshot field for partner!
+						name: 'Partner Player 1',
+						rankingSnapshot: 30 // Partner's own ranking
 					},
 					finalPosition: 1
 				}
@@ -374,18 +372,12 @@ describe('applyRankingUpdates — doubles partner bugs', () => {
 		// Main participant's rankingBefore is correct: uses their own rankingSnapshot
 		expect(mainRecord!.record.rankingBefore).toBe(50);
 
-		// BUG: Partner's rankingBefore should be the partner's own ranking,
-		// but the code uses participant.rankingSnapshot (main's value: 50)
-		// instead of partner's actual ranking
-		// This assertion documents the EXPECTED (correct) behavior:
-		expect(
-			partnerRecord!.record.rankingBefore,
-			'Partner rankingBefore should NOT be the main participant\'s ranking (50). ' +
-			'It should be the partner\'s own ranking.'
-		).not.toBe(mainRecord!.record.rankingBefore);
+		// Partner's rankingBefore uses their own ranking (30), not main's (50)
+		expect(partnerRecord!.record.rankingBefore).toBe(30);
+		expect(partnerRecord!.record.rankingBefore).not.toBe(mainRecord!.record.rankingBefore);
 	});
 
-	it('BUG: partner rankingAfter is calculated from main participant rankingSnapshot', async () => {
+	it('partner rankingAfter is calculated from partner own rankingSnapshot', async () => {
 		const tournament = createDoublesTournament({
 			status: 'COMPLETED',
 			participants: [
@@ -399,7 +391,8 @@ describe('applyRankingUpdates — doubles partner bugs', () => {
 					partner: {
 						type: 'REGISTERED',
 						userId: 'partner-user-1',
-						name: 'Partner Player 1'
+						name: 'Partner Player 1',
+						rankingSnapshot: 40
 					},
 					finalPosition: 1
 				}
@@ -416,20 +409,17 @@ describe('applyRankingUpdates — doubles partner bugs', () => {
 		expect(mainRecord).toBeDefined();
 		expect(partnerRecord).toBeDefined();
 
-		// The rankingDelta (points earned) is the same for both — this is CORRECT
+		// The rankingDelta (points earned) is the same for both
 		expect(partnerRecord!.record.rankingDelta).toBe(mainRecord!.record.rankingDelta);
 
-		// But rankingBefore and rankingAfter are WRONG for partner
 		// Main: rankingBefore=100, rankingAfter=100+delta
-		// Partner: rankingBefore=100 (WRONG — should be partner's own ranking)
-		//          rankingAfter=100+delta (WRONG — should be partnerRanking+delta)
 		expect(mainRecord!.record.rankingBefore).toBe(100);
 
-		// BUG assertion: partner gets same rankingBefore as main (100) instead of their own
-		expect(
-			partnerRecord!.record.rankingBefore,
-			'Partner should have their OWN rankingBefore, not the main participant\'s (100)'
-		).not.toBe(100);
+		// Partner: uses their own ranking (40), not main's (100)
+		expect(partnerRecord!.record.rankingBefore).toBe(40);
+		const delta = mainRecord!.record.rankingDelta;
+		expect(partnerRecord!.record.rankingAfter).toBe(40 + delta);
+		expect(mainRecord!.record.rankingAfter).toBe(100 + delta);
 	});
 
 	it('partner without userId does not get tournament record (expected behavior)', async () => {

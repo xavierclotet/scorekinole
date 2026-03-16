@@ -57,6 +57,7 @@ export interface Tournament {
   id: string;
   key: string;                  // 6-character alphanumeric identifier
   name: string;
+  shortName?: string;            // Short abbreviation for ranking table columns (e.g., "TCB" for "Torneo Crokinole Barcelona")
   description?: string;
   descriptionLanguage?: string; // Language code of the description (es, en, ca) for translation
   edition?: number;             // Edition number of the tournament (e.g., 1st, 2nd, etc.) - optional
@@ -194,6 +195,7 @@ export interface TournamentParticipant {
     name: string;          // Player 2's REAL name (always)
     email?: string;
     photoURL?: string;     // Partner's photo snapshot at registration
+    rankingSnapshot?: number; // Partner's ranking at tournament start
   };
 
   // Ranking tracking

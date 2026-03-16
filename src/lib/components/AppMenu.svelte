@@ -11,7 +11,7 @@
 	import { saveUserLanguage } from '$lib/firebase/userProfile';
 	import { isAdminUser, isSuperAdminUser } from '$lib/stores/admin';
 
-	type PageId = 'game' | 'tournaments' | 'rankings' | 'my-stats';
+	type PageId = 'game' | 'tournaments' | 'ranking' | 'my-stats';
 
 	interface Props {
 		showHome?: boolean;
@@ -54,7 +54,7 @@
 	const navItems: { id: PageId; href: string; labelKey: () => string }[] = [
 		{ id: 'game', href: '/game', labelKey: () => m.common_newGame() },
 		{ id: 'tournaments', href: '/tournaments', labelKey: () => m.common_tournaments() },
-		{ id: 'rankings', href: '/rankings', labelKey: () => m.common_rankings() },
+		{ id: 'ranking', href: '/ranking', labelKey: () => m.common_rankings() },
 		{ id: 'my-stats', href: '/my-stats', labelKey: () => m.stats_myStatistics() }
 	];
 
@@ -67,7 +67,7 @@
 	// Navigation shortcuts mapping
 	const navShortcuts: Record<string, PageId> = {
 		u: 'tournaments',
-		r: 'rankings',
+		r: 'ranking',
 		g: 'game',
 		s: 'my-stats'
 	};
@@ -107,14 +107,14 @@
 	});
 
 	function getNavIcon(id: PageId) {
-		return { game: CirclePlus, tournaments: Trophy, rankings: BarChart3, 'my-stats': User }[id];
+		return { game: CirclePlus, tournaments: Trophy, ranking: BarChart3, 'my-stats': User }[id];
 	}
 
 	function getNavShortcut(id: PageId): string | null {
 		const shortcuts: Record<PageId, string> = {
 			game: 'G',
 			tournaments: 'U',
-			rankings: 'R',
+			ranking: 'R',
 			'my-stats': 'S'
 		};
 		return shortcuts[id] ? `Ctrl+${shortcuts[id]}` : null;
@@ -190,7 +190,7 @@
 						class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group"
 					>
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
-							{#if item.id === 'rankings'}
+							{#if item.id === 'ranking'}
 								<svg class="size-4 text-primary" viewBox="0 0 24 24" fill="currentColor">
 									<path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z" />
 								</svg>

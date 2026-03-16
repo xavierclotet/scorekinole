@@ -596,6 +596,25 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 		return [];
 	}
 
+	return _fetchTournamentMatchesForUser(user.id);
+}
+
+/**
+ * Get tournament matches for any user by ID (public — no auth required)
+ */
+export async function getTournamentMatchesForUser(userId: string): Promise<MatchHistory[]> {
+	if (!browser || !isFirebaseEnabled()) {
+		console.warn('Firebase disabled - returning empty tournament matches');
+		return [];
+	}
+
+	return _fetchTournamentMatchesForUser(userId);
+}
+
+/**
+ * Shared helper: fetch and convert tournament matches for a given userId
+ */
+async function _fetchTournamentMatchesForUser(userId: string): Promise<MatchHistory[]> {
 	try {
 		const tournamentsRef = collection(db!, 'tournaments');
 		const completedQuery = query(tournamentsRef, where('status', '==', 'COMPLETED'));
@@ -617,7 +636,7 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 
 			// Find user's participant(s) in this tournament
 			const userParticipants = tournament.participants?.filter(
-				(p: TournamentParticipant) => p.userId === user.id || p.partner?.userId === user.id
+				(p: TournamentParticipant) => p.userId === userId || p.partner?.userId === userId
 			) || [];
 
 			if (userParticipants.length === 0) {
@@ -762,6 +781,12 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 				const matchId = `tournament_${tournament.id}_${phase}${contextStr}_${match.id}`;
 				const completedAt = match.completedAt ?? tournament.completedAt ?? tournament.updatedAt;
 
+				// Resolve userId for team1 player
+				const team1Participant = tournament.participants?.find((p: TournamentParticipant) => p.id === team1Id);
+				const team2Participant = tournament.participants?.find((p: TournamentParticipant) => p.id === team2Id);
+				const team1UserId = team1Participant?.userId || null;
+				const team2UserId = team2Participant?.userId || null;
+
 				return {
 					id: matchId,
 					team1Name,
@@ -787,22 +812,18 @@ export async function getUserTournamentMatches(): Promise<MatchHistory[]> {
 					total20sTeam1: total20s1 > 0 ? total20s1 : undefined,
 					total20sTeam2: total20s2 > 0 ? total20s2 : undefined,
 					syncStatus: 'synced',
-					players: (() => {
-						const team1Participant = tournament.participants?.find((p: TournamentParticipant) => p.id === team1Id);
-						const team2Participant = tournament.participants?.find((p: TournamentParticipant) => p.id === team2Id);
-						return {
-							team1: {
-								name: team1Name,
-								userId: user.id,
-								...(team1Participant?.partner ? { partner: { name: team1Participant.partner.name, userId: team1Participant.partner.userId || null } } : {})
-							},
-							team2: {
-								name: team2Name,
-								userId: null,
-								...(team2Participant?.partner ? { partner: { name: team2Participant.partner.name, userId: team2Participant.partner.userId || null } } : {})
-							}
-						};
-					})()
+					players: {
+						team1: {
+							name: team1Name,
+							userId: team1UserId,
+							...(team1Participant?.partner ? { partner: { name: team1Participant.partner.name, userId: team1Participant.partner.userId || null } } : {})
+						},
+						team2: {
+							name: team2Name,
+							userId: team2UserId,
+							...(team2Participant?.partner ? { partner: { name: team2Participant.partner.name, userId: team2Participant.partner.userId || null } } : {})
+						}
+					}
 				};
 			};
 
