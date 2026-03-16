@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.98] - 2026-03-16
+- Unified tournament match start flow: all matches route through MatchPreviewDialog (colors + hammer)
+- Fix scorer warning shown to yourself when resuming a paused tournament match
+- Fix 20s edits not syncing to Firebase (dual-store consistency: currentMatch + currentGameRounds)
+- Allow admin overwrite of completed matches, persist table assign hints in localStorage
+- Fix timeout modal not updating visual score on accept
+- Add 17 new tests (match start options, scorer warning, dual-store sync, timeout, admin overwrite)
+
 ## [2.4.97] - 2026-03-15
 - Universal user merge (any user type combination), with search-based UI modal and merge audit trail
 - Ranking tiebreaker redesign: points → best singles position → best doubles position → name
