@@ -1550,5 +1550,17 @@
   "admin_venueMergeSuccess": "Venues successfully merged ( {count} tournaments updated)",
   "admin_venueNoVenues": "There are no venues listed",
   "admin_venueOwner": "Owner",
-  "join_inviteCancelled": "The invitation was cancelled by the host"
+  "join_inviteCancelled": "The invitation has been cancelled by the host",
+  "bracket_matchStart": "Match begins",
+  "bracket_pointsFormat": "A {points} points",
+  "bracket_roundsFormat": "{count} rounds",
+  "bracket_bestOfN": "Best of {count}",
+  "bracket_table": "Table {tableNumber}",
+  "scoring_hammerRandom": "Random",
+  "scoring_startMatch": "Start match",
+  "wizard_whoStarts": "Who starts",
+  "wizard_whoStartsPickup": "Choose",
+  "wizard_whoStartsAlternate": "Alternate",
+  "wizard_whoStartsPickupHint": "The player chooses who shoots first in each game.",
+  "wizard_whoStartsAlternateHint": "It is assigned automatically by alternating between matches."
 }

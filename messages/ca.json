@@ -1550,5 +1550,17 @@
   "admin_venueMergeSuccess": "Venus fusionats correctament ( {count} tornejos actualitzats)",
   "admin_venueNoVenues": "No hi ha venues registrats",
   "admin_venueOwner": "Propietari",
-  "join_inviteCancelled": "La invitació va ser cancel·lada per l'amfitrió"
+  "join_inviteCancelled": "La invitació ha estat cancel·lada per l'amfitrió",
+  "bracket_matchStart": "Inici de partit",
+  "bracket_pointsFormat": "A {points} punts",
+  "bracket_roundsFormat": "{count} rondes",
+  "bracket_bestOfN": "Millor de {count}",
+  "bracket_table": "Taula {tableNumber}",
+  "scoring_hammerRandom": "Aleatori",
+  "scoring_startMatch": "Començar partit",
+  "wizard_whoStarts": "Qui comença",
+  "wizard_whoStartsPickup": "Triar",
+  "wizard_whoStartsAlternate": "Alternar",
+  "wizard_whoStartsPickupHint": "El jugador tria qui tira primer a cada partit",
+  "wizard_whoStartsAlternateHint": "S'assigna automàticament alternant entre partits"
 }
