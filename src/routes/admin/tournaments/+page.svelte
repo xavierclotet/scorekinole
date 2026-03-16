@@ -321,6 +321,8 @@
   }
 
   function confirmDelete(tournament: Tournament) {
+    // Completed tournaments can only be deleted by superadmins
+    if (tournament.status === 'COMPLETED' && !$isSuperAdminUser) return;
     tournamentToDelete = tournament;
     showDeleteConfirm = true;
   }
@@ -646,13 +648,15 @@
                   >
                     📋
                   </button>
-                  <button
-                    class="action-btn delete-btn badge-tooltip"
-                    data-tooltip={m.common_delete()}
-                    onclick={(e) => { e.stopPropagation(); confirmDelete(tournament); }}
-                  >
-                    🗑️
-                  </button>
+                  {#if tournament.status !== 'COMPLETED' || $isSuperAdminUser}
+                    <button
+                      class="action-btn delete-btn badge-tooltip"
+                      data-tooltip={m.common_delete()}
+                      onclick={(e) => { e.stopPropagation(); confirmDelete(tournament); }}
+                    >
+                      🗑️
+                    </button>
+                  {/if}
                 </td>
               </tr>
             {/each}

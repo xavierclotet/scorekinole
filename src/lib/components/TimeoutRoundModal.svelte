@@ -92,11 +92,13 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="dialog" onclick={stopPropagation}>
 		<div class="header">
-			<div class="header-icon">
-				<Clock size={28} />
+			<div class="title-row">
+				<Clock size={22} />
+				<h3 class="title">{m.timeout_title()}</h3>
 			</div>
-			<h3 class="title">{m.timeout_title()}</h3>
-			<p class="description">{m.timeout_description()}</p>
+			<div class="explanation-box">
+				<p class="description">{m.timeout_description()}</p>
+			</div>
 			<p class="instruction">{m.timeout_annotateRound()}</p>
 		</div>
 
@@ -198,44 +200,56 @@
 	.header {
 		text-align: center;
 		margin-bottom: 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
 	}
 
-	.header-icon {
+	.title-row {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		margin-bottom: 0.5rem;
+		gap: 0.5rem;
 		color: #ff7070;
 		animation: iconPulse 1.5s ease-in-out infinite;
 	}
 
 	@keyframes iconPulse {
 		0%, 100% { opacity: 1; transform: scale(1); }
-		50% { opacity: 0.7; transform: scale(1.05); }
+		50% { opacity: 0.85; transform: scale(1.02); }
 	}
 
 	.title {
-		margin: 0 0 0.4rem 0;
+		margin: 0;
 		font-family: 'Lexend', sans-serif;
-		font-size: 1.2rem;
+		font-size: 1.15rem;
 		font-weight: 700;
 		color: #ff7070;
 	}
 
+	.explanation-box {
+		background: rgba(255, 112, 112, 0.08);
+		border: 1px solid rgba(255, 112, 112, 0.2);
+		border-radius: 8px;
+		padding: 0.7rem 0.9rem;
+	}
+
 	.description {
-		margin: 0 0 0.25rem 0;
+		margin: 0;
 		font-family: 'Lexend', sans-serif;
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.6);
-		line-height: 1.4;
+		font-size: 0.95rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.85);
+		line-height: 1.45;
 	}
 
 	.instruction {
 		margin: 0;
 		font-family: 'Lexend', sans-serif;
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: rgba(255, 255, 255, 0.8);
+		font-size: 0.88rem;
+		font-weight: 700;
+		color: #fff;
+		letter-spacing: 0.01em;
 	}
 
 	.section-label {
@@ -433,9 +447,12 @@
 			font-size: 1.05rem;
 		}
 
-		.description,
+		.description {
+			font-size: 0.88rem;
+		}
+
 		.instruction {
-			font-size: 0.8rem;
+			font-size: 0.82rem;
 		}
 
 		.winner-btn {
@@ -460,18 +477,21 @@
 
 		.header {
 			margin-bottom: 0.5rem;
-		}
-
-		.header-icon {
-			margin-bottom: 0.25rem;
+			gap: 0.4rem;
 		}
 
 		.title {
 			font-size: 0.95rem;
-			margin-bottom: 0.2rem;
 		}
 
-		.description,
+		.explanation-box {
+			padding: 0.5rem 0.7rem;
+		}
+
+		.description {
+			font-size: 0.8rem;
+		}
+
 		.instruction {
 			font-size: 0.75rem;
 		}

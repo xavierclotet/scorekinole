@@ -9,9 +9,14 @@
 	interface Props {
 		/** Callback when user wants to edit 20s for a round */
 		onedit20s?: (roundIndex: number, team1Value: number, team2Value: number) => void;
+		/** When true, all rounds are read-only (no editing) */
+		readonly?: boolean;
 	}
 
-	let { onedit20s }: Props = $props();
+	let { onedit20s, readonly = false }: Props = $props();
+
+	// Derived from prop so Svelte 5 properly tracks changes inside {#each} blocks
+	let isReadonly = $derived(readonly);
 
 	let isExpanded = $state(false);
 	let selectedGameIndex = $state(0);
@@ -123,6 +128,7 @@
 	function handleRoundClick(roundIndex: number) {
 		// Ignore click if we just finished dragging
 		if (hasMoved) return;
+		if (isReadonly) return;
 
 		const game = displayGames[selectedGameIndex];
 		if (game && game.rounds[roundIndex]) {
@@ -293,14 +299,13 @@
 				<div class="rounds-list">
 					{#each [...(displayGames[selectedGameIndex]?.rounds ?? [])].reverse() as round, i}
 						{@const index = (displayGames[selectedGameIndex]?.rounds?.length ?? 0) - 1 - i}
-						{@const isCurrentGame = !displayGames[selectedGameIndex]?.isCompleted}
 						{@const roundWinner = round.team1Points > round.team2Points ? 1 : round.team2Points > round.team1Points ? 2 : 0}
 						<button
 							class="round-row"
-							class:editable={isCurrentGame}
+							class:editable={!isReadonly && !displayGames[selectedGameIndex]?.isCompleted}
 							onclick={() => handleRoundClick(index)}
-							disabled={!isCurrentGame}
-							title={isCurrentGame ? m.scoring_edit20s() : ''}
+							disabled={isReadonly || !!displayGames[selectedGameIndex]?.isCompleted}
+							title={!isReadonly && !displayGames[selectedGameIndex]?.isCompleted ? m.scoring_edit20s() : ''}
 						>
 							<span class="round-number">R{round.roundNumber}</span>
 							<span class="round-winner" class:tie={roundWinner === 0}>
@@ -497,6 +502,7 @@
 	.round-row:disabled {
 		cursor: default;
 		opacity: 0.7;
+		pointer-events: none;
 	}
 
 	.round-number {

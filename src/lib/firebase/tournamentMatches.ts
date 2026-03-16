@@ -701,6 +701,57 @@ function calculateStandings(tournament: Tournament, groupIndex: number): void {
 // ============================================================================
 
 /**
+ * Compute which participant should start (non-hammer side) when whoStarts is 'alternate'.
+ * Looks at all completed group matches to count how many times each player has started,
+ * then picks the one who has started fewer times. Ties broken by lexicographic ID.
+ */
+export function computeAutoStartParticipant(
+  tournament: Tournament,
+  participantA: string,
+  participantB: string
+): string {
+  const startCounts = new Map<string, number>();
+  startCounts.set(participantA, 0);
+  startCounts.set(participantB, 0);
+
+  // Count starts from all completed group matches across all groups
+  if (tournament.groupStage) {
+    for (const group of tournament.groupStage.groups) {
+      const allMatches = [
+        ...(group.schedule?.flatMap(r => r.matches) || []),
+        ...(group.pairings?.flatMap(p => p.matches) || [])
+      ];
+
+      for (const match of allMatches) {
+        if (match.status !== 'COMPLETED') continue;
+        if (!match.rounds || match.rounds.length === 0) continue;
+
+        // The hammer holder in round 1 is the NON-starter
+        const firstRoundHammer = match.rounds[0]?.hammer;
+        if (!firstRoundHammer) continue;
+
+        // The starter is the other player
+        const starter = firstRoundHammer === match.participantA
+          ? match.participantB
+          : match.participantA;
+
+        if (starter === participantA || starter === participantB) {
+          startCounts.set(starter, (startCounts.get(starter) || 0) + 1);
+        }
+      }
+    }
+  }
+
+  const countsA = startCounts.get(participantA) || 0;
+  const countsB = startCounts.get(participantB) || 0;
+
+  if (countsA < countsB) return participantA;
+  if (countsB < countsA) return participantB;
+  // Tie: lexicographically smaller ID starts
+  return participantA < participantB ? participantA : participantB;
+}
+
+/**
  * Pending match info for display in match selection
  */
 export interface PendingMatchInfo {
@@ -721,6 +772,7 @@ export interface PendingMatchInfo {
   tableNumber?: number;    // Table number for display (e.g., M1, M2)
   isSilverBracket?: boolean;  // True if match is in the silver bracket (for SPLIT_DIVISIONS mode)
   isConsolation?: boolean;  // True if match is in a consolation bracket
+  autoStartParticipantId?: string;  // Participant who should start (whoStarts: 'alternate')
 }
 
 /**
@@ -744,7 +796,8 @@ function getGameConfigForMatch(
       gameType: tournament.gameType,
       timeLimitMinutes: tournament.gameType === 'doubles'
         ? (tc?.minutesPer4RoundsDoubles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsDoubles)
-        : (tc?.minutesPer4RoundsSingles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles)
+        : (tc?.minutesPer4RoundsSingles ?? DEFAULT_TIME_CONFIG.minutesPer4RoundsSingles),
+      whoStarts: tournament.groupStage.whoStarts
     };
   }
 
@@ -970,7 +1023,10 @@ export async function getPendingMatchesForUser(
                 ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 isInProgress: isInProgressStatus(match.status),
-                tableNumber: match.tableNumber
+                tableNumber: match.tableNumber,
+                ...(tournament.groupStage?.whoStarts === 'alternate' && match.participantB !== 'BYE' ? {
+                  autoStartParticipantId: computeAutoStartParticipant(tournament, match.participantA, match.participantB)
+                } : {})
               };
               if (isInProgressStatus(match.status)) {
                 inProgressMatches.push(matchInfo);
@@ -999,7 +1055,10 @@ export async function getPendingMatchesForUser(
                 ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 isInProgress: isInProgressStatus(match.status),
-                tableNumber: match.tableNumber
+                tableNumber: match.tableNumber,
+                ...(tournament.groupStage?.whoStarts === 'alternate' && match.participantB !== 'BYE' ? {
+                  autoStartParticipantId: computeAutoStartParticipant(tournament, match.participantA, match.participantB)
+                } : {})
               };
               if (isInProgressStatus(match.status)) {
                 inProgressMatches.push(matchInfo);
@@ -1291,7 +1350,10 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                 ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 isInProgress: isInProgress(match.status),
-                tableNumber: match.tableNumber
+                tableNumber: match.tableNumber,
+                ...(tournament.groupStage?.whoStarts === 'alternate' ? {
+                  autoStartParticipantId: computeAutoStartParticipant(tournament, match.participantA, match.participantB)
+                } : {})
               };
               if (isInProgress(match.status)) {
                 inProgressMatches.push(matchInfo);
@@ -1319,7 +1381,10 @@ export async function getAllPendingMatches(tournament: Tournament): Promise<Pend
                 ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 isInProgress: isInProgress(match.status),
-                tableNumber: match.tableNumber
+                tableNumber: match.tableNumber,
+                ...(tournament.groupStage?.whoStarts === 'alternate' ? {
+                  autoStartParticipantId: computeAutoStartParticipant(tournament, match.participantA, match.participantB)
+                } : {})
               };
               if (isInProgress(match.status)) {
                 inProgressMatches.push(matchInfo);
@@ -1631,7 +1696,10 @@ export async function getUserActiveMatches(
                 ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 isInProgress: isInProgress(match.status),
-                tableNumber: match.tableNumber
+                tableNumber: match.tableNumber,
+                ...(tournament.groupStage?.whoStarts === 'alternate' && match.participantB !== 'BYE' ? {
+                  autoStartParticipantId: computeAutoStartParticipant(tournament, match.participantA, match.participantB)
+                } : {})
               });
             }
           }
@@ -1655,7 +1723,10 @@ export async function getUserActiveMatches(
                 ...getMatchPhotos(match.participantA, match.participantB, photoMap),
                 gameConfig: getGameConfigForMatch(tournament, 'GROUP'),
                 isInProgress: isInProgress(match.status),
-                tableNumber: match.tableNumber
+                tableNumber: match.tableNumber,
+                ...(tournament.groupStage?.whoStarts === 'alternate' && match.participantB !== 'BYE' ? {
+                  autoStartParticipantId: computeAutoStartParticipant(tournament, match.participantA, match.participantB)
+                } : {})
               });
             }
           }

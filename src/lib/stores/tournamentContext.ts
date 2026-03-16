@@ -22,6 +22,7 @@ export interface TournamentGameConfig {
   showHammer: boolean;
   gameType: 'singles' | 'doubles';
   timeLimitMinutes?: number;  // Group stage only: from tournament.timeConfig
+  whoStarts?: 'alternate' | 'pickup';  // Group stage: alternate or pickup
 }
 
 /**
@@ -93,6 +94,9 @@ export interface TournamentMatchContext {
     twentiesB: number;
     hammer?: string | null;
   }>;
+
+  // Auto-start (whoStarts: 'alternate' mode)
+  autoStartParticipantId?: string;  // Participant ID who should start (non-hammer side)
 
   // Offline support
   offlineData?: TournamentOfflineData;

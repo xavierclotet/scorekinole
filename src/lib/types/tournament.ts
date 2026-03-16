@@ -229,6 +229,7 @@ export interface GroupStage {
   rankingSystem?: GroupRankingSystem;  // @deprecated - use qualificationMode instead
   swissRankingSystem?: SwissRankingSystem;  // @deprecated - use qualificationMode instead
   tiebreakerPriority?: TiebreakerCriterion[];  // Custom tiebreaker order (admin-configurable)
+  whoStarts?: 'alternate' | 'pickup';  // Who starts each match: alternate automatically or pickup (player chooses)
 }
 
 /**

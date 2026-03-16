@@ -62,6 +62,7 @@
   let gameType = $state<'singles' | 'doubles'>('singles');
   let show20s = $state(true);
   let showHammer = $state(true);
+  let whoStarts = $state<'alternate' | 'pickup'>('pickup');
   let isTest = $state(false);
 
   // Step 2: Tournament Format
@@ -373,6 +374,7 @@
           numGroups = tournament.groupStage.numGroups || 2;
           numSwissRounds = tournament.groupStage.numSwissRounds || 4;
           qualificationMode = tournament.groupStage.qualificationMode || tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
+          whoStarts = tournament.groupStage.whoStarts || 'pickup';
         } else {
           // Legacy fallback: read from tournament root level (old tournament format)
           const legacyTournament = tournament as any;
@@ -630,6 +632,7 @@
           numGroups = tournament.groupStage.numGroups || 2;
           numSwissRounds = tournament.groupStage.numSwissRounds || 4;
           qualificationMode = tournament.groupStage.qualificationMode || tournament.groupStage.rankingSystem || tournament.groupStage.swissRankingSystem || 'WINS';
+          whoStarts = tournament.groupStage.whoStarts || 'pickup';
         } else {
           // Legacy fallback (old tournament format)
           const legacyTournament = tournament as any;
@@ -892,6 +895,7 @@
       qualificationMode = data.qualificationMode || data.rankingSystem || data.swissRankingSystem || 'WINS';
       show20s = data.show20s ?? true;
       showHammer = data.showHammer ?? true;
+      whoStarts = data.whoStarts || 'pickup';
       isTest = data.isTest ?? false;
 
       // Load phase-specific game config
@@ -1056,6 +1060,7 @@
         matchesToWin,
         show20s,
         showHammer,
+        whoStarts,
         isTest,
         rankingEnabled,
         selectedTier,
@@ -1430,7 +1435,8 @@
           matchesToWin: groupMatchesToWin,
           numGroups: groupStageType === 'ROUND_ROBIN' ? numGroups : undefined,
           numSwissRounds: groupStageType === 'SWISS' ? numSwissRounds : undefined,
-          qualificationMode: qualificationMode
+          qualificationMode: qualificationMode,
+          ...(showHammer && whoStarts !== 'pickup' ? { whoStarts } : {})
         };
         // No finalStage for GROUP_ONLY
       } else if (phaseType === 'TWO_PHASE') {
@@ -1447,7 +1453,8 @@
           matchesToWin: groupMatchesToWin,
           numGroups: groupStageType === 'ROUND_ROBIN' ? numGroups : undefined,
           numSwissRounds: groupStageType === 'SWISS' ? numSwissRounds : undefined,
-          qualificationMode: qualificationMode
+          qualificationMode: qualificationMode,
+          ...(showHammer && whoStarts !== 'pickup' ? { whoStarts } : {})
         };
 
         // Final stage configuration - stored in goldBracket.config (and silverBracket.config for SPLIT_DIVISIONS)
@@ -2055,6 +2062,30 @@
                     </label>
                   </div>
                 </div>
+                {#if showHammer}
+                  <div class="config-field who-starts-field">
+                    <!-- svelte-ignore a11y_label_has_associated_control -->
+                    <label>{m.wizard_whoStarts()}</label>
+                    <div class="toggle-buttons">
+                      <button
+                        class="toggle-btn"
+                        class:active={whoStarts === 'pickup'}
+                        onclick={() => whoStarts = 'pickup'}
+                        title={m.wizard_whoStartsPickupHint()}
+                      >
+                        {m.wizard_whoStartsPickup()}
+                      </button>
+                      <button
+                        class="toggle-btn"
+                        class:active={whoStarts === 'alternate'}
+                        onclick={() => whoStarts = 'alternate'}
+                        title={m.wizard_whoStartsAlternateHint()}
+                      >
+                        {m.wizard_whoStartsAlternate()}
+                      </button>
+                    </div>
+                  </div>
+                {/if}
               </div>
             </div>
           </div>
@@ -2986,6 +3017,9 @@
                       <span class="rv-val rv-tags">
                         <span class="rv-tag" class:rv-tag-off={!show20s}>20s</span>
                         <span class="rv-tag" class:rv-tag-off={!showHammer}>Hammer</span>
+                        {#if showHammer && whoStarts === 'alternate'}
+                          <span class="rv-tag">{m.wizard_whoStartsAlternate()}</span>
+                        {/if}
                       </span>
                     </div>
                   </div>

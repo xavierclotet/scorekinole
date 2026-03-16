@@ -5,7 +5,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import { team1, team2, loadTeams, saveTeams, resetTeams, switchSides, updateTeam } from '$lib/stores/teams';
 	import { timeRemaining, resetTimer, cleanupTimer, startTimer, stopTimer } from '$lib/stores/timer';
-	import { loadMatchState, resetMatchState, saveMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchRounds, currentMatchGames, lastRoundPoints, matchState } from '$lib/stores/matchState';
+	import { loadMatchState, resetMatchState, saveMatchState, roundsPlayed, twentyDialogPending, setTwentyDialogPending, currentGameRounds, currentMatchRounds, currentMatchGames, lastRoundPoints, matchState, setCurrentGameStartHammer } from '$lib/stores/matchState';
 	import { startCurrentMatch, currentMatch, updateCurrentMatchRound } from '$lib/stores/history';
 	import TeamCard from '$lib/components/TeamCard.svelte';
 	import Timer from '$lib/components/Timer.svelte';
@@ -1376,12 +1376,27 @@
 			(context.currentGameData && (context.currentGameData.gamesWonA > 0 || context.currentGameData.gamesWonB > 0));
 
 		if (context.gameConfig.showHammer && !hasExistingProgress) {
-			// Timer will start after hammer is selected (in handleHammerSelected)
-			setTimeout(() => {
-				showHammerDialog = true;
-			}, 100);
+			if (matchPreviewOptions) {
+				// Options were pre-selected in MatchPreviewDialog — apply directly
+				const opts = matchPreviewOptions;
+				matchPreviewOptions = null;
+				applyPreSelectedOptions(opts);
+			} else if (context.gameConfig.whoStarts === 'alternate' && context.autoStartParticipantId) {
+				// Auto-apply hammer for group stage alternate mode (skip dialog)
+				autoApplyHammer(context);
+			} else {
+				// Default: show simple hammer dialog (pickup mode)
+				setTimeout(() => {
+					showHammerDialog = true;
+				}, 100);
+			}
 		} else {
-			if (!hasExistingProgress) {
+			if (matchPreviewOptions) {
+				// Apply colors even if no hammer
+				const opts = matchPreviewOptions;
+				matchPreviewOptions = null;
+				applyPreSelectedOptions(opts);
+			} else if (!hasExistingProgress) {
 				// Sync initial state with default hammer
 				setTimeout(() => {
 					const savedData = saveTournamentProgressToLocalStorage();
@@ -1391,6 +1406,68 @@
 				}, 200);
 			}
 		}
+	}
+
+	/**
+	 * Auto-apply hammer for group stage alternate mode (skip dialog)
+	 */
+	function autoApplyHammer(context: TournamentMatchContext) {
+		const starterId = context.autoStartParticipantId;
+		if (!starterId) return;
+
+		// Starter = the player who starts (non-hammer). Hammer goes to the OTHER player.
+		// If starter is participantA, that maps to team1 starting → hammer on team2
+		const starterIsTeam1 = starterId === context.participantAId;
+		const hammerTeam: 1 | 2 = starterIsTeam1 ? 2 : 1;
+
+		// Apply hammer to teams
+		if (hammerTeam === 1) {
+			team1.update(t => ({ ...t, hasHammer: true }));
+			team2.update(t => ({ ...t, hasHammer: false }));
+		} else {
+			team1.update(t => ({ ...t, hasHammer: false }));
+			team2.update(t => ({ ...t, hasHammer: true }));
+		}
+
+		setCurrentGameStartHammer(hammerTeam);
+
+		// Sync to Firebase
+		setTimeout(() => {
+			const savedData = saveTournamentProgressToLocalStorage();
+			if (savedData) {
+				syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
+			}
+		}, 200);
+	}
+
+	/**
+	 * Apply pre-selected options from MatchPreviewDialog (colors + hammer)
+	 */
+	function applyPreSelectedOptions(options: { hammerTeam?: 1 | 2 | null; team1Color: string; team2Color: string }) {
+		// Apply selected colors
+		team1.update(t => ({ ...t, color: options.team1Color }));
+		team2.update(t => ({ ...t, color: options.team2Color }));
+		saveTeams();
+
+		if (options.hammerTeam != null) {
+			// Apply hammer
+			if (options.hammerTeam === 1) {
+				team1.update(t => ({ ...t, hasHammer: true }));
+				team2.update(t => ({ ...t, hasHammer: false }));
+			} else {
+				team1.update(t => ({ ...t, hasHammer: false }));
+				team2.update(t => ({ ...t, hasHammer: true }));
+			}
+			setCurrentGameStartHammer(options.hammerTeam);
+		}
+
+		// Sync to Firebase
+		setTimeout(() => {
+			const savedData = saveTournamentProgressToLocalStorage();
+			if (savedData) {
+				syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
+			}
+		}, 200);
 	}
 
 	/**
@@ -1536,9 +1613,12 @@
 		}
 	}
 
-	async function handleMatchPreviewPlay() {
+	let matchPreviewOptions = $state<{ hammerTeam?: 1 | 2 | null; team1Color: string; team2Color: string } | null>(null);
+
+	async function handleMatchPreviewPlay(options: { hammerTeam?: 1 | 2 | null; team1Color: string; team2Color: string }) {
 		if (isStartingMatch) return;
 		showMatchPreview = false;
+		matchPreviewOptions = options;
 		if (matchPreviewTournament && matchPreviewInfo) {
 			await autoStartMatch(matchPreviewTournament, matchPreviewInfo);
 		}
@@ -1550,6 +1630,13 @@
 		showMatchPreview = false;
 		matchPreviewInfo = null;
 		matchPreviewTournament = null;
+	}
+
+	function handleMatchSelectedFromModal(matchInfo: PendingMatchInfo, tournament: any) {
+		showTournamentModal = false;
+		matchPreviewInfo = matchInfo;
+		matchPreviewTournament = tournament;
+		showMatchPreview = true;
 	}
 
 	/**
@@ -1654,7 +1741,8 @@
 					gamesWonA,
 					gamesWonB,
 					currentGameNumber: maxGameNumber
-				} : undefined
+				} : undefined,
+				autoStartParticipantId: matchInfo.autoStartParticipantId
 			};
 
 			setTournamentContext(context);
@@ -1702,6 +1790,7 @@
 			console.log('⏸️ Tournament match paused - progress preserved in Firebase');
 		} catch (error) {
 			console.error('Error pausing tournament match:', error);
+		} finally {
 			isExitingTournament = false;
 		}
 	}
@@ -1740,6 +1829,7 @@
 			isInExtraRounds = false;
 		} catch (error) {
 			console.error('Error exiting tournament:', error);
+		} finally {
 			isExitingTournament = false;
 		}
 	}
@@ -1927,6 +2017,7 @@
 
 		// Clear the last tournament result block if there was one
 		gameSettings.update(s => ({ ...s, lastTournamentResult: null }));
+		tournamentMatchCompletedSent = false;
 
 		resetTeams();
 		resetMatchState();
@@ -2165,6 +2256,26 @@
 				team1Twenty: team1Value,
 				team2Twenty: team2Value
 			});
+
+			// Also update currentGameRounds (separate store used by saveTournamentProgressToLocalStorage)
+			currentGameRounds.update(rounds => {
+				if (!rounds[editing20sRoundIndex]) return rounds;
+				const updated = [...rounds];
+				updated[editing20sRoundIndex] = {
+					...updated[editing20sRoundIndex],
+					team1Twenty: team1Value,
+					team2Twenty: team2Value
+				};
+				return updated;
+			});
+
+			// Sync edited 20s to Firebase so tournament admin page sees the update
+			if (inTournamentMode && !tournamentMatchCompletedSent) {
+				const savedData = saveTournamentProgressToLocalStorage();
+				if (savedData) {
+					syncTournamentRounds(savedData.allRounds, savedData.gamesWonA, savedData.gamesWonB, savedData.currentHammer);
+				}
+			}
 		}
 		// Do NOT set isEditing20s = false here!
 		// handleTwentyInputClose() will handle cleanup
@@ -2652,7 +2763,7 @@
 
 	<!-- Rounds Panel - show when: 20s enabled, rounds mode, multi-game, OR displaying a tournament result -->
 	{#if effectiveShowRoundsPanel && ($currentMatch?.rounds?.length || $currentMatch?.games?.length || $gameSettings.lastTournamentResult || (inTournamentMode && ($team1.points > 0 || $team2.points > 0)))}
-		<RoundsPanel onedit20s={effectiveShow20s ? handleEdit20s : undefined} />
+		<RoundsPanel onedit20s={effectiveShow20s ? handleEdit20s : undefined} readonly={tournamentMatchCompletedSent || !!$gameSettings.lastTournamentResult} />
 	{/if}
 
 	<div class="teams-container">
@@ -2863,16 +2974,19 @@
 	isOpen={showTournamentModal}
 	onclose={() => showTournamentModal = false}
 	onmatchstarted={handleTournamentMatchStarted}
+	onmatchselected={handleMatchSelectedFromModal}
 />
 
 <!-- Match Preview Dialog (auto-detected single match) -->
 <MatchPreviewDialog
-	bind:isOpen={showMatchPreview}
+	isOpen={showMatchPreview}
 	matchInfo={matchPreviewInfo}
 	tournamentName={matchPreviewTournament?.name}
 	tournamentEdition={matchPreviewTournament?.edition}
 	isDoubles={matchPreviewTournament?.gameType === 'doubles'}
 	isLoading={isStartingMatch}
+	team1Color={$team1.color}
+	team2Color={$team2.color}
 	onplay={handleMatchPreviewPlay}
 	oncancel={handleMatchPreviewCancel}
 />

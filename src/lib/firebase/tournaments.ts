@@ -852,6 +852,15 @@ export async function deleteTournament(id: string): Promise<boolean> {
       return false;
     }
 
+    // Completed tournaments can only be deleted by superadmins
+    if (tournamentData.status === 'COMPLETED') {
+      const superAdminStatus = await isSuperAdmin();
+      if (!superAdminStatus) {
+        console.error('Unauthorized: Only superadmins can delete completed tournaments');
+        return false;
+      }
+    }
+
     // First, revert ranking changes for all participants
     const { revertTournamentRanking } = await import('./tournamentRanking');
     const rankingReverted = await revertTournamentRanking(id);

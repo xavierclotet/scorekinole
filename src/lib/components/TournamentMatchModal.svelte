@@ -26,9 +26,10 @@
 		isOpen?: boolean;
 		onclose?: () => void;
 		onmatchstarted?: (context: TournamentMatchContext) => void;
+		onmatchselected?: (matchInfo: PendingMatchInfo, tournament: Tournament) => void;
 	}
 
-	let { isOpen = $bindable(false), onclose, onmatchstarted }: Props = $props();
+	let { isOpen = $bindable(false), onclose, onmatchstarted, onmatchselected }: Props = $props();
 
 	// Reference to key input for autofocus
 	let keyInputElement: HTMLInputElement | undefined = $state();
@@ -506,6 +507,13 @@
 			}
 		}
 
+		// If onmatchselected is provided, emit selection and let game page handle MatchPreviewDialog
+		if (onmatchselected && tournament) {
+			onmatchselected(matchDisplay.match, tournament);
+			close();
+			return;
+		}
+
 		// For logged-in users, auto-detect their side (check both primary and partner userId for doubles)
 		if (isLoggedIn && $currentUser && tournament) {
 			const userParticipant = tournament.participants.find(p => p.userId === $currentUser?.id || p.partner?.userId === $currentUser?.id);
@@ -526,7 +534,7 @@
 			selectedSide = 'A';
 		}
 
-		// Start match immediately
+		// Start match immediately (fallback when onmatchselected not provided)
 		await startMatch();
 	}
 
@@ -691,7 +699,8 @@
 					gamesWonA,
 					gamesWonB,
 					currentGameNumber: maxGameNumber
-				} : undefined
+				} : undefined,
+				autoStartParticipantId: selectedMatch.autoStartParticipantId
 			};
 
 			console.log('📦 Context creado para /game:', {
