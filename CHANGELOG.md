@@ -2,6 +2,17 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.4.99] - 2026-03-16
+- Rename /rankings route to /ranking (singular)
+- New /users/[id] public player profile page with shared PlayerStatsContent
+- User short keys (6-char) for cleaner profile URLs
+- Dynamic tournament columns in ranking table with per-player points
+- Tournament shortName and edition fields for ranking column headers
+- Perfect rounds detection (all 20s) with diamond badge in stats and match list
+- Fix doubles partner ranking bug: partner now gets own rankingBefore/rankingAfter
+- Fix Cloud Function: separate tournament records for partner with correct ranking
+- All 5 previously failing doubles ranking tests now pass (1442/1442 green)
+
 ## [2.4.98] - 2026-03-16
 - Unified tournament match start flow: all matches route through MatchPreviewDialog (colors + hammer)
 - Fix scorer warning shown to yourself when resuming a paused tournament match
