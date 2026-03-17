@@ -13,6 +13,8 @@
   import type { Venue } from '$lib/types/venue';
   import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
   import { getQuotaForYear } from '$lib/types/quota';
+  import { COUNTRY_CODES } from '$lib/constants';
+  import { getFlagUrl } from '$lib/utils/countryFlags';
 
   const currentYear = new Date().getFullYear();
 
@@ -52,6 +54,7 @@
   let searchQuery = $state('');
   let filterRole: 'all' | 'admin' = $state('all');
   let filterType: 'all' | 'registered' | 'guest' | 'merged' = $state('all');
+  let filterCountry: string = $state('');
   const pageSize = 15;
 
   // Infinite scroll state
@@ -65,7 +68,7 @@
   let isSearchLoading = $state(false);
 
   let isSearching = $derived(searchQuery.trim().length > 0);
-  let isFiltering = $derived(filterRole !== 'all' || filterType !== 'all');
+  let isFiltering = $derived(filterRole !== 'all' || filterType !== 'all' || filterCountry !== '');
 
   // Normalize text for accent-insensitive search (e.g., "nu" matches "nú")
   function normalizeText(text: string): string {
@@ -95,6 +98,10 @@
     if (filterType === 'guest' && user.authProvider) return false;
     if (filterType === 'merged' && !user.mergedFrom) return false;
 
+    // Country filter
+    if (filterCountry === '__none__' && user.country) return false;
+    if (filterCountry && filterCountry !== '__none__' && user.country !== filterCountry) return false;
+
     if (isSearching) {
       const q = normalizeText(searchQuery);
       return (
@@ -105,6 +112,18 @@
     }
     return true;
   }));
+
+  // Unique countries from loaded users (for country filter dropdown)
+  let uniqueCountries = $derived.by(() => {
+    const source = allUsersCache || users;
+    const codes = new Set<string>();
+    for (const u of source) {
+      if (u.country) codes.add(u.country);
+    }
+    return COUNTRY_CODES
+      .filter(c => codes.has(c))
+      .sort((a, b) => a.localeCompare(b));
+  });
 
   let displayTotal = $derived(isSearching || isFiltering ? filteredUsers.length : totalCount);
 
@@ -381,6 +400,17 @@
           <option value="guest">{m.admin_guestUsers()}</option>
           <option value="merged">{m.admin_merged()}</option>
         </select>
+
+        <select
+          class="filter-select"
+          bind:value={filterCountry}
+        >
+          <option value="">🌍 {m.profile_country()}</option>
+          <option value="__none__">— {m.profile_countryUnassigned()}</option>
+          {#each uniqueCountries as code}
+            <option value={code}>{code}</option>
+          {/each}
+        </select>
       </div>
     </div>
 
@@ -423,7 +453,12 @@
                       </div>
                     {/if}
                     <div class="user-details">
-                      <strong class="user-name">{user.playerName || 'Sin nombre'}</strong>
+                      <strong class="user-name">
+                        {user.playerName || 'Sin nombre'}
+                        {#if user.country}
+                          <img class="user-country-flag" src={getFlagUrl(user.country)} alt={user.country} />
+                        {/if}
+                      </strong>
                       <small class="user-email">{user.email || '-'}</small>
                     </div>
                   </div>
@@ -1130,6 +1165,17 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .user-country-flag {
+    height: 0.9em;
+    width: auto;
+    vertical-align: middle;
+    border-radius: 1px;
+    flex-shrink: 0;
   }
 
   .user-email {

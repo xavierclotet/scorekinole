@@ -14,6 +14,7 @@
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import SEO from '$lib/components/SEO.svelte';
 	import PlayerStatsContent from '$lib/components/PlayerStatsContent.svelte';
+	import { getFlagUrl } from '$lib/utils/countryFlags';
 
 	let urlParam = $derived(page.params.id);
 	let tournamentParam = $derived(page.url.searchParams.get('tournament') ?? '');
@@ -106,25 +107,6 @@
 		return count;
 	})());
 
-	// Country flag helper — returns emoji flag for standard ISO 2-letter codes
-	// Non-standard codes (e.g. CAT) have no emoji, use SVG instead
-	function getCountryFlag(countryCode: string): string | null {
-		const code = countryCode.toUpperCase();
-		if (code.length !== 2) return null;
-		return code
-			.split('')
-			.map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65))
-			.join('');
-	}
-
-	// SVG flag path for non-standard country codes (e.g. Catalonia)
-	const FLAG_SVG: Record<string, string> = {
-		'CAT': '/flags/cat.svg'
-	};
-
-	function getCountryFlagSvg(countryCode: string): string | undefined {
-		return FLAG_SVG[countryCode.toUpperCase()];
-	}
 </script>
 
 <SEO
@@ -167,13 +149,7 @@
 				<div class="profile-name-row">
 					<span class="profile-name">{profile.playerName}</span>
 					{#if profile.country}
-						{@const emojiFlag = getCountryFlag(profile.country)}
-						{@const svgFlag = getCountryFlagSvg(profile.country)}
-						{#if svgFlag}
-							<img class="profile-country-flag" src={svgFlag} alt={profile.country} />
-						{:else if emojiFlag}
-							<span class="profile-country">{emojiFlag}</span>
-						{/if}
+						<img class="profile-country-flag" src={getFlagUrl(profile.country, '32x24')} alt={profile.country} />
 					{/if}
 					{#if perfectRounds > 0}
 						<span class="perfect-badge" title={perfectRounds === 1 ? m.stats_perfectRound() : m.stats_perfectRounds()}>💎 {perfectRounds}</span>
@@ -349,10 +325,6 @@
 		font-size: 1.15rem;
 		font-weight: 700;
 		color: var(--foreground);
-	}
-
-	.profile-country {
-		font-size: 1.2rem;
 	}
 
 	.profile-country-flag {

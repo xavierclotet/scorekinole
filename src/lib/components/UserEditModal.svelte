@@ -7,6 +7,36 @@
   import { getQuotaForYear, getQuotaEntryForYear, setQuotaForYear, type QuotaEntry } from '$lib/types/quota';
   import { currentUser } from '$lib/firebase/auth';
   import { get } from 'svelte/store';
+  import { COUNTRY_CODES } from '$lib/constants';
+  import * as Popover from '$lib/components/ui/popover';
+  import * as Command from '$lib/components/ui/command';
+  import Check from '@lucide/svelte/icons/check';
+  import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+
+  function getCountryName(code: string): string {
+    const translations: Record<string, () => string> = {
+      'AR': () => m.country_AR(), 'AU': () => m.country_AU(), 'AT': () => m.country_AT(),
+      'BE': () => m.country_BE(), 'BR': () => m.country_BR(), 'CA': () => m.country_CA(),
+      'CAT': () => m.country_CAT(), 'CL': () => m.country_CL(), 'CN': () => m.country_CN(),
+      'CO': () => m.country_CO(), 'CZ': () => m.country_CZ(), 'DE': () => m.country_DE(),
+      'DK': () => m.country_DK(), 'ES': () => m.country_ES(), 'FI': () => m.country_FI(),
+      'FR': () => m.country_FR(), 'GB': () => m.country_GB(), 'GR': () => m.country_GR(),
+      'HU': () => m.country_HU(), 'IE': () => m.country_IE(), 'IN': () => m.country_IN(),
+      'IS': () => m.country_IS(), 'IT': () => m.country_IT(), 'JP': () => m.country_JP(),
+      'KR': () => m.country_KR(), 'LU': () => m.country_LU(), 'MX': () => m.country_MX(),
+      'NL': () => m.country_NL(), 'NO': () => m.country_NO(), 'NZ': () => m.country_NZ(),
+      'PL': () => m.country_PL(), 'PT': () => m.country_PT(), 'RO': () => m.country_RO(),
+      'RU': () => m.country_RU(), 'SE': () => m.country_SE(), 'SG': () => m.country_SG(),
+      'CH': () => m.country_CH(), 'US': () => m.country_US(), 'UY': () => m.country_UY(),
+      'VE': () => m.country_VE(), 'ZA': () => m.country_ZA(),
+    };
+    return translations[code]?.() || code;
+  }
+
+  const sortedCountries = $derived(
+    COUNTRY_CODES.map(code => ({ code, name: getCountryName(code) }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  );
 
   interface Props {
     user: AdminUserInfo;
@@ -52,6 +82,20 @@
   let nextYearQuota = $state(getInitialQuotaForYear(nextYear));
   // svelte-ignore state_referenced_locally
   let showNextYear = $state(getQuotaForYear(user.quotaEntries, nextYear) > 0);
+
+  // Country selector
+  // svelte-ignore state_referenced_locally
+  let countryCode = $state(user.country || '');
+  let countrySearchOpen = $state(false);
+  let countrySearch = $state('');
+
+  const filteredCountries = $derived(
+    sortedCountries.filter(c => c.name.toLowerCase().includes(countrySearch.toLowerCase()))
+  );
+
+  const selectedCountryName = $derived(
+    countryCode ? getCountryName(countryCode) : ''
+  );
 
   // When admin is toggled OFF, reset permissions and quota in local state
   $effect(() => {
@@ -153,7 +197,7 @@
     errorMessage = '';
 
     try {
-      const updates: { playerName?: string; photoURL?: string | null; quotaEntries?: QuotaEntry[]; canAutofill?: boolean; canImportTournaments?: boolean } = {};
+      const updates: { playerName?: string; photoURL?: string | null; country?: string; quotaEntries?: QuotaEntry[]; canAutofill?: boolean; canImportTournaments?: boolean } = {};
 
       if (playerName !== user.playerName) {
         updates.playerName = playerName;
@@ -161,6 +205,10 @@
 
       if (currentPhotoURL !== user.photoURL) {
         updates.photoURL = currentPhotoURL || null;
+      }
+
+      if (countryCode !== (user.country || '')) {
+        updates.country = countryCode || undefined;
       }
 
       if (canAutofill !== (user.canAutofill || false)) {
@@ -368,6 +416,42 @@
               bind:value={currentPhotoURL}
               placeholder="https://..."
             />
+          </div>
+
+          <div class="field">
+            <label>{m.profile_country()}</label>
+            <Popover.Root bind:open={countrySearchOpen}>
+              <Popover.Trigger class="country-trigger">
+                <span class={["country-trigger-text", !selectedCountryName && "placeholder"]}>
+                  {selectedCountryName || m.profile_selectCountry()}
+                </span>
+                <ChevronsUpDown class="size-4 shrink-0 opacity-50" />
+              </Popover.Trigger>
+              <Popover.Content class="country-popover-content p-0 z-[1100]" align="start" sideOffset={4}>
+                <Command.Root shouldFilter={false}>
+                  <Command.Input
+                    placeholder={m.profile_searchCountry()}
+                    bind:value={countrySearch}
+                  />
+                  <Command.List class="max-h-[200px]">
+                    <Command.Empty>{m.profile_noCountryFound()}</Command.Empty>
+                    {#each filteredCountries as country}
+                      <Command.Item
+                        value={country.code}
+                        onSelect={() => {
+                          countryCode = country.code;
+                          countrySearchOpen = false;
+                          countrySearch = '';
+                        }}
+                      >
+                        <Check class={["size-4 mr-2", countryCode === country.code ? "opacity-100" : "opacity-0"]} />
+                        {country.name}
+                      </Command.Item>
+                    {/each}
+                  </Command.List>
+                </Command.Root>
+              </Popover.Content>
+            </Popover.Root>
           </div>
         </div>
 
@@ -1237,6 +1321,59 @@
   .modal-overlay:is([data-theme='dark'], [data-theme='violet']) .reason-badge.auto {
     background: #1e3a5f;
     color: #93c5fd;
+  }
+
+  /* Country combobox trigger */
+  :global(.country-trigger) {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    color: #333;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  :global(.country-trigger:hover) {
+    border-color: #aaa;
+  }
+
+  :global(.country-trigger:focus) {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 15%, transparent);
+  }
+
+  :global(.country-trigger-text) {
+    text-align: left;
+  }
+
+  :global(.country-trigger-text.placeholder) {
+    color: #999;
+  }
+
+  :global(.country-popover-content) {
+    width: var(--bits-popover-anchor-width) !important;
+    min-width: 200px;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) :global(.country-trigger) {
+    background: #0f1419;
+    border-color: #2d3748;
+    color: #e1e8ed;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) :global(.country-trigger:hover) {
+    border-color: #4a5568;
+  }
+
+  .modal-overlay:is([data-theme='dark'], [data-theme='violet']) :global(.country-trigger-text.placeholder) {
+    color: #6b7a94;
   }
 
   /* Error Alert */
