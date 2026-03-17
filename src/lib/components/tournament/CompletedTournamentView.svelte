@@ -10,6 +10,7 @@
   import { calculateRankingPoints } from '$lib/algorithms/ranking';
   import { updateMatchVideo } from '$lib/firebase/tournamentMatches';
   import { extractYouTubeId, isValidYouTubeUrl, getYouTubeThumbnail } from '$lib/utils/youtube';
+  import { getUserProfileUrl, getPartnerProfileUrl } from '$lib/utils/userProfileUrl';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -445,14 +446,24 @@
 
 {#snippet participantNameWithBadge(participant: typeof tournament.participants[0])}
   {#if isDoubles && participant.partner}
-    <!-- Doubles: show each player with their own registration indicator + teamName if exists -->
+    <!-- Doubles: links include tournament filter so the profile shows stats for this tournament -->
     <span class="doubles-names">
       <span class="player-name" class:registered={participant.type === 'REGISTERED'}>
-        {participant.name}
+        {@const p1Url = getUserProfileUrl(participant, { isDoubles: true, tournamentName: tournament.name })}
+        {#if p1Url}
+          <a href={p1Url} class="player-link">{participant.name}</a>
+        {:else}
+          {participant.name}
+        {/if}
       </span>
       <span class="separator">/</span>
       <span class="player-name" class:registered={participant.partner.type === 'REGISTERED'}>
-        {participant.partner.name}
+        {@const p2Url = getPartnerProfileUrl(participant.partner, tournament.name)}
+        {#if p2Url}
+          <a href={p2Url} class="player-link">{participant.partner.name}</a>
+        {:else}
+          {participant.partner.name}
+        {/if}
       </span>
       {#if participant.teamName}
         <span class="team-name">({participant.teamName})</span>
@@ -460,7 +471,12 @@
     </span>
   {:else}
     <!-- Singles -->
-    {participant.name}
+    {@const singlesUrl = getUserProfileUrl(participant)}
+    {#if singlesUrl}
+      <a href={singlesUrl} class="player-link">{participant.name}</a>
+    {:else}
+      {participant.name}
+    {/if}
   {/if}
 {/snippet}
 
@@ -1528,6 +1544,18 @@
     color: #e1e8ed;
   }
 
+
+  /* Player profile link */
+  .player-link {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+
+  .player-link:hover {
+    color: var(--primary);
+    text-decoration: underline;
+  }
 
   /* Doubles names styling */
   .standing-row .name .doubles-names {

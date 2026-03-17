@@ -19,6 +19,7 @@
 	import { currentUser } from '$lib/firebase/auth';
 	import { isSuperAdmin } from '$lib/firebase/admin';
 	import { getYouTubeEmbedUrl } from '$lib/utils/youtube';
+	import { getUserProfileUrl } from '$lib/utils/userProfileUrl';
 	import { translateText } from '$lib/utils/translate';
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import { calculateRankingPoints } from '$lib/algorithms/ranking';
@@ -1221,7 +1222,13 @@
 										</span>
 										<div class="participant-cell">
 											{@render participantAvatar(participant.id, 'sm')}
-											<span class="name">{getParticipantName(participant.id)}</span>
+											<span class="name">
+												{#if participant.userId}
+													<a href={getUserProfileUrl(participant, { isDoubles, tournamentName: tournament.name })} class="player-link">{getParticipantName(participant.id)}</a>
+												{:else}
+													{getParticipantName(participant.id)}
+												{/if}
+											</span>
 										</div>
 										{#if tournament.show20s}
 											<span class="twenties" title={m.tournament_totalTwentiesLabel()}>
@@ -1274,7 +1281,13 @@
 											</span>
 											<div class="participant-cell">
 												{@render participantAvatar(participant.id, 'sm')}
-												<span class="name">{getParticipantName(participant.id)}</span>
+												<span class="name">
+													{#if participant.userId}
+														<a href={getUserProfileUrl(participant, { isDoubles, tournamentName: tournament.name })} class="player-link">{getParticipantName(participant.id)}</a>
+													{:else}
+														{getParticipantName(participant.id)}
+													{/if}
+												</span>
 											</div>
 											{#if tournament.show20s}
 												<span class="twenties" title={m.tournament_totalTwentiesLabel()}>
@@ -4144,6 +4157,10 @@
 		grid-template-columns: 1fr;
 	}
 
+	.standings-header .participant-cell {
+		padding-left: .5rem;
+	}
+
 	.standings-header .name {
 		font-size: 0.65rem;
 		font-weight: 600;
@@ -4165,8 +4182,6 @@
 		border-radius: 3px;
 		transition: all 0.15s;
 		white-space: nowrap;
-		min-width: 1.5rem;
-		text-align: center;
 	}
 
 	.sort-header-btn:hover {
@@ -4202,7 +4217,8 @@
 	}
 
 	.standing-row .pos {
-		min-width: 1.5rem;
+		width: 2rem;
+		flex-shrink: 0;
 		text-align: center;
 		font-weight: 600;
 		color: #8b9bb3;
@@ -4212,6 +4228,12 @@
 	.standing-row .pos.medal {
 		font-size: 1.3rem;
 		line-height: 1;
+	}
+
+	/* Header # button must match .pos width */
+	.standings-header .sort-header-btn:first-child {
+		width: 2rem;
+		flex-shrink: 0;
 	}
 
 	.standing-row .participant-cell {
@@ -4227,6 +4249,22 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		color: #e1e8ed;
+	}
+
+	.player-link {
+		color: #60a5fa;
+		text-decoration: none;
+		font-weight: inherit;
+	}
+
+	.player-link:hover,
+	.player-link:active {
+		text-decoration: underline;
+	}
+
+	:global([data-theme='light']) .player-link,
+	:global([data-theme='violet-light']) .player-link {
+		color: #2563eb;
 	}
 
 	.standing-row .twenties {

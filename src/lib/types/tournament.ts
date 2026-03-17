@@ -181,6 +181,7 @@ export interface TournamentParticipant {
   // Primary player
   type: ParticipantType;
   userId?: string;         // Only for REGISTERED
+  userKey?: string;        // 6-char public key for clean profile URLs (snapshot at registration)
   name: string;            // Player 1's REAL name (always)
   email?: string;
   photoURL?: string;       // Snapshot of user's photo at time of registration
@@ -192,6 +193,7 @@ export interface TournamentParticipant {
   partner?: {
     type: ParticipantType;
     userId?: string;
+    userKey?: string;      // 6-char public key for clean profile URLs (snapshot at registration)
     name: string;          // Player 2's REAL name (always)
     email?: string;
     photoURL?: string;     // Partner's photo snapshot at registration

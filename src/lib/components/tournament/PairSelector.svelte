@@ -19,6 +19,7 @@
   interface SelectedMember {
     type: 'REGISTERED' | 'GUEST';
     userId?: string;
+    userKey?: string;
     name: string;
     photoURL?: string;
   }
@@ -99,6 +100,7 @@
     p1Selected = {
       type: 'REGISTERED',
       userId: user.userId,
+      userKey: user.key || undefined,
       name: user.playerName,
       photoURL: user.photoURL || undefined
     };
@@ -111,6 +113,7 @@
     p2Selected = {
       type: 'REGISTERED',
       userId: user.userId,
+      userKey: user.key || undefined,
       name: user.playerName,
       photoURL: user.photoURL || undefined
     };
@@ -182,11 +185,13 @@
       name: p1Selected.name,
       type: p1Selected.type,
       userId: p1Selected.userId,
+      userKey: p1Selected.userKey,
       photoURL: p1Selected.photoURL,
       teamName: teamName.trim() || undefined,
       partner: {
         type: p2Selected.type,
         userId: p2Selected.userId,
+        userKey: p2Selected.userKey,
         name: p2Selected.name,
         photoURL: p2Selected.photoURL
       },

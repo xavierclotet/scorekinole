@@ -541,6 +541,7 @@
 		border: 1px solid #2d3748;
 		border-radius: 4px;
 		color: #e1e8ed;
+		max-width: 5rem;
 		font-size: 0.85rem;
 		font-weight: 600;
 		cursor: pointer;

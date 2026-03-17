@@ -55,6 +55,7 @@
       type: isGuest ? 'GUEST' : 'REGISTERED',
       name: user.playerName,
       userId: user.userId,
+      userKey: user.key || undefined,
       photoURL: isGuest ? undefined : (user.photoURL || undefined),
       rankingSnapshot: 0,
       status: 'ACTIVE'

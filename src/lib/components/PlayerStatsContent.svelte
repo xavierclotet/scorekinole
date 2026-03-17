@@ -27,6 +27,7 @@
 		show20s: boolean;
 		showFriendlyFilter?: boolean;
 		showPerfectBadge?: boolean;
+		initialTournamentFilter?: string;
 	}
 
 	let {
@@ -36,6 +37,7 @@
 		show20s,
 		showFriendlyFilter = true,
 		showPerfectBadge = true,
+		initialTournamentFilter = '',
 	}: Props = $props();
 
 	// Filter state
@@ -43,8 +45,8 @@
 	let filterMode: 'all' | 'singles' | 'doubles' = $state('all');
 	let filterResult: 'all' | 'won' | 'lost' | 'tied' = $state('all');
 	let filterOpponent = $state('');
-	let filterTournament = $state('');
-	let filterYear = $state(new Date().getFullYear().toString());
+	let filterTournament = $state(initialTournamentFilter);
+	let filterYear = $state(initialTournamentFilter ? '' : new Date().getFullYear().toString());
 
 	// Expanded matches for detail view
 	let expandedMatches = new SvelteSet<string>();

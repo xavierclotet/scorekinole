@@ -16,6 +16,7 @@
 	import PlayerStatsContent from '$lib/components/PlayerStatsContent.svelte';
 
 	let urlParam = $derived(page.params.id);
+	let tournamentParam = $derived(page.url.searchParams.get('tournament') ?? '');
 
 	// Resolved Firestore user ID (after key lookup if needed)
 	let resolvedUserId = $state<string | null>(null);
@@ -215,6 +216,7 @@
 			show20s={true}
 			showFriendlyFilter={false}
 			showPerfectBadge={false}
+			initialTournamentFilter={tournamentParam}
 		/>
 	{/if}
 	</PullToRefresh>
