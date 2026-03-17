@@ -446,10 +446,10 @@
 
 {#snippet participantNameWithBadge(participant: typeof tournament.participants[0])}
   {#if isDoubles && participant.partner}
-    <!-- Doubles: links include tournament filter so the profile shows stats for this tournament -->
+    {@const p1Url = getUserProfileUrl(participant, { isDoubles: true, tournamentName: tournament.name })}
+    {@const p2Url = getPartnerProfileUrl(participant.partner, tournament.name)}
     <span class="doubles-names">
       <span class="player-name" class:registered={participant.type === 'REGISTERED'}>
-        {@const p1Url = getUserProfileUrl(participant, { isDoubles: true, tournamentName: tournament.name })}
         {#if p1Url}
           <a href={p1Url} class="player-link">{participant.name}</a>
         {:else}
@@ -458,7 +458,6 @@
       </span>
       <span class="separator">/</span>
       <span class="player-name" class:registered={participant.partner.type === 'REGISTERED'}>
-        {@const p2Url = getPartnerProfileUrl(participant.partner, tournament.name)}
         {#if p2Url}
           <a href={p2Url} class="player-link">{participant.partner.name}</a>
         {:else}
@@ -470,10 +469,8 @@
       {/if}
     </span>
   {:else}
-    <!-- Singles -->
-    {@const singlesUrl = getUserProfileUrl(participant)}
-    {#if singlesUrl}
-      <a href={singlesUrl} class="player-link">{participant.name}</a>
+    {#if getUserProfileUrl(participant)}
+      <a href={getUserProfileUrl(participant)} class="player-link">{participant.name}</a>
     {:else}
       {participant.name}
     {/if}
