@@ -105,13 +105,24 @@
 		return count;
 	})());
 
-	// Country flag helper
-	function getCountryFlag(countryCode: string): string {
-		return countryCode
-			.toUpperCase()
+	// Country flag helper — returns emoji flag for standard ISO 2-letter codes
+	// Non-standard codes (e.g. CAT) have no emoji, use SVG instead
+	function getCountryFlag(countryCode: string): string | null {
+		const code = countryCode.toUpperCase();
+		if (code.length !== 2) return null;
+		return code
 			.split('')
 			.map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65))
 			.join('');
+	}
+
+	// SVG flag path for non-standard country codes (e.g. Catalonia)
+	const FLAG_SVG: Record<string, string> = {
+		'CAT': '/flags/cat.svg'
+	};
+
+	function getCountryFlagSvg(countryCode: string): string | undefined {
+		return FLAG_SVG[countryCode.toUpperCase()];
 	}
 </script>
 
@@ -155,7 +166,13 @@
 				<div class="profile-name-row">
 					<span class="profile-name">{profile.playerName}</span>
 					{#if profile.country}
-						<span class="profile-country">{getCountryFlag(profile.country)}</span>
+						{@const emojiFlag = getCountryFlag(profile.country)}
+						{@const svgFlag = getCountryFlagSvg(profile.country)}
+						{#if svgFlag}
+							<img class="profile-country-flag" src={svgFlag} alt={profile.country} />
+						{:else if emojiFlag}
+							<span class="profile-country">{emojiFlag}</span>
+						{/if}
 					{/if}
 					{#if perfectRounds > 0}
 						<span class="perfect-badge" title={perfectRounds === 1 ? m.stats_perfectRound() : m.stats_perfectRounds()}>💎 {perfectRounds}</span>
@@ -334,6 +351,13 @@
 
 	.profile-country {
 		font-size: 1.2rem;
+	}
+
+	.profile-country-flag {
+		height: 1.2em;
+		width: auto;
+		vertical-align: middle;
+		border-radius: 2px;
 	}
 
 	.perfect-badge {
