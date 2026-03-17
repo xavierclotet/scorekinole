@@ -1562,5 +1562,16 @@
   "wizard_whoStartsPickup": "Triar",
   "wizard_whoStartsAlternate": "Alternar",
   "wizard_whoStartsPickupHint": "El jugador tria qui tira primer a cada partit",
-  "wizard_whoStartsAlternateHint": "S'assigna automàticament alternant entre partits"
+  "wizard_whoStartsAlternateHint": "S'assigna automàticament alternant entre partits",
+  "common_newMatch": "Nou Partit Amistós",
+  "common_play": "Jugar",
+  "scoring_friendlyMatch": "Partit Amistós",
+  "profile_playerProfile": "Perfil del jugador",
+  "profile_tournamentMatches": "Partides de Torneig",
+  "profile_userNotFound": "Jugador no trobat",
+  "profile_rankingPoints": "Punts Rànquing",
+  "profile_tournamentsPlayed": "Tornejos Jugats",
+  "profile_noTournaments": "Aquest jugador encara no ha participat en tornejos",
+  "stats_perfectRound": "Ronda perfecta",
+  "stats_perfectRounds": "Rondes perfectes"
 }

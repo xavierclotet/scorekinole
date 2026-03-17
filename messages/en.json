@@ -1562,5 +1562,16 @@
   "wizard_whoStartsPickup": "Choose",
   "wizard_whoStartsAlternate": "Alternate",
   "wizard_whoStartsPickupHint": "The player chooses who shoots first in each game.",
-  "wizard_whoStartsAlternateHint": "It is assigned automatically by alternating between matches."
+  "wizard_whoStartsAlternateHint": "It is assigned automatically by alternating between matches.",
+  "common_newMatch": "New Friendly Match",
+  "common_play": "Play",
+  "scoring_friendlyMatch": "Friendly Match",
+  "profile_playerProfile": "Player Profile",
+  "profile_tournamentMatches": "Tournament Games",
+  "profile_userNotFound": "Player not found",
+  "profile_rankingPoints": "Ranking Points",
+  "profile_tournamentsPlayed": "Tournaments Played",
+  "profile_noTournaments": "This player has not yet participated in tournaments",
+  "stats_perfectRound": "Perfect round",
+  "stats_perfectRounds": "Perfect rounds"
 }

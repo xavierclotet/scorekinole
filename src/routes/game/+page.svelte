@@ -19,6 +19,7 @@
 	import MatchPreviewDialog from '$lib/components/MatchPreviewDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
 	import TournamentMatchModal from '$lib/components/TournamentMatchModal.svelte';
+	import FriendlyMatchModal from '$lib/components/FriendlyMatchModal.svelte';
 	import WinnerSplash from '$lib/components/WinnerSplash.svelte';
 	import OfflineIndicator from '$lib/components/OfflineIndicator.svelte';
 	import AppMenu from '$lib/components/AppMenu.svelte';
@@ -79,6 +80,7 @@
 	let showHammerDialog = $state(false);
 	let showNewMatchConfirm = $state(false);
 	let showTournamentModal = $state(false);
+	let showFriendlyModal = $state(false);
 	let isCheckingTournament = $state(false);
 	let pendingDeepLinkKey = $state<string | null>(null);
 	let showTournamentExitConfirm = $state(false);
@@ -2054,6 +2056,18 @@
 		showNewMatchConfirm = false;
 	}
 
+	function handleFriendlyMatchStart() {
+		clearWinnerSplash();
+		resetTeams();
+		resetMatchState();
+		isInExtraRounds = false;
+
+		const totalSeconds = $gameSettings.timerMinutes * 60 + $gameSettings.timerSeconds;
+		resetTimer(totalSeconds);
+		if ($gameSettings.showTimer) {
+			startTimer();
+		}
+	}
 
 	function openColorPicker(team: 1 | 2) {
 		colorPickerTeam = team;
@@ -2712,25 +2726,6 @@
 							<Menu class="size-5" />
 						</button>
 					{/snippet}
-					<DropdownMenu.Item onclick={handleNewMatchClick} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
-						<div class="flex items-center justify-center size-8 rounded-md bg-blue-500/15 group-hover:bg-blue-500/25 transition-colors">
-							<Play class="size-4 text-blue-500" />
-						</div>
-						<span class="flex-1 font-medium">{m.scoring_newMatchButton()}</span>
-						<DropdownMenu.Shortcut>Ctrl+M</DropdownMenu.Shortcut>
-					</DropdownMenu.Item>
-					<DropdownMenu.Item onclick={handleJoinTournament} disabled={isCheckingTournament} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
-						<div class="flex items-center justify-center size-8 rounded-md bg-blue-500/15 group-hover:bg-blue-500/25 transition-colors">
-							{#if isCheckingTournament}
-								<LoaderCircle class="size-4 text-blue-500 animate-spin" />
-							{:else}
-								<Trophy class="size-4 text-blue-500" />
-							{/if}
-						</div>
-						<span class="flex-1 font-medium">{m.tournament_playMatch()}</span>
-						<DropdownMenu.Shortcut>Ctrl+J</DropdownMenu.Shortcut>
-					</DropdownMenu.Item>
-					<DropdownMenu.Separator class="my-2" />
 					<DropdownMenu.Item onclick={async () => { await tick(); showQRScanner = true; }} class="cursor-pointer pl-3! pr-4! py-2.5! gap-2! rounded-lg transition-colors duration-150 hover:bg-accent group">
 						<div class="flex items-center justify-center size-8 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
 							<QrCode class="size-4 text-primary" />
@@ -2955,8 +2950,17 @@
 		</div>
 	{/if}
 
-	<!-- Tournament Quick-Join FAB (friendly mode only) -->
+	<!-- FABs (friendly mode only) -->
 	{#if !inTournamentMode}
+		<button
+			class="friendly-fab"
+			onclick={() => showFriendlyModal = true}
+			aria-label={m.common_newMatch()}
+		>
+			<Play class="size-5" />
+			<span>{m.common_newMatch()}</span>
+		</button>
+
 		<button
 			class="tournament-fab"
 			onclick={handleJoinTournament}
@@ -2992,6 +2996,12 @@
 	onclose={() => showTournamentModal = false}
 	onmatchstarted={handleTournamentMatchStarted}
 	onmatchselected={handleMatchSelectedFromModal}
+/>
+
+<FriendlyMatchModal
+	isOpen={showFriendlyModal}
+	onclose={() => showFriendlyModal = false}
+	onstart={handleFriendlyMatchStart}
 />
 
 <!-- Match Preview Dialog (auto-detected single match) -->
@@ -3967,11 +3977,11 @@
 		box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 	}
 
-	/* Tournament Quick-Join FAB */
+	/* Game FABs (shared styles) */
+	.friendly-fab,
 	.tournament-fab {
 		position: fixed;
 		bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
-		right: 1rem;
 		z-index: 50;
 		display: inline-flex;
 		align-items: center;
@@ -3990,6 +4000,23 @@
 			0 4px 16px rgba(0, 0, 0, 0.15);
 		transition: all 0.2s ease;
 		animation: fab-slide-up 0.3s ease-out;
+	}
+
+	.friendly-fab {
+		left: 1rem;
+		background: var(--secondary);
+		color: var(--foreground);
+		border: 1px solid var(--border);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	}
+
+	.tournament-fab {
+		right: 1rem;
+	}
+
+	.friendly-fab:active {
+		transform: scale(0.96);
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 	}
 
 	.tournament-fab:active {
@@ -4016,6 +4043,7 @@
 	}
 
 	@media (max-width: 480px) {
+		.friendly-fab,
 		.tournament-fab {
 			padding: 0.5rem 1rem;
 			font-size: 0.75rem;
@@ -4023,6 +4051,7 @@
 	}
 
 	@media (orientation: landscape) and (max-height: 600px) {
+		.friendly-fab,
 		.tournament-fab {
 			bottom: 0.5rem;
 			padding: 0.35rem 0.75rem;
