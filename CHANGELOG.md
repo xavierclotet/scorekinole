@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.0] - 2026-03-17
+- Add tournament quick-join FAB button (bottom-right) on game page
+- Add friendly match setup modal with FAB button (bottom-left) on game page
+- Remove duplicate match/tournament items from hamburger menu
+- Fix Catalonia flag SVG for CAT country code in profiles
+- 44 new tests (FAB visibility + friendly match setup)
+
 ## [2.4.99] - 2026-03-16
 - Rename /rankings route to /ranking (singular)
 - New /users/[id] public player profile page with shared PlayerStatsContent
