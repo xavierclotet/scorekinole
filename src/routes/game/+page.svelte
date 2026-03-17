@@ -2954,6 +2954,23 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- Tournament Quick-Join FAB (friendly mode only) -->
+	{#if !inTournamentMode}
+		<button
+			class="tournament-fab"
+			onclick={handleJoinTournament}
+			disabled={isCheckingTournament}
+			aria-label={m.tournament_playMatch()}
+		>
+			{#if isCheckingTournament}
+				<LoaderCircle class="size-5 animate-spin" />
+			{:else}
+				<Trophy class="size-5" />
+			{/if}
+			<span>{m.tournament_playMatch()}</span>
+		</button>
+	{/if}
 </div>
 
 <SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
@@ -3948,5 +3965,68 @@
 	.external-complete-btn:hover {
 		transform: translateY(-2px);
 		box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+	}
+
+	/* Tournament Quick-Join FAB */
+	.tournament-fab {
+		position: fixed;
+		bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+		right: 1rem;
+		z-index: 50;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.65rem 1.3rem;
+		background: var(--primary);
+		border: none;
+		border-radius: 9999px;
+		color: var(--primary-foreground);
+		font-weight: 600;
+		font-size: 0.8rem;
+		letter-spacing: 0.01em;
+		cursor: pointer;
+		box-shadow:
+			0 2px 8px color-mix(in srgb, var(--primary) 40%, transparent),
+			0 4px 16px rgba(0, 0, 0, 0.15);
+		transition: all 0.2s ease;
+		animation: fab-slide-up 0.3s ease-out;
+	}
+
+	.tournament-fab:active {
+		transform: scale(0.96);
+		box-shadow:
+			0 1px 4px color-mix(in srgb, var(--primary) 30%, transparent),
+			0 2px 8px rgba(0, 0, 0, 0.1);
+	}
+
+	.tournament-fab:disabled {
+		opacity: 0.7;
+		cursor: wait;
+	}
+
+	@keyframes fab-slide-up {
+		from {
+			opacity: 0;
+			transform: translateY(1rem);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@media (max-width: 480px) {
+		.tournament-fab {
+			padding: 0.5rem 1rem;
+			font-size: 0.75rem;
+		}
+	}
+
+	@media (orientation: landscape) and (max-height: 600px) {
+		.tournament-fab {
+			bottom: 0.5rem;
+			padding: 0.35rem 0.75rem;
+			font-size: 0.65rem;
+		}
 	}
 </style>
