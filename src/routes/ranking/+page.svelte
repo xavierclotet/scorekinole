@@ -17,6 +17,7 @@
 	import AppMenu from '$lib/components/AppMenu.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
+	import { getFlagUrl } from '$lib/utils/countryFlags';
 	import { theme } from '$lib/stores/theme';
 	import SEO from '$lib/components/SEO.svelte';
 	import { ChevronRight } from '@lucide/svelte';
@@ -337,7 +338,12 @@
 											{player.playerName.charAt(0).toUpperCase()}
 										</div>
 									{/if}
-									<a href="/users/{player.key || player.odId}" class="player-name-link">{player.playerName}</a>
+									<a href="/users/{player.key || player.odId}" class="player-name-link">
+										{player.playerName}
+										{#if player.country}
+											<img class="player-country-flag" src={getFlagUrl(player.country)} alt={player.country} />
+										{/if}
+									</a>
 								</div>
 							</td>
 							{#each tournamentColumns as col (col.id)}
@@ -795,6 +801,16 @@
 		color: var(--primary, #667eea);
 		text-decoration: none;
 		cursor: pointer;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+
+	.player-country-flag {
+		height: 0.85em;
+		width: auto;
+		flex-shrink: 0;
+		border-radius: 1px;
 	}
 
 	.player-name-link:hover {

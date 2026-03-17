@@ -57,6 +57,7 @@ export interface RankedPlayer {
   key?: string;
   playerName: string;
   photoURL: string | null;
+  country?: string;
   totalPoints: number;
   tournamentsCount: number;
   bestResult: number | null;
@@ -390,6 +391,7 @@ export function calculateRankings(
       key: user.key,
       playerName: user.playerName || 'Unknown',
       photoURL: user.photoURL || null,
+      country: user.country || undefined,
       totalPoints,
       tournamentsCount: topCount,
       bestResult: bestPosition === Infinity ? null : bestPosition,

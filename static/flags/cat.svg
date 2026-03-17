@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 24">
   <defs>
     <clipPath id="w">
-      <path d="M0,2 C16,-2 16,4 32,1 L32,23 C16,26 16,20 0,24 Z"/>
+      <path d="M0,3 C16,-1 16,7 32,3 L32,21 C16,25 16,17 0,21 Z"/>
     </clipPath>
   </defs>
   <g clip-path="url(#w)">
