@@ -2,6 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.1] - 2026-03-17
+- Add userKey to tournament participants for clean profile URLs
+- Doubles tournament standings link to player profile with tournament filter pre-selected
+- Add country editor (Popover+Command) to admin user edit modal
+- Add country filter in admin users list with "no country" option
+- Show waving country flags (flagcdn.com) next to player names in ranking and admin
+- Replace emoji flags with waving PNG flags on user profile page
+- Waving Catalonia flag SVG
+- 29 new tests (userProfileUrl utility)
+
 ## [2.5.0] - 2026-03-17
 - Add tournament quick-join FAB button (bottom-right) on game page
 - Add friendly match setup modal with FAB button (bottom-left) on game page
