@@ -595,4 +595,74 @@ describe('matchState', () => {
 			expect(get(matchStartTime)).toBeNull();
 		});
 	});
+
+	// Bug #7 regression: defensive loading with missing/corrupted fields
+
+	describe('defensive loading (Bug #7)', () => {
+		it('fills missing fields with defaults when loading old version data', () => {
+			// Simulate data from an older app version missing newer fields
+			const oldData = {
+				matchStartedBy: 'team1',
+				currentMatchGames: [],
+				roundsPlayed: 3
+				// Missing: lastGameHammerTeam, currentGameStartHammer, currentTwentyTeam,
+				// twentyDialogPending, matchStartTime, currentMatchRounds, currentGameRounds
+			};
+			localStorageMock.store['crokinoleMatchState'] = JSON.stringify(oldData);
+
+			loadMatchState();
+
+			const state = get(matchState);
+			// Loaded field should be preserved
+			expect(state.matchStartedBy).toBe('team1');
+			expect(state.roundsPlayed).toBe(3);
+			// Missing fields should get defaults
+			expect(state.lastGameHammerTeam).toBeNull();
+			expect(state.currentGameStartHammer).toBeNull();
+			expect(state.currentTwentyTeam).toBe(0);
+			expect(state.twentyDialogPending).toBe(false);
+			expect(state.matchStartTime).toBeNull();
+			expect(state.currentMatchRounds).toEqual([]);
+			expect(state.currentGameRounds).toEqual([]);
+		});
+
+		it('repairs corrupted array fields', () => {
+			const corruptedData = {
+				matchStartedBy: null,
+				lastGameHammerTeam: null,
+				currentGameStartHammer: null,
+				currentTwentyTeam: 0,
+				twentyDialogPending: false,
+				matchStartTime: null,
+				currentMatchGames: 'not-an-array', // corrupted
+				currentMatchRounds: null,           // corrupted
+				currentGameRounds: 42,              // corrupted
+				roundsPlayed: 0
+			};
+			localStorageMock.store['crokinoleMatchState'] = JSON.stringify(corruptedData);
+
+			loadMatchState();
+
+			const state = get(matchState);
+			expect(Array.isArray(state.currentMatchGames)).toBe(true);
+			expect(state.currentMatchGames).toEqual([]);
+			expect(Array.isArray(state.currentMatchRounds)).toBe(true);
+			expect(state.currentMatchRounds).toEqual([]);
+			expect(Array.isArray(state.currentGameRounds)).toBe(true);
+			expect(state.currentGameRounds).toEqual([]);
+		});
+
+		it('handles completely empty stored object gracefully', () => {
+			localStorageMock.store['crokinoleMatchState'] = JSON.stringify({});
+
+			loadMatchState();
+
+			const state = get(matchState);
+			expect(state.currentMatchGames).toEqual([]);
+			expect(state.currentMatchRounds).toEqual([]);
+			expect(state.currentGameRounds).toEqual([]);
+			expect(state.roundsPlayed).toBe(0);
+			expect(state.matchStartedBy).toBeNull();
+		});
+	});
 });

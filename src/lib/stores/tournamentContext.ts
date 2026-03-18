@@ -103,6 +103,34 @@ export interface TournamentMatchContext {
 }
 
 /**
+ * Validates the minimum required fields of a tournament context loaded from storage.
+ * Returns true if the context has all critical fields needed to play a match.
+ */
+export function isValidTournamentContext(data: unknown): data is TournamentMatchContext {
+  if (!data || typeof data !== 'object') return false;
+
+  const ctx = data as Partial<TournamentMatchContext>;
+
+  // Required string identifiers
+  if (typeof ctx.tournamentId !== 'string' || !ctx.tournamentId) return false;
+  if (typeof ctx.matchId !== 'string' || !ctx.matchId) return false;
+  if (typeof ctx.participantAId !== 'string') return false;
+  if (typeof ctx.participantBId !== 'string') return false;
+  if (typeof ctx.participantAName !== 'string') return false;
+  if (typeof ctx.participantBName !== 'string') return false;
+
+  // Required phase
+  if (ctx.phase !== 'GROUP' && ctx.phase !== 'FINAL') return false;
+
+  // Game config must exist with critical fields
+  if (!ctx.gameConfig || typeof ctx.gameConfig !== 'object') return false;
+  if (ctx.gameConfig.gameMode !== 'points' && ctx.gameConfig.gameMode !== 'rounds') return false;
+  if (typeof ctx.gameConfig.matchesToWin !== 'number' || ctx.gameConfig.matchesToWin < 1) return false;
+
+  return true;
+}
+
+/**
  * Store for tournament context in game page
  */
 export const gameTournamentContext = writable<TournamentMatchContext | null>(null);
@@ -116,12 +144,18 @@ export function loadTournamentContext(): TournamentMatchContext | null {
   try {
     const stored = localStorage.getItem(TOURNAMENT_CONTEXT_KEY);
     if (stored) {
-      const context = JSON.parse(stored) as TournamentMatchContext;
-      gameTournamentContext.set(context);
-      return context;
+      const parsed = JSON.parse(stored);
+      if (!isValidTournamentContext(parsed)) {
+        console.warn('❌ Invalid tournament context in localStorage, discarding');
+        localStorage.removeItem(TOURNAMENT_CONTEXT_KEY);
+        return null;
+      }
+      gameTournamentContext.set(parsed);
+      return parsed;
     }
   } catch (error) {
     console.error('❌ Error loading tournament context:', error);
+    localStorage.removeItem(TOURNAMENT_CONTEXT_KEY);
   }
   return null;
 }

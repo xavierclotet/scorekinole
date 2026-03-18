@@ -652,3 +652,86 @@ describe('saveTeams', () => {
 		);
 	});
 });
+
+// Bug #7 regression: defensive loading fills missing fields from defaults
+
+describe('defensive loading (Bug #7)', () => {
+	it('fills missing fields with defaults when loading old version data', () => {
+		// Simulate old version data missing newer fields like autoRounds, partner
+		const oldTeamData = {
+			name: 'Old Player',
+			color: '#abc123',
+			points: 5,
+			rounds: 2,
+			twenty: 1,
+			hasWon: false,
+			hasHammer: true
+			// Missing: autoRounds, matches, userId, userPhotoURL, partner
+		};
+		localStorageMock.store['crokinoleTeam1'] = JSON.stringify(oldTeamData);
+
+		loadTeams();
+
+		const t1 = get(team1);
+		// Saved fields preserved
+		expect(t1.name).toBe('Old Player');
+		expect(t1.color).toBe('#abc123');
+		expect(t1.points).toBe(5);
+		expect(t1.rounds).toBe(2);
+		expect(t1.hasHammer).toBe(true);
+		// Missing fields get defaults
+		expect(t1.autoRounds).toBe(0);
+		expect(t1.matches).toBe(0);
+		expect(t1.userId).toBeNull();
+		expect(t1.userPhotoURL).toBeNull();
+		expect(t1.partner).toBeUndefined();
+	});
+
+	it('fills defaults for team2 as well', () => {
+		const oldTeamData = {
+			name: 'Old Opponent',
+			color: '#def456',
+			points: 3,
+			rounds: 1,
+			twenty: 0,
+			hasWon: false,
+			hasHammer: false
+		};
+		localStorageMock.store['crokinoleTeam2'] = JSON.stringify(oldTeamData);
+
+		loadTeams();
+
+		const t2 = get(team2);
+		expect(t2.name).toBe('Old Opponent');
+		expect(t2.autoRounds).toBe(0);
+		expect(t2.matches).toBe(0);
+		expect(t2.userId).toBeNull();
+	});
+
+	it('saved fields override defaults (not the other way around)', () => {
+		const savedData = {
+			name: 'Custom Name',
+			color: '#custom',
+			points: 10,
+			rounds: 5,
+			twenty: 3,
+			hasWon: true,
+			hasHammer: false,
+			autoRounds: 2,
+			matches: 4,
+			userId: 'user-123',
+			userPhotoURL: 'https://photo.url',
+			partner: { name: 'Partner', userId: 'p-1', userPhotoURL: null }
+		};
+		localStorageMock.store['crokinoleTeam1'] = JSON.stringify(savedData);
+
+		loadTeams();
+
+		const t1 = get(team1);
+		expect(t1.name).toBe('Custom Name');
+		expect(t1.autoRounds).toBe(2);
+		expect(t1.matches).toBe(4);
+		expect(t1.userId).toBe('user-123');
+		expect(t1.partner?.name).toBe('Partner');
+	});
+});

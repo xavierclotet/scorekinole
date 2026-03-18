@@ -61,6 +61,7 @@
 	import QRScanner from '$lib/components/QRScanner.svelte';
 	import { QrCode } from '@lucide/svelte';
 	import { requestWakeLock, releaseWakeLock } from '$lib/utils/wakeLock';
+	import { resolveIsUserSideA } from '$lib/utils/tournamentSideMapping';
 	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { assignUserToTeam, unassignUserFromTeam, unassignPartnerFromTeam } from '$lib/stores/teams';
@@ -409,6 +410,10 @@
 
 			// Then sync with Firebase to get the latest data (source of truth)
 			syncWithFirebaseOnLoad(savedContext);
+		} else {
+			// No valid tournament context — clean up orphaned backup if any
+			// (can happen if app crashed during tournament or context was corrupted)
+			restorePreTournamentData();
 		}
 
 		// Start current match if not already started
@@ -634,6 +639,9 @@
 			matchPhase: '',
 			...(backup?.gameType ? { gameType: backup.gameType } : {})
 		}));
+		// Always persist cleared tournament fields to localStorage so a page refresh
+		// doesn't resurrect stale tournament settings
+		gameSettings.save();
 
 		if (restoreImmediately) {
 			restorePreTournamentData();
@@ -766,7 +774,7 @@
 		// Gather all rounds including the one we just added
 		const savedData = saveTournamentProgressToLocalStorage();
 		const contextRounds = savedData?.allRounds || context.existingRounds || [];
-		const isUserSideA = context.currentUserSide === 'A';
+		const isUserSideA = resolveIsUserSideA(context);
 
 		// Calculate totals from ALL rounds (same as handleTournamentMatchComplete)
 		let totalPointsA = 0;
@@ -959,7 +967,7 @@
 				// Just update the context with local rounds for persistence
 				updateTournamentContext({
 					existingRounds: currentLocalRounds.map((r, idx) => {
-						const sideA = savedContext.currentUserSide === 'A';
+						const sideA = resolveIsUserSideA(savedContext);
 						let hammer: string | null = null;
 						if (r.hammerTeam === 1) {
 							hammer = sideA ? savedContext.participantAId : savedContext.participantBId;
@@ -1022,7 +1030,8 @@
 	 */
 	function applyTournamentConfig(context: TournamentMatchContext, forceApply = false) {
 		const config = context.gameConfig;
-		const isUserSideA = context.currentUserSide === 'A';
+
+		const isUserSideA = resolveIsUserSideA(context);
 
 		// Create a unique ID for this context based on rounds count
 		const contextId = `${context.matchId}-${context.existingRounds?.length || 0}`;
@@ -1051,10 +1060,10 @@
 			gameMode: config.gameMode,
 			pointsToWin: config.pointsToWin || 7,
 			roundsToPlay: config.roundsToPlay || 4,
-			matchesToWin: config.matchesToWin,
-			show20s: config.show20s,
-			showHammer: config.showHammer,
-			gameType: config.gameType,
+			matchesToWin: config.matchesToWin ?? 1,
+			show20s: config.show20s ?? true,
+			showHammer: config.showHammer ?? true,
+			gameType: config.gameType ?? 'singles',
 			eventTitle: context.tournamentName,
 			eventEdition: context.tournamentEdition,
 			matchPhase: context.bracketRoundName || (context.phase === 'GROUP' ? 'Fase de Grupos' : 'Bracket'),
@@ -1115,8 +1124,8 @@
 
 		// Set team names and initial state from tournament participants
 		// Note: team1 = user's perspective (A if userSideA, else B)
-		const team1Name = isUserSideA ? context.participantAName : context.participantBName;
-		const team2Name = isUserSideA ? context.participantBName : context.participantAName;
+		const team1Name = (isUserSideA ? context.participantAName : context.participantBName) || 'Team 1';
+		const team2Name = (isUserSideA ? context.participantBName : context.participantAName) || 'Team 2';
 
 		// Check if current game was already completed (to restore hasWon state)
 		// This happens when user reloads while waiting to click "Next Game"
@@ -1859,7 +1868,7 @@
 		// This must happen BEFORE currentMatch gets cleared by completeCurrentMatch
 		const savedData = saveTournamentProgressToLocalStorage();
 
-		const isUserSideA = context.currentUserSide === 'A';
+		const isUserSideA = resolveIsUserSideA(context);
 
 		// Use games won from savedData (calculated with get() for accuracy)
 		const finalGamesWonA = savedData?.gamesWonA ?? (isUserSideA ? team1GamesWon : team2GamesWon);
@@ -2331,7 +2340,7 @@
 		const context = $gameTournamentContext;
 		if (!context) return null;
 
-		const isUserSideA = context.currentUserSide === 'A';
+		const isUserSideA = resolveIsUserSideA(context);
 		const participantAId = context.participantAId;
 		const participantBId = context.participantBId;
 		const allRounds: Array<{
@@ -2636,7 +2645,7 @@
 				const current = get(currentMatch);
 				const completedGamesCount = current?.games?.length || 0;
 				const matchGames = get(currentMatchGames);
-				const isUserSideA = $gameTournamentContext?.currentUserSide === 'A';
+				const isUserSideA = $gameTournamentContext ? resolveIsUserSideA($gameTournamentContext) : true;
 				const t1GamesWon = matchGames.filter(game => game.winner === 1).length;
 				const t2GamesWon = matchGames.filter(game => game.winner === 2).length;
 

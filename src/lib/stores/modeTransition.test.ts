@@ -262,6 +262,8 @@ function simulateExitTournamentMode(restoreImmediately = true) {
 		matchPhase: '',
 		...(backup?.gameType ? { gameType: backup.gameType } : {})
 	}));
+	// Bug #4 fix: always persist cleared tournament fields
+	gameSettings.save();
 
 	if (restoreImmediately) {
 		simulateRestorePreTournamentData();
@@ -1129,5 +1131,88 @@ describe('Edge cases', () => {
 		// Restore friendly timer settings
 		expect(get(gameSettings).showTimer).toBe(true);
 		expect(get(gameSettings).timerMinutes).toBe(5);
+	});
+});
+
+// Bug #8 regression: orphaned backup is cleaned up when no tournament context exists
+
+describe('orphaned backup cleanup (Bug #8)', () => {
+	it('restores and deletes orphaned backup when no tournament context exists', () => {
+		// Step 1: Set up custom friendly settings
+		gameSettings.update(s => ({
+			...s,
+			gameMode: 'points' as const,
+			pointsToWin: 15,
+			matchesToWin: 3,
+			show20s: true,
+			gameType: 'doubles' as const
+		}));
+		updateTeam(1, { name: 'My Team', color: '#aaa' });
+		updateTeam(2, { name: 'Opponent', color: '#bbb' });
+
+		// Step 2: Enter tournament (creates backup with friendly settings)
+		simulateEnterTournament(makeTournamentContext());
+
+		// Verify settings changed to tournament config (rounds mode, matchesToWin=1)
+		expect(get(gameSettings).gameMode).toBe('rounds');
+		expect(get(gameSettings).matchesToWin).toBe(1);
+
+		// Step 3: Simulate app crash — tournament context becomes invalid
+		// (orphaned backup still exists)
+		const backupExists = !!localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY);
+		expect(backupExists).toBe(true);
+
+		// Clear tournament context (simulates corrupted/missing context on reload)
+		clearTournamentContext();
+
+		// Step 4: Simulate what onMount does when no tournament context:
+		// call restorePreTournamentData() to clean up orphaned backup
+		simulateRestorePreTournamentData();
+
+		// Verify friendly settings restored from backup
+		expect(get(gameSettings).gameMode).toBe('points');
+		expect(get(gameSettings).pointsToWin).toBe(15);
+		expect(get(gameSettings).matchesToWin).toBe(3);
+		expect(get(gameSettings).show20s).toBe(true);
+		expect(get(gameSettings).gameType).toBe('doubles');
+		expect(get(team1).name).toBe('My Team');
+		expect(get(team2).name).toBe('Opponent');
+
+		// Verify backup was deleted
+		expect(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)).toBeNull();
+	});
+
+	it('does nothing when no backup and no tournament context', () => {
+		// No backup, no tournament context — should be a no-op
+		const settingsBefore = get(gameSettings);
+		simulateRestorePreTournamentData();
+		expect(get(gameSettings)).toEqual(settingsBefore);
+	});
+
+	it('preserves settings changes made between tournament matches when backup is consumed', () => {
+		// Step 1: Enter tournament
+		gameSettings.update(s => ({ ...s, gameMode: 'rounds' as const, roundsToPlay: 4 }));
+		simulateEnterTournament(makeTournamentContext());
+
+		// Step 2: Complete tournament match (deferred restore)
+		simulateExitTournamentMode(false); // Don't restore immediately
+
+		// Step 3: User starts new match → backup consumed
+		simulateHandleResetMatch();
+		resetTeams();
+		resetMatchState();
+
+		// Verify backup is gone
+		expect(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)).toBeNull();
+
+		// Step 4: User changes settings
+		gameSettings.update(s => ({ ...s, gameMode: 'points' as const, pointsToWin: 20 }));
+
+		// Step 5: Enter tournament again — new backup should be created
+		simulateEnterTournament(makeTournamentContext());
+		expect(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)).not.toBeNull();
+		const backup = JSON.parse(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)!);
+		expect(backup.gameMode).toBe('points');
+		expect(backup.pointsToWin).toBe(20);
 	});
 });

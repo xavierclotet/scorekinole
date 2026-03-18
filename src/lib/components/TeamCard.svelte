@@ -523,6 +523,11 @@
 		// In case of tie, winner is null
 		const winner = isTie ? null : (t1.hasWon ? 1 : 2);
 
+		// Calculate total twenties from round data (team.twenty is already reset to 0 by finalizeRound)
+		const gameRounds = get(currentMatchRounds);
+		const totalTwenty1 = gameRounds.reduce((sum, r) => sum + (r.team1Twenty || 0), 0);
+		const totalTwenty2 = gameRounds.reduce((sum, r) => sum + (r.team2Twenty || 0), 0);
+
 		const newGame = {
 			gameNumber,
 			winner,
@@ -530,8 +535,8 @@
 			team2Points: t2.points,
 			team1Rounds: t1.rounds,
 			team2Rounds: t2.rounds,
-			team1Twenty: t1.twenty,
-			team2Twenty: t2.twenty,
+			team1Twenty: totalTwenty1,
+			team2Twenty: totalTwenty2,
 			timestamp: Date.now()
 		};
 

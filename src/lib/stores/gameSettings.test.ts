@@ -239,4 +239,151 @@ describe('gameSettings store', () => {
 		expect(get(gameSettings).timerMinutes).toBe(10);
 		expect(get(gameSettings).gameMode).toBe('rounds');
 	});
+
+	// Bug #5 regression: enhanced validation rejects partially corrupted data
+
+	describe('enhanced validation (Bug #5)', () => {
+		it('rejects data with missing gameType', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'rounds',
+				timerMinutes: 10,
+				timerSeconds: 0,
+				show20s: false,
+				showHammer: false
+				// gameType is missing
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).gameMode).toBe('rounds'); // falls back to defaults
+			expect(get(gameSettings).gameType).toBe('singles');
+		});
+
+		it('rejects data with invalid gameType value', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'rounds',
+				timerMinutes: 10,
+				timerSeconds: 0,
+				show20s: false,
+				showHammer: false,
+				gameType: 'triples' // invalid value
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).gameType).toBe('singles'); // default
+		});
+
+		it('rejects data with non-boolean show20s', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'rounds',
+				timerMinutes: 10,
+				timerSeconds: 0,
+				show20s: 'yes', // should be boolean
+				showHammer: false,
+				gameType: 'singles'
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).show20s).toBe(false); // default
+		});
+
+		it('rejects data with negative timerMinutes', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'rounds',
+				timerMinutes: -5,
+				timerSeconds: 0,
+				show20s: false,
+				showHammer: false,
+				gameType: 'singles'
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).timerMinutes).toBe(10); // default
+		});
+
+		it('rejects data with matchesToWin = 0', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'points',
+				timerMinutes: 10,
+				timerSeconds: 0,
+				show20s: false,
+				showHammer: false,
+				gameType: 'singles',
+				matchesToWin: 0 // invalid: must be >= 1
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).matchesToWin).toBe(1); // default
+		});
+
+		it('rejects data with negative pointsToWin', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'points',
+				timerMinutes: 10,
+				timerSeconds: 0,
+				show20s: false,
+				showHammer: false,
+				gameType: 'singles',
+				pointsToWin: -1
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).pointsToWin).toBe(7); // default
+		});
+
+		it('accepts valid data with all fields', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'points',
+				timerMinutes: 5,
+				timerSeconds: 30,
+				show20s: true,
+				showHammer: true,
+				gameType: 'doubles',
+				matchesToWin: 3,
+				pointsToWin: 15,
+				roundsToPlay: 8,
+				showScoreTable: true,
+				allowTiesInRoundsMode: false,
+				showTimer: true,
+				eventTitle: '',
+				matchPhase: ''
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).matchesToWin).toBe(3);
+			expect(get(gameSettings).gameType).toBe('doubles');
+			expect(get(gameSettings).pointsToWin).toBe(15);
+		});
+
+		it('accepts data with optional numeric fields omitted', () => {
+			const settings = {
+				appVersion: '2.4.81',
+				gameMode: 'rounds',
+				timerMinutes: 10,
+				timerSeconds: 0,
+				show20s: false,
+				showHammer: false,
+				gameType: 'singles'
+				// matchesToWin, pointsToWin, roundsToPlay all omitted
+			};
+			localStorageMock.store['crokinoleGame'] = JSON.stringify(settings);
+			gameSettings.load();
+
+			expect(get(gameSettings).gameMode).toBe('rounds');
+			expect(get(gameSettings).gameType).toBe('singles');
+		});
+	});
 });

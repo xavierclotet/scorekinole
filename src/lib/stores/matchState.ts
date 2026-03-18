@@ -44,7 +44,17 @@ export function loadMatchState() {
     const saved = localStorage.getItem('crokinoleMatchState');
     if (saved) {
         try {
-            const state: MatchState = JSON.parse(saved);
+            const parsed = JSON.parse(saved);
+
+            // Defensive merge with defaults to handle version migrations
+            // (new fields added in later versions get their default values)
+            const state: MatchState = { ...defaultMatchState, ...parsed };
+
+            // Ensure arrays are actually arrays (guard against corrupted data)
+            if (!Array.isArray(state.currentMatchGames)) state.currentMatchGames = [];
+            if (!Array.isArray(state.currentMatchRounds)) state.currentMatchRounds = [];
+            if (!Array.isArray(state.currentGameRounds)) state.currentGameRounds = [];
+
             matchState.set(state);
 
             // Update individual stores with fallback to defaults
@@ -54,9 +64,9 @@ export function loadMatchState() {
             currentTwentyTeam.set(state.currentTwentyTeam ?? 0);
             twentyDialogPending.set(state.twentyDialogPending ?? false);
             matchStartTime.set(state.matchStartTime ?? null);
-            currentMatchGames.set(state.currentMatchGames ?? []);
-            currentMatchRounds.set(state.currentMatchRounds ?? []);
-            currentGameRounds.set(state.currentGameRounds ?? []);
+            currentMatchGames.set(state.currentMatchGames);
+            currentMatchRounds.set(state.currentMatchRounds);
+            currentGameRounds.set(state.currentGameRounds);
 
             // Migrate from old separate roundsPlayed if needed
             const savedRounds = localStorage.getItem('crokinoleRoundsPlayed');

@@ -13,12 +13,20 @@ function isValidGameSettings(data: unknown): data is GameSettings {
 
     const settings = data as Partial<GameSettings>;
 
-    return (
-        typeof settings.gameMode === 'string' &&
-        (settings.gameMode === 'points' || settings.gameMode === 'rounds') &&
-        typeof settings.timerMinutes === 'number' &&
-        typeof settings.timerSeconds === 'number'
-    );
+    // Required fields with strict type/value checks
+    if (typeof settings.gameMode !== 'string' || (settings.gameMode !== 'points' && settings.gameMode !== 'rounds')) return false;
+    if (typeof settings.timerMinutes !== 'number' || settings.timerMinutes < 0) return false;
+    if (typeof settings.timerSeconds !== 'number' || settings.timerSeconds < 0) return false;
+    if (typeof settings.gameType !== 'string' || (settings.gameType !== 'singles' && settings.gameType !== 'doubles')) return false;
+    if (typeof settings.show20s !== 'boolean') return false;
+    if (typeof settings.showHammer !== 'boolean') return false;
+
+    // Optional numeric fields: valid when present
+    if (settings.matchesToWin !== undefined && (typeof settings.matchesToWin !== 'number' || settings.matchesToWin < 1)) return false;
+    if (settings.pointsToWin !== undefined && (typeof settings.pointsToWin !== 'number' || settings.pointsToWin < 1)) return false;
+    if (settings.roundsToPlay !== undefined && (typeof settings.roundsToPlay !== 'number' || settings.roundsToPlay < 1)) return false;
+
+    return true;
 }
 
 /**

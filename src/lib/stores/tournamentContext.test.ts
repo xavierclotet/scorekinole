@@ -31,7 +31,9 @@ import {
 	addOfflineRound,
 	addOfflineGame,
 	hasPendingOfflineData,
-	isInTournamentMode
+	isInTournamentMode,
+	isValidTournamentContext,
+	loadTournamentContext
 } from './tournamentContext';
 import type { TournamentMatchContext } from './tournamentContext';
 import type { MatchRound, MatchGame } from '$lib/types/history';
@@ -200,6 +202,118 @@ describe('tournamentContext', () => {
 		it('returns true when context is set', () => {
 			setTournamentContext(makeContext());
 			expect(isInTournamentMode()).toBe(true);
+		});
+	});
+
+	// Bug #6 regression: tournament context validation
+
+	describe('isValidTournamentContext', () => {
+		it('accepts a valid context', () => {
+			expect(isValidTournamentContext(makeContext())).toBe(true);
+		});
+
+		it('rejects null', () => {
+			expect(isValidTournamentContext(null)).toBe(false);
+		});
+
+		it('rejects non-object', () => {
+			expect(isValidTournamentContext('a string')).toBe(false);
+			expect(isValidTournamentContext(42)).toBe(false);
+		});
+
+		it('rejects missing tournamentId', () => {
+			const ctx = makeContext();
+			(ctx as any).tournamentId = undefined;
+			expect(isValidTournamentContext(ctx)).toBe(false);
+		});
+
+		it('rejects empty tournamentId', () => {
+			expect(isValidTournamentContext(makeContext({ tournamentId: '' }))).toBe(false);
+		});
+
+		it('rejects missing matchId', () => {
+			const ctx = makeContext();
+			(ctx as any).matchId = undefined;
+			expect(isValidTournamentContext(ctx)).toBe(false);
+		});
+
+		it('rejects missing participantAName', () => {
+			const ctx = makeContext();
+			(ctx as any).participantAName = undefined;
+			expect(isValidTournamentContext(ctx)).toBe(false);
+		});
+
+		it('rejects missing participantBName', () => {
+			const ctx = makeContext();
+			(ctx as any).participantBName = undefined;
+			expect(isValidTournamentContext(ctx)).toBe(false);
+		});
+
+		it('rejects invalid phase', () => {
+			expect(isValidTournamentContext(makeContext({ phase: 'UNKNOWN' as any }))).toBe(false);
+		});
+
+		it('rejects missing gameConfig', () => {
+			const ctx = makeContext();
+			(ctx as any).gameConfig = undefined;
+			expect(isValidTournamentContext(ctx)).toBe(false);
+		});
+
+		it('rejects gameConfig with invalid gameMode', () => {
+			expect(isValidTournamentContext(makeContext({
+				gameConfig: { ...makeContext().gameConfig, gameMode: 'timed' as any }
+			}))).toBe(false);
+		});
+
+		it('rejects gameConfig with matchesToWin = 0', () => {
+			expect(isValidTournamentContext(makeContext({
+				gameConfig: { ...makeContext().gameConfig, matchesToWin: 0 }
+			}))).toBe(false);
+		});
+
+		it('rejects gameConfig with non-numeric matchesToWin', () => {
+			expect(isValidTournamentContext(makeContext({
+				gameConfig: { ...makeContext().gameConfig, matchesToWin: 'two' as any }
+			}))).toBe(false);
+		});
+	});
+
+	describe('loadTournamentContext validation (Bug #6)', () => {
+		it('loads valid context from localStorage', () => {
+			const ctx = makeContext();
+			localStorageMock.store['crokinoleTournamentContext'] = JSON.stringify(ctx);
+
+			const loaded = loadTournamentContext();
+
+			expect(loaded).toEqual(ctx);
+			expect(get(gameTournamentContext)).toEqual(ctx);
+		});
+
+		it('discards invalid context from localStorage', () => {
+			const invalidCtx = { tournamentId: '', matchId: 'match-1' }; // missing required fields
+			localStorageMock.store['crokinoleTournamentContext'] = JSON.stringify(invalidCtx);
+
+			const loaded = loadTournamentContext();
+
+			expect(loaded).toBeNull();
+			expect(get(gameTournamentContext)).toBeNull();
+			// Should have been removed from localStorage
+			expect(localStorageMock.removeItem).toHaveBeenCalledWith('crokinoleTournamentContext');
+		});
+
+		it('discards corrupted JSON from localStorage', () => {
+			localStorageMock.store['crokinoleTournamentContext'] = 'not valid json!!!';
+
+			const loaded = loadTournamentContext();
+
+			expect(loaded).toBeNull();
+			expect(get(gameTournamentContext)).toBeNull();
+			expect(localStorageMock.removeItem).toHaveBeenCalledWith('crokinoleTournamentContext');
+		});
+
+		it('returns null when no stored context', () => {
+			const loaded = loadTournamentContext();
+			expect(loaded).toBeNull();
 		});
 	});
 });

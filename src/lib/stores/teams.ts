@@ -107,14 +107,16 @@ export function loadTeams() {
         try {
             const parsed = JSON.parse(saved1);
             if (isValidTeam(parsed)) {
-                team1.set(parsed);
+                // Defensive merge with defaults for version migration
+                // (new fields added in later versions get their default values)
+                team1.set({ ...defaultTeam, name: 'Team 1', color: '#1B100E', ...parsed });
             } else {
                 console.warn('Invalid team1 data in localStorage, using defaults');
-                team1.set({ ...defaultTeam, name: 'Team 1', color: '#00ff88' });
+                team1.set({ ...defaultTeam, name: 'Team 1', color: '#1B100E' });
             }
         } catch (e) {
             console.error('Error loading team1:', e);
-            team1.set({ ...defaultTeam, name: 'Team 1', color: '#00ff88' });
+            team1.set({ ...defaultTeam, name: 'Team 1', color: '#1B100E' });
         }
     }
 
@@ -122,14 +124,15 @@ export function loadTeams() {
         try {
             const parsed = JSON.parse(saved2);
             if (isValidTeam(parsed)) {
-                team2.set(parsed);
+                // Defensive merge with defaults for version migration
+                team2.set({ ...defaultTeam, name: 'Team 2', color: '#BB484D', ...parsed });
             } else {
                 console.warn('Invalid team2 data in localStorage, using defaults');
-                team2.set({ ...defaultTeam, name: 'Team 2', color: '#ff3366' });
+                team2.set({ ...defaultTeam, name: 'Team 2', color: '#BB484D' });
             }
         } catch (e) {
             console.error('Error loading team2:', e);
-            team2.set({ ...defaultTeam, name: 'Team 2', color: '#ff3366' });
+            team2.set({ ...defaultTeam, name: 'Team 2', color: '#BB484D' });
         }
     }
 }
