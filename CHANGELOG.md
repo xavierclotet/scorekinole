@@ -2,6 +2,19 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.2] - 2026-03-18
+- Fix matchesToWin/show20s/showHammer/gameType missing fallback defaults in tournament config
+- Fix currentUserSide undefined causing inverted score mapping (new resolveIsUserSideA utility)
+- Fix game twenty always saved as 0 (calculate from round data instead of reset team state)
+- Fix exitTournamentMode(false) not persisting cleared tournament fields
+- Enhance gameSettings validation (gameType, booleans, numeric ranges)
+- Add isValidTournamentContext validation on localStorage load
+- Add defensive merge with defaults in loadMatchState/loadTeams for version migration
+- Fix orphaned pre-tournament backup cleanup on app mount
+- Fix participant name fallback to prevent "undefined" in UI
+- Fix @const inside span elements in CompletedTournamentView
+- 41 new regression tests (1515 → 1556)
+
 ## [2.5.1] - 2026-03-17
 - Add userKey to tournament participants for clean profile URLs
 - Doubles tournament standings link to player profile with tournament filter pre-selected
