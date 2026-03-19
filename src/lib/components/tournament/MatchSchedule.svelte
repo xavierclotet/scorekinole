@@ -434,7 +434,7 @@
 
   /* Doubles mode: wider cards to accommodate longer team names */
   .matches-grid.doubles {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   }
 
   @keyframes slideDown {

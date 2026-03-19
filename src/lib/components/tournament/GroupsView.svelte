@@ -728,7 +728,7 @@
   /* Accordion styles */
   .groups-accordions {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 0.6rem;
     align-items: start;
   }

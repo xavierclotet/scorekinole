@@ -73,6 +73,13 @@
     return getParticipantDisplayName(participant, isDoubles);
   }
 
+  // Get initials from name
+  function getInitials(name: string): string {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
   // Check if participant is disqualified
   function isDisqualified(participantId: string): boolean {
     const participant = participantMap.get(participantId);
@@ -153,6 +160,26 @@
   }
 </script>
 
+{#snippet playerAvatar(participantId: string)}
+  {@const p = participantMap.get(participantId)}
+  {#if p}
+    <div class="avatars" class:doubles-avatars={isDoubles && p.partner}>
+      {#if p.photoURL}
+        <img src={p.photoURL} alt="" class="avatar-img" referrerpolicy="no-referrer" />
+      {:else}
+        <span class="avatar-initials">{getInitials(p.name)}</span>
+      {/if}
+      {#if isDoubles && p.partner}
+        {#if p.partner.photoURL}
+          <img src={p.partner.photoURL} alt="" class="avatar-img partner" referrerpolicy="no-referrer" />
+        {:else}
+          <span class="avatar-initials partner">{getInitials(p.partner.name)}</span>
+        {/if}
+      {/if}
+    </div>
+  {/if}
+{/snippet}
+
 {#snippet cardInner()}
   <!-- Status bar: table, round/duration, status -->
   {#if !isBye}
@@ -189,6 +216,7 @@
   <div class="players">
     <!-- Player A -->
     <div class="player-row" class:winner={match.winner === match.participantA} class:loser={isMatchDecided && match.winner !== match.participantA} class:tie={isTie} class:disqualified={isDisqualifiedA} class:has-hammer={hammerHolder === match.participantA}>
+      {#if match.participantA !== 'BYE'}{@render playerAvatar(match.participantA)}{/if}
       <span class="player-name">{getParticipantName(match.participantA)}</span>
       {#if isDisqualifiedA}<span class="dsq-badge">DSQ</span>{/if}
       {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
@@ -210,6 +238,7 @@
 
     <!-- Player B -->
     <div class="player-row" class:winner={match.winner === match.participantB} class:loser={isMatchDecided && match.winner !== match.participantB && !isBye} class:tie={isTie} class:bye-row={isBye} class:disqualified={isDisqualifiedB} class:has-hammer={hammerHolder === match.participantB}>
+      {#if match.participantB !== 'BYE'}{@render playerAvatar(match.participantB)}{/if}
       <span class="player-name">{getParticipantName(match.participantB)}</span>
       {#if isDisqualifiedB}<span class="dsq-badge">DSQ</span>{/if}
       {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
@@ -546,6 +575,69 @@
     background: color-mix(in srgb, var(--border) 40%, transparent);
   }
 
+  /* ── Avatars ── */
+  .avatars {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .avatars.doubles-avatars {
+    width: 28px;
+  }
+
+  .avatar-img {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid var(--border);
+  }
+
+  .avatar-initials {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--foreground) 12%, transparent);
+    color: var(--muted-foreground);
+    font-weight: 700;
+    font-size: 0.4rem;
+    flex-shrink: 0;
+    user-select: none;
+    letter-spacing: 0.02em;
+  }
+
+  .avatars.doubles-avatars .avatar-img,
+  .avatars.doubles-avatars .avatar-initials {
+    position: absolute;
+    top: 0;
+  }
+
+  .avatars.doubles-avatars .avatar-img:first-child,
+  .avatars.doubles-avatars .avatar-initials:first-child {
+    left: 0;
+    z-index: 2;
+  }
+
+  .avatars.doubles-avatars .avatar-img.partner,
+  .avatars.doubles-avatars .avatar-initials.partner {
+    left: 10px;
+    z-index: 1;
+  }
+
+  .player-row.winner .avatar-img {
+    border-color: #059669;
+  }
+
+  .player-row.winner .avatar-initials {
+    background: color-mix(in srgb, #10b981 20%, transparent);
+    color: #059669;
+  }
+
   .player-name {
     flex: 1;
     font-size: 0.78rem;
@@ -732,6 +824,19 @@
   }
 
   /* ── Dark mode ── */
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .avatar-img {
+    border-color: #2d3748;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .player-row.winner .avatar-img {
+    border-color: #10b981;
+  }
+
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .player-row.winner .avatar-initials {
+    background: color-mix(in srgb, #10b981 15%, transparent);
+    color: #10b981;
+  }
+
   :global(:is([data-theme='dark'], [data-theme='violet'])) .match-card.clickable:hover {
     border-color: #667eea;
     background: color-mix(in srgb, #667eea 6%, var(--card));

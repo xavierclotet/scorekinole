@@ -2995,11 +2995,12 @@
 
 	/* Bump Chart Card */
 	.bump-chart-section {
-		margin: 0 1rem 1rem;
+		margin: 0.75rem 0 0;
 		background: var(--card);
 		border: 1px solid var(--border);
 		border-radius: 10px;
 		overflow: hidden;
+		width: 100%;
 	}
 
 	.bump-chart-toggle {
