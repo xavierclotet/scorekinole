@@ -1646,11 +1646,9 @@
       {@const pctA = Math.round(prob.probabilityA * 100)}
       {@const pctB = Math.round(prob.probabilityB * 100)}
       <div class="bracket-prob" class:low-confidence={prob.confidence === 'low'}>
-        <span class="bp-val" style="color: {probabilityColor(pctA)}">{pctA}</span>
-        <div class="bp-bar">
-          <div class="bp-fill" style="width: {pctA}%"></div>
-        </div>
-        <span class="bp-val" style="color: {probabilityColor(pctB)}">{pctB}</span>
+        <span class="bp-pct" style="color: {probabilityColor(pctA)}">{pctA}%</span>
+        <span class="bp-sep">–</span>
+        <span class="bp-pct" style="color: {probabilityColor(pctB)}">{pctB}%</span>
       </div>
     {/if}
   {/if}
@@ -3470,54 +3468,34 @@
     display: block;
   }
 
+  /* Bracket probability — clean inline percentages */
   .bracket-prob {
     display: flex;
     align-items: center;
-    gap: 0.15rem;
-    width: 100%;
-    max-width: 5rem;
-    margin: 0 auto;
-    padding: 0.05rem 0.2rem;
-    background: transparent;
+    justify-content: center;
+    gap: 3px;
+    padding: 1px 0;
   }
 
-  .bracket-prob .bp-val {
-    font-size: 0.5rem;
-    color: #9ca3af;
-    font-weight: 600;
-    min-width: 0.9rem;
-    text-align: center;
+  .bracket-prob .bp-pct {
+    font-size: 0.55rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
   }
 
-  .bracket-prob .bp-bar {
-    flex: 1;
-    height: 3px;
-    background: #e5e7eb;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .bracket-prob .bp-fill {
-    height: 100%;
-    background: var(--primary, #667eea);
-    border-radius: 2px;
-    transition: width 0.3s ease;
+  .bracket-prob .bp-sep {
+    font-size: 0.45rem;
+    color: color-mix(in srgb, var(--foreground) 15%, transparent);
+    font-weight: 400;
   }
 
   .bracket-prob.low-confidence {
-    opacity: 0.5;
+    opacity: 0.45;
   }
 
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .vs-divider {
     background: #2d3748;
-  }
-
-  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .bracket-prob .bp-val {
-    color: #6b7280;
-  }
-
-  .bracket-page:is([data-theme='dark'], [data-theme='violet']) .bracket-prob .bp-bar {
-    background: #374151;
   }
 
   .bracket-page:is([data-theme='dark'], [data-theme='violet']) .twenties {

@@ -807,11 +807,9 @@
 		{@const pctA = Math.round(prob.probabilityA * 100)}
 		{@const pctB = Math.round(prob.probabilityB * 100)}
 		<div class="bracket-probability">
-			<span class="bp-value" style="color: {probabilityColor(pctA)}">{pctA}</span>
-			<div class="bp-bar">
-				<div class="bp-fill" style="width: {pctA}%"></div>
-			</div>
-			<span class="bp-value" style="color: {probabilityColor(pctB)}">{pctB}</span>
+			<span class="bp-pct" style="color: {probabilityColor(pctA)}">{pctA}%</span>
+			<span class="bp-sep">–</span>
+			<span class="bp-pct" style="color: {probabilityColor(pctB)}">{pctB}%</span>
 		</div>
 	{/if}
 {/snippet}
@@ -1196,6 +1194,9 @@
 											{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 											{@const participantA = getParticipant(match.participantA || '')}
 											{@const participantB = getParticipant(match.participantB || '')}
+											{@const scoreA = match.totalPointsA || match.gamesWonA || 0}
+											{@const scoreB = match.totalPointsB || match.gamesWonB || 0}
+											{@const isLive = match.status === 'IN_PROGRESS'}
 											{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
 											<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -1212,10 +1213,7 @@
 												tabindex={isClickable ? 0 : undefined}
 											>
 												{#if match.status === 'IN_PROGRESS'}
-													<div class="live-badge">
-														<span class="live-pulse"></span>
-														LIVE
-													</div>
+													<div class="live-dot-bar"><span class="live-dot-indicator"></span></div>
 												{/if}
 												<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 													{#if getSeed(match.participantA)}
@@ -1245,9 +1243,9 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(match.id)}>
+														<span class="player-score" class:live={isLive} class:score-leading={isLive && scoreA > scoreB} class:score-trailing={isLive && scoreA < scoreB} class:score-tied={isLive && scoreA === scoreB && scoreA > 0} class:score-changed={hasScoreChangedA(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
-																{match.totalPointsA || match.gamesWonA || 0}
+																{scoreA}
 															{/if}
 														</span>
 													{/if}
@@ -1281,9 +1279,9 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(match.id)}>
+														<span class="player-score" class:live={isLive} class:score-leading={isLive && scoreB > scoreA} class:score-trailing={isLive && scoreB < scoreA} class:score-tied={isLive && scoreA === scoreB && scoreA > 0} class:score-changed={hasScoreChangedB(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
-																{match.totalPointsB || match.gamesWonB || 0}
+																{scoreB}
 															{/if}
 														</span>
 													{/if}
@@ -1308,6 +1306,9 @@
 								{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 								{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
 								{@const tpmScoringLabel = getScoringLabelForRound(goldBracket.config, 'Semifinales')}
+								{@const tpmScoreA = tpm.totalPointsA || tpm.gamesWonA || 0}
+								{@const tpmScoreB = tpm.totalPointsB || tpm.gamesWonB || 0}
+								{@const tpmIsLive = tpm.status === 'IN_PROGRESS'}
 								{@const tpmClickable = tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 								<div class="bracket-column third-place-column">
 									<div class="round-header third-place-header">
@@ -1332,10 +1333,7 @@
 											tabindex={tpmClickable ? 0 : undefined}
 										>
 											{#if tpm.status === 'IN_PROGRESS'}
-												<div class="live-badge">
-													<span class="live-pulse"></span>
-													LIVE
-												</div>
+												<div class="live-dot-bar"><span class="live-dot-indicator"></span></div>
 											{/if}
 											<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
 												{#if getSeed(tpm.participantA)}
@@ -1360,7 +1358,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(tpm.id)}>
+												<span class="player-score" class:live={tpmIsLive} class:score-leading={tpmIsLive && tpmScoreA > tpmScoreB} class:score-trailing={tpmIsLive && tpmScoreA < tpmScoreB} class:score-tied={tpmIsLive && tpmScoreA === tpmScoreB && tpmScoreA > 0} class:score-changed={hasScoreChangedA(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsA || tpm.gamesWonA || 0}
 													{/if}
@@ -1390,7 +1388,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(tpm.id)}>
+												<span class="player-score" class:live={tpmIsLive} class:score-leading={tpmIsLive && tpmScoreB > tpmScoreA} class:score-trailing={tpmIsLive && tpmScoreB < tpmScoreA} class:score-tied={tpmIsLive && tpmScoreA === tpmScoreB && tpmScoreA > 0} class:score-changed={hasScoreChangedB(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsB || tpm.gamesWonB || 0}
 													{/if}
@@ -1439,9 +1437,7 @@
 																	<span class="consolation-position-badge">{matchPosStart}º-{matchPosStart + 1}º</span>
 																{/if}
 																{#if match.status === 'IN_PROGRESS'}
-																	<div class="live-badge compact">
-																		<span class="live-pulse"></span>
-																	</div>
+																	<div class="live-dot-bar compact"><span class="live-dot-indicator"></span></div>
 																{/if}
 																<div class="consolation-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
 																	<span class="consolation-name">{getParticipantName(match.participantA || '')}</span>
@@ -1548,7 +1544,10 @@
 												{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 												{@const participantA = getParticipant(match.participantA || '')}
 												{@const participantB = getParticipant(match.participantB || '')}
-												{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
+												{@const scoreA = match.totalPointsA || match.gamesWonA || 0}
+											{@const scoreB = match.totalPointsB || match.gamesWonB || 0}
+											{@const isLive = match.status === 'IN_PROGRESS'}
+											{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
 												<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 												<div
@@ -1564,10 +1563,7 @@
 													tabindex={isClickable ? 0 : undefined}
 												>
 													{#if match.status === 'IN_PROGRESS'}
-														<div class="live-badge">
-															<span class="live-pulse"></span>
-															LIVE
-														</div>
+														<div class="live-dot-bar"><span class="live-dot-indicator"></span></div>
 													{/if}
 													<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 														{#if getSeed(match.participantA)}
@@ -1660,7 +1656,10 @@
 									{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 									{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
 									{@const tpmScoringLabel = getScoringLabelForRound(silverBracket.config, 'Semifinales')}
-									{@const tpmClickable = tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
+									{@const tpmScoreA = tpm.totalPointsA || tpm.gamesWonA || 0}
+								{@const tpmScoreB = tpm.totalPointsB || tpm.gamesWonB || 0}
+								{@const tpmIsLive = tpm.status === 'IN_PROGRESS'}
+								{@const tpmClickable = tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 									<div class="bracket-column third-place-column">
 										<div class="round-header third-place-header">
 											<span class="round-name">{m.tournament_thirdPlace?.() || '3º/4º'} <span class="position-range-badge">({goldParticipantCount + 3}º-{goldParticipantCount + 4}º)</span></span>
@@ -1684,10 +1683,7 @@
 												tabindex={tpmClickable ? 0 : undefined}
 											>
 												{#if tpm.status === 'IN_PROGRESS'}
-													<div class="live-badge">
-														<span class="live-pulse"></span>
-														LIVE
-													</div>
+													<div class="live-dot-bar"><span class="live-dot-indicator"></span></div>
 												{/if}
 												<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
 													{#if getSeed(tpm.participantA)}
@@ -1704,7 +1700,7 @@
 															{/if}
 														</div>
 													{/if}
-													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(tpm.id)}>
+													<span class="player-score" class:live={tpmIsLive} class:score-leading={tpmIsLive && tpmScoreA > tpmScoreB} class:score-trailing={tpmIsLive && tpmScoreA < tpmScoreB} class:score-tied={tpmIsLive && tpmScoreA === tpmScoreB && tpmScoreA > 0} class:score-changed={hasScoreChangedA(tpm.id)}>
 														{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 															{tpm.totalPointsA || tpm.gamesWonA || 0}
 														{/if}
@@ -1726,7 +1722,7 @@
 															{/if}
 														</div>
 													{/if}
-													<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(tpm.id)}>
+													<span class="player-score" class:live={tpmIsLive} class:score-leading={tpmIsLive && tpmScoreB > tpmScoreA} class:score-trailing={tpmIsLive && tpmScoreB < tpmScoreA} class:score-tied={tpmIsLive && tpmScoreA === tpmScoreB && tpmScoreA > 0} class:score-changed={hasScoreChangedB(tpm.id)}>
 														{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 															{tpm.totalPointsB || tpm.gamesWonB || 0}
 														{/if}
@@ -1774,9 +1770,7 @@
 																	<span class="consolation-position-badge">{matchPosStart}º-{matchPosStart + 1}º</span>
 																{/if}
 																	{#if match.status === 'IN_PROGRESS'}
-																		<div class="live-badge compact">
-																			<span class="live-pulse"></span>
-																		</div>
+																		<div class="live-dot-bar compact"><span class="live-dot-indicator"></span></div>
 																	{/if}
 																	<div class="consolation-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
 																		<span class="consolation-name">{getParticipantName(match.participantA || '')}</span>
@@ -1849,7 +1843,10 @@
 												{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 												{@const participantA = getParticipant(match.participantA || '')}
 												{@const participantB = getParticipant(match.participantB || '')}
-												{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
+												{@const scoreA = match.totalPointsA || match.gamesWonA || 0}
+											{@const scoreB = match.totalPointsB || match.gamesWonB || 0}
+											{@const isLive = match.status === 'IN_PROGRESS'}
+											{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
 												<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 												<div
@@ -1865,10 +1862,7 @@
 													tabindex={isClickable ? 0 : undefined}
 												>
 													{#if match.status === 'IN_PROGRESS'}
-														<div class="live-badge">
-															<span class="live-pulse"></span>
-															LIVE
-														</div>
+														<div class="live-dot-bar"><span class="live-dot-indicator"></span></div>
 													{/if}
 													<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 														{#if getSeed(match.participantA)}
@@ -1988,6 +1982,9 @@
 											{@const winnerIsB = isByeA || (!isByeB && match.winner === match.participantB)}
 											{@const participantA = getParticipant(match.participantA || '')}
 											{@const participantB = getParticipant(match.participantB || '')}
+											{@const scoreA = match.totalPointsA || match.gamesWonA || 0}
+											{@const scoreB = match.totalPointsB || match.gamesWonB || 0}
+											{@const isLive = match.status === 'IN_PROGRESS'}
 											{@const isClickable = (match.status === 'COMPLETED' || match.status === 'WALKOVER') && !isByeMatchFlag}
 											<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -2004,10 +2001,7 @@
 												tabindex={isClickable ? 0 : undefined}
 											>
 												{#if match.status === 'IN_PROGRESS'}
-													<div class="live-badge">
-														<span class="live-pulse"></span>
-														LIVE
-													</div>
+													<div class="live-dot-bar"><span class="live-dot-indicator"></span></div>
 												{/if}
 												<div class="match-player" class:winner={winnerIsA && !isByeMatchFlag} class:tbd={!match.participantA} class:bye={isByeA} class:has-hammer={getMatchHammer(match) === match.participantA}>
 													{#if getSeed(match.participantA)}
@@ -2037,9 +2031,9 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(match.id)}>
+														<span class="player-score" class:live={isLive} class:score-leading={isLive && scoreA > scoreB} class:score-trailing={isLive && scoreA < scoreB} class:score-tied={isLive && scoreA === scoreB && scoreA > 0} class:score-changed={hasScoreChangedA(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
-																{match.totalPointsA || match.gamesWonA || 0}
+																{scoreA}
 															{/if}
 														</span>
 													{/if}
@@ -2073,9 +2067,9 @@
 														</div>
 													{/if}
 													{#if !isByeMatchFlag}
-														<span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(match.id)}>
+														<span class="player-score" class:live={isLive} class:score-leading={isLive && scoreB > scoreA} class:score-trailing={isLive && scoreB < scoreA} class:score-tied={isLive && scoreA === scoreB && scoreA > 0} class:score-changed={hasScoreChangedB(match.id)}>
 															{#if match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS'}
-																{match.totalPointsB || match.gamesWonB || 0}
+																{scoreB}
 															{/if}
 														</span>
 													{/if}
@@ -2099,6 +2093,9 @@
 								{@const tpmParticipantA = getParticipant(tpm.participantA || '')}
 								{@const tpmParticipantB = getParticipant(tpm.participantB || '')}
 								{@const tpmScoringLabel = getScoringLabelForRound(goldBracket.config, 'Semifinales')}
+								{@const tpmScoreA = tpm.totalPointsA || tpm.gamesWonA || 0}
+								{@const tpmScoreB = tpm.totalPointsB || tpm.gamesWonB || 0}
+								{@const tpmIsLive = tpm.status === 'IN_PROGRESS'}
 								{@const tpmClickable = tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER'}
 								<div class="bracket-column third-place-column">
 									<div class="round-header third-place-header">
@@ -2123,10 +2120,7 @@
 											tabindex={tpmClickable ? 0 : undefined}
 										>
 											{#if tpm.status === 'IN_PROGRESS'}
-												<div class="live-badge">
-													<span class="live-pulse"></span>
-													LIVE
-												</div>
+												<div class="live-dot-bar"><span class="live-dot-indicator"></span></div>
 											{/if}
 											<div class="match-player" class:winner={tpmWinnerIsA} class:tbd={!tpm.participantA} class:has-hammer={getMatchHammer(tpm) === tpm.participantA}>
 												{#if getSeed(tpm.participantA)}
@@ -2149,7 +2143,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedA(tpm.id)}>
+												<span class="player-score" class:live={tpmIsLive} class:score-leading={tpmIsLive && tpmScoreA > tpmScoreB} class:score-trailing={tpmIsLive && tpmScoreA < tpmScoreB} class:score-tied={tpmIsLive && tpmScoreA === tpmScoreB && tpmScoreA > 0} class:score-changed={hasScoreChangedA(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsA || tpm.gamesWonA || 0}
 													{/if}
@@ -2177,7 +2171,7 @@
 														{/if}
 													</div>
 												{/if}
-												<span class="player-score" class:live={tpm.status === 'IN_PROGRESS'} class:score-changed={hasScoreChangedB(tpm.id)}>
+												<span class="player-score" class:live={tpmIsLive} class:score-leading={tpmIsLive && tpmScoreB > tpmScoreA} class:score-trailing={tpmIsLive && tpmScoreB < tpmScoreA} class:score-tied={tpmIsLive && tpmScoreA === tpmScoreB && tpmScoreA > 0} class:score-changed={hasScoreChangedB(tpm.id)}>
 													{#if tpm.status === 'COMPLETED' || tpm.status === 'WALKOVER' || tpm.status === 'IN_PROGRESS'}
 														{tpm.totalPointsB || tpm.gamesWonB || 0}
 													{/if}
@@ -2228,9 +2222,7 @@
 																	<span class="consolation-position-badge">{matchPosStart}º-{matchPosStart + 1}º</span>
 																{/if}
 																{#if match.status === 'IN_PROGRESS'}
-																	<div class="live-badge compact">
-																		<span class="live-pulse"></span>
-																	</div>
+																	<div class="live-dot-bar compact"><span class="live-dot-indicator"></span></div>
 																{/if}
 																<div class="consolation-player" class:winner={winnerIsA} class:tbd={!match.participantA}>
 																	<span class="consolation-name">{getParticipantName(match.participantA || '')}</span>
@@ -3628,9 +3620,20 @@
 	}
 
 	.match-card.in-progress {
-		border-left: 3px solid #10b981;
-		background: rgba(16, 185, 129, 0.05);
-		box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+		border-color: rgba(245, 158, 11, 0.35);
+		background: rgba(245, 158, 11, 0.06);
+		animation: bracket-card-glow 3s ease-in-out infinite;
+	}
+
+	@keyframes bracket-card-glow {
+		0%, 100% {
+			box-shadow: 0 0 0 0.5px rgba(245, 158, 11, 0.12),
+			            0 0 6px -1px rgba(245, 158, 11, 0.08);
+		}
+		50% {
+			box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25),
+			            0 0 14px -1px rgba(245, 158, 11, 0.15);
+		}
 	}
 
 	.match-card.bye-match {
@@ -3721,37 +3724,29 @@
 	/* No connectors in consolation section */
 
 
-	/* Live Badge */
-	.live-badge {
-		position: absolute;
-		top: -0.55rem;
-		left: 50%;
-		transform: translateX(-50%);
+	/* Live dot indicator (replaces live-badge) */
+	.live-dot-bar {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
-		padding: 0.15rem 0.5rem;
-		background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-		border-radius: 4px;
-		font-size: 0.55rem;
-		font-weight: 700;
-		color: white;
-		letter-spacing: 0.06em;
-		box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
-		z-index: 10;
+		justify-content: center;
+		padding: 2px 0;
 	}
 
-	.live-badge.compact {
-		padding: 0.1rem 0.3rem;
-		font-size: 0;
+	.live-dot-bar.compact {
+		padding: 1px 0;
 	}
 
-	.live-pulse {
-		width: 6px;
-		height: 6px;
-		background: white;
+	.live-dot-indicator {
+		width: 5px;
+		height: 5px;
 		border-radius: 50%;
-		animation: pulse 1.5s ease-in-out infinite;
+		background: #fbbf24;
+		animation: bracket-live-pulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes bracket-live-pulse {
+		0%, 100% { opacity: 1; transform: scale(1); }
+		50% { opacity: 0.3; transform: scale(0.7); }
 	}
 
 	/* Match Player Row */
@@ -3917,8 +3912,20 @@
 	}
 
 	.player-score.live {
-		color: #f59e0b;
-		animation: pulse-score 2s ease-in-out infinite;
+		color: #8b9bb3;
+	}
+
+	.player-score.score-leading {
+		color: #10b981;
+	}
+
+	.player-score.score-trailing {
+		color: #f87171;
+		opacity: 0.75;
+	}
+
+	.player-score.score-tied {
+		color: #6b7280;
 	}
 
 	.player-score.score-changed {
@@ -3947,38 +3954,26 @@
 		display: none;
 	}
 
-	/* Bracket probability indicator */
+	/* Bracket probability — clean inline percentages */
 	.bracket-probability {
 		display: flex;
 		align-items: center;
-		gap: 0.15rem;
-		width: 100%;
-		max-width: 5rem;
-		margin: 0 auto;
-		padding: 0.1rem 0;
+		justify-content: center;
+		gap: 3px;
+		padding: 1px 0;
 	}
 
-	.bracket-probability .bp-value {
-		font-size: 0.5rem;
-		color: #6b7280;
-		font-weight: 600;
-		min-width: 0.9rem;
-		text-align: center;
+	.bracket-probability .bp-pct {
+		font-size: 0.55rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.01em;
 	}
 
-	.bracket-probability .bp-bar {
-		flex: 1;
-		height: 3px;
-		background: #374151;
-		border-radius: 2px;
-		overflow: hidden;
-	}
-
-	.bracket-probability .bp-fill {
-		height: 100%;
-		background: var(--primary, #667eea);
-		border-radius: 2px;
-		transition: width 0.3s ease;
+	.bracket-probability .bp-sep {
+		font-size: 0.45rem;
+		color: rgba(255, 255, 255, 0.15);
+		font-weight: 400;
 	}
 
 	/* Consolation Section */
@@ -4479,7 +4474,28 @@
 
 	:global([data-theme='light']) .match-card.in-progress,
 	:global([data-theme='violet-light']) .match-card.in-progress {
-		background: rgba(16, 185, 129, 0.05);
+		border-color: rgba(245, 158, 11, 0.3);
+		background: rgba(245, 158, 11, 0.04);
+	}
+
+	:global([data-theme='light']) .live-dot-indicator,
+	:global([data-theme='violet-light']) .live-dot-indicator {
+		background: #f59e0b;
+	}
+
+	:global([data-theme='light']) .bp-sep,
+	:global([data-theme='violet-light']) .bp-sep {
+		color: rgba(0, 0, 0, 0.15);
+	}
+
+	:global([data-theme='light']) .player-score.score-leading,
+	:global([data-theme='violet-light']) .player-score.score-leading {
+		color: #059669;
+	}
+
+	:global([data-theme='light']) .player-score.score-trailing,
+	:global([data-theme='violet-light']) .player-score.score-trailing {
+		color: #dc2626;
 	}
 
 	:global([data-theme='light']) .match-card.bye-match,
