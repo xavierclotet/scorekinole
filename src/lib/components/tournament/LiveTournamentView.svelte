@@ -3307,9 +3307,9 @@
 	}
 
 	.matches-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(225px, 1fr));
+		gap: 6px;
 		padding: 0.75rem;
 		border-top: 1px solid #1a2332;
 	}

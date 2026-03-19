@@ -786,53 +786,92 @@
 {#snippet groupMatchRow(match: any)}
 	{#if isBye(match.participantB)}
 		<div class="match-result-row bye-row">
-			<div class="match-main-row">
-				<span class="match-player match-player-a winner">
+			<div class="match-players">
+				<div class="match-player-row winner">
 					<span class="match-player-name">{getParticipantName(match.participantA)}</span>
-					{@render participantAvatar(match.participantA, 'sm')}
-				</span>
-				<span class="match-score bye-label">BYE</span>
-				<span class="match-player match-player-b bye-slot">
+					<span class="match-player-score">—</span>
+				</div>
+				<div class="match-player-sep"></div>
+				<div class="match-player-row bye-slot">
 					<span class="match-player-name">BYE</span>
-				</span>
+					<span class="match-player-score">—</span>
+				</div>
 			</div>
 		</div>
 	{:else}
 		<button
-			class={['match-result-row', match.status === 'COMPLETED' && 'completed', match.rounds?.length && 'has-detail']}
+			class={['match-result-row',
+				match.status === 'PENDING' && 'pending',
+				match.status === 'COMPLETED' && 'completed',
+				match.status === 'WALKOVER' && 'walkover',
+				match.status === 'IN_PROGRESS' && 'in-progress',
+				match.rounds?.length && 'has-detail']}
 			onclick={() => { if (match.rounds?.length) { selectedMatch = match; showMatchDetail = true; } }}
 			disabled={!match.rounds?.length}
 		>
-			<div class="match-main-row">
-				<span class="match-player match-player-a" class:winner={match.winner === match.participantA} class:loser={match.winner && match.participantA && match.winner !== match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
-					<span class="match-player-name">{getParticipantName(match.participantA)}</span>
-					{@render participantAvatar(match.participantA, 'sm')}
-				</span>
-				<span class="match-score">
-					{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-						<span class="score-result">{match.totalPointsA ?? match.gamesWonA ?? 0} - {match.totalPointsB ?? match.gamesWonB ?? 0}</span>
-					{:else}
-						vs
-					{/if}
-				</span>
-				<span class="match-player match-player-b" class:winner={match.winner === match.participantB} class:loser={match.winner && match.participantB && match.winner !== match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
-					{@render participantAvatar(match.participantB, 'sm')}
-					<span class="match-player-name">{getParticipantName(match.participantB)}</span>
-				</span>
-			</div>
-			{#if match.tableNumber != null || match.playedOnTable != null || match.duration}
-				<div class="match-meta-row">
+			<!-- Status bar -->
+			<div class="match-status-bar">
+				<div class="match-status-left">
 					{#if match.tableNumber != null || match.playedOnTable != null}
-						<span class="match-table">{m.tournament_tableShort()}{match.tableNumber ?? match.playedOnTable}</span>
+						<span class="match-table-badge">{m.tournament_tableShort()}{match.tableNumber ?? match.playedOnTable}</span>
+					{:else}
+						<span class="match-table-badge tbd">TBD</span>
 					{/if}
-					{#if match.duration}
+					{#if match.status === 'IN_PROGRESS'}
+						<span class="match-live-dot"></span>
+						{@const currentRound = (match.rounds?.length ?? 0) + 1}
+						<span class="match-round-tag">R{currentRound}</span>
+					{:else if (match.status === 'COMPLETED' || match.status === 'WALKOVER') && match.duration}
 						{@const totalSec = Math.round(match.duration / 1000)}
 						{@const min = Math.floor(totalSec / 60)}
 						{@const sec = totalSec % 60}
-						<span class="match-meta-duration"><Timer size={11} />{min}:{sec.toString().padStart(2, '0')}</span>
+						<span class="match-duration-tag"><Timer size={10} />{min}:{sec.toString().padStart(2, '0')}</span>
 					{/if}
 				</div>
-			{/if}
+				<div class="match-status-right">
+					{#if match.rounds?.length}
+						<span class="match-info-hint">
+							<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+						</span>
+					{/if}
+				</div>
+			</div>
+			<!-- Player rows -->
+			<div class="match-players">
+				<div class="match-player-row" class:winner={match.winner === match.participantA} class:loser={match.winner && match.participantA && match.winner !== match.participantA} class:has-hammer={getMatchHammer(match) === match.participantA}>
+					{@render participantAvatar(match.participantA, 'sm')}
+					<span class="match-player-name">{getParticipantName(match.participantA)}</span>
+					{#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && (match.total20sA ?? 0) > 0}
+						<span class="match-twenties">{match.total20sA}</span>
+					{/if}
+					<span class="match-player-score" class:live={match.status === 'IN_PROGRESS'}>
+						{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+							{match.totalPointsA ?? match.gamesWonA ?? 0}
+						{:else if match.status === 'IN_PROGRESS'}
+							{match.totalPointsA ?? 0}
+						{:else}
+							—
+						{/if}
+					</span>
+				</div>
+				<div class="match-player-sep"></div>
+				<div class="match-player-row" class:winner={match.winner === match.participantB} class:loser={match.winner && match.participantB && match.winner !== match.participantB} class:has-hammer={getMatchHammer(match) === match.participantB}>
+					{@render participantAvatar(match.participantB, 'sm')}
+					<span class="match-player-name">{getParticipantName(match.participantB)}</span>
+					{#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && (match.total20sB ?? 0) > 0}
+						<span class="match-twenties">{match.total20sB}</span>
+					{/if}
+					<span class="match-player-score" class:live={match.status === 'IN_PROGRESS'}>
+						{#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
+							{match.totalPointsB ?? match.gamesWonB ?? 0}
+						{:else if match.status === 'IN_PROGRESS'}
+							{match.totalPointsB ?? 0}
+						{:else}
+							—
+						{/if}
+					</span>
+				</div>
+			</div>
 		</button>
 	{/if}
 {/snippet}
@@ -5266,152 +5305,262 @@
 	}
 
 	.matches-list {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		gap: 6px;
 	}
 
+	/* ── Match card (scoreboard style) ── */
 	.match-result-row {
 		display: flex;
 		flex-direction: column;
-		gap: 0;
-		padding: 0.5rem 0.6rem;
-		background: rgba(0, 0, 0, 0.15);
-		border-radius: 8px;
-		font-size: 0.8rem;
-		flex: 1 1 calc(50% - 0.2rem);
-		min-width: 200px;
-		max-width: 100%;
-		border: 1px solid rgba(255, 255, 255, 0.06);
-		transition: background 0.15s ease;
+		border-radius: 6px;
+		font-size: 0.78rem;
+		overflow: hidden;
+		transition: all 0.15s;
 	}
 
-	.match-main-row {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
+	/* Status glow: pending (slate) */
+	.match-result-row.pending {
+		background: rgba(107, 114, 128, 0.06);
+		border: 1px solid rgba(107, 114, 128, 0.15);
+		box-shadow: 0 0 0 0.5px rgba(107, 114, 128, 0.06),
+		            0 0 5px -1px rgba(107, 114, 128, 0.04);
 	}
 
-	.match-meta-row {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.6rem;
-		padding-top: 0.35rem;
-		margin-top: 0.35rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.08);
-		font-size: 0.7rem;
-		color: #8b9bb3;
-	}
-
-	.match-meta-duration {
-		display: inline-flex;
-		align-items: center;
-		gap: 3px;
-		font-variant-numeric: tabular-nums;
-		color: #8b9bb3;
-	}
-
+	/* Status glow: completed (green) */
 	.match-result-row.completed {
-		background: rgba(0, 0, 0, 0.25);
-		border-color: rgba(255, 255, 255, 0.08);
+		background: rgba(16, 185, 129, 0.06);
+		border: 1px solid rgba(16, 185, 129, 0.2);
+		box-shadow: 0 0 0 0.5px rgba(16, 185, 129, 0.1),
+		            0 0 6px -1px rgba(16, 185, 129, 0.08);
 	}
 
+	.match-result-row.completed .match-status-bar {
+		background: rgba(16, 185, 129, 0.08);
+		border-bottom-color: rgba(16, 185, 129, 0.12);
+	}
+
+	/* Status glow: in-progress (amber, animated) */
+	.match-result-row.in-progress {
+		background: rgba(245, 158, 11, 0.08);
+		border: 1px solid rgba(245, 158, 11, 0.25);
+		animation: pub-live-glow 3s ease-in-out infinite;
+	}
+
+	.match-result-row.in-progress .match-status-bar {
+		background: rgba(245, 158, 11, 0.1);
+		border-bottom-color: rgba(245, 158, 11, 0.15);
+	}
+
+	@keyframes pub-live-glow {
+		0%, 100% {
+			box-shadow: 0 0 0 0.5px rgba(245, 158, 11, 0.12),
+			            0 0 6px -1px rgba(245, 158, 11, 0.08);
+		}
+		50% {
+			box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25),
+			            0 0 14px -1px rgba(245, 158, 11, 0.15);
+		}
+	}
+
+	/* Status glow: walkover (red) */
+	.match-result-row.walkover {
+		background: rgba(220, 38, 38, 0.06);
+		border: 1px solid rgba(220, 38, 38, 0.2);
+		box-shadow: 0 0 0 0.5px rgba(220, 38, 38, 0.1),
+		            0 0 6px -1px rgba(220, 38, 38, 0.08);
+	}
+
+	.match-result-row.walkover .match-status-bar {
+		background: rgba(220, 38, 38, 0.08);
+		border-bottom-color: rgba(220, 38, 38, 0.12);
+	}
+
+	/* BYE */
 	.match-result-row.bye-row {
-		opacity: 0.5;
-		border: 1px dashed rgba(255, 255, 255, 0.15);
+		opacity: 0.45;
+		border: 1px dashed rgba(255, 255, 255, 0.12);
 		background: transparent;
 		pointer-events: none;
 	}
 
-	.bye-label {
-		font-style: italic;
-		color: #667eea;
-		font-size: 0.7rem;
-	}
-
 	.bye-slot .match-player-name {
 		font-style: italic;
-		color: #667eea;
+		opacity: 0.5;
 	}
 
-	.match-table {
-		font-size: 0.65rem;
-		font-weight: 600;
-		color: var(--primary);
-		background: color-mix(in srgb, var(--primary) 12%, transparent);
-		padding: 0.1rem 0.3rem;
-		border-radius: 3px;
-		flex-shrink: 0;
-	}
-
-	.match-player {
+	/* ── Status bar ── */
+	.match-status-bar {
 		display: flex;
 		align-items: center;
-		gap: 0.35rem;
-		flex: 1;
-		min-width: 0;
+		justify-content: space-between;
+		padding: 3px 8px;
+		gap: 6px;
+		background: rgba(255, 255, 255, 0.03);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.match-status-left {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.match-status-right {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.match-table-badge {
+		font-size: 0.52rem;
+		font-weight: 700;
+		color: #cbd5e1;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		padding: 1px 5px;
+		border-radius: 4px;
+		letter-spacing: 0.04em;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.match-table-badge.tbd {
+		color: #6b7280;
+		background: rgba(255, 255, 255, 0.03);
+		border-color: rgba(255, 255, 255, 0.06);
+		font-style: italic;
+	}
+
+	.match-live-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: #fbbf24;
+		flex-shrink: 0;
+		animation: pub-live-dot 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pub-live-dot {
+		0%, 100% { opacity: 1; transform: scale(1); }
+		50% { opacity: 0.3; transform: scale(0.7); }
+	}
+
+	.match-round-tag {
+		font-size: 0.52rem;
+		font-weight: 700;
+		color: #fbbf24;
+		background: rgba(245, 158, 11, 0.15);
+		padding: 1px 5px;
+		border-radius: 3px;
+		letter-spacing: 0.03em;
+	}
+
+	.match-duration-tag {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		font-size: 0.55rem;
+		font-weight: 500;
 		color: #8b9bb3;
+		font-variant-numeric: tabular-nums;
 	}
 
-	.match-player-a {
-		flex-direction: row;
-		justify-content: flex-end;
+	.match-info-hint {
+		display: inline-flex;
+		align-items: center;
+		color: #6b7280;
+		opacity: 0.5;
+		transition: opacity 0.15s;
 	}
 
-	.match-player-b {
-		flex-direction: row;
-		justify-content: flex-start;
+	/* ── Player rows ── */
+	.match-players {
+		padding: 0;
+	}
+
+	.match-player-row {
+		display: flex;
+		align-items: center;
+		padding: 4px 8px;
+		gap: 6px;
+		min-height: 26px;
+	}
+
+	.match-player-sep {
+		height: 1px;
+		margin: 0 8px;
+		background: rgba(255, 255, 255, 0.05);
 	}
 
 	.match-player-name {
-		flex-shrink: 1;
+		flex: 1;
 		min-width: 0;
+		font-size: 0.76rem;
+		font-weight: 600;
+		color: #8b9bb3;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.match-player.winner {
-		color: #10b981;
-		font-weight: 600;
-	}
-
-	.match-player.loser {
-		color: #f87171;
-	}
-
-	.match-player.has-hammer {
-		position: relative;
-		background: color-mix(in srgb, var(--color-twenties, #f59e0b) 12%, transparent);
-		border-radius: 4px;
-		padding: 0 4px;
-	}
-
-	.match-player.has-hammer::after {
-		content: '🔨';
-		position: absolute;
-		top: 50%;
-		transform: translateY(-50%);
-		font-size: 0.65rem;
-		opacity: 0.4;
-		pointer-events: none;
-	}
-
-	.match-player-a.has-hammer::after {
-		left: -2px;
-	}
-
-	.match-player-b.has-hammer::after {
-		right: -2px;
-	}
-
-	.match-score {
+	.match-twenties {
+		font-size: 0.48rem;
+		font-weight: 700;
+		color: #fbbf24;
+		min-width: 0.9rem;
+		height: 0.9rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(245, 158, 11, 0.12);
+		border-radius: 50%;
 		flex-shrink: 0;
-		min-width: 50px;
-		text-align: center;
-		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.match-player-score {
+		font-size: 0.92rem;
+		font-weight: 800;
 		color: #e1e8ed;
+		font-variant-numeric: tabular-nums;
+		min-width: 1.4rem;
+		text-align: right;
+		flex-shrink: 0;
+		letter-spacing: -0.02em;
+	}
+
+	.match-player-score.live {
+		color: #fbbf24;
+		animation: pulse-score 2s ease-in-out infinite;
+	}
+
+	@keyframes pulse-score {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.65; }
+	}
+
+	/* Winner / Loser */
+	.match-player-row.winner .match-player-name {
+		color: #10b981;
+		font-weight: 700;
+	}
+	.match-player-row.winner .match-player-score {
+		color: #10b981;
+	}
+
+	.match-player-row.loser .match-player-name {
+		color: #f87171;
+		opacity: 0.75;
+	}
+	.match-player-row.loser .match-player-score {
+		color: #f87171;
+		opacity: 0.75;
+	}
+
+	/* Hammer */
+	.match-player-row.has-hammer {
+		background: rgba(16, 185, 129, 0.07);
 	}
 
 
@@ -6276,10 +6425,18 @@
 		.standings-table .pos-col { width: 20px; }
 		.standings-table .stat-col { width: 24px; }
 
-		/* Match result row mobile - match standings table font size */
-		.match-result-row,
-		button.match-result-row {
+		/* Match grid single column on mobile */
+		.matches-list {
+			grid-template-columns: 1fr;
+			gap: 4px;
+		}
+
+		.match-player-name {
 			font-size: 0.7rem;
+		}
+
+		.match-player-score {
+			font-size: 0.82rem;
 		}
 	}
 
@@ -6522,54 +6679,101 @@
 		color: #94a3b8;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row {
-		background: rgba(0, 0, 0, 0.025);
-		border-color: rgba(0, 0, 0, 0.08);
+	/* Light theme: match cards */
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.pending {
+		background: rgba(107, 114, 128, 0.04);
+		border-color: rgba(107, 114, 128, 0.12);
+		box-shadow: 0 0 0 0.5px rgba(107, 114, 128, 0.05),
+		            0 0 4px -1px rgba(107, 114, 128, 0.04);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.completed {
-		background: rgba(0, 0, 0, 0.04);
-		border-color: rgba(0, 0, 0, 0.1);
+		background: rgba(16, 185, 129, 0.04);
+		border-color: rgba(16, 185, 129, 0.18);
+		box-shadow: 0 0 0 0.5px rgba(16, 185, 129, 0.08),
+		            0 0 5px -1px rgba(16, 185, 129, 0.06);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.in-progress {
+		background: rgba(245, 158, 11, 0.05);
+		border-color: rgba(245, 158, 11, 0.22);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.walkover {
+		background: rgba(220, 38, 38, 0.04);
+		border-color: rgba(220, 38, 38, 0.18);
+		box-shadow: 0 0 0 0.5px rgba(220, 38, 38, 0.08),
+		            0 0 5px -1px rgba(220, 38, 38, 0.06);
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-result-row.bye-row {
-		border-color: rgba(0, 0, 0, 0.15);
+		border-color: rgba(0, 0, 0, 0.12);
 		background: transparent;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bye-label,
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .bye-slot .match-player-name {
-		color: #667eea;
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-status-bar {
+		background: rgba(0, 0, 0, 0.02);
+		border-bottom-color: rgba(0, 0, 0, 0.06);
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-table {
-		background: color-mix(in srgb, var(--primary) 10%, transparent);
-		color: var(--primary);
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-table-badge {
+		color: #475569;
+		background: rgba(0, 0, 0, 0.06);
+		border-color: rgba(0, 0, 0, 0.08);
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player {
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-table-badge.tbd {
+		color: #94a3b8;
+		background: rgba(0, 0, 0, 0.03);
+		border-color: rgba(0, 0, 0, 0.06);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-round-tag {
+		color: #92400e;
+		background: rgba(245, 158, 11, 0.15);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-live-dot {
+		background: #f59e0b;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-duration-tag {
 		color: #64748b;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player.winner {
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player-sep {
+		background: rgba(0, 0, 0, 0.06);
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player-name {
+		color: #475569;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player-score {
+		color: #1e293b;
+	}
+
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player-row.winner .match-player-name,
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player-row.winner .match-player-score {
 		color: #059669;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player.loser {
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player-row.loser .match-player-name,
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player-row.loser .match-player-score {
 		color: #dc2626;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-score {
-		color: #1a202c;
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-player-score.live {
+		color: #d97706;
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-meta-row {
-		border-top-color: rgba(0, 0, 0, 0.06);
-		color: #64748b;
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-twenties {
+		color: #d97706;
+		background: rgba(245, 158, 11, 0.1);
 	}
 
-	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-meta-duration {
-		color: #64748b;
+	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .match-info-hint {
+		color: #94a3b8;
 	}
 
 	.detail-container:is([data-theme='light'], [data-theme='violet-light']) .phase-nav {
@@ -7284,21 +7488,19 @@
 
 	/* Match result row clickable styles */
 	button.match-result-row {
-		background: transparent;
-		border: none;
 		cursor: default;
 		font-family: inherit;
-		font-size: 0.8rem;
 		text-align: inherit;
 		width: 100%;
+		padding: 0;
 	}
 
 	button.match-result-row.has-detail {
 		cursor: pointer;
 	}
 
-	button.match-result-row.has-detail:hover {
-		background: rgba(255, 255, 255, 0.06);
+	button.match-result-row.has-detail:hover .match-info-hint {
+		opacity: 1;
 	}
 
 	button.match-result-row:disabled {
