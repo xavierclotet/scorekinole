@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.3] - 2026-03-19
+- Redesign group match cards: stacked scoreboard layout with status glows, player avatars, split probability bar
+- Apply scoreboard design to public and live tournament views with responsive grid (2-3 per row)
+- Add resizable panels (paneforge) for standings/schedule split in admin and live views
+- Redesign bracket probability as clean inline colored percentages
+- Replace bracket LIVE badge with subtle amber breathing glow + pulsing dot
+- Live bracket scores colored by state: green (leading), red (trailing), gray (tied)
+- Refined table badge, pending score indicator, bump chart layout
+
 ## [2.5.2] - 2026-03-18
 - Fix matchesToWin/show20s/showHammer/gameType missing fallback defaults in tournament config
 - Fix currentUserSide undefined causing inverted score mapping (new resolveIsUserSideA utility)
