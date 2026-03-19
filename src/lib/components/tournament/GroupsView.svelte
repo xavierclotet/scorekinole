@@ -8,6 +8,7 @@
   import type { WinProbability } from '$lib/algorithms/probability';
   import GroupStandings from './GroupStandings.svelte';
   import MatchSchedule from './MatchSchedule.svelte';
+  import * as Resizable from '$lib/components/ui/resizable';
   import * as m from '$lib/paraglide/messages.js';
 
   interface Props {
@@ -28,7 +29,6 @@
 
   let expandedGroups = $state<Set<string>>(new Set());
   let generatingRound = $state(false);
-  let groupViews = $state<Record<string, 'schedule' | 'standings'>>({});
   let groupExpandedRounds = $state<Record<string, Set<number>>>({}); // Track expanded rounds per group
   let filterTable = $state<number | null>(null);
   let filterStatus = $state<string | null>(null);
@@ -277,11 +277,6 @@
     expandedGroups = newExpanded; // Create new Set to trigger reactivity
   }
 
-  function setGroupView(groupId: string, view: 'schedule' | 'standings') {
-    groupViews[groupId] = view;
-    groupViews = groupViews; // Trigger reactivity
-  }
-
   function setGroupExpandedRounds(groupId: string, expanded: Set<number>) {
     groupExpandedRounds[groupId] = expanded;
     groupExpandedRounds = groupExpandedRounds; // Trigger reactivity
@@ -522,26 +517,9 @@
           <!-- Accordion Content -->
           {#if isExpanded}
             <div class="accordion-content">
-              <!-- View toggle and actions for this group -->
-              <div class="group-actions-row">
-                <div class="group-view-toggle">
-                  <button
-                    class="toggle-btn"
-                    class:active={(groupViews[group.id] || 'schedule') === 'schedule'}
-                    onclick={(e: MouseEvent) => { e.stopPropagation(); setGroupView(group.id, 'schedule'); }}
-                  >
-                    {m.tournament_schedule()}
-                  </button>
-                  <button
-                    class="toggle-btn"
-                    class:active={(groupViews[group.id] || 'schedule') === 'standings'}
-                    onclick={(e: MouseEvent) => { e.stopPropagation(); setGroupView(group.id, 'standings'); }}
-                  >
-                    {m.tournament_standings()}
-                  </button>
-                </div>
-
-                {#if canGenerateNextRound}
+              <!-- Generate round button (Swiss) -->
+              {#if canGenerateNextRound}
+                <div class="group-actions-row">
                   <button
                     class="generate-next-round-btn"
                     onclick={(e: MouseEvent) => { e.stopPropagation(); handleGenerateNextRound(); }}
@@ -554,39 +532,51 @@
                       {m.tournament_generateRound({ n: String((roundsProgress?.completed || 0) + 1) })}
                     {/if}
                   </button>
-                {/if}
-              </div>
+                </div>
+              {/if}
 
-            <!-- Group content -->
-              <div class="group-content">
-                {#if (groupViews[group.id] || 'schedule') === 'schedule'}
-                  <MatchSchedule
-                    rounds={rounds as any}
-                    participants={tournament.participants}
-                    {currentRound}
-                    onMatchClick={(match) => handleMatchClick(group.id, match)}
-                    {filterTable}
-                    {filterStatus}
-                    {filterParticipant}
-                    gameMode={tournament.groupStage?.gameMode || 'rounds'}
-                    expandedRoundsState={groupExpandedRounds[group.id] || null}
-                    onExpandedRoundsChange={(expanded) => setGroupExpandedRounds(group.id, expanded)}
-                    {totalRounds}
-                    isDoubles={tournament.gameType === 'doubles'}
-                    matchesToWin={tournament.groupStage?.matchesToWin || 1}
-                    {probabilities}
-                    groupStageType={tournament.groupStage?.type}
-                  />
-                {:else}
-                  <GroupStandings
-                    standings={group.standings}
-                    participants={tournament.participants}
-                    {isSwiss}
-                    {qualificationMode}
-                    enableTiebreaker={false}
-                    isDoubles={tournament.gameType === 'doubles'}
-                  />
-                {/if}
+              <!-- Resizable: Standings + Schedule side by side -->
+              <div class="group-content resizable-wrapper">
+                <Resizable.PaneGroup direction="horizontal" class="admin-resizable-group">
+                  <Resizable.Pane defaultSize={50} minSize={45}>
+                    <div class="resizable-column standings-col">
+                      <h4 class="column-label">{m.tournament_standings()}</h4>
+                      <GroupStandings
+                        standings={group.standings}
+                        participants={tournament.participants}
+                        {isSwiss}
+                        {qualificationMode}
+                        enableTiebreaker={false}
+                        isDoubles={tournament.gameType === 'doubles'}
+                      />
+                    </div>
+                  </Resizable.Pane>
+
+                  <Resizable.Handle />
+
+                  <Resizable.Pane defaultSize={50} minSize={25}>
+                    <div class="resizable-column schedule-col">
+                      <h4 class="column-label">{m.tournament_schedule()}</h4>
+                      <MatchSchedule
+                        rounds={rounds as any}
+                        participants={tournament.participants}
+                        {currentRound}
+                        onMatchClick={(match) => handleMatchClick(group.id, match)}
+                        {filterTable}
+                        {filterStatus}
+                        {filterParticipant}
+                        gameMode={tournament.groupStage?.gameMode || 'rounds'}
+                        expandedRoundsState={groupExpandedRounds[group.id] || null}
+                        onExpandedRoundsChange={(expanded) => setGroupExpandedRounds(group.id, expanded)}
+                        {totalRounds}
+                        isDoubles={tournament.gameType === 'doubles'}
+                        matchesToWin={tournament.groupStage?.matchesToWin || 1}
+                        {probabilities}
+                        groupStageType={tournament.groupStage?.type}
+                      />
+                    </div>
+                  </Resizable.Pane>
+                </Resizable.PaneGroup>
               </div>
             </div>
           {/if}
@@ -885,13 +875,32 @@
     flex-wrap: wrap;
   }
 
-  .group-view-toggle {
-    display: flex;
-    gap: 0.25rem;
-    background: #f3f4f6;
-    padding: 0.15rem;
-    border-radius: 4px;
-    width: fit-content;
+  /* Resizable layout */
+  .resizable-wrapper :global(.admin-resizable-group) {
+    min-height: 250px;
+  }
+
+  .resizable-column {
+    min-width: 0;
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  .standings-col {
+    padding-right: 0.5rem;
+  }
+
+  .schedule-col {
+    padding-left: 0.5rem;
+  }
+
+  .column-label {
+    margin: 0 0 0.4rem 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #8b9bb3;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .generate-next-round-btn {
@@ -934,30 +943,31 @@
     }
   }
 
-  .toggle-btn {
-    padding: 0.3rem 0.6rem;
-    background: transparent;
-    border: none;
-    border-radius: 4px;
-    color: #6b7280;
-    font-weight: 600;
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .toggle-btn:hover {
-    color: #374151;
-  }
-
-  .toggle-btn.active {
-    background: white;
-    color: #667eea;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  }
-
   .group-content {
     margin-top: 0.25rem;
+  }
+
+  @media (max-width: 900px) {
+    .resizable-wrapper :global(.admin-resizable-group) {
+      flex-direction: column !important;
+    }
+
+    .resizable-wrapper :global(.admin-resizable-group > [data-pane]) {
+      flex: 1 1 auto !important;
+    }
+
+    .resizable-wrapper :global(.resizable-handle) {
+      display: none;
+    }
+
+    .standings-col {
+      padding-right: 0;
+      margin-bottom: 0.75rem;
+    }
+
+    .schedule-col {
+      padding-left: 0;
+    }
   }
 
   .no-group-state {
@@ -1054,21 +1064,8 @@
     border-top-color: #2d3748;
   }
 
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .group-view-toggle {
-    background: #0f1419;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .toggle-btn {
-    color: #8b9bb3;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .toggle-btn:hover {
-    color: #e1e8ed;
-  }
-
-  :global(:is([data-theme='dark'], [data-theme='violet'])) .toggle-btn.active {
-    background: #1a2332;
-    color: #667eea;
+  :global(:is([data-theme='dark'], [data-theme='violet'])) .column-label {
+    color: #6b7a94;
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .no-group-state {

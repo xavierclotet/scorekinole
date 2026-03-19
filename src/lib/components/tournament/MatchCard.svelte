@@ -194,13 +194,13 @@
       {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
         <span class="twenties">{match.total20sA ?? 0}</span>
       {/if}
-      <span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={scoreChangedA}>
+      <span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={scoreChangedA} class:pending-score={match.status === 'PENDING'}>
         {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
           {showTotalPoints ? (match.totalPointsA || 0) : (match.gamesWonA || 0)}
         {:else if match.status === 'IN_PROGRESS'}
           {currentScoreA}
         {:else}
-          —
+          ·
         {/if}
       </span>
     </div>
@@ -215,13 +215,13 @@
       {#if (match.status === 'COMPLETED' || match.status === 'WALKOVER' || match.status === 'IN_PROGRESS') && !isBye}
         <span class="twenties">{match.total20sB ?? 0}</span>
       {/if}
-      <span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={scoreChangedB}>
+      <span class="player-score" class:live={match.status === 'IN_PROGRESS'} class:score-changed={scoreChangedB} class:pending-score={match.status === 'PENDING'}>
         {#if match.status === 'COMPLETED' || match.status === 'WALKOVER'}
-          {isBye ? '—' : (showTotalPoints ? (match.totalPointsB || 0) : (match.gamesWonB || 0))}
+          {isBye ? '·' : (showTotalPoints ? (match.totalPointsB || 0) : (match.gamesWonB || 0))}
         {:else if match.status === 'IN_PROGRESS'}
-          {isBye ? '—' : currentScoreB}
+          {isBye ? '·' : currentScoreB}
         {:else}
-          —
+          ·
         {/if}
       </span>
     </div>
@@ -581,6 +581,12 @@
     text-align: right;
     flex-shrink: 0;
     letter-spacing: -0.02em;
+  }
+
+  .player-score.pending-score {
+    font-size: 0.7rem;
+    font-weight: 400;
+    opacity: 0.25;
   }
 
   /* ── Winner / Loser / Tie states ── */

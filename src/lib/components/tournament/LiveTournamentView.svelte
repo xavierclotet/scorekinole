@@ -20,6 +20,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Button } from '$lib/components/ui/button';
+	import * as Resizable from '$lib/components/ui/resizable';
 	import { Check, ChevronsUpDown } from '@lucide/svelte';
 
 	interface Props {
@@ -918,7 +919,9 @@
 
 					<!-- Group Content -->
 					{#if isExpanded}
-						<div class="group-content two-columns">
+						<div class="group-content">
+						<Resizable.PaneGroup direction="horizontal" class="resizable-group">
+							<Resizable.Pane defaultSize={45} minSize={35}>
 							<!-- Standings Table -->
 							<div class="column standings-column">
 								<h4 class="column-title">{m.tournament_standings()}</h4>
@@ -1045,7 +1048,11 @@
 									</div>
 								{/if}
 							</div>
+							</Resizable.Pane>
 
+							<Resizable.Handle />
+
+							<Resizable.Pane defaultSize={60} minSize={25}>
 							<!-- Matches by Round -->
 							<div class="column schedule-column">
 								<div class="schedule-header">
@@ -1119,6 +1126,8 @@
 									{/each}
 								</div>
 							</div>
+							</Resizable.Pane>
+						</Resizable.PaneGroup>
 						</div>
 
 					{/if}
@@ -2807,15 +2816,23 @@
 		white-space: nowrap;
 	}
 
-	/* Two Column Layout */
-	.group-content.two-columns {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 1rem;
+	/* Resizable two-column layout */
+	.group-content :global(.resizable-group) {
+		min-height: 300px;
 	}
 
 	.column {
 		min-width: 0;
+		overflow-y: auto;
+		height: 100%;
+	}
+
+	.standings-column {
+		padding-right: 0.5rem;
+	}
+
+	.schedule-column {
+		padding-left: 0.5rem;
 	}
 
 	.schedule-header {
@@ -2851,8 +2868,16 @@
 	}
 
 	@media (max-width: 900px) {
-		.group-content.two-columns {
-			grid-template-columns: 1fr;
+		.group-content :global(.resizable-group) {
+			flex-direction: column !important;
+		}
+
+		.group-content :global(.resizable-group > [data-pane]) {
+			flex: 1 1 auto !important;
+		}
+
+		.group-content :global(.resizable-handle) {
+			display: none;
 		}
 	}
 
