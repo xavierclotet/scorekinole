@@ -425,16 +425,16 @@
 
   .matches-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 0.4rem;
-    padding: 0.5rem 0.75rem 0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 6px;
+    padding: 8px 10px 10px;
     border-top: 1px solid #e5e7eb;
     animation: slideDown 0.15s ease-out;
   }
 
   /* Doubles mode: wider cards to accommodate longer team names */
   .matches-grid.doubles {
-    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   }
 
   @keyframes slideDown {
@@ -493,7 +493,7 @@
   }
 
   :global(:is([data-theme='dark'], [data-theme='violet'])) .matches-grid {
-    border-top-color: #2d3748;
+    border-top-color: var(--border);
   }
 
   /* Responsive */
@@ -544,8 +544,8 @@
 
     .matches-grid {
       grid-template-columns: 1fr;
-      gap: 0.3rem;
-      padding: 0.4rem 0.5rem;
+      gap: 4px;
+      padding: 6px 8px;
     }
 
     .empty-state {
@@ -590,12 +590,12 @@
 
     .matches-grid {
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 0.25rem;
-      padding: 0.35rem 0.5rem;
+      gap: 4px;
+      padding: 6px 8px;
     }
 
     .matches-grid.doubles {
-      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     }
 
     .empty-state {
