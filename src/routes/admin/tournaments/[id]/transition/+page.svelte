@@ -166,7 +166,7 @@
         tournament.participants?.length || 0,
         numGroups,
         mode,
-        tournament.finalStageMinQualifiers ?? 8
+        mode === 'SPLIT_DIVISIONS' ? (tournament.finalStageMinQualifiers ?? 8) : 8
       );
       topNInitialized = true;
     }
