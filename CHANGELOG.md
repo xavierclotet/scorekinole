@@ -2,6 +2,15 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.4] - 2026-03-20
+- Fix bracket import: incorrect winner on tied scores
+- Fix autoSelectQualifiers ignoring ties at qualification boundary
+- Add guard against generating brackets for GROUP_ONLY tournaments
+- Track and warn about unknown participant names in imports
+- Handle SPLIT_DIVISIONS with <2 brackets explicitly
+- Add configurable min qualifiers (finalStageMinQualifiers) for SPLIT_DIVISIONS
+- Add live estimated duration in tournament wizard (reactive to all config changes)
+
 ## [2.5.3] - 2026-03-19
 - Redesign group match cards: stacked scoreboard layout with status glows, player avatars, split probability bar
 - Apply scoreboard design to public and live tournament views with responsive grid (2-3 per row)
