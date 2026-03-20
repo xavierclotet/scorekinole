@@ -79,6 +79,7 @@ export interface Tournament {
   numTables: number;
   numGroups?: number;                // For Round Robin (legacy field, will be moved to groupStage)
   numSwissRounds?: number;           // For Swiss (legacy field, will be moved to groupStage)
+  finalStageMinQualifiers?: number;  // Min qualifiers advancing to final stage (default: 8)
 
   // Ranking configuration
   rankingConfig: RankingConfig;

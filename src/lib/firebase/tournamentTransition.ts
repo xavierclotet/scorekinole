@@ -103,10 +103,24 @@ export async function autoSelectQualifiers(
         const group = tournament.groupStage.groups[gi];
 
         // Sort standings by position and take top N
-        const topN = [...group.standings]
-          .sort((a, b) => a.position - b.position)
+        const sorted = [...group.standings].sort((a, b) => a.position - b.position);
+        const topN = sorted
           .slice(0, qualifiersPerGroup)
           .map(s => s.participantId);
+
+        // Warn if there are ties at the qualification boundary
+        if (topN.length > 0) {
+          const lastQualifiedPosition = sorted[topN.length - 1]?.position;
+          const tiedButExcluded = sorted
+            .slice(qualifiersPerGroup)
+            .filter(s => s.position === lastQualifiedPosition);
+          if (tiedButExcluded.length > 0) {
+            console.warn(
+              `⚠️ Group ${group.name || gi}: ${tiedButExcluded.length + 1} players tied at position ${lastQualifiedPosition} ` +
+              `but only ${1} qualified. Admin should review qualifier selection.`
+            );
+          }
+        }
 
         // Update standings
         tournament.groupStage.groups[gi].standings = group.standings.map(standing => ({

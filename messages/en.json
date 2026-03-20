@@ -1573,5 +1573,7 @@
   "profile_tournamentsPlayed": "Tournaments Played",
   "profile_noTournaments": "This player has not yet participated in tournaments",
   "stats_perfectRound": "Perfect round",
-  "stats_perfectRounds": "Perfect rounds"
+  "stats_perfectRounds": "Perfect rounds",
+  "wizard_minQualifiers": "Minimum classifieds",
+  "wizard_minQualifiersHint": "Players who move up to the Gold League will compete for the top spots. The rest will go to the Silver League."
 }

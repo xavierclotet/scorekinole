@@ -1573,5 +1573,7 @@
   "profile_tournamentsPlayed": "Tornejos Jugats",
   "profile_noTournaments": "Aquest jugador encara no ha participat en tornejos",
   "stats_perfectRound": "Ronda perfecta",
-  "stats_perfectRounds": "Rondes perfectes"
+  "stats_perfectRounds": "Rondes perfectes",
+  "wizard_minQualifiers": "Mín. classificats",
+  "wizard_minQualifiersHint": "Jugadors que passen a Lliga Or i opten a les primeres posicions. La resta va a la Lliga Plata."
 }

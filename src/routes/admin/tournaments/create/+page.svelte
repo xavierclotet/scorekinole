@@ -82,6 +82,9 @@
   // Final stage game config (only for TWO_PHASE)
   let finalStageMode = $state<'SINGLE_BRACKET' | 'SPLIT_DIVISIONS'>('SINGLE_BRACKET');
 
+  // Min qualifiers advancing to final stage (default: 8)
+  let finalStageMinQualifiers = $state(8);
+
   // Consolation bracket config (for both TWO_PHASE and ONE_PHASE)
   // Auto-detects level based on bracket size: >=16 players = R16+QF, >=8 = QF only
   let consolationEnabled = $state(false);
@@ -361,6 +364,7 @@
       isTest = tournament.isTest ?? false;
       consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
       thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
+      finalStageMinQualifiers = tournament.finalStageMinQualifiers ?? 8;
 
       // Load game config based on phase type
       if (tournament.phaseType === 'TWO_PHASE' || tournament.phaseType === 'GROUP_ONLY') {
@@ -620,6 +624,7 @@
       isTest = true; // Always mark as test when duplicating to avoid accidental publication
       consolationEnabled = tournament.finalStage?.consolationEnabled ?? false;
       thirdPlaceMatchEnabled = tournament.finalStage?.thirdPlaceMatchEnabled ?? true;
+      finalStageMinQualifiers = tournament.finalStageMinQualifiers ?? 8;
 
       // Load game config based on phase type (same logic as loadTournamentForEdit)
       if (tournament.phaseType === 'TWO_PHASE' || tournament.phaseType === 'GROUP_ONLY') {
@@ -906,6 +911,7 @@
 
       // Final stage config
       finalStageMode = data.finalStageMode || 'SINGLE_BRACKET';
+      finalStageMinQualifiers = data.finalStageMinQualifiers || 8;
       finalGameMode = data.finalGameMode || 'points';
       finalPointsToWin = data.finalPointsToWin || 7;
       finalRoundsToPlay = data.finalRoundsToPlay || 4;
@@ -1014,6 +1020,7 @@
         groupMatchesToWin,
         // Final stage config
         finalStageMode,
+        finalStageMinQualifiers,
         finalGameMode,
         finalPointsToWin,
         finalRoundsToPlay,
@@ -1456,6 +1463,11 @@
           qualificationMode: qualificationMode,
           ...(showHammer && whoStarts !== 'pickup' ? { whoStarts } : {})
         };
+
+        // Min qualifiers for final stage
+        if (finalStageMinQualifiers !== 8) {
+          tournamentData.finalStageMinQualifiers = finalStageMinQualifiers;
+        }
 
         // Final stage configuration - stored in goldBracket.config (and silverBracket.config for SPLIT_DIVISIONS)
         // Always use the actual state variables (per-phase config is always visible in UI)
@@ -2265,6 +2277,22 @@
                     </div>
                   </div>
                 </div>
+
+                {#if phaseType === 'TWO_PHASE' && finalStageMode === 'SPLIT_DIVISIONS'}
+                  <!-- Min qualifiers selector (Gold bracket size) -->
+                  <div class="inline-config">
+                    <div class="config-field">
+                      <label for="minQualifiers">{m.wizard_minQualifiers()}</label>
+                      <select id="minQualifiers" bind:value={finalStageMinQualifiers} class="input-field mini">
+                        <option value={4}>4</option>
+                        <option value={8}>8</option>
+                        <option value={16}>16</option>
+                        <option value={32}>32</option>
+                      </select>
+                      <span class="field-hint">{m.wizard_minQualifiersHint()}</span>
+                    </div>
+                  </div>
+                {/if}
 
                 {#if finalStageMode === 'SINGLE_BRACKET'}
                   <!-- Configuración directa por fase para Bracket Único -->
@@ -3090,6 +3118,12 @@
                           <span class="rv-lbl">{m.tournament_finalStage()}</span>
                           <span class="rv-val">{finalStageMode === 'SINGLE_BRACKET' ? m.admin_singleBracket() : m.admin_goldSilverDivisions()}</span>
                         </div>
+                        {#if finalStageMode === 'SPLIT_DIVISIONS'}
+                          <div class="rv-row">
+                            <span class="rv-lbl">{m.wizard_minQualifiers()}</span>
+                            <span class="rv-val">{finalStageMinQualifiers}</span>
+                          </div>
+                        {/if}
                       {/if}
                     {/if}
                     {#if phaseType !== 'GROUP_ONLY'}

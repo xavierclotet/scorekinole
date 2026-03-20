@@ -740,6 +740,11 @@ export async function generateBracket(
     return false;
   }
 
+  if (tournament.phaseType === 'GROUP_ONLY') {
+    console.error('Cannot generate bracket for GROUP_ONLY tournament');
+    return false;
+  }
+
   try {
     let qualifiedParticipantIds: string[] = [];
 

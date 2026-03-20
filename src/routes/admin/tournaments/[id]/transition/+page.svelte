@@ -165,7 +165,8 @@
       topNPerGroup = calculateDefaultTopNPerGroup(
         tournament.participants?.length || 0,
         numGroups,
-        mode
+        mode,
+        tournament.finalStageMinQualifiers ?? 8
       );
       topNInitialized = true;
     }
@@ -288,7 +289,7 @@
               defaultSelection = sortedStandings.map((s: any) => s.participantId);
             } else if (isSplitDiv) {
               // SPLIT_DIVISIONS: select top half (they go to Gold bracket)
-              const selectCount = calculateDefaultQualifierCount(standings.length, 'SPLIT_DIVISIONS');
+              const selectCount = calculateDefaultQualifierCount(standings.length, 'SPLIT_DIVISIONS', tournament?.finalStageMinQualifiers ?? 8);
               defaultSelection = sortedStandings.slice(0, selectCount).map((s: any) => s.participantId);
             } else {
               // Multiple groups: use topNPerGroup

@@ -1426,6 +1426,8 @@
   "wizard_name": "Nombre",
   "wizard_options": "Opciones",
   "wizard_participants": "Participantes",
+  "wizard_minQualifiers": "Mín. clasificados",
+  "wizard_minQualifiersHint": "Jugadores que pasan a Liga Oro y optan a las primeras posiciones. El resto va a Liga Plata.",
   "wizard_phases": "Fases",
   "wizard_pointsNote": "Los puntos siguen la curva oficial NCA. Todos los participantes reciben como mínimo 1 punto.",
   "wizard_position": "Posición",

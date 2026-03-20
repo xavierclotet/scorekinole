@@ -370,9 +370,12 @@ export async function createHistoricalTournament(
     });
 
     // Helper to find participant ID by name
+    const unknownParticipants = new Set<string>();
     const findParticipantId = (name: string): string => {
+      if (name.toUpperCase() === 'BYE') return 'BYE';
       const id = participantMap.get(name.toLowerCase());
       if (!id) {
+        unknownParticipants.add(name);
         console.warn(`Participant not found: ${name}`);
         return `unknown-${name}`;
       }
@@ -564,7 +567,7 @@ export async function createHistoricalTournament(
     ): BracketMatch => {
       const participantA = findParticipantId(match.participantAName);
       const participantB = findParticipantId(match.participantBName);
-      const winner = match.scoreA > match.scoreB ? participantA : participantB;
+      const winner = match.scoreA > match.scoreB ? participantA : (match.scoreB > match.scoreA ? participantB : undefined);
 
       // Compute 20s from rounds if available, otherwise use explicit values
       const total20sA = match.rounds && match.rounds.length > 0
@@ -703,6 +706,22 @@ export async function createHistoricalTournament(
       if (silverWinner) {
         finalStage.silverWinner = silverWinner;
       }
+    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS') {
+      // SPLIT_DIVISIONS with < 2 brackets — treat as single bracket with warning
+      console.warn('⚠️ SPLIT_DIVISIONS mode requires 2 brackets, only got', input.finalStage.brackets.length, '— falling back to SINGLE_BRACKET');
+      const bracket = buildBracket(input.finalStage.brackets[0]);
+      const finalRound = bracket.rounds[bracket.rounds.length - 1];
+      const bracketWinner = finalRound?.matches[0]?.winner;
+
+      finalStage = {
+        mode: 'SINGLE_BRACKET',
+        goldBracket: bracket,
+        isComplete: true
+      };
+
+      if (bracketWinner) {
+        finalStage.winner = bracketWinner;
+      }
     } else {
       // Single bracket
       const bracket = buildBracket(input.finalStage.brackets[0]);
@@ -800,6 +819,10 @@ export async function createHistoricalTournament(
     }
     if (input.tournamentTime) {
       tournament.tournamentTime = input.tournamentTime;
+    }
+
+    if (unknownParticipants.size > 0) {
+      console.warn(`⚠️ ${unknownParticipants.size} unknown participant(s) in match data: ${[...unknownParticipants].join(', ')}`);
     }
 
     const tournamentRef = doc(db, 'tournaments', tournamentId);
@@ -1061,13 +1084,12 @@ export async function completeUpcomingTournament(
     });
 
     // Helper to find participant ID by name
+    const unknownParticipants = new Set<string>();
     const findParticipantId = (name: string): string => {
-      // BYE is a special case - return 'BYE' directly
-      if (name.toUpperCase() === 'BYE') {
-        return 'BYE';
-      }
+      if (name.toUpperCase() === 'BYE') return 'BYE';
       const foundId = participantMap.get(name.toLowerCase());
       if (!foundId) {
+        unknownParticipants.add(name);
         console.warn(`Participant not found: ${name}`);
         return `unknown-${name}`;
       }
@@ -1090,7 +1112,7 @@ export async function completeUpcomingTournament(
           points: s.points || 0,
           total20s: s.total20s || 0,
           totalPointsScored: s.points || 0,
-          qualifiedForFinal: true
+          qualifiedForFinal: input.phaseType !== 'GROUP_ONLY'
         }));
 
         return {
@@ -1125,7 +1147,7 @@ export async function completeUpcomingTournament(
     ): BracketMatch => {
       const participantA = findParticipantId(match.participantAName);
       const participantB = findParticipantId(match.participantBName);
-      const winner = match.scoreA > match.scoreB ? participantA : participantB;
+      const winner = match.scoreA > match.scoreB ? participantA : (match.scoreB > match.scoreA ? participantB : undefined);
 
       // Compute 20s from rounds if available, otherwise use explicit values
       const total20sA = match.rounds && match.rounds.length > 0
@@ -1254,6 +1276,21 @@ export async function completeUpcomingTournament(
       if (silverWinner) {
         finalStage.silverWinner = silverWinner;
       }
+    } else if (input.finalStage.mode === 'SPLIT_DIVISIONS') {
+      console.warn('⚠️ SPLIT_DIVISIONS mode requires 2 brackets, only got', input.finalStage.brackets.length, '— falling back to SINGLE_BRACKET');
+      const bracket = buildBracket(input.finalStage.brackets[0]);
+      const finalRound = bracket.rounds[bracket.rounds.length - 1];
+      const bracketWinner = finalRound?.matches[0]?.winner;
+
+      finalStage = {
+        mode: 'SINGLE_BRACKET',
+        goldBracket: bracket,
+        isComplete: true
+      };
+
+      if (bracketWinner) {
+        finalStage.winner = bracketWinner;
+      }
     } else {
       const bracket = buildBracket(input.finalStage.brackets[0]);
       const finalRound = bracket.rounds[bracket.rounds.length - 1];
@@ -1328,6 +1365,10 @@ export async function completeUpcomingTournament(
     }
     if (input.tournamentTime) {
       updateData.tournamentTime = input.tournamentTime;
+    }
+
+    if (unknownParticipants.size > 0) {
+      console.warn(`⚠️ ${unknownParticipants.size} unknown participant(s) in match data: ${[...unknownParticipants].join(', ')}`);
     }
 
     await updateDoc(tournamentRef, updateData);
