@@ -8,7 +8,7 @@
   import PairSelector from '$lib/components/tournament/PairSelector.svelte';
   import SinglesPlayerSelector from '$lib/components/tournament/SinglesPlayerSelector.svelte';
   import VenueSelector from '$lib/components/tournament/VenueSelector.svelte';
-  import { Trash2, Pencil, CircleCheck, X, User, UserPlus } from '@lucide/svelte';
+  import { Trash2, Pencil, CircleCheck, X, User, UserPlus, Clock } from '@lucide/svelte';
   import { adminTheme } from '$lib/stores/theme';
   import { adminState } from '$lib/stores/admin';
   import { goto } from '$app/navigation';
@@ -20,7 +20,7 @@
   import { TIER_COLORS } from '$lib/constants';
   import { getUserProfileById, createGuestUserProfile } from '$lib/firebase/userProfile';
   import { DEFAULT_TIME_CONFIG } from '$lib/firebase/timeConfig';
-  import { calculateTournamentTimeEstimate } from '$lib/utils/tournamentTime';
+  import { calculateTournamentTimeEstimate, formatDuration } from '$lib/utils/tournamentTime';
   import type { TournamentTimeConfig } from '$lib/types/tournament';
   import * as m from '$lib/paraglide/messages.js';
   import { getLocale } from '$lib/paraglide/runtime.js';
@@ -237,6 +237,60 @@
     parallelSemifinals: tcParallelSemifinals,
     parallelFinals: tcParallelFinals
   } as TournamentTimeConfig);
+
+  // Live time estimation (reactive to format, players, tables, time config)
+  let estimatedDuration = $derived.by(() => {
+    if (participants.length < 2) return null;
+    try {
+      const mockTournament: any = {
+        participants: participants.map((p, i) => ({ id: p.id || `p-${i}`, name: p.name || '' })),
+        numTables,
+        gameType,
+        phaseType,
+        show20s,
+        showHammer
+      };
+      if (phaseType === 'GROUP_ONLY' || phaseType === 'TWO_PHASE') {
+        mockTournament.groupStage = {
+          type: groupStageType,
+          groups: [],
+          currentRound: 0,
+          totalRounds: 0,
+          isComplete: false,
+          gameMode: groupGameMode,
+          pointsToWin: groupGameMode === 'points' ? groupPointsToWin : undefined,
+          roundsToPlay: groupGameMode === 'rounds' ? groupRoundsToPlay : undefined,
+          matchesToWin: groupMatchesToWin,
+          numGroups: groupStageType === 'ROUND_ROBIN' ? numGroups : undefined,
+          numSwissRounds: groupStageType === 'SWISS' ? numSwissRounds : undefined,
+          qualificationMode: qualificationMode
+        };
+      }
+      if (phaseType === 'TWO_PHASE' || phaseType === 'ONE_PHASE') {
+        mockTournament.finalStage = {
+          mode: finalStageMode,
+          consolationEnabled,
+          thirdPlaceMatchEnabled,
+          goldBracket: {
+            rounds: [],
+            totalRounds: 0,
+            config: {
+              earlyRounds: { gameMode: earlyRoundsGameMode, pointsToWin: earlyRoundsPointsToWin, roundsToPlay: earlyRoundsToPlay, matchesToWin: earlyRoundsMatchesToWin },
+              semifinal: { gameMode: semifinalGameMode, pointsToWin: semifinalPointsToWin, roundsToPlay: semifinalRoundsToPlay, matchesToWin: semifinalMatchesToWin },
+              final: { gameMode: bracketFinalGameMode, pointsToWin: bracketFinalPointsToWin, roundsToPlay: bracketFinalRoundsToPlay, matchesToWin: bracketFinalMatchesToWin }
+            }
+          },
+          isComplete: false
+        };
+      }
+      if (phaseType === 'ONE_PHASE') {
+        mockTournament.groupStage = undefined;
+      }
+      return calculateTournamentTimeEstimate(mockTournament, timeConfig);
+    } catch {
+      return null;
+    }
+  });
 
   // LocalStorage key for unified admin preferences
   const ADMIN_PREFS_KEY = 'scorekinole_admin_prefs';
@@ -1770,6 +1824,23 @@
           </button>
         {/each}
       </div>
+
+      {#if estimatedDuration?.totalMinutes && participants.length >= 2}
+        <div class="duration-strip">
+          <div class="duration-chip">
+            <Clock size={14} strokeWidth={2} />
+            <span class="duration-label">{m.admin_estimatedDuration()}</span>
+            <span class="duration-value">~{formatDuration(estimatedDuration.totalMinutes)}</span>
+            {#if estimatedDuration.groupStageMinutes && estimatedDuration.finalStageMinutes}
+              <span class="duration-phases">
+                <span class="duration-phase">{m.wizard_groupStage()} {formatDuration(estimatedDuration.groupStageMinutes)}</span>
+                <span class="duration-sep">+</span>
+                <span class="duration-phase">{m.wizard_finalStage()} {formatDuration(estimatedDuration.finalStageMinutes)}</span>
+              </span>
+            {/if}
+          </div>
+        </div>
+      {/if}
     </header>
 
     <!-- Quota exceeded message -->
@@ -3021,6 +3092,23 @@
               {/if}
             </div>
 
+            {#if estimatedDuration?.totalMinutes}
+              <div class="rv-estimate">
+                <div class="rv-estimate-main">
+                  <Clock size={15} strokeWidth={2} />
+                  <span class="rv-estimate-label">{m.admin_estimatedDuration()}</span>
+                  <span class="rv-estimate-value">~{formatDuration(estimatedDuration.totalMinutes)}</span>
+                </div>
+                {#if estimatedDuration.groupStageMinutes && estimatedDuration.finalStageMinutes}
+                  <div class="rv-estimate-phases">
+                    <span>{m.wizard_groupStage()} ~{formatDuration(estimatedDuration.groupStageMinutes)}</span>
+                    <span class="rv-estimate-sep">+</span>
+                    <span>{m.wizard_finalStage()} ~{formatDuration(estimatedDuration.finalStageMinutes)}</span>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+
             <div class="rv-grid">
               <!-- Left Column -->
               <div class="rv-col">
@@ -3531,6 +3619,56 @@
     align-items: center;
     gap: 0.5rem;
     flex-shrink: 0;
+  }
+
+  /* Duration Strip (below progress bar) */
+  .duration-strip {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
+  .duration-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px 4px 8px;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--muted) 30%, transparent);
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    line-height: 1;
+  }
+  .duration-chip :global(svg) {
+    color: var(--primary);
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+  .duration-label {
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  .duration-value {
+    font-weight: 700;
+    color: var(--foreground);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .duration-phases {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 6px;
+    border-left: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    font-size: 0.68rem;
+    color: var(--muted-foreground);
+    opacity: 0.85;
+  }
+  .duration-sep {
+    opacity: 0.4;
+  }
+  @media (max-width: 480px) {
+    .duration-phases { display: none; }
   }
 
   /* Progress Bar - Compact */
@@ -6103,6 +6241,50 @@
     .tc-rounds-row { flex-direction: column; align-items: flex-start; }
     .tc-toggles-row { flex-direction: column; align-items: flex-start; }
     .tc-reset-btn { margin-left: 0; margin-top: 0.5rem; }
+  }
+
+  /* Time Estimate (Step 6 Review) */
+  .rv-estimate {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--muted) 30%, transparent);
+  }
+  .rv-estimate-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+  }
+  .rv-estimate-main :global(svg) {
+    color: var(--primary);
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+  .rv-estimate-label {
+    color: var(--muted-foreground);
+    font-weight: 500;
+  }
+  .rv-estimate-value {
+    font-weight: 700;
+    color: var(--foreground);
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .rv-estimate-phases {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 21px;
+    font-size: 0.72rem;
+    color: var(--muted-foreground);
+  }
+  .rv-estimate-sep {
+    opacity: 0.4;
   }
 
   /* Loading Overlay */
