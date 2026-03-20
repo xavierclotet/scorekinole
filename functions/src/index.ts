@@ -11,6 +11,7 @@ import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue, Firestore, Timestamp } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { logger } from "firebase-functions";
+import { shouldNotifyTournament, buildTournamentNotificationMessage } from "./notificationHelpers";
 
 // Telegram secrets
 const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
@@ -817,18 +818,14 @@ export const onTournamentCreated = onDocumentCreated(
       return;
     }
 
-    const { name, createdByName, gameType, isImported, participants } = tournamentData;
-    const participantCount = participants?.length || 0;
-    const tournamentType = isImported ? "IMPORTED" : "LIVE";
-    const emoji = isImported ? "📥" : "🏆";
-    const typeLabel = isImported ? "Importado" : "En vivo";
+    // Skip test tournaments
+    if (!shouldNotifyTournament(tournamentData)) {
+      logger.info(`Skipping notification for test tournament: ${tournamentData.name}`);
+      return;
+    }
 
-    const message =
-      `${emoji} *Nuevo torneo ${typeLabel}*\n\n` +
-      `📋 *Nombre:* ${name || "Sin nombre"}\n` +
-      `👤 *Creado por:* ${createdByName || "Desconocido"}\n` +
-      `🎮 *Tipo:* ${gameType === "doubles" ? "Dobles" : "Singles"}\n` +
-      `👥 *Participantes:* ${participantCount}`;
+    const tournamentType = tournamentData.isImported ? "IMPORTED" : "LIVE";
+    const message = buildTournamentNotificationMessage(tournamentData);
 
     try {
       const response = await fetch(
@@ -848,7 +845,7 @@ export const onTournamentCreated = onDocumentCreated(
         const errorText = await response.text();
         logger.error("Telegram API error:", errorText);
       } else {
-        logger.info(`Telegram notification sent for new ${tournamentType} tournament: ${name}`);
+        logger.info(`Telegram notification sent for new ${tournamentType} tournament: ${tournamentData.name}`);
       }
     } catch (error) {
       logger.error("Error sending Telegram notification:", error);
