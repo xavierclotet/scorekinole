@@ -3,6 +3,8 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import * as m from '$lib/paraglide/messages.js';
 	import { setCurrentGameStartHammer } from '$lib/stores/matchState';
+	import { randomizeHammerStart } from '$lib/utils/matchStartOptions';
+	import { Dices } from '@lucide/svelte';
 
 	interface Props {
 		isOpen?: boolean;
@@ -58,6 +60,19 @@
 		close();
 	}
 
+	function selectRandom() {
+		const hammerTeam = randomizeHammerStart();
+		if (hammerTeam === 1) {
+			team1.update(t => ({ ...t, hasHammer: true }));
+			team2.update(t => ({ ...t, hasHammer: false }));
+		} else {
+			team1.update(t => ({ ...t, hasHammer: false }));
+			team2.update(t => ({ ...t, hasHammer: true }));
+		}
+		setCurrentGameStartHammer(hammerTeam);
+		close();
+	}
+
 	function close() {
 		isOpen = false;
 		onclose?.();
@@ -90,6 +105,15 @@
 					<span class="name">{team2DisplayName}</span>
 				</button>
 			</div>
+			<div class="divider">
+				<span class="divider-line"></span>
+				<span class="divider-text">o</span>
+				<span class="divider-line"></span>
+			</div>
+			<button class="random-btn" onclick={selectRandom}>
+				<Dices size={15} strokeWidth={1.8} />
+				<span>{m.scoring_hammerRandom()}</span>
+			</button>
 		</div>
 	</div>
 {/if}
@@ -98,7 +122,7 @@
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.8);
+		background: rgba(0, 0, 0, 0.75);
 		backdrop-filter: blur(4px);
 		display: flex;
 		align-items: center;
@@ -107,8 +131,8 @@
 	}
 
 	.dialog {
-		background: #1a1d24;
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: var(--card);
+		border: 1px solid var(--game-border);
 		border-radius: 12px;
 		padding: 1.5rem;
 		width: min(520px, 94vw);
@@ -119,7 +143,7 @@
 		font-family: 'Lexend', sans-serif;
 		font-size: 1rem;
 		font-weight: 500;
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--game-text-muted);
 		text-align: center;
 	}
 
@@ -154,6 +178,57 @@
 		display: block;
 		word-break: break-word;
 		line-height: 1.3;
+	}
+
+	.divider {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin: 0.9rem 0;
+	}
+
+	.divider-line {
+		flex: 1;
+		height: 1px;
+		background: var(--game-border);
+	}
+
+	.divider-text {
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.7rem;
+		font-weight: 400;
+		color: var(--game-text-dim);
+		text-transform: lowercase;
+		letter-spacing: 0.05em;
+	}
+
+	.random-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		width: 100%;
+		padding: 0.65rem;
+		background: var(--game-btn-bg);
+		border: 1px solid var(--game-border);
+		border-radius: 8px;
+		color: var(--game-text-muted);
+		font-family: 'Lexend', sans-serif;
+		font-size: 0.8rem;
+		font-weight: 500;
+		letter-spacing: 0.02em;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.random-btn:hover {
+		background: var(--game-btn-bg-hover);
+		border-color: var(--game-btn-border);
+		color: var(--game-text);
+	}
+
+	.random-btn:active {
+		transform: scale(0.98);
 	}
 
 	@media (max-width: 480px) {

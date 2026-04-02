@@ -29,3 +29,13 @@ export function resolveHammerAssignment(hammerTeam: 1 | 2 | null): {
 		team2HasHammer: hammerTeam === 2
 	};
 }
+
+/**
+ * Randomly pick which team starts (and therefore which gets the hammer).
+ *
+ * @returns The team that should hold the hammer (opposite of the random starter)
+ */
+export function randomizeHammerStart(): 1 | 2 {
+	const randomStarter: 1 | 2 = Math.random() < 0.5 ? 1 : 2;
+	return getHammerFromStarter(randomStarter);
+}

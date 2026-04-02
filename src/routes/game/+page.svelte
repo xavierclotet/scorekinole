@@ -2076,6 +2076,8 @@
 		if ($gameSettings.showTimer) {
 			startTimer();
 		}
+
+		handleMatchReset(); // Show hammer dialog if needed
 	}
 
 	function openColorPicker(team: 1 | 2) {
