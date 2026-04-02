@@ -2,6 +2,13 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.5] - 2026-04-02
+- Fix hammer dialog not showing when starting a new friendly match from modal
+- Add random starter selection button (dice icon) to hammer dialog
+- Add randomizeHammerStart() utility with full test coverage
+- Theme hammer dialog with CSS variables for dark/light/violet support
+- Fix notification creator name, participant count, skip test tournaments
+
 ## [2.5.4] - 2026-03-20
 - Fix bracket import: incorrect winner on tied scores
 - Fix autoSelectQualifiers ignoring ties at qualification boundary
