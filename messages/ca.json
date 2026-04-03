@@ -1575,5 +1575,9 @@
   "stats_perfectRound": "Ronda perfecta",
   "stats_perfectRounds": "Rondes perfectes",
   "wizard_minQualifiers": "Mín. classificats",
-  "wizard_minQualifiersHint": "Jugadors que passen a Lliga Or i opten a les primeres posicions. La resta va a la Lliga Plata."
+  "wizard_minQualifiersHint": "Jugadors que passen a Lliga Or i opten a les primeres posicions. La resta va a la Lliga Plata.",
+  "scoring_colors": "Colors",
+  "scoring_customize": "Personalitzar",
+  "scoring_nameSize": "Grandària de nom",
+  "scoring_scoreSize": "Grandària de score"
 }

@@ -2,6 +2,7 @@
 	import { team1, team2, saveTeams } from '$lib/stores/teams';
 	import * as m from '$lib/paraglide/messages.js';
 	import { getContrastColor } from '$lib/utils/colors';
+	import { PRESET_COLORS } from '$lib/constants';
 
 	interface Props {
 		isOpen?: boolean;
@@ -10,20 +11,7 @@
 
 	let { isOpen = $bindable(false), onclose }: Props = $props();
 
-	// Preset colors (same as ColorPickerModal)
-	const presetColors: string[] = [
-		'#E6BD80', // natural
-		'#1B100E', // negro
-		'#DADADA', // blanco
-		'#BB484D', // red
-		'#D06249', // orange
-		'#DFC530', // yellow
-		'#559D5E', // green
-		'#3CBCFB', // lightblue
-		'#014BC6', // blue
-		'#DA85CE', // pink
-		'#8B65A0'  // magenta
-	];
+	const presetColors = PRESET_COLORS;
 
 	// Color combinations (color1, color2)
 	interface ColorCombination {

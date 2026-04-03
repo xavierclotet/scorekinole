@@ -304,6 +304,8 @@
 							class="round-row"
 							class:editable={!isReadonly && !displayGames[selectedGameIndex]?.isCompleted}
 							onclick={() => handleRoundClick(index)}
+							ontouchstart={(e) => e.stopPropagation()}
+							onmousedown={(e) => e.stopPropagation()}
 							disabled={isReadonly || !!displayGames[selectedGameIndex]?.isCompleted}
 							title={!isReadonly && !displayGames[selectedGameIndex]?.isCompleted ? m.scoring_edit20s() : ''}
 						>

@@ -4,8 +4,7 @@
 	import { gameSettings } from '$lib/stores/gameSettings';
 	import * as m from '$lib/paraglide/messages.js';
 	import { setLocale, getLocale } from '$lib/paraglide/runtime.js';
-	import { switchSides, switchColors } from '$lib/stores/teams';
-	import { gameTournamentContext, updateTournamentContext } from '$lib/stores/tournamentContext';
+	import { gameTournamentContext } from '$lib/stores/tournamentContext';
 	import { currentUser } from '$lib/firebase/auth';
 	import { saveUserLanguage } from '$lib/firebase/userProfile';
 	import type { GameSettings } from '$lib/types/settings';
@@ -68,19 +67,6 @@
 			return updated;
 		});
 		gameSettings.save();
-	}
-
-	function handleSwitchSides() {
-		switchSides();
-		// En modo torneo, también actualizar el lado del usuario en el contexto
-		if ($gameTournamentContext) {
-			const newSide = $gameTournamentContext.currentUserSide === 'A' ? 'B' : 'A';
-			updateTournamentContext({ currentUserSide: newSide });
-		}
-	}
-
-	function handleSwitchColors() {
-		switchColors();
 	}
 
 	function handleClearStorage() {
@@ -243,21 +229,6 @@
 				</div>
 			</section>
 		{/if}
-
-		<!-- Actions Section -->
-		<section class="settings-section advanced-section">
-			<h3>{m.scoring_actions()}</h3>
-			<div class="action-buttons">
-				<button class="action-button" onclick={handleSwitchSides} type="button">
-					<span class="icon">⇄</span>
-					<span>{m.scoring_switchSides()}</span>
-				</button>
-				<button class="action-button" onclick={handleSwitchColors} type="button">
-					<span class="icon">🎨</span>
-					<span>{m.scoring_switchColors()}</span>
-				</button>
-			</div>
-		</section>
 
 		<!-- Language Section -->
 		<section class="settings-section">
@@ -688,61 +659,4 @@
 		opacity: 0.8;
 	}
 
-	/* Actions Section */
-	.advanced-section {
-		border-top: 1px solid var(--border);
-		margin-top: 0.25rem;
-		padding-top: 0.5rem;
-	}
-
-	.action-buttons {
-		display: flex;
-		gap: 0.4rem;
-	}
-
-	.action-button {
-		display: flex;
-		flex-direction: row;
-		align-items: center;
-		justify-content: center;
-		gap: 0.3rem;
-		padding: 0.55rem 0.75rem;
-		background: var(--secondary);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		color: var(--muted-foreground);
-		font-size: 0.85rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.15s ease;
-	}
-
-	.action-button:hover {
-		background: var(--accent);
-		border-color: var(--border);
-		color: var(--foreground);
-	}
-
-	.action-button:active {
-		transform: scale(0.98);
-	}
-
-	.action-button .icon {
-		font-size: 0.9rem;
-	}
-
-	@media (max-width: 600px) {
-		.action-buttons {
-			gap: 0.35rem;
-		}
-
-		.action-button {
-			padding: 0.5rem 0.4rem;
-			font-size: 0.75rem;
-		}
-
-		.action-button .icon {
-			font-size: 0.9rem;
-		}
-	}
 </style>

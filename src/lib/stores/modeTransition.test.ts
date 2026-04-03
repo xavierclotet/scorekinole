@@ -34,7 +34,7 @@ vi.mock('$lib/constants', () => ({
 		timerX: null,
 		timerY: null,
 		matchScoreSize: 'medium',
-		mainScoreSize: 'medium',
+		mainScoreSize: 12,
 		nameSize: 'medium',
 		lastTournamentResult: null
 	}
@@ -328,6 +328,18 @@ function simulateHandleResetMatch() {
 	// Restore deferred pre-tournament data if pending (from completed tournament match)
 	simulateRestorePreTournamentData();
 	gameSettings.update(s => ({ ...s, lastTournamentResult: null }));
+	gameSettings.save();
+	resetTeams();
+	resetMatchState();
+}
+
+/**
+ * Simulates handleFriendlyMatchStart() from +page.svelte
+ * (triggered when user submits FriendlyMatchModal2)
+ */
+function simulateHandleFriendlyMatchStart() {
+	gameSettings.update(s => ({ ...s, lastTournamentResult: null }));
+	gameSettings.save();
 	resetTeams();
 	resetMatchState();
 }
@@ -1214,5 +1226,65 @@ describe('orphaned backup cleanup (Bug #8)', () => {
 		const backup = JSON.parse(localStorage.getItem(PRE_TOURNAMENT_BACKUP_KEY)!);
 		expect(backup.gameMode).toBe('points');
 		expect(backup.pointsToWin).toBe(20);
+	});
+});
+
+// Bug regression: RoundsPanel not resetting on new friendly match
+describe('RoundsPanel reset (Bug #6)', () => {
+	const tournamentResult = {
+		winnerName: 'Carlos',
+		scoreA: 2,
+		scoreB: 1,
+		isTie: false,
+		team1Name: 'Carlos',
+		team2Name: 'Diana',
+		pointsA: 15,
+		pointsB: 10,
+		matchesToWin: 1
+	};
+
+	it('handleFriendlyMatchStart clears lastTournamentResult in memory', () => {
+		gameSettings.update(s => ({ ...s, lastTournamentResult: tournamentResult }));
+
+		simulateHandleFriendlyMatchStart();
+
+		expect(get(gameSettings).lastTournamentResult).toBeNull();
+	});
+
+	it('handleFriendlyMatchStart persists null lastTournamentResult to localStorage', () => {
+		gameSettings.update(s => ({ ...s, lastTournamentResult: tournamentResult }));
+		gameSettings.save();
+
+		simulateHandleFriendlyMatchStart();
+
+		const saved = JSON.parse(localStorageMock.store['crokinoleGame'] ?? '{}');
+		expect(saved.lastTournamentResult).toBeNull();
+	});
+
+	it('handleResetMatch persists null lastTournamentResult to localStorage', () => {
+		gameSettings.update(s => ({ ...s, lastTournamentResult: tournamentResult }));
+		gameSettings.save();
+
+		simulateHandleResetMatch();
+
+		const saved = JSON.parse(localStorageMock.store['crokinoleGame'] ?? '{}');
+		expect(saved.lastTournamentResult).toBeNull();
+	});
+
+	it('handleFriendlyMatchStart after tournament exit clears result from both memory and storage', () => {
+		setupFriendlyState();
+		simulateEnterTournament(makeTournamentContext());
+
+		// Simulate match completion
+		gameSettings.update(s => ({ ...s, lastTournamentResult: tournamentResult }));
+		gameSettings.save();
+		simulateExitTournamentMode(false); // deferred restore
+
+		// User starts a new friendly match from FriendlyMatchModal
+		simulateHandleFriendlyMatchStart();
+
+		expect(get(gameSettings).lastTournamentResult).toBeNull();
+		const saved = JSON.parse(localStorageMock.store['crokinoleGame'] ?? '{}');
+		expect(saved.lastTournamentResult).toBeNull();
 	});
 });

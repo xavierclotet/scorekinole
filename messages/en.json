@@ -1575,5 +1575,9 @@
   "stats_perfectRound": "Perfect round",
   "stats_perfectRounds": "Perfect rounds",
   "wizard_minQualifiers": "Minimum classifieds",
-  "wizard_minQualifiersHint": "Players who move up to the Gold League will compete for the top spots. The rest will go to the Silver League."
+  "wizard_minQualifiersHint": "Players who move up to the Gold League will compete for the top spots. The rest will go to the Silver League.",
+  "scoring_colors": "Colors",
+  "scoring_customize": "Personalize",
+  "scoring_nameSize": "Name size",
+  "scoring_scoreSize": "Score size"
 }

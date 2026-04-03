@@ -5,6 +5,7 @@
 	import { team1, team2, updateTeam } from '$lib/stores/teams';
 	import * as m from '$lib/paraglide/messages.js';
 	import { Play } from '@lucide/svelte';
+	import { PRESET_COLORS } from '$lib/constants';
 
 	interface Props {
 		isOpen?: boolean;
@@ -14,11 +15,7 @@
 
 	let { isOpen = false, onclose = () => {}, onstart }: Props = $props();
 
-	// Color presets (same as ColorPickerModal)
-	const presetColors: string[] = [
-		'#E6BD80', '#1B100E', '#DADADA', '#BB484D', '#D06249',
-		'#DFC530', '#559D5E', '#3CBCFB', '#014BC6', '#DA85CE', '#8B65A0'
-	];
+	const presetColors = PRESET_COLORS;
 
 	// Local editable state
 	let gameType = $state<'singles' | 'doubles'>('singles');

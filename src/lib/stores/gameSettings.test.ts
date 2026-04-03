@@ -8,6 +8,7 @@ vi.mock('$app/environment', () => ({
 // Mock constants
 vi.mock('$lib/constants', () => ({
 	APP_VERSION: '2.4.81',
+	PRESET_COLORS: ['#E6BD80', '#1B100E', '#DADADA', '#BB484D', '#D06249', '#DFC530', '#559D5E', '#3CBCFB', '#014BC6', '#DA85CE', '#8B65A0'],
 	DEFAULT_GAME_SETTINGS: {
 		appVersion: '2.4.81',
 		pointsToWin: 7,
@@ -66,7 +67,8 @@ beforeEach(() => {
 		roundsToPlay: 4,
 		allowTiesInRoundsMode: true,
 		eventTitle: '',
-		matchPhase: ''
+		matchPhase: '',
+		mainScoreSize: 12
 	} as any);
 });
 
@@ -238,6 +240,32 @@ describe('gameSettings store', () => {
 		// Other values should be unaffected
 		expect(get(gameSettings).timerMinutes).toBe(10);
 		expect(get(gameSettings).gameMode).toBe('rounds');
+	});
+
+	it('mainScoreSize update and save persists correctly', () => {
+		gameSettings.update((s) => ({ ...s, mainScoreSize: 12 }));
+		gameSettings.save();
+
+		expect(get(gameSettings).mainScoreSize).toBe(12);
+		const saved = JSON.parse(localStorageMock.setItem.mock.calls[0][1]);
+		expect(saved.mainScoreSize).toBe(12);
+
+		gameSettings.update((s) => ({ ...s, mainScoreSize: 6 }));
+		gameSettings.save();
+		expect(get(gameSettings).mainScoreSize).toBe(6);
+	});
+
+	it('nameSize update and save persists correctly', () => {
+		gameSettings.update((s) => ({ ...s, nameSize: 'large' }));
+		gameSettings.save();
+
+		expect(get(gameSettings).nameSize).toBe('large');
+		const saved = JSON.parse(localStorageMock.setItem.mock.calls[0][1]);
+		expect(saved.nameSize).toBe('large');
+
+		gameSettings.update((s) => ({ ...s, nameSize: 'small' }));
+		gameSettings.save();
+		expect(get(gameSettings).nameSize).toBe('small');
 	});
 
 	// Bug #5 regression: enhanced validation rejects partially corrupted data

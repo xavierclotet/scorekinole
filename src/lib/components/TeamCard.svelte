@@ -20,7 +20,6 @@
 		/** Whether user can assign a partner to this team (doubles mode, requires login) */
 		canAssignPartner?: boolean;
 		onroundComplete?: (data: { winningTeam: 0 | 1 | 2; team1Points: number; team2Points: number }) => void;
-		onchangeColor?: () => void;
 		onextraRound?: (data: { roundNumber: number }) => void;
 		ontournamentMatchComplete?: () => void;
 		/** Called when user wants to assign themselves to this team */
@@ -45,7 +44,6 @@
 		canAssignUser = false,
 		canAssignPartner = false,
 		onroundComplete,
-		onchangeColor,
 		onextraRound,
 		ontournamentMatchComplete,
 		onassignUser,
@@ -200,32 +198,63 @@
 	const SWIPE_THRESHOLD = 40; // px minimum for swipe
 	const SWIPE_TIMEOUT = 500; // ms maximum for swipe
 
+	// Pinch-to-zoom state (plain vars — no reactivity needed, shared with action below)
+	let isPinching = false;
+	let pinchStartDistance = 0;
+	let pinchStartFontSize = 0;
+
+	function getPinchDistance(touches: TouchList): number {
+		const dx = touches[0].clientX - touches[1].clientX;
+		const dy = touches[0].clientY - touches[1].clientY;
+		return Math.sqrt(dx * dx + dy * dy);
+	}
+
+	// Svelte action: attaches non-passive touchmove so e.preventDefault() works
+	function pinchZoom(node: HTMLElement) {
+		function onPinchMove(e: TouchEvent) {
+			if (!isPinching || e.touches.length !== 2) return;
+			e.preventDefault();
+			const ratio = getPinchDistance(e.touches) / pinchStartDistance;
+			const newSize = Math.max(3, Math.min(22, pinchStartFontSize * ratio));
+			gameSettings.update(s => ({ ...s, mainScoreSize: +newSize.toFixed(1) }));
+		}
+		node.addEventListener('touchmove', onPinchMove, { passive: false });
+		return { destroy() { node.removeEventListener('touchmove', onPinchMove); } };
+	}
+
 	function handleTouchStart(e: TouchEvent) {
 		isTouchDevice = true;
+
+		if (e.touches.length === 2) {
+			// Begin pinch gesture — don't track single-touch start
+			isPinching = true;
+			pinchStartDistance = getPinchDistance(e.touches);
+			pinchStartFontSize = $gameSettings.mainScoreSize || 12;
+			return;
+		}
+
 		touchStartX = e.touches[0].clientX;
 		touchStartY = e.touches[0].clientY;
 		touchStartTime = Date.now();
 	}
 
 	function handleTouchEnd(e: TouchEvent) {
-		const touchEndX = e.changedTouches[0].clientX;
+		if (isPinching) {
+			if (e.touches.length < 2) {
+				gameSettings.save();
+				isPinching = false;
+			}
+			return; // Don't trigger score change on pinch end
+		}
+
 		const touchEndY = e.changedTouches[0].clientY;
+		const touchEndX = e.changedTouches[0].clientX;
 		const deltaX = touchEndX - touchStartX;
 		const deltaY = touchStartY - touchEndY;
 		const deltaTime = Date.now() - touchStartTime;
 
-		// Determine if swipe is more horizontal or vertical
-		const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
-
 		if (deltaTime < SWIPE_TIMEOUT) {
-			if (isHorizontal && Math.abs(deltaX) > SWIPE_THRESHOLD) {
-				// Horizontal swipe - change score size
-				if (deltaX > 0) {
-					cycleMainScoreSize(1); // Right = increase
-				} else {
-					cycleMainScoreSize(-1); // Left = decrease
-				}
-			} else if (!isHorizontal && Math.abs(deltaY) > 30) {
+			if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 30) {
 				// Vertical swipe - change score
 				if (deltaY > 0) {
 					incrementScore();
@@ -239,22 +268,6 @@
 		}
 	}
 
-	function cycleMainScoreSize(direction: 1 | -1) {
-		const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
-		const currentIndex = sizes.indexOf($gameSettings.mainScoreSize || 'medium');
-		const nextIndex = (currentIndex + direction + sizes.length) % sizes.length;
-		gameSettings.update(s => ({ ...s, mainScoreSize: sizes[nextIndex] }));
-		gameSettings.save();
-	}
-
-	function cycleNameSize() {
-		const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
-		const currentIndex = sizes.indexOf($gameSettings.nameSize || 'medium');
-		const nextIndex = (currentIndex + 1) % sizes.length;
-		gameSettings.update(s => ({ ...s, nameSize: sizes[nextIndex] }));
-		gameSettings.save();
-		vibrate(10);
-	}
 
 	// Mouse drag support for desktop
 	let mouseStartX = $state(0);
@@ -285,18 +298,8 @@
 		const deltaY = mouseStartY - mouseEndY;
 		const deltaTime = Date.now() - mouseStartTime;
 
-		// Determine if swipe is more horizontal or vertical
-		const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
-
 		if (deltaTime < SWIPE_TIMEOUT) {
-			if (isHorizontal && Math.abs(deltaX) > SWIPE_THRESHOLD) {
-				// Horizontal swipe - change score size
-				if (deltaX > 0) {
-					cycleMainScoreSize(1); // Right = increase
-				} else {
-					cycleMainScoreSize(-1); // Left = decrease
-				}
-			} else if (!isHorizontal && Math.abs(deltaY) > 30) {
+			if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 30) {
 				// Vertical swipe - change score
 				if (deltaY > 0) {
 					incrementScore();
@@ -747,39 +750,16 @@
 		updatePartnerName(teamNumber, newName);
 	}
 
-	function handleChangeColor() {
-		onchangeColor?.();
-	}
 
 </script>
 
 <div
-	class="team-card score-size-{$gameSettings.mainScoreSize || 'medium'} name-size-{$gameSettings.nameSize || 'medium'}"
+	class="team-card name-size-{$gameSettings.nameSize || 'medium'}"
 	class:winner={team.hasWon}
 	class:has-hammer={effectiveShowHammer && team.hasHammer}
-	style="--team-color: {team.color}; --text-color: {getContrastColor(team.color)}"
+	style="--team-color: {team.color}; --text-color: {getContrastColor(team.color)}; --main-score-size: {$gameSettings.mainScoreSize || 12}rem"
 >
 	<div class="team-header">
-		<button
-			class="color-btn"
-			onclick={(e) => { e.stopPropagation(); handleChangeColor(); }}
-			aria-label="Change color"
-			title={m.scoring_color()}
-		>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/></svg>
-		</button>
-		{#if teamNumber === 2}
-			<button
-				class="name-size-btn"
-				onclick={(e) => { e.stopPropagation(); cycleNameSize(); }}
-				ontouchend={(e) => e.stopPropagation()}
-				onmouseup={(e) => e.stopPropagation()}
-				aria-label="Change name size"
-				title="Change name size"
-			>
-				<span class="aa-icon">Aa</span>
-			</button>
-		{/if}
 		<div class="name-hammer-group">
 			{#if inTournamentMode}
 				<div class="tournament-player-display">
@@ -913,6 +893,7 @@
 	>
 		<div
 			class="score"
+			use:pinchZoom
 			ontouchstart={handleTouchStart}
 			ontouchend={handleTouchEnd}
 			onmousedown={handleMouseDown}
@@ -961,71 +942,10 @@
 		pointer-events: none;
 	}
 
-	.team-header button,
 	.team-header input,
 	.team-header .team-name-display,
 	.team-header .friendly-player-display {
 		pointer-events: auto;
-	}
-
-	.color-btn {
-		position: absolute;
-		left: 1rem;
-		top: 0;
-		background: rgba(255, 255, 255, 0.15);
-		border: 1px solid rgba(255, 255, 255, 0.25);
-		color: var(--text-color);
-		font-size: 1.2rem;
-		width: 36px;
-		height: 36px;
-		border-radius: 10px;
-		cursor: pointer;
-		transition: all 0.2s ease;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0;
-	}
-
-	.color-btn:hover {
-		background: rgba(255, 255, 255, 0.25);
-	}
-
-	.color-btn:active {
-		transform: scale(0.95);
-	}
-
-	.name-size-btn {
-		position: absolute;
-		right: 1rem;
-		top: 0;
-		background: rgba(255, 255, 255, 0.15);
-		border: 1px solid rgba(255, 255, 255, 0.25);
-		color: var(--text-color);
-		width: 36px;
-		height: 36px;
-		border-radius: 10px;
-		cursor: pointer;
-		transition: all 0.2s ease;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0;
-	}
-
-	.name-size-btn:hover {
-		background: rgba(255, 255, 255, 0.25);
-	}
-
-	.name-size-btn:active {
-		transform: scale(0.95);
-	}
-
-	.aa-icon {
-		font-family: 'Lexend', sans-serif;
-		font-size: 0.85rem;
-		font-weight: 600;
-		letter-spacing: -0.02em;
 	}
 
 	.name-hammer-group {
@@ -1285,19 +1205,15 @@
 
 	.score {
 		font-family: 'Lexend', sans-serif;
-		font-size: 12rem;
+		font-size: var(--main-score-size, 12rem);
 		font-weight: 800;
 		line-height: 1;
 		opacity: 0.95;
-		transition: font-size 0.2s ease;
+		transition: font-size 0.08s ease-out;
 		pointer-events: auto;
 		cursor: pointer;
+		touch-action: none;
 	}
-
-	/* Score size variants - base (desktop landscape) */
-	.score-size-small .score { font-size: 8rem; }
-	.score-size-medium .score { font-size: 12rem; }
-	.score-size-large .score { font-size: 16rem; }
 
 	/* Name size variants - base (desktop) */
 	.name-size-small .team-name-input,
@@ -1351,10 +1267,6 @@
 	/* Responsive adjustments */
 	@media (max-width: 768px) {
 		/* Score sizes for tablet */
-		.score-size-small .score { font-size: 6rem; }
-		.score-size-medium .score { font-size: 8rem; }
-		.score-size-large .score { font-size: 10rem; }
-
 		/* Name sizes for tablet */
 		.name-size-small .team-name-input,
 		.name-size-small .team-name-display,
@@ -1400,15 +1312,6 @@
 			height: 36px;
 		}
 
-		.color-btn,
-		.name-size-btn {
-			width: 32px;
-			height: 32px;
-		}
-
-		.aa-icon {
-			font-size: 0.8rem;
-		}
 	}
 
 	@media (max-width: 480px) {
@@ -1426,10 +1329,7 @@
 			padding-top: 8px;
 		}
 
-		/* Score sizes for mobile */
-		.score-size-small .score { font-size: 4.5rem; }
-		.score-size-medium .score { font-size: 6rem; }
-		.score-size-large .score { font-size: 8rem; }
+		/* Score size is controlled by --main-score-size CSS var (pinch-to-zoom) */
 
 		/* Name sizes for mobile */
 		.name-size-small .team-name-input,
@@ -1472,17 +1372,6 @@
 
 		.tournament-player-display {
 			gap: 0.35rem;
-		}
-
-		.color-btn,
-		.name-size-btn {
-			width: 28px;
-			height: 28px;
-			border-radius: 8px;
-		}
-
-		.aa-icon {
-			font-size: 0.75rem;
 		}
 
 		.team-header {
@@ -1528,11 +1417,6 @@
 	}
 
 	@media (max-width: 480px) and (orientation: portrait) {
-		/* Score sizes for portrait mobile */
-		.score-size-small .score { font-size: 6rem; }
-		.score-size-medium .score { font-size: 8rem; }
-		.score-size-large .score { font-size: 10rem; }
-
 		/* Name sizes for portrait mobile */
 		.name-size-small .team-name-input,
 		.name-size-small .team-name-display,
@@ -1566,11 +1450,6 @@
 
 	/* Very small portrait phones */
 	@media (max-width: 380px) and (orientation: portrait) {
-		/* Score sizes for very small phones */
-		.score-size-small .score { font-size: 5rem; }
-		.score-size-medium .score { font-size: 7rem; }
-		.score-size-large .score { font-size: 9rem; }
-
 		/* Name sizes for very small phones */
 		.name-size-small .team-name-input,
 		.name-size-small .team-name-display,
@@ -1617,11 +1496,6 @@
 			padding-top: 10px;
 		}
 
-		/* Score sizes for landscape mobile (height-limited) */
-		.score-size-small .score { font-size: 3.5rem; }
-		.score-size-medium .score { font-size: 5rem; }
-		.score-size-large .score { font-size: 6.5rem; }
-
 		/* Name sizes for landscape mobile */
 		.name-size-small .team-name-input,
 		.name-size-small .team-name-display,
@@ -1655,16 +1529,6 @@
 		.winner-badge {
 			font-size: 0.6rem;
 			padding: 0.2rem 0.5rem;
-		}
-
-		.color-btn,
-		.name-size-btn {
-			width: 26px;
-			height: 26px;
-		}
-
-		.aa-icon {
-			font-size: 0.7rem;
 		}
 
 		.team-header {

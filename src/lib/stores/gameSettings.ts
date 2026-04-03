@@ -54,8 +54,15 @@ function createGameSettings() {
 
                     // Validate parsed data before setting
                     if (isValidGameSettings(parsed)) {
+                        // Migrate mainScoreSize from string ('small'|'medium'|'large') to number (rem)
+                        const sizeMap: Record<string, number> = { small: 6, medium: 8, large: 12 };
+                        const rawSize = (parsed as any).mainScoreSize;
+                        const migratedSize = typeof rawSize === 'string'
+                            ? (sizeMap[rawSize] ?? 8)
+                            : (typeof rawSize === 'number' ? rawSize : 8);
+
                         // Always update to current app version
-                        const updatedSettings = { ...parsed, appVersion: APP_VERSION };
+                        const updatedSettings = { ...parsed, appVersion: APP_VERSION, mainScoreSize: migratedSize };
                         set(updatedSettings);
 
                         // If version changed, save immediately to update localStorage

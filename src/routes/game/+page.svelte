@@ -14,7 +14,7 @@
 	import type { TournamentTimer } from '$lib/types/tournament';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import RoundsPanel from '$lib/components/RoundsPanel.svelte';
-	import ColorPickerModal from '$lib/components/ColorPickerModal.svelte';
+	import GameCustomizePanel from '$lib/components/GameCustomizePanel.svelte';
 	import HammerDialog from '$lib/components/HammerDialog.svelte';
 	import MatchPreviewDialog from '$lib/components/MatchPreviewDialog.svelte';
 	import TwentyInputDialog from '$lib/components/TwentyInputDialog.svelte';
@@ -76,8 +76,6 @@
 		cancelInvite	} from '$lib/firebase/matchInvites';
 
 	let showSettings = $state(false);
-	let showColorPicker = $state(false);
-	let colorPickerTeam = $state<1 | 2>(1);
 	let showHammerDialog = $state(false);
 	let showNewMatchConfirm = $state(false);
 	let showTournamentModal = $state(false);
@@ -462,7 +460,7 @@
 		// Keyboard shortcuts for page-specific actions (QR Scanner, Settings)
 		function handleKeyboardShortcuts(e: KeyboardEvent) {
 			// Skip if any modal is open or if typing in an input
-			const hasModalOpen = showSettings || showQRScanner || showColorPicker || showHammerDialog ||
+			const hasModalOpen = showSettings || showQRScanner || showHammerDialog ||
 				showNewMatchConfirm || showTournamentModal || showTournamentExitConfirm ||
 				showMatchCompletedExternally || showTimeoutModal || $isInviteModalOpen || showMatchPreview;
 
@@ -2028,6 +2026,7 @@
 
 		// Clear the last tournament result block if there was one
 		gameSettings.update(s => ({ ...s, lastTournamentResult: null }));
+		gameSettings.save();
 		tournamentMatchCompletedSent = false;
 
 		resetTeams();
@@ -2067,6 +2066,8 @@
 
 	function handleFriendlyMatchStart() {
 		clearWinnerSplash();
+		gameSettings.update(s => ({ ...s, lastTournamentResult: null }));
+		gameSettings.save();
 		resetTeams();
 		resetMatchState();
 		isInExtraRounds = false;
@@ -2080,10 +2081,6 @@
 		handleMatchReset(); // Show hammer dialog if needed
 	}
 
-	function openColorPicker(team: 1 | 2) {
-		colorPickerTeam = team;
-		showColorPicker = true;
-	}
 
 	// ─────────────────────────────────────────────────────────────────────────────
 	// Match Invitation Handlers (Friendly Mode)
@@ -2777,6 +2774,10 @@
 			<span class="watermark-powered">Powered by</span>
 			<span class="watermark-main">Scorekinole</span>
 		</div>
+		<GameCustomizePanel
+			inTournamentMode={inTournamentMode}
+			onSwitchSides={inTournamentMode ? handleSwitchSides : undefined}
+		/>
 		<TeamCard
 			bind:this={teamCard1}
 			teamNumber={1}
@@ -2785,7 +2786,6 @@
 			canAssignPartner={canAssignPartnerToTeam1}
 			showAssignHint={shouldShowAssignHint}
 			ondismissAssignHint={dismissAssignHint}
-			onchangeColor={() => openColorPicker(1)}
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 			onextraRound={handleExtraRound}
@@ -2821,7 +2821,6 @@
 			showAssignHint={shouldShowInviteHint}
 			assignHintMessage={m.invite_inviteHintMessage()}
 			ondismissAssignHint={dismissInviteHint}
-			onchangeColor={() => openColorPicker(2)}
 			onroundComplete={handleRoundComplete}
 			ontournamentMatchComplete={handleTournamentMatchCompleteFromEvent}
 			onextraRound={handleExtraRound}
@@ -2989,7 +2988,6 @@
 </div>
 
 <SettingsModal isOpen={showSettings} onClose={() => showSettings = false} />
-<ColorPickerModal bind:isOpen={showColorPicker} teamNumber={colorPickerTeam} />
 <HammerDialog isOpen={showHammerDialog} onclose={handleHammerSelected} />
 <TwentyInputDialog
 	isOpen={showTwentyDialog || isEditing20s}

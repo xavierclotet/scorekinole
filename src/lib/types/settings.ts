@@ -61,8 +61,8 @@ export interface GameSettings {
     /** Size of the match score indicator: 'small', 'medium', or 'large' */
     matchScoreSize: 'small' | 'medium' | 'large';
 
-    /** Size of the main score display: 'small', 'medium', or 'large' */
-    mainScoreSize: 'small' | 'medium' | 'large';
+    /** Size of the main score display in rem (pinch-to-zoom continuous value) */
+    mainScoreSize: number;
 
     /** Size of the team name display: 'small', 'medium', or 'large' */
     nameSize: 'small' | 'medium' | 'large';

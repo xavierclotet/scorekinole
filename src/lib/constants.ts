@@ -31,7 +31,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     timerX: null,
     timerY: null,
     matchScoreSize: 'medium',
-    mainScoreSize: 'medium',
+    mainScoreSize: 12,
     nameSize: 'medium',
     lastTournamentResult: null
 };
@@ -62,6 +62,21 @@ export const DEVELOPED_COUNTRIES = [
     'Singapur',
     'Suecia',
     'Suiza'
+];
+
+/** Preset team colors (used in GameCustomizePanel, FriendlyMatchModal, PresetColorsModal) */
+export const PRESET_COLORS: string[] = [
+	'#E6BD80', // natural
+	'#1B100E', // negro
+	'#DADADA', // blanco
+	'#BB484D', // red
+	'#D06249', // orange
+	'#DFC530', // yellow
+	'#559D5E', // green
+	'#3CBCFB', // lightblue
+	'#014BC6', // blue
+	'#DA85CE', // pink
+	'#8B65A0'  // magenta
 ];
 
 /** Tier badge colors (used by TierBadge component, TournamentCard, etc.) */
