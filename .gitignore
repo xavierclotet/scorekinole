@@ -6,6 +6,8 @@ CLAUDE.md
 .agent/
 .agents/
 .roo/
+.superpowers/
+docs/superpowers/
 AGENTS.md
 skills-lock.json
 

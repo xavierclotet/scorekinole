@@ -2,6 +2,14 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.6] - 2026-04-03
+- Add GameCustomizePanel: floating ⚙️ button with switch sides/colors, name size, and color pickers
+- Remove color/name-size buttons from TeamCard headers and Switch actions from SettingsModal
+- Add pinch-to-zoom on score (continuous font-size, no snapping, persists on release)
+- Fix lastTournamentResult not cleared when starting new friendly match
+- Fix RoundsPanel round click blocked by drag detector on mobile (stopPropagation)
+- Extract PRESET_COLORS constant, delete ColorPickerModal
+
 ## [2.5.5] - 2026-04-02
 - Fix hammer dialog not showing when starting a new friendly match from modal
 - Add random starter selection button (dice icon) to hammer dialog
