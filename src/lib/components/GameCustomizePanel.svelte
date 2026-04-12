@@ -58,7 +58,7 @@
 </button>
 
 <!-- Customize Panel Modal -->
-<Modal isOpen={isOpen} title={m.scoring_customize()} onClose={close}>
+<Modal isOpen={isOpen} title={m.scoring_customize()} onClose={close} maxWidth="300px">
 	<div class="panel-content">
 
 		<!-- Quick Actions -->
@@ -250,15 +250,15 @@
 
 	/* Team colors */
 	.colors-row {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
 	}
 
 	.team-colors {
 		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
+		align-items: center;
+		gap: 0.4rem;
 	}
 
 	.team-colors-label {
@@ -268,6 +268,8 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		width: 4rem;
+		flex-shrink: 0;
 	}
 
 	.color-swatches {

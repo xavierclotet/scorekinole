@@ -6,6 +6,7 @@
 		isOpen?: boolean;
 		title?: string;
 		onClose?: () => void;
+		maxWidth?: string;
 		headerActions?: Snippet;
 		children?: Snippet;
 	}
@@ -14,6 +15,7 @@
 		isOpen = false,
 		title = '',
 		onClose = () => {},
+		maxWidth,
 		headerActions,
 		children
 	}: Props = $props();
@@ -52,6 +54,7 @@
 			aria-modal="true"
 			aria-labelledby="modal-title"
 			tabindex="-1"
+			style={maxWidth ? `max-width: min(${maxWidth}, 95%)` : undefined}
 		>
 			<div class="modal-header">
 				{#if title}
