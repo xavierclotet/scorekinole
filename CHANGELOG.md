@@ -2,6 +2,11 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.7] - 2026-04-12
+- Add maxWidth prop to Modal for constrained dialogs
+- Fix team colors layout in GameCustomizePanel (flex-column, inline label)
+- Add unit tests for Modal and GameCustomizePanel logic
+
 ## [2.5.6] - 2026-04-03
 - Add GameCustomizePanel: floating ⚙️ button with switch sides/colors, name size, and color pickers
 - Remove color/name-size buttons from TeamCard headers and Switch actions from SettingsModal
