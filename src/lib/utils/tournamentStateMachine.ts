@@ -262,12 +262,18 @@ async function startGroupStage(tournamentId: string): Promise<boolean> {
     return false;
   }
 
+  // Auto-close registration when tournament starts
+  const registrationUpdate = tournament.registration
+    ? { ...tournament.registration, enabled: false }
+    : undefined;
+
   // Single update with all changes
   return await updateTournament(tournamentId, {
     participants: updatedParticipants,
     groupStage,
     status: 'GROUP_STAGE',
-    startedAt: Date.now()
+    startedAt: Date.now(),
+    ...(registrationUpdate ? { registration: registrationUpdate } : {})
   });
 }
 
