@@ -1466,6 +1466,67 @@ export const onTournamentMatchEvent = onDocumentUpdated(
   }
 );
 
+// ─── Tournament Registration Notifications ──────────────────────────────────
+
+export const onTournamentRegistration = onDocumentUpdated(
+  { document: "tournaments/{tournamentId}", region: "europe-west1" },
+  async (event) => {
+    const beforeData = event.data?.before.data() as Record<string, any> | undefined;
+    const afterData = event.data?.after.data() as Record<string, any> | undefined;
+    if (!beforeData || !afterData) return;
+
+    // Only process if registration notifications are enabled
+    if (!afterData.registration?.notifyOnRegistration) return;
+
+    // Only process DRAFT tournaments
+    if (afterData.status !== "DRAFT") return;
+
+    const tournamentId = event.params.tournamentId;
+    const tournamentName: string = afterData.name || "Tournament";
+
+    const beforeParticipants: any[] = beforeData.participants || [];
+    const afterParticipants: any[] = afterData.participants || [];
+    const beforeWaitlist: any[] = beforeData.waitlist || [];
+    const afterWaitlist: any[] = afterData.waitlist || [];
+
+    const adminIds: string[] = [
+      afterData.ownerId,
+      ...(afterData.adminIds || [])
+    ].filter(Boolean) as string[];
+
+    // New participant registered
+    if (afterParticipants.length > beforeParticipants.length) {
+      const newParticipant = afterParticipants[afterParticipants.length - 1];
+      const playerName: string = newParticipant?.name || "Jugador";
+      const countDisplay = afterData.registration?.maxParticipants
+        ? `${afterParticipants.length}/${afterData.registration.maxParticipants}`
+        : `${afterParticipants.length}`;
+
+      for (const adminId of adminIds) {
+        await sendPushToUser(adminId, {
+          title: tournamentName,
+          body: `Nuevo inscrito: ${playerName} (${countDisplay})`,
+          url: `/admin/tournaments/${tournamentId}`,
+        });
+      }
+    }
+
+    // New waitlist entry
+    if (afterWaitlist.length > beforeWaitlist.length) {
+      const newEntry = afterWaitlist[afterWaitlist.length - 1];
+      const entryName: string = newEntry?.userName || "Jugador";
+
+      for (const adminId of adminIds) {
+        await sendPushToUser(adminId, {
+          title: tournamentName,
+          body: `Lista de espera: ${entryName}`,
+          url: `/admin/tournaments/${tournamentId}`,
+        });
+      }
+    }
+  }
+);
+
 // ─── Friendly Match Invite Response Notification ────────────────────────────
 
 /**
