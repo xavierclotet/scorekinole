@@ -62,6 +62,17 @@
   let editExternalLink = $state('');
   let editPosterUrl = $state('');
 
+  // Registration config
+  let editRegEnabled = $state(false);
+  let editRegDeadline = $state('');
+  let editRegDeadlineTime = $state('');
+  let editRegMaxParticipants = $state<number | undefined>(undefined);
+  let editRegEntryFee = $state('');
+  let editRegRulesText = $state('');
+  let editRegRulesUrl = $state('');
+  let editRegNotify = $state(true);
+  let editRegShowList = $state(true);
+
   let tournamentId = $derived(page.params.id);
 
   // Fallback for consolationEnabled - check multiple locations due to migration
@@ -309,6 +320,18 @@
     editExternalLink = tournament.externalLink || '';
     editPosterUrl = tournament.posterUrl || '';
 
+    // Registration
+    const reg = tournament.registration;
+    editRegEnabled = reg?.enabled ?? false;
+    editRegDeadline = reg?.deadline ? new Date(reg.deadline).toISOString().split('T')[0] : '';
+    editRegDeadlineTime = reg?.deadline ? new Date(reg.deadline).toTimeString().slice(0, 5) : '';
+    editRegMaxParticipants = reg?.maxParticipants;
+    editRegEntryFee = reg?.entryFee ?? '';
+    editRegRulesText = reg?.rulesText ?? '';
+    editRegRulesUrl = reg?.rulesUrl ?? '';
+    editRegNotify = reg?.notifyOnRegistration ?? true;
+    editRegShowList = reg?.showParticipantList ?? true;
+
     showQuickEdit = true;
   }
 
@@ -372,7 +395,23 @@
         country: editCountry.trim() || undefined,
         venueId: editVenueId || undefined,
         externalLink: editExternalLink.trim() || undefined,
-        posterUrl: editPosterUrl.trim() || undefined
+        posterUrl: editPosterUrl.trim() || undefined,
+        // Registration config
+        registration: {
+          enabled: editRegEnabled,
+          deadline: (() => {
+            const deadlineStr = editRegDeadline && editRegDeadlineTime
+              ? `${editRegDeadline}T${editRegDeadlineTime}`
+              : editRegDeadline || '';
+            return deadlineStr ? new Date(deadlineStr).getTime() : undefined;
+          })(),
+          maxParticipants: editRegMaxParticipants || undefined,
+          entryFee: editRegEntryFee || undefined,
+          rulesText: editRegRulesText || undefined,
+          rulesUrl: editRegRulesUrl || undefined,
+          notifyOnRegistration: editRegNotify,
+          showParticipantList: editRegShowList,
+        } as import('$lib/types/tournament').TournamentRegistration,
       };
 
       // Update finalStage options if it exists
@@ -449,6 +488,14 @@
                 <span class="info-badge participants-badge">
                   {tournament.participants.length} {m.admin_participants()}
                 </span>
+                {#if tournament.registration?.enabled}
+                  <div class="reg-counter-badge">
+                    {m.registration_participants()}: {tournament.participants.length}{tournament.registration.maxParticipants ? `/${tournament.registration.maxParticipants}` : ''}
+                    {#if (tournament.waitlist?.length ?? 0) > 0}
+                      · {m.registration_waitlist()}: {tournament.waitlist?.length}
+                    {/if}
+                  </div>
+                {/if}
                 {#if tournament.status !== 'COMPLETED' && tournament.status !== 'CANCELLED'}
                   <TournamentKeyBadge tournamentKey={tournament.key} compact={true} showQRButton={true} />
                 {/if}
@@ -1149,6 +1196,54 @@
                 </div>
               </div>
             </div>
+
+            {#if tournament.status === 'DRAFT'}
+            <div class="qe-divider"></div>
+            <div class="qe-section">
+              <div class="qe-section-title">{m.registration_enableRegistration()}</div>
+              <label class="qe-toggle-row">
+                <span>{m.registration_enableRegistration()}</span>
+                <input type="checkbox" bind:checked={editRegEnabled} class="qe-switch" />
+              </label>
+
+              {#if editRegEnabled}
+                <div class="qe-grid cols-2">
+                  <div class="qe-field">
+                    <label>{m.registration_deadline()}</label>
+                    <div style="display:flex;gap:0.5rem">
+                      <input type="date" bind:value={editRegDeadline} style="flex:1" />
+                      <input type="time" bind:value={editRegDeadlineTime} style="flex:1" />
+                    </div>
+                  </div>
+                  <div class="qe-field">
+                    <label>{m.registration_maxParticipants()}</label>
+                    <input type="number" min="2" bind:value={editRegMaxParticipants} placeholder="Sin límite" />
+                  </div>
+                </div>
+
+                <div class="qe-field">
+                  <label>{m.registration_entryFee()}</label>
+                  <input type="text" bind:value={editRegEntryFee} placeholder="Ej: 10€, Gratuito" />
+                </div>
+
+                <div class="qe-field">
+                  <label>{m.registration_rules()}</label>
+                  <textarea bind:value={editRegRulesText} rows="3" placeholder="Texto de normativa (opcional)"></textarea>
+                  <input type="url" bind:value={editRegRulesUrl} placeholder="URL normativa (opcional)" style="margin-top:0.4rem" />
+                </div>
+
+                <label class="qe-toggle-row">
+                  <span>{m.registration_notifyRegistrations()}</span>
+                  <input type="checkbox" bind:checked={editRegNotify} class="qe-switch" />
+                </label>
+
+                <label class="qe-toggle-row">
+                  <span>{m.registration_showParticipantList()}</span>
+                  <input type="checkbox" bind:checked={editRegShowList} class="qe-switch" />
+                </label>
+              {/if}
+            </div>
+            {/if}
 
             <div class="qe-footer">
               <button class="qe-btn secondary" onclick={closeQuickEdit}>{m.common_cancel()}</button>
@@ -2640,5 +2735,14 @@
     .qe-row {
       flex-wrap: wrap;
     }
+  }
+
+  .reg-counter-badge {
+    font-size: 0.85rem;
+    color: var(--primary);
+    padding: 0.25rem 0.75rem;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-radius: 6px;
+    display: inline-block;
   }
 </style>
