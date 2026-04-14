@@ -13,6 +13,7 @@
 	import { translateCountry } from '$lib/utils/countryTranslations';
 	import type { BracketConfig, PhaseConfig } from '$lib/types/tournament';
 	import LiveTournamentView from '$lib/components/tournament/LiveTournamentView.svelte';
+	import TournamentRegistration from '$lib/components/tournament/TournamentRegistration.svelte';
 	import LiveBadge from '$lib/components/LiveBadge.svelte';
 	import PoweredByBadge from '$lib/components/PoweredByBadge.svelte';
 	import StampBadge from '$lib/components/StampBadge.svelte';
@@ -160,6 +161,13 @@
 	);
 
 	let isCompleted = $derived(tournament?.status === 'COMPLETED');
+
+	let isDraft = $derived(tournament?.status === 'DRAFT');
+	let hasRegistration = $derived(
+		isDraft === true &&
+		tournament?.registration?.enabled === true &&
+		(tournament?.registration?.deadline == null || Date.now() < tournament.registration.deadline)
+	);
 
 	// Admin route based on tournament phase
 	let adminRoute = $derived.by(() => {
@@ -1043,7 +1051,9 @@
 			</div>
 		{/if}
 
-		{#if isLive}
+		{#if hasRegistration}
+			<TournamentRegistration {tournament} />
+		{:else if isLive}
 			<!-- LIVE Tournament View -->
 			<LiveTournamentView {tournament} />
 		{:else}
