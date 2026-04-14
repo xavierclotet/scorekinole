@@ -2,6 +2,17 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.8] - 2026-04-14
+- Add tournament self-registration: register, unregister, join/leave waitlist
+- Doubles registration panel with partner search, guest mode, and team name
+- Waitlisted state card with queue position and leave-waitlist dialog
+- Admin wizard step 1: registration config (deadline, capacity, fee, rules)
+- Admin wizard step 3: promote/remove waitlist entries
+- Registration push notifications via Cloud Function
+- Fix deadline timezone bug: date-only defaults to 23:59 local time
+- Extract pure registration functions with 76 unit tests
+- Add missing ca/en translations for registration keys
+
 ## [2.5.7] - 2026-04-12
 - Add maxWidth prop to Modal for constrained dialogs
 - Fix team colors layout in GameCustomizePanel (flex-column, inline label)
