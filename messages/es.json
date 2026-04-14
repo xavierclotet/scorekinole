@@ -1582,7 +1582,7 @@
   "country_switzerland": "Suiza",
   "registration_register": "Inscribirse",
   "registration_registered": "Ya estás inscrito",
-  "registration_loginToRegister": "Inicia sesión para inscribirte",
+  "registration_loginToRegister": "Inicia sesión o regístrate",
   "registration_joinWaitlist": "Apuntarse a lista de espera",
   "registration_onWaitlist": "Estás en lista de espera",
   "registration_closed": "Inscripción cerrada",
@@ -1606,5 +1606,11 @@
   "registration_spots": "{current}/{max} inscritos",
   "registration_spotsNoLimit": "{current} inscritos",
   "registration_deadlineCountdown": "Cierra en {time}",
-  "registration_contactAdmin": "Contacta al administrador para inscribirte como invitado"
+  "registration_contactAdmin": "Contacta al administrador para inscribirte como invitado",
+  "registration_unregister": "Desapuntarme",
+  "registration_confirmUnregister": "¿Seguro que quieres desapuntarte?",
+  "registration_promotedFromWaitlist": "¡Tu plaza está confirmada en {tournament}!",
+  "registration_leaveWaitlist": "Salir de la lista",
+  "registration_confirmLeaveWaitlist": "¿Quieres salir de la lista de espera?",
+  "registration_waitlistPosition": "Posición {position} en la lista"
 }

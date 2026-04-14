@@ -1052,6 +1052,94 @@
 		{/if}
 
 		{#if hasRegistration}
+			<div class="info-section">
+				<div class="info-grid">
+					{#if tournament.tournamentDate}
+						{@const eventDate = new Date(tournament.tournamentDate)}
+						{@const datePart = eventDate.toISOString().split('T')[0].replace(/-/g, '')}
+						{@const time = tournament.tournamentTime}
+						{@const timePart = time ? time.replace(':', '') + '00' : ''}
+						{@const dateStr = time ? `${datePart}T${timePart}` : datePart}
+						{@const endDateStr = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0].replace(/-/g, '')}
+						{@const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(tournament.name)}&dates=${dateStr}/${endDateStr}${tournament.description ? `&details=${encodeURIComponent(tournament.description)}` : ''}${tournament.city ? `&location=${encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + tournament.city + (tournament.country ? ', ' + tournament.country : ''))}` : ''}`}
+						<a href={calendarUrl} target="_blank" rel="noopener noreferrer" class="info-card calendar-card">
+							<span class="info-label">
+								<svg class="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+									<line x1="16" y1="2" x2="16" y2="6"/>
+									<line x1="8" y1="2" x2="8" y2="6"/>
+									<line x1="3" y1="10" x2="21" y2="10"/>
+								</svg>
+								{m.tournament_date()}
+							</span>
+							<span class="info-value calendar-value">
+								<span>{formatDate(tournament.tournamentDate, time || undefined)}</span>
+								<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+									<polyline points="15 3 21 3 21 9"/>
+									<line x1="10" y1="14" x2="21" y2="3"/>
+								</svg>
+							</span>
+						</a>
+					{/if}
+					{#if tournament.city || tournament.country}
+						<a
+							href="https://www.google.com/maps/search/?api=1&query={encodeURIComponent((tournament.address ? tournament.address + ', ' : '') + (tournament.city || '') + ', ' + (tournament.country || ''))}"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="info-card location-card"
+						>
+							<span class="info-label">
+								<svg class="location-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+									<circle cx="12" cy="10" r="3"/>
+								</svg>
+								{m.tournament_location()}
+							</span>
+							<span class="info-value location-value">
+								<span>{tournament.city}{tournament.city && tournament.country ? ', ' : ''}{translateCountry(tournament.country)}</span>
+								<svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+									<polyline points="15 3 21 3 21 9"/>
+									<line x1="10" y1="14" x2="21" y2="3"/>
+								</svg>
+							</span>
+						</a>
+					{/if}
+					<div class="info-card">
+						<span class="info-label">{m.common_mode()}</span>
+						<span class="info-value">{getModeLabel(tournament.gameType)}</span>
+					</div>
+					{#if tournament.rankingConfig?.enabled && tournament.rankingConfig.tier}
+						<div class="info-card">
+							<span class="info-label">Series</span>
+							<span class="info-value tier-{tournament.rankingConfig.tier}">{getTierLabel(tournament.rankingConfig.tier)}</span>
+						</div>
+					{/if}
+				</div>
+				{#if tournament.description}
+					<div class="description-section">
+						<button class="description-toggle" onclick={() => descriptionExpanded = !descriptionExpanded}>
+							<div class="description-header">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="12" cy="12" r="10"/>
+									<line x1="12" y1="16" x2="12" y2="12"/>
+									<line x1="12" y1="8" x2="12.01" y2="8"/>
+								</svg>
+								<span>{m.wizard_information()}</span>
+							</div>
+							<svg class="chevron-icon" class:expanded={descriptionExpanded} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="6 9 12 15 18 9"></polyline>
+							</svg>
+						</button>
+						{#if descriptionExpanded}
+							<div class="description-content">
+								<p>{tournament.description}</p>
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
 			<TournamentRegistration {tournament} />
 		{:else if isLive}
 			<!-- LIVE Tournament View -->

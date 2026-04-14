@@ -14,7 +14,8 @@
   import { goto } from '$app/navigation';
   import { createTournament, getTournament, updateTournament, searchTournamentNames, checkTournamentKeyExists, checkTournamentQuota, type TournamentNameInfo } from '$lib/firebase/tournaments';
   import { addParticipants } from '$lib/firebase/tournamentParticipants';
-  import type { TournamentParticipant, RankingConfig, TournamentTier } from '$lib/types/tournament';
+  import { buildRegistrationConfig, adminPromoteFromWaitlist, adminRemoveFromWaitlist } from '$lib/firebase/tournamentRegistration';
+  import type { TournamentParticipant, WaitlistEntry, RankingConfig, TournamentTier } from '$lib/types/tournament';
   import { normalizeTier } from '$lib/types/tournament';
   import { getTierInfo, getPointsDistribution, calculateRankingPoints, getNaturalThreshold } from '$lib/algorithms/ranking';
   import { TIER_COLORS } from '$lib/constants';
@@ -64,6 +65,17 @@
   let showHammer = $state(true);
   let whoStarts = $state<'alternate' | 'pickup'>('pickup');
   let isTest = $state(false);
+
+  // Registration config (Step 1)
+  let regEnabled = $state(false);
+  let regDeadlineDate = $state('');
+  let regDeadlineTime = $state('');
+  let regMaxParticipants = $state<number | undefined>(undefined);
+  let regEntryFee = $state('');
+  let regRulesText = $state('');
+  let regRulesUrl = $state('');
+  let regNotify = $state(true);
+  let regShowList = $state(true);
 
   // Step 2: Tournament Format
   let numTables = $state(4);
@@ -148,6 +160,7 @@
 
   // Step 3: Participants
   let participants = $state<Partial<TournamentParticipant>[]>([]);
+  let waitlist = $state<WaitlistEntry[]>([]);
 
   // Participant count (replaces participantCount)
   let participantCount = $derived(participants.length);
@@ -573,6 +586,9 @@
       rankingEnabled = tournament.rankingConfig?.enabled ?? false;
       selectedTier = normalizeTier(tournament.rankingConfig?.tier);
 
+      // Step 3: Waitlist (from registration)
+      waitlist = tournament.waitlist || [];
+
       // Step 3: Participants - Load directly into array (preserves userId links)
       participants = await Promise.all(tournament.participants.map(async (p) => {
         const participant: Partial<TournamentParticipant> = {
@@ -630,6 +646,18 @@
         tcParallelSemifinals = tournament.timeConfig.parallelSemifinals ?? DEFAULT_TIME_CONFIG.parallelSemifinals;
         tcParallelFinals = tournament.timeConfig.parallelFinals ?? DEFAULT_TIME_CONFIG.parallelFinals;
       }
+
+      // Registration config
+      const reg = tournament.registration;
+      regEnabled = reg?.enabled ?? false;
+      regDeadlineDate = reg?.deadline ? new Date(reg.deadline).toISOString().split('T')[0] : '';
+      regDeadlineTime = reg?.deadline ? new Date(reg.deadline).toTimeString().slice(0, 5) : '';
+      regMaxParticipants = reg?.maxParticipants;
+      regEntryFee = reg?.entryFee ?? '';
+      regRulesText = reg?.rulesText ?? '';
+      regRulesUrl = reg?.rulesUrl ?? '';
+      regNotify = reg?.notifyOnRegistration ?? true;
+      regShowList = reg?.showParticipantList ?? true;
 
       console.log('✅ Tournament loaded for editing');
     } catch (error) {
@@ -1034,6 +1062,15 @@
       tcBreakBetweenPhases = data.tcBreakBetweenPhases ?? DEFAULT_TIME_CONFIG.breakBetweenPhases;
       tcParallelSemifinals = data.tcParallelSemifinals ?? DEFAULT_TIME_CONFIG.parallelSemifinals;
       tcParallelFinals = data.tcParallelFinals ?? DEFAULT_TIME_CONFIG.parallelFinals;
+      regEnabled = data.regEnabled ?? false;
+      regDeadlineDate = data.regDeadlineDate ?? '';
+      regDeadlineTime = data.regDeadlineTime ?? '';
+      regMaxParticipants = data.regMaxParticipants;
+      regEntryFee = data.regEntryFee ?? '';
+      regRulesText = data.regRulesText ?? '';
+      regRulesUrl = data.regRulesUrl ?? '';
+      regNotify = data.regNotify ?? true;
+      regShowList = data.regShowList ?? true;
 
       console.log('✅ Tournament draft loaded from localStorage');
     } catch (error) {
@@ -1136,7 +1173,8 @@
         tcBreakBetweenMatches,
         tcBreakBetweenPhases,
         tcParallelSemifinals,
-        tcParallelFinals
+        tcParallelFinals,
+        regEnabled, regDeadlineDate, regDeadlineTime, regMaxParticipants, regEntryFee, regRulesText, regRulesUrl, regNotify, regShowList,
       };
 
       const prefsStr = localStorage.getItem(ADMIN_PREFS_KEY);
@@ -1255,6 +1293,20 @@
     city = venue.city;
     country = venue.country;
     venueId = venue.venueId;
+    saveDraft();
+  }
+
+  // Waitlist management
+  function promoteFromWaitlist(userId: string) {
+    const result = adminPromoteFromWaitlist(participants, waitlist, userId);
+    if (!result) return;
+    participants = result.participants;
+    waitlist = result.waitlist;
+    saveDraft();
+  }
+
+  function removeFromWaitlist(userId: string) {
+    waitlist = adminRemoveFromWaitlist(waitlist, userId);
     saveDraft();
   }
 
@@ -1478,7 +1530,8 @@
         numTables,
         phaseType,
         rankingConfig,
-        timeConfig
+        timeConfig,
+        registration: buildRegistrationConfig(regEnabled, regDeadlineDate, regDeadlineTime, regMaxParticipants, regEntryFee, regRulesText, regRulesUrl, regNotify, regShowList),
       };
 
       // Set phase configuration based on phase type
@@ -1658,6 +1711,7 @@
       // Include participants in both CREATE and EDIT modes
       // In EDIT mode, this allows updating participant types (GUEST -> REGISTERED)
       tournamentData.participants = participantsWithIds;
+      if (waitlist.length > 0) tournamentData.waitlist = waitlist;
 
       // Calculate time estimation if config is available
       if (timeConfig) {
@@ -2068,6 +2122,54 @@
                     <span class="test-hint">{m.tournament_isTestHint()}</span>
                   </span>
                 </label>
+              </div>
+
+              <!-- Registration config -->
+              <div class="reg-config-section">
+                <label class="option-check">
+                  <input type="checkbox" bind:checked={regEnabled} />
+                  <span class="reg-config-title">{m.registration_enableRegistration()}</span>
+                </label>
+
+                {#if regEnabled}
+                  <div class="reg-config-fields">
+                    <div class="reg-row">
+                      <div class="info-field">
+                        <label>{m.registration_deadline()}</label>
+                        <div class="date-time-row">
+                          <input type="date" bind:value={regDeadlineDate} class="input-field" />
+                          <input type="time" bind:value={regDeadlineTime} class="input-field" />
+                        </div>
+                      </div>
+                      <div class="info-field">
+                        <label>{m.registration_maxParticipants()}</label>
+                        <input type="number" min="2" bind:value={regMaxParticipants} class="input-field" placeholder="Sin límite" />
+                      </div>
+                    </div>
+
+                    <div class="info-field">
+                      <label>{m.registration_entryFee()}</label>
+                      <input type="text" bind:value={regEntryFee} class="input-field" placeholder="Ej: 10€, Gratuito" />
+                    </div>
+
+                    <div class="info-field">
+                      <label>{m.registration_rules()}</label>
+                      <textarea bind:value={regRulesText} class="input-field" rows="2" placeholder="Normativa (opcional)"></textarea>
+                      <input type="url" bind:value={regRulesUrl} class="input-field" placeholder="URL normativa (opcional)" style="margin-top: 0.4rem" />
+                    </div>
+
+                    <div class="reg-toggles">
+                      <label class="option-check">
+                        <input type="checkbox" bind:checked={regNotify} />
+                        <span>{m.registration_notifyRegistrations()}</span>
+                      </label>
+                      <label class="option-check">
+                        <input type="checkbox" bind:checked={regShowList} />
+                        <span>{m.registration_showParticipantList()}</span>
+                      </label>
+                    </div>
+                  </div>
+                {/if}
               </div>
             </div>
           </div>
@@ -2984,6 +3086,36 @@
               {/each}
             </div>
           {/if}
+
+          <!-- Waitlist (only when registration enabled and there are entries) -->
+          {#if regEnabled && waitlist.length > 0}
+            <div class="waitlist-admin">
+              <div class="waitlist-admin-header">
+                <span class="waitlist-admin-title">{m.registration_waitlist()} ({waitlist.length})</span>
+                <span class="waitlist-admin-hint">Promover añade al jugador a la lista de inscritos</span>
+              </div>
+              {#each waitlist as entry (entry.userId)}
+                <div class="wl-item">
+                  <div class="wl-avatar">{entry.userName.charAt(0).toUpperCase()}</div>
+                  <div class="wl-info">
+                    <span class="wl-name">{entry.userName}</span>
+                    {#if entry.partner}
+                      <span class="wl-partner">& {entry.partner.name}</span>
+                    {/if}
+                  </div>
+                  <span class="wl-date">{new Date(entry.registeredAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                  <div class="wl-actions">
+                    <button class="wl-btn wl-btn-promote" onclick={() => promoteFromWaitlist(entry.userId)} title="Promover a inscrito">
+                      ↑ Promover
+                    </button>
+                    <button class="wl-btn wl-btn-remove" onclick={() => removeFromWaitlist(entry.userId)} title="Eliminar de lista">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
 
@@ -3106,6 +3238,17 @@
                     <span>{m.wizard_finalStage()} ~{formatDuration(estimatedDuration.finalStageMinutes)}</span>
                   </div>
                 {/if}
+              </div>
+            {/if}
+
+            {#if regEnabled}
+              <div class="rv-section">
+                <div class="rv-label">{m.registration_enableRegistration()}</div>
+                <div class="rv-value">
+                  {#if regMaxParticipants}{m.registration_spots({ current: '0', max: String(regMaxParticipants) })}{:else}{m.registration_participants()}: {m.registration_full()}{/if}
+                  {#if regDeadlineDate} · {m.registration_deadline()}: {regDeadlineDate}{/if}
+                  {#if regEntryFee} · {regEntryFee}{/if}
+                </div>
               </div>
             {/if}
 
@@ -4021,6 +4164,48 @@
 
   .wizard-container:is([data-theme='dark'], [data-theme='violet']) .test-field-compact {
     border-color: #2d3748;
+  }
+
+  .reg-config-section {
+    grid-column: 1 / -1;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: color-mix(in srgb, var(--primary) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
+    border-radius: 10px;
+  }
+
+  .reg-config-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .reg-config-fields {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .reg-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .date-time-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .date-time-row .input-field {
+    flex: 1;
+  }
+
+  .reg-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
   }
 
   @media (max-width: 700px) {
@@ -5667,6 +5852,126 @@
   }
 
   .pl-btn-delete:hover {
+    color: #ef4444;
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+  }
+
+  /* Waitlist admin section */
+  .waitlist-admin {
+    margin-top: 1rem;
+    border: 1px solid color-mix(in srgb, var(--warning, #f59e0b) 30%, transparent);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .waitlist-admin-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: color-mix(in srgb, var(--warning, #f59e0b) 8%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--warning, #f59e0b) 20%, transparent);
+  }
+
+  .waitlist-admin-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--warning, #f59e0b);
+  }
+
+  .waitlist-admin-hint {
+    font-size: 0.72rem;
+    color: var(--muted-foreground);
+  }
+
+  .wl-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+
+  .wl-item:last-child { border-bottom: none; }
+
+  .wl-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--warning, #f59e0b) 15%, transparent);
+    color: var(--warning, #f59e0b);
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .wl-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .wl-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .wl-partner {
+    font-size: 0.78rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .wl-date {
+    font-size: 0.72rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .wl-actions {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+  }
+
+  .wl-btn {
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    transition: all 0.15s;
+  }
+
+  .wl-btn-promote {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+
+  .wl-btn-promote:hover {
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+  }
+
+  .wl-btn-remove {
+    background: transparent;
+    color: var(--muted-foreground);
+    border: 1px solid transparent;
+    padding: 0.25rem 0.4rem;
+  }
+
+  .wl-btn-remove:hover {
     color: #ef4444;
     background: color-mix(in srgb, #ef4444 10%, transparent);
   }
