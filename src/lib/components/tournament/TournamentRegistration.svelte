@@ -253,7 +253,7 @@
 </div>
 
 {#if showLoginModal}
-  <LoginModal bind:isOpen={showLoginModal} onclose={() => showLoginModal = false} />
+  <LoginModal bind:isOpen={showLoginModal} />
 {/if}
 
 <style>
@@ -370,8 +370,8 @@
   }
 
   .reg-btn.waitlist {
-    background: color-mix(in srgb, #f59e0b 15%, transparent);
-    color: #f59e0b;
+    background: color-mix(in srgb, var(--warning, #f59e0b) 15%, transparent);
+    color: var(--warning, #f59e0b);
   }
 
   .reg-btn.closed {
@@ -398,8 +398,8 @@
   }
 
   .reg-badge.waitlisted {
-    background: color-mix(in srgb, #f59e0b 15%, transparent);
-    color: #f59e0b;
+    background: color-mix(in srgb, var(--warning, #f59e0b) 15%, transparent);
+    color: var(--warning, #f59e0b);
   }
 
   .doubles-options {
@@ -450,6 +450,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    max-height: 300px;
+    overflow-y: auto;
   }
 
   .participant-item {
