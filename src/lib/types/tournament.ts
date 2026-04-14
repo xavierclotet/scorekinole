@@ -38,6 +38,29 @@ export type ParticipantStatus = 'ACTIVE' | 'WITHDRAWN' | 'DISQUALIFIED';
 // Participant type
 export type ParticipantType = 'REGISTERED' | 'GUEST';
 
+export interface WaitlistEntry {
+  userId: string;
+  userName: string;
+  userKey: string;
+  registeredAt: number;
+  partner?: {
+    type: ParticipantType;
+    userId?: string;
+    name: string;
+  };
+}
+
+export interface TournamentRegistration {
+  enabled: boolean;
+  deadline?: number;
+  maxParticipants?: number;
+  entryFee?: string;
+  rulesUrl?: string;
+  rulesText?: string;
+  notifyOnRegistration: boolean;
+  showParticipantList: boolean;
+}
+
 /**
  * Countdown timer state synced to Firestore for public display
  * Uses absolute timestamps when running to avoid clock drift
@@ -135,6 +158,10 @@ export interface Tournament {
 
   // Countdown timer (synced from admin for public display)
   countdownTimer?: TournamentTimer | null;
+
+  // Self-registration
+  registration?: TournamentRegistration;
+  waitlist?: WaitlistEntry[];
 }
 
 /**
