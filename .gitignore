@@ -65,3 +65,6 @@ ui-debug.log
 # Firebase Functions build output
 functions/lib/
 functions/node_modules/
+
+# Git worktrees
+.worktrees/
