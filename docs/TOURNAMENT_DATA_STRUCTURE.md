@@ -8,29 +8,30 @@ This document describes all interfaces that compose a `Tournament` object in Sco
 - [2. Enums / Types](#2-enums--types)
 - [3. RankingConfig](#3-rankingconfig)
 - [4. TournamentParticipant](#4-tournamentparticipant)
-- [5. GroupStage](#5-groupstage)
-- [6. Group](#6-group)
-- [7. RoundRobinRound](#7-roundrobinround)
-- [8. SwissPairing](#8-swisspairing)
-- [9. GroupMatch](#9-groupmatch)
-- [10. GroupStanding](#10-groupstanding)
-- [11. FinalStage](#11-finalstage)
-- [12. BracketWithConfig](#12-bracketwithconfig)
-- [13. BracketConfig](#13-bracketconfig)
-- [14. PhaseConfig](#14-phaseconfig)
-- [15. BracketRound](#15-bracketround)
-- [16. BracketMatch](#16-bracketmatch)
-- [17. ConsolationBracket](#17-consolationbracket)
-- [18. NamedBracket](#18-namedbracket)
-- [19. TournamentTimeConfig](#19-tournamenttimeconfig)
-- [20. TournamentTimeEstimate](#20-tournamenttimeestimate)
-- [21. TournamentRecord](#21-tournamentrecord)
-- [22. MatchCorrection](#22-matchcorrection)
-- [23. MatchHistory (friendly matches)](#23-matchhistory-friendly-matches)
-- [24. CurrentMatch](#24-currentmatch)
-- [25. MatchGame](#25-matchgame)
-- [26. MatchRound](#26-matchround)
-- [27. MatchInvite (friendly match invitations)](#27-matchinvite-friendly-match-invitations)
+- [5. Tournament Registration](#5-tournament-registration)
+- [6. GroupStage](#6-groupstage)
+- [7. Group](#7-group)
+- [8. RoundRobinRound](#8-roundrobinround)
+- [9. SwissPairing](#9-swisspairing)
+- [10. GroupMatch](#10-groupmatch)
+- [11. GroupStanding](#11-groupstanding)
+- [12. FinalStage](#12-finalstage)
+- [13. BracketWithConfig](#13-bracketwithconfig)
+- [14. BracketConfig](#14-bracketconfig)
+- [15. PhaseConfig](#15-phaseconfig)
+- [16. BracketRound](#16-bracketround)
+- [17. BracketMatch](#17-bracketmatch)
+- [18. ConsolationBracket](#18-consolationbracket)
+- [19. NamedBracket](#19-namedbracket)
+- [20. TournamentTimeConfig](#20-tournamenttimeconfig)
+- [21. TournamentTimeEstimate](#21-tournamenttimeestimate)
+- [22. TournamentRecord](#22-tournamentrecord)
+- [23. MatchCorrection](#23-matchcorrection)
+- [24. MatchHistory (friendly matches)](#24-matchhistory-friendly-matches)
+- [25. CurrentMatch](#25-currentmatch)
+- [26. MatchGame](#26-matchgame)
+- [27. MatchRound](#27-matchround)
+- [28. MatchInvite (friendly match invitations)](#28-matchinvite-friendly-match-invitations)
 - [LIVE vs IMPORTED: Key Differences](#live-vs-imported-key-differences)
 - [Current Import Implementation](#current-import-implementation)
 - [Transforming IMPORTED to LIVE](#transforming-imported-to-live)
@@ -265,7 +266,46 @@ interface TournamentParticipant {
 
 ---
 
-## 5. GroupStage
+## 5. Tournament Registration
+
+Self-registration allows logged-in players to sign up for DRAFT tournaments from the public page `/tournaments/[id]`.
+
+### `TournamentRegistration` interface
+
+Stored as `tournament.registration` (optional).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Admin toggle to open/close registration |
+| `deadline` | `number?` | Epoch ms — client-side check closes registration after this time |
+| `maxParticipants` | `number?` | Capacity limit — triggers waitlist when `participants.length >= maxParticipants` |
+| `entryFee` | `string?` | Informational display text (e.g. "10€", "Gratuito") |
+| `rulesUrl` | `string?` | External URL to rules document |
+| `rulesText` | `string?` | Inline rules text shown on public page |
+| `notifyOnRegistration` | `boolean` | Send push notification to owner + adminIds on new signup |
+| `showParticipantList` | `boolean` | Show enrolled players publicly on the registration page |
+
+### `WaitlistEntry` interface
+
+Stored as `tournament.waitlist[]` (optional). Created when `participants.length >= registration.maxParticipants`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `userId` | `string` | Firebase Auth user ID |
+| `userName` | `string` | Display name at registration time |
+| `userKey` | `string` | 6-char public key from user profile |
+| `registeredAt` | `number` | Epoch ms timestamp of waitlist registration |
+| `partner` | `object?` | Optional doubles partner (type, userId?, name) |
+
+### Behavior
+
+- Only `type: 'REGISTERED'` users (logged-in) can self-register. Guests are added by admin only.
+- `registration.enabled` is automatically set to `false` when the tournament transitions from DRAFT to GROUP_STAGE.
+- Push notifications use the `onTournamentRegistration` Cloud Function.
+
+---
+
+## 6. GroupStage
 
 ```typescript
 interface GroupStage {
@@ -290,7 +330,7 @@ interface GroupStage {
 
 ---
 
-## 6. Group
+## 7. Group
 
 ```typescript
 interface Group {
@@ -311,7 +351,7 @@ interface Group {
 
 ---
 
-## 7. RoundRobinRound
+## 8. RoundRobinRound
 
 ```typescript
 interface RoundRobinRound {
@@ -322,7 +362,7 @@ interface RoundRobinRound {
 
 ---
 
-## 8. SwissPairing
+## 9. SwissPairing
 
 ```typescript
 interface SwissPairing {
@@ -333,7 +373,7 @@ interface SwissPairing {
 
 ---
 
-## 9. GroupMatch
+## 10. GroupMatch
 
 ```typescript
 interface GroupMatch {
@@ -380,7 +420,7 @@ interface GroupMatch {
 
 ---
 
-## 10. GroupStanding
+## 11. GroupStanding
 
 ```typescript
 interface GroupStanding {
@@ -418,7 +458,7 @@ interface GroupStanding {
 
 ---
 
-## 11. FinalStage
+## 12. FinalStage
 
 ```typescript
 interface FinalStage {
@@ -436,7 +476,7 @@ interface FinalStage {
 
 ---
 
-## 12. BracketWithConfig
+## 13. BracketWithConfig
 
 ```typescript
 interface BracketWithConfig {
@@ -450,7 +490,7 @@ interface BracketWithConfig {
 
 ---
 
-## 13. BracketConfig
+## 14. BracketConfig
 
 ```typescript
 interface BracketConfig {
@@ -462,7 +502,7 @@ interface BracketConfig {
 
 ---
 
-## 14. PhaseConfig
+## 15. PhaseConfig
 
 ```typescript
 interface PhaseConfig {
@@ -475,7 +515,7 @@ interface PhaseConfig {
 
 ---
 
-## 15. BracketRound
+## 16. BracketRound
 
 ```typescript
 interface BracketRound {
@@ -487,7 +527,7 @@ interface BracketRound {
 
 ---
 
-## 16. BracketMatch
+## 17. BracketMatch
 
 ```typescript
 interface BracketMatch {
@@ -544,7 +584,7 @@ interface BracketMatch {
 
 ---
 
-## 17. ConsolationBracket
+## 18. ConsolationBracket
 
 ```typescript
 interface ConsolationBracket {
@@ -559,7 +599,7 @@ interface ConsolationBracket {
 
 ---
 
-## 18. NamedBracket
+## 19. NamedBracket
 
 Used for `PARALLEL_BRACKETS` mode (A/B/C Finals).
 
@@ -576,7 +616,7 @@ interface NamedBracket {
 
 ---
 
-## 19. TournamentTimeConfig
+## 20. TournamentTimeConfig
 
 ```typescript
 interface TournamentTimeConfig {
@@ -592,7 +632,7 @@ interface TournamentTimeConfig {
 
 ---
 
-## 20. TournamentTimeEstimate
+## 21. TournamentTimeEstimate
 
 ```typescript
 interface TournamentTimeEstimate {
@@ -605,7 +645,7 @@ interface TournamentTimeEstimate {
 
 ---
 
-## 21. TournamentRecord
+## 22. TournamentRecord
 
 Stored in user profile to track ranking history.
 
@@ -624,7 +664,7 @@ interface TournamentRecord {
 
 ---
 
-## 22. MatchCorrection
+## 23. MatchCorrection
 
 Audit trail for corrected matches.
 
@@ -641,7 +681,7 @@ interface MatchCorrection {
 
 ---
 
-## 23. MatchHistory (friendly matches)
+## 24. MatchHistory (friendly matches)
 
 Stored in localStorage and optionally synced to Firestore. Referenced by `GroupMatch.matchId` and `BracketMatch.matchId` in tournaments.
 
@@ -698,7 +738,7 @@ interface MatchHistory {
 
 ---
 
-## 24. CurrentMatch
+## 25. CurrentMatch
 
 Tracks the state of an in-progress match.
 
@@ -712,7 +752,7 @@ interface CurrentMatch {
 
 ---
 
-## 25. MatchGame
+## 26. MatchGame
 
 ```typescript
 interface MatchGame {
@@ -726,7 +766,7 @@ interface MatchGame {
 
 ---
 
-## 26. MatchRound
+## 27. MatchRound
 
 ```typescript
 interface MatchRound {
@@ -741,7 +781,7 @@ interface MatchRound {
 
 ---
 
-## 27. MatchInvite (friendly match invitations)
+## 28. MatchInvite (friendly match invitations)
 
 Used for inviting players to join friendly matches. Supports both singles and doubles.
 
