@@ -2,6 +2,24 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.9] - 2026-04-15
+- Fix duplicate registration when user is already assigned as a partner (Bug #1)
+- Fix partner search now excludes already-assigned partners and waitlist entries (Bug #2)
+- Fix push notification sent to user promoted from waitlist on unregister (Bug #3)
+- Fix registration section remains visible post-deadline for enrolled users (Bug #5)
+- Fix CF new-participant detection uses identity (id set) instead of array position (Bug #6)
+- Fix localized error messages for registration failures (Bug #7)
+- Fix doubles panel strings now fully translated via i18n (Bug #8)
+- Fix maxParticipants hint in wizard clarifies doubles counts pairs not players (Bug #9)
+- Fix stale registrationResult resets via $derived when user removed externally (Bug #14)
+- Add Inscripciones section in admin tournament detail page with promote/remove actions
+- Add adminPromoteFromWaitlistFirestore / adminRemoveFromWaitlistFirestore helpers
+- Add TOURNAMENT_REGISTRATION.md documentation with known issues
+- Add registrationHelpers.ts pure functions with 18 tests
+- Redesign TournamentRegistration: pulsing open status bar, full-width CTA button
+- Redesign doubles panel: option cards for partner mode, 2-col partner+teamname layout
+- Add 37 new i18n keys across es/en/ca
+
 ## [2.5.8] - 2026-04-14
 - Add tournament self-registration: register, unregister, join/leave waitlist
 - Doubles registration panel with partner search, guest mode, and team name
