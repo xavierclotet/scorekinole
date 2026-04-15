@@ -2,6 +2,16 @@
 
 All notable changes to Scorekinole are documented in this file.
 
+## [2.5.10] - 2026-04-15
+- Fix self-as-own-partner now rejected at Firestore layer (not just UI)
+- Fix partner already registered as primary/waitlist now blocked on registration
+- Fix teamName preserved in WaitlistEntry and propagated on FIFO/admin promotion
+- Fix FIFO auto-promote respects registration.enabled and maxParticipants cap
+- Fix adminPromoteFromWaitlist blocked for non-DRAFT tournaments
+- Fix buildRegistrationConfig sanitizes negative maxParticipants to unlimited
+- Add normalizeEmail() helper, applied to participant email on registration
+- Increase runTransaction maxAttempts to 10 for all registration operations
+
 ## [2.5.9] - 2026-04-15
 - Fix duplicate registration when user is already assigned as a partner (Bug #1)
 - Fix partner search now excludes already-assigned partners and waitlist entries (Bug #2)
