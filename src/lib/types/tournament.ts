@@ -43,6 +43,7 @@ export interface WaitlistEntry {
   userName: string;
   userKey: string;
   registeredAt: number;
+  teamName?: string;
   partner?: {
     type: ParticipantType;
     userId?: string;

@@ -1,10 +1,17 @@
 import type { TournamentParticipant, WaitlistEntry, ParticipantType, TournamentRegistration } from '$lib/types/tournament';
 
+// --- Pure helpers (exported for testing) ---
+
+/** Normalize an email for storage: trim whitespace and lowercase. */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 // --- Pure validation (exported for testing) ---
 
 export interface RegistrationValidation {
   canRegister: boolean;
-  reason?: 'not_draft' | 'registration_disabled' | 'deadline_passed' | 'tournament_full' | 'already_registered' | 'already_waitlisted';
+  reason?: 'not_draft' | 'registration_disabled' | 'deadline_passed' | 'tournament_full' | 'already_registered' | 'already_waitlisted' | 'self_as_partner' | 'partner_already_registered' | 'partner_on_waitlist';
 }
 
 export function validateRegistration(
@@ -15,7 +22,9 @@ export function validateRegistration(
   currentUserId: string,
   now: number,
   /** userIds that already occupy a partner slot in existing participants or waitlist entries */
-  partnerUserIds: string[] = []
+  partnerUserIds: string[] = [],
+  /** userId of the partner the current user wants to register with (doubles only) */
+  partnerUserId?: string
 ): RegistrationValidation {
   if (tournamentStatus !== 'DRAFT') return { canRegister: false, reason: 'not_draft' };
   if (!registration?.enabled) return { canRegister: false, reason: 'registration_disabled' };
@@ -26,6 +35,11 @@ export function validateRegistration(
   if (participantUserIds.includes(currentUserId)) return { canRegister: false, reason: 'already_registered' };
   if (partnerUserIds.includes(currentUserId)) return { canRegister: false, reason: 'already_registered' };
   if (waitlistUserIds.includes(currentUserId)) return { canRegister: false, reason: 'already_waitlisted' };
+  if (partnerUserId) {
+    if (partnerUserId === currentUserId) return { canRegister: false, reason: 'self_as_partner' };
+    if (participantUserIds.includes(partnerUserId)) return { canRegister: false, reason: 'partner_already_registered' };
+    if (waitlistUserIds.includes(partnerUserId)) return { canRegister: false, reason: 'partner_on_waitlist' };
+  }
   return { canRegister: true };
 }
 
@@ -137,10 +151,11 @@ export function buildRegistrationConfig(
   const ds = deadlineDate
     ? (deadlineTime ? `${deadlineDate}T${deadlineTime}` : `${deadlineDate}T23:59`)
     : '';
+  const sanitizedMax = maxParticipants && maxParticipants > 0 ? maxParticipants : undefined;
   return {
     enabled: true,
     deadline: ds ? new Date(ds).getTime() : undefined,
-    maxParticipants: maxParticipants || undefined,
+    maxParticipants: sanitizedMax,
     entryFee: entryFee.trim() || undefined,
     allowWaitlist,
     notifyOnRegistration: notify,
@@ -148,12 +163,29 @@ export function buildRegistrationConfig(
   };
 }
 
+/**
+ * Returns true when a waitlist entry should be auto-promoted after a participant unregisters.
+ * Respects registration.enabled and maxParticipants to avoid promoting into a closed or full tournament.
+ */
+export function shouldAutoPromote(
+  waitlist: WaitlistEntry[],
+  registration: TournamentRegistration | undefined,
+  newParticipantCount: number
+): boolean {
+  if (waitlist.length === 0) return false;
+  if (registration && !registration.enabled) return false;
+  if (registration?.maxParticipants && newParticipantCount >= registration.maxParticipants) return false;
+  return true;
+}
+
 export function adminPromoteFromWaitlist(
   participants: TournamentParticipant[],
   waitlist: WaitlistEntry[],
   userId: string,
-  participantId = `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+  participantId = `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+  tournamentStatus?: string
 ): { participants: TournamentParticipant[]; waitlist: WaitlistEntry[] } | null {
+  if (tournamentStatus !== undefined && tournamentStatus !== 'DRAFT') return null;
   const entryIndex = waitlist.findIndex(w => w.userId === userId);
   if (entryIndex === -1) return null;
   const entry = waitlist[entryIndex];
@@ -165,7 +197,8 @@ export function adminPromoteFromWaitlist(
     name: entry.userName,
     rankingSnapshot: 0,
     status: 'ACTIVE',
-    ...(entry.partner ? { partner: entry.partner } : {})
+    ...(entry.partner ? { partner: entry.partner } : {}),
+    ...(entry.teamName ? { teamName: entry.teamName } : {})
   };
   return {
     participants: [...participants, promoted],
@@ -263,7 +296,7 @@ export async function registerForTournament(
           userId: user.id,
           userKey: profile?.key ?? '',
           name: user.name || 'Jugador',
-          email: user.email ?? undefined,
+          email: user.email ? normalizeEmail(user.email) : undefined,
           photoURL: user.photoURL ?? undefined,
           rankingSnapshot: 0,
           status: 'ACTIVE',
@@ -289,7 +322,7 @@ export async function registerForTournament(
           updatedAt: serverTimestamp()
         });
       }
-    });
+    }, { maxAttempts: 10 });
 
     return { success: true, status: outcome };
   } catch (error: any) {
@@ -339,7 +372,7 @@ export async function unregisterFromTournament(
       const waitlist: WaitlistEntry[] = tournament.waitlist || [];
       let newWaitlist = waitlist;
 
-      if (waitlist.length > 0) {
+      if (shouldAutoPromote(waitlist, tournament.registration, newParticipants.length)) {
         const next = waitlist[0];
         const promoted_participant: TournamentParticipant = {
           id: `participant-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
@@ -349,7 +382,8 @@ export async function unregisterFromTournament(
           name: next.userName,
           rankingSnapshot: 0,
           status: 'ACTIVE',
-          ...(next.partner ? { partner: next.partner } : {})
+          ...(next.partner ? { partner: next.partner } : {}),
+          ...(next.teamName ? { teamName: next.teamName } : {})
         };
         newParticipants.push(promoted_participant);
         newWaitlist = waitlist.slice(1);
@@ -361,7 +395,7 @@ export async function unregisterFromTournament(
         waitlist: newWaitlist,
         updatedAt: serverTimestamp()
       });
-    });
+    }, { maxAttempts: 10 });
 
     return { success: true, promoted };
   } catch (error: any) {
@@ -409,7 +443,7 @@ export async function leaveWaitlist(
         waitlist: waitlist.filter(w => w.userId !== user.id),
         updatedAt: serverTimestamp()
       });
-    });
+    }, { maxAttempts: 10 });
 
     return { success: true };
   } catch (error: any) {
@@ -458,7 +492,7 @@ export async function adminPromoteFromWaitlistFirestore(
         waitlist: result.waitlist,
         updatedAt: serverTimestamp()
       });
-    });
+    }, { maxAttempts: 10 });
 
     return { success: true };
   } catch (error: any) {
@@ -496,7 +530,7 @@ export async function adminRemoveFromWaitlistFirestore(
         waitlist: newWaitlist,
         updatedAt: serverTimestamp()
       });
-    });
+    }, { maxAttempts: 10 });
 
     return { success: true };
   } catch (error: any) {

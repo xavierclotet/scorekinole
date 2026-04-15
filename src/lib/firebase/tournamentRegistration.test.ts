@@ -10,6 +10,8 @@ import {
   collectPartnerUserIds,
   filterEligiblePartners,
   getRegistrationErrorMessageKey,
+  shouldAutoPromote,
+  normalizeEmail,
 } from './tournamentRegistration';
 import type { TournamentParticipant, WaitlistEntry } from '$lib/types/tournament';
 
@@ -802,11 +804,11 @@ describe('buildRegistrationConfig: additional edge cases', () => {
     expect(config?.maxParticipants).toBe(1);
   });
 
-  it('⚠️ negative maxParticipants is not validated and passes through', () => {
-    // No input sanitisation: -1 is truthy so it is stored as-is.
-    // Combined with determineRegistrationOutcome this means nobody can register directly.
+  it('negative maxParticipants is sanitized to undefined (treated as no limit)', () => {
+    // Previously a bug: -1 passed through and caused nobody to register directly.
+    // Fixed: negative values are now coerced to undefined (no limit).
     const config = buildRegistrationConfig(true, '', '', -1 as any, '', true, false, true);
-    expect(config?.maxParticipants).toBe(-1);
+    expect(config?.maxParticipants).toBeUndefined();
   });
 
   it('entryFee with only tab/newline whitespace is omitted', () => {
@@ -1504,4 +1506,216 @@ describe('getRegistrationErrorMessageKey', () => {
     expect(getRegistrationErrorMessageKey('')).toBeNull();
     expect(getRegistrationErrorMessageKey('Firebase not available')).toBeNull();
   });
+});
+
+// ─── NEW EDGE CASE TESTS ──────────────────────────────────────────────────────
+
+// #1 + #2: validateRegistration partner validation (doubles)
+describe('validateRegistration: partner userId validation (doubles)', () => {
+  const baseReg = { enabled: true, notifyOnRegistration: false, showParticipantList: true };
+  const now = Date.now();
+
+  it('rejects self as own partner', () => {
+    const result = validateRegistration('DRAFT', baseReg, [], [], 'u1', now, [], 'u1');
+    expect(result.canRegister).toBe(false);
+    expect(result.reason).toBe('self_as_partner');
+  });
+
+  it('rejects partner who is already a primary participant', () => {
+    const result = validateRegistration('DRAFT', baseReg, ['u2'], [], 'u1', now, [], 'u2');
+    expect(result.canRegister).toBe(false);
+    expect(result.reason).toBe('partner_already_registered');
+  });
+
+  it('rejects partner who is already on waitlist as primary', () => {
+    const result = validateRegistration('DRAFT', baseReg, [], ['u2'], 'u1', now, [], 'u2');
+    expect(result.canRegister).toBe(false);
+    expect(result.reason).toBe('partner_on_waitlist');
+  });
+
+  it('allows a valid partner who is not in any list', () => {
+    const result = validateRegistration('DRAFT', baseReg, ['u3'], ['u4'], 'u1', now, [], 'u2');
+    expect(result.canRegister).toBe(true);
+  });
+
+  it('allows registration with no partner (undefined partnerUserId)', () => {
+    const result = validateRegistration('DRAFT', baseReg, [], [], 'u1', now, [], undefined);
+    expect(result.canRegister).toBe(true);
+  });
+
+  it('partner check fires AFTER current-user checks (already_registered has priority)', () => {
+    // u1 is already registered and supplies self as partner — already_registered fires first
+    const result = validateRegistration('DRAFT', baseReg, ['u1'], [], 'u1', now, [], 'u1');
+    expect(result.reason).toBe('already_registered');
+  });
+});
+
+// #3: teamName preserved in WaitlistEntry and on promotion
+describe('adminPromoteFromWaitlist: teamName preserved on promotion', () => {
+  it('preserves teamName from waitlist entry', () => {
+    const entry: WaitlistEntry = {
+      userId: 'u1',
+      userName: 'Player u1',
+      userKey: 'key-u1',
+      registeredAt: Date.now(),
+      teamName: 'Los Campeones',
+    };
+    const result = adminPromoteFromWaitlist([], [entry], 'u1', 'new-id');
+    expect(result!.participants[0].teamName).toBe('Los Campeones');
+  });
+
+  it('does not add teamName field when not set in waitlist entry', () => {
+    const entry: WaitlistEntry = {
+      userId: 'u1',
+      userName: 'Player u1',
+      userKey: 'key-u1',
+      registeredAt: Date.now(),
+    };
+    const result = adminPromoteFromWaitlist([], [entry], 'u1', 'new-id');
+    expect((result!.participants[0] as any).teamName).toBeUndefined();
+  });
+});
+
+// #4 + #5: shouldAutoPromote — FIFO promotion respects registration config
+describe('shouldAutoPromote: FIFO promotion respects registration config', () => {
+  const makeEntry = (userId: string): WaitlistEntry => ({
+    userId,
+    userName: `Player ${userId}`,
+    userKey: `key-${userId}`,
+    registeredAt: Date.now(),
+  });
+  const baseReg = { enabled: true, notifyOnRegistration: false, showParticipantList: true };
+
+  it('promotes when registration is enabled and below maxParticipants', () => {
+    expect(shouldAutoPromote([makeEntry('w1')], { ...baseReg, maxParticipants: 5 }, 3)).toBe(true);
+  });
+
+  it('does NOT promote when waitlist is empty', () => {
+    expect(shouldAutoPromote([], { ...baseReg, maxParticipants: 5 }, 3)).toBe(false);
+  });
+
+  it('does NOT promote when registration.enabled is false', () => {
+    expect(shouldAutoPromote([makeEntry('w1')], { ...baseReg, enabled: false, maxParticipants: 5 }, 3)).toBe(false);
+  });
+
+  it('does NOT promote when new participant count would reach maxParticipants', () => {
+    // After removing unregistrant we have 3; cap is 3 → no room for promoted entry
+    expect(shouldAutoPromote([makeEntry('w1')], { ...baseReg, maxParticipants: 3 }, 3)).toBe(false);
+  });
+
+  it('does NOT promote when new participant count exceeds maxParticipants (cap lowered)', () => {
+    expect(shouldAutoPromote([makeEntry('w1')], { ...baseReg, maxParticipants: 2 }, 3)).toBe(false);
+  });
+
+  it('promotes when no maxParticipants cap is set', () => {
+    expect(shouldAutoPromote([makeEntry('w1')], baseReg, 10)).toBe(true);
+  });
+
+  it('promotes when registration object is undefined (no restrictions)', () => {
+    expect(shouldAutoPromote([makeEntry('w1')], undefined, 0)).toBe(true);
+  });
+});
+
+// #8: adminPromoteFromWaitlist rejects non-DRAFT tournaments
+describe('adminPromoteFromWaitlist: tournament status guard', () => {
+  const entry: WaitlistEntry = {
+    userId: 'u1',
+    userName: 'Player u1',
+    userKey: 'key-u1',
+    registeredAt: Date.now(),
+  };
+
+  it('promotes when tournament is in DRAFT status', () => {
+    expect(adminPromoteFromWaitlist([], [entry], 'u1', 'new-id', 'DRAFT')).not.toBeNull();
+  });
+
+  it('returns null when tournament has already started (GROUP_STAGE)', () => {
+    expect(adminPromoteFromWaitlist([], [entry], 'u1', 'new-id', 'GROUP_STAGE')).toBeNull();
+  });
+
+  it('returns null for all non-DRAFT statuses', () => {
+    for (const status of ['BRACKET', 'FINAL_STAGE', 'COMPLETED', 'CANCELLED']) {
+      expect(adminPromoteFromWaitlist([], [entry], 'u1', 'new-id', status)).toBeNull();
+    }
+  });
+
+  it('promotes when no tournamentStatus provided (backwards compatible)', () => {
+    expect(adminPromoteFromWaitlist([], [entry], 'u1', 'new-id')).not.toBeNull();
+  });
+});
+
+// #10: buildRegistrationConfig sanitizes invalid maxParticipants
+describe('buildRegistrationConfig: maxParticipants sanitization', () => {
+  it('treats negative maxParticipants as no limit (returns undefined)', () => {
+    const config = buildRegistrationConfig(true, '', '', -1 as any, '', true, false, true);
+    expect(config?.maxParticipants).toBeUndefined();
+  });
+
+  it('treats 0 maxParticipants as no limit (returns undefined)', () => {
+    const config = buildRegistrationConfig(true, '', '', 0, '', true, false, true);
+    expect(config?.maxParticipants).toBeUndefined();
+  });
+
+  it('preserves valid positive maxParticipants', () => {
+    const config = buildRegistrationConfig(true, '', '', 8, '', true, false, true);
+    expect(config?.maxParticipants).toBe(8);
+  });
+});
+
+// #email: normalizeEmail
+describe('normalizeEmail', () => {
+  it('lowercases uppercase email', () => {
+    expect(normalizeEmail('User@Gmail.com')).toBe('user@gmail.com');
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(normalizeEmail('  user@example.com  ')).toBe('user@example.com');
+  });
+
+  it('handles already-lowercase email unchanged', () => {
+    expect(normalizeEmail('player@kinole.es')).toBe('player@kinole.es');
+  });
+
+  it('handles mixed case + whitespace together', () => {
+    expect(normalizeEmail(' Player@Kinole.ES ')).toBe('player@kinole.es');
+  });
+
+  it('handles empty string', () => {
+    expect(normalizeEmail('')).toBe('');
+  });
+});
+
+// Documentation / known limitations
+describe('documentation: known limitations and UX debt', () => {
+  it('unregister primary with doubles partner silently removes the whole pair', () => {
+    // The pair is removed atomically — partner receives no notification (tracked as UX debt).
+    const participants: TournamentParticipant[] = [
+      {
+        id: 'p1', type: 'REGISTERED', userId: 'u1', userKey: 'key-u1',
+        name: 'Player u1', rankingSnapshot: 0, status: 'ACTIVE',
+        partner: { type: 'REGISTERED', userId: 'u2', name: 'Player u2' },
+      },
+      {
+        id: 'p2', type: 'REGISTERED', userId: 'u3', userKey: 'key-u3',
+        name: 'Player u3', rankingSnapshot: 0, status: 'ACTIVE',
+      },
+    ];
+    const remaining = participants.filter(p => p.userId !== 'u1');
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].userId).toBe('u3');
+    // u2 (partner) is also gone with no separate removal or notification
+  });
+
+  it('rankingSnapshot=0 at registration is by design — syncParticipantRankings fills it when tournament starts', () => {
+    // All participants (direct + promoted) get rankingSnapshot=0 as a placeholder.
+    // tournamentRanking.ts:syncParticipantRankings() reads real rankings from user profiles
+    // and updates participants when the tournament moves out of DRAFT.
+    // Admin-promote is now DRAFT-only (fix #8), so promoted participants are treated identically
+    // to direct registrants — their ranking will be populated by syncParticipantRankings.
+    const entry: WaitlistEntry = { userId: 'u1', userName: 'Player', userKey: 'k1', registeredAt: Date.now() };
+    const result = adminPromoteFromWaitlist([], [entry], 'u1', 'id-1', 'DRAFT');
+    expect(result!.participants[0].rankingSnapshot).toBe(0); // placeholder, populated at tournament start
+  });
+  it.todo('notifies partner when primary unregisters them — requires new Cloud Function + FCM token lookup');
+  it.todo('firestore security rules should prevent direct client overwrite of participants/waitlist');
 });
